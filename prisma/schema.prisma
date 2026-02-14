@@ -1,0 +1,2005 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String
+  name              String
+  username          String    @unique
+  avatarUrl         String?
+  bio               String?
+  website           String?
+  emailVerified     Boolean   @default(false)
+  emailVerifiedAt   DateTime?
+
+  // Subscription & Billing
+  plan              String    @default("STARTER")
+  planExpiresAt     DateTime?
+  stripeCustomerId  String?   @unique
+
+  // Credits & Balance
+  aiCredits         Int       @default(100)
+  balanceCents      Int       @default(0)
+
+  // Settings
+  timezone          String    @default("UTC")
+  language          String    @default("en")
+  theme             String    @default("SYSTEM")
+  notificationPrefs String    @default("{}")
+
+  // Metadata
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  lastLoginAt       DateTime?
+  deletedAt         DateTime?
+
+  // Relations
+  posts             Post[]
+  comments          Comment[]
+  likes             Like[]
+  bookmarks         Bookmark[]
+  followers         Follow[]  @relation("Following")
+  following         Follow[]  @relation("Followers")
+  campaigns         Campaign[]
+  adCampaigns       AdCampaign[]
+  contacts          Contact[]
+  earnings          Earning[]
+  payouts           Payout[]
+  aiUsage           AIUsage[]
+  notifications     Notification[]
+  sessions          Session[]
+  brandKits         BrandKit[]
+  contentTemplates  ContentTemplate[]
+  creditTransactions CreditTransaction[]
+  invoices          Invoice[]
+  designs           Design[]
+  landingPages      LandingPage[]
+  mediaFiles        MediaFile[]
+  mediaFolders      MediaFolder[]
+  generatedContents GeneratedContent[]
+  commentLikes      CommentLike[]
+  teamMemberships   TeamMember[]
+  ownedTeams        Team[]
+  contentVariants   ContentVariant[]
+  whiteLabelConfigs WhiteLabelConfig[]
+  marketingConfig   MarketingConfig?
+  cartoonVideos     CartoonVideo[]
+  cartoonProjects   CartoonProject[]
+  automations       Automation[]
+  coupons           Coupon[]
+  referrals         Referral[]
+  aiConversations   AIConversation[]
+  postAutomations    PostAutomation[]
+  marketingStrategies MarketingStrategy[]
+  strategyScores      StrategyScore[]
+  strategyMilestones  StrategyMilestone[]
+
+  @@index([email])
+  @@index([username])
+  @@index([stripeCustomerId])
+  @@index([createdAt])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+}
+
+model EmailVerification {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+}
+
+// ============================================
+// SOCIAL FEED (FLOWSOCIAL)
+// ============================================
+
+model Post {
+  id           String     @id @default(cuid())
+  userId       String
+
+  // Content
+  caption      String?
+  hashtags     String     @default("[]")
+  mentions     String     @default("[]")
+
+  // Media
+  mediaType    String?
+  mediaUrl     String?
+  thumbnailUrl String?
+  mediaMeta    String?
+
+  // Promotion
+  isPromoted   Boolean    @default(false)
+  campaignId   String?
+
+  // Stats (denormalized for performance)
+  likeCount    Int        @default(0)
+  commentCount Int        @default(0)
+  shareCount   Int        @default(0)
+  viewCount    Int        @default(0)
+
+  // Platforms for cross-posting
+  platforms    String     @default("[]")  // JSON: ["feed", "instagram", "twitter"]
+
+  // Status
+  status       String     @default("PUBLISHED")
+  scheduledAt  DateTime?
+  publishedAt  DateTime?
+
+  // Metadata
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  // Relations
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adCampaign   AdCampaign? @relation(fields: [campaignId], references: [id])
+  comments     Comment[]
+  likes        Like[]
+  bookmarks    Bookmark[]
+  shares       Share[]
+  postViews    PostView[]
+  contentVariants ContentVariant[]
+
+  @@index([userId])
+  @@index([status, scheduledAt])
+  @@index([isPromoted, status])
+  @@index([createdAt])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  parentId  String?
+  content   String
+
+  likeCount Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentReplies")
+  commentLikes CommentLike[]
+
+  @@index([postId])
+  @@index([userId])
+  @@index([parentId])
+  @@index([createdAt])
+}
+
+model CommentLike {
+  id        String   @id @default(cuid())
+  commentId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([commentId])
+  @@index([userId])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId, createdAt])
+}
+
+model Share {
+  id        String   @id @default(cuid())
+  postId    String
+  platform  String
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([platform])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower    User     @relation("Followers", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+// ============================================
+// PAID ADS & VIEW-TO-EARN
+// ============================================
+
+model AdCampaign {
+  id              String   @id @default(cuid())
+  userId          String
+
+  name            String
+  objective       String
+
+  budgetCents     Int
+  spentCents      Int      @default(0)
+  dailyBudgetCents Int?
+  cpvCents        Int
+
+  targeting       String   @default("{}")
+
+  startDate       DateTime
+  endDate         DateTime?
+
+  status          String   @default("DRAFT")
+
+  impressions     Int      @default(0)
+  clicks          Int      @default(0)
+  conversions     Int      @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts           Post[]
+  postViews       PostView[]
+
+  @@index([userId])
+  @@index([status, startDate, endDate])
+}
+
+model PostView {
+  id           String      @id @default(cuid())
+  postId       String
+  viewerUserId String?
+  campaignId   String?
+
+  earnedCents  Int         @default(0)
+
+  viewDuration Int
+  deviceType   String?
+
+  createdAt    DateTime    @default(now())
+
+  post         Post        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  campaign     AdCampaign? @relation(fields: [campaignId], references: [id])
+
+  @@unique([postId, viewerUserId])
+  @@index([postId])
+  @@index([viewerUserId])
+  @@index([campaignId])
+  @@index([createdAt])
+}
+
+model Earning {
+  id          String   @id @default(cuid())
+  userId      String
+
+  amountCents Int
+  source      String
+  sourceId    String?
+
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([source])
+  @@index([createdAt])
+}
+
+model Payout {
+  id            String   @id @default(cuid())
+  userId        String
+
+  amountCents   Int
+  method        String
+
+  accountInfo   String   @default("{}")
+  transactionId String?
+
+  status        String   @default("PENDING")
+  requestedAt   DateTime @default(now())
+  processedAt   DateTime?
+  failedReason  String?
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ============================================
+// EMAIL & SMS CAMPAIGNS
+// ============================================
+
+model Campaign {
+  id            String    @id @default(cuid())
+  userId        String
+
+  type          String
+  name          String
+
+  subject       String?
+  preheaderText String?
+  fromName      String?
+  replyTo       String?
+
+  content       String
+  contentHtml   String?
+
+  // MMS image
+  imageUrl         String?
+  imageSource      String?   // "upload" | "media" | "ai" | "contact_photo"
+  imageOverlayText String?   // Text to composite on image (supports merge tags)
+
+  contactListId String?
+  segmentRules  String?
+
+  sentCount      Int       @default(0)
+  deliveredCount Int       @default(0)
+  failedCount    Int       @default(0)
+  openCount      Int       @default(0)
+  clickCount     Int       @default(0)
+  bounceCount    Int       @default(0)
+  unsubCount     Int       @default(0)
+
+  status        String    @default("DRAFT")
+  scheduledAt   DateTime?
+  sentAt        DateTime?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contactList   ContactList? @relation(fields: [contactListId], references: [id])
+  sends         CampaignSend[]
+
+  @@index([userId])
+  @@index([type, status])
+}
+
+model CampaignSend {
+  id          String    @id @default(cuid())
+  campaignId  String
+  contactId   String
+
+  messageId     String?   // Twilio message SID (SM...) for delivery tracking
+  status        String    @default("PENDING") // PENDING, SENT, DELIVERED, FAILED, UNDELIVERED
+  failureReason String?   // Twilio error code/message if failed/undelivered
+  sentAt        DateTime?
+  deliveredAt   DateTime?
+  openedAt      DateTime?
+  clickedAt     DateTime?
+  bouncedAt     DateTime?
+
+  opens       Int       @default(0)
+  clicks      Int       @default(0)
+
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, contactId])
+  @@index([campaignId])
+  @@index([contactId])
+  @@index([status])
+  @@index([messageId])
+}
+
+model ContactList {
+  id        String    @id @default(cuid())
+  userId    String
+  name      String
+
+  totalCount Int      @default(0)
+  activeCount Int     @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  contacts    ContactListMember[]
+  campaigns   Campaign[]
+  automations Automation[]
+
+  @@index([userId])
+}
+
+model Contact {
+  id              String    @id @default(cuid())
+  userId          String
+
+  email           String?
+  phone           String?
+  firstName       String?
+  lastName        String?
+  birthday        String?    // "MM-DD" format for month/day matching (e.g. "02-14")
+  company         String?    // Business/company name
+  city            String?
+  state           String?
+  address         String?
+  imageUrl        String?   // Contact photo URL (S3)
+
+  customFields    String    @default("{}")
+  tags            String    @default("[]")
+
+  emailOptedIn    Boolean   @default(false)
+  emailOptedInAt  DateTime?
+  smsOptedIn      Boolean   @default(false)
+  smsOptedInAt    DateTime?
+
+  status          String    @default("ACTIVE")
+  unsubscribedAt  DateTime?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lists           ContactListMember[]
+  sends           CampaignSend[]
+
+  coupons         Coupon[]
+  referralsGiven  Referral[]   @relation("ReferrerContact")
+  referralsUsed   Referral[]   @relation("ReferredContact")
+
+  @@unique([userId, email])
+  @@unique([userId, phone])
+  @@index([userId])
+  @@index([email])
+  @@index([phone])
+}
+
+// ---------------------------------------------------------------------------
+// Coupon System
+// ---------------------------------------------------------------------------
+
+model Coupon {
+  id          String    @id @default(cuid())
+  userId      String
+  contactId   String?
+  campaignId  String?
+  code        String    @unique
+  discount    String    // "10%" or "$5" or "20% OFF"
+  expiresAt   DateTime?
+  redeemedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contact     Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([code])
+  @@index([contactId])
+}
+
+// ---------------------------------------------------------------------------
+// Referral System
+// ---------------------------------------------------------------------------
+
+model Referral {
+  id          String    @id @default(cuid())
+  userId      String
+  referrerId  String
+  referredId  String?
+  code        String    @unique
+  status      String    @default("PENDING") // PENDING, COMPLETED, REWARDED
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referrer    Contact   @relation("ReferrerContact", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred    Contact?  @relation("ReferredContact", fields: [referredId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([code])
+  @@index([referrerId])
+}
+
+model ContactListMember {
+  id            String      @id @default(cuid())
+  contactListId String
+  contactId     String
+  addedAt       DateTime    @default(now())
+
+  contactList   ContactList @relation(fields: [contactListId], references: [id], onDelete: Cascade)
+  contact       Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([contactListId, contactId])
+}
+
+// ============================================
+// AI USAGE TRACKING
+// ============================================
+
+model AIUsage {
+  id           String   @id @default(cuid())
+  userId       String?  // Optional - null for admin users
+  adminId      String?  // For admin user tracking
+
+  feature      String
+  model        String
+
+  inputTokens  Int
+  outputTokens Int
+  costCents    Int      @default(0)
+
+  prompt       String?
+  response     String?
+  latencyMs    Int?
+
+  createdAt    DateTime @default(now())
+
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([adminId])
+  @@index([feature])
+  @@index([createdAt])
+}
+
+// ============================================
+// CREDIT PRICING (Admin Controlled)
+// ============================================
+
+model CreditPricing {
+  id          String   @id @default(cuid())
+
+  // Unique key for the pricing item (e.g., "AI_POST", "AI_LOGO_GENERATION")
+  key         String   @unique
+
+  // Display name for the pricing item
+  name        String
+
+  // Description of what this pricing is for
+  description String?
+
+  // Credit cost (how many credits this feature costs)
+  credits     Int      @default(1)
+
+  // Category for grouping in the admin UI
+  category    String   @default("general") // "text_generation", "image_generation", "branding", "other"
+
+  // Whether this pricing is active
+  isActive    Boolean  @default(true)
+
+  // Metadata (JSON for additional info like estimated API cost, etc.)
+  metadata    String   @default("{}")
+
+  // Tracking
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?  // Admin who last updated this
+
+  @@index([category])
+  @@index([isActive])
+}
+
+// ============================================
+// CREDIT TRANSACTIONS
+// ============================================
+
+model CreditTransaction {
+  id           String   @id @default(cuid())
+  userId       String
+
+  // Transaction details
+  type         String   // "PURCHASE", "USAGE", "BONUS", "REFUND", "ADMIN_ADJUSTMENT", "SUBSCRIPTION", "REFERRAL"
+  amount       Int      // Positive for add, negative for deduct
+  balanceAfter Int      // User's balance after this transaction
+
+  // Reference info
+  referenceType String? // "ai_usage", "purchase", "subscription", etc.
+  referenceId   String? // ID of related record
+
+  // For admin adjustments
+  adminId      String?  // Admin who made the adjustment
+  reason       String?  // Reason for adjustment
+
+  // Metadata
+  description  String?
+  metadata     String   @default("{}")
+
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([adminId])
+}
+
+// ============================================
+// INVOICES
+// ============================================
+
+model Invoice {
+  id            String   @id @default(cuid())
+  invoiceNumber String   @unique // e.g. INV-2026-0001
+  userId        String
+
+  // What was purchased
+  type          String   // "credit_purchase", "subscription", "sms_rental"
+  status        String   @default("PAID") // "PAID", "PENDING", "REFUNDED"
+
+  // Line items (JSON array: [{description, quantity, unitPriceCents, totalCents}])
+  items         String   @default("[]")
+
+  // Totals (in cents)
+  subtotalCents Int
+  taxCents      Int      @default(0)
+  totalCents    Int
+
+  // Payment info
+  paymentMethod String?  // "visa ****1234"
+  paymentId     String?  // Stripe PaymentIntent ID
+  currency      String   @default("USD")
+
+  // Business details at time of invoice
+  customerName  String?
+  customerEmail String?
+
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([status])
+}
+
+// ============================================
+// SUBSCRIPTION PLANS
+// ============================================
+
+model Plan {
+  id                    String   @id @default(cuid())
+
+  // Basic info
+  planId                String   @unique // STARTER, PRO, BUSINESS, ENTERPRISE
+  name                  String
+  description           String?
+
+  // Pricing (in cents)
+  priceCentsMonthly     Int      @default(0)
+  priceCentsYearly      Int      @default(0)
+
+  // Stripe Price IDs (required for paid plans)
+  stripePriceIdMonthly  String?
+  stripePriceIdYearly   String?
+  stripeProductId       String?
+
+  // Credits included
+  monthlyCredits        Int      @default(0)
+
+  // Features (JSON array)
+  features              String   @default("[]")
+
+  // Display
+  isPopular             Boolean  @default(false)
+  sortOrder             Int      @default(0)
+  color                 String   @default("#0ea5e9") // For UI display
+  icon                  String   @default("Sparkles") // Lucide icon name
+
+  // Status
+  isActive              Boolean  @default(true)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@index([planId])
+}
+
+// ============================================
+// CREDIT PACKAGES (for purchases)
+// ============================================
+
+model CreditPackage {
+  id           String   @id @default(cuid())
+
+  // Unique identifier for lookup
+  packageId    String   @unique
+
+  name         String
+  description  String?
+  credits      Int      // Number of credits in package
+  priceCents   Int      // Price in cents
+
+  // Stripe info
+  stripePriceId String?
+  stripeProductId String?
+
+  // Bonus/discount
+  bonusCredits Int      @default(0)
+  discountPercent Int   @default(0)
+
+  // Display
+  isPopular    Boolean  @default(false)
+  sortOrder    Int      @default(0)
+
+  // Status
+  isActive     Boolean  @default(true)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@index([packageId])
+}
+
+// ============================================
+// CONTENT TEMPLATES
+// ============================================
+
+model ContentTemplate {
+  id            String   @id @default(cuid())
+
+  // Basic info
+  name          String
+  description   String
+  category      String   // "social-post", "caption", "hashtags", "ideas", "thread"
+
+  // Template content
+  promptTemplate String  // The actual prompt template with placeholders like {{brand}}, {{topic}}
+
+  // Visual
+  icon          String   @default("Sparkles") // Lucide icon name
+  color         String   @default("#0ea5e9") // Brand color
+  previewImage  String?  // Optional preview image URL
+
+  // Platform targeting
+  platforms     String   @default("[]") // JSON array: ["instagram", "twitter", "linkedin"]
+
+  // Default settings (JSON)
+  defaultSettings String @default("{}") // tone, length, includeHashtags, etc.
+
+  // Categorization
+  tags          String   @default("[]") // JSON array for filtering
+
+  // Ownership
+  isSystem      Boolean  @default(false) // System templates vs user-created
+  userId        String?  // null for system templates
+
+  // Status
+  isActive      Boolean  @default(true)
+  isFeatured    Boolean  @default(false)
+
+  // Usage tracking
+  usageCount    Int      @default(0)
+
+  // Metadata
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([category])
+  @@index([isSystem, isActive])
+  @@index([userId])
+  @@index([isFeatured])
+  @@index([usageCount])
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+
+  type      String
+  title     String
+  message   String
+  data      String?
+
+  actionUrl String?
+
+  read      Boolean  @default(false)
+  readAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([createdAt])
+}
+
+// ============================================
+// BRAND KITS
+// ============================================
+
+model BrandKit {
+  id          String   @id @default(cuid())
+  userId      String
+
+  // Basic Info
+  name        String                    // Brand/Business name
+  tagline     String?                   // Brand tagline or slogan
+  description String?                   // Brief brand description
+  logo        String?                   // Full logo URL (text + icon, wide format)
+  iconLogo    String?                   // Icon logo URL (square, used for social avatars & feeds)
+
+  // Contact Information
+  email       String?                   // Business email
+  phone       String?                   // Business phone number
+  website     String?                   // Website URL
+  address     String?                   // Business address
+
+  // Industry & Audience
+  industry    String?                   // e.g., "SaaS", "Fashion", "Health & Fitness"
+  niche       String?                   // More specific niche
+  targetAudience String?                // Who the brand serves
+  audienceAge String?                   // Target age range
+  audienceLocation String?              // Geographic focus
+
+  // Brand Voice & Personality
+  voiceTone   String?                   // e.g., "Professional", "Casual", "Playful"
+  personality String   @default("[]")   // JSON array: ["innovative", "friendly", "trustworthy"]
+  keywords    String   @default("[]")   // JSON array of brand keywords
+  avoidWords  String   @default("[]")   // JSON array of words to avoid
+
+  // Visual Identity
+  colors      String   @default("{}")   // JSON: {primary, secondary, accent}
+  fonts       String   @default("{}")   // JSON: {heading, body}
+
+  // Content Guidelines
+  guidelines  String?                   // Detailed brand guidelines
+  hashtags    String   @default("[]")   // JSON array of brand hashtags
+  handles     String   @default("{}")   // JSON: {instagram, twitter, linkedin, etc.}
+
+  // Products/Services
+  products    String   @default("[]")   // JSON array of main products/services
+  uniqueValue String?                   // Unique value proposition
+
+  isDefault   Boolean  @default(false)
+  isComplete  Boolean  @default(false)  // Has user completed setup
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isDefault])
+}
+
+// ============================================
+// AUDIT LOG (Enhanced)
+// ============================================
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  userId       String?
+  sessionId    String?
+
+  // Action details
+  action       String
+  category     String   @default("SYSTEM")
+  severity     String   @default("INFO")
+
+  // Resource tracking
+  resourceType String?
+  resourceId   String?
+
+  // Request details
+  method       String?
+  path         String?
+  statusCode   Int?
+  duration     Int?
+
+  // Location & Device
+  ipAddress    String?
+  country      String?
+  city         String?
+  region       String?
+  latitude     Float?
+  longitude    Float?
+
+  // Device info
+  userAgent    String?
+  browser      String?
+  browserVersion String?
+  os           String?
+  osVersion    String?
+  device       String?
+  deviceType   String?
+
+  // Additional data
+  metadata     String   @default("{}")
+  oldValue     String?
+  newValue     String?
+  errorMessage String?
+
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([action])
+  @@index([category])
+  @@index([severity])
+  @@index([ipAddress])
+  @@index([createdAt])
+  @@index([resourceType, resourceId])
+}
+
+// ============================================
+// ADMIN USERS
+// ============================================
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+
+  role         String   @default("ADMIN")
+  permissions  String   @default("[]")
+
+  isActive     Boolean  @default(true)
+  isSuperAdmin Boolean  @default(false)
+
+  lastLoginAt  DateTime?
+  lastLoginIp  String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String?
+
+  sessions     AdminSession[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model AdminSession {
+  id           String   @id @default(cuid())
+  adminId      String
+  token        String   @unique
+
+  ipAddress    String?
+  userAgent    String?
+  country      String?
+  city         String?
+
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  admin        AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([token])
+}
+
+// ============================================
+// PAGE ANALYTICS (Google Analytics Style)
+// ============================================
+
+model PageView {
+  id           String   @id @default(cuid())
+  visitorId    String
+  sessionId    String
+  userId       String?
+
+  // Page info
+  path         String
+  title        String?
+  referrer     String?
+
+  // UTM tracking
+  utmSource    String?
+  utmMedium    String?
+  utmCampaign  String?
+  utmTerm      String?
+  utmContent   String?
+
+  // Timing
+  loadTime     Int?
+  timeOnPage   Int?
+
+  // Location
+  ipAddress    String?
+  country      String?
+  countryCode  String?
+  city         String?
+  region       String?
+  latitude     Float?
+  longitude    Float?
+  timezone     String?
+
+  // Device info
+  userAgent    String?
+  browser      String?
+  browserVersion String?
+  os           String?
+  osVersion    String?
+  device       String?
+  deviceType   String?
+  screenWidth  Int?
+  screenHeight Int?
+  language     String?
+
+  createdAt    DateTime @default(now())
+
+  visitor      Visitor  @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  @@index([visitorId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([path])
+  @@index([createdAt])
+  @@index([country])
+  @@index([deviceType])
+}
+
+model VisitorSession {
+  id           String   @id @default(cuid())
+  visitorId    String
+
+  startedAt    DateTime @default(now())
+  endedAt      DateTime?
+
+  // Session metrics
+  pageViews    Int      @default(0)
+  duration     Int      @default(0)
+  bounced      Boolean  @default(true)
+
+  // Entry/Exit
+  entryPage    String?
+  exitPage     String?
+
+  // Source
+  referrer     String?
+  utmSource    String?
+  utmMedium    String?
+  utmCampaign  String?
+
+  // Location
+  country      String?
+  city         String?
+
+  // Device
+  deviceType   String?
+  browser      String?
+  os           String?
+
+  visitor      Visitor  @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  @@index([visitorId])
+  @@index([startedAt])
+  @@index([country])
+}
+
+// ============================================
+// VISITOR TRACKING (Pixel System)
+// ============================================
+
+model Visitor {
+  id           String   @id @default(cuid())
+
+  // Collected contact info
+  email        String?
+  phone        String?
+  firstName    String?
+  lastName     String?
+  company      String?
+
+  // Identification
+  userId       String?  @unique
+  fingerprint  String?
+
+  // Location (from IP)
+  ipAddress    String?
+  country      String?
+  countryCode  String?
+  city         String?
+  region       String?
+  postalCode   String?
+  latitude     Float?
+  longitude    Float?
+  timezone     String?
+  isp          String?
+
+  // Device info
+  userAgent    String?
+  browser      String?
+  browserVersion String?
+  os           String?
+  osVersion    String?
+  device       String?
+  deviceType   String?
+  screenWidth  Int?
+  screenHeight Int?
+  language     String?
+
+  // Tracking
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+  totalVisits  Int      @default(1)
+  totalPageViews Int    @default(0)
+
+  // Source tracking
+  firstReferrer String?
+  firstUtmSource String?
+  firstUtmMedium String?
+  firstUtmCampaign String?
+
+  // Lead scoring
+  leadScore    Int      @default(0)
+  tags         String   @default("[]")
+
+  // Consent
+  cookieConsent Boolean @default(false)
+  marketingConsent Boolean @default(false)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  pageViews    PageView[]
+  sessions     VisitorSession[]
+  events       TrackingEvent[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([fingerprint])
+  @@index([userId])
+  @@index([country])
+  @@index([firstSeenAt])
+  @@index([lastSeenAt])
+}
+
+model TrackingEvent {
+  id           String   @id @default(cuid())
+  visitorId    String
+  sessionId    String?
+  userId       String?
+
+  // Event details
+  eventName    String
+  eventCategory String?
+  eventLabel   String?
+  eventValue   Float?
+
+  // Page context
+  path         String?
+
+  // Custom properties
+  properties   String   @default("{}")
+
+  createdAt    DateTime @default(now())
+
+  visitor      Visitor  @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  @@index([visitorId])
+  @@index([sessionId])
+  @@index([eventName])
+  @@index([eventCategory])
+  @@index([createdAt])
+}
+
+// ============================================
+// REAL-TIME ANALYTICS
+// ============================================
+
+model RealtimeVisitor {
+  id           String   @id @default(cuid())
+  visitorId    String
+  sessionId    String
+
+  currentPath  String
+
+  country      String?
+  city         String?
+  deviceType   String?
+
+  lastActiveAt DateTime @default(now())
+
+  @@index([lastActiveAt])
+  @@index([currentPath])
+}
+
+// ============================================
+// ANALYTICS AGGREGATES (for performance)
+// ============================================
+
+model AnalyticsDaily {
+  id           String   @id @default(cuid())
+  date         DateTime
+
+  // Metrics
+  pageViews    Int      @default(0)
+  uniqueVisitors Int    @default(0)
+  sessions     Int      @default(0)
+  bounceRate   Float    @default(0)
+  avgSessionDuration Int @default(0)
+  avgPageViews Float    @default(0)
+
+  // Top pages (JSON array)
+  topPages     String   @default("[]")
+
+  // Traffic sources
+  topReferrers String   @default("[]")
+  topCountries String   @default("[]")
+  topDevices   String   @default("[]")
+  topBrowsers  String   @default("[]")
+
+  createdAt    DateTime @default(now())
+
+  @@unique([date])
+  @@index([date])
+}
+
+model AnalyticsPageDaily {
+  id           String   @id @default(cuid())
+  date         DateTime
+  path         String
+
+  pageViews    Int      @default(0)
+  uniqueVisitors Int    @default(0)
+  avgTimeOnPage Int     @default(0)
+  bounceRate   Float    @default(0)
+  entrances    Int      @default(0)
+  exits        Int      @default(0)
+
+  @@unique([date, path])
+  @@index([date])
+  @@index([path])
+}
+
+// ============================================
+// VISUAL DESIGNS (AI Studio)
+// ============================================
+
+model Design {
+  id          String   @id @default(cuid())
+  userId      String
+  prompt      String
+  category    String   // social_post, ad, flyer, poster, banner, signboard
+  size        String   // e.g., "1080x1080"
+  style       String?  // e.g., "photorealistic", "illustration", "minimalist"
+  imageUrl    String?
+  status      String   @default("PENDING") // PENDING, GENERATING, COMPLETED, FAILED
+  metadata    String   @default("{}")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([category])
+  @@index([createdAt])
+}
+
+// ============================================
+// LANDING PAGES
+// ============================================
+
+model LandingPage {
+  id            String    @id @default(cuid())
+  userId        String
+  title         String
+  slug          String    @unique
+  description   String?
+  pageType      String
+  prompt        String
+  htmlContent   String
+  status        String    @default("DRAFT")
+  thumbnailUrl  String?
+  settings      String    @default("{}")
+  formConfig    String    @default("{}")  // JSON: form field definitions for lead capture
+  publishedAt   DateTime?
+  views         Int       @default(0)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  formSubmissions FormSubmission[]
+
+  @@index([userId])
+  @@index([slug])
+  @@index([status])
+}
+
+model FormSubmission {
+  id            String   @id @default(cuid())
+  landingPageId String
+  contactId     String?
+  data          String   @default("{}")  // JSON: all submitted form fields
+  source        String?                   // e.g. "landing-page"
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  landingPage   LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+
+  @@index([landingPageId])
+  @@index([contactId])
+}
+
+// ============================================
+// SYSTEM SETTINGS
+// ============================================
+
+model SystemSetting {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  value        String
+  type         String   @default("string")
+  category     String   @default("general")
+  description  String?
+  isPublic     Boolean  @default(false)
+
+  updatedAt    DateTime @updatedAt
+  updatedBy    String?
+
+  @@index([category])
+}
+
+// ============================================
+// GENERATED CONTENT LIBRARY
+// ============================================
+
+model GeneratedContent {
+  id           String   @id @default(cuid())
+  userId       String
+
+  // Content type: "post", "caption", "hashtags", "ideas", "auto"
+  type         String
+  // The generated text content
+  content      String
+  // The prompt/topic used
+  prompt       String
+
+  // Platform targeting
+  platforms    String   @default("[]")  // JSON array: ["instagram", "twitter"]
+
+  // Generation settings
+  settings     String   @default("{}")  // JSON: tone, length, etc.
+
+  // Metadata
+  metadata     String   @default("{}")  // JSON: extra context
+
+  // Status
+  isFavorite   Boolean  @default(false)
+  isUsed       Boolean  @default(false) // User has used/posted this content
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([isFavorite])
+  @@index([createdAt])
+}
+
+// ============================================
+// MEDIA LIBRARY
+// ============================================
+
+model MediaFolder {
+  id        String        @id @default(cuid())
+  userId    String
+  name      String
+  parentId  String?
+  parent    MediaFolder?  @relation("FolderTree", fields: [parentId], references: [id])
+  children  MediaFolder[] @relation("FolderTree")
+  files     MediaFile[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([parentId])
+}
+
+model MediaFile {
+  id           String       @id @default(cuid())
+  userId       String
+  filename     String
+  originalName String
+  url          String
+  type         String       // "image", "video", "document", "svg"
+  mimeType     String
+  size         Int
+  width        Int?
+  height       Int?
+  folderId     String?
+  tags         String       @default("[]")
+  metadata     String       @default("{}")
+  folder       MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([folderId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ============================================
+// TEAM COLLABORATION
+// ============================================
+
+model Team {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  description String?
+  avatarUrl   String?
+  ownerId     String
+  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members     TeamMember[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([ownerId])
+  @@index([slug])
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String
+  role      String   @default("MEMBER") // OWNER, ADMIN, EDITOR, MEMBER
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+}
+
+// ============================================
+// A/B TESTING
+// ============================================
+
+model ContentVariant {
+  id            String   @id @default(cuid())
+  userId        String
+  postId        String
+  variantLabel  String   // "A", "B", "C", etc.
+  content       String
+  headline      String?
+  imageUrl      String?
+  impressions   Int      @default(0)
+  clicks        Int      @default(0)
+  conversions   Int      @default(0)
+  engagementRate Float   @default(0)
+  isWinner      Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post          Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([postId])
+  @@index([isActive])
+}
+
+// ============================================
+// WHITE-LABEL SUPPORT
+// ============================================
+
+model WhiteLabelConfig {
+  id              String  @id @default(cuid())
+  userId          String
+  domain          String? @unique
+  appName         String  @default("FlowSmartly")
+  logoUrl         String?
+  faviconUrl      String?
+  primaryColor    String  @default("#f97316")
+  secondaryColor  String  @default("#0ea5e9")
+  accentColor     String  @default("#8b5cf6")
+  customCss       String?
+  footerText      String?
+  supportEmail    String?
+  isActive        Boolean @default(false)
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([domain])
+}
+
+// ============================================
+// EMAIL & SMS MARKETING CONFIGURATION
+// ============================================
+
+model MarketingConfig {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+
+  // Email Provider Configuration
+  emailProvider   String   @default("NONE") // NONE, SMTP, SENDGRID, MAILGUN, AMAZON_SES, RESEND
+  emailConfig     String   @default("{}") // JSON: host, port, user, pass, apiKey, domain, fromEmail, fromName
+  emailVerified   Boolean  @default(false)
+  emailEnabled    Boolean  @default(false)
+
+  // SMS Provider Configuration (Twilio through platform)
+  smsEnabled      Boolean  @default(false)
+  smsPhoneNumber  String?  // Rented Twilio number
+  smsPhoneNumberSid String? // Twilio phone number SID
+  smsVerified     Boolean  @default(false)
+
+  // Pricing/Usage (cents per message)
+  emailPricePerSend  Int   @default(0) // Platform markup added to base cost
+  smsPricePerSend    Int   @default(5) // Price in cents (base + markup)
+
+  // Monthly limits
+  emailMonthlyLimit  Int   @default(1000)
+  smsMonthlyLimit    Int   @default(500)
+
+  // Current usage
+  emailSentThisMonth Int   @default(0)
+  smsSentThisMonth   Int   @default(0)
+  usageResetDate     DateTime @default(now())
+
+  // Sender defaults
+  defaultFromName    String?
+  defaultFromEmail   String?
+  defaultReplyTo     String?
+
+  // SMS Compliance (A2P / TCPA)
+  smsComplianceStatus     String   @default("NOT_STARTED") // NOT_STARTED, PENDING_REVIEW, APPROVED, REJECTED, SUSPENDED
+  businessName            String?
+  businessWebsite         String?
+  privacyPolicyUrl        String?
+  termsOfServiceUrl       String?
+  smsUseCase              String?  // Marketing, Support, Notifications, Mixed
+  smsUseCaseDescription   String?
+  smsMessageSamples       String   @default("[]") // JSON array of sample messages
+  complianceSubmittedAt   DateTime?
+  complianceReviewedAt    DateTime?
+  complianceReviewedBy    String?
+  complianceNotes         String?  // Admin notes for rejection/approval
+  optOutMessage           String   @default("Reply STOP to unsubscribe")
+
+  // Business Address (required for toll-free verification)
+  businessStreetAddress   String?
+  businessCity            String?
+  businessStateProvinceRegion String?
+  businessPostalCode      String?
+  businessCountry         String?  @default("US")
+
+  // Opt-in proof (screenshot URL showing how users consent to SMS)
+  smsOptInImageUrl        String?
+
+  // Toll-Free Verification
+  smsTollfreeVerifySid    String?  // Toll-free verification SID (e.g. TF...)
+  smsTollfreeVerifyStatus String?  // PENDING_REVIEW, IN_REVIEW, TWILIO_APPROVED, TWILIO_REJECTED
+
+  // A2P 10DLC Registration (required for US local numbers)
+  smsA2pBrandSid            String?  // Brand Registration SID (BN...)
+  smsA2pBrandStatus         String?  // PENDING, APPROVED, FAILED, IN_REVIEW
+  smsA2pCampaignSid         String?  // A2P Campaign SID (QE...)
+  smsA2pCampaignStatus      String?  // PENDING, VERIFIED, FAILED, IN_PROGRESS
+  smsA2pMessagingServiceSid String?  // Messaging Service SID (MG...)
+  smsA2pProfileSid          String?  // Trust Hub Customer Profile Bundle SID (BU...)
+
+  // Emergency Address (E911) — avoids $75/call surcharge
+  smsEmergencyAddressSid  String?  // Twilio Address SID assigned to the phone number
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// CARTOON MAKER (AI Animated Video Generator)
+// ============================================
+
+model CartoonProject {
+  id            String   @id @default(cuid())
+  userId        String
+
+  // Project Info
+  name          String
+  description   String?
+
+  // Saved Characters (JSON array)
+  characters    String   @default("[]")  // [{ name, role, description, visualAppearance }]
+
+  // Default Settings
+  style         String   @default("pixar")
+  defaultDuration Int    @default(60)
+
+  // Metadata
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videos        CartoonVideo[]
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model CartoonVideo {
+  id            String   @id @default(cuid())
+  userId        String
+  projectId     String?  // Optional link to a project for series
+
+  // Input
+  storyPrompt   String
+  style         String   @default("anime")    // anime, comic, watercolor, cartoon2d, flatdesign, pixar, clay, lowpoly
+  animationType String   @default("static")   // static (Ken Burns), animated (Meta Animated Drawings)
+  duration      Int      @default(60)         // 30, 60, 90 seconds
+  captionStyle  String   @default("classic")  // none, classic, bold_pop, boxed, cinematic, colorful
+
+  // Processing Status
+  status        String   @default("PENDING")  // PENDING, PROCESSING, SCRIPT_READY, AWAITING_APPROVAL, APPROVED, IMAGES_READY, AUDIO_READY, COMPOSITING, COMPLETED, FAILED
+  progress      Int      @default(0)          // 0-100
+  currentStep   String?
+  errorMessage  String?
+
+  // Generated Content (JSON)
+  script        String?   // { title, characters: [...], scenes: [{ sceneNumber, narration, visualDescription, duration }] }
+  sceneImages   String?   // [{ sceneNumber, imageUrl }]
+  audioFiles    String?   // [{ sceneNumber, audioUrl, durationMs }]
+
+  // Output
+  videoUrl      String?
+  thumbnailUrl  String?
+  videoDuration Int?      // Duration in seconds
+
+  // Metadata
+  creditsCost   Int       @default(60)
+  metadata      String    @default("{}")
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  completedAt   DateTime?
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project       CartoonProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ============================================
+// AI CHAT ASSISTANT (FlowAI)
+// ============================================
+
+model AIConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String   @default("New Conversation")
+  summary   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  AIMessage[]
+
+  @@index([userId])
+  @@index([updatedAt])
+}
+
+model AIMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String   // "user" or "assistant"
+  content        String
+  tokensUsed     Int      @default(0)
+  mediaType      String?  // "image", "video", null for text
+  mediaUrl       String?  // S3 URL for generated media
+  createdAt      DateTime @default(now())
+
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+// ── Email Marketing Automations ──
+
+model Automation {
+  id            String    @id @default(cuid())
+  userId        String
+
+  name          String
+  type          String    // BIRTHDAY, HOLIDAY, WELCOME, RE_ENGAGEMENT, CUSTOM
+  trigger       String    @default("{}")  // JSON: { holidayId, conditions }
+
+  enabled       Boolean   @default(false)
+
+  // Campaign template
+  campaignType  String    // EMAIL or SMS
+  subject       String?
+  content       String    @default("")
+  contentHtml   String?
+
+  // MMS image
+  imageUrl         String?
+  imageSource      String?   // "upload" | "media" | "ai" | "contact_photo"
+  imageOverlayText String?
+
+  // Timing
+  sendTime      String    @default("09:00")  // HH:MM format
+  daysOffset    Int       @default(0)        // -1 = day before, 0 = same day, 1 = day after
+  timezone      String    @default("UTC")
+
+  // Targeting
+  contactListId String?   // Optional: limit to specific list, null = all contacts
+
+  // Stats
+  totalSent     Int       @default(0)
+  lastTriggered DateTime?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contactList   ContactList?  @relation(fields: [contactListId], references: [id])
+  logs          AutomationLog[]
+
+  @@index([userId])
+  @@index([enabled, type])
+}
+
+model AutomationLog {
+  id            String    @id @default(cuid())
+  automationId  String
+  contactId     String?
+  status        String    // SENT, FAILED, SKIPPED
+  error         String?
+  sentAt        DateTime  @default(now())
+
+  automation    Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  @@index([automationId])
+  @@index([sentAt])
+}
+
+// ============================================
+// CONTENT HUB — POST AUTOMATION & MARKETING STRATEGY
+// ============================================
+
+model PostAutomation {
+  id            String    @id @default(cuid())
+  userId        String
+
+  name          String
+  type          String    // RECURRING, EVENT_BASED, AI_GENERATED
+  enabled       Boolean   @default(false)
+
+  // Schedule config (JSON)
+  schedule      String    @default("{}")  // { frequency: "weekly", dayOfWeek: 1, time: "09:00" }
+
+  // AI content config
+  topic         String?               // Topic / niche for AI content
+  aiPrompt      String?
+  aiTone        String    @default("professional")
+
+  // Media generation options
+  includeMedia    Boolean   @default(false)
+  mediaType       String?                       // "image" | "video"
+  mediaStyle      String?                       // "photorealistic", "illustration", etc.
+
+  // Targeting
+  platforms     String    @default("[]") // JSON: ["feed", "instagram", "twitter"]
+
+  // Duration & budget control
+  startDate       DateTime  @default(now())
+  endDate         DateTime?
+
+  // Stats
+  totalGenerated    Int      @default(0)
+  totalCreditsSpent Int      @default(0)
+  lastTriggered     DateTime?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([enabled, type])
+  @@index([endDate])
+}
+
+model MarketingStrategy {
+  id            String    @id @default(cuid())
+  userId        String
+
+  name          String
+  description   String?
+  status        String    @default("ACTIVE")  // ACTIVE, PAUSED, ARCHIVED
+  aiGenerated   Boolean   @default(false)
+
+  // Overall progress
+  totalTasks    Int       @default(0)
+  completedTasks Int      @default(0)
+
+  // Activity sync
+  lastActivitySync DateTime?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks         StrategyTask[]
+  scores        StrategyScore[]
+  milestones    StrategyMilestone[]
+
+  @@index([userId])
+  @@index([userId, status])
+}
+
+model StrategyTask {
+  id            String    @id @default(cuid())
+  strategyId    String
+
+  title         String
+  description   String?
+  status        String    @default("TODO")  // TODO, IN_PROGRESS, DONE
+  priority      String    @default("MEDIUM") // LOW, MEDIUM, HIGH
+  category      String?   // content, social, ads, email, analytics
+
+  // Timeline
+  startDate     DateTime?
+  dueDate       DateTime?
+  completedAt   DateTime?
+
+  // Ordering
+  sortOrder     Int       @default(0)
+
+  // AI tracking
+  aiSuggested   Boolean   @default(false)
+  autoCompleted Boolean   @default(false)
+
+  // Activity matching
+  progress          Int       @default(0)    // 0-100 completion percentage
+  matchedActivities String    @default("[]") // JSON: [{activityType, activityId, matchedAt, confidence, matchReason}]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  strategy      MarketingStrategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+
+  @@index([strategyId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model StrategyScore {
+  id               String   @id @default(cuid())
+  userId           String
+  strategyId       String
+
+  month            Int      // 1-12
+  year             Int      // e.g. 2026
+
+  overallScore     Int      @default(0)
+  completionScore  Int      @default(0)
+  onTimeScore      Int      @default(0)
+  consistencyScore Int      @default(0)
+  adherenceScore   Int      @default(0)
+  productionScore  Int      @default(0)
+
+  rawData          String   @default("{}")  // JSON audit data
+  aiInsights       String?  // AI analysis text
+  aiAreas          String?  // JSON: ["area1", "area2"]
+  previousScore    Int?     // Previous month's overall for trend
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  strategy         MarketingStrategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, strategyId, month, year])
+  @@index([userId])
+  @@index([strategyId])
+  @@index([year, month])
+}
+
+model StrategyMilestone {
+  id             String   @id @default(cuid())
+  userId         String
+  strategyId     String
+
+  milestoneKey   String   // FIRST_TASK, 25_PERCENT, 50_PERCENT, etc.
+  title          String
+  description    String
+  icon           String   @default("Trophy")
+
+  sharedToFeed   Boolean  @default(false)
+  sharedPostId   String?
+
+  achievedAt     DateTime @default(now())
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  strategy       MarketingStrategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, strategyId, milestoneKey])
+  @@index([userId])
+  @@index([strategyId])
+  @@index([achievedAt])
+}

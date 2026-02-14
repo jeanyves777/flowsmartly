@@ -1,0 +1,121 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db/client";
+import { getSession } from "@/lib/auth/session";
+import { presignAllUrls } from "@/lib/utils/s3-client";
+
+// GET /api/designs - Fetch user's design history
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: { message: "Unauthorized" } },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const category = searchParams.get("category");
+    const limit = parseInt(searchParams.get("limit") || "20");
+    const cursor = searchParams.get("cursor");
+
+    const where: Record<string, unknown> = { userId: session.userId };
+    if (category) where.category = category;
+
+    const designs = await prisma.design.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    const hasMore = designs.length > limit;
+    const result = hasMore ? designs.slice(0, limit) : designs;
+
+    return NextResponse.json({
+      success: true,
+      data: await presignAllUrls({
+        designs: result.map((d) => {
+          const meta = JSON.parse(d.metadata || "{}");
+          return {
+            id: d.id,
+            prompt: d.prompt,
+            category: d.category,
+            size: d.size,
+            style: d.style,
+            imageUrl: d.imageUrl,
+            pipeline: meta.pipeline || null,
+            status: d.status,
+            metadata: d.metadata || "{}",
+            createdAt: d.createdAt.toISOString(),
+          };
+        }),
+        hasMore,
+        nextCursor: hasMore ? result[result.length - 1]?.id : null,
+      }),
+    });
+  } catch (error) {
+    console.error("Get designs error:", error);
+    return NextResponse.json(
+      { success: false, error: { message: "Failed to fetch designs" } },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/designs - Save a design
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: { message: "Unauthorized" } },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { prompt, category, size, style, imageUrl } = body;
+
+    if (!prompt || !category || !size) {
+      return NextResponse.json(
+        { success: false, error: { message: "Prompt, category, and size are required" } },
+        { status: 400 }
+      );
+    }
+
+    const design = await prisma.design.create({
+      data: {
+        userId: session.userId,
+        prompt,
+        category,
+        size,
+        style: style || null,
+        imageUrl: imageUrl || null,
+        status: imageUrl ? "COMPLETED" : "PENDING",
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: await presignAllUrls({
+        design: {
+          id: design.id,
+          prompt: design.prompt,
+          category: design.category,
+          size: design.size,
+          style: design.style,
+          imageUrl: design.imageUrl,
+          status: design.status,
+          createdAt: design.createdAt.toISOString(),
+        },
+      }),
+    });
+  } catch (error) {
+    console.error("Create design error:", error);
+    return NextResponse.json(
+      { success: false, error: { message: "Failed to save design" } },
+      { status: 500 }
+    );
+  }
+}

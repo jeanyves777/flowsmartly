@@ -1,0 +1,35 @@
+services:
+  flow-ai:
+    build: ./docker/flow-ai
+    container_name: flow-ai
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./docker/flow-ai/models:/root/.cache/huggingface
+      - ./docker/flow-ai/onnx-models:/models
+    environment:
+      - DEVICE=cpu
+      - MODEL_ID=Lykon/dreamshaper-8
+      - USE_ONNX=true
+      - DEFAULT_STEPS=12
+      - DEFAULT_WIDTH=384
+      - DEFAULT_HEIGHT=384
+      - UPSCALE_TO=512
+      - ONNX_MODEL_PATH=/models/dreamshaper-8-onnx
+      # PyTorch: use all available CPU threads for inference
+      - OMP_NUM_THREADS=8
+      - MKL_NUM_THREADS=8
+    restart: unless-stopped
+
+    # --- GPU (Production) ---
+    # Uncomment below for NVIDIA GPU acceleration:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    # environment:
+    #   - DEVICE=cuda
+    #   - MODEL_ID=Lykon/dreamshaper-xl-v2-turbo

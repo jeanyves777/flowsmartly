@@ -1,0 +1,22 @@
+controller:
+  MODE: video_render
+  OUTPUT_VIDEO_CODEC: avc1
+  OUTPUT_VIDEO_PATH: C:\Users\koffi\Dev\flowsmartly\public\uploads\cartoons\cmle2nqnv000nvpyccxjvdryl-animated-4.mp4
+scene:
+  ANIMATED_CHARACTERS:
+  - character_cfg: C:\Users\koffi\Dev\flowsmartly\public\characters\boy-cool\char_cfg.yaml
+    motion_cfg: C:\Users\koffi\Dev\flowsmartly\..\AnimatedDrawings\examples\config\motion\zombie.yaml
+    retarget_cfg: C:\Users\koffi\Dev\flowsmartly\..\AnimatedDrawings\examples\config\retarget\fair1_ppf.yaml
+view:
+  CAMERA_FWD:
+  - 0.0
+  - 0.5
+  - 8.0
+  CAMERA_POS:
+  - 2.0
+  - 0.7
+  - 8.0
+  USE_MESA: true
+  WINDOW_DIMENSIONS:
+  - 512
+  - 512

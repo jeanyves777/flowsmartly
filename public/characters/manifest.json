@@ -1,0 +1,461 @@
+{
+  "characters": [
+    {
+      "id": "boy-casual",
+      "name": "Tommy",
+      "category": "boy",
+      "tags": [
+        "child",
+        "casual",
+        "happy"
+      ],
+      "thumbnail": "/characters/boy-casual/thumbnail.png",
+      "texturePath": "/characters/boy-casual/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "girl-casual",
+      "name": "Sofia",
+      "category": "girl",
+      "tags": [
+        "child",
+        "casual",
+        "happy"
+      ],
+      "thumbnail": "/characters/girl-casual/thumbnail.png",
+      "texturePath": "/characters/girl-casual/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "man-business",
+      "name": "David",
+      "category": "man",
+      "tags": [
+        "adult",
+        "business",
+        "professional"
+      ],
+      "thumbnail": "/characters/man-business/thumbnail.png",
+      "texturePath": "/characters/man-business/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "boy-sporty",
+      "name": "Alex",
+      "category": "boy",
+      "tags": [
+        "child",
+        "sporty",
+        "active"
+      ],
+      "thumbnail": "/characters/boy-sporty/thumbnail.png",
+      "texturePath": "/characters/boy-sporty/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "cat-cartoon",
+      "name": "Whiskers",
+      "category": "animal",
+      "tags": [
+        "cat",
+        "pet",
+        "cute"
+      ],
+      "thumbnail": "/characters/cat-cartoon/thumbnail.png",
+      "texturePath": "/characters/cat-cartoon/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "boy-adventurer",
+      "name": "Jake",
+      "category": "boy",
+      "tags": [
+        "child",
+        "adventure",
+        "explorer"
+      ],
+      "thumbnail": "/characters/boy-adventurer/thumbnail.png",
+      "texturePath": "/characters/boy-adventurer/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "boy-cool",
+      "name": "Ryan",
+      "category": "boy",
+      "tags": [
+        "child",
+        "cool",
+        "trendy"
+      ],
+      "thumbnail": "/characters/boy-cool/thumbnail.png",
+      "texturePath": "/characters/boy-cool/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "boy-smart",
+      "name": "Leo",
+      "category": "boy",
+      "tags": [
+        "child",
+        "smart",
+        "glasses"
+      ],
+      "thumbnail": "/characters/boy-smart/thumbnail.png",
+      "texturePath": "/characters/boy-smart/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "girl-artist",
+      "name": "Mia",
+      "category": "girl",
+      "tags": [
+        "child",
+        "creative",
+        "artist"
+      ],
+      "thumbnail": "/characters/girl-artist/thumbnail.png",
+      "texturePath": "/characters/girl-artist/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "girl-sporty",
+      "name": "Zoe",
+      "category": "girl",
+      "tags": [
+        "child",
+        "sporty",
+        "active"
+      ],
+      "thumbnail": "/characters/girl-sporty/thumbnail.png",
+      "texturePath": "/characters/girl-sporty/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "girl-bookworm",
+      "name": "Lily",
+      "category": "girl",
+      "tags": [
+        "child",
+        "smart",
+        "reader"
+      ],
+      "thumbnail": "/characters/girl-bookworm/thumbnail.png",
+      "texturePath": "/characters/girl-bookworm/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "man-teacher",
+      "name": "Mr. Wilson",
+      "category": "man",
+      "tags": [
+        "adult",
+        "teacher",
+        "professional"
+      ],
+      "thumbnail": "/characters/man-teacher/thumbnail.png",
+      "texturePath": "/characters/man-teacher/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "man-chef",
+      "name": "Carlos",
+      "category": "man",
+      "tags": [
+        "adult",
+        "chef",
+        "cooking"
+      ],
+      "thumbnail": "/characters/man-chef/thumbnail.png",
+      "texturePath": "/characters/man-chef/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "man-athlete",
+      "name": "Marcus",
+      "category": "man",
+      "tags": [
+        "adult",
+        "athlete",
+        "sporty"
+      ],
+      "thumbnail": "/characters/man-athlete/thumbnail.png",
+      "texturePath": "/characters/man-athlete/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "woman-doctor",
+      "name": "Dr. Sarah",
+      "category": "woman",
+      "tags": [
+        "adult",
+        "doctor",
+        "medical"
+      ],
+      "thumbnail": "/characters/woman-doctor/thumbnail.png",
+      "texturePath": "/characters/woman-doctor/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "woman-scientist",
+      "name": "Nina",
+      "category": "woman",
+      "tags": [
+        "adult",
+        "scientist",
+        "lab"
+      ],
+      "thumbnail": "/characters/woman-scientist/thumbnail.png",
+      "texturePath": "/characters/woman-scientist/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "woman-artist",
+      "name": "Priya",
+      "category": "woman",
+      "tags": [
+        "adult",
+        "artist",
+        "creative"
+      ],
+      "thumbnail": "/characters/woman-artist/thumbnail.png",
+      "texturePath": "/characters/woman-artist/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "dog-friendly",
+      "name": "Buddy",
+      "category": "animal",
+      "tags": [
+        "dog",
+        "pet",
+        "friendly"
+      ],
+      "thumbnail": "/characters/dog-friendly/thumbnail.png",
+      "texturePath": "/characters/dog-friendly/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "rabbit-cute",
+      "name": "Hoppy",
+      "category": "animal",
+      "tags": [
+        "rabbit",
+        "bunny",
+        "cute"
+      ],
+      "thumbnail": "/characters/rabbit-cute/thumbnail.png",
+      "texturePath": "/characters/rabbit-cute/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "bear-cuddly",
+      "name": "Bruno",
+      "category": "animal",
+      "tags": [
+        "bear",
+        "cuddly",
+        "forest"
+      ],
+      "thumbnail": "/characters/bear-cuddly/thumbnail.png",
+      "texturePath": "/characters/bear-cuddly/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "penguin-tuxedo",
+      "name": "Pip",
+      "category": "animal",
+      "tags": [
+        "penguin",
+        "antarctic",
+        "cute"
+      ],
+      "thumbnail": "/characters/penguin-tuxedo/thumbnail.png",
+      "texturePath": "/characters/penguin-tuxedo/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "fox-clever",
+      "name": "Roxy",
+      "category": "animal",
+      "tags": [
+        "fox",
+        "clever",
+        "forest"
+      ],
+      "thumbnail": "/characters/fox-clever/thumbnail.png",
+      "texturePath": "/characters/fox-clever/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "knight-brave",
+      "name": "Sir Lancelot",
+      "category": "fantasy",
+      "tags": [
+        "knight",
+        "armor",
+        "brave"
+      ],
+      "thumbnail": "/characters/knight-brave/thumbnail.png",
+      "texturePath": "/characters/knight-brave/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "fairy-sparkle",
+      "name": "Twinkle",
+      "category": "fantasy",
+      "tags": [
+        "fairy",
+        "magic",
+        "wings"
+      ],
+      "thumbnail": "/characters/fairy-sparkle/thumbnail.png",
+      "texturePath": "/characters/fairy-sparkle/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "robot-helper",
+      "name": "Bolt",
+      "category": "fantasy",
+      "tags": [
+        "robot",
+        "sci-fi",
+        "helper"
+      ],
+      "thumbnail": "/characters/robot-helper/thumbnail.png",
+      "texturePath": "/characters/robot-helper/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "alien-friendly",
+      "name": "Zorp",
+      "category": "fantasy",
+      "tags": [
+        "alien",
+        "space",
+        "friendly"
+      ],
+      "thumbnail": "/characters/alien-friendly/thumbnail.png",
+      "texturePath": "/characters/alien-friendly/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "wizard-wise",
+      "name": "Merlin",
+      "category": "fantasy",
+      "tags": [
+        "wizard",
+        "magic",
+        "wise"
+      ],
+      "thumbnail": "/characters/wizard-wise/thumbnail.png",
+      "texturePath": "/characters/wizard-wise/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "superhero-star",
+      "name": "Nova",
+      "category": "fantasy",
+      "tags": [
+        "superhero",
+        "cape",
+        "powerful"
+      ],
+      "thumbnail": "/characters/superhero-star/thumbnail.png",
+      "texturePath": "/characters/superhero-star/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "3d-fox",
+      "name": "Foxy",
+      "category": "3d",
+      "tags": [
+        "fox",
+        "animal",
+        "3d",
+        "lowpoly"
+      ],
+      "thumbnail": "/characters/3d-fox/thumbnail.png",
+      "texturePath": "/characters/3d-fox/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "3d-soldier",
+      "name": "Sergeant",
+      "category": "3d",
+      "tags": [
+        "soldier",
+        "military",
+        "3d",
+        "human"
+      ],
+      "thumbnail": "/characters/3d-soldier/thumbnail.png",
+      "texturePath": "/characters/3d-soldier/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "3d-robot-expressive",
+      "name": "Spark",
+      "category": "3d",
+      "tags": [
+        "robot",
+        "3d",
+        "expressive",
+        "cute"
+      ],
+      "thumbnail": "/characters/3d-robot-expressive/thumbnail.png",
+      "texturePath": "/characters/3d-robot-expressive/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "3d-xbot",
+      "name": "Xena",
+      "category": "3d",
+      "tags": [
+        "robot",
+        "3d",
+        "humanoid",
+        "sci-fi"
+      ],
+      "thumbnail": "/characters/3d-xbot/thumbnail.png",
+      "texturePath": "/characters/3d-xbot/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "3d-cesium-man",
+      "name": "Atlas",
+      "category": "3d",
+      "tags": [
+        "human",
+        "3d",
+        "animated",
+        "astronaut"
+      ],
+      "thumbnail": "/characters/3d-cesium-man/thumbnail.png",
+      "texturePath": "/characters/3d-cesium-man/texture.png",
+      "isPreRigged": true
+    },
+    {
+      "id": "3d-brainstem",
+      "name": "Mecha",
+      "category": "3d",
+      "tags": [
+        "robot",
+        "3d",
+        "mechanical",
+        "complex"
+      ],
+      "thumbnail": "/characters/3d-brainstem/thumbnail.png",
+      "texturePath": "/characters/3d-brainstem/texture.png",
+      "isPreRigged": true
+    }
+  ],
+  "categories": [
+    "boy",
+    "girl",
+    "man",
+    "woman",
+    "animal",
+    "fantasy",
+    "3d"
+  ]
+}
