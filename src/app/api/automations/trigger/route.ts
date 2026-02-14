@@ -563,6 +563,7 @@ interface ContactForSend {
   phone: string | null;
   firstName: string | null;
   lastName: string | null;
+  imageUrl: string | null;
 }
 
 async function getMatchingContacts(
@@ -622,6 +623,7 @@ async function getMatchingContacts(
         phone: true,
         firstName: true,
         lastName: true,
+        imageUrl: true,
       },
     });
     return contacts;
@@ -785,8 +787,8 @@ async function sendToContacts(
       let inlineImageUrl: string | undefined;
 
       if (automation.imageSource === "contact_photo") {
-        if ((contact as { imageUrl?: string | null }).imageUrl) {
-          const contactImg = (contact as { imageUrl?: string | null }).imageUrl!;
+        if (contact.imageUrl) {
+          const contactImg = contact.imageUrl;
           if (automation.imageOverlayText) {
             try {
               const overlayText = replaceMergeTags(automation.imageOverlayText, contact);
