@@ -576,7 +576,7 @@ export async function submitTollfreeVerification(params: TollfreeVerificationPar
 
     console.log("[Twilio] Toll-free verification payload:", JSON.stringify(payload, null, 2));
 
-    const verification = await twilioClient.messaging.v1.tollfreeVerifications.create(payload);
+    const verification = await twilioClient.messaging.v1.tollfreeVerifications.create(payload as Parameters<typeof twilioClient.messaging.v1.tollfreeVerifications.create>[0]);
 
     return {
       success: true,
