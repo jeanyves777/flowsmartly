@@ -1407,7 +1407,7 @@ export async function getA2pCampaignStatus(messagingServiceSid: string, campaign
     return {
       success: true,
       status: campaign.campaignStatus,
-      failureReason: campaign.failureReason || undefined,
+      failureReason: (campaign as unknown as Record<string, unknown>).failureReason as string | undefined,
     };
   } catch (error) {
     console.error("[Twilio] Get A2P campaign status error:", error);
