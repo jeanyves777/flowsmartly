@@ -437,6 +437,7 @@ export default function ContactsPage() {
       city: "",
       state: "",
       address: "",
+      imageUrl: "",
       tags: "",
       listIds: [],
       emailOptedIn: true,
