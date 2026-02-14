@@ -2148,7 +2148,7 @@ function CreateEmailCampaignContent() {
       {/* Media Library Picker */}
       <MediaLibraryPicker
         open={showMediaLibrary}
-        onOpenChange={setShowMediaLibrary}
+        onClose={() => setShowMediaLibrary(false)}
         onSelect={(url) => {
           setEmailImageUrl(url);
           setImageSource("media");
