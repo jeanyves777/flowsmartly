@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   User,
   Mail,
@@ -39,6 +40,7 @@ interface AdminProfile {
 }
 
 export default function SettingsPage() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState("profile");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -46,6 +48,21 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [googleAdsMessage, setGoogleAdsMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Handle URL params from OAuth redirect
+  useEffect(() => {
+    const connected = searchParams.get("google_ads_connected");
+    const adsError = searchParams.get("google_ads_error");
+
+    if (connected === "true") {
+      setActiveTab("integrations");
+      setGoogleAdsMessage({ type: "success", text: "Google Ads account connected successfully!" });
+    } else if (adsError) {
+      setActiveTab("integrations");
+      setGoogleAdsMessage({ type: "error", text: `Google Ads connection failed: ${adsError}` });
+    }
+  }, [searchParams]);
 
   const [profile, setProfile] = useState<AdminProfile>({
     id: "",
@@ -539,6 +556,30 @@ export default function SettingsPage() {
 
         {/* Integrations */}
         <TabsContent value="integrations" className="space-y-6">
+          {/* Google Ads OAuth result message */}
+          {googleAdsMessage && (
+            <Card className={googleAdsMessage.type === "success" ? "bg-green-500/10 border-green-500/30" : "bg-red-500/10 border-red-500/30"}>
+              <CardContent className="p-4 flex items-center gap-3">
+                {googleAdsMessage.type === "success" ? (
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                )}
+                <p className={googleAdsMessage.type === "success" ? "text-green-600" : "text-red-400"}>
+                  {googleAdsMessage.text}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setGoogleAdsMessage(null)}
+                  className="ml-auto"
+                >
+                  Dismiss
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Google Ads */}
           <Card>
             <CardHeader>

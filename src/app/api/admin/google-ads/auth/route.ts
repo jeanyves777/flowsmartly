@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client";
 import {
   getGoogleAdsAuthUrl,
   isGoogleAdsConfigured,
+  getRefreshToken,
 } from "@/lib/ads/google-ads-client";
 
 // GET /api/admin/google-ads/auth - Get OAuth URL or connection status
@@ -17,18 +18,22 @@ export async function GET() {
       );
     }
 
-    const configured = isGoogleAdsConfigured();
+    const baseConfigured = isGoogleAdsConfigured();
 
-    // Check stored settings
+    // Check stored settings in DB
     const settings = await prisma.systemSetting.findMany({
       where: {
-        key: { in: ["google_ads_connected", "google_ads_customer_id", "google_ads_connected_at"] },
+        key: { in: ["google_ads_connected", "google_ads_customer_id", "google_ads_connected_at", "google_ads_refresh_token"] },
       },
     });
 
     const settingsMap = Object.fromEntries(settings.map(s => [s.key, s.value]));
 
-    if (configured) {
+    // Connected = base env vars set + refresh token exists (in env or DB)
+    const hasRefreshToken = !!(process.env.GOOGLE_ADS_REFRESH_TOKEN || settingsMap.google_ads_refresh_token);
+    const fullyConfigured = baseConfigured && hasRefreshToken;
+
+    if (fullyConfigured) {
       return NextResponse.json({
         success: true,
         data: {
@@ -58,16 +63,19 @@ export async function GET() {
     const redirectUri = `${baseUrl}/api/admin/google-ads/callback`;
     const authUrl = getGoogleAdsAuthUrl(redirectUri);
 
+    // Build list of what's still missing
+    const missing: string[] = [];
+    if (!process.env.GOOGLE_ADS_DEVELOPER_TOKEN) missing.push("GOOGLE_ADS_DEVELOPER_TOKEN");
+    if (!process.env.GOOGLE_ADS_CUSTOMER_ID) missing.push("GOOGLE_ADS_CUSTOMER_ID");
+
     return NextResponse.json({
       success: true,
       data: {
         connected: false,
         configured: false,
         authUrl,
-        missingCredentials: [
-          ...(!process.env.GOOGLE_ADS_DEVELOPER_TOKEN ? ["GOOGLE_ADS_DEVELOPER_TOKEN"] : []),
-          ...(!process.env.GOOGLE_ADS_CUSTOMER_ID ? ["GOOGLE_ADS_CUSTOMER_ID"] : []),
-        ],
+        // If base config is set but just missing refresh token, show connect button (no missing creds)
+        missingCredentials: missing,
       },
     });
   } catch (error) {

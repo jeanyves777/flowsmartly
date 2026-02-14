@@ -4,17 +4,40 @@
  */
 
 import { GoogleAdsApi, enums, ResourceNames } from "google-ads-api";
+import { prisma } from "@/lib/db/client";
 
 // --- Configuration check ---
 
+/** Checks if base Google Ads env vars are set (excludes refresh token which lives in DB). */
 export function isGoogleAdsConfigured(): boolean {
   return !!(
     process.env.GOOGLE_OAUTH_CLIENT_ID &&
     process.env.GOOGLE_OAUTH_CLIENT_SECRET &&
     process.env.GOOGLE_ADS_DEVELOPER_TOKEN &&
-    process.env.GOOGLE_ADS_CUSTOMER_ID &&
-    process.env.GOOGLE_ADS_REFRESH_TOKEN
+    process.env.GOOGLE_ADS_CUSTOMER_ID
   );
+}
+
+/** Checks if fully operational: base config + refresh token (from env or DB). */
+export async function isGoogleAdsFullyConfigured(): Promise<boolean> {
+  if (!isGoogleAdsConfigured()) return false;
+  const token = await getRefreshToken();
+  return !!token;
+}
+
+/** Gets refresh token from env var first, then falls back to database. */
+export async function getRefreshToken(): Promise<string | null> {
+  if (process.env.GOOGLE_ADS_REFRESH_TOKEN) {
+    return process.env.GOOGLE_ADS_REFRESH_TOKEN;
+  }
+  try {
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: "google_ads_refresh_token" },
+    });
+    return setting?.value || null;
+  } catch {
+    return null;
+  }
 }
 
 function getClient() {
@@ -29,11 +52,15 @@ function getClient() {
   });
 }
 
-function getCustomer() {
+async function getCustomer() {
   const client = getClient();
+  const refreshToken = await getRefreshToken();
+  if (!refreshToken) {
+    throw new Error("Google Ads refresh token not found. Connect via OAuth first.");
+  }
   return client.Customer({
     customer_id: process.env.GOOGLE_ADS_CUSTOMER_ID!.replace(/-/g, ""),
-    refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN!,
+    refresh_token: refreshToken,
     ...(process.env.GOOGLE_ADS_MANAGER_ID
       ? { login_customer_id: process.env.GOOGLE_ADS_MANAGER_ID.replace(/-/g, "") }
       : {}),
@@ -72,7 +99,7 @@ export interface GoogleAdsCampaignStats {
 export async function createGoogleAdsCampaign(
   input: GoogleAdsCampaignInput
 ): Promise<GoogleAdsCampaignResult> {
-  const customer = getCustomer();
+  const customer = await getCustomer();
   const customerId = process.env.GOOGLE_ADS_CUSTOMER_ID!.replace(/-/g, "");
 
   // 1. Create campaign budget
@@ -151,7 +178,7 @@ export async function createGoogleAdsCampaign(
  * Pauses a Google Ads campaign by its resource name.
  */
 export async function pauseGoogleAdsCampaign(campaignResourceName: string): Promise<void> {
-  const customer = getCustomer();
+  const customer = await getCustomer();
 
   await customer.campaigns.update([
     {
@@ -165,7 +192,7 @@ export async function pauseGoogleAdsCampaign(campaignResourceName: string): Prom
  * Resumes (enables) a paused Google Ads campaign.
  */
 export async function resumeGoogleAdsCampaign(campaignResourceName: string): Promise<void> {
-  const customer = getCustomer();
+  const customer = await getCustomer();
 
   await customer.campaigns.update([
     {
@@ -179,7 +206,7 @@ export async function resumeGoogleAdsCampaign(campaignResourceName: string): Pro
  * Removes a Google Ads campaign permanently.
  */
 export async function removeGoogleAdsCampaign(campaignResourceName: string): Promise<void> {
-  const customer = getCustomer();
+  const customer = await getCustomer();
   await customer.campaigns.remove([campaignResourceName]);
 }
 
@@ -191,7 +218,7 @@ export async function removeGoogleAdsCampaign(campaignResourceName: string): Pro
 export async function getGoogleAdsCampaignStats(
   campaignResourceName: string
 ): Promise<GoogleAdsCampaignStats> {
-  const customer = getCustomer();
+  const customer = await getCustomer();
 
   // Extract campaign ID from resource name (customers/123/campaigns/456 → 456)
   const campaignId = campaignResourceName.split("/").pop();
