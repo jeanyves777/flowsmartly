@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -191,11 +192,14 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
           >
             {/* Header */}
             <div className="flex h-16 items-center justify-between px-4 border-b">
-              <Link href="/dashboard" className="flex items-center gap-3" onClick={onClose}>
-                <div className="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-6 h-6 text-white" />
-                </div>
-                <span className="font-bold text-xl">FlowSmartly</span>
+              <Link href="/dashboard" className="flex items-center" onClick={onClose}>
+                <Image
+                  src="/logo.png"
+                  alt="FlowSmartly"
+                  width={140}
+                  height={35}
+                  className="h-8 w-auto"
+                />
               </Link>
               <Button variant="ghost" size="icon" onClick={onClose}>
                 <X className="h-5 w-5" />

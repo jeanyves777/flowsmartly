@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -162,17 +163,22 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE" }: SidebarPro
       {/* Logo */}
       <div className="flex h-16 items-center justify-between px-4 border-b">
         <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center shrink-0">
-            <Sparkles className="w-6 h-6 text-white" />
-          </div>
-          {!isCollapsed && (
-            <motion.span
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="font-bold text-xl"
-            >
-              FlowSmartly
-            </motion.span>
+          {isCollapsed ? (
+            <Image
+              src="/icon.png"
+              alt="FlowSmartly"
+              width={40}
+              height={40}
+              className="w-10 h-10 rounded-xl shrink-0"
+            />
+          ) : (
+            <Image
+              src="/logo.png"
+              alt="FlowSmartly"
+              width={160}
+              height={40}
+              className="h-8 w-auto"
+            />
           )}
         </Link>
         <Button

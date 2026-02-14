@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useTheme } from "next-themes";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -222,20 +223,30 @@ export default function AdminPortalLayout({
         {/* Logo - Fixed at top */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-border shrink-0">
           {!sidebarCollapsed && (
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
+            <Link href="/admin" className="flex items-center gap-3">
+              <Image
+                src="/icon.png"
+                alt="FlowSmartly"
+                width={40}
+                height={40}
+                className="w-10 h-10 rounded-xl"
+              />
               <div>
                 <span className="font-bold text-lg">Admin</span>
                 <p className="text-xs text-muted-foreground">Control Panel</p>
               </div>
-            </div>
+            </Link>
           )}
           {sidebarCollapsed && (
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center mx-auto">
-              <Shield className="w-6 h-6 text-white" />
-            </div>
+            <Link href="/admin">
+              <Image
+                src="/icon.png"
+                alt="FlowSmartly"
+                width={40}
+                height={40}
+                className="w-10 h-10 rounded-xl mx-auto"
+              />
+            </Link>
           )}
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -394,15 +405,19 @@ export default function AdminPortalLayout({
             >
               {/* Header */}
               <div className="h-16 flex items-center justify-between px-4 border-b border-border shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center">
-                    <Shield className="w-6 h-6 text-white" />
-                  </div>
+                <Link href="/admin" className="flex items-center gap-3" onClick={() => setMobileMenuOpen(false)}>
+                  <Image
+                    src="/icon.png"
+                    alt="FlowSmartly"
+                    width={40}
+                    height={40}
+                    className="w-10 h-10 rounded-xl"
+                  />
                   <div>
                     <span className="font-bold text-lg">Admin</span>
                     <p className="text-xs text-muted-foreground">Control Panel</p>
                   </div>
-                </div>
+                </Link>
                 <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)}>
                   <X className="h-5 w-5" />
                 </Button>

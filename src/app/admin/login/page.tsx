@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Shield, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,11 +56,19 @@ export default function AdminLoginPage() {
         <div className="bg-card/50 backdrop-blur-xl rounded-2xl border border-border p-8 shadow-2xl">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center mx-auto mb-4">
-              <Shield className="w-8 h-8 text-white" />
+            <Image
+              src="/logo.png"
+              alt="FlowSmartly"
+              width={160}
+              height={40}
+              className="h-9 w-auto mx-auto mb-4"
+              priority
+            />
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Shield className="w-5 h-5 text-orange-500" />
+              <h1 className="text-2xl font-bold text-foreground">Admin Portal</h1>
             </div>
-            <h1 className="text-2xl font-bold text-foreground">Admin Portal</h1>
-            <p className="text-muted-foreground mt-2">
+            <p className="text-muted-foreground mt-1">
               Sign in to access the admin dashboard
             </p>
           </div>
