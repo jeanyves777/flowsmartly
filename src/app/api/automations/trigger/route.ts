@@ -975,7 +975,7 @@ async function sendSmsToContacts(
       where: {
         automationId: automation.id,
         contactId: contact.id,
-        createdAt: { gte: startOfToday },
+        sentAt: { gte: startOfToday },
       },
     });
     if (existingLog) continue;
