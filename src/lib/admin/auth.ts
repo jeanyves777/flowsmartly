@@ -11,7 +11,7 @@ const ADMIN_TOKEN_COOKIE = "admin_token";
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
-  sameSite: "strict" as const,
+  sameSite: "lax" as const,
   path: "/",
   maxAge: 8 * 60 * 60, // 8 hours
 };
