@@ -8,10 +8,12 @@ import {
 
 // GET /api/admin/google-ads/callback - OAuth callback handler
 export async function GET(request: NextRequest) {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
   try {
     const admin = await getAdminSession();
     if (!admin) {
-      return NextResponse.redirect(new URL("/admin/login", request.url));
+      return NextResponse.redirect(`${baseUrl}/admin/login`);
     }
 
     const { searchParams } = new URL(request.url);
@@ -19,9 +21,7 @@ export async function GET(request: NextRequest) {
     const error = searchParams.get("error");
 
     if (error) {
-      const adminUrl = new URL("/admin/settings", request.url);
-      adminUrl.searchParams.set("google_ads_error", error);
-      return NextResponse.redirect(adminUrl);
+      return NextResponse.redirect(`${baseUrl}/admin/settings?google_ads_error=${encodeURIComponent(error)}`);
     }
 
     if (!code) {
@@ -31,7 +31,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const redirectUri = `${baseUrl}/api/admin/google-ads/callback`;
 
     // Exchange code for tokens
@@ -71,13 +70,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Redirect to admin settings with success
-    const adminUrl = new URL("/admin/settings", request.url);
-    adminUrl.searchParams.set("google_ads_connected", "true");
-    return NextResponse.redirect(adminUrl);
+    return NextResponse.redirect(`${baseUrl}/admin/settings?google_ads_connected=true`);
   } catch (error) {
     console.error("Google Ads OAuth callback error:", error);
-    const adminUrl = new URL("/admin/settings", request.url);
-    adminUrl.searchParams.set("google_ads_error", "Failed to connect Google Ads account");
-    return NextResponse.redirect(adminUrl);
+    return NextResponse.redirect(`${baseUrl}/admin/settings?google_ads_error=${encodeURIComponent("Failed to connect Google Ads account")}`);
   }
 }
