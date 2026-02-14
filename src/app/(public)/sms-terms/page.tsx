@@ -254,10 +254,10 @@ export default function SmsTermsPage() {
                     <p className="text-sm text-muted-foreground leading-relaxed">
                       Email{" "}
                       <a
-                        href="mailto:support@flowsmartly.com"
+                        href="mailto:info@flowsmartly.com"
                         className="text-brand-600 hover:text-brand-700 underline"
                       >
-                        support@flowsmartly.com
+                        info@flowsmartly.com
                       </a>{" "}
                       with the phone number you wish to unsubscribe. Include the
                       name of the sender if known.
@@ -295,10 +295,10 @@ export default function SmsTermsPage() {
                   <li>
                     Contact FlowSmartly support at{" "}
                     <a
-                      href="mailto:support@flowsmartly.com"
+                      href="mailto:info@flowsmartly.com"
                       className="text-brand-600 hover:text-brand-700 underline"
                     >
-                      support@flowsmartly.com
+                      info@flowsmartly.com
                     </a>{" "}
                     for assistance with any SMS-related issues.
                   </li>
@@ -415,10 +415,10 @@ export default function SmsTermsPage() {
                   <li>
                     Recipients can request deletion of their data by contacting{" "}
                     <a
-                      href="mailto:support@flowsmartly.com"
+                      href="mailto:info@flowsmartly.com"
                       className="text-brand-600 hover:text-brand-700 underline"
                     >
-                      support@flowsmartly.com
+                      info@flowsmartly.com
                     </a>
                     .
                   </li>
@@ -589,10 +589,10 @@ export default function SmsTermsPage() {
                   <div>
                     <span className="font-medium text-foreground">Email:</span>{" "}
                     <a
-                      href="mailto:support@flowsmartly.com"
+                      href="mailto:info@flowsmartly.com"
                       className="text-brand-600 hover:text-brand-700 underline"
                     >
-                      support@flowsmartly.com
+                      info@flowsmartly.com
                     </a>
                   </div>
                   <div>

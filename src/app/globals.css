@@ -111,4 +111,9 @@
   .gradient-text {
     @apply bg-gradient-to-r from-brand-500 to-accent-purple bg-clip-text text-transparent;
   }
+
+  /* Gold gradient text */
+  .gradient-gold {
+    @apply bg-gradient-to-r from-accent-gold to-brand-500 bg-clip-text text-transparent;
+  }
 }

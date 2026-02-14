@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     if (HELP_KEYWORDS.includes(body)) {
       return twimlResponse(
-        "FlowSmartly SMS: Reply STOP to unsubscribe, START to resubscribe. For support, email support@flowsmartly.com. Msg&data rates may apply."
+        "FlowSmartly SMS: Reply STOP to unsubscribe, START to resubscribe. For support, email info@flowsmartly.com. Msg&data rates may apply."
       );
     }
 

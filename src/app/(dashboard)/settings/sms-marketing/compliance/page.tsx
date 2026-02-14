@@ -558,7 +558,7 @@ export default function SmsCompliancePage() {
               Your SMS messaging access has been suspended. Please contact support for more information and to resolve this issue.
             </p>
             <Button variant="outline" className="mt-4" asChild>
-              <a href="mailto:support@flowsmartly.com">
+              <a href="mailto:info@flowsmartly.com">
                 Contact Support
                 <ExternalLink className="w-4 h-4 ml-2" />
               </a>

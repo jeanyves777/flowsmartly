@@ -232,10 +232,10 @@ export default function TermsOfServicePage() {
                   <li>
                     Notifying us immediately at{" "}
                     <a
-                      href="mailto:support@flowsmartly.com"
+                      href="mailto:info@flowsmartly.com"
                       className="text-brand-600 hover:text-brand-700 underline"
                     >
-                      support@flowsmartly.com
+                      info@flowsmartly.com
                     </a>{" "}
                     if you suspect unauthorized access to your account.
                   </li>
@@ -705,10 +705,10 @@ export default function TermsOfServicePage() {
                 <p className="text-muted-foreground leading-relaxed mb-3">
                   You may terminate your account at any time by contacting us at{" "}
                   <a
-                    href="mailto:support@flowsmartly.com"
+                    href="mailto:info@flowsmartly.com"
                     className="text-brand-600 hover:text-brand-700 underline"
                   >
-                    support@flowsmartly.com
+                    info@flowsmartly.com
                   </a>
                   . Upon termination, your access to the Services will be
                   revoked. Any active phone number rentals will be released. We
@@ -805,10 +805,10 @@ export default function TermsOfServicePage() {
                   <div>
                     <span className="font-medium text-foreground">Email:</span>{" "}
                     <a
-                      href="mailto:support@flowsmartly.com"
+                      href="mailto:info@flowsmartly.com"
                       className="text-brand-600 hover:text-brand-700 underline"
                     >
-                      support@flowsmartly.com
+                      info@flowsmartly.com
                     </a>
                   </div>
                   <div>

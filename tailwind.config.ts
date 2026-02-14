@@ -74,6 +74,7 @@ const config: Config = {
           teal: "#14b8a6",
           indigo: "#6366f1",
           rose: "#f43f5e",
+          gold: "#eccb93",
         },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",

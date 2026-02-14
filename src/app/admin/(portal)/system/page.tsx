@@ -82,7 +82,7 @@ const defaultSettings: SystemSettings = {
   general: {
     siteName: "FlowSmartly",
     siteUrl: "https://flowsmartly.com",
-    supportEmail: "support@flowsmartly.com",
+    supportEmail: "info@flowsmartly.com",
     timezone: "America/New_York",
     maintenanceMode: false,
   },

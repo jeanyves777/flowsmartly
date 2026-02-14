@@ -263,7 +263,7 @@ export default function HelpPage() {
                 Need more help? Reach out to our support team and we will get back to you within 24 hours.
               </p>
               <Button variant="link" className="p-0 h-auto text-brand-500">
-                support@flowsmartly.com
+                info@flowsmartly.com
               </Button>
             </div>
           </CardContent>

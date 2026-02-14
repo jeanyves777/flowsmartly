@@ -449,10 +449,10 @@ export default function PrivacyPolicyPage() {
                 <p className="text-muted-foreground leading-relaxed mt-4">
                   To exercise any of these rights, please contact us at{" "}
                   <a
-                    href="mailto:support@flowsmartly.com"
+                    href="mailto:info@flowsmartly.com"
                     className="text-brand-600 hover:text-brand-700 underline"
                   >
-                    support@flowsmartly.com
+                    info@flowsmartly.com
                   </a>
                   . We will respond to your request within 30 days.
                 </p>
@@ -494,10 +494,10 @@ export default function PrivacyPolicyPage() {
                     </span>{" "}
                     Email{" "}
                     <a
-                      href="mailto:support@flowsmartly.com"
+                      href="mailto:info@flowsmartly.com"
                       className="text-brand-600 hover:text-brand-700 underline"
                     >
-                      support@flowsmartly.com
+                      info@flowsmartly.com
                     </a>{" "}
                     with the phone number you wish to unsubscribe and we will
                     process your request.
@@ -580,10 +580,10 @@ export default function PrivacyPolicyPage() {
                   possible. If you believe we may have collected information from
                   a child, please contact us at{" "}
                   <a
-                    href="mailto:support@flowsmartly.com"
+                    href="mailto:info@flowsmartly.com"
                     className="text-brand-600 hover:text-brand-700 underline"
                   >
-                    support@flowsmartly.com
+                    info@flowsmartly.com
                   </a>
                   .
                 </p>
@@ -633,10 +633,10 @@ export default function PrivacyPolicyPage() {
                   <div>
                     <span className="font-medium text-foreground">Email:</span>{" "}
                     <a
-                      href="mailto:support@flowsmartly.com"
+                      href="mailto:info@flowsmartly.com"
                       className="text-brand-600 hover:text-brand-700 underline"
                     >
-                      support@flowsmartly.com
+                      info@flowsmartly.com
                     </a>
                   </div>
                   <div>
