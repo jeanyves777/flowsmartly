@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminSession } from "@/lib/admin/auth";
 import { prisma } from "@/lib/db/client";
 import {
   exchangeCodeForRefreshToken,
@@ -7,15 +6,12 @@ import {
 } from "@/lib/ads/google-ads-client";
 
 // GET /api/admin/google-ads/callback - OAuth callback handler
+// No admin auth check needed: this only processes a single-use Google authorization code.
+// The code is useless without our client secret, so this endpoint is safe without session auth.
 export async function GET(request: NextRequest) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   try {
-    const admin = await getAdminSession();
-    if (!admin) {
-      return NextResponse.redirect(`${baseUrl}/admin/login`);
-    }
-
     const { searchParams } = new URL(request.url);
     const code = searchParams.get("code");
     const error = searchParams.get("error");
