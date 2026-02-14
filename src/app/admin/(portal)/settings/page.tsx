@@ -15,6 +15,10 @@ import {
   AlertTriangle,
   Key,
   Smartphone,
+  Megaphone,
+  ExternalLink,
+  RefreshCw,
+  Link2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,6 +72,17 @@ export default function SettingsPage() {
     systemUpdates: true,
   });
 
+  // Google Ads state
+  const [googleAdsStatus, setGoogleAdsStatus] = useState<{
+    connected: boolean;
+    configured: boolean;
+    authUrl?: string;
+    customerId?: string;
+    connectedAt?: string;
+    missingCredentials?: string[];
+  } | null>(null);
+  const [googleAdsLoading, setGoogleAdsLoading] = useState(false);
+
   const fetchProfile = useCallback(async () => {
     try {
       const response = await fetch("/api/admin/auth/me");
@@ -93,6 +108,28 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  // Fetch Google Ads connection status
+  const fetchGoogleAdsStatus = useCallback(async () => {
+    setGoogleAdsLoading(true);
+    try {
+      const res = await fetch("/api/admin/google-ads/auth");
+      const data = await res.json();
+      if (data.success) {
+        setGoogleAdsStatus(data.data);
+      }
+    } catch {
+      // Non-critical
+    } finally {
+      setGoogleAdsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "integrations") {
+      fetchGoogleAdsStatus();
+    }
+  }, [activeTab, fetchGoogleAdsStatus]);
 
   const handleSaveProfile = async () => {
     setIsSaving(true);
@@ -220,6 +257,13 @@ export default function SettingsPage() {
           >
             <Bell className="w-4 h-4 mr-2" />
             Notifications
+          </TabsTrigger>
+          <TabsTrigger
+            value="integrations"
+            className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+          >
+            <Link2 className="w-4 h-4 mr-2" />
+            Integrations
           </TabsTrigger>
         </TabsList>
 
@@ -490,6 +534,155 @@ export default function SettingsPage() {
                 </div>
               ))}
             </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Integrations */}
+        <TabsContent value="integrations" className="space-y-6">
+          {/* Google Ads */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Megaphone className="w-5 h-5 text-blue-500" />
+                    Google Ads
+                  </CardTitle>
+                  <CardDescription>
+                    Connect your Google Ads account to push campaigns to Google&apos;s ad network
+                  </CardDescription>
+                </div>
+                {googleAdsStatus?.connected ? (
+                  <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Connected</Badge>
+                ) : (
+                  <Badge variant="outline" className="text-muted-foreground">Not Connected</Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {googleAdsLoading ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Checking connection status...
+                </div>
+              ) : googleAdsStatus?.connected ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Google Ads is connected and active</span>
+                  </div>
+                  {googleAdsStatus.customerId && (
+                    <div className="text-sm text-muted-foreground">
+                      Customer ID: <span className="font-mono">{googleAdsStatus.customerId}</span>
+                    </div>
+                  )}
+                  {googleAdsStatus.connectedAt && (
+                    <div className="text-sm text-muted-foreground">
+                      Connected: {new Date(googleAdsStatus.connectedAt).toLocaleDateString()}
+                    </div>
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    Approved ad campaigns will automatically be pushed to Google Ads.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {googleAdsStatus?.missingCredentials && googleAdsStatus.missingCredentials.length > 0 && (
+                    <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-4">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-amber-600">Missing Credentials</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Add these to your <code className="bg-muted px-1 rounded">.env</code> file:
+                          </p>
+                          <ul className="list-disc list-inside text-sm text-muted-foreground mt-1 space-y-0.5">
+                            {googleAdsStatus.missingCredentials.map((cred) => (
+                              <li key={cred} className="font-mono text-xs">{cred}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-lg border p-4 space-y-3">
+                    <h4 className="text-sm font-medium">Setup Instructions</h4>
+                    <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
+                      <li>
+                        Get OAuth Client Secret from{" "}
+                        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline inline-flex items-center gap-1">
+                          Google Cloud Console <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </li>
+                      <li>
+                        Get Developer Token from{" "}
+                        <a href="https://ads.google.com/aw/apicenter" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline inline-flex items-center gap-1">
+                          Google Ads API Center <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </li>
+                      <li>
+                        Get Customer ID from{" "}
+                        <a href="https://ads.google.com" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline inline-flex items-center gap-1">
+                          Google Ads Dashboard <ExternalLink className="w-3 h-3" />
+                        </a>{" "}
+                        (top-right corner)
+                      </li>
+                      <li>
+                        Enable{" "}
+                        <a href="https://console.cloud.google.com/apis/library/googleads.googleapis.com" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline inline-flex items-center gap-1">
+                          Google Ads API <ExternalLink className="w-3 h-3" />
+                        </a>{" "}
+                        in Cloud Console
+                      </li>
+                      <li>Add all credentials to <code className="bg-muted px-1 rounded">.env</code> and restart the server</li>
+                    </ol>
+                  </div>
+
+                  {googleAdsStatus?.authUrl ? (
+                    <Button
+                      onClick={() => window.open(googleAdsStatus.authUrl, "_self")}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Megaphone className="w-4 h-4 mr-2" />
+                      Connect Google Ads Account
+                    </Button>
+                  ) : (
+                    <Button disabled variant="outline">
+                      <Megaphone className="w-4 h-4 mr-2" />
+                      Add credentials first to connect
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              <div className="pt-2 border-t">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchGoogleAdsStatus}
+                  disabled={googleAdsLoading}
+                >
+                  <RefreshCw className={`w-3 h-3 mr-1.5 ${googleAdsLoading ? "animate-spin" : ""}`} />
+                  Refresh Status
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Meta Ads - Coming Soon */}
+          <Card className="opacity-60">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-muted-foreground">
+                    Meta Ads
+                  </CardTitle>
+                  <CardDescription>Facebook & Instagram ad network integration</CardDescription>
+                </div>
+                <Badge variant="outline">Coming Soon</Badge>
+              </div>
+            </CardHeader>
           </Card>
         </TabsContent>
       </Tabs>

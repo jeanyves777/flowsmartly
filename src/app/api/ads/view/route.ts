@@ -19,9 +19,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { action, postId, viewId } = body;
+    const { action, postId, campaignId, viewId } = body;
 
     if (action === "start") {
+      if (campaignId && !postId) {
+        return handleStartCampaignView(session.userId, campaignId);
+      }
       return handleStartView(session.userId, postId);
     } else if (action === "complete") {
       return handleCompleteView(session.userId, viewId);
@@ -170,6 +173,130 @@ async function handleStartView(viewerUserId: string, postId: string) {
   });
 }
 
+// Handle view start for non-post ad campaigns (PRODUCT_LINK, LANDING_PAGE, EXTERNAL_URL)
+async function handleStartCampaignView(viewerUserId: string, campaignId: string) {
+  if (!campaignId) {
+    return NextResponse.json(
+      { success: false, error: { message: "Campaign ID is required" } },
+      { status: 400 }
+    );
+  }
+
+  // 1. Get the campaign
+  const campaign = await prisma.adCampaign.findFirst({
+    where: {
+      id: campaignId,
+      status: "ACTIVE",
+      approvalStatus: "APPROVED",
+      adType: { not: "POST" },
+    },
+    select: {
+      id: true,
+      userId: true,
+      status: true,
+      budgetCents: true,
+      spentCents: true,
+      cpvCents: true,
+    },
+  });
+
+  if (!campaign) {
+    return NextResponse.json(
+      { success: false, error: { message: "Campaign not found or inactive" } },
+      { status: 404 }
+    );
+  }
+
+  // 2. Viewer cannot earn from their own campaign
+  if (campaign.userId === viewerUserId) {
+    return NextResponse.json(
+      { success: false, error: { message: "You cannot earn from your own ad" } },
+      { status: 400 }
+    );
+  }
+
+  // 3. Campaign must have remaining budget
+  const remainingBudget = campaign.budgetCents - campaign.spentCents;
+  if (remainingBudget < campaign.cpvCents) {
+    return NextResponse.json(
+      { success: false, error: { message: "Campaign budget exhausted" } },
+      { status: 400 }
+    );
+  }
+
+  // 4. Rate limiting: max views per hour
+  const oneHourAgo = new Date(Date.now() - 3600000);
+  const recentViews = await prisma.postView.count({
+    where: {
+      viewerUserId,
+      createdAt: { gte: oneHourAgo },
+      earnedCents: { gt: 0 },
+    },
+  });
+
+  if (recentViews >= MAX_VIEWS_PER_HOUR) {
+    return NextResponse.json(
+      { success: false, error: { message: "Rate limit reached. Try again later." } },
+      { status: 429 }
+    );
+  }
+
+  // 5. Check if user already viewed this campaign
+  // Use a pseudo-postId based on campaignId so the unique constraint works
+  const pseudoPostId = `campaign_${campaignId}`;
+  const existingView = await prisma.postView.findFirst({
+    where: {
+      viewerUserId,
+      campaignId,
+      earnedCents: { gt: 0 },
+    },
+  });
+
+  if (existingView) {
+    return NextResponse.json(
+      { success: false, error: { message: "You have already earned from this ad" } },
+      { status: 400 }
+    );
+  }
+
+  // 6. Find any post to link to (campaigns need a postId due to schema constraint)
+  // For non-post campaigns, we'll find the first post in the system as a placeholder
+  const anyPost = await prisma.post.findFirst({
+    select: { id: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!anyPost) {
+    return NextResponse.json(
+      { success: false, error: { message: "System error: no posts available" } },
+      { status: 500 }
+    );
+  }
+
+  // 7. Create view record
+  const view = await prisma.postView.create({
+    data: {
+      postId: anyPost.id,
+      viewerUserId,
+      campaignId: campaign.id,
+      viewDuration: 0,
+      earnedCents: 0,
+    },
+  });
+
+  const { viewerCents } = calculateAdRevenueSplit(campaign.cpvCents);
+
+  return NextResponse.json({
+    success: true,
+    data: {
+      viewId: view.id,
+      startedAt: view.createdAt.toISOString(),
+      durationRequired: VIEW_DURATION_SECONDS,
+      earnAmount: viewerCents / 100,
+    },
+  });
+}
+
 async function handleCompleteView(viewerUserId: string, viewId: string) {
   if (!viewId) {
     return NextResponse.json(
@@ -194,6 +321,7 @@ async function handleCompleteView(viewerUserId: string, viewId: string) {
           spentCents: true,
           cpvCents: true,
           userId: true,
+          adType: true,
         },
       },
       post: {
@@ -237,10 +365,11 @@ async function handleCompleteView(viewerUserId: string, viewId: string) {
     );
   }
 
-  // 4. Viewer cannot be the post owner (double check)
-  if (view.post.userId === viewerUserId) {
+  // 4. Viewer cannot be the post/campaign owner (double check)
+  const isOwnContent = view.campaign?.userId === viewerUserId || view.post.userId === viewerUserId;
+  if (isOwnContent) {
     return NextResponse.json(
-      { success: false, error: { message: "Cannot earn from own post" } },
+      { success: false, error: { message: "Cannot earn from own content" } },
       { status: 400 }
     );
   }

@@ -74,6 +74,7 @@ const navItems = [
 // Marketing section
 const marketingItems = [
   { href: "/admin/campaigns", icon: Megaphone, label: "Campaigns" },
+  { href: "/admin/ads", icon: Megaphone, label: "Ad Review" },
   { href: "/admin/email-marketing", icon: Mail, label: "Email Marketing" },
   { href: "/admin/sms-marketing", icon: MessageSquare, label: "SMS Marketing" },
   { href: "/admin/sms-marketing/compliance", icon: ShieldCheck, label: "SMS Compliance" },

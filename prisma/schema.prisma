@@ -308,6 +308,37 @@ model AdCampaign {
   clicks          Int      @default(0)
   conversions     Int      @default(0)
 
+  // Ad type & content
+  adType          String   @default("POST")     // POST, PRODUCT_LINK, LANDING_PAGE, EXTERNAL_URL
+  destinationUrl  String?                        // Where clicks go (product/external URL)
+  mediaUrl        String?                        // Ad creative image URL (S3)
+  videoUrl        String?                        // Ad creative video URL (S3)
+  headline        String?                        // Ad headline
+  description     String?                        // Ad body text
+  ctaText         String?  @default("Learn More") // CTA button text
+
+  // Content policy
+  adCategory      String?                        // E-commerce, SaaS, Health, Education, etc.
+  contentRating   String   @default("GENERAL")   // GENERAL only (no explicit allowed)
+
+  // Admin approval
+  approvalStatus  String   @default("PENDING")   // PENDING, APPROVED, REJECTED
+  reviewedAt      DateTime?
+  reviewedBy      String?                        // Admin user ID
+  rejectionReason String?
+
+  // Quick ad page link
+  adPageId        String?  @unique
+  adPage          AdPage?  @relation(fields: [adPageId], references: [id])
+
+  // Landing page link (for LANDING_PAGE type)
+  landingPageId   String?
+  landingPage     LandingPage? @relation(fields: [landingPageId], references: [id])
+
+  // Google Ads integration
+  googleAdsCampaignId  String?   // Google Ads campaign resource name
+  googleAdsAdGroupId   String?   // Google Ads ad group resource name
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -317,6 +348,29 @@ model AdCampaign {
 
   @@index([userId])
   @@index([status, startDate, endDate])
+  @@index([approvalStatus])
+  @@index([adType])
+}
+
+model AdPage {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  headline        String
+  description     String?
+  mediaUrl        String?
+  videoUrl        String?
+  destinationUrl  String            // CTA redirect target
+  ctaText         String   @default("Visit Now")
+  templateStyle   String   @default("hero") // minimal, hero, split, video
+  views           Int      @default(0)
+  clicks          Int      @default(0)
+  status          String   @default("ACTIVE")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  campaign        AdCampaign?
+
+  @@index([slug])
+  @@index([status])
 }
 
 model PostView {
@@ -1368,6 +1422,7 @@ model LandingPage {
 
   user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   formSubmissions FormSubmission[]
+  adCampaigns     AdCampaign[]
 
   @@index([userId])
   @@index([slug])

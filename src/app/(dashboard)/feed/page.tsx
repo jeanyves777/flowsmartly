@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart,
@@ -51,6 +51,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { AITextAssistant } from "@/components/feed/ai-text-assistant";
+import { AdCard } from "@/components/ads/ad-card";
 
 // Real social media SVG icons for sharing
 function FacebookShareIcon({ className }: { className?: string }) {
@@ -142,6 +143,22 @@ interface Post {
   createdAt: string;
 }
 
+interface AdCampaignItem {
+  id: string;
+  isAdCard: true;
+  name: string;
+  headline: string | null;
+  description: string | null;
+  mediaUrl: string | null;
+  videoUrl: string | null;
+  destinationUrl: string | null;
+  ctaText: string | null;
+  adType: string;
+  adPage: { slug: string } | null;
+}
+
+type FeedItem = Post | AdCampaignItem;
+
 interface CommentData {
   id: string;
   content: string;
@@ -195,6 +212,7 @@ export default function FeedPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [posts, setPosts] = useState<Post[]>([]);
+  const [feedAds, setFeedAds] = useState<AdCampaignItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [newPostContent, setNewPostContent] = useState("");
@@ -293,10 +311,16 @@ export default function FeedPage() {
         throw new Error(data.error?.message || "Failed to fetch posts");
       }
 
+      // Separate regular posts from ad campaign cards
+      const allItems: FeedItem[] = data.data.posts;
+      const regularPosts = allItems.filter((item): item is Post => !("isAdCard" in item));
+      const adItems = allItems.filter((item): item is AdCampaignItem => "isAdCard" in item);
+
       if (cursor) {
-        setPosts(prev => [...prev, ...data.data.posts]);
+        setPosts(prev => [...prev, ...regularPosts]);
       } else {
-        setPosts(data.data.posts);
+        setPosts(regularPosts);
+        setFeedAds(adItems);
       }
       setNextCursor(data.data.nextCursor);
       setHasMore(data.data.hasMore);
@@ -1217,6 +1241,16 @@ export default function FeedPage() {
     );
   }
 
+  // Merge posts with ad campaigns for feed display
+  const feedItems: FeedItem[] = useMemo(() => {
+    const items: FeedItem[] = [...posts];
+    for (let i = 0; i < feedAds.length; i++) {
+      const insertAt = Math.min((i + 1) * 5, items.length);
+      items.splice(insertAt, 0, feedAds[i]);
+    }
+    return items;
+  }, [posts, feedAds]);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -1434,7 +1468,25 @@ export default function FeedPage() {
             </Card>
           ) : (
             <AnimatePresence mode="popLayout">
-              {posts.map((post, index) => (
+              {feedItems.map((item, index) => {
+                if ("isAdCard" in item && item.isAdCard) {
+                  return (
+                    <motion.div
+                      key={`ad-${item.id}`}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <AdCard
+                        campaign={item}
+                        currentUserId={currentUserId}
+                      />
+                    </motion.div>
+                  );
+                }
+                const post = item as Post;
+                return (
                 <motion.div
                   key={post.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -1868,7 +1920,8 @@ export default function FeedPage() {
                     </CardContent>
                   </Card>
                 </motion.div>
-              ))}
+                );
+              })}
             </AnimatePresence>
           )}
 

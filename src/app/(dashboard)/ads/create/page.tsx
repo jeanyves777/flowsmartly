@@ -25,6 +25,14 @@ import {
   Sparkles,
   X,
   Lock,
+  ShoppingBag,
+  ExternalLink,
+  Upload,
+  ShieldCheck,
+  AlertTriangle,
+  Link2,
+  FileText,
+  Layout,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +45,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
@@ -97,6 +106,45 @@ function FeedIcon({ className, style }: { className?: string; style?: React.CSSP
       <rect x="3" y="20" width="18" height="1" rx="0.5" />
     </svg>
   );
+}
+
+type AdType = "POST" | "PRODUCT_LINK" | "LANDING_PAGE" | "EXTERNAL_URL";
+
+const AD_TYPES: { id: AdType; label: string; icon: typeof ImageIcon; description: string; color: string }[] = [
+  { id: "POST", label: "Promote Post", icon: ImageIcon, description: "Boost your existing feed posts", color: "from-blue-500 to-indigo-600" },
+  { id: "PRODUCT_LINK", label: "Product Link", icon: ShoppingBag, description: "Promote a product with image/video", color: "from-emerald-500 to-teal-600" },
+  { id: "LANDING_PAGE", label: "Landing Page", icon: FileText, description: "Promote a landing page you built", color: "from-purple-500 to-violet-600" },
+  { id: "EXTERNAL_URL", label: "External URL", icon: ExternalLink, description: "Promote any website or link", color: "from-orange-500 to-red-600" },
+];
+
+const AD_CATEGORIES = [
+  "E-commerce / Shopping",
+  "SaaS / Technology",
+  "Health & Wellness",
+  "Education / Courses",
+  "Entertainment",
+  "Fashion & Beauty",
+  "Food & Dining",
+  "Finance / Crypto",
+  "Real Estate",
+  "Travel",
+  "Non-profit",
+  "Other",
+];
+
+const TEMPLATE_STYLES = [
+  { id: "hero", label: "Hero", description: "Full-bleed image with overlay text" },
+  { id: "minimal", label: "Minimal", description: "Clean centered layout" },
+  { id: "split", label: "Split", description: "Image left, text right" },
+  { id: "video", label: "Video", description: "Video player with text below" },
+];
+
+interface LandingPageOption {
+  id: string;
+  title: string;
+  slug: string;
+  thumbnailUrl: string | null;
+  description: string | null;
 }
 
 const PLATFORMS = [
@@ -205,6 +253,28 @@ export default function CreateCampaignPage() {
   const [customTagCategory, setCustomTagCategory] = useState<TagCategory>("interest");
   const [isGeneratingAudience, setIsGeneratingAudience] = useState(false);
 
+  // Ad type
+  const [adType, setAdType] = useState<AdType>("POST");
+
+  // Product link / External URL fields
+  const [headline, setHeadline] = useState("");
+  const [adDescription, setAdDescription] = useState("");
+  const [destinationUrl, setDestinationUrl] = useState("");
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState("");
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState("");
+  const [ctaText, setCtaText] = useState("Learn More");
+  const [templateStyle, setTemplateStyle] = useState("hero");
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+
+  // Landing page selection
+  const [landingPages, setLandingPages] = useState<LandingPageOption[]>([]);
+  const [selectedLandingPageId, setSelectedLandingPageId] = useState("");
+  const [landingPagesLoading, setLandingPagesLoading] = useState(false);
+
+  // Content policy
+  const [adCategory, setAdCategory] = useState("");
+  const [contentPolicyAgreed, setContentPolicyAgreed] = useState(false);
+
   // AI campaign name
   const [isGeneratingName, setIsGeneratingName] = useState(false);
   const [suggestedNames, setSuggestedNames] = useState<string[]>([]);
@@ -258,6 +328,50 @@ export default function CreateCampaignPage() {
     }
     fetchPosts();
   }, [currentUserId, toast]);
+
+  // Fetch user's published landing pages (for LANDING_PAGE ad type)
+  useEffect(() => {
+    if (adType !== "LANDING_PAGE") return;
+    setLandingPagesLoading(true);
+    fetch("/api/landing-pages?status=PUBLISHED&limit=50")
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setLandingPages(data.data.pages || []);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLandingPagesLoading(false));
+  }, [adType]);
+
+  // Handle media upload
+  const handleMediaUpload = async (file: File, type: "image" | "video") => {
+    setIsUploadingMedia(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/media", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.success && data.data?.url) {
+        if (type === "image") {
+          setMediaPreviewUrl(data.data.url);
+        } else {
+          setVideoPreviewUrl(data.data.url);
+        }
+        toast({ title: `${type === "image" ? "Image" : "Video"} uploaded successfully` });
+      } else {
+        throw new Error(data.error?.message || "Upload failed");
+      }
+    } catch (err) {
+      toast({
+        title: "Upload failed",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  };
 
   // Pre-select post from query parameter
   useEffect(() => {
@@ -353,10 +467,37 @@ export default function CreateCampaignPage() {
       toast({ title: "Campaign name is required", variant: "destructive" });
       return;
     }
-    if (selectedPostIds.size === 0) {
+
+    // Ad-type-specific validation
+    if (adType === "POST" && selectedPostIds.size === 0) {
       toast({ title: "Select at least one post", variant: "destructive" });
       return;
     }
+    if ((adType === "PRODUCT_LINK" || adType === "EXTERNAL_URL") && !destinationUrl.trim()) {
+      toast({ title: "Destination URL is required", variant: "destructive" });
+      return;
+    }
+    if ((adType === "PRODUCT_LINK" || adType === "EXTERNAL_URL") && !headline.trim()) {
+      toast({ title: "Headline is required", variant: "destructive" });
+      return;
+    }
+    if (adType === "LANDING_PAGE" && !selectedLandingPageId) {
+      toast({ title: "Select a landing page to promote", variant: "destructive" });
+      return;
+    }
+
+    // Content policy
+    if (adType !== "POST") {
+      if (!adCategory) {
+        toast({ title: "Select an ad category", variant: "destructive" });
+        return;
+      }
+      if (!contentPolicyAgreed) {
+        toast({ title: "You must agree to the content policy", variant: "destructive" });
+        return;
+      }
+    }
+
     if (selectedPlatforms.size === 0) {
       toast({ title: "Select at least one platform", variant: "destructive" });
       return;
@@ -382,7 +523,19 @@ export default function CreateCampaignPage() {
           costPerView: cpvDollars,
           startDate,
           endDate: endDate || undefined,
-          postIds: Array.from(selectedPostIds),
+          // Ad type fields
+          adType,
+          headline: headline.trim() || undefined,
+          description: adDescription.trim() || undefined,
+          destinationUrl: destinationUrl.trim() || undefined,
+          mediaUrl: mediaPreviewUrl || undefined,
+          videoUrl: videoPreviewUrl || undefined,
+          ctaText: ctaText || "Learn More",
+          templateStyle,
+          adCategory: adCategory || undefined,
+          landingPageId: selectedLandingPageId || undefined,
+          // Post promotion fields
+          postIds: adType === "POST" ? Array.from(selectedPostIds) : undefined,
           targeting: {
             platforms: Array.from(selectedPlatforms),
             tags: selectedTags,
@@ -393,7 +546,13 @@ export default function CreateCampaignPage() {
       const data = await response.json();
       if (!data.success) throw new Error(data.error?.message || "Failed to create campaign");
 
-      toast({ title: "Campaign created!", description: "Your campaign is now active." });
+      const isReview = adType !== "POST";
+      toast({
+        title: isReview ? "Ad submitted for review!" : "Campaign created!",
+        description: isReview
+          ? "Your ad is under review. We'll notify you once it's approved."
+          : "Your campaign is now active.",
+      });
       router.push("/ads");
     } catch (err) {
       toast({
@@ -540,7 +699,7 @@ export default function CreateCampaignPage() {
             Create Campaign
           </h1>
           <p className="text-muted-foreground mt-1">
-            Set up a new advertising campaign to promote your posts
+            Set up a new advertising campaign to promote your content
           </p>
         </div>
       </div>
@@ -548,6 +707,48 @@ export default function CreateCampaignPage() {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Left Column: Form Sections */}
         <div className="lg:col-span-2 space-y-6">
+
+          {/* Section 0: Ad Type Selector */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Layout className="w-5 h-5 text-brand-500" />
+                What do you want to promote?
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {AD_TYPES.map((type) => {
+                  const Icon = type.icon;
+                  const isSelected = adType === type.id;
+                  return (
+                    <button
+                      key={type.id}
+                      onClick={() => setAdType(type.id)}
+                      className={`relative flex flex-col items-center text-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                        isSelected
+                          ? "border-brand-500 bg-brand-500/5 ring-2 ring-brand-500/20"
+                          : "border-transparent bg-muted/50 hover:bg-muted hover:border-muted-foreground/20"
+                      }`}
+                    >
+                      <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${type.color} flex items-center justify-center`}>
+                        <Icon className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{type.label}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{type.description}</p>
+                      </div>
+                      {isSelected && (
+                        <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-brand-500 flex items-center justify-center">
+                          <Check className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Section 1: Campaign Info */}
           <Card>
@@ -631,7 +832,272 @@ export default function CreateCampaignPage() {
             </CardContent>
           </Card>
 
-          {/* Section 2: Post Selector */}
+          {/* Section 2: Content — varies by ad type */}
+
+          {/* Product Link / External URL Form */}
+          {(adType === "PRODUCT_LINK" || adType === "EXTERNAL_URL") && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  {adType === "PRODUCT_LINK" ? (
+                    <ShoppingBag className="w-5 h-5 text-brand-500" />
+                  ) : (
+                    <ExternalLink className="w-5 h-5 text-brand-500" />
+                  )}
+                  {adType === "PRODUCT_LINK" ? "Product Details" : "Link Details"}
+                </CardTitle>
+                <CardDescription>
+                  {adType === "PRODUCT_LINK"
+                    ? "Enter your product info. We'll create a quick ad page for you."
+                    : "Enter the website URL you want to promote."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="headline">Headline *</Label>
+                  <Input
+                    id="headline"
+                    placeholder="e.g., Premium Wireless Headphones - 50% Off"
+                    value={headline}
+                    onChange={(e) => setHeadline(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="ad-description">Description</Label>
+                  <Textarea
+                    id="ad-description"
+                    placeholder="Describe what you're promoting..."
+                    value={adDescription}
+                    onChange={(e) => setAdDescription(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="destination-url">Destination URL *</Label>
+                  <div className="relative">
+                    <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="destination-url"
+                      type="url"
+                      placeholder="https://example.com/product"
+                      value={destinationUrl}
+                      onChange={(e) => setDestinationUrl(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="cta-text">Call to Action</Label>
+                  <Input
+                    id="cta-text"
+                    placeholder="Learn More"
+                    value={ctaText}
+                    onChange={(e) => setCtaText(e.target.value)}
+                  />
+                  <div className="flex gap-1.5 flex-wrap">
+                    {["Shop Now", "Learn More", "Get Started", "Sign Up", "Visit Site", "Download"].map(cta => (
+                      <button
+                        key={cta}
+                        type="button"
+                        onClick={() => setCtaText(cta)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                          ctaText === cta
+                            ? "border-brand-500 bg-brand-500/10 text-brand-600"
+                            : "border-transparent bg-muted/50 text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {cta}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Image upload */}
+                <div className="space-y-2">
+                  <Label>Ad Image</Label>
+                  {mediaPreviewUrl ? (
+                    <div className="relative rounded-xl overflow-hidden border bg-muted">
+                      <img src={mediaPreviewUrl} alt="Ad preview" className="w-full max-h-64 object-cover" />
+                      <button
+                        onClick={() => setMediaPreviewUrl("")}
+                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center gap-2 p-8 border-2 border-dashed rounded-xl cursor-pointer hover:border-brand-500/50 hover:bg-muted/50 transition-colors">
+                      <Upload className="w-8 h-8 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Click to upload an image</span>
+                      <span className="text-xs text-muted-foreground">PNG, JPG, GIF up to 10MB</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleMediaUpload(file, "image");
+                        }}
+                        disabled={isUploadingMedia}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* Video upload (optional) */}
+                <div className="space-y-2">
+                  <Label>Ad Video (Optional)</Label>
+                  {videoPreviewUrl ? (
+                    <div className="relative rounded-xl overflow-hidden border bg-muted">
+                      <video src={videoPreviewUrl} controls className="w-full max-h-64" />
+                      <button
+                        onClick={() => setVideoPreviewUrl("")}
+                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed rounded-xl cursor-pointer hover:border-brand-500/50 hover:bg-muted/50 transition-colors">
+                      <Video className="w-6 h-6 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Click to upload a video</span>
+                      <span className="text-xs text-muted-foreground">MP4 up to 100MB</span>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleMediaUpload(file, "video");
+                        }}
+                        disabled={isUploadingMedia}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {isUploadingMedia && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Uploading...
+                  </div>
+                )}
+
+                {/* Template style picker */}
+                <div className="space-y-2">
+                  <Label>Ad Page Style</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {TEMPLATE_STYLES.map(style => (
+                      <button
+                        key={style.id}
+                        type="button"
+                        onClick={() => setTemplateStyle(style.id)}
+                        className={`p-3 rounded-xl border-2 text-center transition-all ${
+                          templateStyle === style.id
+                            ? "border-brand-500 bg-brand-500/5"
+                            : "border-transparent bg-muted/50 hover:bg-muted"
+                        }`}
+                      >
+                        <p className="text-xs font-medium">{style.label}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{style.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Landing Page Selector */}
+          {adType === "LANDING_PAGE" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <FileText className="w-5 h-5 text-brand-500" />
+                  Select Landing Page
+                </CardTitle>
+                <CardDescription>
+                  Choose a published landing page to promote
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {landingPagesLoading ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {[1, 2, 3].map(i => (
+                      <Skeleton key={i} className="h-32 rounded-xl" />
+                    ))}
+                  </div>
+                ) : landingPages.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <FileText className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                    <p className="font-medium">No published landing pages</p>
+                    <p className="text-sm mt-1">Create and publish a landing page first</p>
+                    <Button variant="outline" size="sm" className="mt-3" asChild>
+                      <Link href="/landing-pages">Go to Landing Pages</Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {landingPages.map(lp => {
+                      const isSelected = selectedLandingPageId === lp.id;
+                      return (
+                        <button
+                          key={lp.id}
+                          onClick={() => {
+                            setSelectedLandingPageId(lp.id);
+                            setHeadline(lp.title);
+                            if (lp.description) setAdDescription(lp.description);
+                          }}
+                          className={`relative text-left rounded-xl border-2 overflow-hidden transition-all ${
+                            isSelected
+                              ? "border-brand-500 ring-2 ring-brand-500/20"
+                              : "border-transparent hover:border-muted-foreground/30"
+                          }`}
+                        >
+                          <div className="h-24 bg-gradient-to-br from-purple-500/10 to-violet-500/10 flex items-center justify-center">
+                            {lp.thumbnailUrl ? (
+                              <img src={lp.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <Globe className="w-8 h-8 text-muted-foreground/40" />
+                            )}
+                          </div>
+                          <div className="p-2">
+                            <p className="text-xs font-medium line-clamp-1">{lp.title}</p>
+                            <p className="text-[10px] text-muted-foreground">/{lp.slug}</p>
+                          </div>
+                          {isSelected && (
+                            <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-brand-500 flex items-center justify-center">
+                              <Check className="w-3 h-3 text-white" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {selectedLandingPageId && (
+                  <div className="mt-4 space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="lp-cta">Call to Action Text</Label>
+                      <Input
+                        id="lp-cta"
+                        placeholder="Visit Page"
+                        value={ctaText}
+                        onChange={(e) => setCtaText(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Post Selector (existing, only for POST type) */}
+          {adType === "POST" && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -788,6 +1254,74 @@ export default function CreateCampaignPage() {
               )}
             </CardContent>
           </Card>
+          )}
+
+          {/* Content Policy Section (for non-POST ad types) */}
+          {adType !== "POST" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <ShieldCheck className="w-5 h-5 text-brand-500" />
+                  Content Policy
+                </CardTitle>
+                <CardDescription>
+                  All ads are reviewed before going live to ensure quality
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Ad Category */}
+                <div className="space-y-2">
+                  <Label>Ad Category *</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {AD_CATEGORIES.map(cat => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setAdCategory(cat)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                          adCategory === cat
+                            ? "border-brand-500 bg-brand-500/10 text-brand-600"
+                            : "border-transparent bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Content policy agreement */}
+                <label className="flex items-start gap-3 p-3 rounded-xl border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={contentPolicyAgreed}
+                    onChange={(e) => setContentPolicyAgreed(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                  />
+                  <span className="text-sm">
+                    I confirm this ad does not contain explicit, misleading, or prohibited content.
+                    I understand that ads are subject to review and may be rejected.
+                  </span>
+                </label>
+
+                {/* Prohibited content list */}
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Not Allowed</span>
+                  </div>
+                  <ul className="text-xs text-muted-foreground space-y-1">
+                    <li>- Explicit or adult content</li>
+                    <li>- Misleading claims or false advertising</li>
+                    <li>- Illegal products or services</li>
+                    <li>- Hate speech or discrimination</li>
+                    <li>- Weapons, drugs, or dangerous substances</li>
+                    <li>- Counterfeit or copyrighted content</li>
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Section 3: Platform Selector */}
           <Card>
@@ -1218,36 +1752,82 @@ export default function CreateCampaignPage() {
                   </Badge>
                 </div>
 
-                {/* Posts */}
+                {/* Ad Type */}
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1.5">Posts</p>
-                  {selectedPostIds.size === 0 ? (
-                    <p className="text-sm text-muted-foreground">None selected</p>
-                  ) : (
-                    <div className="flex items-center gap-1.5">
-                      {Array.from(selectedPostIds).slice(0, 4).map((id) => {
-                        const post = userPosts.find(p => p.id === id);
-                        return (
-                          <div
-                            key={id}
-                            className="w-8 h-8 rounded-md bg-muted overflow-hidden"
-                          >
-                            {post?.mediaUrls[0] ? (
-                              <img src={post.mediaUrls[0]} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <Type className="w-3 h-3 text-muted-foreground" />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                      {selectedPostIds.size > 4 && (
-                        <span className="text-xs text-muted-foreground">+{selectedPostIds.size - 4}</span>
-                      )}
-                    </div>
-                  )}
+                  <p className="text-xs text-muted-foreground mb-1">Ad Type</p>
+                  <Badge variant="secondary">
+                    {AD_TYPES.find(t => t.id === adType)?.label || adType}
+                  </Badge>
                 </div>
+
+                {/* Content Summary — varies by ad type */}
+                {adType === "POST" ? (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1.5">Posts</p>
+                    {selectedPostIds.size === 0 ? (
+                      <p className="text-sm text-muted-foreground">None selected</p>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        {Array.from(selectedPostIds).slice(0, 4).map((id) => {
+                          const post = userPosts.find(p => p.id === id);
+                          return (
+                            <div
+                              key={id}
+                              className="w-8 h-8 rounded-md bg-muted overflow-hidden"
+                            >
+                              {post?.mediaUrls[0] ? (
+                                <img src={post.mediaUrls[0]} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <Type className="w-3 h-3 text-muted-foreground" />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {selectedPostIds.size > 4 && (
+                          <span className="text-xs text-muted-foreground">+{selectedPostIds.size - 4}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {headline && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Headline</p>
+                        <p className="text-sm font-medium line-clamp-2">{headline}</p>
+                      </div>
+                    )}
+                    {destinationUrl && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Destination</p>
+                        <p className="text-xs text-brand-500 line-clamp-1 break-all">{destinationUrl}</p>
+                      </div>
+                    )}
+                    {mediaPreviewUrl && (
+                      <div className="w-full h-16 rounded-md overflow-hidden bg-muted">
+                        <img src={mediaPreviewUrl} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    {adType === "LANDING_PAGE" && selectedLandingPageId && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Landing Page</p>
+                        <p className="text-sm font-medium">{landingPages.find(lp => lp.id === selectedLandingPageId)?.title}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Approval Status Info */}
+                {adType !== "POST" && (
+                  <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-2.5">
+                    <p className="text-xs text-amber-700 dark:text-amber-400 font-medium flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      Requires admin approval
+                    </p>
+                  </div>
+                )}
 
                 {/* Platforms */}
                 <div>
@@ -1312,12 +1892,12 @@ export default function CreateCampaignPage() {
                     {isSubmitting ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating...
+                        {adType === "POST" ? "Creating..." : "Submitting..."}
                       </>
                     ) : (
                       <>
                         <Rocket className="w-4 h-4 mr-2" />
-                        Create Campaign
+                        {adType === "POST" ? "Create Campaign" : "Submit for Review"}
                       </>
                     )}
                   </Button>
@@ -1332,7 +1912,7 @@ export default function CreateCampaignPage() {
       <div className="fixed bottom-0 left-0 right-0 lg:hidden bg-background border-t p-4 z-50">
         <div className="flex items-center justify-between gap-4 max-w-7xl mx-auto">
           <div className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{selectedPostIds.size}</span> post{selectedPostIds.size !== 1 ? "s" : ""} &middot;{" "}
+            <Badge variant="outline" className="mr-2 text-[10px]">{AD_TYPES.find(t => t.id === adType)?.label}</Badge>
             <span className="font-medium text-foreground">{budgetCredits}</span> credits
           </div>
           <Button
@@ -1343,12 +1923,12 @@ export default function CreateCampaignPage() {
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Creating...
+                {adType === "POST" ? "Creating..." : "Submitting..."}
               </>
             ) : (
               <>
                 <Rocket className="w-4 h-4 mr-2" />
-                Create Campaign
+                {adType === "POST" ? "Create Campaign" : "Submit for Review"}
               </>
             )}
           </Button>

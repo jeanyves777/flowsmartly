@@ -131,10 +131,55 @@ export async function GET(request: NextRequest) {
       createdAt: post.createdAt.toISOString(),
     }));
 
+    // Fetch active non-post ad campaigns to intersperse in feed
+    let adCampaigns: Array<{
+      id: string;
+      isAdCard: true;
+      name: string;
+      headline: string | null;
+      description: string | null;
+      mediaUrl: string | null;
+      videoUrl: string | null;
+      destinationUrl: string | null;
+      ctaText: string | null;
+      adType: string;
+      adPage: { slug: string } | null;
+    }> = [];
+
+    try {
+      const { getActiveAdCampaigns } = await import("@/lib/ads/placement-engine");
+      const activeCampaigns = await getActiveAdCampaigns({
+        excludeUserId: session?.userId,
+        limit: 3,
+      });
+      adCampaigns = activeCampaigns.map(c => ({
+        id: c.id,
+        isAdCard: true as const,
+        name: c.name,
+        headline: c.headline,
+        description: c.description,
+        mediaUrl: c.mediaUrl,
+        videoUrl: c.videoUrl,
+        destinationUrl: c.destinationUrl,
+        ctaText: c.ctaText,
+        adType: c.adType,
+        adPage: c.adPage,
+      }));
+    } catch {
+      // Ad system failure shouldn't break the feed
+    }
+
+    // Interleave ad campaigns into the posts at every 5th position
+    const feedItems: Array<(typeof formattedPosts)[number] | (typeof adCampaigns)[number]> = [...formattedPosts];
+    for (let i = 0; i < adCampaigns.length; i++) {
+      const insertAt = Math.min((i + 1) * 5, feedItems.length);
+      feedItems.splice(insertAt, 0, adCampaigns[i]);
+    }
+
     return NextResponse.json({
       success: true,
       data: await presignAllUrls({
-        posts: formattedPosts,
+        posts: feedItems,
         nextCursor: hasMore ? postsToReturn[postsToReturn.length - 1].id : null,
         hasMore,
       }),
