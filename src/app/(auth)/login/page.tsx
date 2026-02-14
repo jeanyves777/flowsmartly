@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { LoginIllustration } from "@/components/illustrations/login-illustration";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -81,17 +83,18 @@ export default function LoginPage() {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-    >
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
-        <p className="text-muted-foreground mt-2">
-          Enter your credentials to access your account
-        </p>
-      </div>
+    <AuthShell illustration={<LoginIllustration />}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
+          <p className="text-muted-foreground mt-2">
+            Enter your credentials to access your account
+          </p>
+        </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
@@ -166,15 +169,16 @@ export default function LoginPage() {
         </Button>
       </form>
 
-      <p className="mt-8 text-center text-sm text-muted-foreground">
-        Don&apos;t have an account?{" "}
-        <Link
-          href="/register"
-          className="font-medium text-brand-500 hover:text-brand-600"
-        >
-          Create an account
-        </Link>
-      </p>
-    </motion.div>
+        <p className="mt-8 text-center text-sm text-muted-foreground">
+          Don&apos;t have an account?{" "}
+          <Link
+            href="/register"
+            className="font-medium text-brand-500 hover:text-brand-600"
+          >
+            Create an account
+          </Link>
+        </p>
+      </motion.div>
+    </AuthShell>
   );
 }

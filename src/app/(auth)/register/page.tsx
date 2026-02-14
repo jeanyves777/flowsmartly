@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { RegisterIllustration } from "@/components/illustrations/register-illustration";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -89,17 +91,23 @@ export default function RegisterPage() {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
+    <AuthShell
+      illustration={<RegisterIllustration />}
+      gradientFrom="from-violet-600"
+      gradientVia="via-fuchsia-600"
+      gradientTo="to-pink-500"
     >
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">Create an account</h1>
-        <p className="text-muted-foreground mt-2">
-          Start your journey with AI-powered content creation
-        </p>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold tracking-tight">Create an account</h1>
+          <p className="text-muted-foreground mt-2">
+            Start your journey with AI-powered content creation
+          </p>
+        </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
@@ -244,17 +252,18 @@ export default function RegisterPage() {
         </Link>
       </p>
 
-      <p className="mt-4 text-center text-xs text-muted-foreground">
-        By creating an account, you agree to our{" "}
-        <Link href="/terms" className="underline hover:text-foreground">
-          Terms of Service
-        </Link>{" "}
-        and{" "}
-        <Link href="/privacy" className="underline hover:text-foreground">
-          Privacy Policy
-        </Link>
-      </p>
-    </motion.div>
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          By creating an account, you agree to our{" "}
+          <Link href="/terms" className="underline hover:text-foreground">
+            Terms of Service
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="underline hover:text-foreground">
+            Privacy Policy
+          </Link>
+        </p>
+      </motion.div>
+    </AuthShell>
   );
 }
 
