@@ -27,6 +27,7 @@ import {
   Video,
   Palette,
   Target,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -585,6 +586,16 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
                     <HelpCircle className="h-4 w-4" />
                     Help & Support
                   </Link>
+                  {user?.plan !== "AGENT" && (
+                    <Link
+                      href="/agent/apply"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 transition-colors"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <Briefcase className="h-4 w-4" />
+                      Become an Agent
+                    </Link>
+                  )}
                 </div>
 
                 <div className="border-t py-1">

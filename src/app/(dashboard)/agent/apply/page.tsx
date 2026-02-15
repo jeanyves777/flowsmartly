@@ -189,7 +189,7 @@ export default function AgentApplyPage() {
   // Already has a profile — show status
   if (existingProfile) {
     return (
-      <div className="max-w-lg mx-auto py-12">
+      <div className="py-12">
         <motion.div variants={fadeUp} initial="hidden" animate="visible">
           <Card>
             <CardContent className="p-8 text-center">
@@ -265,7 +265,7 @@ export default function AgentApplyPage() {
 
   // No profile — show application form
   return (
-    <div className="max-w-2xl mx-auto py-6 space-y-6">
+    <div className="space-y-6">
       <motion.div variants={fadeUp} initial="hidden" animate="visible">
         <div className="flex items-center gap-3 mb-2">
           <div className="h-10 w-10 rounded-lg bg-violet-500/10 flex items-center justify-center">
