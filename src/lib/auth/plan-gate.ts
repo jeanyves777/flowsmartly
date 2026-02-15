@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 /**
  * Plans that have access to premium features (AI, SMS, Ads)
  */
-export const PRO_PLUS_PLANS = ["PRO", "BUSINESS", "ENTERPRISE", "ADMIN"];
+export const PRO_PLUS_PLANS = ["PRO", "BUSINESS", "ENTERPRISE", "ADMIN", "AGENT"];
 
 /**
  * Check if a user's plan allows access to a premium feature.

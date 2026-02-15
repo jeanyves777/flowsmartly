@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Loader2, Check, X } from "lucide-react";
+import { Eye, EyeOff, Loader2, Check, X, Briefcase, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,8 +12,11 @@ import { useToast } from "@/hooks/use-toast";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { RegisterIllustration } from "@/components/illustrations/register-illustration";
 
-export default function RegisterPage() {
+function RegisterPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect");
+  const isAgentFlow = redirectTo === "/agent/apply";
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -78,7 +81,7 @@ export default function RegisterPage() {
         description: "Welcome to FlowSmartly. Let's get started.",
       });
 
-      router.push(data.data?.redirectTo || "/dashboard");
+      router.push(redirectTo || data.data?.redirectTo || "/dashboard");
     } catch {
       toast({
         title: "Error",
@@ -93,21 +96,48 @@ export default function RegisterPage() {
   return (
     <AuthShell
       illustration={<RegisterIllustration />}
-      gradientFrom="from-violet-600"
-      gradientVia="via-fuchsia-600"
-      gradientTo="to-pink-500"
+      gradientFrom={isAgentFlow ? "from-violet-600" : "from-violet-600"}
+      gradientVia={isAgentFlow ? "via-violet-500" : "via-fuchsia-600"}
+      gradientTo={isAgentFlow ? "to-brand-500" : "to-pink-500"}
     >
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight">Create an account</h1>
-          <p className="text-muted-foreground mt-2">
-            Start your journey with AI-powered content creation
-          </p>
-        </div>
+        {isAgentFlow ? (
+          <div className="mb-8">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-600 dark:text-violet-400 text-sm font-medium mb-4">
+              <Briefcase className="w-4 h-4" />
+              Agent Registration
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">Become a FlowSmartly Agent</h1>
+            <p className="text-muted-foreground mt-2">
+              Create your account first, then complete your agent application
+            </p>
+            <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-violet-500 shrink-0" />
+                <span>Free agent plan with full feature access</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-violet-500 shrink-0" />
+                <span>Manage clients and earn from your services</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-violet-500 shrink-0" />
+                <span>Get listed on the marketplace after approval</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold tracking-tight">Create an account</h1>
+            <p className="text-muted-foreground mt-2">
+              Start your journey with AI-powered content creation
+            </p>
+          </div>
+        )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
@@ -230,11 +260,16 @@ export default function RegisterPage() {
           )}
         </div>
 
-        <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+        <Button type="submit" className={`w-full ${isAgentFlow ? "bg-violet-600 hover:bg-violet-700" : ""}`} size="lg" disabled={isLoading}>
           {isLoading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
               Creating account...
+            </>
+          ) : isAgentFlow ? (
+            <>
+              <Briefcase className="h-4 w-4 mr-2" />
+              Create Account & Apply as Agent
             </>
           ) : (
             "Create account"
@@ -245,7 +280,7 @@ export default function RegisterPage() {
       <p className="mt-8 text-center text-sm text-muted-foreground">
         Already have an account?{" "}
         <Link
-          href="/login"
+          href={redirectTo ? `/login?redirect=${encodeURIComponent(redirectTo)}` : "/login"}
           className="font-medium text-brand-500 hover:text-brand-600"
         >
           Sign in
@@ -264,6 +299,14 @@ export default function RegisterPage() {
         </p>
       </motion.div>
     </AuthShell>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterPageContent />
+    </Suspense>
   );
 }
 

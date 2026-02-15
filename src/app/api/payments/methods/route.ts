@@ -80,6 +80,14 @@ export async function POST(_request: NextRequest) {
       );
     }
 
+    // Block agent impersonation from financial actions
+    if (session.agentId) {
+      return NextResponse.json(
+        { success: false, error: { message: "This action is restricted in agent mode" } },
+        { status: 403 }
+      );
+    }
+
     if (!stripe) {
       return NextResponse.json(
         { success: false, error: { message: "Stripe is not configured" } },
@@ -145,6 +153,14 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { message: "Unauthorized" } },
         { status: 401 }
+      );
+    }
+
+    // Block agent impersonation from financial actions
+    if (session.agentId) {
+      return NextResponse.json(
+        { success: false, error: { message: "This action is restricted in agent mode" } },
+        { status: 403 }
       );
     }
 

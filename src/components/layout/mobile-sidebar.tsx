@@ -50,7 +50,7 @@ interface MobileSidebarProps {
 }
 
 // Plans that have access to marketing features
-const MARKETING_PLANS = ["PRO", "BUSINESS", "ENTERPRISE", "ADMIN"];
+const MARKETING_PLANS = ["PRO", "BUSINESS", "ENTERPRISE", "ADMIN", "AGENT"];
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },

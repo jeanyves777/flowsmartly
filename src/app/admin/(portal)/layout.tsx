@@ -37,6 +37,7 @@ import {
   Menu,
   X,
   Phone,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -68,6 +69,7 @@ const navItems = [
   { href: "/admin/visitors", icon: MousePointerClick, label: "Visitors" },
   { href: "/admin/audit", icon: Activity, label: "Audit Logs" },
   { href: "/admin/earnings", icon: DollarSign, label: "Earnings" },
+  { href: "/admin/agents", icon: Briefcase, label: "Agents" },
   { href: "/admin/system", icon: Server, label: "System" },
   { href: "/admin/settings", icon: Settings, label: "Settings" },
 ];

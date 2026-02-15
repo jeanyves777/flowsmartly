@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { EmailVerificationBanner } from "@/components/layout/email-verification-banner";
 import { cn } from "@/lib/utils/cn";
 import { ChatWidget } from "@/components/ai-assistant/chat-widget";
+import { ShieldCheck } from "lucide-react";
 
 interface User {
   id: string;
@@ -35,10 +36,14 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isAgentImpersonating, setIsAgentImpersonating] = useState(false);
+  const [hasAgentProfile, setHasAgentProfile] = useState(false);
+  const [agentInfo, setAgentInfo] = useState<{ agentName: string; agentId: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -50,6 +55,18 @@ export default function DashboardLayout({
 
         if (userData.success && userData.data?.user) {
           setUser(userData.data.user);
+          if (userData.data.isImpersonating && userData.data.agentInfo) {
+            setIsAgentImpersonating(true);
+            setAgentInfo(userData.data.agentInfo);
+          }
+          // Check if user has an approved agent profile (for sidebar nav)
+          try {
+            const agentRes = await fetch("/api/agent/profile");
+            const agentData = await agentRes.json();
+            if (agentData.success && agentData.data?.profile?.status === "APPROVED") {
+              setHasAgentProfile(true);
+            }
+          } catch {}
           setIsLoading(false);
           return;
         }
@@ -78,9 +95,9 @@ export default function DashboardLayout({
         }
 
         // No valid session found, redirect to login
-        router.push("/login");
+        router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
       } catch {
-        router.push("/login");
+        router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
       } finally {
         setIsLoading(false);
       }
@@ -123,6 +140,15 @@ export default function DashboardLayout({
     return null;
   }
 
+  const exitImpersonation = async () => {
+    try {
+      await fetch("/api/agent/impersonate", { method: "DELETE" });
+      window.location.href = "/agent/clients";
+    } catch {
+      window.location.href = "/agent/clients";
+    }
+  };
+
   return (
     <div className="min-h-screen bg-muted/30">
       {/* Admin Preview Banner */}
@@ -136,13 +162,28 @@ export default function DashboardLayout({
         </div>
       )}
 
-      <div className={isAdmin ? "pt-10" : ""}>
+      {/* Agent Impersonation Banner */}
+      {isAgentImpersonating && agentInfo && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-violet-600 to-brand-500 text-white text-center py-2 text-sm font-medium">
+          <ShieldCheck className="inline w-4 h-4 mr-1 -mt-0.5" />
+          <span>Agent Mode — Working as {user?.name}</span>
+          <span className="mx-2">|</span>
+          <span className="opacity-80">Agent: {agentInfo.agentName}</span>
+          <span className="mx-2">|</span>
+          <button onClick={exitImpersonation} className="underline hover:no-underline">
+            Exit Agent Mode
+          </button>
+        </div>
+      )}
+
+      <div className={isAdmin || isAgentImpersonating ? "pt-10" : ""}>
         {/* Desktop Sidebar */}
         <div className="hidden md:block">
           <Sidebar
             isCollapsed={sidebarCollapsed}
             onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
             userPlan={user.plan}
+            isAgent={hasAgentProfile}
           />
         </div>
 

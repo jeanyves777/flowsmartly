@@ -15,6 +15,7 @@ import {
 
 const navLinks = [
   { href: "/#features", label: "Features" },
+  { href: "/marketplace", label: "Marketplace" },
   { href: "/view-to-earn", label: "Earn Credits" },
   { href: "/pricing", label: "Pricing" },
 ];

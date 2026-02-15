@@ -85,6 +85,8 @@ model User {
   strategyScores      StrategyScore[]
   strategyMilestones  StrategyMilestone[]
   socialAccounts      SocialAccount[]
+  agentProfile        AgentProfile?
+  agentClients        AgentClient[]     @relation("ClientOfAgent")
 
   @@index([email])
   @@index([username])
@@ -1119,6 +1121,141 @@ model AdminSession {
 
   @@index([adminId])
   @@index([token])
+}
+
+// ============================================
+// AGENT MARKETPLACE
+// ============================================
+
+model AgentProfile {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  displayName       String
+  bio               String?
+  specialties       String    @default("[]")  // JSON: ["Social Media", "Content Strategy"]
+  industries        String    @default("[]")  // JSON: ["E-Commerce", "SaaS"]
+  portfolioUrls     String    @default("[]")  // JSON: ["https://..."]
+  minPricePerMonth  Int       @default(10000) // cents ($100 minimum)
+
+  // Approval status
+  status            String    @default("PENDING") // PENDING, APPROVED, REJECTED, SUSPENDED
+  approvedAt        DateTime?
+  rejectedReason    String?
+
+  // Performance
+  performanceScore  Int       @default(0)     // 0-100
+  totalEarningsCents Int      @default(0)
+  clientCount       Int       @default(0)
+
+  // Landing page
+  landingPageSlug   String?   @unique
+  landingPageData   String    @default("{}") // JSON: page builder data
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clients           AgentClient[]
+  warnings          AgentWarning[]
+  sessions          AgentSession[]
+  activityLogs      AgentActivityLog[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([performanceScore])
+  @@index([landingPageSlug])
+}
+
+model AgentClient {
+  id                String    @id @default(cuid())
+  agentProfileId    String
+  clientUserId      String
+
+  // Relationship
+  status            String    @default("ACTIVE") // ACTIVE, PAUSED, TERMINATED
+  monthlyPriceCents Int
+  startDate         DateTime  @default(now())
+  endDate           DateTime?
+  warningCount      Int       @default(0)
+  lastReviewedAt    DateTime?
+
+  // Termination
+  terminatedBy      String?   // "agent", "client", "system"
+  terminationReason String?
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  agentProfile      AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  clientUser        User         @relation("ClientOfAgent", fields: [clientUserId], references: [id], onDelete: Cascade)
+  activityLogs      AgentActivityLog[]
+  warnings          AgentWarning[]
+
+  @@unique([agentProfileId, clientUserId])
+  @@index([agentProfileId])
+  @@index([clientUserId])
+  @@index([status])
+}
+
+model AgentSession {
+  id                String    @id @default(cuid())
+  agentProfileId    String
+  clientUserId      String
+  token             String    @unique
+  reason            String?   // Why the agent is logging in
+  expiresAt         DateTime
+  endedAt           DateTime?
+
+  createdAt         DateTime  @default(now())
+
+  agentProfile      AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+
+  @@index([agentProfileId])
+  @@index([token])
+  @@index([clientUserId])
+}
+
+model AgentActivityLog {
+  id                String    @id @default(cuid())
+  agentClientId     String?
+  agentProfileId    String
+  action            String    // "post_created", "campaign_sent", "content_generated", etc.
+  resourceType      String?   // "post", "campaign", "automation"
+  resourceId        String?
+  description       String?
+
+  createdAt         DateTime  @default(now())
+
+  agentClient       AgentClient?  @relation(fields: [agentClientId], references: [id], onDelete: SetNull)
+  agentProfile      AgentProfile  @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+
+  @@index([agentClientId])
+  @@index([agentProfileId])
+  @@index([createdAt])
+}
+
+model AgentWarning {
+  id                String    @id @default(cuid())
+  agentProfileId    String
+  agentClientId     String?
+  level             String    @default("FIRST") // FIRST, FINAL
+  reason            String
+  details           String    @default("{}") // JSON: performance data
+  isResolved        Boolean   @default(false)
+  resolvedAt        DateTime?
+  resolvedBy        String?   // Admin ID
+  clientDecision    String?   // CONTINUE, TERMINATE (for FINAL warnings)
+  clientDecidedAt   DateTime?
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  agentProfile      AgentProfile  @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  agentClient       AgentClient?  @relation(fields: [agentClientId], references: [id], onDelete: SetNull)
+
+  @@index([agentProfileId])
+  @@index([agentClientId])
+  @@index([level, isResolved])
 }
 
 // ============================================

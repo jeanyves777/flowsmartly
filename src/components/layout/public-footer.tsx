@@ -3,6 +3,7 @@ import Image from "next/image";
 
 const productLinks = [
   { href: "/#features", label: "Features" },
+  { href: "/marketplace", label: "Agent Marketplace" },
   { href: "/view-to-earn", label: "Earn Credits" },
   { href: "/pricing", label: "Pricing" },
   { href: "/dashboard", label: "Dashboard" },

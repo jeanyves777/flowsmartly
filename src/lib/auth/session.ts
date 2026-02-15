@@ -7,6 +7,7 @@ import { nanoid } from "nanoid";
 const ACCESS_TOKEN_COOKIE = "access_token";
 const REFRESH_TOKEN_COOKIE = "refresh_token";
 const ADMIN_TOKEN_COOKIE = "admin_token";
+const AGENT_SESSION_COOKIE = "agent_session_token";
 
 // Cookie options
 const COOKIE_OPTIONS = {
@@ -20,6 +21,9 @@ export interface Session {
   userId: string;
   sessionId: string;
   adminId?: string; // Present if this is an admin session
+  agentId?: string; // Present if agent is impersonating a client
+  agentUserId?: string; // The agent's own user ID (to switch back)
+  isImpersonating?: boolean; // True when agent is acting as client
   user: {
     id: string;
     email: string;
@@ -35,13 +39,23 @@ export interface Session {
 
 /**
  * Get the current session from cookies
- * Also checks for admin sessions to allow admin access to user features
+ * Checks: user session → refresh → agent impersonation → admin preview
  */
 export async function getSession(): Promise<Session | null> {
   const cookieStore = await cookies();
+
+  // Check for agent impersonation session FIRST (takes priority over user's own session)
+  const agentToken = cookieStore.get(AGENT_SESSION_COOKIE)?.value;
+  if (agentToken) {
+    const agentSession = await getAgentAsClientSession(agentToken);
+    if (agentSession) {
+      return agentSession;
+    }
+  }
+
   const accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value;
 
-  // First, try regular user session via access token
+  // Try regular user session via access token
   if (accessToken) {
     const payload = await verifyAccessToken(accessToken);
     if (payload) {
@@ -99,6 +113,87 @@ export async function getSession(): Promise<Session | null> {
   }
 
   return null;
+}
+
+/**
+ * Get agent impersonation session — agent acting as a client
+ * Returns the CLIENT's data but with agentId set for restriction enforcement
+ */
+async function getAgentAsClientSession(token: string): Promise<Session | null> {
+  try {
+    const agentSession = await prisma.agentSession.findUnique({
+      where: { token },
+      include: {
+        agentProfile: true,
+      },
+    });
+
+    if (!agentSession || agentSession.expiresAt < new Date() || agentSession.endedAt) {
+      return null;
+    }
+
+    // Verify agent is still approved
+    if (agentSession.agentProfile.status !== "APPROVED") {
+      return null;
+    }
+
+    // Verify the agent-client relationship is still active
+    const agentClient = await prisma.agentClient.findUnique({
+      where: {
+        agentProfileId_clientUserId: {
+          agentProfileId: agentSession.agentProfileId,
+          clientUserId: agentSession.clientUserId,
+        },
+      },
+    });
+
+    if (!agentClient || agentClient.status !== "ACTIVE") {
+      return null;
+    }
+
+    // Get the client's user data
+    const clientUser = await prisma.user.findUnique({
+      where: { id: agentSession.clientUserId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        username: true,
+        avatarUrl: true,
+        plan: true,
+        aiCredits: true,
+        balanceCents: true,
+        emailVerified: true,
+        deletedAt: true,
+      },
+    });
+
+    if (!clientUser || clientUser.deletedAt) {
+      return null;
+    }
+
+    return {
+      userId: clientUser.id,
+      sessionId: agentSession.id,
+      agentId: agentSession.agentProfileId,
+      agentUserId: agentSession.agentProfile.userId,
+      isImpersonating: true,
+      user: {
+        id: clientUser.id,
+        email: clientUser.email,
+        name: clientUser.name,
+        username: clientUser.username,
+        avatarUrl: clientUser.avatarUrl,
+        plan: clientUser.plan,
+        aiCredits: clientUser.aiCredits,
+        balanceCents: clientUser.balanceCents,
+        emailVerified: clientUser.emailVerified,
+      },
+    };
+  } catch (error) {
+    console.error("Agent session error:", error);
+    return null;
+  }
 }
 
 /**
@@ -284,6 +379,99 @@ export async function createSession(
   );
 
   return { sessionId, accessToken, refreshToken };
+}
+
+/**
+ * Start an agent impersonation session
+ */
+export async function startAgentSession(
+  agentProfileId: string,
+  clientUserId: string,
+  reason?: string
+): Promise<string> {
+  const token = nanoid(64);
+  const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000); // 4 hours
+
+  await prisma.agentSession.create({
+    data: {
+      agentProfileId,
+      clientUserId,
+      token,
+      reason,
+      expiresAt,
+    },
+  });
+
+  const cookieStore = await cookies();
+  cookieStore.set(AGENT_SESSION_COOKIE, token, {
+    ...COOKIE_OPTIONS,
+    maxAge: 4 * 60 * 60, // 4 hours
+  });
+
+  return token;
+}
+
+/**
+ * End an agent impersonation session
+ */
+export async function endAgentSession(): Promise<void> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(AGENT_SESSION_COOKIE)?.value;
+
+  if (token) {
+    await prisma.agentSession.updateMany({
+      where: { token, endedAt: null },
+      data: { endedAt: new Date() },
+    }).catch(() => {});
+  }
+
+  cookieStore.delete(AGENT_SESSION_COOKIE);
+}
+
+/**
+ * Get agent session info (for status endpoint)
+ */
+export async function getAgentSessionInfo(): Promise<{
+  isImpersonating: boolean;
+  agentInfo?: { name: string; profileId: string };
+  clientUser?: { id: string; name: string; email: string; avatarUrl: string | null };
+} | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(AGENT_SESSION_COOKIE)?.value;
+
+  if (!token) return { isImpersonating: false };
+
+  const agentSession = await prisma.agentSession.findUnique({
+    where: { token },
+    include: {
+      agentProfile: { select: { id: true, displayName: true, userId: true } },
+    },
+  });
+
+  if (!agentSession || agentSession.expiresAt < new Date() || agentSession.endedAt) {
+    return { isImpersonating: false };
+  }
+
+  const clientUser = await prisma.user.findUnique({
+    where: { id: agentSession.clientUserId },
+    select: { id: true, name: true, email: true, avatarUrl: true },
+  });
+
+  return {
+    isImpersonating: true,
+    agentInfo: {
+      name: agentSession.agentProfile.displayName,
+      profileId: agentSession.agentProfile.id,
+    },
+    clientUser: clientUser || undefined,
+  };
+}
+
+/**
+ * Check if a session is an agent impersonation session
+ */
+export function isAgentSession(session: Session): boolean {
+  return !!session.agentId;
 }
 
 /**

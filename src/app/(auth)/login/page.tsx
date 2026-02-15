@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,8 +12,11 @@ import { useToast } from "@/hooks/use-toast";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { LoginIllustration } from "@/components/illustrations/login-illustration";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect");
+  const isAgentFlow = redirectTo === "/agent/apply";
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -69,8 +72,8 @@ export default function LoginPage() {
         description: `Logged in as ${data.data.user.name}`,
       });
 
-      // Redirect to dashboard
-      router.push("/dashboard");
+      // Redirect to intended page or dashboard
+      router.push(redirectTo || "/dashboard");
     } catch {
       toast({
         title: "Error",
@@ -83,18 +86,38 @@ export default function LoginPage() {
   };
 
   return (
-    <AuthShell illustration={<LoginIllustration />}>
+    <AuthShell
+      illustration={<LoginIllustration />}
+      {...(isAgentFlow ? {
+        gradientFrom: "from-violet-600",
+        gradientVia: "via-violet-500",
+        gradientTo: "to-brand-500",
+      } : {})}
+    >
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
-          <p className="text-muted-foreground mt-2">
-            Enter your credentials to access your account
-          </p>
-        </div>
+        {isAgentFlow ? (
+          <div className="mb-8">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-600 dark:text-violet-400 text-sm font-medium mb-4">
+              <Briefcase className="w-4 h-4" />
+              Agent Login
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">Sign in to apply as Agent</h1>
+            <p className="text-muted-foreground mt-2">
+              Log in to your existing account to complete your agent application
+            </p>
+          </div>
+        ) : (
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
+            <p className="text-muted-foreground mt-2">
+              Enter your credentials to access your account
+            </p>
+          </div>
+        )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
@@ -157,11 +180,16 @@ export default function LoginPage() {
           )}
         </div>
 
-        <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+        <Button type="submit" className={`w-full ${isAgentFlow ? "bg-violet-600 hover:bg-violet-700" : ""}`} size="lg" disabled={isLoading}>
           {isLoading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
               Signing in...
+            </>
+          ) : isAgentFlow ? (
+            <>
+              <Briefcase className="h-4 w-4 mr-2" />
+              Sign in & Apply as Agent
             </>
           ) : (
             "Sign in"
@@ -172,7 +200,7 @@ export default function LoginPage() {
         <p className="mt-8 text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
           <Link
-            href="/register"
+            href={redirectTo ? `/register?redirect=${encodeURIComponent(redirectTo)}` : "/register"}
             className="font-medium text-brand-500 hover:text-brand-600"
           >
             Create an account
@@ -180,5 +208,13 @@ export default function LoginPage() {
         </p>
       </motion.div>
     </AuthShell>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginPageContent />
+    </Suspense>
   );
 }

@@ -30,6 +30,7 @@ import {
   CalendarDays,
   Zap,
   Target,
+  Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -44,10 +45,11 @@ interface SidebarProps {
   isCollapsed: boolean;
   onToggle: () => void;
   userPlan?: string;
+  isAgent?: boolean;
 }
 
 // Plans that have access to marketing features
-const MARKETING_PLANS = ["PRO", "BUSINESS", "ENTERPRISE", "ADMIN"];
+const MARKETING_PLANS = ["PRO", "BUSINESS", "ENTERPRISE", "ADMIN", "AGENT"];
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -84,7 +86,7 @@ const secondaryNavigation = [
   { name: "Help", href: "/help", icon: HelpCircle },
 ];
 
-export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE" }: SidebarProps) {
+export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = false }: SidebarProps) {
   const pathname = usePathname();
   const hasMarketingAccess = MARKETING_PLANS.includes(userPlan.toUpperCase());
   const isContentActive = pathname.startsWith("/content");
@@ -265,6 +267,28 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE" }: SidebarPro
             return renderNavItem(item, isActive, isLocked);
           })}
         </div>
+
+        {/* Agent Section — only shown for users with agent profiles */}
+        {isAgent && (
+          <div className="pt-4">
+            {!isCollapsed && (
+              <div className="px-3 pb-2 flex items-center gap-2">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Agent
+                </span>
+              </div>
+            )}
+            {isCollapsed && (
+              <div className="flex justify-center py-2">
+                <Briefcase className={cn("h-4 w-4", pathname.startsWith("/agent") ? "text-brand-500" : "text-muted-foreground")} />
+              </div>
+            )}
+            {renderNavItem(
+              { name: "My Clients", href: "/agent/clients", icon: Briefcase },
+              pathname.startsWith("/agent")
+            )}
+          </div>
+        )}
       </nav>
 
       {/* Secondary Navigation */}

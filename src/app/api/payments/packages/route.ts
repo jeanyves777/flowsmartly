@@ -4,8 +4,9 @@ import { prisma } from "@/lib/db/client";
 export async function GET() {
   try {
     // Fetch active plans from database, ordered by sortOrder
+    // Exclude internal plans (AGENT) that aren't purchasable
     const plans = await prisma.plan.findMany({
-      where: { isActive: true },
+      where: { isActive: true, planId: { notIn: ["AGENT"] } },
       orderBy: { sortOrder: "asc" },
     });
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
+import { prisma } from "@/lib/db/client";
 
 export async function GET() {
   try {
@@ -18,10 +19,27 @@ export async function GET() {
       );
     }
 
+    let agentData = undefined;
+    if (session.agentId) {
+      const agentProfile = await prisma.agentProfile.findUnique({
+        where: { id: session.agentId },
+        select: { displayName: true },
+      });
+      agentData = {
+        isImpersonating: true,
+        agentInfo: {
+          agentId: session.agentId,
+          agentUserId: session.agentUserId,
+          agentName: agentProfile?.displayName || "Agent",
+        },
+      };
+    }
+
     return NextResponse.json({
       success: true,
       data: {
         user: session.user,
+        ...agentData,
       },
     });
   } catch (error) {

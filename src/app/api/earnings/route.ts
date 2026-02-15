@@ -181,6 +181,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Block agent impersonation from financial actions
+    if (session.agentId) {
+      return NextResponse.json(
+        { success: false, error: { message: "This action is restricted in agent mode" } },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { amount, method, accountInfo } = body;
 

@@ -102,6 +102,31 @@ const plans = [
     stripePriceIdYearly: process.env.STRIPE_ENTERPRISE_YEARLY_PRICE_ID || null,
     stripeProductId: process.env.STRIPE_ENTERPRISE_PRODUCT_ID || null,
   },
+  {
+    planId: "AGENT",
+    name: "Agent",
+    description: "Free plan for approved marketplace agents with full feature access",
+    priceCentsMonthly: 0,
+    priceCentsYearly: 0,
+    monthlyCredits: 100,
+    features: JSON.stringify([
+      "100 credits/month (buy more as needed)",
+      "Full feature access",
+      "All AI tools & generators",
+      "SMS & Email marketing",
+      "Ad campaigns",
+      "Client management dashboard",
+      "Agent impersonation mode",
+    ]),
+    isPopular: false,
+    sortOrder: 5,
+    color: "#8b5cf6",
+    icon: "Briefcase",
+    isActive: true,
+    stripePriceIdMonthly: null,
+    stripePriceIdYearly: null,
+    stripeProductId: null,
+  },
 ];
 
 const creditPackages = [
