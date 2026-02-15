@@ -83,7 +83,7 @@ const marketingNavigation = [
 ];
 
 const secondaryNavigation = [
-  { name: "Marketplace", href: "/marketplace", icon: Store },
+  { name: "Hire Agent", href: "/hire-agent", icon: Store },
   { name: "Settings", href: "/settings", icon: Settings },
   { name: "Billing", href: "/settings?tab=billing", icon: CreditCard },
   { name: "Help", href: "/help", icon: HelpCircle },
