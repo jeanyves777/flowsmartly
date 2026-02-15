@@ -136,41 +136,79 @@ const spendOptions = [
 export function ViewToEarnContent() {
   return (
     <div className="min-h-screen">
-      {/* Hero */}
-      <section className="pt-24 pb-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto text-center">
+      {/* Hero — Dark gradient variant */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-gray-900 via-amber-950 to-gray-900 pt-24 pb-16 px-4 sm:px-6 lg:px-8">
+        {/* Animated background grid */}
+        <div className="absolute inset-0 opacity-10">
+          <svg width="100%" height="100%">
+            <defs>
+              <pattern id="vte-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#vte-grid)" />
+          </svg>
+        </div>
+        {/* Floating orbs */}
+        <div className="absolute top-20 left-[15%] w-32 h-32 bg-amber-500/20 rounded-full blur-3xl animate-[float_6s_ease-in-out_infinite]" />
+        <div className="absolute bottom-20 right-[20%] w-40 h-40 bg-yellow-500/20 rounded-full blur-3xl animate-[float_8s_ease-in-out_infinite_2s]" />
+        <div className="absolute top-40 right-[10%] w-24 h-24 bg-emerald-500/20 rounded-full blur-3xl animate-[float_5s_ease-in-out_infinite_1s]" />
+
+        <style jsx global>{`
+          @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+          }
+        `}</style>
+
+        <div className="relative z-10 max-w-4xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent-gold/10 text-accent-gold text-sm font-medium mb-8">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/20 text-amber-300 text-sm font-medium mb-8 border border-amber-500/30">
               <Gift className="w-4 h-4" />
               <span>View-to-Earn Credits</span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-balance">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-white text-balance">
               Earn Credits by Viewing,{" "}
-              <span className="gradient-gold">
+              <span className="bg-gradient-to-r from-amber-400 to-yellow-300 bg-clip-text text-transparent">
                 Grow Your Business
               </span>{" "}
               for Free
             </h1>
 
-            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
+            <p className="text-lg sm:text-xl text-gray-300 max-w-2xl mx-auto mb-10 leading-relaxed">
               Watch content, earn credits, and use them to promote your business
               with ads, AI-generated content, and boosted campaigns — all
               without spending a dime.
             </p>
 
+            {/* Trust indicators */}
+            <div className="flex flex-wrap justify-center gap-6 sm:gap-10 mb-10">
+              {[
+                { icon: Gift, label: "Free to Start" },
+                { icon: TrendingUp, label: "Daily Earnings" },
+                { icon: ShieldCheck, label: "Verified System" },
+                { icon: Zap, label: "Instant Credits" },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center gap-2 text-gray-400">
+                  <item.icon className="w-5 h-5 text-amber-400" />
+                  <span className="text-sm font-medium">{item.label}</span>
+                </div>
+              ))}
+            </div>
+
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button size="lg" asChild>
+              <Button size="lg" className="bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold" asChild>
                 <Link href="/register">
                   Start Earning Credits
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" asChild>
+              <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10" asChild>
                 <Link href="#how-it-works">See How It Works</Link>
               </Button>
             </div>

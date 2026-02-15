@@ -346,38 +346,78 @@ function AnimatedStat({
 export function MarketplaceContent() {
   return (
     <div className="min-h-screen">
-      {/* ═══ A. Hero Section ═══ */}
-      <section className="pt-24 pb-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto text-center">
+      {/* ═══ A. Hero Section — Dark gradient variant ═══ */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-gray-900 via-purple-950 to-gray-900 pt-24 pb-16 px-4 sm:px-6 lg:px-8">
+        {/* Animated background grid */}
+        <div className="absolute inset-0 opacity-10">
+          <svg width="100%" height="100%">
+            <defs>
+              <pattern id="mp-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#mp-grid)" />
+          </svg>
+        </div>
+        {/* Floating orbs */}
+        <div className="absolute top-20 left-[15%] w-32 h-32 bg-purple-500/20 rounded-full blur-3xl animate-[float_6s_ease-in-out_infinite]" />
+        <div className="absolute bottom-20 right-[20%] w-40 h-40 bg-brand-500/20 rounded-full blur-3xl animate-[float_8s_ease-in-out_infinite_2s]" />
+        <div className="absolute top-40 right-[10%] w-24 h-24 bg-teal-500/20 rounded-full blur-3xl animate-[float_5s_ease-in-out_infinite_1s]" />
+
+        <style jsx global>{`
+          @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+          }
+        `}</style>
+
+        <div className="relative z-10 max-w-4xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent-purple/10 text-accent-purple text-sm font-medium mb-8">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 text-purple-300 text-sm font-medium mb-8 border border-purple-500/30">
               <Briefcase className="w-4 h-4" />
               <span>Agent Marketplace</span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-balance">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-white text-balance">
               Expert Marketing Agents,{" "}
-              <span className="gradient-text">On Demand</span>
+              <span className="bg-gradient-to-r from-purple-400 to-brand-400 bg-clip-text text-transparent">
+                On Demand
+              </span>
             </h1>
 
-            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
+            <p className="text-lg sm:text-xl text-gray-300 max-w-2xl mx-auto mb-10 leading-relaxed">
               Hire vetted marketing professionals to manage your strategy, or
               become an agent and earn recurring revenue — all powered by
               FlowSmartly&apos;s AI platform.
             </p>
 
+            {/* Trust indicators */}
+            <div className="flex flex-wrap justify-center gap-6 sm:gap-10 mb-10">
+              {[
+                { icon: ShieldCheck, label: "Vetted Agents" },
+                { icon: BarChart3, label: "Performance Tracked" },
+                { icon: Users, label: "Managed Accounts" },
+                { icon: Sparkles, label: "AI-Powered" },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center gap-2 text-gray-400">
+                  <item.icon className="w-5 h-5 text-purple-400" />
+                  <span className="text-sm font-medium">{item.label}</span>
+                </div>
+              ))}
+            </div>
+
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button size="lg" asChild>
+              <Button size="lg" className="bg-purple-600 hover:bg-purple-700 text-white font-semibold" asChild>
                 <Link href="/register">
                   Find an Agent
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" asChild>
+              <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10" asChild>
                 <Link href="#for-agents">Become an Agent</Link>
               </Button>
             </div>

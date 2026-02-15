@@ -128,27 +128,58 @@ export function PricingPageContent() {
   }, []);
 
   return (
-    <div className="py-20 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <motion.h1
-            className="text-4xl sm:text-5xl font-bold mb-4"
+    <div>
+      {/* Hero — Dark gradient variant */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-gray-900 via-blue-950 to-gray-900 pt-24 pb-16 px-4 sm:px-6 lg:px-8">
+        {/* Animated background grid */}
+        <div className="absolute inset-0 opacity-10">
+          <svg width="100%" height="100%">
+            <defs>
+              <pattern id="pr-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#pr-grid)" />
+          </svg>
+        </div>
+        {/* Floating orbs */}
+        <div className="absolute top-20 left-[15%] w-32 h-32 bg-blue-500/20 rounded-full blur-3xl animate-[float_6s_ease-in-out_infinite]" />
+        <div className="absolute bottom-20 right-[20%] w-40 h-40 bg-brand-500/20 rounded-full blur-3xl animate-[float_8s_ease-in-out_infinite_2s]" />
+        <div className="absolute top-40 right-[10%] w-24 h-24 bg-emerald-500/20 rounded-full blur-3xl animate-[float_5s_ease-in-out_infinite_1s]" />
+
+        <style jsx global>{`
+          @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+          }
+        `}</style>
+
+        <div className="relative z-10 max-w-5xl mx-auto text-center">
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            Simple, Transparent Pricing
-          </motion.h1>
-          <motion.p
-            className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-          >
-            Choose the plan that fits your needs. Start free, upgrade anytime.
-          </motion.p>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/20 text-blue-300 text-sm font-medium mb-6 border border-blue-500/30">
+              <Sparkles className="w-4 h-4" />
+              Transparent Pricing
+            </div>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
+              Simple Plans,{" "}
+              <span className="bg-gradient-to-r from-blue-400 to-brand-400 bg-clip-text text-transparent">
+                Powerful Results
+              </span>
+            </h1>
+            <p className="text-lg sm:text-xl text-gray-300 max-w-2xl mx-auto leading-relaxed">
+              Choose the plan that fits your needs. Start free, upgrade anytime.
+              Every plan includes AI content creation and marketing tools.
+            </p>
+          </motion.div>
         </div>
+      </section>
+
+      <div className="py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
 
         {/* Billing toggle */}
         <motion.div
@@ -376,6 +407,7 @@ export function PricingPageContent() {
           </Accordion>
         </div>
       </div>
+    </div>
     </div>
   );
 }
