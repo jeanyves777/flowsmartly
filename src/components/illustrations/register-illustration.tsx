@@ -116,8 +116,8 @@ export function RegisterIllustration() {
           <div className="grid grid-cols-3 gap-2 mb-4">
             {[
               { icon: PenSquare, label: "Posts", color: "from-sky-500 to-blue-500" },
-              { icon: ImageIcon, label: "Images", color: "from-pink-500 to-rose-500" },
-              { icon: Video, label: "Videos", color: "from-orange-500 to-red-500" },
+              { icon: ImageIcon, label: "Images", color: "from-violet-500 to-fuchsia-500" },
+              { icon: Video, label: "Videos", color: "from-sky-500 to-cyan-500" },
             ].map((item, i) => (
               <motion.div
                 key={item.label}
@@ -198,7 +198,7 @@ export function RegisterIllustration() {
               animate={{ scale: 1 }}
               transition={{ delay: 1.5 + i * 0.05 }}
             >
-              <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+              <Star className="w-4 h-4 text-amber-300 fill-amber-300" />
             </motion.div>
           ))}
         </div>
