@@ -54,6 +54,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 
 // Platform SVG icons
 function InstagramIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
@@ -147,14 +148,15 @@ interface LandingPageOption {
   description: string | null;
 }
 
-const PLATFORMS = [
-  { id: "feed", name: "Feed", icon: FeedIcon, color: "#8B5CF6", bgColor: "rgba(139,92,246,0.1)", enabled: true },
-  { id: "instagram", name: "Instagram", icon: InstagramIcon, color: "#E4405F", bgColor: "rgba(228,64,95,0.1)", enabled: false },
-  { id: "facebook", name: "Facebook", icon: FacebookIcon, color: "#1877F2", bgColor: "rgba(24,119,242,0.1)", enabled: false },
-  { id: "twitter", name: "X (Twitter)", icon: XIcon, color: "#000000", bgColor: "rgba(0,0,0,0.06)", enabled: false },
-  { id: "linkedin", name: "LinkedIn", icon: LinkedInIcon, color: "#0A66C2", bgColor: "rgba(10,102,194,0.1)", enabled: false },
-  { id: "tiktok", name: "TikTok", icon: TikTokIcon, color: "#000000", bgColor: "rgba(0,0,0,0.06)", enabled: false },
-];
+// Static platform metadata (icons, brand colors). Connection status comes from DB.
+const PLATFORM_META: Record<string, { name: string; icon: typeof FeedIcon; color: string; bgColor: string }> = {
+  feed: { name: "Feed", icon: FeedIcon, color: "#8B5CF6", bgColor: "rgba(139,92,246,0.1)" },
+  instagram: { name: "Instagram", icon: InstagramIcon, color: "#E4405F", bgColor: "rgba(228,64,95,0.1)" },
+  facebook: { name: "Facebook", icon: FacebookIcon, color: "#1877F2", bgColor: "rgba(24,119,242,0.1)" },
+  twitter: { name: "X (Twitter)", icon: XIcon, color: "#000000", bgColor: "rgba(0,0,0,0.06)" },
+  linkedin: { name: "LinkedIn", icon: LinkedInIcon, color: "#0A66C2", bgColor: "rgba(10,102,194,0.1)" },
+  tiktok: { name: "TikTok", icon: TikTokIcon, color: "#000000", bgColor: "rgba(0,0,0,0.06)" },
+};
 
 const OBJECTIVES = [
   { value: "AWARENESS", label: "Brand Awareness", icon: Eye, description: "Get more people to see your content" },
@@ -221,7 +223,20 @@ export default function CreateCampaignPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const { isConnected } = useSocialPlatforms();
   const preSelectedPostId = searchParams.get("postId");
+
+  // Build dynamic platform list: "feed" always enabled, socials enabled if connected in DB
+  const PLATFORMS = useMemo(() => {
+    const platformOrder = ["feed", "instagram", "facebook", "twitter", "linkedin", "tiktok"];
+    return platformOrder
+      .filter((id) => PLATFORM_META[id])
+      .map((id) => ({
+        id,
+        ...PLATFORM_META[id],
+        enabled: id === "feed" || isConnected(id),
+      }));
+  }, [isConnected]);
 
   // Campaign info
   const [name, setName] = useState("");

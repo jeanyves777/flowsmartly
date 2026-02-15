@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { AITextAssistant } from "@/components/feed/ai-text-assistant";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 
@@ -114,14 +115,15 @@ interface Post {
 }
 
 // ─── Social Platforms Config ────────────────────────────────────────────────
-const SOCIAL_PLATFORMS = [
-  { id: "feed", label: "Feed", icon: Rss, enabled: true },
-  { id: "instagram", label: "Instagram", icon: InstagramIcon, enabled: false },
-  { id: "twitter", label: "X / Twitter", icon: XTwitterIcon, enabled: false },
-  { id: "linkedin", label: "LinkedIn", icon: LinkedInIcon, enabled: false },
-  { id: "facebook", label: "Facebook", icon: FacebookIcon, enabled: false },
-  { id: "tiktok", label: "TikTok", icon: TikTokIcon, enabled: false },
-];
+// Static metadata (icons/labels). Connection status comes from DB via useSocialPlatforms hook.
+const PLATFORM_META: Record<string, { label: string; icon: React.ElementType }> = {
+  feed: { label: "Feed", icon: Rss },
+  instagram: { label: "Instagram", icon: InstagramIcon },
+  twitter: { label: "X / Twitter", icon: XTwitterIcon },
+  linkedin: { label: "LinkedIn", icon: LinkedInIcon },
+  facebook: { label: "Facebook", icon: FacebookIcon },
+  tiktok: { label: "TikTok", icon: TikTokIcon },
+};
 
 const MAX_CHARS = 2000;
 
@@ -134,7 +136,21 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.E
 
 export default function ContentPostsPage() {
   const { toast } = useToast();
+  const { isConnected } = useSocialPlatforms();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Build dynamic platform list: "feed" always enabled, socials enabled if connected in DB
+  const SOCIAL_PLATFORMS = useMemo(() => {
+    const platformOrder = ["feed", "instagram", "twitter", "linkedin", "facebook", "tiktok"];
+    return platformOrder
+      .filter((id) => PLATFORM_META[id])
+      .map((id) => ({
+        id,
+        label: PLATFORM_META[id].label,
+        icon: PLATFORM_META[id].icon,
+        enabled: id === "feed" || isConnected(id),
+      }));
+  }, [isConnected]);
 
   // ── Composer State ──────────────────────────────────────────────────────
   const [caption, setCaption] = useState("");

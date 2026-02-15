@@ -50,6 +50,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { StripeProvider } from "@/components/providers/stripe-provider";
 import { AddCardForm } from "@/components/payments/add-card-form";
@@ -97,15 +98,6 @@ interface NotificationPrefs {
   productUpdates?: boolean;
 }
 
-interface SocialConnection {
-  id: string;
-  platform: string;
-  icon: React.ElementType;
-  connected: boolean;
-  username?: string;
-  color: string;
-}
-
 interface PlanData {
   id: string;
   name: string;
@@ -142,12 +134,12 @@ const tabs: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: "appearance", label: "Appearance", icon: Palette },
 ];
 
-const socialConnections: SocialConnection[] = [
-  { id: "instagram", platform: "Instagram", icon: Instagram, connected: false, color: "from-purple-500 to-pink-500" },
-  { id: "twitter", platform: "X (Twitter)", icon: Twitter, connected: false, color: "from-gray-700 to-gray-900" },
-  { id: "linkedin", platform: "LinkedIn", icon: Linkedin, connected: false, color: "from-blue-500 to-blue-700" },
-  { id: "facebook", platform: "Facebook", icon: Facebook, connected: false, color: "from-blue-400 to-blue-600" },
-];
+const platformIcons: Record<string, React.ElementType> = {
+  instagram: Instagram,
+  twitter: Twitter,
+  linkedin: Linkedin,
+  facebook: Facebook,
+};
 
 const defaultNotificationPrefs: NotificationPrefs = {
   emailDigest: true,
@@ -180,6 +172,7 @@ export default function SettingsPage() {
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isSyncingFromBrand, setIsSyncingFromBrand] = useState(false);
+  const { platforms: socialPlatforms, isLoading: socialLoading } = useSocialPlatforms();
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState({
@@ -1483,27 +1476,51 @@ export default function SettingsPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4 opacity-60 pointer-events-none">
-                    {socialConnections.map((connection) => (
-                      <div
-                        key={connection.id}
-                        className="flex items-center justify-between p-4 rounded-xl border"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${connection.color} flex items-center justify-center`}>
-                            <connection.icon className="w-5 h-5 text-white" />
+                  {socialLoading ? (
+                    <div className="space-y-4">
+                      {[1, 2, 3, 4].map((i) => (
+                        <Skeleton key={i} className="h-[72px]" />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {socialPlatforms.map((sp) => {
+                        const Icon = platformIcons[sp.platform] || Link2;
+                        return (
+                          <div
+                            key={sp.platform}
+                            className="flex items-center justify-between p-4 rounded-xl border"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${sp.color} flex items-center justify-center`}>
+                                <Icon className="w-5 h-5 text-white" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{sp.name}</p>
+                                {sp.connected ? (
+                                  <p className="text-xs text-green-500">
+                                    Connected{sp.username ? ` as ${sp.username}` : ""}
+                                  </p>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">Not connected</p>
+                                )}
+                              </div>
+                            </div>
+                            {sp.connected ? (
+                              <Badge variant="outline" className="text-green-500 border-green-500/50">
+                                <Check className="w-3 h-3 mr-1" />
+                                Connected
+                              </Badge>
+                            ) : (
+                              <Button variant="default" size="sm" disabled>
+                                Connect
+                              </Button>
+                            )}
                           </div>
-                          <div>
-                            <p className="font-medium">{connection.platform}</p>
-                            <p className="text-xs text-muted-foreground">Not connected</p>
-                          </div>
-                        </div>
-                        <Button variant="default" size="sm" disabled>
-                          Connect
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                   <div className="mt-6 p-4 rounded-lg bg-muted/50 border border-dashed">
                     <p className="text-sm text-muted-foreground text-center">
                       Social media integrations are coming soon. You&apos;ll be able to connect Instagram, X, LinkedIn, Facebook, and more to publish directly from FlowSmartly.

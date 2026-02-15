@@ -84,11 +84,35 @@ model User {
   marketingStrategies MarketingStrategy[]
   strategyScores      StrategyScore[]
   strategyMilestones  StrategyMilestone[]
+  socialAccounts      SocialAccount[]
 
   @@index([email])
   @@index([username])
   @@index([stripeCustomerId])
   @@index([createdAt])
+}
+
+model SocialAccount {
+  id                  String    @id @default(cuid())
+  userId              String
+  platform            String    // "instagram", "twitter", "linkedin", "facebook", "tiktok", "youtube", "pinterest", "threads"
+  platformUserId      String?   // The user's ID on the platform
+  platformUsername    String?   // e.g. @username
+  platformDisplayName String?   // Display name on the platform
+  platformAvatarUrl   String?
+  accessToken         String?   // OAuth access token (encrypted in production)
+  refreshToken        String?   // OAuth refresh token (encrypted in production)
+  tokenExpiresAt      DateTime?
+  scopes              String    @default("[]") // JSON array of granted scopes
+  isActive            Boolean   @default(true)
+  connectedAt         DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform])
+  @@index([userId])
+  @@index([platform])
 }
 
 model Session {
