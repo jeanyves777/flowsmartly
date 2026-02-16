@@ -68,7 +68,9 @@ function baseTemplate(content: string, preheader?: string): string {
 <body>
   <div class="container">
     <div class="header">
-      <h1>${APP_NAME}</h1>
+      <a href="${APP_URL}" style="text-decoration:none;">
+        <img src="${APP_URL}/logo.png" alt="${APP_NAME}" style="max-height:48px;max-width:200px;" />
+      </a>
     </div>
     <div class="content">
       ${content}
@@ -146,15 +148,11 @@ export async function sendWelcomeEmail(params: {
       <li>Track your performance with detailed analytics</li>
     </ul>
     ${params.verificationUrl ? `
-      <p>First, let's verify your email address:</p>
+      <p>Please verify your email address to get started:</p>
       <p style="text-align: center;">
         <a href="${params.verificationUrl}" class="button">Verify Email Address</a>
       </p>
     ` : ""}
-    <p>Ready to get started? Visit your dashboard:</p>
-    <p style="text-align: center;">
-      <a href="${APP_URL}/dashboard" class="button">Go to Dashboard</a>
-    </p>
     <p>If you have any questions, just reply to this email - we're here to help!</p>
   `;
 
