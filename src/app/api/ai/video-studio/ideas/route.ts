@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { category = "product_ad", style = "cinematic", provider = "grok" } = body;
+    const { category = "product_ad", style = "cinematic", provider = "veo3" } = body;
 
     // Get credit cost for ideas (same as AI_IDEAS = 5 credits)
     const creditCost = await getDynamicCreditCost("AI_IDEAS");

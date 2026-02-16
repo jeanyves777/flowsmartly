@@ -189,11 +189,11 @@ export default function VideoStudioPage() {
   const [prompt, setPrompt] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<VideoCategory>("product_ad");
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<AspectRatio>("16:9");
-  const [selectedDuration, setSelectedDuration] = useState<DurationOption>(VIDEO_DURATIONS[1]); // Standard 15s
+  const [selectedDuration, setSelectedDuration] = useState<DurationOption>(VIDEO_DURATIONS[2]); // Standard 8s
   const [selectedStyle, setSelectedStyle] = useState("cinematic");
   const [selectedResolution, setSelectedResolution] = useState<"480p" | "720p">("720p");
   const [selectedVoice, setSelectedVoice] = useState<string>("nova");
-  const [selectedProvider, setSelectedProvider] = useState<"grok" | "sora" | "slideshow">("grok");
+  const [selectedProvider, setSelectedProvider] = useState<"veo3" | "slideshow">("veo3");
 
   // Reference image state
   const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
@@ -219,10 +219,9 @@ export default function VideoStudioPage() {
 
   const { toast } = useToast();
 
-  // Credit cost based on duration & provider (Sora = 1.5x, Slideshow = 2x)
+  // Credit cost based on provider (Slideshow = 2x base)
   const baseCost = 200;
   const creditCost =
-    selectedProvider === "sora" ? Math.round(baseCost * 1.5) :
     selectedProvider === "slideshow" ? Math.round(baseCost * 2) :
     baseCost;
 
@@ -606,47 +605,26 @@ export default function VideoStudioPage() {
             {!inputsCollapsed && (
               <>
                 {/* Provider Selection */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <button
-                    onClick={() => setSelectedProvider("grok")}
+                    onClick={() => setSelectedProvider("veo3")}
                     className={`relative flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
-                      selectedProvider === "grok"
+                      selectedProvider === "veo3"
                         ? "border-brand-500 bg-brand-500/5"
                         : "border-border bg-card/50 hover:bg-card"
                     }`}
                   >
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      selectedProvider === "grok" ? "bg-brand-500/10" : "bg-muted"
+                      selectedProvider === "veo3" ? "bg-brand-500/10" : "bg-muted"
                     }`}>
-                      <Zap className={`w-5 h-5 ${selectedProvider === "grok" ? "text-brand-500" : "text-muted-foreground"}`} />
+                      <Video className={`w-5 h-5 ${selectedProvider === "veo3" ? "text-brand-500" : "text-muted-foreground"}`} />
                     </div>
                     <div className="text-left">
-                      <p className="text-sm font-semibold">Grok Video</p>
-                      <p className="text-xs text-muted-foreground">xAI &middot; Up to 15s &middot; Native audio</p>
+                      <p className="text-sm font-semibold">Veo 3</p>
+                      <p className="text-xs text-muted-foreground">Google &middot; Up to 8s &middot; Native voice &amp; audio</p>
                     </div>
-                    {selectedProvider === "grok" && (
+                    {selectedProvider === "veo3" && (
                       <Badge className="absolute top-2 right-2 text-[10px] bg-brand-500 text-white">{baseCost}</Badge>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setSelectedProvider("sora")}
-                    className={`relative flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
-                      selectedProvider === "sora"
-                        ? "border-purple-500 bg-purple-500/5"
-                        : "border-border bg-card/50 hover:bg-card"
-                    }`}
-                  >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      selectedProvider === "sora" ? "bg-purple-500/10" : "bg-muted"
-                    }`}>
-                      <Film className={`w-5 h-5 ${selectedProvider === "sora" ? "text-purple-500" : "text-muted-foreground"}`} />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold">Sora</p>
-                      <p className="text-xs text-muted-foreground">OpenAI &middot; Up to 12s &middot; HD</p>
-                    </div>
-                    {selectedProvider === "sora" && (
-                      <Badge className="absolute top-2 right-2 text-[10px] bg-purple-500 text-white">{Math.round(baseCost * 1.5)}</Badge>
                     )}
                   </button>
                   <button
@@ -889,7 +867,9 @@ export default function VideoStudioPage() {
                     <div className="space-y-2.5">
                       <Label className="text-sm font-medium text-muted-foreground">Aspect Ratio</Label>
                       <div className="flex flex-wrap gap-2">
-                        {ASPECT_RATIO_OPTIONS.map((ar) => (
+                        {ASPECT_RATIO_OPTIONS
+                          .filter((ar) => selectedProvider === "slideshow" || ar.id !== "1:1")
+                          .map((ar) => (
                           <button
                             key={ar.id}
                             onClick={() => setSelectedAspectRatio(ar.id)}
@@ -1018,7 +998,10 @@ export default function VideoStudioPage() {
                         ))}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        AI writes an ad script and narrates it over the video{selectedVoice !== "none" ? ` with ${selectedVoice} voice` : ""}
+                        {selectedProvider === "veo3"
+                          ? "Veo 3 generates native audio (voice, sound effects, music). Select a voice to add custom narration on top."
+                          : `AI writes an ad script and narrates it over the video${selectedVoice !== "none" ? ` with ${selectedVoice} voice` : ""}`
+                        }
                       </p>
                     </div>
                   </div>

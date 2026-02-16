@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { grokVideoClient } from "@/lib/ai/grok-video-client";
-import { soraClient } from "@/lib/ai/sora-client";
+import { veoClient } from "@/lib/ai/veo-client";
+import { xaiClient } from "@/lib/ai/xai-client";
 import { ai } from "@/lib/ai/client";
 import {
   generateSlideshowScript,
@@ -26,10 +26,10 @@ type TTSVoice = "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
 const execFileAsync = promisify(execFile);
 
 /**
- * POST /api/ai/video-studio — Generate a video ad/promo using xAI Grok
+ * POST /api/ai/video-studio — Generate a video ad/promo using Google Veo 3
  *
  * Uses SSE streaming to provide real-time progress updates.
- * Supports single sequence video generation (up to 15s).
+ * Providers: Veo 3 (AI video with native audio) or Slideshow (AI images + voiceover).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       referenceImageUrl = null,
       brandLogo = null,
       voiceOver = "nova" as string | false,
-      provider = "grok" as "grok" | "sora" | "slideshow",
+      provider = "veo3" as "veo3" | "slideshow",
     } = body;
 
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -57,20 +57,16 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate provider availability
-    if (provider === "grok" && !grokVideoClient.isAvailable()) {
-      return new Response(JSON.stringify({ error: "Grok video generation is not configured (XAI_API_KEY missing)" }), { status: 503 });
+    if (provider === "veo3" && !veoClient.isAvailable()) {
+      return new Response(JSON.stringify({ error: "Veo 3 video generation is not configured (GEMINI_API_KEY missing)" }), { status: 503 });
     }
-    if (provider === "sora" && !soraClient.isAvailable()) {
-      return new Response(JSON.stringify({ error: "Sora video generation is not configured (OPENAI_API_KEY missing)" }), { status: 503 });
-    }
-    if (provider === "slideshow" && !grokVideoClient.isAvailable()) {
+    if (provider === "slideshow" && !xaiClient.isAvailable()) {
       return new Response(JSON.stringify({ error: "Slideshow requires XAI_API_KEY for image generation" }), { status: 503 });
     }
 
     const baseCost = await getDynamicCreditCost("AI_VIDEO_STUDIO" as const);
-    // Sora costs 1.5x, Slideshow costs 2x (multiple images + TTS)
+    // Slideshow costs 2x (multiple images + TTS), Veo 3 is base cost
     const creditCost =
-      provider === "sora" ? Math.round(baseCost * 1.5) :
       provider === "slideshow" ? Math.round(baseCost * 2) :
       baseCost;
 
@@ -167,33 +163,18 @@ export async function POST(req: NextRequest) {
             // Get actual duration from the composited video (voiceover-driven, not fixed 45s)
             totalDuration = await getSlideshowDuration(finalVideoBuffer);
             console.log(`[VideoStudio] DEBUG: Slideshow raw buffer = ${finalVideoBuffer.length} bytes (${(finalVideoBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
-          } else if (provider === "sora") {
-            // ──────── SORA (OpenAI) ────────
-            // Map duration to Sora's allowed values: '4' | '8' | '12'
-            const soraDuration = duration <= 4 ? "4" : duration <= 8 ? "8" : "12";
-            // Map aspect ratio to Sora's size format
-            const soraSize = aspectRatio === "9:16" ? "720x1280" as const : "1280x720" as const;
-
-            send({ type: "status", message: `Generating ${soraDuration}s video with Sora...` });
-
-            const result = await soraClient.generateVideoBuffer(enhancedPrompt, {
-              model: "sora-2",
-              seconds: soraDuration as "4" | "8" | "12",
-              size: soraSize,
-            });
-
-            finalVideoBuffer = result.videoBuffer;
-            totalDuration = result.duration;
           } else {
-            // ──────── GROK SINGLE SEQUENCE ────────
-            const durationSec = Math.min(duration, 15);
-            send({ type: "status", message: refImage ? `Generating ${durationSec}s video from product image...` : `Generating ${durationSec}s video clip...` });
+            // ──────── VEO 3 (Google) ────────
+            // Veo 3 supports 4, 6, or 8 second videos with native audio
+            const veoDuration = duration <= 4 ? "4" : duration <= 6 ? "6" : "8";
+            const veoAspectRatio = aspectRatio === "9:16" ? "9:16" as const : "16:9" as const;
 
-            const result = await grokVideoClient.generateVideo(enhancedPrompt, {
-              duration: durationSec,
-              aspectRatio: aspectRatio as "16:9" | "9:16" | "1:1",
-              resolution: resolution as "480p" | "720p",
-              imageUrl: refImage,
+            send({ type: "status", message: `Generating ${veoDuration}s video with Veo 3 (includes native audio)...` });
+
+            const result = await veoClient.generateVideoBuffer(enhancedPrompt, {
+              durationSeconds: veoDuration as "4" | "6" | "8",
+              aspectRatio: veoAspectRatio,
+              resolution: resolution === "720p" ? "720p" : "720p", // Veo 3 supports 720p and 1080p
             });
 
             finalVideoBuffer = result.videoBuffer;
@@ -324,7 +305,7 @@ export async function POST(req: NextRequest) {
               userId: isAdmin ? null : session.userId,
               adminId: isAdmin ? session.adminId : null,
               feature: "video_studio",
-              model: provider === "sora" ? "sora-2" : "grok-imagine-video",
+              model: provider === "veo3" ? "veo-3.0-generate-preview" : "slideshow",
               inputTokens: 0,
               outputTokens: 0,
               costCents: 0,

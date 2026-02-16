@@ -95,8 +95,9 @@ export interface DurationOption {
 }
 
 export const VIDEO_DURATIONS: DurationOption[] = [
-  { id: "short", label: "Short (8s)", seconds: 8 },
-  { id: "standard", label: "Standard (15s)", seconds: 15 },
+  { id: "short", label: "Short (4s)", seconds: 4 },
+  { id: "medium", label: "Medium (6s)", seconds: 6 },
+  { id: "standard", label: "Standard (8s)", seconds: 8 },
 ];
 
 export const VIDEO_STYLES = [

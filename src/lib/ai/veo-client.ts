@@ -1,0 +1,185 @@
+/**
+ * Google Veo 3 Video Generation Client
+ *
+ * Uses the Gemini API via @google/genai SDK for AI video generation.
+ * Supports text-to-video with native audio (voice, sound effects, music).
+ *
+ * Model: veo-3.0-generate-preview (up to 8s, 720p/1080p, native audio)
+ * Auth:  GEMINI_API_KEY environment variable
+ */
+
+import { GoogleGenAI } from "@google/genai";
+
+export type VeoDuration = "4" | "6" | "8";
+export type VeoResolution = "720p" | "1080p";
+export type VeoAspectRatio = "16:9" | "9:16";
+
+export interface VeoGenerateOptions {
+  /** Duration in seconds ('4', '6', or '8'). Default: '8' */
+  durationSeconds?: VeoDuration;
+  /** Output resolution. Default: '720p' */
+  resolution?: VeoResolution;
+  /** Aspect ratio. Default: '16:9' */
+  aspectRatio?: VeoAspectRatio;
+  /** Content to exclude from the video */
+  negativePrompt?: string;
+  /** Use the fast model variant for quicker generation */
+  fast?: boolean;
+}
+
+export interface VeoVideoResult {
+  videoBuffer: Buffer;
+  duration: number;
+}
+
+class VeoClient {
+  private static instance: VeoClient;
+  private client: GoogleGenAI | null = null;
+
+  private constructor() {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (apiKey) {
+      this.client = new GoogleGenAI({ apiKey });
+    } else {
+      console.warn("[Veo] No GEMINI_API_KEY found — Veo 3 video generation will not work");
+    }
+  }
+
+  static getInstance(): VeoClient {
+    if (!VeoClient.instance) {
+      VeoClient.instance = new VeoClient();
+    }
+    return VeoClient.instance;
+  }
+
+  isAvailable(): boolean {
+    return !!process.env.GEMINI_API_KEY;
+  }
+
+  /**
+   * Generate a video from a text prompt and return it as a Buffer.
+   * Polls until the job completes, then downloads the video.
+   */
+  async generateVideoBuffer(
+    prompt: string,
+    options: VeoGenerateOptions = {}
+  ): Promise<VeoVideoResult> {
+    if (!this.client) {
+      throw new Error("GEMINI_API_KEY is not configured");
+    }
+
+    const {
+      durationSeconds = "8",
+      resolution = "720p",
+      aspectRatio = "16:9",
+      negativePrompt,
+      fast = false,
+    } = options;
+
+    const model = fast
+      ? "veo-3.0-fast-generate-preview"
+      : "veo-3.0-generate-preview";
+
+    console.log(`[Veo] Generating video: model=${model}, duration=${durationSeconds}s, res=${resolution}, aspect=${aspectRatio}`);
+    console.log(`[Veo] Prompt: ${prompt.substring(0, 120)}...`);
+
+    // Build config
+    const config: Record<string, unknown> = {
+      aspectRatio,
+      durationSeconds,
+    };
+
+    // Only add resolution for non-720p (720p is default)
+    if (resolution !== "720p") {
+      config.resolution = resolution;
+    }
+
+    if (negativePrompt) {
+      config.negativePrompt = negativePrompt;
+    }
+
+    // Create the video generation job
+    let operation = await this.client.models.generateVideos({
+      model,
+      prompt,
+      config,
+    });
+
+    console.log(`[Veo] Job created, polling for completion...`);
+
+    // Poll until done (max ~6 minutes)
+    const maxAttempts = 72; // 72 * 5s = 360s = 6 minutes
+    let attempts = 0;
+
+    while (!operation.done && attempts < maxAttempts) {
+      await new Promise((r) => setTimeout(r, 5000));
+      attempts++;
+
+      operation = await this.client.operations.getVideosOperation({
+        operation,
+      });
+
+      if (attempts % 6 === 0) {
+        console.log(`[Veo] Polling... (${attempts * 5}s elapsed, done=${operation.done})`);
+      }
+    }
+
+    if (!operation.done) {
+      throw new Error(`Veo video generation timed out after ${maxAttempts * 5}s`);
+    }
+
+    // Check for errors
+    const response = operation.response;
+    if (!response?.generatedVideos?.length) {
+      throw new Error("Veo video generation completed but no videos returned");
+    }
+
+    const generatedVideo = response.generatedVideos[0];
+    if (!generatedVideo.video) {
+      throw new Error("Veo video generation completed but video data is missing");
+    }
+
+    console.log(`[Veo] Video ready, downloading...`);
+
+    // Download the video content
+    const videoBuffer = await this.downloadVideo(generatedVideo.video);
+    const duration = parseInt(durationSeconds, 10) || 8;
+
+    console.log(`[Veo] Video buffer ready (${(videoBuffer.length / 1024 / 1024).toFixed(1)} MB)`);
+
+    return { videoBuffer, duration };
+  }
+
+  /**
+   * Download a video file object and return it as a Buffer.
+   */
+  private async downloadVideo(videoFile: { uri?: string | null }): Promise<Buffer> {
+    if (!videoFile.uri) {
+      throw new Error("No video URI available for download");
+    }
+
+    // The video URI from Gemini API is a Google-hosted URL
+    // We need to fetch it with our API key
+    const apiKey = process.env.GEMINI_API_KEY;
+    const downloadUrl = videoFile.uri.includes("?")
+      ? `${videoFile.uri}&key=${apiKey}`
+      : `${videoFile.uri}?key=${apiKey}`;
+
+    const response = await fetch(downloadUrl);
+    if (!response.ok) {
+      // Fallback: try without API key (some URLs are pre-signed)
+      const fallbackResponse = await fetch(videoFile.uri);
+      if (!fallbackResponse.ok) {
+        throw new Error(`Failed to download Veo video (${response.status})`);
+      }
+      const arrayBuffer = await fallbackResponse.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+}
+
+export const veoClient = VeoClient.getInstance();
+export { VeoClient };
