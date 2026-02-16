@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { MessageBubble } from "@/components/ai-assistant/message-bubble";
 import { TypingIndicator } from "@/components/ai-assistant/typing-indicator";
+import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 
 type GenerationMode = "auto" | "text" | "image" | "video";
 
@@ -530,31 +531,12 @@ export default function FlowAIPage() {
                   <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center shrink-0 mt-1">
                     <Sparkles className="w-3.5 h-3.5 text-white" />
                   </div>
-                  <div className="rounded-2xl rounded-tl-sm bg-muted/60 px-4 py-3 max-w-[320px]">
-                    <div className="flex items-center gap-3">
-                      <div className="relative w-10 h-10 rounded-lg bg-gradient-to-br from-brand-500/20 to-purple-500/20 flex items-center justify-center">
-                        {generatingMedia === "image" ? (
-                          <ImageIcon className="w-5 h-5 text-brand-500 animate-pulse" />
-                        ) : (
-                          <Video className="w-5 h-5 text-brand-500 animate-pulse" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">
-                          {generatingMedia === "image"
-                            ? "Generating image..."
-                            : "Creating video..."}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {generatingMedia === "video"
-                            ? "This may take a few minutes"
-                            : "Almost there"}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-3 h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div className="h-full bg-brand-500 rounded-full animate-pulse w-2/3" />
-                    </div>
+                  <div className="max-w-[360px]">
+                    <AIGenerationLoader
+                      compact
+                      currentStep={generatingMedia === "image" ? "Generating image..." : "Creating video..."}
+                      subtitle={generatingMedia === "video" ? "This may take a few minutes" : "Almost there"}
+                    />
                   </div>
                 </div>
               )}

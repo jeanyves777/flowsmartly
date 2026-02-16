@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils/cn";
@@ -16,6 +16,8 @@ interface AIGenerationLoaderProps {
   className?: string;
   /** Whether to show the progress bar (default: true when progress is defined) */
   showProgressBar?: boolean;
+  /** Compact mode: smaller logo, fewer sparkles, fits inline overlays */
+  compact?: boolean;
 }
 
 // ─── Floating sparkle particle ───
@@ -50,7 +52,7 @@ function Sparkle({ delay, x, y, size }: { delay: number; x: number; y: number; s
 
 // ─── SVG circular progress ring ───
 
-function ProgressRing({ progress, size = 140 }: { progress: number; size?: number }) {
+function ProgressRing({ progress, size = 140, gradientId = "progressGradient" }: { progress: number; size?: number; gradientId?: string }) {
   const strokeWidth = 4;
   const radius = (size - strokeWidth * 2) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -63,7 +65,6 @@ function ProgressRing({ progress, size = 140 }: { progress: number; size?: numbe
       className="absolute -rotate-90"
       style={{ filter: "drop-shadow(0 0 8px rgba(139,92,246,0.4))" }}
     >
-      {/* Background track */}
       <circle
         cx={size / 2}
         cy={size / 2}
@@ -73,13 +74,12 @@ function ProgressRing({ progress, size = 140 }: { progress: number; size?: numbe
         strokeWidth={strokeWidth}
         className="text-muted/30"
       />
-      {/* Animated progress arc */}
       <motion.circle
         cx={size / 2}
         cy={size / 2}
         r={radius}
         fill="none"
-        stroke="url(#progressGradient)"
+        stroke={`url(#${gradientId})`}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeDasharray={circumference}
@@ -88,7 +88,7 @@ function ProgressRing({ progress, size = 140 }: { progress: number; size?: numbe
         transition={{ duration: 0.8, ease: "easeInOut" }}
       />
       <defs>
-        <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#3b82f6" />
           <stop offset="50%" stopColor="#8b5cf6" />
           <stop offset="100%" stopColor="#f59e0b" />
@@ -100,7 +100,7 @@ function ProgressRing({ progress, size = 140 }: { progress: number; size?: numbe
 
 // ─── Indeterminate spinning ring ───
 
-function SpinnerRing({ size = 140 }: { size?: number }) {
+function SpinnerRing({ size = 140, gradientId = "spinnerGradient" }: { size?: number; gradientId?: string }) {
   const strokeWidth = 4;
   const radius = (size - strokeWidth * 2) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -128,14 +128,14 @@ function SpinnerRing({ size = 140 }: { size?: number }) {
         cy={size / 2}
         r={radius}
         fill="none"
-        stroke="url(#spinnerGradient)"
+        stroke={`url(#${gradientId})`}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeDasharray={circumference}
         strokeDashoffset={circumference * 0.7}
       />
       <defs>
-        <linearGradient id="spinnerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#3b82f6" />
           <stop offset="50%" stopColor="#8b5cf6" />
           <stop offset="100%" stopColor="#f59e0b" />
@@ -208,14 +208,15 @@ export function AIGenerationLoader({
   subtitle = "This may take a few minutes",
   className,
   showProgressBar,
+  compact = false,
 }: AIGenerationLoaderProps) {
+  const uid = useId();
   const showBar = showProgressBar ?? progress !== undefined;
 
   // Animated progress counter for smooth number transitions
   const [displayProgress, setDisplayProgress] = useState(progress ?? 0);
   useEffect(() => {
     if (progress === undefined) return;
-    // Smooth count up
     const timer = setTimeout(() => setDisplayProgress(progress), 50);
     return () => clearTimeout(timer);
   }, [progress]);
@@ -227,7 +228,6 @@ export function AIGenerationLoader({
     const interval = setInterval(() => {
       setFakeProgress((p) => {
         if (p >= 88) return p;
-        // Slow down as we approach 90
         const increment = p < 30 ? 1.5 : p < 60 ? 0.8 : 0.3;
         return Math.min(88, p + increment);
       });
@@ -237,6 +237,87 @@ export function AIGenerationLoader({
 
   const effectiveProgress = progress ?? fakeProgress;
 
+  // ─── Compact variant: smaller, horizontal, for overlays ───
+  if (compact) {
+    const ringSize = 56;
+    const logoSize = 28;
+    const compactSparkles = SPARKLES.slice(0, 5);
+
+    return (
+      <div className={cn("relative rounded-2xl overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950", className)}>
+        {/* Animated gradient background */}
+        <motion.div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.1) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.1) 0%, transparent 60%)",
+          }}
+          animate={{
+            background: [
+              "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.1) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.1) 0%, transparent 60%)",
+              "radial-gradient(ellipse at 40% 40%, rgba(139,92,246,0.12) 0%, transparent 60%), radial-gradient(ellipse at 60% 60%, rgba(245,158,11,0.08) 0%, transparent 60%)",
+              "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.1) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.1) 0%, transparent 60%)",
+            ],
+          }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        />
+
+        {/* Sparkles */}
+        {compactSparkles.map((s, i) => (
+          <Sparkle key={i} {...s} />
+        ))}
+
+        {/* Content */}
+        <div className="relative z-10 flex items-center gap-4 px-5 py-4">
+          {/* Mini logo + ring */}
+          <div className="relative flex items-center justify-center shrink-0" style={{ width: ringSize, height: ringSize }}>
+            {progress !== undefined ? (
+              <ProgressRing progress={displayProgress} size={ringSize} gradientId={`pg-${uid}`} />
+            ) : (
+              <SpinnerRing size={ringSize} gradientId={`sg-${uid}`} />
+            )}
+            <motion.div
+              className="relative z-10 rounded-lg overflow-hidden"
+              animate={{
+                boxShadow: [
+                  "0 0 10px rgba(139,92,246,0.2), 0 0 30px rgba(59,130,246,0.1)",
+                  "0 0 16px rgba(139,92,246,0.4), 0 0 40px rgba(59,130,246,0.2)",
+                  "0 0 10px rgba(139,92,246,0.2), 0 0 30px rgba(59,130,246,0.1)",
+                ],
+              }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <Image src="/icon.png" alt="FlowSmartly" width={logoSize} height={logoSize} className="rounded-lg" priority />
+            </motion.div>
+          </div>
+
+          {/* Text */}
+          <div className="flex-1 min-w-0">
+            <AnimatedStepText text={currentStep} />
+            {subtitle && (
+              <p className="text-xs text-slate-400 flex items-center mt-1">
+                {subtitle}
+                <LoadingDots />
+              </p>
+            )}
+          </div>
+
+          {/* Progress */}
+          {effectiveProgress > 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-lg font-bold bg-gradient-to-r from-blue-400 via-violet-400 to-amber-400 bg-clip-text text-transparent shrink-0"
+            >
+              {Math.round(effectiveProgress)}%
+            </motion.div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Full variant: large, centered, for main generation progress ───
   return (
     <div className={cn("space-y-5", className)}>
       {/* Main visual area */}
@@ -276,11 +357,10 @@ export function AIGenerationLoader({
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 z-10">
           {/* Logo + Ring */}
           <div className="relative flex items-center justify-center" style={{ width: 140, height: 140 }}>
-            {/* Progress ring or spinner */}
             {progress !== undefined ? (
-              <ProgressRing progress={displayProgress} />
+              <ProgressRing progress={displayProgress} gradientId={`pg-${uid}`} />
             ) : (
-              <SpinnerRing />
+              <SpinnerRing gradientId={`sg-${uid}`} />
             )}
 
             {/* Logo with pulse glow */}
@@ -358,5 +438,43 @@ export function AIGenerationLoader({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Small gradient spinner for button-level AI loading.
+ * Drop-in replacement for `<Loader2 className="animate-spin" />`.
+ */
+export function AISpinner({ className }: { className?: string }) {
+  const uid = useId();
+  return (
+    <motion.svg
+      width="1em"
+      height="1em"
+      viewBox="0 0 24 24"
+      fill="none"
+      className={cn("inline-block", className)}
+      animate={{ rotate: 360 }}
+      transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+    >
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" strokeOpacity="0.15" />
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke={`url(#as-${uid})`}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeDasharray={2 * Math.PI * 10}
+        strokeDashoffset={2 * Math.PI * 10 * 0.7}
+      />
+      <defs>
+        <linearGradient id={`as-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#3b82f6" />
+          <stop offset="50%" stopColor="#8b5cf6" />
+          <stop offset="100%" stopColor="#f59e0b" />
+        </linearGradient>
+      </defs>
+    </motion.svg>
   );
 }

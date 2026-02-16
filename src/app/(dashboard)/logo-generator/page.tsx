@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { LOGO_STYLES } from "@/lib/constants/logo-presets";
 
 interface LogoDesign {
@@ -484,22 +485,13 @@ export default function LogoGeneratorPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
           >
-            <Card>
-              <CardContent className="p-8 md:p-12">
-                <div className="text-center mb-8">
-                  <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-600/20 flex items-center justify-center">
-                    <Loader2 className="w-10 h-10 animate-spin text-amber-500" />
-                  </div>
-                  <h2 className="text-2xl font-bold">Creating Your Logos</h2>
-                  <p className="text-muted-foreground mt-2">
-                    Our AI is designing 3 unique logo concepts for &quot;{brandName}&quot;
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    This may take up to 30 seconds...
-                  </p>
-                </div>
-
-                <div className="grid md:grid-cols-3 gap-6">
+            <Card className="border-brand-500/20 rounded-2xl">
+              <CardContent className="p-6">
+                <AIGenerationLoader
+                  currentStep={`Designing 3 unique logos for "${brandName}"`}
+                  subtitle="Our AI is crafting your brand identity"
+                />
+                <div className="grid md:grid-cols-3 gap-6 mt-6">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="space-y-3">
                       <Skeleton className="aspect-square rounded-2xl" />

@@ -49,6 +49,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import {
   DESIGN_CATEGORIES,
   DESIGN_STYLES,
@@ -700,32 +701,15 @@ export default function VisualDesignStudioPage() {
           {/* ─── Loading State ─── */}
           {isGenerating && !generatedDesign && (
             <Card className="border-brand-500/20 rounded-2xl">
-              <CardContent className="py-16">
-                <div className="flex flex-col items-center justify-center gap-6">
-                  <div className="relative">
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-500/20 to-purple-500/20 flex items-center justify-center">
-                      <Wand2 className="w-10 h-10 text-brand-500" />
-                    </div>
-                    <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-brand-500 flex items-center justify-center animate-pulse">
-                      <Sparkles className="w-3.5 h-3.5 text-white" />
-                    </div>
-                  </div>
-                  <div className="text-center space-y-2">
-                    <h3 className="text-lg font-semibold">Creating Your Design</h3>
-                    <p className="text-sm text-muted-foreground max-w-md">
-                      AI is generating your custom visual based on your specifications. This may take a moment...
-                    </p>
-                  </div>
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 rounded-full bg-brand-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <div className="w-2 h-2 rounded-full bg-brand-500 animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <div className="w-2 h-2 rounded-full bg-brand-500 animate-bounce" style={{ animationDelay: "300ms" }} />
-                  </div>
-                  <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-                    <Badge variant="secondary">{selectedCategory.replace("_", " ")}</Badge>
-                    <Badge variant="outline">{selectedSize?.width}x{selectedSize?.height}</Badge>
-                    <Badge variant="outline">{selectedStyle}</Badge>
-                  </div>
+              <CardContent className="p-6">
+                <AIGenerationLoader
+                  currentStep="Creating your design..."
+                  subtitle="AI is generating your custom visual"
+                />
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+                  <Badge variant="secondary">{selectedCategory.replace("_", " ")}</Badge>
+                  <Badge variant="outline">{selectedSize?.width}x{selectedSize?.height}</Badge>
+                  <Badge variant="outline">{selectedStyle}</Badge>
                 </div>
               </CardContent>
             </Card>

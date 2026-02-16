@@ -10,7 +10,6 @@ import {
   MessageSquare,
   Hash,
   Save,
-  Loader2,
   CheckCircle,
   Upload,
   Sparkles,
@@ -44,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 const voiceTones = [
   { id: "professional", label: "Professional", description: "Formal, authoritative, expert" },
@@ -530,7 +530,7 @@ export default function BrandIdentityPage() {
           )}
           <Button onClick={handleSave} disabled={isSaving}>
             {isSaving ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <AISpinner className="w-4 h-4 mr-2" />
             ) : (
               <Save className="w-4 h-4 mr-2" />
             )}
@@ -564,7 +564,7 @@ export default function BrandIdentityPage() {
                 >
                   {isGenerating ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <AISpinner className="w-4 h-4 mr-2" />
                       Improving...
                     </>
                   ) : (
@@ -607,7 +607,7 @@ export default function BrandIdentityPage() {
                 >
                   {isGenerating ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <AISpinner className="w-4 h-4 mr-2" />
                       Generating...
                     </>
                   ) : (
@@ -830,7 +830,7 @@ export default function BrandIdentityPage() {
                           disabled={isUploadingIconLogo}
                         >
                           {isUploadingIconLogo ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <AISpinner className="w-5 h-5" />
                           ) : (
                             <>
                               <ImageIcon className="w-5 h-5" />
@@ -849,7 +849,7 @@ export default function BrandIdentityPage() {
                     />
                     <div className="flex flex-wrap gap-1.5">
                       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => iconLogoInputRef.current?.click()} disabled={isUploadingIconLogo}>
-                        {isUploadingIconLogo ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Upload className="w-3 h-3 mr-1" />}
+                        {isUploadingIconLogo ? <AISpinner className="w-3 h-3 mr-1" /> : <Upload className="w-3 h-3 mr-1" />}
                         Upload
                       </Button>
                       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowIconMediaLibrary(true)}>
@@ -895,7 +895,7 @@ export default function BrandIdentityPage() {
                           disabled={isUploadingLogo}
                         >
                           {isUploadingLogo ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <AISpinner className="w-5 h-5" />
                           ) : (
                             <>
                               <ImageIcon className="w-5 h-5" />
@@ -914,7 +914,7 @@ export default function BrandIdentityPage() {
                     />
                     <div className="flex flex-wrap gap-1.5">
                       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => logoInputRef.current?.click()} disabled={isUploadingLogo}>
-                        {isUploadingLogo ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Upload className="w-3 h-3 mr-1" />}
+                        {isUploadingLogo ? <AISpinner className="w-3 h-3 mr-1" /> : <Upload className="w-3 h-3 mr-1" />}
                         Upload
                       </Button>
                       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowMediaLibrary(true)}>
@@ -1252,7 +1252,7 @@ export default function BrandIdentityPage() {
       <motion.div variants={itemVariants} className="flex justify-end pt-4">
         <Button onClick={handleSave} disabled={isSaving} size="lg">
           {isSaving ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            <AISpinner className="w-4 h-4 mr-2" />
           ) : (
             <Save className="w-4 h-4 mr-2" />
           )}

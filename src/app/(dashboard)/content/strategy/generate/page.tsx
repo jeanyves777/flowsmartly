@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 
 // --- Types ---
 
@@ -404,7 +405,7 @@ export default function GenerateStrategyPage() {
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="text-center space-y-8 max-w-md mx-auto px-6"
+          className="w-full max-w-2xl mx-auto px-6"
         >
           <AnimatePresence mode="wait">
             {!generationDone ? (
@@ -413,61 +414,19 @@ export default function GenerateStrategyPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="space-y-8"
+                className="space-y-6"
               >
-                {/* Animated spinner */}
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                  className="w-24 h-24 mx-auto rounded-full bg-gradient-to-tr from-orange-500 via-pink-500 to-purple-500 p-1"
-                >
-                  <div className="w-full h-full rounded-full bg-background flex items-center justify-center">
-                    <Sparkles className="w-10 h-10 text-orange-500" />
-                  </div>
-                </motion.div>
-
-                {/* Stage text */}
-                <AnimatePresence mode="wait">
-                  <motion.p
-                    key={generationStage}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="text-xl font-semibold"
-                  >
-                    {GENERATION_STAGES[generationStage]?.label}
-                  </motion.p>
-                </AnimatePresence>
-
-                {/* Progress dots */}
-                <div className="flex items-center justify-center gap-2">
-                  {GENERATION_STAGES.map((_, i) => (
-                    <motion.div
-                      key={i}
-                      animate={{
-                        scale: i === generationStage ? [1, 1.3, 1] : 1,
-                      }}
-                      transition={{ duration: 0.5, repeat: i === generationStage ? Infinity : 0, repeatDelay: 0.5 }}
-                      className={`w-2.5 h-2.5 rounded-full transition-colors duration-500 ${
-                        i <= generationStage ? "bg-orange-500" : "bg-muted"
-                      }`}
-                    />
-                  ))}
-                </div>
-
-                {/* Brand context */}
-                {brand && (
-                  <p className="text-sm text-muted-foreground">
-                    Crafting a personalized strategy for <strong>{brand.name}</strong>
-                  </p>
-                )}
+                <AIGenerationLoader
+                  currentStep={GENERATION_STAGES[generationStage]?.label || "Generating strategy..."}
+                  subtitle={brand ? `Crafting a personalized strategy for ${brand.name}` : "This may take a moment"}
+                />
               </motion.div>
             ) : (
               <motion.div
                 key="done"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="space-y-4"
+                className="space-y-4 text-center"
               >
                 <motion.div
                   initial={{ scale: 0 }}

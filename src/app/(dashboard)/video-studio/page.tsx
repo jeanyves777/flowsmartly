@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Loader2,
   Download,
   RefreshCw,
   Wand2,
@@ -36,7 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import {
   VIDEO_CATEGORIES,
   VIDEO_DURATIONS,
@@ -531,7 +530,7 @@ export default function VideoStudioPage() {
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center shrink-0">
                         {isGenerating ? (
-                          <Loader2 className="w-4 h-4 text-brand-500 animate-spin" />
+                          <AISpinner className="w-4 h-4 text-brand-500" />
                         ) : (
                           <Video className="w-4 h-4 text-brand-500" />
                         )}
@@ -643,7 +642,7 @@ export default function VideoStudioPage() {
                         className="gap-1.5 text-xs"
                       >
                         {isGeneratingIdeas ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <AISpinner className="w-3.5 h-3.5" />
                         ) : (
                           <Sparkles className="w-3.5 h-3.5" />
                         )}
@@ -662,11 +661,13 @@ export default function VideoStudioPage() {
                         disabled={isGeneratingIdeas}
                       />
                       {isGeneratingIdeas && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500/10 border border-brand-500/20">
-                            <Loader2 className="w-4 h-4 text-brand-500 animate-spin" />
-                            <span className="text-sm font-medium text-brand-500">Generating ideas for your brand...</span>
-                          </div>
+                        <div className="absolute inset-0 z-10 rounded-xl overflow-hidden">
+                          <AIGenerationLoader
+                            compact
+                            currentStep="Generating ideas for your brand..."
+                            subtitle="AI is crafting personalized suggestions"
+                            className="h-full"
+                          />
                         </div>
                       )}
                     </div>
@@ -762,7 +763,7 @@ export default function VideoStudioPage() {
                           onClick={() => imageInputRef.current?.click()}
                         >
                           {isUploadingImage ? (
-                            <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
+                            <AISpinner className="w-5 h-5 text-brand-500" />
                           ) : (
                             <Upload className="w-5 h-5 text-muted-foreground" />
                           )}
@@ -1054,7 +1055,7 @@ export default function VideoStudioPage() {
                   >
                     {isGenerating ? (
                       <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        <AISpinner className="w-5 h-5 mr-2" />
                         {generationStatus || "Generating Video..."}
                       </>
                     ) : (
