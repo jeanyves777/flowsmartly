@@ -48,7 +48,7 @@ function baseTemplate(content: string, preheader?: string): string {
   <style>
     body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f5; }
     .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
-    .header { background: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%); padding: 32px 24px; text-align: center; }
+    .header { background-color: #ffffff; padding: 32px 24px; text-align: center; border-bottom: 1px solid #e4e4e7; }
     .header h1 { color: #ffffff; margin: 0; font-size: 28px; font-weight: bold; }
     .content { padding: 32px 24px; color: #18181b; }
     .content h2 { color: #18181b; margin: 0 0 16px 0; font-size: 24px; }
