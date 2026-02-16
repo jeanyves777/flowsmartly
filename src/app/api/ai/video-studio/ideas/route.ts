@@ -97,6 +97,17 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Save to history so user can reuse past ideas
+    await prisma.generatedContent.create({
+      data: {
+        userId: session.userId,
+        type: "video_ideas",
+        content: JSON.stringify(result.ideas.slice(0, 5)),
+        prompt: `${category} / ${style} / ${provider}`,
+        settings: JSON.stringify({ category, style, provider }),
+      },
+    });
+
     return NextResponse.json({
       ideas: result.ideas.slice(0, 5),
       creditsUsed: creditCost,

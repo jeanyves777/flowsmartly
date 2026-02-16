@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import {
   Tooltip,
   TooltipContent,
@@ -910,21 +911,24 @@ export default function PostAutomationPage() {
                           <Label htmlFor="ai-topic" className="font-semibold">
                             Topic / Niche
                           </Label>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-500/10"
-                            onClick={handleGenerateTopic}
-                            disabled={isGeneratingTopic}
-                          >
-                            {isGeneratingTopic ? (
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                            ) : (
-                              <Sparkles className="h-3 w-3 mr-1" />
-                            )}
-                            AI Suggest
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <AIIdeasHistory contentType="automation_topics" mode="single" onSelect={(topic) => setForm((f) => ({ ...f, topic }))} />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-500/10"
+                              onClick={handleGenerateTopic}
+                              disabled={isGeneratingTopic}
+                            >
+                              {isGeneratingTopic ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <Sparkles className="h-3 w-3 mr-1" />
+                              )}
+                              AI Suggest
+                            </Button>
+                          </div>
                         </div>
                         <p className="text-xs text-muted-foreground">
                           What should the AI write about? Be specific for better results.

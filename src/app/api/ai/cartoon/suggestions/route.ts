@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { ai } from "@/lib/ai/client";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 
 interface BrandKit {
   name: string;
@@ -86,6 +87,20 @@ export async function POST() {
       return NextResponse.json(
         { success: false, error: { message: "Unauthorized" } },
         { status: 401 }
+      );
+    }
+
+    // Check credits
+    const creditCost = await getDynamicCreditCost("AI_IDEAS");
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { aiCredits: true },
+    });
+    const isAdmin = !!session.adminId;
+    if (!isAdmin && (!user || user.aiCredits < creditCost)) {
+      return NextResponse.json(
+        { success: false, error: { message: "Insufficient credits", required: creditCost, available: user?.aiCredits || 0 } },
+        { status: 402 }
       );
     }
 
@@ -223,14 +238,46 @@ Generate 4 wildly different, creative, brand-aligned story suggestions:`;
       throw new Error("Failed to generate suggestions");
     }
 
+    // Deduct credits
+    if (!isAdmin) {
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: session.userId },
+          data: { aiCredits: { decrement: creditCost } },
+        }),
+        prisma.creditTransaction.create({
+          data: {
+            userId: session.userId,
+            type: "USAGE",
+            amount: -creditCost,
+            balanceAfter: (user?.aiCredits || 0) - creditCost,
+            referenceType: "ai_cartoon_suggestions",
+            description: "Cartoon maker: AI story suggestions",
+          },
+        }),
+      ]);
+    }
+
     // Track AI usage
     await prisma.aIUsage.create({
       data: {
-        userId: session.userId,
+        userId: isAdmin ? null : session.userId,
+        adminId: isAdmin ? session.adminId : null,
         feature: "cartoon_suggestions",
         model: "claude-sonnet",
-        inputTokens: 0,
-        outputTokens: 0,
+        inputTokens: ai.estimateTokens(prompt),
+        outputTokens: ai.estimateTokens(JSON.stringify(result.suggestions)),
+      },
+    });
+
+    // Save to history
+    await prisma.generatedContent.create({
+      data: {
+        userId: session.userId,
+        type: "cartoon_suggestions",
+        content: JSON.stringify(result.suggestions),
+        prompt: brandKit.name,
+        settings: JSON.stringify({ themes: selectedThemes, angles: selectedAngles }),
       },
     });
 
@@ -239,6 +286,8 @@ Generate 4 wildly different, creative, brand-aligned story suggestions:`;
       data: {
         suggestions: result.suggestions,
         brandName: brandKit.name,
+        creditsUsed: creditCost,
+        creditsRemaining: (user?.aiCredits || 0) - creditCost,
       },
     });
   } catch (error) {

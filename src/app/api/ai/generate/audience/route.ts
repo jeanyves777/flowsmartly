@@ -5,7 +5,7 @@ import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { prisma } from "@/lib/db/client";
 import { ai } from "@/lib/ai/client";
 import { aiHub } from "@/lib/ai";
-import { CREDIT_COSTS } from "@/lib/credits/costs";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 
 const audienceSchema = z.object({
   campaignName: z.string().optional(),
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       select: { aiCredits: true },
     });
 
-    const cost = CREDIT_COSTS.AI_AUDIENCE;
+    const cost = await getDynamicCreditCost("AI_AUDIENCE");
     const credits = session.adminId ? (session.user.aiCredits ?? 0) : (user?.aiCredits ?? 0);
 
     if (credits < cost) {
@@ -145,6 +145,17 @@ Return ONLY the JSON array.`;
         }),
       ]);
     }
+
+    // Save to history
+    await prisma.generatedContent.create({
+      data: {
+        userId: session.userId,
+        type: "audience_tags",
+        content: JSON.stringify(tags),
+        prompt: campaignName || "audience",
+        settings: JSON.stringify({ objective, platforms }),
+      },
+    });
 
     const creditsRemaining = session.adminId
       ? credits - cost

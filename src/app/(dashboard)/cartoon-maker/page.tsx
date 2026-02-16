@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { CharacterBrowser, type SelectedCharacter } from "@/components/cartoon/character-browser";
 
 const STYLES = [
@@ -1101,28 +1102,31 @@ function CartoonMakerContent() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="story">Your Story</Label>
-                    {brandKit && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleGetSuggestions}
-                        disabled={isGenerating || isLoadingSuggestions}
-                        className="text-brand-500 border-brand-500/30 hover:bg-brand-500/10"
-                      >
-                        {isLoadingSuggestions ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          <>
-                            <Wand2 className="mr-2 h-4 w-4" />
-                            AI Suggestions for {brandKit.name}
-                          </>
-                        )}
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      <AIIdeasHistory contentType="cartoon_suggestions" onSelect={(idea) => setStoryPrompt(idea)} />
+                      {brandKit && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleGetSuggestions}
+                          disabled={isGenerating || isLoadingSuggestions}
+                          className="text-brand-500 border-brand-500/30 hover:bg-brand-500/10"
+                        >
+                          {isLoadingSuggestions ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Wand2 className="mr-2 h-4 w-4" />
+                              AI Suggestions for {brandKit.name}
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {/* AI Suggestions Panel */}

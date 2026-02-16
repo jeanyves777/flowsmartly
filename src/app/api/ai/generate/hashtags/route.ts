@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 
 const generateHashtagsSchema = z.object({
   platforms: z.array(z.enum(["instagram", "twitter", "linkedin", "facebook", "youtube"])).min(1),
@@ -17,8 +18,6 @@ const platformHashtagLimits = {
   twitter: { max: 5, recommended: 3 },
   linkedin: { max: 5, recommended: 3 },
 };
-
-const CREDITS_PER_GENERATION = 1;
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,7 +35,9 @@ export async function POST(request: NextRequest) {
     const gate = checkPlanAccess(session.user.plan, "AI hashtag generation");
     if (gate) return gate;
 
-    if (session.user.aiCredits < CREDITS_PER_GENERATION) {
+    const cost = await getDynamicCreditCost("AI_HASHTAGS");
+
+    if (session.user.aiCredits < cost) {
       return NextResponse.json(
         {
           success: false,
@@ -112,7 +113,7 @@ Always return valid JSON with an array of hashtags.`,
       await prisma.$transaction([
         prisma.user.update({
           where: { id: session.userId },
-          data: { aiCredits: { decrement: CREDITS_PER_GENERATION } },
+          data: { aiCredits: { decrement: cost } },
         }),
         prisma.aIUsage.create({
           data: {
@@ -145,8 +146,8 @@ Always return valid JSON with an array of hashtags.`,
         platforms,
         count: hashtags.length,
         categories,
-        creditsUsed: CREDITS_PER_GENERATION,
-        creditsRemaining: session.user.aiCredits - CREDITS_PER_GENERATION,
+        creditsUsed: cost,
+        creditsRemaining: session.user.aiCredits - cost,
       },
     });
   } catch (error) {

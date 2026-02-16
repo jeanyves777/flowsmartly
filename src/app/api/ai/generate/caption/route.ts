@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 
 const generateCaptionSchema = z.object({
   platforms: z.array(z.enum(["instagram", "twitter", "linkedin", "facebook", "youtube"])).min(1),
@@ -50,8 +51,6 @@ const lengthTargets = {
   long: { min: 250, max: 400 },
 };
 
-const CREDITS_PER_GENERATION = 1;
-
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
@@ -68,7 +67,9 @@ export async function POST(request: NextRequest) {
     const gate = checkPlanAccess(session.user.plan, "AI caption generation");
     if (gate) return gate;
 
-    if (session.user.aiCredits < CREDITS_PER_GENERATION) {
+    const cost = await getDynamicCreditCost("AI_CAPTION");
+
+    if (session.user.aiCredits < cost) {
       return NextResponse.json(
         {
           success: false,
@@ -155,7 +156,7 @@ Always return ONLY the caption content, nothing else - no explanations, no quota
       await prisma.$transaction([
         prisma.user.update({
           where: { id: session.userId },
-          data: { aiCredits: { decrement: CREDITS_PER_GENERATION } },
+          data: { aiCredits: { decrement: cost } },
         }),
         prisma.aIUsage.create({
           data: {
@@ -187,8 +188,8 @@ Always return ONLY the caption content, nothing else - no explanations, no quota
         content: content.trim(),
         platforms,
         mediaType,
-        creditsUsed: CREDITS_PER_GENERATION,
-        creditsRemaining: session.user.aiCredits - CREDITS_PER_GENERATION,
+        creditsUsed: cost,
+        creditsRemaining: session.user.aiCredits - cost,
       },
     });
   } catch (error) {

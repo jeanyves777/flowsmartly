@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { ai } from "@/lib/ai/client";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 
 // POST /api/content/automation/generate-topic — AI-suggest a topic from brand identity
 export async function POST() {
@@ -31,6 +32,20 @@ export async function POST() {
       );
     }
 
+    // Check credits
+    const creditCost = await getDynamicCreditCost("AI_IDEAS");
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { aiCredits: true },
+    });
+    const isAdmin = !!session.adminId;
+    if (!isAdmin && (!user || user.aiCredits < creditCost)) {
+      return NextResponse.json(
+        { success: false, error: { message: "Insufficient AI credits" } },
+        { status: 403 }
+      );
+    }
+
     // Build context from brand
     const brandContext = [
       `Brand: ${brandKit.name}`,
@@ -45,18 +60,65 @@ export async function POST() {
       .filter(Boolean)
       .join("\n");
 
-    const topic = await ai.generate(
-      `Based on this brand identity:\n\n${brandContext}\n\nSuggest a specific, engaging topic for automated social media content. The topic should be relevant to the brand's niche and audience, specific enough to generate good content, and evergreen (not time-sensitive).\n\nRespond with ONLY the topic, no explanations. Keep it under 12 words.`,
-      {
-        maxTokens: 60,
-        systemPrompt:
-          "You are a marketing strategist. Generate creative, relevant social media content topics. Respond with only the topic text, nothing else.",
-      }
-    );
+    const prompt = `Based on this brand identity:\n\n${brandContext}\n\nSuggest a specific, engaging topic for automated social media content. The topic should be relevant to the brand's niche and audience, specific enough to generate good content, and evergreen (not time-sensitive).\n\nRespond with ONLY the topic, no explanations. Keep it under 12 words.`;
+
+    const topic = await ai.generate(prompt, {
+      maxTokens: 60,
+      systemPrompt:
+        "You are a marketing strategist. Generate creative, relevant social media content topics. Respond with only the topic text, nothing else.",
+    });
+
+    const cleanTopic = topic?.trim().replace(/^["']|["']$/g, "") || "Content for your audience";
+
+    // Deduct credits + track usage
+    if (!isAdmin) {
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: session.userId },
+          data: { aiCredits: { decrement: creditCost } },
+        }),
+        prisma.creditTransaction.create({
+          data: {
+            userId: session.userId,
+            type: "USAGE",
+            amount: -creditCost,
+            balanceAfter: (user?.aiCredits || 0) - creditCost,
+            referenceType: "ai_automation_topic",
+            description: "Content automation: AI topic suggestion",
+          },
+        }),
+      ]);
+    }
+
+    await prisma.aIUsage.create({
+      data: {
+        userId: isAdmin ? null : session.userId,
+        adminId: isAdmin ? session.adminId : null,
+        feature: "automation_topic",
+        model: "claude-sonnet-4-20250514",
+        inputTokens: ai.estimateTokens(prompt),
+        outputTokens: ai.estimateTokens(cleanTopic),
+        costCents: 0,
+      },
+    });
+
+    // Save to history
+    await prisma.generatedContent.create({
+      data: {
+        userId: session.userId,
+        type: "automation_topics",
+        content: JSON.stringify([cleanTopic]),
+        prompt: "automation topic",
+      },
+    });
 
     return NextResponse.json({
       success: true,
-      data: { topic: topic?.trim().replace(/^["']|["']$/g, "") || "Content for your audience" },
+      data: {
+        topic: cleanTopic,
+        creditsUsed: creditCost,
+        creditsRemaining: isAdmin ? undefined : (user?.aiCredits || 0) - creditCost,
+      },
     });
   } catch (error) {
     console.error("Generate topic error:", error);

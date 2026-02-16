@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 
 // Validation schema
 const autoGenerateSchema = z.object({
@@ -19,9 +20,6 @@ const autoGenerateSchema = z.object({
     includeCTA: z.boolean(),
   }),
 });
-
-// AI credits cost per generation
-const CREDITS_PER_GENERATION = 1;
 
 // Platform constraints
 const platformConstraints: Record<string, { maxLength: number; hashtagLimit: number; description: string }> = {
@@ -79,8 +77,10 @@ export async function POST(request: NextRequest) {
     const gate = checkPlanAccess(session.user.plan, "AI auto-generation");
     if (gate) return gate;
 
+    const cost = await getDynamicCreditCost("AI_AUTO");
+
     // Check AI credits
-    if (session.user.aiCredits < CREDITS_PER_GENERATION) {
+    if (session.user.aiCredits < cost) {
       return NextResponse.json(
         {
           success: false,
@@ -262,7 +262,7 @@ You understand each platform's unique culture, best practices, and algorithm pre
       await prisma.$transaction([
         prisma.user.update({
           where: { id: session.userId },
-          data: { aiCredits: { decrement: CREDITS_PER_GENERATION } },
+          data: { aiCredits: { decrement: cost } },
         }),
         prisma.aIUsage.create({
           data: {
@@ -304,8 +304,8 @@ You understand each platform's unique culture, best practices, and algorithm pre
       data: {
         ...responseData,
         platforms,
-        creditsUsed: CREDITS_PER_GENERATION,
-        creditsRemaining: session.user.aiCredits - CREDITS_PER_GENERATION,
+        creditsUsed: cost,
+        creditsRemaining: session.user.aiCredits - cost,
       },
     });
   } catch (error) {

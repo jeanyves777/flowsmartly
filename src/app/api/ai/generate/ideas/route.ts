@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 
 const generateIdeasSchema = z.object({
   brand: z.string().min(3, "Brand name must be at least 3 characters").max(200),
@@ -14,8 +15,6 @@ const generateIdeasSchema = z.object({
   ).min(1, "Select at least one content pillar"),
   count: z.number().min(3).max(10).default(5),
 });
-
-const CREDITS_PER_GENERATION = 1;
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +32,9 @@ export async function POST(request: NextRequest) {
     const gate = checkPlanAccess(session.user.plan, "AI idea generation");
     if (gate) return gate;
 
-    if (session.user.aiCredits < CREDITS_PER_GENERATION) {
+    const cost = await getDynamicCreditCost("AI_IDEAS");
+
+    if (session.user.aiCredits < cost) {
       return NextResponse.json(
         {
           success: false,
@@ -104,7 +105,7 @@ Always return valid JSON with creative, actionable content ideas.`,
       await prisma.$transaction([
         prisma.user.update({
           where: { id: session.userId },
-          data: { aiCredits: { decrement: CREDITS_PER_GENERATION } },
+          data: { aiCredits: { decrement: cost } },
         }),
         prisma.aIUsage.create({
           data: {
@@ -136,8 +137,8 @@ Always return valid JSON with creative, actionable content ideas.`,
         ideas: response.ideas,
         platforms,
         contentPillars,
-        creditsUsed: CREDITS_PER_GENERATION,
-        creditsRemaining: session.user.aiCredits - CREDITS_PER_GENERATION,
+        creditsUsed: cost,
+        creditsRemaining: session.user.aiCredits - cost,
       },
     });
   } catch (error) {

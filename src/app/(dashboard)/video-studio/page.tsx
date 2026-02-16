@@ -36,6 +36,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
+import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import {
   VIDEO_CATEGORIES,
   VIDEO_DURATIONS,
@@ -634,21 +635,24 @@ export default function VideoStudioPage() {
                         <Video className="w-5 h-5 text-brand-500" />
                         <Label className="text-base font-semibold">Describe Your Video</Label>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleGenerateIdeas}
-                        disabled={isGeneratingIdeas || isGenerating}
-                        className="gap-1.5 text-xs"
-                      >
-                        {isGeneratingIdeas ? (
-                          <AISpinner className="w-3.5 h-3.5" />
-                        ) : (
-                          <Sparkles className="w-3.5 h-3.5" />
-                        )}
-                        {isGeneratingIdeas ? "Generating..." : "AI Ideas"}
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">5</Badge>
-                      </Button>
+                      <div className="flex items-center gap-1.5">
+                        <AIIdeasHistory contentType="video_ideas" onSelect={(idea) => setPrompt(idea)} />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleGenerateIdeas}
+                          disabled={isGeneratingIdeas || isGenerating}
+                          className="gap-1.5 text-xs"
+                        >
+                          {isGeneratingIdeas ? (
+                            <AISpinner className="w-3.5 h-3.5" />
+                          ) : (
+                            <Sparkles className="w-3.5 h-3.5" />
+                          )}
+                          {isGeneratingIdeas ? "Generating..." : "AI Ideas"}
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">5</Badge>
+                        </Button>
+                      </div>
                     </div>
                     <div className="relative">
                       <textarea

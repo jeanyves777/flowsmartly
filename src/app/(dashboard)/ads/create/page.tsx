@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
+import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 
 // Platform SVG icons
 function InstagramIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
@@ -777,19 +778,22 @@ export default function CreateCampaignPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="campaign-name">Campaign Name *</Label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleGenerateName}
-                    disabled={isGeneratingName}
-                    className="h-6 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
-                  >
-                    {isGeneratingName ? (
-                      <><Loader2 className="w-3 h-3 animate-spin" /> Generating...</>
-                    ) : (
-                      <><Sparkles className="w-3 h-3" /> AI Suggest (1 credit)</>
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <AIIdeasHistory contentType="campaign_names" onSelect={(name) => setName(name)} />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleGenerateName}
+                      disabled={isGeneratingName}
+                      className="h-6 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                    >
+                      {isGeneratingName ? (
+                        <><Loader2 className="w-3 h-3 animate-spin" /> Generating...</>
+                      ) : (
+                        <><Sparkles className="w-3 h-3" /> AI Suggest</>
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 <Input
                   id="campaign-name"
@@ -1567,25 +1571,35 @@ export default function CreateCampaignPage() {
                     Select tags or let AI suggest your ideal audience
                   </CardDescription>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGenerateAudience}
-                  disabled={isGeneratingAudience}
-                  className="shrink-0 gap-1.5"
-                >
-                  {isGeneratingAudience ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-3.5 h-3.5" />
-                      AI Suggest (1 credit)
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <AIIdeasHistory
+                    contentType="audience_tags"
+                    onSelect={(label) => {
+                      if (!selectedTags.some(t => t.label === label)) {
+                        setSelectedTags(prev => [...prev, { label, category: "interest" as const }]);
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateAudience}
+                    disabled={isGeneratingAudience}
+                    className="shrink-0 gap-1.5"
+                  >
+                    {isGeneratingAudience ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        AI Suggest
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
