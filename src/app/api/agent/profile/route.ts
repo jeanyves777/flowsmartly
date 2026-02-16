@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { displayName, bio, specialties, industries, portfolioUrls, minPricePerMonth } = body;
+    const { displayName, bio, specialties, industries, portfolioUrls, minPricePerMonth, includeFlowProfile } = body;
 
     if (!displayName) {
       return NextResponse.json(
@@ -76,6 +76,37 @@ export async function POST(request: Request) {
       );
     }
 
+    // Generate landing page slug from display name if FlowSmartly profile is included
+    let landingPageSlug: string | null = null;
+    if (includeFlowProfile) {
+      const baseSlug = displayName
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 60);
+
+      // Ensure slug is unique
+      let slug = baseSlug;
+      let counter = 1;
+      while (true) {
+        const existingSlug = await prisma.agentProfile.findUnique({
+          where: { landingPageSlug: slug },
+          select: { id: true },
+        });
+        if (!existingSlug) break;
+        slug = `${baseSlug}-${counter}`;
+        counter++;
+      }
+      landingPageSlug = slug;
+    }
+
+    // Filter out the placeholder "flowsmartly-profile" from portfolio URLs
+    const cleanPortfolioUrls = (portfolioUrls || []).filter(
+      (u: string) => u && u !== "flowsmartly-profile"
+    );
+
     const profile = await prisma.agentProfile.create({
       data: {
         userId: session.userId,
@@ -83,8 +114,9 @@ export async function POST(request: Request) {
         bio: bio || null,
         specialties: JSON.stringify(specialties || []),
         industries: JSON.stringify(industries || []),
-        portfolioUrls: JSON.stringify(portfolioUrls || []),
+        portfolioUrls: JSON.stringify(cleanPortfolioUrls),
         minPricePerMonth: price,
+        landingPageSlug,
         status: "PENDING",
       },
     });

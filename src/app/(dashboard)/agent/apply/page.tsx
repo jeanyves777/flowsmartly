@@ -90,6 +90,7 @@ export default function AgentApplyPage() {
   const [industries, setIndustries] = useState<string[]>([]);
   const [portfolioUrls, setPortfolioUrls] = useState<string[]>([""]);
   const [minPrice, setMinPrice] = useState("100");
+  const [includeFlowProfile, setIncludeFlowProfile] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -321,8 +322,12 @@ export default function AgentApplyPage() {
           bio: bio.trim() || null,
           specialties,
           industries,
-          portfolioUrls: portfolioUrls.filter((u) => u.trim()),
+          portfolioUrls: [
+            ...(includeFlowProfile ? ["flowsmartly-profile"] : []),
+            ...portfolioUrls.filter((u) => u.trim()),
+          ],
           minPricePerMonth: priceInCents,
+          includeFlowProfile,
         }),
       });
       const data = await res.json();
@@ -582,6 +587,8 @@ export default function AgentApplyPage() {
               updatePortfolioUrl={updatePortfolioUrl}
               removePortfolioUrl={removePortfolioUrl}
               addPortfolioUrl={addPortfolioUrl}
+              includeFlowProfile={includeFlowProfile}
+              setIncludeFlowProfile={setIncludeFlowProfile}
             />
           )}
 
@@ -593,6 +600,7 @@ export default function AgentApplyPage() {
               industries={industries}
               minPrice={minPrice}
               portfolioUrls={portfolioUrls}
+              includeFlowProfile={includeFlowProfile}
               goToStep={(step: number) => {
                 setError("");
                 setCurrentStep(step);
@@ -970,6 +978,8 @@ function StepDetails({
   updatePortfolioUrl,
   removePortfolioUrl,
   addPortfolioUrl,
+  includeFlowProfile,
+  setIncludeFlowProfile,
 }: {
   industries: string[];
   toggleIndustry: (i: string) => void;
@@ -982,6 +992,8 @@ function StepDetails({
   updatePortfolioUrl: (i: number, v: string) => void;
   removePortfolioUrl: (i: number) => void;
   addPortfolioUrl: () => void;
+  includeFlowProfile: boolean;
+  setIncludeFlowProfile: (v: boolean) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -1104,36 +1116,81 @@ function StepDetails({
         <CardHeader>
           <CardTitle className="text-base">Portfolio / Website Links</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Optional — share links to your work
+            Share links to your work or use your FlowSmartly profile
           </p>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {portfolioUrls.map((url, index) => (
-            <div key={index} className="flex gap-2">
-              <Input
-                value={url}
-                onChange={(e) => updatePortfolioUrl(index, e.target.value)}
-                placeholder="https://yourwebsite.com"
-                type="url"
-              />
-              {portfolioUrls.length > 1 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removePortfolioUrl(index)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
+        <CardContent className="space-y-4">
+          {/* FlowSmartly Profile Toggle */}
+          <button
+            type="button"
+            onClick={() => setIncludeFlowProfile(!includeFlowProfile)}
+            className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+              includeFlowProfile
+                ? "border-violet-500 bg-violet-500/5"
+                : "border-border hover:border-violet-300"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  includeFlowProfile ? "bg-violet-500 text-white" : "bg-muted text-muted-foreground"
+                }`}>
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">FlowSmartly Agent Profile</p>
+                  <p className="text-xs text-muted-foreground">
+                    Your public profile on FlowSmartly marketplace
+                  </p>
+                </div>
+              </div>
+              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                includeFlowProfile
+                  ? "border-violet-500 bg-violet-500"
+                  : "border-muted-foreground"
+              }`}>
+                {includeFlowProfile && <Check className="h-3 w-3 text-white" />}
+              </div>
             </div>
-          ))}
-          {portfolioUrls.length < 5 && (
-            <Button type="button" variant="outline" size="sm" onClick={addPortfolioUrl}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add Link
-            </Button>
-          )}
+            {includeFlowProfile && (
+              <p className="mt-2 text-xs text-violet-600 pl-13">
+                Your FlowSmartly profile page will be automatically created and linked when approved
+              </p>
+            )}
+          </button>
+
+          {/* External Links */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              External Links (optional)
+            </p>
+            {portfolioUrls.map((url, index) => (
+              <div key={index} className="flex gap-2">
+                <Input
+                  value={url}
+                  onChange={(e) => updatePortfolioUrl(index, e.target.value)}
+                  placeholder="https://yourwebsite.com"
+                  type="url"
+                />
+                {portfolioUrls.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removePortfolioUrl(index)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+            {portfolioUrls.length < 5 && (
+              <Button type="button" variant="outline" size="sm" onClick={addPortfolioUrl}>
+                <Plus className="h-4 w-4 mr-1" />
+                Add Link
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -1147,6 +1204,7 @@ function StepReview({
   industries,
   minPrice,
   portfolioUrls,
+  includeFlowProfile,
   goToStep,
 }: {
   displayName: string;
@@ -1155,6 +1213,7 @@ function StepReview({
   industries: string[];
   minPrice: string;
   portfolioUrls: string[];
+  includeFlowProfile: boolean;
   goToStep: (step: number) => void;
 }) {
   const filteredUrls = portfolioUrls.filter((u) => u.trim());
@@ -1263,7 +1322,7 @@ function StepReview({
           </Button>
         </div>
 
-        {filteredUrls.length > 0 && (
+        {(includeFlowProfile || filteredUrls.length > 0) && (
           <>
             <div className="h-px bg-border" />
             <div className="flex items-start justify-between">
@@ -1271,7 +1330,18 @@ function StepReview({
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
                   Portfolio Links
                 </p>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
+                  {includeFlowProfile && (
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                      <span className="text-sm text-violet-600 font-medium">
+                        FlowSmartly Agent Profile
+                      </span>
+                      <Badge className="bg-violet-500/10 text-violet-600 border-violet-200 text-xs">
+                        Auto-created
+                      </Badge>
+                    </div>
+                  )}
                   {filteredUrls.map((url, i) => (
                     <p key={i} className="text-sm text-brand-500 truncate max-w-md">
                       {url}
