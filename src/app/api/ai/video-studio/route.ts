@@ -49,6 +49,8 @@ export async function POST(req: NextRequest) {
       referenceImageUrl = null,
       brandLogo = null,
       voiceOver = "nova" as string | false,
+      voiceGender = "female" as string,
+      voiceAccent = "american" as string,
       provider = "veo3" as "veo3" | "slideshow",
     } = body;
 
@@ -169,9 +171,13 @@ export async function POST(req: NextRequest) {
             const veoDuration = duration <= 4 ? "4" : duration <= 6 ? "6" : "8";
             const veoAspectRatio = aspectRatio === "9:16" ? "9:16" as const : "16:9" as const;
 
+            // Embed voice characteristics into the prompt for Veo 3 native audio
+            const voiceDirective = buildVoiceDirective(voiceGender, voiceAccent);
+            const veoPrompt = `${enhancedPrompt}\n\n${voiceDirective}`;
+
             send({ type: "status", message: `Generating ${veoDuration}s video with Veo 3 (includes native audio)...` });
 
-            const result = await veoClient.generateVideoBuffer(enhancedPrompt, {
+            const result = await veoClient.generateVideoBuffer(veoPrompt, {
               durationSeconds: veoDuration as "4" | "6" | "8",
               aspectRatio: veoAspectRatio,
               resolution: resolution === "720p" ? "720p" : "720p", // Veo 3 supports 720p and 1080p
@@ -305,7 +311,7 @@ export async function POST(req: NextRequest) {
               userId: isAdmin ? null : session.userId,
               adminId: isAdmin ? session.adminId : null,
               feature: "video_studio",
-              model: provider === "veo3" ? "veo-3.0-generate-preview" : "slideshow",
+              model: provider === "veo3" ? "veo-3.1-generate-preview" : "slideshow",
               inputTokens: 0,
               outputTokens: 0,
               costCents: 0,
@@ -518,6 +524,28 @@ async function getSlideshowDuration(videoBuffer: Buffer): Promise<number> {
   } finally {
     try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
   }
+}
+
+/**
+ * Build a voice directive string to embed in the Veo 3 prompt.
+ * Veo 3 generates native audio (voice, sound effects, music) based on the prompt text.
+ */
+function buildVoiceDirective(gender: string, accent: string): string {
+  const accentLabels: Record<string, string> = {
+    american: "American English",
+    british: "British English",
+    australian: "Australian English",
+    indian: "Indian English",
+    african_american: "African American English",
+    latin: "Latin American",
+    french: "French-accented English",
+    middle_eastern: "Middle Eastern-accented English",
+  };
+
+  const accentLabel = accentLabels[accent] || accent;
+  const genderLabel = gender === "male" ? "male" : "female";
+
+  return `The narration and voiceover should be spoken by a ${genderLabel} voice with a ${accentLabel} accent. The voice should sound natural, confident, and professional — suitable for a marketing advertisement.`;
 }
 
 // ─── Voiceover Pipeline ───────────────────────────────────────────────

@@ -36,6 +36,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import {
   VIDEO_CATEGORIES,
   VIDEO_DURATIONS,
@@ -160,7 +161,9 @@ export default function VideoStudioPage() {
   const [selectedDuration, setSelectedDuration] = useState<DurationOption>(VIDEO_DURATIONS[2]); // Standard 8s
   const [selectedStyle, setSelectedStyle] = useState("cinematic");
   const [selectedResolution, setSelectedResolution] = useState<"480p" | "720p">("720p");
-  const [selectedVoice, setSelectedVoice] = useState<string>("nova");
+  const [selectedVoice, setSelectedVoice] = useState<string>("nova"); // For slideshow TTS
+  const [selectedVoiceGender, setSelectedVoiceGender] = useState<"male" | "female">("female");
+  const [selectedVoiceAccent, setSelectedVoiceAccent] = useState<string>("american");
   const [selectedProvider, setSelectedProvider] = useState<"veo3" | "slideshow">("veo3");
 
   // Reference image state
@@ -359,7 +362,11 @@ export default function VideoStudioPage() {
           resolution: selectedResolution,
           referenceImageUrl: referenceImageUrl || null,
           brandLogo: brandLogo || null,
-          voiceOver: selectedVoice === "none" ? false : selectedVoice,
+          voiceOver: selectedProvider === "slideshow"
+            ? (selectedVoice === "none" ? false : selectedVoice)
+            : false, // Veo 3 uses native voice via prompt
+          voiceGender: selectedProvider === "veo3" ? selectedVoiceGender : undefined,
+          voiceAccent: selectedProvider === "veo3" ? selectedVoiceAccent : undefined,
           provider: selectedProvider,
         }),
       });
@@ -453,7 +460,9 @@ export default function VideoStudioPage() {
         {selectedResolution}
       </Badge>
       <Badge variant="outline" className="text-xs capitalize">
-        {selectedVoice === "none" ? "No voice" : `${selectedVoice} voice`}
+        {selectedProvider === "veo3"
+          ? `${selectedVoiceGender} · ${selectedVoiceAccent}`
+          : selectedVoice === "none" ? "No voice" : `${selectedVoice} voice`}
       </Badge>
     </>
   );
@@ -943,39 +952,94 @@ export default function VideoStudioPage() {
                       </div>
                     </div>
 
-                    {/* Voiceover */}
+                    {/* Voice Settings */}
                     <div className="space-y-2.5">
-                      <Label className="text-sm font-medium text-muted-foreground">Voiceover Narration</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          { id: "nova", label: "Nova", desc: "Warm female" },
-                          { id: "shimmer", label: "Shimmer", desc: "Bright female" },
-                          { id: "onyx", label: "Onyx", desc: "Deep male" },
-                          { id: "fable", label: "Fable", desc: "British male" },
-                          { id: "alloy", label: "Alloy", desc: "Neutral" },
-                          { id: "echo", label: "Echo", desc: "Narrator" },
-                          { id: "none", label: "No Voice", desc: "Music only" },
-                        ].map((v) => (
-                          <button
-                            key={v.id}
-                            onClick={() => setSelectedVoice(v.id)}
-                            className={`px-3 py-1.5 rounded-full text-sm transition-all ${
-                              selectedVoice === v.id
-                                ? "bg-brand-500 text-white"
-                                : "bg-muted hover:bg-muted/80 text-foreground"
-                            }`}
-                            title={v.desc}
-                          >
-                            {v.label}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {selectedProvider === "veo3"
-                          ? "Veo 3 generates native audio (voice, sound effects, music). Select a voice to add custom narration on top."
-                          : `AI writes an ad script and narrates it over the video${selectedVoice !== "none" ? ` with ${selectedVoice} voice` : ""}`
-                        }
-                      </p>
+                      <Label className="text-sm font-medium text-muted-foreground">
+                        {selectedProvider === "veo3" ? "Voice & Accent" : "Voiceover Narration"}
+                      </Label>
+
+                      {selectedProvider === "veo3" ? (
+                        <>
+                          {/* Gender */}
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              { id: "male" as const, label: "Male" },
+                              { id: "female" as const, label: "Female" },
+                            ].map((g) => (
+                              <button
+                                key={g.id}
+                                onClick={() => setSelectedVoiceGender(g.id)}
+                                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                                  selectedVoiceGender === g.id
+                                    ? "bg-brand-500 text-white"
+                                    : "bg-muted hover:bg-muted/80 text-foreground"
+                                }`}
+                              >
+                                {g.label}
+                              </button>
+                            ))}
+                          </div>
+                          {/* Accent */}
+                          <Label className="text-xs font-medium text-muted-foreground mt-2 block">Accent</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              { id: "american", label: "American" },
+                              { id: "british", label: "British" },
+                              { id: "australian", label: "Australian" },
+                              { id: "indian", label: "Indian" },
+                              { id: "african_american", label: "African American" },
+                              { id: "latin", label: "Latin" },
+                              { id: "french", label: "French" },
+                              { id: "middle_eastern", label: "Middle Eastern" },
+                            ].map((a) => (
+                              <button
+                                key={a.id}
+                                onClick={() => setSelectedVoiceAccent(a.id)}
+                                className={`px-3 py-1.5 rounded-full text-sm transition-all ${
+                                  selectedVoiceAccent === a.id
+                                    ? "bg-brand-500 text-white"
+                                    : "bg-muted hover:bg-muted/80 text-foreground"
+                                }`}
+                              >
+                                {a.label}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Veo 3 generates native voice, sound effects &amp; music. Your voice and accent preference will be embedded in the video.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              { id: "nova", label: "Nova", desc: "Warm female" },
+                              { id: "shimmer", label: "Shimmer", desc: "Bright female" },
+                              { id: "onyx", label: "Onyx", desc: "Deep male" },
+                              { id: "fable", label: "Fable", desc: "British male" },
+                              { id: "alloy", label: "Alloy", desc: "Neutral" },
+                              { id: "echo", label: "Echo", desc: "Narrator" },
+                              { id: "none", label: "No Voice", desc: "Music only" },
+                            ].map((v) => (
+                              <button
+                                key={v.id}
+                                onClick={() => setSelectedVoice(v.id)}
+                                className={`px-3 py-1.5 rounded-full text-sm transition-all ${
+                                  selectedVoice === v.id
+                                    ? "bg-brand-500 text-white"
+                                    : "bg-muted hover:bg-muted/80 text-foreground"
+                                }`}
+                                title={v.desc}
+                              >
+                                {v.label}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            AI writes an ad script and narrates it over the video{selectedVoice !== "none" ? ` with ${selectedVoice} voice` : ""}.
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 </CollapsibleSection>
@@ -1067,22 +1131,13 @@ export default function VideoStudioPage() {
             {/* Generation Progress */}
             {isGenerating && !generatedVideo && (
               <Card className="rounded-2xl border-brand-500/20">
-                <CardContent className="p-8 text-center">
-                  <div className="w-16 h-16 rounded-full bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
-                    <Loader2 className="w-8 h-8 text-brand-500 animate-spin" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">Generating Your Video</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {generationStatus || "This may take up to a minute..."}
-                  </p>
-                  <div className="w-64 mx-auto h-1.5 bg-muted rounded-full overflow-hidden">
-                    <motion.div
-                      className="h-full bg-brand-500 rounded-full"
-                      initial={{ width: "0%" }}
-                      animate={{ width: "90%" }}
-                      transition={{ duration: 60, ease: "linear" }}
-                    />
-                  </div>
+                <CardContent className="p-6">
+                  <AIGenerationLoader
+                    currentStep={generationStatus || "Starting video generation..."}
+                    subtitle={selectedProvider === "veo3"
+                      ? "Veo 3 is creating your video with native audio — this may take 2-4 minutes"
+                      : "Generating slideshow with AI images and voiceover..."}
+                  />
                 </CardContent>
               </Card>
             )}

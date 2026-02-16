@@ -40,6 +40,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { CharacterBrowser, type SelectedCharacter } from "@/components/cartoon/character-browser";
 
 const STYLES = [
@@ -1944,22 +1945,12 @@ function CartoonMakerContent() {
 
                     {/* Progress */}
                     {isProcessing && (
-                      <div className="space-y-4">
-                        <div className="aspect-video bg-muted rounded-xl flex flex-col items-center justify-center">
-                          <Loader2 className="h-16 w-16 animate-spin text-brand-500 mb-4" />
-                          <p className="text-lg font-medium">{currentJob.currentStep || "Starting..."}</p>
-                          <p className="text-sm text-muted-foreground mt-2">
-                            This may take 1-2 minutes
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="font-medium">{currentJob.currentStep || "Initializing..."}</span>
-                            <span className="text-muted-foreground">{currentJob.progress}%</span>
-                          </div>
-                          <Progress value={currentJob.progress} className="h-3" />
-                        </div>
-                      </div>
+                      <AIGenerationLoader
+                        currentStep={currentJob.currentStep || "Starting..."}
+                        progress={currentJob.progress}
+                        subtitle="This may take 1-2 minutes"
+                        showProgressBar
+                      />
                     )}
 
                     {/* Video Player */}

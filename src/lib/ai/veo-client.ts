@@ -4,7 +4,7 @@
  * Uses the Gemini API via @google/genai SDK for AI video generation.
  * Supports text-to-video with native audio (voice, sound effects, music).
  *
- * Model: veo-3.0-generate-preview (up to 8s, 720p/1080p, native audio)
+ * Model: veo-3.1-generate-preview (up to 8s, 720p/1080p, native audio)
  * Auth:  GEMINI_API_KEY environment variable
  */
 
@@ -77,8 +77,8 @@ class VeoClient {
     } = options;
 
     const model = fast
-      ? "veo-3.0-fast-generate-preview"
-      : "veo-3.0-generate-preview";
+      ? "veo-3.1-fast-generate-preview"
+      : "veo-3.1-generate-preview";
 
     console.log(`[Veo] Generating video: model=${model}, duration=${durationSeconds}s, res=${resolution}, aspect=${aspectRatio}`);
     console.log(`[Veo] Prompt: ${prompt.substring(0, 120)}...`);
