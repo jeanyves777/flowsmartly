@@ -297,15 +297,6 @@ export function MarketplaceSection() {
               ))}
             </div>
 
-            {/* Connector line */}
-            <motion.div
-              initial={{ scaleY: 0 }}
-              animate={isInView ? { scaleY: 1 } : {}}
-              transition={{ duration: 1, delay: 0.5, ease: "easeOut" }}
-              className="absolute left-6 top-0 w-[2px] h-full bg-gradient-to-b from-brand-500/20 via-accent-purple/20 to-emerald-500/20 origin-top hidden lg:block"
-              style={{ left: "calc(50% + 1.5rem + 24px)" }}
-            />
-
             {/* CTA Card */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
