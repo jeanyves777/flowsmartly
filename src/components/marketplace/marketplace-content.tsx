@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { motion, useInView } from "framer-motion";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import {
   Briefcase,
@@ -270,77 +269,6 @@ const testimonials = [
   },
 ];
 
-// ── Stats Banner Component ──────────────────────────────────────
-
-const stats = [
-  { value: 500, suffix: "+", label: "Verified Agents" },
-  { value: 2, suffix: "M+", label: "Revenue Earned", prefix: "$" },
-  { value: 98, suffix: "%", label: "Client Satisfaction" },
-  { value: 50, suffix: "+", label: "Industries Served" },
-];
-
-function formatStatNumber(n: number): string {
-  if (n >= 1000000) return `${(n / 1000000).toFixed(0)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K`;
-  return n.toString();
-}
-
-function AnimatedStat({
-  value,
-  suffix,
-  label,
-  prefix,
-}: {
-  value: number;
-  suffix: string;
-  label: string;
-  prefix?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-50px" });
-  const [display, setDisplay] = useState("0");
-
-  useEffect(() => {
-    if (!isInView) return;
-    const duration = 2000;
-    const startTime = Date.now();
-    const tick = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const current = Math.round(eased * value);
-      setDisplay(formatStatNumber(current));
-      if (progress < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }, [isInView, value]);
-
-  return (
-    <div ref={ref} className="text-center">
-      <motion.div
-        className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white"
-        initial={{ opacity: 0, y: 10 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.5 }}
-      >
-        {prefix}
-        {display}
-        {suffix}
-      </motion.div>
-      <motion.div
-        className="text-sm sm:text-base text-white/70 mt-2"
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-      >
-        {label}
-      </motion.div>
-    </div>
-  );
-}
-
 // ── Main Component ──────────────────────────────────────────────
 
 export function MarketplaceContent() {
@@ -417,7 +345,7 @@ export function MarketplaceContent() {
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10" asChild>
+              <Button size="lg" variant="outline" className="border-white/30 !text-white hover:bg-white/10" asChild>
                 <Link href="#for-agents">Become an Agent</Link>
               </Button>
             </div>
@@ -436,23 +364,6 @@ export function MarketplaceContent() {
           >
             <MarketplacePreview />
           </motion.div>
-        </div>
-      </section>
-
-      {/* ═══ B. Stats Banner ═══ */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-accent-purple via-brand-500 to-accent-teal">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-            {stats.map((stat) => (
-              <AnimatedStat
-                key={stat.label}
-                value={stat.value}
-                suffix={stat.suffix}
-                label={stat.label}
-                prefix={stat.prefix}
-              />
-            ))}
-          </div>
         </div>
       </section>
 
