@@ -338,9 +338,25 @@ export async function POST(req: NextRequest) {
             data: { status: "FAILED" },
           }).catch(() => {});
 
+          // Clean up error message — don't show raw JSON to users
+          let errorMsg = "Video generation failed";
+          if (error instanceof Error) {
+            const msg = error.message;
+            if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
+              errorMsg = "API quota exceeded. Please wait a few minutes and try again, or check your Google AI billing.";
+            } else if (msg.includes("403") || msg.includes("PERMISSION_DENIED")) {
+              errorMsg = "API access denied. Please check your API key configuration.";
+            } else if (msg.includes("timeout")) {
+              errorMsg = "Video generation timed out. Please try a shorter duration or simpler prompt.";
+            } else {
+              // Strip JSON blobs from error messages
+              errorMsg = msg.replace(/\{[\s\S]*\}/g, "").trim() || "Video generation failed. Please try again.";
+            }
+          }
+
           send({
             type: "error",
-            message: error instanceof Error ? error.message : "Video generation failed",
+            message: errorMsg,
           });
         }
 

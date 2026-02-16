@@ -99,11 +99,23 @@ class VeoClient {
     }
 
     // Create the video generation job
-    let operation = await this.client.models.generateVideos({
-      model,
-      prompt,
-      config,
-    });
+    let operation;
+    try {
+      operation = await this.client.models.generateVideos({
+        model,
+        prompt,
+        config,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
+        throw new Error("Gemini API quota exceeded. Please wait a few minutes or check your Google AI billing at ai.google.dev.");
+      }
+      if (msg.includes("403") || msg.includes("PERMISSION_DENIED")) {
+        throw new Error("Gemini API access denied. Please check your API key permissions.");
+      }
+      throw new Error(`Video generation failed: ${msg.substring(0, 200)}`);
+    }
 
     console.log(`[Veo] Job created, polling for completion...`);
 
