@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getAdminSession } from "@/lib/admin/auth";
+import { notifyAgentApproved, notifyAgentRejected } from "@/lib/notifications";
 
 // GET /api/admin/agents - List all agent profiles
 export async function GET(request: NextRequest) {
@@ -115,6 +116,26 @@ export async function PATCH(request: Request) {
         },
       },
     });
+
+    // Send notifications (non-blocking)
+    if (updated?.user) {
+      if (action === "approve") {
+        notifyAgentApproved({
+          userId: updated.user.id,
+          email: updated.user.email,
+          name: updated.user.name,
+          displayName: updated.displayName,
+        }).catch((err) => console.error("Failed to send agent approved notification:", err));
+      } else if (action === "reject") {
+        notifyAgentRejected({
+          userId: updated.user.id,
+          email: updated.user.email,
+          name: updated.user.name,
+          displayName: updated.displayName,
+          reason: reason,
+        }).catch((err) => console.error("Failed to send agent rejected notification:", err));
+      }
+    }
 
     return NextResponse.json({ success: true, data: { profile: updated } });
   } catch (error) {

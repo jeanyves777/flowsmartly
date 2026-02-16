@@ -31,6 +31,8 @@ import {
   sendTollfreeVerificationSubmittedEmail,
   sendTollfreeVerificationApprovedEmail,
   sendTollfreeVerificationRejectedEmail,
+  sendAgentApprovedEmail,
+  sendAgentRejectedEmail,
 } from "@/lib/email";
 
 // ── Notification Types ──
@@ -80,6 +82,10 @@ export const NOTIFICATION_TYPES = {
   SMS_TOLLFREE_SUBMITTED: "SMS_TOLLFREE_SUBMITTED",
   SMS_TOLLFREE_APPROVED: "SMS_TOLLFREE_APPROVED",
   SMS_TOLLFREE_REJECTED: "SMS_TOLLFREE_REJECTED",
+
+  // Agent
+  AGENT_APPROVED: "AGENT_APPROVED",
+  AGENT_REJECTED: "AGENT_REJECTED",
 
   // Content
   AI_GENERATION_COMPLETE: "AI_GENERATION_COMPLETE",
@@ -810,6 +816,58 @@ export async function notifyComplianceRejected(params: {
     name: params.name,
     businessName: params.businessName,
     notes: params.notes,
+  });
+}
+
+/**
+ * Notify user that their agent application was approved
+ */
+export async function notifyAgentApproved(params: {
+  userId: string;
+  email: string;
+  name: string;
+  displayName: string;
+}) {
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.AGENT_APPROVED,
+    title: "Agent Application Approved!",
+    message: `Congratulations! Your agent application as ${params.displayName} has been approved. You now have full agent access.`,
+    data: { displayName: params.displayName },
+    actionUrl: "/agent/dashboard",
+  });
+
+  await sendAgentApprovedEmail({
+    to: params.email,
+    name: params.name,
+    displayName: params.displayName,
+  });
+}
+
+/**
+ * Notify user that their agent application was rejected
+ */
+export async function notifyAgentRejected(params: {
+  userId: string;
+  email: string;
+  name: string;
+  displayName: string;
+  reason?: string;
+}) {
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.AGENT_REJECTED,
+    title: "Agent Application Not Approved",
+    message: `Your agent application as ${params.displayName} was not approved.${params.reason ? ` Reason: ${params.reason}` : " Please review and reapply."}`,
+    data: { displayName: params.displayName, reason: params.reason },
+    actionUrl: "/agent/apply",
+  });
+
+  await sendAgentRejectedEmail({
+    to: params.email,
+    name: params.name,
+    displayName: params.displayName,
+    reason: params.reason,
   });
 }
 

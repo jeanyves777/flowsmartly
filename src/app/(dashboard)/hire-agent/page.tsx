@@ -194,6 +194,18 @@ export default function MarketplacePage() {
   const [availableSpecialties, setAvailableSpecialties] = useState<string[]>([]);
   const [availableIndustries, setAvailableIndustries] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [isAgent, setIsAgent] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/agent/profile")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && d.data?.profile?.status === "APPROVED") {
+          setIsAgent(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchAgents = useCallback(async () => {
     setIsLoading(true);
@@ -661,37 +673,39 @@ export default function MarketplacePage() {
         </motion.div>
       )}
 
-      {/* Become an Agent CTA */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-      >
-        <Card className="border-violet-200/50 bg-gradient-to-r from-violet-500/5 via-purple-500/5 to-brand-500/5 overflow-hidden">
-          <CardContent className="p-6 md:p-8 flex flex-col sm:flex-row items-center gap-6">
-            <motion.div
-              animate={{ rotate: [0, 5, -5, 0] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              className="h-16 w-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-violet-500/20"
-            >
-              <Briefcase className="h-8 w-8 text-white" />
-            </motion.div>
-            <div className="flex-1 text-center sm:text-left">
-              <h3 className="text-lg font-bold mb-1">Are you a marketing professional?</h3>
-              <p className="text-muted-foreground">
-                Join the marketplace and start earning by managing clients on FlowSmartly.
-                Get access to all tools for free.
-              </p>
-            </div>
-            <Link href="/agent/apply">
-              <Button size="lg" className="bg-violet-600 hover:bg-violet-700 shadow-lg shadow-violet-500/20">
-                <Award className="h-4 w-4 mr-2" />
-                Apply as Agent
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </motion.div>
+      {/* Become an Agent CTA — hidden for existing agents */}
+      {!isAgent && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <Card className="border-violet-200/50 bg-gradient-to-r from-violet-500/5 via-purple-500/5 to-brand-500/5 overflow-hidden">
+            <CardContent className="p-6 md:p-8 flex flex-col sm:flex-row items-center gap-6">
+              <motion.div
+                animate={{ rotate: [0, 5, -5, 0] }}
+                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                className="h-16 w-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-violet-500/20"
+              >
+                <Briefcase className="h-8 w-8 text-white" />
+              </motion.div>
+              <div className="flex-1 text-center sm:text-left">
+                <h3 className="text-lg font-bold mb-1">Are you a marketing professional?</h3>
+                <p className="text-muted-foreground">
+                  Join the marketplace and start earning by managing clients on FlowSmartly.
+                  Get access to all tools for free.
+                </p>
+              </div>
+              <Link href="/agent/apply">
+                <Button size="lg" className="bg-violet-600 hover:bg-violet-700 shadow-lg shadow-violet-500/20">
+                  <Award className="h-4 w-4 mr-2" />
+                  Apply as Agent
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
     </div>
   );
 }

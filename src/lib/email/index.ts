@@ -1427,6 +1427,81 @@ export async function sendTollfreeVerificationRejectedEmail(params: {
   });
 }
 
+// Agent Application Approved
+export async function sendAgentApprovedEmail(params: {
+  to: string;
+  name: string;
+  displayName: string;
+}) {
+  const content = `
+    <h2>Agent Application Approved!</h2>
+    <p>Hi ${params.name},</p>
+    <p>Great news! Your agent application as <strong>${params.displayName}</strong> has been approved.</p>
+    <div class="highlight">
+      <strong>You're now a FlowSmartly Agent!</strong><br>
+      Your account has been upgraded to the Agent plan with full feature access.
+    </div>
+    <p>Here's what you can do now:</p>
+    <ul style="color: #3f3f46; line-height: 1.8;">
+      <li>Set up your agent profile and landing page</li>
+      <li>Start onboarding clients</li>
+      <li>Manage client accounts from your dashboard</li>
+      <li>Access all premium features at no cost</li>
+    </ul>
+    <p style="text-align: center;">
+      <a href="${APP_URL}/agent/dashboard" class="button">Go to Agent Dashboard</a>
+    </p>
+    <p>Welcome to the team! We're excited to have you.</p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Congratulations! Your agent application has been approved`,
+    html: baseTemplate(content, "Your FlowSmartly agent application has been approved!"),
+  });
+}
+
+// Agent Application Rejected
+export async function sendAgentRejectedEmail(params: {
+  to: string;
+  name: string;
+  displayName: string;
+  reason?: string;
+}) {
+  const content = `
+    <h2>Agent Application Update</h2>
+    <p>Hi ${params.name},</p>
+    <p>Thank you for your interest in becoming a FlowSmartly agent. Unfortunately, your application as <strong>${params.displayName}</strong> was not approved at this time.</p>
+    ${params.reason ? `
+    <div class="warning">
+      <strong>Reason:</strong><br>
+      ${params.reason}
+    </div>
+    ` : `
+    <div class="warning">
+      <strong>Your application did not meet our current requirements.</strong><br>
+      Please review your profile and consider reapplying.
+    </div>
+    `}
+    <p>Common reasons for rejection:</p>
+    <ul style="color: #3f3f46; line-height: 1.8;">
+      <li>Incomplete profile or bio</li>
+      <li>Insufficient specialties or industry experience</li>
+      <li>Portfolio links not accessible or relevant</li>
+    </ul>
+    <p>You're welcome to update your application and reapply.</p>
+    <p style="text-align: center;">
+      <a href="${APP_URL}/agent/apply" class="button">Update Application</a>
+    </p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Update on your FlowSmartly agent application`,
+    html: baseTemplate(content, "Your agent application needs attention"),
+  });
+}
+
 // Test Email Function (for admin/debugging)
 export async function sendTestEmail(to: string): Promise<{
   success: boolean;

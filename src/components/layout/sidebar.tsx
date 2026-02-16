@@ -83,7 +83,6 @@ const marketingNavigation = [
 ];
 
 const secondaryNavigation = [
-  { name: "Hire Agent", href: "/hire-agent", icon: Store },
   { name: "Settings", href: "/settings", icon: Settings },
   { name: "Help", href: "/help", icon: HelpCircle },
 ];
@@ -270,8 +269,8 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
           })}
         </div>
 
-        {/* Agent Section — only shown for users with agent profiles */}
-        {isAgent && (
+        {/* Agent Section — shown for agents with profile + marketplace links */}
+        {isAgent ? (
           <div className="pt-4">
             {!isCollapsed && (
               <div className="px-3 pb-2 flex items-center gap-2">
@@ -286,8 +285,23 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
               </div>
             )}
             {renderNavItem(
+              { name: "My Profile", href: "/agent/profile", icon: Users },
+              pathname === "/agent/profile"
+            )}
+            {renderNavItem(
               { name: "My Clients", href: "/agent/clients", icon: Briefcase },
-              pathname.startsWith("/agent")
+              pathname.startsWith("/agent/clients")
+            )}
+            {renderNavItem(
+              { name: "Marketplace", href: "/hire-agent", icon: Store },
+              pathname.startsWith("/hire-agent")
+            )}
+          </div>
+        ) : (
+          <div className="pt-4">
+            {renderNavItem(
+              { name: "Hire Agent", href: "/hire-agent", icon: Store },
+              pathname.startsWith("/hire-agent")
             )}
           </div>
         )}
