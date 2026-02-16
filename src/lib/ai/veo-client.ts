@@ -83,10 +83,10 @@ class VeoClient {
     console.log(`[Veo] Generating video: model=${model}, duration=${durationSeconds}s, res=${resolution}, aspect=${aspectRatio}`);
     console.log(`[Veo] Prompt: ${prompt.substring(0, 120)}...`);
 
-    // Build config
+    // Build config — durationSeconds must be a number for the API
     const config: Record<string, unknown> = {
       aspectRatio,
-      durationSeconds,
+      durationSeconds: parseInt(durationSeconds, 10),
     };
 
     // Only add resolution for non-720p (720p is default)
