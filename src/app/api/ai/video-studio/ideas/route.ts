@@ -40,19 +40,24 @@ export async function POST(req: NextRequest) {
     // Fetch brand identity
     const brandKit = await prisma.brandKit.findFirst({
       where: { userId: session.userId },
-      select: { name: true, voiceTone: true, colors: true },
+      select: {
+        name: true,
+        voiceTone: true,
+        description: true,
+        tagline: true,
+        industry: true,
+        niche: true,
+        targetAudience: true,
+      },
     });
 
-    const brandName = brandKit?.name || "your brand";
-    const voiceTone = brandKit?.voiceTone || "professional";
-
-    const prompt = buildVideoIdeasPrompt(brandName, voiceTone, category, style, provider);
+    const prompt = buildVideoIdeasPrompt(brandKit, category, style, provider);
 
     const result = await ai.generateJSON<{ ideas: string[] }>(prompt, {
       maxTokens: 1024,
       temperature: 0.9,
       systemPrompt:
-        "You are a creative video marketing strategist. Generate compelling, specific video ad prompts that would work well with AI video generation. Return ONLY valid JSON.",
+        "You are a creative marketing strategist who helps businesses come up with real, actionable video ad concepts. You propose specific promotional offers, product highlights, seasonal campaigns, and engaging marketing angles — NOT technical camera or animation descriptions. Think like a marketing director pitching ad concepts to a client. Return ONLY valid JSON.",
     });
 
     if (!result?.ideas || !Array.isArray(result.ideas) || result.ideas.length === 0) {
@@ -93,7 +98,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({
-      ideas: result.ideas.slice(0, 3),
+      ideas: result.ideas.slice(0, 5),
       creditsUsed: creditCost,
       creditsRemaining: (user?.aiCredits || 0) - creditCost,
     });
@@ -106,44 +111,86 @@ export async function POST(req: NextRequest) {
   }
 }
 
+interface BrandContext {
+  name: string | null;
+  voiceTone: string | null;
+  description: string | null;
+  tagline: string | null;
+  industry: string | null;
+  niche: string | null;
+  targetAudience: string | null;
+}
+
 function buildVideoIdeasPrompt(
-  brandName: string,
-  voiceTone: string,
+  brand: BrandContext | null,
   category: string,
   style: string,
   provider: string
 ): string {
-  const categoryDescriptions: Record<string, string> = {
-    product_ad: "product advertisement showcasing a product with dynamic visuals",
-    promo: "promotional video for a sale, event, or special offer",
-    social_reel: "short-form social media reel (Instagram/TikTok style)",
-    explainer: "explainer video that educates viewers about a product or concept",
-    brand_intro: "brand introduction video that establishes brand identity",
-    testimonial: "customer testimonial or review-style video",
+  const brandName = brand?.name || "your brand";
+
+  const categoryGoals: Record<string, string> = {
+    product_ad: "showcase a specific product with a compelling offer or unique selling point",
+    promo: "promote a limited-time sale, discount, seasonal deal, or special event",
+    social_reel: "create a catchy, scroll-stopping short-form video for social media (Instagram/TikTok)",
+    explainer: "explain how a product or service works, or educate the audience about something valuable",
+    brand_intro: "introduce the brand story, mission, or what makes it unique",
+    testimonial: "highlight a customer success story or showcase real results and reviews",
   };
 
-  const catDesc = categoryDescriptions[category] || "marketing video";
+  const catGoal = categoryGoals[category] || "create a marketing video";
+
+  // Build brand context
+  const brandLines: string[] = [`Brand name: "${brandName}"`];
+  if (brand?.industry) brandLines.push(`Industry: ${brand.industry}`);
+  if (brand?.niche) brandLines.push(`Niche: ${brand.niche}`);
+  if (brand?.description) brandLines.push(`About: ${brand.description}`);
+  if (brand?.tagline) brandLines.push(`Tagline: "${brand.tagline}"`);
+  if (brand?.targetAudience) brandLines.push(`Target audience: ${brand.targetAudience}`);
+  if (brand?.voiceTone) brandLines.push(`Brand voice: ${brand.voiceTone}`);
+  const brandContext = brandLines.join("\n");
 
   if (provider === "slideshow") {
-    return `Generate exactly 3 creative narrated slideshow video ideas for "${brandName}".
+    return `Generate exactly 5 real marketing video concepts for this brand:
 
-Brand voice/tone: ${voiceTone}
-Video type: ${catDesc}
-Visual style: ${style}
-Format: 45-second slideshow with 6-8 AI-generated images, voiceover narration, and on-screen captions
+${brandContext}
 
-Each idea should be a compelling narrative concept (2-3 sentences) describing a STORY that unfolds across multiple scenes. Focus on the narrative arc, visual scenes (what each image would show), and the voiceover message. Think of it as a narrated photo essay or visual story — NOT an animated video. Describe the scenes, the mood, and the message the voiceover would deliver.
+Goal: ${catGoal}
+Format: 45-second narrated slideshow video
 
-Return JSON: { "ideas": ["idea 1", "idea 2", "idea 3"] }`;
+Each idea should be a SPECIFIC, ACTIONABLE marketing concept — the kind a marketing director would pitch. Include:
+- The actual offer, promotion, or message (e.g., "Buy one get one free on our signature burgers this weekend")
+- Who it targets and why it would resonate
+- The story or angle for the slideshow narration
+
+Do NOT describe camera movements or technical details. Focus on WHAT the ad says and promotes, not how it looks technically.
+
+Examples of GOOD ideas:
+- "Weekend Flash Sale: 40% off all winter coats — announce the sale with customer photos wearing the coats in snowy settings"
+- "New menu item launch: Our wood-fired margherita pizza, highlight the fresh ingredients and the $9.99 introductory price"
+- "Customer spotlight: Sarah lost 30 pounds in 3 months using our meal plans — tell her transformation story"
+
+Return JSON: { "ideas": ["idea 1", "idea 2", "idea 3", "idea 4", "idea 5"] }`;
   }
 
-  return `Generate exactly 3 creative video ad prompts for "${brandName}".
+  return `Generate exactly 5 real marketing video ad concepts for this brand:
 
-Brand voice/tone: ${voiceTone}
-Video type: ${catDesc}
+${brandContext}
+
+Goal: ${catGoal}
 Visual style: ${style}
 
-Each prompt should be a detailed, vivid description (2-3 sentences) that an AI video generator can use to create a compelling ${catDesc}. CRITICAL: Every prompt MUST describe real physical motion and animation — objects moving, camera panning/zooming/orbiting, elements sliding or flying in, people walking or gesturing, particles flowing. Never describe a static scene. Include specific camera movements (dolly, tracking, zoom, orbit), object motion, and dynamic transitions.
+Each idea should be a SPECIFIC, ACTIONABLE marketing concept — the kind a marketing director would pitch. Include:
+- The actual offer, product, or message being promoted
+- A concrete visual concept that would make a great short video ad
+- Any specific deals, prices, dates, or calls-to-action
 
-Return JSON: { "ideas": ["prompt 1", "prompt 2", "prompt 3"] }`;
+Do NOT focus on technical camera movements. Focus on WHAT the ad promotes and the marketing message. The AI will handle the visuals.
+
+Examples of GOOD ideas:
+- "Happy Hour Special: $5 margaritas every Friday 5-8 PM — show a vibrant bar scene with friends clinking colorful cocktails and laughing"
+- "New Arrivals: Spring 2026 collection just dropped — model walking through a flower garden wearing the new floral dress line, starting at $49"
+- "Free Shipping Weekend: Order by Sunday and get free express delivery — show packages flying out of a warehouse and landing on doorsteps"
+
+Return JSON: { "ideas": ["idea 1", "idea 2", "idea 3", "idea 4", "idea 5"] }`;
 }

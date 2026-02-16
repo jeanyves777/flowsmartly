@@ -147,38 +147,6 @@ interface GalleryVideo {
   metadata: string;
 }
 
-// ─── Prompt Suggestions ───
-
-function getPromptSuggestions(category: VideoCategory): string[] {
-  const suggestions: Record<VideoCategory, string[]> = {
-    product_ad: [
-      "A sleek smartphone slowly rotating 360° on a reflective surface, camera orbiting around it with dramatic lighting shifts and lens flares sweeping across",
-      "Premium skincare bottle with water droplets sliding down, camera zooming in on the texture, liquid pouring in slow motion with golden light rays moving through the scene",
-    ],
-    promo: [
-      "Flash sale announcement with bold text flying in from all sides, colorful confetti bursting, camera zooming through animated price tags and spinning discount badges",
-      "New collection reveal with camera tracking down a runway, fabric flowing in wind, models walking toward camera with spotlights sweeping across the scene",
-    ],
-    social_reel: [
-      "Quick recipe tutorial with ingredients flying into a bowl, camera rapidly cutting between overhead and side angles, food sizzling and steam rising with smooth zoom transitions",
-      "Trendy fashion outfit transition with camera whip-panning between outfits, fabric swirling, person spinning with dynamic camera movement following every gesture",
-    ],
-    explainer: [
-      "Animated step-by-step demonstration with UI elements sliding in, arrows drawing themselves, camera smoothly panning across each step while icons and diagrams animate and transform",
-      "Solar panels tilting toward moving sun, animated energy particles flowing through wires, camera tracking the journey with smooth dolly movements and cross-section reveals",
-    ],
-    brand_intro: [
-      "Logo pieces flying in from different directions assembling together, particle effects swirling, camera pulling back to reveal the full brand with a dramatic dolly zoom",
-      "Camera sweeping through an office with people walking, then tracking through product shelves, ending with a smooth crane shot rising to show the full brand storefront",
-    ],
-    testimonial: [
-      "Happy customer unboxing a product with camera close-ups on hands moving, product being lifted out, camera orbiting around the revealed item with warm light shifting",
-      "Split screen sliding open to reveal before and after, camera smoothly zooming into details on each side, with elements transforming and transitioning dynamically",
-    ],
-  };
-  return suggestions[category] || suggestions.product_ad;
-}
-
 // ─── Main Page ───
 
 export default function VideoStudioPage() {
@@ -674,12 +642,25 @@ export default function VideoStudioPage() {
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0">5</Badge>
                       </Button>
                     </div>
-                    <textarea
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      placeholder="E.g., A sleek product showcase video with dynamic camera movements and modern lighting..."
-                      className="w-full min-h-[100px] p-4 rounded-xl border bg-background text-sm resize-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/50 transition-all"
-                    />
+                    <div className="relative">
+                      <textarea
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                        placeholder="E.g., 20% off all burgers this weekend — show a juicy double cheeseburger with fries, happy customers at the restaurant..."
+                        className={`w-full min-h-[100px] p-4 rounded-xl border bg-background text-sm resize-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/50 transition-all ${
+                          isGeneratingIdeas ? "opacity-40 pointer-events-none" : ""
+                        }`}
+                        disabled={isGeneratingIdeas}
+                      />
+                      {isGeneratingIdeas && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500/10 border border-brand-500/20">
+                            <Loader2 className="w-4 h-4 text-brand-500 animate-spin" />
+                            <span className="text-sm font-medium text-brand-500">Generating ideas for your brand...</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     {/* AI-generated ideas */}
                     {aiIdeas.length > 0 && (
                       <div className="space-y-2">
@@ -703,19 +684,11 @@ export default function VideoStudioPage() {
                         </div>
                       </div>
                     )}
-                    {/* Quick suggestions */}
-                    {aiIdeas.length === 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {getPromptSuggestions(selectedCategory).map((suggestion, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setPrompt(suggestion)}
-                            className="text-xs px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            {suggestion.length > 60 ? suggestion.substring(0, 60) + "..." : suggestion}
-                          </button>
-                        ))}
-                      </div>
+                    {/* Hint to use AI Ideas */}
+                    {aiIdeas.length === 0 && !prompt && (
+                      <p className="text-xs text-muted-foreground">
+                        Describe your ad concept, promotion, or product — or click <strong>AI Ideas</strong> above to get personalized suggestions based on your brand.
+                      </p>
                     )}
                   </CardContent>
                 </Card>
