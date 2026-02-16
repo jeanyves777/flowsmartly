@@ -90,7 +90,7 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_CHAT_VIDEO: 200, // FlowAI video generation
 
   // --- AI Video Studio ---
-  AI_VIDEO_STUDIO: 200, // Video generation (up to 15s)
+  AI_VIDEO_STUDIO: 500, // Video generation per Veo API call (~$3-4 Google cost each)
 
   // --- AI Marketing Image ---
   AI_MARKETING_IMAGE: 50, // Single image for MMS/email campaigns (Flow AI or DALL-E 3 fallback)

@@ -192,7 +192,7 @@ export default function VideoStudioPage() {
   const { toast } = useToast();
 
   // Credit cost based on provider and duration (extended = multiplied)
-  const baseCost = 200;
+  const baseCost = 500;
   const extCount = selectedProvider === "veo3" ? getExtensionCount(selectedDuration.seconds) : 0;
   const creditCost =
     selectedProvider === "slideshow" ? Math.round(baseCost * 2) :

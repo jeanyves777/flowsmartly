@@ -201,6 +201,11 @@ export async function POST(req: NextRequest) {
             let currentVideoUri = result.videoUri;
             if (isExtended && currentVideoUri) {
               const extensionsNeeded = Math.ceil((duration - 8) / 7);
+
+              // Wait for Veo to finish processing the initial video before extending
+              send({ type: "status", message: "Waiting for video processing before extending..." });
+              await new Promise((r) => setTimeout(r, 15000));
+
               for (let i = 0; i < extensionsNeeded; i++) {
                 const extNum = i + 1;
                 const estimatedTotal = 8 + extNum * 7;
