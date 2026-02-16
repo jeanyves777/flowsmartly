@@ -67,10 +67,12 @@ export async function POST(req: NextRequest) {
     }
 
     const baseCost = await getDynamicCreditCost("AI_VIDEO_STUDIO" as const);
-    // Slideshow costs 2x (multiple images + TTS), Veo 3 is base cost
+    // Credit multiplier: Slideshow 2x, Veo extended = baseCost * number of API calls
+    const extensionCount = provider === "veo3" && duration > 8 ? Math.ceil((duration - 8) / 7) : 0;
+    const veoCallCount = 1 + extensionCount;
     const creditCost =
       provider === "slideshow" ? Math.round(baseCost * 2) :
-      baseCost;
+      Math.round(baseCost * veoCallCount);
 
     // Check credits
     const user = await prisma.user.findUnique({
@@ -168,23 +170,60 @@ export async function POST(req: NextRequest) {
           } else {
             // ──────── VEO 3 (Google) ────────
             // Veo 3 supports 4, 6, or 8 second videos with native audio
+            // For extended videos (>8s), we generate 8s then chain extensions (+7s each)
             const veoDuration = duration <= 4 ? "4" : duration <= 6 ? "6" : "8";
             const veoAspectRatio = aspectRatio === "9:16" ? "9:16" as const : "16:9" as const;
+            // Resolution must be 720p for video extension (API requirement)
+            const veoResolution = duration > 8 ? "720p" as const : (resolution as "720p" | "1080p");
 
             // Embed voice characteristics into the prompt for Veo 3 native audio
             const voiceDirective = buildVoiceDirective(voiceGender, voiceAccent);
             const veoPrompt = `${enhancedPrompt}\n\n${voiceDirective}`;
 
-            send({ type: "status", message: `Generating ${veoDuration}s video with Veo 3 (includes native audio)...` });
+            const isExtended = duration > 8;
+            send({
+              type: "status",
+              message: isExtended
+                ? `Generating initial 8s video with Veo 3...`
+                : `Generating ${veoDuration}s video with Veo 3 (includes native audio)...`,
+            });
 
             const result = await veoClient.generateVideoBuffer(veoPrompt, {
               durationSeconds: veoDuration as "4" | "6" | "8",
               aspectRatio: veoAspectRatio,
-              resolution: resolution === "720p" ? "720p" : "720p", // Veo 3 supports 720p and 1080p
+              resolution: veoResolution,
             });
 
             finalVideoBuffer = result.videoBuffer;
             totalDuration = result.duration;
+
+            // Extension loop: chain additional 7s segments to reach target duration
+            let currentVideoUri = result.videoUri;
+            if (isExtended && currentVideoUri) {
+              const extensionsNeeded = Math.ceil((duration - 8) / 7);
+              for (let i = 0; i < extensionsNeeded; i++) {
+                const extNum = i + 1;
+                const estimatedTotal = 8 + extNum * 7;
+                send({
+                  type: "status",
+                  message: `Extending video (${extNum}/${extensionsNeeded})... ~${estimatedTotal}s total`,
+                });
+
+                const extResult = await veoClient.extendVideo(currentVideoUri, veoPrompt, {
+                  aspectRatio: veoAspectRatio,
+                });
+
+                finalVideoBuffer = extResult.videoBuffer;
+                totalDuration = estimatedTotal; // best estimate
+                currentVideoUri = extResult.videoUri;
+
+                if (!currentVideoUri) {
+                  console.warn(`[VideoStudio] Extension ${extNum} returned no URI, stopping`);
+                  break;
+                }
+              }
+              console.log(`[VideoStudio] Video extension complete: ${extensionsNeeded} extensions, ~${totalDuration}s total`);
+            }
           }
 
           // ── DEBUG: Log raw video buffer info and save to disk ──

@@ -95,10 +95,21 @@ export interface DurationOption {
 }
 
 export const VIDEO_DURATIONS: DurationOption[] = [
-  { id: "short", label: "Short (4s)", seconds: 4 },
-  { id: "medium", label: "Medium (6s)", seconds: 6 },
-  { id: "standard", label: "Standard (8s)", seconds: 8 },
+  { id: "short", label: "4s", seconds: 4 },
+  { id: "medium", label: "6s", seconds: 6 },
+  { id: "standard", label: "8s", seconds: 8 },
+  { id: "ext-15", label: "15s", seconds: 15 },
+  { id: "ext-30", label: "30s", seconds: 30 },
+  { id: "ext-60", label: "60s", seconds: 60 },
+  { id: "ext-90", label: "90s", seconds: 90 },
+  { id: "ext-120", label: "120s", seconds: 120 },
 ];
+
+/** Number of Veo extension API calls needed for a given total duration */
+export function getExtensionCount(totalSeconds: number): number {
+  if (totalSeconds <= 8) return 0;
+  return Math.ceil((totalSeconds - 8) / 7);
+}
 
 export const VIDEO_STYLES = [
   { id: "cinematic", label: "Cinematic" },

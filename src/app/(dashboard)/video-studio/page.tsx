@@ -42,6 +42,7 @@ import {
   VIDEO_DURATIONS,
   VIDEO_STYLES,
   ASPECT_RATIO_OPTIONS,
+  getExtensionCount,
   type VideoCategory,
   type AspectRatio,
   type DurationOption,
@@ -190,11 +191,19 @@ export default function VideoStudioPage() {
 
   const { toast } = useToast();
 
-  // Credit cost based on provider (Slideshow = 2x base)
+  // Credit cost based on provider and duration (extended = multiplied)
   const baseCost = 200;
+  const extCount = selectedProvider === "veo3" ? getExtensionCount(selectedDuration.seconds) : 0;
   const creditCost =
     selectedProvider === "slideshow" ? Math.round(baseCost * 2) :
-    baseCost;
+    Math.round(baseCost * (1 + extCount));
+
+  // Auto-lock resolution to 720p for extended Veo videos
+  useEffect(() => {
+    if (selectedProvider === "veo3" && selectedDuration.seconds > 8) {
+      setSelectedResolution("720p");
+    }
+  }, [selectedProvider, selectedDuration]);
 
   // ─── Data fetching ───
 
@@ -881,23 +890,66 @@ export default function VideoStudioPage() {
                           <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">45s (fixed for slideshow)</span>
                         </div>
                       ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {VIDEO_DURATIONS.map((dur) => (
-                            <button
-                              key={dur.id}
-                              onClick={() => setSelectedDuration(dur)}
-                              className={`px-4 py-2.5 rounded-xl text-sm transition-all ${
-                                selectedDuration.id === dur.id
-                                  ? "bg-brand-500 text-white"
-                                  : "bg-muted hover:bg-muted/80"
-                              }`}
-                            >
-                              <span className="flex items-center gap-1.5">
-                                <Clock className="w-3.5 h-3.5" />
-                                <span className="font-medium">{dur.label}</span>
+                        <div className="space-y-3">
+                          {/* Base durations (single generation) */}
+                          <div className="flex flex-wrap gap-2">
+                            {VIDEO_DURATIONS.filter((d) => d.seconds <= 8).map((dur) => (
+                              <button
+                                key={dur.id}
+                                onClick={() => setSelectedDuration(dur)}
+                                className={`px-4 py-2.5 rounded-xl text-sm transition-all ${
+                                  selectedDuration.id === dur.id
+                                    ? "bg-brand-500 text-white"
+                                    : "bg-muted hover:bg-muted/80"
+                                }`}
+                              >
+                                <span className="flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5" />
+                                  <span className="font-medium">{dur.label}</span>
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Extended durations (with video extension) */}
+                          <div className="space-y-2">
+                            <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground/60">Extended (via AI extension)</span>
+                            <div className="flex flex-wrap gap-2">
+                              {VIDEO_DURATIONS.filter((d) => d.seconds > 8).map((dur) => {
+                                const extCount = getExtensionCount(dur.seconds);
+                                const multiplier = 1 + extCount;
+                                return (
+                                  <button
+                                    key={dur.id}
+                                    onClick={() => setSelectedDuration(dur)}
+                                    className={`px-4 py-2.5 rounded-xl text-sm transition-all ${
+                                      selectedDuration.id === dur.id
+                                        ? "bg-brand-500 text-white"
+                                        : "bg-muted hover:bg-muted/80"
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-1.5">
+                                      <Clock className="w-3.5 h-3.5" />
+                                      <span className="font-medium">{dur.label}</span>
+                                      <span className={`text-[10px] ${selectedDuration.id === dur.id ? "text-white/70" : "text-muted-foreground/60"}`}>
+                                        {multiplier}x
+                                      </span>
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Info note for extended durations */}
+                          {selectedDuration.seconds > 8 && (
+                            <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-400">
+                              <Zap className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                              <span>
+                                Extended videos chain {getExtensionCount(selectedDuration.seconds)} AI extensions (+7s each). Resolution locked to 720p. Uses {1 + getExtensionCount(selectedDuration.seconds)}x credits.
                               </span>
-                            </button>
-                          ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -934,26 +986,38 @@ export default function VideoStudioPage() {
 
                     {/* Resolution */}
                     <div className="space-y-2.5">
-                      <Label className="text-sm font-medium text-muted-foreground">Resolution</Label>
+                      <Label className="text-sm font-medium text-muted-foreground">
+                        Resolution
+                        {selectedProvider === "veo3" && selectedDuration.seconds > 8 && (
+                          <span className="ml-1.5 text-[10px] text-amber-600 dark:text-amber-400 font-normal">(locked to 720p for extended)</span>
+                        )}
+                      </Label>
                       <div className="grid grid-cols-2 gap-2 max-w-xs">
-                        {(["480p", "720p"] as const).map((res) => (
-                          <button
-                            key={res}
-                            onClick={() => setSelectedResolution(res)}
-                            className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${
-                              selectedResolution === res
-                                ? "border-brand-500 bg-brand-500/5"
-                                : "border-transparent bg-muted/50 hover:bg-muted"
-                            }`}
-                          >
-                            <Monitor
-                              className={`w-4 h-4 ${
-                                selectedResolution === res ? "text-brand-500" : "text-muted-foreground"
+                        {(["480p", "720p"] as const).map((res) => {
+                          const isLocked = selectedProvider === "veo3" && selectedDuration.seconds > 8;
+                          const isDisabled = isLocked && res !== "720p";
+                          return (
+                            <button
+                              key={res}
+                              onClick={() => !isDisabled && setSelectedResolution(res)}
+                              disabled={isDisabled}
+                              className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                                isDisabled
+                                  ? "border-transparent bg-muted/30 opacity-40 cursor-not-allowed"
+                                  : selectedResolution === res
+                                    ? "border-brand-500 bg-brand-500/5"
+                                    : "border-transparent bg-muted/50 hover:bg-muted"
                               }`}
-                            />
-                            <span className="text-sm font-medium">{res === "720p" ? "HD 720p" : "SD 480p"}</span>
-                          </button>
-                        ))}
+                            >
+                              <Monitor
+                                className={`w-4 h-4 ${
+                                  selectedResolution === res ? "text-brand-500" : "text-muted-foreground"
+                                }`}
+                              />
+                              <span className="text-sm font-medium">{res === "720p" ? "HD 720p" : "SD 480p"}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
