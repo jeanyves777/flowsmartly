@@ -1,8 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
+import { useEffect, useState } from "react";
+import Image from "next/image";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils/cn";
 
 interface AIGenerationLoaderProps {
@@ -12,67 +12,349 @@ interface AIGenerationLoaderProps {
   progress?: number;
   /** Subtitle hint, e.g. "This may take 1-2 minutes" */
   subtitle?: string;
-  /** Optional icon to show instead of default spinner */
-  icon?: React.ReactNode;
   /** Extra class names for the outer container */
   className?: string;
   /** Whether to show the progress bar (default: true when progress is defined) */
   showProgressBar?: boolean;
 }
 
+// ─── Floating sparkle particle ───
+
+function Sparkle({ delay, x, y, size }: { delay: number; x: number; y: number; size: number }) {
+  return (
+    <motion.div
+      className="absolute rounded-full"
+      style={{
+        width: size,
+        height: size,
+        left: `${x}%`,
+        top: `${y}%`,
+        background: `radial-gradient(circle, rgba(139,92,246,0.6) 0%, rgba(59,130,246,0.3) 50%, transparent 70%)`,
+      }}
+      initial={{ opacity: 0, scale: 0 }}
+      animate={{
+        opacity: [0, 1, 0.6, 0],
+        scale: [0, 1.2, 0.8, 0],
+        y: [0, -30, -50],
+      }}
+      transition={{
+        duration: 3,
+        delay,
+        repeat: Infinity,
+        repeatDelay: Math.random() * 2,
+        ease: "easeOut",
+      }}
+    />
+  );
+}
+
+// ─── SVG circular progress ring ───
+
+function ProgressRing({ progress, size = 140 }: { progress: number; size?: number }) {
+  const strokeWidth = 4;
+  const radius = (size - strokeWidth * 2) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (progress / 100) * circumference;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      className="absolute -rotate-90"
+      style={{ filter: "drop-shadow(0 0 8px rgba(139,92,246,0.4))" }}
+    >
+      {/* Background track */}
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={strokeWidth}
+        className="text-muted/30"
+      />
+      {/* Animated progress arc */}
+      <motion.circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="url(#progressGradient)"
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        initial={{ strokeDashoffset: circumference }}
+        animate={{ strokeDashoffset: offset }}
+        transition={{ duration: 0.8, ease: "easeInOut" }}
+      />
+      <defs>
+        <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#3b82f6" />
+          <stop offset="50%" stopColor="#8b5cf6" />
+          <stop offset="100%" stopColor="#f59e0b" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+// ─── Indeterminate spinning ring ───
+
+function SpinnerRing({ size = 140 }: { size?: number }) {
+  const strokeWidth = 4;
+  const radius = (size - strokeWidth * 2) / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  return (
+    <motion.svg
+      width={size}
+      height={size}
+      className="absolute"
+      animate={{ rotate: 360 }}
+      transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
+      style={{ filter: "drop-shadow(0 0 8px rgba(139,92,246,0.3))" }}
+    >
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={strokeWidth}
+        className="text-muted/20"
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="url(#spinnerGradient)"
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={circumference * 0.7}
+      />
+      <defs>
+        <linearGradient id="spinnerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#3b82f6" />
+          <stop offset="50%" stopColor="#8b5cf6" />
+          <stop offset="100%" stopColor="#f59e0b" />
+        </linearGradient>
+      </defs>
+    </motion.svg>
+  );
+}
+
+// ─── Animated step text ───
+
+function AnimatedStepText({ text }: { text: string }) {
+  return (
+    <AnimatePresence mode="wait">
+      <motion.p
+        key={text}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.3 }}
+        className="text-base font-semibold text-foreground text-center max-w-sm"
+      >
+        {text}
+      </motion.p>
+    </AnimatePresence>
+  );
+}
+
+// ─── Animated dots for loading effect ───
+
+function LoadingDots() {
+  return (
+    <span className="inline-flex gap-0.5 ml-1">
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          className="w-1 h-1 rounded-full bg-muted-foreground"
+          animate={{ opacity: [0.2, 1, 0.2] }}
+          transition={{ duration: 1.2, delay: i * 0.2, repeat: Infinity }}
+        />
+      ))}
+    </span>
+  );
+}
+
+// ─── Sparkle positions ───
+
+const SPARKLES = [
+  { x: 10, y: 20, size: 6, delay: 0 },
+  { x: 85, y: 15, size: 8, delay: 0.5 },
+  { x: 15, y: 70, size: 5, delay: 1 },
+  { x: 80, y: 65, size: 7, delay: 1.5 },
+  { x: 50, y: 10, size: 4, delay: 2 },
+  { x: 25, y: 45, size: 6, delay: 0.8 },
+  { x: 75, y: 40, size: 5, delay: 1.3 },
+  { x: 45, y: 80, size: 7, delay: 0.3 },
+  { x: 65, y: 85, size: 4, delay: 1.8 },
+  { x: 35, y: 15, size: 5, delay: 2.2 },
+];
+
 /**
- * Shared AI generation loader used across all AI features
- * (Video Studio, Cartoon Maker, etc.)
+ * Shared premium AI generation loader with animated FlowSmartly logo,
+ * circular progress ring, floating particles, and smooth step transitions.
  *
- * Shows a large animated spinner, current step text, subtitle, and progress bar.
+ * Used across all AI features: Video Studio, Cartoon Maker, etc.
  */
 export function AIGenerationLoader({
   currentStep = "Generating...",
   progress,
   subtitle = "This may take a few minutes",
-  icon,
   className,
   showProgressBar,
 }: AIGenerationLoaderProps) {
   const showBar = showProgressBar ?? progress !== undefined;
 
+  // Animated progress counter for smooth number transitions
+  const [displayProgress, setDisplayProgress] = useState(progress ?? 0);
+  useEffect(() => {
+    if (progress === undefined) return;
+    // Smooth count up
+    const timer = setTimeout(() => setDisplayProgress(progress), 50);
+    return () => clearTimeout(timer);
+  }, [progress]);
+
+  // For indeterminate: fake slow progress
+  const [fakeProgress, setFakeProgress] = useState(0);
+  useEffect(() => {
+    if (progress !== undefined) return;
+    const interval = setInterval(() => {
+      setFakeProgress((p) => {
+        if (p >= 88) return p;
+        // Slow down as we approach 90
+        const increment = p < 30 ? 1.5 : p < 60 ? 0.8 : 0.3;
+        return Math.min(88, p + increment);
+      });
+    }, 800);
+    return () => clearInterval(interval);
+  }, [progress]);
+
+  const effectiveProgress = progress ?? fakeProgress;
+
   return (
-    <div className={cn("space-y-4", className)}>
-      {/* Visual area */}
-      <div className="aspect-video bg-muted rounded-xl flex flex-col items-center justify-center">
-        {icon || (
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-          >
-            <Loader2 className="h-16 w-16 text-brand-500" />
-          </motion.div>
-        )}
-        <p className="text-lg font-medium mt-4">{currentStep}</p>
-        <p className="text-sm text-muted-foreground mt-2">{subtitle}</p>
+    <div className={cn("space-y-5", className)}>
+      {/* Main visual area */}
+      <div className="relative aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        {/* Animated gradient background */}
+        <motion.div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.08) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.08) 0%, transparent 60%)",
+          }}
+          animate={{
+            background: [
+              "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.08) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.08) 0%, transparent 60%)",
+              "radial-gradient(ellipse at 40% 40%, rgba(139,92,246,0.1) 0%, transparent 60%), radial-gradient(ellipse at 60% 60%, rgba(245,158,11,0.06) 0%, transparent 60%)",
+              "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.08) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.08) 0%, transparent 60%)",
+            ],
+          }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        />
+
+        {/* Grid pattern overlay */}
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
+            backgroundSize: "40px 40px",
+          }}
+        />
+
+        {/* Floating sparkles */}
+        {SPARKLES.map((s, i) => (
+          <Sparkle key={i} {...s} />
+        ))}
+
+        {/* Center content */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 z-10">
+          {/* Logo + Ring */}
+          <div className="relative flex items-center justify-center" style={{ width: 140, height: 140 }}>
+            {/* Progress ring or spinner */}
+            {progress !== undefined ? (
+              <ProgressRing progress={displayProgress} />
+            ) : (
+              <SpinnerRing />
+            )}
+
+            {/* Logo with pulse glow */}
+            <motion.div
+              className="relative z-10 rounded-2xl overflow-hidden"
+              animate={{
+                boxShadow: [
+                  "0 0 20px rgba(139,92,246,0.2), 0 0 60px rgba(59,130,246,0.1)",
+                  "0 0 30px rgba(139,92,246,0.4), 0 0 80px rgba(59,130,246,0.2)",
+                  "0 0 20px rgba(139,92,246,0.2), 0 0 60px rgba(59,130,246,0.1)",
+                ],
+              }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <Image
+                src="/icon.png"
+                alt="FlowSmartly"
+                width={64}
+                height={64}
+                className="rounded-2xl"
+                priority
+              />
+            </motion.div>
+          </div>
+
+          {/* Step text */}
+          <div className="flex flex-col items-center gap-2 px-6">
+            <AnimatedStepText text={currentStep} />
+            <p className="text-sm text-slate-400 flex items-center">
+              {subtitle}
+              <LoadingDots />
+            </p>
+          </div>
+
+          {/* Progress percentage */}
+          {effectiveProgress > 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-2xl font-bold bg-gradient-to-r from-blue-400 via-violet-400 to-amber-400 bg-clip-text text-transparent"
+            >
+              {Math.round(effectiveProgress)}%
+            </motion.div>
+          )}
+        </div>
       </div>
 
-      {/* Progress bar */}
+      {/* Bottom progress bar */}
       {showBar && (
         <div className="space-y-2">
           <div className="flex items-center justify-between text-sm">
-            <span className="font-medium">{currentStep}</span>
-            {progress !== undefined && (
-              <span className="text-muted-foreground">{Math.round(progress)}%</span>
-            )}
+            <span className="font-medium text-foreground">{currentStep}</span>
+            <span className="text-muted-foreground font-medium">
+              {Math.round(effectiveProgress)}%
+            </span>
           </div>
-          {progress !== undefined ? (
-            <Progress value={progress} className="h-3" />
-          ) : (
-            <div className="h-3 w-full overflow-hidden rounded-full bg-secondary">
-              <motion.div
-                className="h-full bg-brand-500 rounded-full"
-                initial={{ width: "0%" }}
-                animate={{ width: "90%" }}
-                transition={{ duration: 120, ease: "linear" }}
-              />
-            </div>
-          )}
+          <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary/50">
+            <motion.div
+              className="h-full rounded-full"
+              style={{
+                background: "linear-gradient(90deg, #3b82f6, #8b5cf6, #f59e0b)",
+                backgroundSize: "200% 100%",
+              }}
+              initial={{ width: "0%" }}
+              animate={{
+                width: `${effectiveProgress}%`,
+                backgroundPosition: ["0% 0%", "100% 0%", "0% 0%"],
+              }}
+              transition={{
+                width: { duration: 0.8, ease: "easeInOut" },
+                backgroundPosition: { duration: 3, repeat: Infinity, ease: "linear" },
+              }}
+            />
+          </div>
         </div>
       )}
     </div>
