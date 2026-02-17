@@ -2,7 +2,7 @@
  * Centralized Credit Cost Configuration
  *
  * Dynamic pricing from database with fallback to defaults.
- * Based on credit value: $0.01 per credit (500 credits = $4.99)
+ * Based on credit value: $0.01 per credit (100 credits = $1.00)
  *
  * Pricing tiers:
  * - Email (1 credit):      Email send (1 credit per email)

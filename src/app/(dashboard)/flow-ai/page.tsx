@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
+import { useCreditCosts } from "@/hooks/use-credit-costs";
 import {
   ArrowUp,
   Plus,
@@ -62,6 +63,7 @@ const SUGGESTED_PROMPTS = [
 export default function FlowAIPage() {
   const searchParams = useSearchParams();
   const initialConvId = searchParams.get("conversationId");
+  const { costs } = useCreditCosts("AI_CHAT_IMAGE", "AI_CHAT_VIDEO", "AI_CHAT_MESSAGE");
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -614,10 +616,10 @@ export default function FlowAIPage() {
             <div className="flex items-center justify-between mt-2 px-1">
               <p className="text-[11px] text-muted-foreground">
                 {mode === "image"
-                  ? "125 credits per image"
+                  ? `${costs.AI_CHAT_IMAGE ?? 125} credits per image`
                   : mode === "video"
-                  ? "200 credits per video"
-                  : "2 credits per message"}
+                  ? `${costs.AI_CHAT_VIDEO ?? 200} credits per video`
+                  : `${costs.AI_CHAT_MESSAGE ?? 2} credits per message`}
               </p>
               <p className="text-[11px] text-muted-foreground">
                 Shift+Enter for new line

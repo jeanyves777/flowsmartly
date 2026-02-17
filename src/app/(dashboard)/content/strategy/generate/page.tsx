@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 
 // --- Types ---
@@ -132,6 +133,7 @@ const DEFAULT_FORM: FormState = {
 export default function GenerateStrategyPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { costs } = useCreditCosts("AI_IDEAS");
 
   const [brand, setBrand] = useState<BrandKit | null>(null);
   const [isBrandLoading, setIsBrandLoading] = useState(true);
@@ -1033,7 +1035,7 @@ export default function GenerateStrategyPage() {
                       variant="outline"
                       className="bg-purple-500/10 text-purple-600 border-purple-500/20"
                     >
-                      <Sparkles className="h-3 w-3 mr-1" />5 credits
+                      <Sparkles className="h-3 w-3 mr-1" />{costs.AI_IDEAS ?? 5} credits
                     </Badge>
                   </div>
                 </div>

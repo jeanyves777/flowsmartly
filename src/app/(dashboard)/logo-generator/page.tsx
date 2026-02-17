@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
+import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { LOGO_STYLES } from "@/lib/constants/logo-presets";
 
@@ -47,6 +48,7 @@ interface LogoDesign {
 
 export default function LogoGeneratorPage() {
   const { toast } = useToast();
+  const { costs } = useCreditCosts("AI_LOGO_GENERATION");
 
   // Form state
   const [brandName, setBrandName] = useState("");
@@ -475,7 +477,7 @@ export default function LogoGeneratorPage() {
                   size="lg"
                 >
                   <Sparkles className="w-5 h-5 mr-2" />
-                  Generate 3 Logo Concepts (30 credits)
+                  Generate 3 Logo Concepts ({costs.AI_LOGO_GENERATION ?? 30} credits)
                 </Button>
 
                 <p className="text-center text-xs text-muted-foreground">

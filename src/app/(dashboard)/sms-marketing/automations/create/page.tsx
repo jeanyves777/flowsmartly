@@ -58,6 +58,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { cn } from "@/lib/utils/cn";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { US_HOLIDAYS, getHolidayDate } from "@/lib/marketing/holidays";
@@ -214,6 +215,7 @@ interface GeneratedContent {
 export default function CreateSmsAutomationPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { costs } = useCreditCosts("MMS_SEND");
 
   // Hardcoded SMS campaign type
   const campaignType = "SMS";
@@ -1488,8 +1490,8 @@ export default function CreateSmsAutomationPage() {
                         )}>
                           <Info className="w-3.5 h-3.5 shrink-0" />
                           {imageSource === "contact_photo"
-                            ? "MMS rate: 10 credits per recipient (personalized image)"
-                            : "MMS rate: 10 credits/msg (same image for all)"}
+                            ? `MMS rate: ${costs.MMS_SEND ?? 10} credits per recipient (personalized image)`
+                            : `MMS rate: ${costs.MMS_SEND ?? 10} credits/msg (same image for all)`}
                         </div>
                       )}
                     </CardContent>

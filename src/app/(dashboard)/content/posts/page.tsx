@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { AITextAssistant } from "@/components/feed/ai-text-assistant";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -85,6 +86,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.E
 
 export default function ContentPostsPage() {
   const { toast } = useToast();
+  const { costs } = useCreditCosts("AI_POST");
   const { isConnected } = useSocialPlatforms();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -665,7 +667,7 @@ export default function ContentPostsPage() {
                 {aiUsed && (
                   <Badge className="bg-brand-500/10 text-brand-500 border-brand-500/20 shrink-0">
                     <Sparkles className="w-3 h-3 mr-1" />
-                    +5 credits
+                    +{costs.AI_POST ?? 5} credits
                   </Badge>
                 )}
               </div>

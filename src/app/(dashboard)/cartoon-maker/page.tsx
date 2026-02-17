@@ -41,6 +41,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
+import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
@@ -264,6 +265,7 @@ function CartoonMakerContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
+  const { costs } = useCreditCosts("AI_CARTOON_CHARACTER_REGEN");
   const selectedId = searchParams.get("id");
 
   const [storyPrompt, setStoryPrompt] = useState("");
@@ -1663,7 +1665,7 @@ function CartoonMakerContent() {
                                     ) : (
                                       <>
                                         <RefreshCw className="h-4 w-4" />
-                                        Regenerate (5 credits)
+                                        Regenerate ({costs.AI_CARTOON_CHARACTER_REGEN ?? 5} credits)
                                       </>
                                     )}
                                   </Button>
@@ -1828,7 +1830,7 @@ function CartoonMakerContent() {
                                             ) : (
                                               <>
                                                 <RefreshCw className="h-4 w-4" />
-                                                Regenerate (5 credits)
+                                                Regenerate ({costs.AI_CARTOON_CHARACTER_REGEN ?? 5} credits)
                                               </>
                                             )}
                                           </Button>

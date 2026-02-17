@@ -42,7 +42,7 @@ const faqs: FAQItem[] = [
   {
     category: "Getting Started",
     question: "How do AI credits work?",
-    answer: "Each AI generation (posts, designs, logos) costs credits. Your plan includes a monthly credit allowance. Visual designs cost 25 credits, text generation costs 5 credits, and logo generation costs 15 credits. Credits reset monthly.",
+    answer: "Each AI generation (posts, designs, logos) costs credits. Your plan includes a monthly credit allowance. Credit costs vary by feature — check the credit badge on each tool for the current rate. You can view all pricing in Buy Credits. Credits reset monthly.",
   },
   {
     category: "Visual Studio",

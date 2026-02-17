@@ -48,6 +48,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
+import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { cn } from "@/lib/utils/cn";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { PAGE_TYPE_TEMPLATES, TemplateVariant } from "@/lib/landing-pages/templates";
@@ -146,6 +147,7 @@ const fadeIn = {
 export default function CreateLandingPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { costs } = useCreditCosts("AI_LANDING_PAGE");
 
   // Wizard step: 1 = Input, 2 = Generating, 3 = Preview
   const [step, setStep] = useState(1);
@@ -1091,7 +1093,7 @@ export default function CreateLandingPage() {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
           <Badge variant="secondary" className="text-sm px-3 py-1">
             <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-            This will use 50 credits
+            This will use {costs.AI_LANDING_PAGE ?? 50} credits
           </Badge>
 
           <Button
