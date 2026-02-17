@@ -186,6 +186,12 @@ export async function POST(request: NextRequest) {
     });
 
     // Deduct credits
+    const currentUser = !isAdmin
+      ? await prisma.user.findUnique({
+          where: { id: session.userId },
+          select: { aiCredits: true },
+        })
+      : null;
     if (!isAdmin) {
       await prisma.$transaction([
         prisma.user.update({
@@ -197,7 +203,7 @@ export async function POST(request: NextRequest) {
             userId: session.userId,
             type: "USAGE",
             amount: -creditCost,
-            balanceAfter: (user?.aiCredits || 0) - creditCost,
+            balanceAfter: (currentUser?.aiCredits || 0) - creditCost,
             referenceType: "ai_visual",
             referenceId: design.id,
             description: `Visual design generation: ${category}`,
@@ -257,7 +263,7 @@ export async function POST(request: NextRequest) {
           createdAt: updatedDesign.createdAt.toISOString(),
         },
         creditsUsed: isAdmin ? 0 : creditCost,
-        creditsRemaining: isAdmin ? 999 : (user?.aiCredits || 0) - creditCost,
+        creditsRemaining: isAdmin ? 999 : (currentUser?.aiCredits || 0) - creditCost,
       }),
     });
   } catch (error) {
