@@ -31,7 +31,7 @@ function Sparkle({ delay, x, y, size }: { delay: number; x: number; y: number; s
         height: size,
         left: `${x}%`,
         top: `${y}%`,
-        background: `radial-gradient(circle, rgba(139,92,246,0.6) 0%, rgba(59,130,246,0.3) 50%, transparent 70%)`,
+        background: `radial-gradient(circle, rgba(139,92,246,0.5) 0%, rgba(59,130,246,0.25) 50%, transparent 70%)`,
       }}
       initial={{ opacity: 0, scale: 0 }}
       animate={{
@@ -62,8 +62,7 @@ function ProgressRing({ progress, size = 140, gradientId = "progressGradient" }:
     <svg
       width={size}
       height={size}
-      className="absolute -rotate-90"
-      style={{ filter: "drop-shadow(0 0 8px rgba(139,92,246,0.4))" }}
+      className="absolute -rotate-90 drop-shadow-[0_0_8px_rgba(139,92,246,0.3)]"
     >
       <circle
         cx={size / 2}
@@ -109,10 +108,9 @@ function SpinnerRing({ size = 140, gradientId = "spinnerGradient" }: { size?: nu
     <motion.svg
       width={size}
       height={size}
-      className="absolute"
+      className="absolute drop-shadow-[0_0_8px_rgba(139,92,246,0.2)]"
       animate={{ rotate: 360 }}
       transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
-      style={{ filter: "drop-shadow(0 0 8px rgba(139,92,246,0.3))" }}
     >
       <circle
         cx={size / 2}
@@ -244,19 +242,19 @@ export function AIGenerationLoader({
     const compactSparkles = SPARKLES.slice(0, 5);
 
     return (
-      <div className={cn("relative rounded-2xl overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950", className)}>
+      <div className={cn("relative rounded-2xl overflow-hidden bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950", className)}>
         {/* Animated gradient background */}
         <motion.div
           className="absolute inset-0"
           style={{
             background:
-              "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.1) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.1) 0%, transparent 60%)",
+              "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.08) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.08) 0%, transparent 60%)",
           }}
           animate={{
             background: [
-              "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.1) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.1) 0%, transparent 60%)",
-              "radial-gradient(ellipse at 40% 40%, rgba(139,92,246,0.12) 0%, transparent 60%), radial-gradient(ellipse at 60% 60%, rgba(245,158,11,0.08) 0%, transparent 60%)",
-              "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.1) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.1) 0%, transparent 60%)",
+              "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.08) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.08) 0%, transparent 60%)",
+              "radial-gradient(ellipse at 40% 40%, rgba(139,92,246,0.1) 0%, transparent 60%), radial-gradient(ellipse at 60% 60%, rgba(245,158,11,0.06) 0%, transparent 60%)",
+              "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.08) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.08) 0%, transparent 60%)",
             ],
           }}
           transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
@@ -295,7 +293,7 @@ export function AIGenerationLoader({
           <div className="flex-1 min-w-0">
             <AnimatedStepText text={currentStep} />
             {subtitle && (
-              <p className="text-xs text-slate-400 flex items-center mt-1">
+              <p className="text-xs text-muted-foreground flex items-center mt-1">
                 {subtitle}
                 <LoadingDots />
               </p>
@@ -321,7 +319,7 @@ export function AIGenerationLoader({
   return (
     <div className={cn("space-y-5", className)}>
       {/* Main visual area */}
-      <div className="relative aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <div className="relative aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
         {/* Animated gradient background */}
         <motion.div
           className="absolute inset-0"
@@ -341,9 +339,9 @@ export function AIGenerationLoader({
 
         {/* Grid pattern overlay */}
         <div
-          className="absolute inset-0 opacity-[0.03]"
+          className="absolute inset-0 opacity-[0.04] dark:opacity-[0.03]"
           style={{
-            backgroundImage: "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
+            backgroundImage: "linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)",
             backgroundSize: "40px 40px",
           }}
         />
@@ -389,7 +387,7 @@ export function AIGenerationLoader({
           {/* Step text */}
           <div className="flex flex-col items-center gap-2 px-6">
             <AnimatedStepText text={currentStep} />
-            <p className="text-sm text-slate-400 flex items-center">
+            <p className="text-sm text-muted-foreground flex items-center">
               {subtitle}
               <LoadingDots />
             </p>

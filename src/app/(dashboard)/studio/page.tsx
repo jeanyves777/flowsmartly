@@ -50,7 +50,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
+import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import {
   DESIGN_CATEGORIES,
   DESIGN_STYLES,
@@ -229,6 +230,10 @@ export default function VisualDesignStudioPage() {
   const [showSocialIcons, setShowSocialIcons] = useState(false);
   const [selectedSocialPlatforms, setSelectedSocialPlatforms] = useState<Set<string>>(new Set());
 
+  // AI ideas state
+  const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
+  const [aiIdeas, setAiIdeas] = useState<string[]>([]);
+
   // Data state
   const [recentDesigns, setRecentDesigns] = useState<Design[]>([]);
   const [isLoadingDesigns, setIsLoadingDesigns] = useState(true);
@@ -300,6 +305,46 @@ export default function VisualDesignStudioPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // ─── AI idea generation handler ───
+
+  const handleGenerateIdeas = async () => {
+    if (isGeneratingIdeas) return;
+
+    setIsGeneratingIdeas(true);
+    setAiIdeas([]);
+
+    try {
+      const response = await fetch("/api/ai/studio/ideas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: selectedCategory,
+          style: selectedStyle,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: "Failed to generate ideas" }));
+        throw new Error(err.error || "Failed to generate ideas");
+      }
+
+      const data = await response.json();
+      setAiIdeas(data.ideas || []);
+      if (data.creditsRemaining !== undefined) {
+        setCreditsRemaining(data.creditsRemaining);
+        emitCreditsUpdate(data.creditsRemaining);
+      }
+    } catch (error) {
+      toast({
+        title: "Idea generation failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingIdeas(false);
+    }
+  };
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -766,28 +811,80 @@ export default function VisualDesignStudioPage() {
               {/* ═══ TOP: Prompt ═══ */}
               <Card className="rounded-2xl border-brand-500/10 shadow-sm">
                 <CardContent className="p-5 space-y-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Sparkles className="w-5 h-5 text-brand-500" />
-                    <Label className="text-base font-semibold">Describe Your Design</Label>
-                  </div>
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="E.g., A vibrant Instagram post announcing our summer sale with bold typography, tropical colors, and a 50% off badge..."
-                    className="w-full min-h-[100px] p-4 rounded-xl border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/50"
-                  />
-                  {/* Quick suggestions */}
-                  <div className="flex flex-wrap gap-2">
-                    {getPromptSuggestions().slice(0, 2).map((suggestion, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setPrompt(suggestion)}
-                        className="text-xs px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-brand-500" />
+                      <Label className="text-base font-semibold">Describe Your Design</Label>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <AIIdeasHistory contentType="design_ideas" onSelect={(idea) => setPrompt(idea)} />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleGenerateIdeas}
+                        disabled={isGeneratingIdeas || isGenerating}
+                        className="gap-1.5 text-xs"
                       >
-                        {suggestion.length > 60 ? suggestion.substring(0, 60) + "..." : suggestion}
-                      </button>
-                    ))}
+                        {isGeneratingIdeas ? (
+                          <AISpinner className="w-3.5 h-3.5" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" />
+                        )}
+                        {isGeneratingIdeas ? "Generating..." : "AI Ideas"}
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">5</Badge>
+                      </Button>
+                    </div>
                   </div>
+                  <div className="relative">
+                    <textarea
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      placeholder="E.g., A vibrant Instagram post announcing our summer sale with bold typography, tropical colors, and a 50% off badge..."
+                      className={`w-full min-h-[100px] p-4 rounded-xl border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/50 transition-all ${
+                        isGeneratingIdeas ? "opacity-40 pointer-events-none" : ""
+                      }`}
+                      disabled={isGeneratingIdeas}
+                    />
+                    {isGeneratingIdeas && (
+                      <div className="absolute inset-0 z-10 rounded-xl overflow-hidden">
+                        <AIGenerationLoader
+                          compact
+                          currentStep="Generating ideas for your brand..."
+                          subtitle="AI is crafting personalized suggestions"
+                          className="h-full"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  {/* AI-generated ideas */}
+                  {aiIdeas.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                        <Sparkles className="w-3 h-3 text-brand-500" />
+                        AI Suggestions for your brand
+                      </p>
+                      <div className="flex flex-col gap-2">
+                        {aiIdeas.map((idea, i) => (
+                          <button
+                            key={i}
+                            onClick={() => {
+                              setPrompt(idea);
+                              setAiIdeas([]);
+                            }}
+                            className="text-left text-xs p-3 rounded-xl bg-brand-500/5 border border-brand-500/10 hover:bg-brand-500/10 hover:border-brand-500/20 text-foreground transition-all"
+                          >
+                            {idea}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Hint to use AI Ideas */}
+                  {aiIdeas.length === 0 && !prompt && (
+                    <p className="text-xs text-muted-foreground">
+                      Describe your design concept — or click <strong>AI Ideas</strong> above to get personalized suggestions based on your brand.
+                    </p>
+                  )}
                 </CardContent>
               </Card>
 
