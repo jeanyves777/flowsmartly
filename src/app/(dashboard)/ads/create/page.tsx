@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
@@ -637,6 +638,7 @@ export default function CreateCampaignPage() {
       }
 
       setAiSuggestedTags(data.data.tags);
+      emitCreditsUpdate(data.data.creditsRemaining);
       toast({
         title: "Suggestions ready",
         description: `${data.data.tags.length} tags suggested. ${data.data.creditsRemaining} credits remaining.`,
@@ -679,6 +681,7 @@ export default function CreateCampaignPage() {
       }
 
       setSuggestedNames(data.data.names);
+      emitCreditsUpdate(data.data.creditsRemaining);
       toast({
         title: "Names suggested",
         description: `${data.data.names.length} names generated. ${data.data.creditsRemaining} credits remaining.`,

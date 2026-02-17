@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import {
   Download,
   RefreshCw,
@@ -287,6 +288,7 @@ export default function VideoStudioPage() {
       setAiIdeas(data.ideas || []);
       if (data.creditsRemaining !== undefined) {
         setCreditsRemaining(data.creditsRemaining);
+        emitCreditsUpdate(data.creditsRemaining);
       }
     } catch (error) {
       toast({
@@ -419,6 +421,7 @@ export default function VideoStudioPage() {
                 prompt: prompt.trim(),
               });
               setCreditsRemaining(event.creditsRemaining ?? creditsRemaining);
+              emitCreditsUpdate(event.creditsRemaining ?? creditsRemaining);
               toast({
                 title: "Video generated!",
                 description: `${event.duration}s video created successfully.`,

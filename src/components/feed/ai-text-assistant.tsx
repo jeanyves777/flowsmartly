@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import {
   Sparkles,
   FileText,
@@ -200,6 +201,8 @@ export function AITextAssistant({ onInsert, onClose }: AITextAssistantProps) {
           setGeneratedIdeas(data.data.ideas);
           break;
       }
+      // Update header credit display
+      emitCreditsUpdate(data?.data?.creditsRemaining);
     } catch (error) {
       toast({
         title: "Generation failed",

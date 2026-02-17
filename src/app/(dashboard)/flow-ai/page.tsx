@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import {
   ArrowUp,
   Plus,
@@ -225,6 +226,7 @@ export default function FlowAIPage() {
           if (data.conversationId) setConversationId(data.conversationId);
           if (data.creditsRemaining !== null && data.creditsRemaining !== undefined) {
             setCredits(data.creditsRemaining);
+            emitCreditsUpdate(data.creditsRemaining);
           }
         } else if (data.error) {
           throw new Error(data.error);
@@ -292,10 +294,12 @@ export default function FlowAIPage() {
               );
               if (data.creditsRemaining !== null && data.creditsRemaining !== undefined) {
                 setCredits(data.creditsRemaining);
+                emitCreditsUpdate(data.creditsRemaining);
               }
               setGeneratingMedia(null);
             } else if (data.type === "done") {
               setCredits(data.creditsRemaining);
+              emitCreditsUpdate(data.creditsRemaining);
             } else if (data.type === "error") {
               throw new Error(data.message);
             }

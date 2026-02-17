@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
+import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Zap,
@@ -671,6 +672,7 @@ export default function PostAutomationPage() {
             : a
         )
       );
+      emitCreditsUpdate();
       toast({ title: "Automation triggered — post created!" });
     } catch (err) {
       toast({
@@ -739,6 +741,7 @@ export default function PostAutomationPage() {
         throw new Error(data.error?.message || "Failed to generate topic");
       }
       setForm((f) => ({ ...f, topic: data.data.topic }));
+      emitCreditsUpdate();
       toast({ title: "Topic suggestion generated!" });
     } catch (err) {
       toast({

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Film,
@@ -506,6 +507,7 @@ function CartoonMakerContent() {
       }
 
       setCredits(data.data.creditsRemaining);
+      emitCreditsUpdate(data.data.creditsRemaining);
       toast({ title: "Cartoon generation started!" });
 
       const jobRes = await fetch(`/api/ai/cartoon/${data.data.jobId}`);
@@ -713,6 +715,7 @@ function CartoonMakerContent() {
       if (data.success) {
         toast({ title: `Regenerated ${characterName}!` });
         setCredits(data.data.creditsRemaining);
+        emitCreditsUpdate(data.data.creditsRemaining);
 
         // Add cache-busting timestamp since the file path is the same
         const updatedChar = {
@@ -767,6 +770,7 @@ function CartoonMakerContent() {
       if (data.success) {
         toast({ title: `Regenerated Scene ${sceneNumber} background!` });
         setCredits(data.data.creditsRemaining);
+        emitCreditsUpdate(data.data.creditsRemaining);
 
         // Add cache-busting timestamp since the file path is the same
         const updatedScene = {

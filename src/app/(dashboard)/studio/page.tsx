@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import {
   Sparkles,
   Image,
@@ -360,6 +361,7 @@ export default function VisualDesignStudioPage() {
 
       setGeneratedDesign(data.data.design);
       setCreditsRemaining(data.data.creditsRemaining);
+      emitCreditsUpdate(data.data.creditsRemaining);
       setRecentDesigns((prev) => [data.data.design, ...prev.slice(0, 9)]);
       setInputsCollapsed(true);
 

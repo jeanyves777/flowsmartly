@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import {
   Crown,
   Sparkles,
@@ -137,6 +138,7 @@ export default function LogoGeneratorPage() {
 
       setLogos(data.data.logos);
       setCreditsRemaining(data.data.creditsRemaining);
+      emitCreditsUpdate(data.data.creditsRemaining);
       setStep("results");
       toast({ title: `${data.data.logos.length} logos generated!` });
     } catch (error) {

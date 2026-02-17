@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ArrowUp, List, X, Sparkles, Coins, Maximize2 } from "lucide-react";
+import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { MessageBubble } from "./message-bubble";
 import { TypingIndicator } from "./typing-indicator";
 import { ConversationList } from "./conversation-list";
@@ -186,6 +187,7 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
               );
             } else if (data.type === "done") {
               setCredits(data.creditsRemaining);
+              emitCreditsUpdate(data.creditsRemaining);
             } else if (data.type === "error") {
               throw new Error(data.message);
             }

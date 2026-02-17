@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
@@ -9,6 +9,7 @@ import { EmailVerificationBanner } from "@/components/layout/email-verification-
 import { cn } from "@/lib/utils/cn";
 import { ChatWidget } from "@/components/ai-assistant/chat-widget";
 import { ShieldCheck } from "lucide-react";
+import { onCreditsUpdate } from "@/lib/utils/credits-event";
 
 interface User {
   id: string;
@@ -110,6 +111,27 @@ export default function DashboardLayout({
   useEffect(() => {
     setMobileMenuOpen(false);
   }, []);
+
+  // Listen for credit updates from AI features and refresh the display
+  const refreshCredits = useCallback(async (newCredits?: number) => {
+    if (newCredits !== undefined) {
+      // Direct update — no network call needed
+      setUser((prev) => prev ? { ...prev, aiCredits: newCredits } : prev);
+    } else {
+      // Refetch from server
+      try {
+        const res = await fetch("/api/user/credits");
+        const data = await res.json();
+        if (data.success && data.data?.credits !== undefined) {
+          setUser((prev) => prev ? { ...prev, aiCredits: data.data.credits } : prev);
+        }
+      } catch { /* silent */ }
+    }
+  }, []);
+
+  useEffect(() => {
+    return onCreditsUpdate(refreshCredits);
+  }, [refreshCredits]);
 
   if (isLoading) {
     return (
