@@ -168,7 +168,7 @@ export default function AgentDetailPage() {
   const [isOwnProfile, setIsOwnProfile] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isHiring, setIsHiring] = useState(false);
-  const [isAboutExpanded, setIsAboutExpanded] = useState(true);
+  const [isAboutExpanded, setIsAboutExpanded] = useState(false);
   const [selectedShowcase, setSelectedShowcase] = useState<ShowcaseImage | null>(null);
 
   useEffect(() => {
@@ -484,6 +484,15 @@ export default function AgentDetailPage() {
                   </motion.div>
                 </div>
               </CardHeader>
+
+              {/* Preview when collapsed */}
+              {!isAboutExpanded && agent.bio && (
+                <div className="px-6 pb-4 -mt-2">
+                  <p className="text-sm text-muted-foreground line-clamp-2">
+                    {agent.bio}
+                  </p>
+                </div>
+              )}
 
               <AnimatePresence initial={false}>
                 {isAboutExpanded && (

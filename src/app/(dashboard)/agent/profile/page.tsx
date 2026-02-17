@@ -122,7 +122,7 @@ export default function AgentProfilePage() {
   const [showShowcaseLibrary, setShowShowcaseLibrary] = useState(false);
 
   // Collapse
-  const [isAboutExpanded, setIsAboutExpanded] = useState(true);
+  const [isAboutExpanded, setIsAboutExpanded] = useState(false);
 
   // Draft values
   const [draftDisplayName, setDraftDisplayName] = useState("");
@@ -529,6 +529,15 @@ export default function AgentProfilePage() {
                 </div>
               </div>
             </CardHeader>
+
+            {/* Preview when collapsed */}
+            {!isAboutExpanded && !isEditingAbout && profile.bio && (
+              <div className="px-6 pb-4 -mt-2">
+                <p className="text-sm text-muted-foreground line-clamp-2">
+                  {profile.bio}
+                </p>
+              </div>
+            )}
 
             <AnimatePresence initial={false}>
               {isAboutExpanded && (
