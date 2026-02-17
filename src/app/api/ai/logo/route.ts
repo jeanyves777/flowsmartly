@@ -148,11 +148,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Deduct credits
+    const currentUser = !isAdmin
+      ? await prisma.user.findUnique({
+          where: { id: session.userId },
+          select: { aiCredits: true },
+        })
+      : null;
     if (!isAdmin) {
-      const currentUser = await prisma.user.findUnique({
-        where: { id: session.userId },
-        select: { aiCredits: true },
-      });
       await prisma.$transaction([
         prisma.user.update({
           where: { id: session.userId },
@@ -208,7 +210,7 @@ export async function POST(request: NextRequest) {
       data: await presignAllUrls({
         logos,
         creditsUsed: isAdmin ? 0 : LOGO_CREDITS,
-        creditsRemaining: isAdmin ? 999 : (user?.aiCredits || 0) - LOGO_CREDITS,
+        creditsRemaining: isAdmin ? 999 : (currentUser?.aiCredits || 0) - LOGO_CREDITS,
       }),
     });
   } catch (error) {
