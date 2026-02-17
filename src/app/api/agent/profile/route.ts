@@ -178,6 +178,9 @@ export async function PATCH(request: Request) {
     const updated = await prisma.agentProfile.update({
       where: { userId: session.userId },
       data: updates,
+      include: {
+        _count: { select: { clients: true, warnings: true } },
+      },
     });
 
     return NextResponse.json({ success: true, data: { profile: updated } });
