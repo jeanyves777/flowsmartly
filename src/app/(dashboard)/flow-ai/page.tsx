@@ -20,9 +20,10 @@ import {
   PanelLeftOpen,
   Loader2,
 } from "lucide-react";
+import Link from "next/link";
 import { MessageBubble } from "@/components/ai-assistant/message-bubble";
-import { TypingIndicator } from "@/components/ai-assistant/typing-indicator";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
+import { showCreditPurchaseModal } from "@/components/payments/credit-purchase-modal";
 
 type GenerationMode = "auto" | "text" | "image" | "video";
 
@@ -33,6 +34,7 @@ interface Message {
   createdAt?: string;
   mediaType?: string | null;
   mediaUrl?: string | null;
+  creditError?: { code: string; required: number } | null;
 }
 
 interface Conversation {
@@ -201,6 +203,13 @@ export default function FlowAIPage() {
 
       if (!res.ok) {
         const err = await res.json();
+        if (err.code === "FREE_CREDITS_RESTRICTED" || err.code === "INSUFFICIENT_CREDITS") {
+          const e = new Error(err.error || "Insufficient credits");
+          (e as unknown as Record<string, unknown>).creditError = true;
+          (e as unknown as Record<string, unknown>).creditCode = err.code;
+          (e as unknown as Record<string, unknown>).creditsRequired = err.required;
+          throw e;
+        }
         throw new Error(err.error || "Failed to send message");
       }
 
@@ -320,12 +329,19 @@ export default function FlowAIPage() {
         return filtered;
       });
       const errMsg = error instanceof Error ? error.message : "Something went wrong";
+      const errAny = error as Record<string, unknown>;
+      const isCreditErr = error instanceof Error && !!errAny.creditError;
       setMessages((prev) => [
         ...prev,
         {
           id: `error-${Date.now()}`,
           role: "assistant",
-          content: `Sorry, I encountered an error: ${errMsg}. Please try again.`,
+          content: isCreditErr
+            ? errMsg
+            : `Sorry, I encountered an error: ${errMsg}. Please try again.`,
+          creditError: isCreditErr
+            ? { code: String(errAny.creditCode), required: Number(errAny.creditsRequired) || 0 }
+            : null,
         },
       ]);
     } finally {
@@ -518,26 +534,86 @@ export default function FlowAIPage() {
             </div>
           ) : (
             <div className="space-y-2 max-w-3xl mx-auto">
-              {messages.map((msg) => (
-                <MessageBubble
-                  key={msg.id}
-                  role={msg.role}
-                  content={msg.content}
-                  createdAt={msg.createdAt}
-                  mediaType={msg.mediaType}
-                  mediaUrl={msg.mediaUrl}
-                  messageId={msg.id}
-                />
-              ))}
+              {messages.map((msg, idx) => {
+                // Skip rendering empty streaming placeholder (the loader handles it)
+                if (
+                  isStreaming &&
+                  idx === messages.length - 1 &&
+                  msg.role === "assistant" &&
+                  !msg.content
+                ) {
+                  return null;
+                }
+                return (
+                  <div key={msg.id}>
+                    <MessageBubble
+                      role={msg.role}
+                      content={msg.content}
+                      createdAt={msg.createdAt}
+                      mediaType={msg.mediaType}
+                      mediaUrl={msg.mediaUrl}
+                      messageId={msg.id}
+                    />
+                    {msg.creditError && (
+                      <div className="flex items-start gap-2 px-4 py-1 mt-1">
+                        <div className="w-7 shrink-0" />
+                        <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-2xl px-4 py-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Coins className="w-4 h-4 text-amber-500" />
+                            <span className="text-sm font-semibold text-foreground">
+                              Need more credits?
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-3">
+                            {msg.creditError.code === "FREE_CREDITS_RESTRICTED"
+                              ? "Your free credits are limited to email & SMS marketing. Purchase credits to unlock all AI features."
+                              : `This requires ${msg.creditError.required} credits. Top up to continue using FlowAI.`}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() =>
+                                showCreditPurchaseModal({
+                                  creditsNeeded: msg.creditError!.required,
+                                  featureName: "FlowAI",
+                                  isFreeRestricted:
+                                    msg.creditError!.code === "FREE_CREDITS_RESTRICTED",
+                                })
+                              }
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium transition-colors"
+                            >
+                              <Coins className="w-3.5 h-3.5" />
+                              Buy Credits
+                            </button>
+                            <Link
+                              href="/pricing"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-500/30 text-brand-500 hover:bg-brand-500/10 text-xs font-medium transition-colors"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              Upgrade Plan
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               {isStreaming &&
                 messages[messages.length - 1]?.content === "" &&
-                !generatingMedia && <TypingIndicator />}
-              {generatingMedia && (
-                <div className="flex items-start gap-2 px-4 py-1.5">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center shrink-0 mt-1">
-                    <Sparkles className="w-3.5 h-3.5 text-white" />
+                !generatingMedia && (
+                <div className="px-4 py-1.5">
+                  <div className="max-w-[400px]">
+                    <AIGenerationLoader
+                      compact
+                      currentStep="Thinking..."
+                      subtitle="Generating response"
+                    />
                   </div>
-                  <div className="max-w-[360px]">
+                </div>
+              )}
+              {generatingMedia && (
+                <div className="px-4 py-1.5">
+                  <div className="max-w-[400px]">
                     <AIGenerationLoader
                       compact
                       currentStep={generatingMedia === "image" ? "Generating image..." : "Creating video..."}
@@ -605,7 +681,7 @@ export default function FlowAIPage() {
                 className="shrink-0 w-11 h-11 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors"
               >
                 {isStreaming ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <AISpinner className="w-5 h-5" />
                 ) : (
                   <ArrowUp className="w-5 h-5" />
                 )}
