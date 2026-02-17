@@ -585,7 +585,7 @@ export default function FlowAIPage() {
                               Buy Credits
                             </button>
                             <Link
-                              href="/pricing"
+                              href="/settings/upgrade"
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-500/30 text-brand-500 hover:bg-brand-500/10 text-xs font-medium transition-colors"
                             >
                               <Sparkles className="w-3.5 h-3.5" />
