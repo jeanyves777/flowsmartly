@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
+import { CreditPurchaseModal } from "@/components/payments/credit-purchase-modal";
 import "./globals.css";
 
 const inter = Inter({
@@ -146,6 +147,7 @@ export default function RootLayout({
         >
           {children}
           <Toaster />
+          <CreditPurchaseModal />
         </ThemeProvider>
       </body>
     </html>

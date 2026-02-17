@@ -47,6 +47,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { cn } from "@/lib/utils/cn";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { PAGE_TYPE_TEMPLATES, TemplateVariant } from "@/lib/landing-pages/templates";
@@ -319,7 +320,13 @@ export default function CreateLandingPage() {
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to generate landing page");
+        if (handleCreditError(err.error || {}, "landing page")) {
+          setIsGenerating(false);
+          setDirection(-1);
+          setStep(1);
+          return;
+        }
+        throw new Error(err.error?.message || err.error || "Failed to generate landing page");
       }
 
       const data = await response.json();

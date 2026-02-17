@@ -40,6 +40,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
+import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
@@ -503,6 +504,11 @@ function CartoonMakerContent() {
       const data = await res.json();
 
       if (!data.success) {
+        if (handleCreditError(data.error || {}, "cartoon generation")) {
+          setIsGenerating(false);
+          setShowForm(true);
+          return;
+        }
         throw new Error(data.error?.message || "Failed to create cartoon");
       }
 

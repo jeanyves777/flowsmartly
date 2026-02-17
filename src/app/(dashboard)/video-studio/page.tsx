@@ -35,6 +35,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
@@ -385,7 +386,11 @@ export default function VideoStudioPage() {
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({ error: "Generation failed" }));
-        throw new Error(err.error || "Generation failed");
+        if (handleCreditError(err.error || {}, "video generation")) {
+          setIsGenerating(false);
+          return;
+        }
+        throw new Error(err.error?.message || err.error || "Generation failed");
       }
 
       // Consume SSE stream

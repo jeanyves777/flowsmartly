@@ -33,6 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { LOGO_STYLES } from "@/lib/constants/logo-presets";
 
@@ -134,7 +135,13 @@ export default function LogoGeneratorPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || "Generation failed");
+      if (!res.ok) {
+        if (handleCreditError(data.error || {}, "logo generation")) {
+          setStep("input");
+          return;
+        }
+        throw new Error(data.error?.message || "Generation failed");
+      }
 
       setLogos(data.data.logos);
       setCreditsRemaining(data.data.creditsRemaining);

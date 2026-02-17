@@ -52,6 +52,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
+import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { PostSharePanel } from "@/components/shared/post-share-panel";
 import {
   DESIGN_CATEGORIES,
@@ -334,6 +335,7 @@ export default function VisualDesignStudioPage() {
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({ error: "Failed to generate ideas" }));
+        if (handleCreditError(err.error || {}, "AI ideas")) return;
         throw new Error(err.error || "Failed to generate ideas");
       }
 
@@ -409,6 +411,11 @@ export default function VisualDesignStudioPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (handleCreditError(data.error || {}, "visual design")) {
+          setInputsCollapsed(false);
+          setIsGenerating(false);
+          return;
+        }
         throw new Error(data.error?.message || "Generation failed");
       }
 
