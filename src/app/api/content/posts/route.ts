@@ -153,6 +153,7 @@ export async function POST(request: NextRequest) {
     const {
       caption,
       mediaUrls,
+      mediaType: bodyMediaType,
       platforms,
       scheduledAt,
       aiGenerate,
@@ -258,7 +259,9 @@ export async function POST(request: NextRequest) {
     // Media handling
     const allMediaUrls: string[] = Array.isArray(mediaUrls) ? mediaUrls : [];
     const primaryMediaUrl = allMediaUrls[0] || null;
-    const mediaType = allMediaUrls.length > 0 ? "image" : null;
+    const mediaType = allMediaUrls.length > 0
+      ? (bodyMediaType === "video" ? "video" : "image")
+      : null;
 
     const post = await prisma.post.create({
       data: {

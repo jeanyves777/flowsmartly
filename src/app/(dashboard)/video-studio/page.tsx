@@ -38,6 +38,7 @@ import { useToast } from "@/hooks/use-toast";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
+import { PostSharePanel } from "@/components/shared/post-share-panel";
 import {
   VIDEO_CATEGORIES,
   VIDEO_DURATIONS,
@@ -1198,6 +1199,15 @@ export default function VideoStudioPage() {
                   </div>
                 </CardContent>
               </Card>
+            )}
+
+            {/* ─── Post to Feed / Social ─── */}
+            {generatedVideo && (
+              <PostSharePanel
+                mediaUrl={generatedVideo.url}
+                mediaType="video"
+                prompt={generatedVideo.prompt}
+              />
             )}
 
             {/* Generation Progress */}

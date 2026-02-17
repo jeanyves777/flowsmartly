@@ -52,6 +52,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
+import { PostSharePanel } from "@/components/shared/post-share-panel";
 import {
   DESIGN_CATEGORIES,
   DESIGN_STYLES,
@@ -1285,6 +1286,15 @@ export default function VisualDesignStudioPage() {
                 )}
               </CardContent>
             </Card>
+          )}
+
+          {/* ─── Post to Feed / Social ─── */}
+          {generatedDesign && generatedDesign.status === "COMPLETED" && generatedDesign.imageUrl && (
+            <PostSharePanel
+              mediaUrl={generatedDesign.imageUrl}
+              mediaType="image"
+              prompt={generatedDesign.prompt}
+            />
           )}
         </div>
       ) : (
