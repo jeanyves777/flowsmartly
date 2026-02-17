@@ -68,6 +68,8 @@ export async function GET(
           id: agent.id,
           displayName: agent.displayName,
           bio: agent.bio,
+          coverImageUrl: agent.coverImageUrl,
+          showcaseImages: JSON.parse(agent.showcaseImages),
           specialties: JSON.parse(agent.specialties),
           industries: JSON.parse(agent.industries),
           portfolioUrls: JSON.parse(agent.portfolioUrls),

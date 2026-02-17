@@ -159,6 +159,10 @@ export async function PATCH(request: Request) {
     if (body.specialties !== undefined) updates.specialties = JSON.stringify(body.specialties);
     if (body.industries !== undefined) updates.industries = JSON.stringify(body.industries);
     if (body.portfolioUrls !== undefined) updates.portfolioUrls = JSON.stringify(body.portfolioUrls);
+    if (body.coverImageUrl !== undefined) updates.coverImageUrl = body.coverImageUrl;
+    if (body.showcaseImages !== undefined) {
+      updates.showcaseImages = JSON.stringify(body.showcaseImages);
+    }
     if (body.minPricePerMonth !== undefined) {
       if (body.minPricePerMonth < 10000) {
         return NextResponse.json(

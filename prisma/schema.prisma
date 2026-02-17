@@ -1135,7 +1135,9 @@ model AgentProfile {
   specialties       String    @default("[]")  // JSON: ["Social Media", "Content Strategy"]
   industries        String    @default("[]")  // JSON: ["E-Commerce", "SaaS"]
   portfolioUrls     String    @default("[]")  // JSON: ["https://..."]
-  minPricePerMonth  Int       @default(10000) // cents ($100 minimum)
+  coverImageUrl     String?                     // S3 URL for banner image
+  showcaseImages    String    @default("[]")    // JSON: [{url, title, description}]
+  minPricePerMonth  Int       @default(10000)   // cents ($100 minimum)
 
   // Approval status
   status            String    @default("PENDING") // PENDING, APPROVED, REJECTED, SUSPENDED

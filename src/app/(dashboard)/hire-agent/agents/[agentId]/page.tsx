@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import {
   ArrowLeft,
@@ -24,17 +24,32 @@ import {
   Target,
   BarChart3,
   MessageSquare,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Image as ImageIcon,
+  ZoomIn,
+  FileText,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+
+interface ShowcaseImage {
+  url: string;
+  title: string;
+  description: string;
+}
 
 interface AgentDetail {
   id: string;
   displayName: string;
   bio: string | null;
+  coverImageUrl: string | null;
+  showcaseImages: ShowcaseImage[];
   specialties: string[];
   industries: string[];
   portfolioUrls: string[];
@@ -153,6 +168,8 @@ export default function AgentDetailPage() {
   const [isOwnProfile, setIsOwnProfile] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isHiring, setIsHiring] = useState(false);
+  const [isAboutExpanded, setIsAboutExpanded] = useState(true);
+  const [selectedShowcase, setSelectedShowcase] = useState<ShowcaseImage | null>(null);
 
   useEffect(() => {
     const fetchAgent = async () => {
@@ -252,8 +269,20 @@ export default function AgentDetailPage() {
       >
         <Card className="overflow-hidden">
           {/* Banner */}
-          <div className="h-32 md:h-40 relative overflow-hidden">
-            <ProfileBannerSVG />
+          <div className="h-32 md:h-48 relative overflow-hidden">
+            {agent.coverImageUrl ? (
+              <motion.img
+                src={agent.coverImageUrl}
+                alt="Cover"
+                className="w-full h-full object-cover"
+                initial={{ scale: 1.05 }}
+                animate={{ scale: 1 }}
+                transition={{ duration: 0.8 }}
+              />
+            ) : (
+              <ProfileBannerSVG />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-card/60 via-transparent to-transparent" />
             {agent.performanceScore >= 80 && (
               <motion.div
                 initial={{ opacity: 0, scale: 0 }}
@@ -432,24 +461,93 @@ export default function AgentDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - 2/3 */}
         <div className="lg:col-span-2 space-y-6">
-          {/* About */}
+          {/* About — Rich Collapsible */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
           >
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-violet-500" />
-                  About
-                </CardTitle>
+            <Card className="overflow-hidden">
+              <CardHeader
+                className="cursor-pointer"
+                onClick={() => setIsAboutExpanded(!isAboutExpanded)}
+              >
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                      <Sparkles className="h-4 w-4 text-violet-500" />
+                    </div>
+                    About {agent.displayName}
+                  </CardTitle>
+                  <motion.div animate={{ rotate: isAboutExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  </motion.div>
+                </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                  {agent.bio || "This agent hasn't added a bio yet."}
-                </p>
-              </CardContent>
+
+              <AnimatePresence initial={false}>
+                {isAboutExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.35, ease: "easeInOut" }}
+                    className="overflow-hidden"
+                  >
+                    <CardContent className="pt-0 space-y-0 divide-y">
+                      {/* Bio */}
+                      <div className="py-4 flex items-start gap-4">
+                        <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+                          <FileText className="h-4 w-4 text-blue-500" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">Professional Summary</p>
+                          <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap text-sm">
+                            {agent.bio || "This agent hasn't added a bio yet."}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Track Record */}
+                      <div className="py-4 flex items-start gap-4">
+                        <div className="h-9 w-9 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+                          <Award className="h-4 w-4 text-emerald-500" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-2">Track Record</p>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="text-center p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-200/30 dark:border-emerald-800/30">
+                              <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{agent.clientCount}</p>
+                              <p className="text-xs text-muted-foreground">Active Now</p>
+                            </div>
+                            <div className="text-center p-2.5 rounded-lg bg-blue-500/5 border border-blue-200/30 dark:border-blue-800/30">
+                              <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{agent.completedClients}</p>
+                              <p className="text-xs text-muted-foreground">Completed</p>
+                            </div>
+                            <div className="text-center p-2.5 rounded-lg bg-violet-500/5 border border-violet-200/30 dark:border-violet-800/30">
+                              <p className="text-xl font-bold text-violet-600 dark:text-violet-400">{agent.performanceScore}%</p>
+                              <p className="text-xs text-muted-foreground">Performance</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Agent Since */}
+                      <div className="py-4 flex items-start gap-4">
+                        <div className="h-9 w-9 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                          <Calendar className="h-4 w-4 text-amber-500" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">Agent Since</p>
+                          <p className="font-medium">
+                            {agent.approvedAt ? format(new Date(agent.approvedAt), "MMMM yyyy") : "Recently joined"}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </Card>
           </motion.div>
 
@@ -516,6 +614,65 @@ export default function AgentDetailPage() {
               </CardContent>
             </Card>
           </motion.div>
+
+          {/* Project Showcase */}
+          {agent.showcaseImages && agent.showcaseImages.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.62 }}
+            >
+              <Card className="overflow-hidden">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-pink-500/10 flex items-center justify-center">
+                      <ImageIcon className="h-4 w-4 text-pink-500" />
+                    </div>
+                    Project Showcase
+                    <Badge variant="secondary" className="ml-1 text-xs">
+                      {agent.showcaseImages.length} project{agent.showcaseImages.length !== 1 ? "s" : ""}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4 pt-0">
+                  <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory">
+                    {agent.showcaseImages.map((img, i) => (
+                      <motion.div
+                        key={img.url}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.65 + i * 0.06 }}
+                        className="shrink-0 w-56 snap-start cursor-pointer group"
+                        onClick={() => setSelectedShowcase(img)}
+                      >
+                        <div className="aspect-video rounded-xl overflow-hidden bg-muted relative shadow-sm">
+                          <img
+                            src={img.url}
+                            alt={img.title}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
+                            <div>
+                              {img.title && <p className="text-white text-xs font-semibold truncate">{img.title}</p>}
+                              <p className="text-white/70 text-xs">View project</p>
+                            </div>
+                          </div>
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <div className="h-10 w-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                              <ZoomIn className="h-5 w-5 text-white" />
+                            </div>
+                          </div>
+                        </div>
+                        {img.title && (
+                          <p className="text-xs font-medium mt-2 truncate px-0.5">{img.title}</p>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
 
           {/* Portfolio */}
           {agent.portfolioUrls.length > 0 && (
@@ -657,6 +814,55 @@ export default function AgentDetailPage() {
           </motion.div>
         </div>
       </div>
+
+      {/* Showcase Lightbox */}
+      <Dialog open={!!selectedShowcase} onOpenChange={() => setSelectedShowcase(null)}>
+        <DialogContent className="max-w-4xl p-0 overflow-hidden">
+          {selectedShowcase && (
+            <>
+              <div className="relative bg-black/90">
+                <img
+                  src={selectedShowcase.url}
+                  alt={selectedShowcase.title}
+                  className="w-full max-h-[75vh] object-contain"
+                />
+                {agent.showcaseImages.length > 1 && (
+                  <>
+                    <button
+                      className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                      onClick={() => {
+                        const idx = agent.showcaseImages.findIndex((i) => i.url === selectedShowcase.url);
+                        setSelectedShowcase(agent.showcaseImages[(idx - 1 + agent.showcaseImages.length) % agent.showcaseImages.length]);
+                      }}
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <button
+                      className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                      onClick={() => {
+                        const idx = agent.showcaseImages.findIndex((i) => i.url === selectedShowcase.url);
+                        setSelectedShowcase(agent.showcaseImages[(idx + 1) % agent.showcaseImages.length]);
+                      }}
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </>
+                )}
+              </div>
+              {(selectedShowcase.title || selectedShowcase.description) && (
+                <div className="p-5 border-t">
+                  {selectedShowcase.title && (
+                    <h3 className="text-lg font-bold">{selectedShowcase.title}</h3>
+                  )}
+                  {selectedShowcase.description && (
+                    <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{selectedShowcase.description}</p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

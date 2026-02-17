@@ -26,38 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-
-const SPECIALTY_OPTIONS = [
-  "Social Media Management",
-  "Content Creation",
-  "SEO & SEM",
-  "Email Marketing",
-  "SMS Marketing",
-  "Brand Strategy",
-  "Paid Advertising",
-  "Analytics & Reporting",
-  "Influencer Marketing",
-  "Video Marketing",
-  "Community Management",
-  "Graphic Design",
-];
-
-const INDUSTRY_OPTIONS = [
-  "E-commerce",
-  "SaaS",
-  "Healthcare",
-  "Real Estate",
-  "Restaurant & Food",
-  "Fitness & Wellness",
-  "Education",
-  "Fashion & Beauty",
-  "Finance",
-  "Travel & Tourism",
-  "Entertainment",
-  "Non-Profit",
-  "Local Business",
-  "B2B Services",
-];
+import { SPECIALTY_OPTIONS, INDUSTRY_OPTIONS } from "@/lib/agent/constants";
 
 const WIZARD_STEPS = [
   { label: "Specialties", icon: Target, description: "What do you specialize in?" },

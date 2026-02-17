@@ -1,0 +1,31 @@
+export const SPECIALTY_OPTIONS = [
+  "Social Media Management",
+  "Content Creation",
+  "SEO & SEM",
+  "Email Marketing",
+  "SMS Marketing",
+  "Brand Strategy",
+  "Paid Advertising",
+  "Analytics & Reporting",
+  "Influencer Marketing",
+  "Video Marketing",
+  "Community Management",
+  "Graphic Design",
+];
+
+export const INDUSTRY_OPTIONS = [
+  "E-commerce",
+  "SaaS",
+  "Healthcare",
+  "Real Estate",
+  "Restaurant & Food",
+  "Fitness & Wellness",
+  "Education",
+  "Fashion & Beauty",
+  "Finance",
+  "Travel & Tourism",
+  "Entertainment",
+  "Non-Profit",
+  "Local Business",
+  "B2B Services",
+];
