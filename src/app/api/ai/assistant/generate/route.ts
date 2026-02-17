@@ -6,7 +6,7 @@ import { openaiClient } from "@/lib/ai/openai-client";
 import { xaiClient } from "@/lib/ai/xai-client";
 import { buildAssistantPrompt } from "@/lib/ai/assistant-prompt";
 import { creditService } from "@/lib/credits";
-import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { nanoid } from "nanoid";
 
@@ -94,9 +94,10 @@ export async function POST(req: NextRequest) {
           : "AI_CHAT_MESSAGE" as const;
 
     const cost = await getDynamicCreditCost(costKey);
-    if (session.user.aiCredits < cost) {
+    const creditCheck = await checkCreditsForFeature(session.userId, costKey, !!session.adminId);
+    if (creditCheck) {
       return new Response(
-        JSON.stringify({ error: "Insufficient credits", required: cost }),
+        JSON.stringify({ error: creditCheck.message, code: creditCheck.code, required: cost }),
         { status: 402 }
       );
     }

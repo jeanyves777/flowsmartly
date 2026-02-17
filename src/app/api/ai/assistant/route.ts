@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { ai } from "@/lib/ai/client";
 import { buildAssistantPrompt } from "@/lib/ai/assistant-prompt";
 import { creditService } from "@/lib/credits";
-import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,11 +23,12 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Check credits
+    // Check credits (free credits can only be used for email marketing)
     const cost = await getDynamicCreditCost("AI_CHAT_MESSAGE");
-    if (session.user.aiCredits < cost) {
+    const creditCheck = await checkCreditsForFeature(session.userId, "AI_CHAT_MESSAGE", !!session.adminId);
+    if (creditCheck) {
       return new Response(
-        JSON.stringify({ error: "Insufficient credits", required: cost }),
+        JSON.stringify({ error: creditCheck.message, code: creditCheck.code, required: cost }),
         { status: 402 }
       );
     }

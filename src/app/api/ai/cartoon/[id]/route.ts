@@ -142,17 +142,21 @@ export async function POST(
       // Re-charge credits (they were refunded on failure)
       const user = await prisma.user.findUnique({
         where: { id: session.userId },
-        select: { aiCredits: true },
+        select: { aiCredits: true, freeCredits: true },
       });
 
       const isAdmin = !!session.adminId;
-      if (!isAdmin && (!user || user.aiCredits < job.creditsCost)) {
+      const purchasedCredits = Math.max(0, (user?.aiCredits || 0) - (user?.freeCredits || 0));
+      if (!isAdmin && (!user || purchasedCredits < job.creditsCost)) {
+        const isFreeRestricted = user && (user.freeCredits || 0) > 0 && user.aiCredits >= job.creditsCost && purchasedCredits < job.creditsCost;
         return NextResponse.json(
           {
             success: false,
             error: {
-              code: "INSUFFICIENT_CREDITS",
-              message: `Retry requires ${job.creditsCost} credits. You have ${user?.aiCredits || 0} remaining.`,
+              code: isFreeRestricted ? "FREE_CREDITS_RESTRICTED" : "INSUFFICIENT_CREDITS",
+              message: isFreeRestricted
+                ? `Your free credits can only be used for email marketing. Purchase credits to use this feature.`
+                : `Retry requires ${job.creditsCost} credits. You have ${purchasedCredits} purchased credits remaining.`,
             },
           },
           { status: 403 }

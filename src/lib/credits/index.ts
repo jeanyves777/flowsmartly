@@ -179,8 +179,8 @@ class CreditService {
   /**
    * Deduct credits from user account
    */
-  async deductCredits(input: CreditTransactionInput): Promise<TransactionResult> {
-    const { userId, type, amount, description, referenceType, referenceId, metadata } = input;
+  async deductCredits(input: CreditTransactionInput & { deductFreeCredits?: boolean }): Promise<TransactionResult> {
+    const { userId, type, amount, description, referenceType, referenceId, metadata, deductFreeCredits } = input;
 
     if (amount <= 0) {
       return { success: false, error: "Amount must be positive for deducting credits" };
@@ -191,7 +191,7 @@ class CreditService {
         // Check current balance
         const user = await tx.user.findUnique({
           where: { id: userId },
-          select: { aiCredits: true },
+          select: { aiCredits: true, freeCredits: true },
         });
 
         if (!user || user.aiCredits < amount) {
@@ -199,9 +199,17 @@ class CreditService {
         }
 
         // Update user balance
+        const updateData: Record<string, unknown> = { aiCredits: { decrement: amount } };
+
+        // For email/SMS features, also consume free credits
+        if (deductFreeCredits && (user.freeCredits || 0) > 0) {
+          const freeDeduction = Math.min(amount, user.freeCredits || 0);
+          updateData.freeCredits = { decrement: freeDeduction };
+        }
+
         const updatedUser = await tx.user.update({
           where: { id: userId },
-          data: { aiCredits: { decrement: amount } },
+          data: updateData,
           select: { aiCredits: true },
         });
 
@@ -486,5 +494,7 @@ export {
   CREDIT_TO_CENTS,
   getCreditCost,
   getCreditCostLabel,
+  checkCreditsForFeature,
+  canUseFreeCredits,
 } from "./costs";
 export type { CreditCostKey } from "./costs";

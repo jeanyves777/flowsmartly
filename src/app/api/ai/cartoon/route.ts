@@ -71,21 +71,25 @@ export async function POST(request: NextRequest) {
     const providerMultiplier = imageProvider === "sora" ? 1.5 : imageProvider === "canvas" ? 0.3 : imageProvider === "flow" ? 0.5 : 1;
     const totalCredits = Math.round(BASE_CREDITS * providerMultiplier) + (animationType === "animated" ? ANIMATION_EXTRA_CREDITS : 0);
 
-    // Check credits
+    // Check credits (free credits can only be used for email marketing)
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { aiCredits: true },
+      select: { aiCredits: true, freeCredits: true },
     });
 
     const isAdmin = !!session.adminId;
+    const purchasedCredits = Math.max(0, (user?.aiCredits || 0) - (user?.freeCredits || 0));
 
-    if (!isAdmin && (!user || user.aiCredits < totalCredits)) {
+    if (!isAdmin && (!user || purchasedCredits < totalCredits)) {
+      const isFreeRestricted = user && (user.freeCredits || 0) > 0 && user.aiCredits >= totalCredits && purchasedCredits < totalCredits;
       return NextResponse.json(
         {
           success: false,
           error: {
-            code: "INSUFFICIENT_CREDITS",
-            message: `Cartoon generation requires ${totalCredits} credits. You have ${user?.aiCredits || 0} remaining.`,
+            code: isFreeRestricted ? "FREE_CREDITS_RESTRICTED" : "INSUFFICIENT_CREDITS",
+            message: isFreeRestricted
+              ? `Your free credits can only be used for email marketing. Purchase credits to use this feature (${totalCredits} credits required).`
+              : `Cartoon generation requires ${totalCredits} credits. You have ${purchasedCredits} purchased credits remaining.`,
           },
         },
         { status: 403 }

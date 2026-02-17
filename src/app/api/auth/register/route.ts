@@ -108,6 +108,7 @@ export async function POST(request: NextRequest) {
         name,
         username,
         aiCredits: 100,
+        freeCredits: 100,
       },
       select: {
         id: true,

@@ -240,6 +240,7 @@ export default function VisualDesignStudioPage() {
   const [isLoadingDesigns, setIsLoadingDesigns] = useState(true);
   const [creditsRemaining, setCreditsRemaining] = useState<number>(0);
   const [brandIdentity, setBrandIdentity] = useState<BrandIdentity | null>(null);
+  const [designCreditCost, setDesignCreditCost] = useState<number>(125);
 
   // Active view
   const [activeView, setActiveView] = useState<"create" | "templates" | "gallery">("create");
@@ -258,15 +259,17 @@ export default function VisualDesignStudioPage() {
   const fetchData = useCallback(async () => {
     try {
       setIsLoadingDesigns(true);
-      const [designsRes, brandRes, studioRes] = await Promise.all([
+      const [designsRes, brandRes, studioRes, costsRes] = await Promise.all([
         fetch("/api/designs?limit=10"),
         fetch("/api/brand"),
         fetch("/api/ai/studio"),
+        fetch("/api/credits/costs?keys=AI_VISUAL_DESIGN"),
       ]);
 
       const designsData = await designsRes.json();
       const brandData = await brandRes.json();
       const studioData = await studioRes.json();
+      const costsData = await costsRes.json();
 
       if (designsData.success) {
         setRecentDesigns(designsData.data.designs);
@@ -295,6 +298,10 @@ export default function VisualDesignStudioPage() {
 
       if (studioData.success) {
         setCreditsRemaining(studioData.data.stats?.creditsRemaining ?? 0);
+      }
+
+      if (costsData.success && costsData.data?.costs?.AI_VISUAL_DESIGN) {
+        setDesignCreditCost(costsData.data.costs.AI_VISUAL_DESIGN);
       }
     } catch (error) {
       console.error("Failed to fetch studio data:", error);
@@ -1193,7 +1200,7 @@ export default function VisualDesignStudioPage() {
                       <Wand2 className="w-5 h-5 mr-2" />
                       Generate Design
                       <Badge variant="secondary" className="ml-2 bg-white/20 text-white border-0 text-xs">
-                        25 credits
+                        {designCreditCost} credits
                       </Badge>
                     </>
                   )}

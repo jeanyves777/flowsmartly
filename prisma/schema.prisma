@@ -30,6 +30,7 @@ model User {
 
   // Credits & Balance
   aiCredits         Int       @default(100)
+  freeCredits       Int       @default(100)  // Remaining signup bonus (email marketing only)
   balanceCents      Int       @default(0)
 
   // Settings

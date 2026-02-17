@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { openaiClient } from "@/lib/ai/openai-client";
 import { saveLogoImage } from "@/lib/utils/file-storage";
-import { getDynamicCreditCost, DEFAULT_CREDIT_COSTS } from "@/lib/credits/costs";
+import { getDynamicCreditCost, DEFAULT_CREDIT_COSTS, checkCreditsForFeature } from "@/lib/credits/costs";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 
 // Logo style variations for the 3 concepts
@@ -53,22 +53,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-      select: { aiCredits: true },
-    });
-
     const isAdmin = !!session.adminId;
-
-    if (!isAdmin && (!user || user.aiCredits < LOGO_CREDITS)) {
+    const creditCheck = await checkCreditsForFeature(session.userId, "AI_LOGO_GENERATION", isAdmin);
+    if (creditCheck) {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "INSUFFICIENT_CREDITS",
-            message: `Logo generation requires ${LOGO_CREDITS} credits. You have ${user?.aiCredits || 0} remaining.`,
-          },
-        },
+        { success: false, error: { code: creditCheck.code, message: creditCheck.message } },
         { status: 403 }
       );
     }

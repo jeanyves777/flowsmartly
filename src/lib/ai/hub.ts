@@ -97,7 +97,7 @@ class AIHub {
     userId: string,
     type: GenerationType,
     sessionCredits?: number
-  ): Promise<{ hasCredits: boolean; credits: number; cost: number }> {
+  ): Promise<{ hasCredits: boolean; credits: number; cost: number; freeRestricted?: boolean }> {
     // Get dynamic cost from database
     const cost = await getGenerationCost(type);
 
@@ -113,15 +113,19 @@ class AIHub {
     // Otherwise query database
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { aiCredits: true },
+      select: { aiCredits: true, freeCredits: true },
     });
 
     const credits = user?.aiCredits ?? 0;
+    const freeCredits = user?.freeCredits ?? 0;
+    // AI features can only use purchased credits (not free signup bonus)
+    const purchasedCredits = Math.max(0, credits - freeCredits);
 
     return {
-      hasCredits: credits >= cost,
-      credits,
+      hasCredits: purchasedCredits >= cost,
+      credits: purchasedCredits,
       cost,
+      freeRestricted: freeCredits > 0 && credits >= cost && purchasedCredits < cost,
     };
   }
 
@@ -214,12 +218,18 @@ class AIHub {
   async generatePost(
     request: PostGenerationRequest & { sessionCredits?: number; adminId?: string }
   ): Promise<HubResponse<PostGenerationResult>> {
-    const { hasCredits, cost } = await this.checkCredits(request.userId, "post", request.sessionCredits);
+    const creditResult = await this.checkCredits(request.userId, "post", request.sessionCredits);
+    const { hasCredits, cost } = creditResult;
 
     if (!hasCredits) {
       return {
         success: false,
-        error: { code: "INSUFFICIENT_CREDITS", message: "Not enough AI credits" },
+        error: {
+          code: creditResult.freeRestricted ? "FREE_CREDITS_RESTRICTED" : "INSUFFICIENT_CREDITS",
+          message: creditResult.freeRestricted
+            ? `Your free credits can only be used for email marketing. Purchase credits to use this feature (${cost} credits required).`
+            : "Not enough AI credits",
+        },
       };
     }
 
@@ -257,12 +267,18 @@ class AIHub {
   async generateCaption(
     request: CaptionGenerationRequest & { sessionCredits?: number; adminId?: string }
   ): Promise<HubResponse<CaptionGenerationResult>> {
-    const { hasCredits, cost } = await this.checkCredits(request.userId, "caption", request.sessionCredits);
+    const creditResult = await this.checkCredits(request.userId, "caption", request.sessionCredits);
+    const { hasCredits, cost } = creditResult;
 
     if (!hasCredits) {
       return {
         success: false,
-        error: { code: "INSUFFICIENT_CREDITS", message: "Not enough AI credits" },
+        error: {
+          code: creditResult.freeRestricted ? "FREE_CREDITS_RESTRICTED" : "INSUFFICIENT_CREDITS",
+          message: creditResult.freeRestricted
+            ? `Your free credits can only be used for email marketing. Purchase credits to use this feature (${cost} credits required).`
+            : "Not enough AI credits",
+        },
       };
     }
 
@@ -300,12 +316,18 @@ class AIHub {
   async generateHashtags(
     request: HashtagGenerationRequest & { sessionCredits?: number; adminId?: string }
   ): Promise<HubResponse<HashtagGenerationResult>> {
-    const { hasCredits, cost } = await this.checkCredits(request.userId, "hashtag", request.sessionCredits);
+    const creditResult = await this.checkCredits(request.userId, "hashtag", request.sessionCredits);
+    const { hasCredits, cost } = creditResult;
 
     if (!hasCredits) {
       return {
         success: false,
-        error: { code: "INSUFFICIENT_CREDITS", message: "Not enough AI credits" },
+        error: {
+          code: creditResult.freeRestricted ? "FREE_CREDITS_RESTRICTED" : "INSUFFICIENT_CREDITS",
+          message: creditResult.freeRestricted
+            ? `Your free credits can only be used for email marketing. Purchase credits to use this feature (${cost} credits required).`
+            : "Not enough AI credits",
+        },
       };
     }
 
@@ -343,12 +365,18 @@ class AIHub {
   async generateIdeas(
     request: IdeasGenerationRequest & { sessionCredits?: number; adminId?: string }
   ): Promise<HubResponse<IdeasGenerationResult>> {
-    const { hasCredits, cost } = await this.checkCredits(request.userId, "ideas", request.sessionCredits);
+    const creditResult = await this.checkCredits(request.userId, "ideas", request.sessionCredits);
+    const { hasCredits, cost } = creditResult;
 
     if (!hasCredits) {
       return {
         success: false,
-        error: { code: "INSUFFICIENT_CREDITS", message: "Not enough AI credits" },
+        error: {
+          code: creditResult.freeRestricted ? "FREE_CREDITS_RESTRICTED" : "INSUFFICIENT_CREDITS",
+          message: creditResult.freeRestricted
+            ? `Your free credits can only be used for email marketing. Purchase credits to use this feature (${cost} credits required).`
+            : "Not enough AI credits",
+        },
       };
     }
 
@@ -386,12 +414,18 @@ class AIHub {
   async generateBrand(
     request: BrandGenerationRequest & { sessionCredits?: number; adminId?: string }
   ): Promise<HubResponse<BrandGenerationResult>> {
-    const { hasCredits, cost } = await this.checkCredits(request.userId, "brand", request.sessionCredits);
+    const creditResult = await this.checkCredits(request.userId, "brand", request.sessionCredits);
+    const { hasCredits, cost } = creditResult;
 
     if (!hasCredits) {
       return {
         success: false,
-        error: { code: "INSUFFICIENT_CREDITS", message: "Not enough AI credits" },
+        error: {
+          code: creditResult.freeRestricted ? "FREE_CREDITS_RESTRICTED" : "INSUFFICIENT_CREDITS",
+          message: creditResult.freeRestricted
+            ? `Your free credits can only be used for email marketing. Purchase credits to use this feature (${cost} credits required).`
+            : "Not enough AI credits",
+        },
       };
     }
 
@@ -429,12 +463,18 @@ class AIHub {
   async generateAuto(
     request: AutoGenerationRequest & { sessionCredits?: number; adminId?: string }
   ): Promise<HubResponse<AutoGenerationResult>> {
-    const { hasCredits, cost } = await this.checkCredits(request.userId, "auto", request.sessionCredits);
+    const creditResult = await this.checkCredits(request.userId, "auto", request.sessionCredits);
+    const { hasCredits, cost } = creditResult;
 
     if (!hasCredits) {
       return {
         success: false,
-        error: { code: "INSUFFICIENT_CREDITS", message: "Not enough AI credits" },
+        error: {
+          code: creditResult.freeRestricted ? "FREE_CREDITS_RESTRICTED" : "INSUFFICIENT_CREDITS",
+          message: creditResult.freeRestricted
+            ? `Your free credits can only be used for email marketing. Purchase credits to use this feature (${cost} credits required).`
+            : "Not enough AI credits",
+        },
       };
     }
 

@@ -9,7 +9,7 @@ import sharp from "sharp";
 import { readFile } from "fs/promises";
 import path from "path";
 import { saveDesignImage, saveDesignSvg } from "@/lib/utils/file-storage";
-import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 
 /**
@@ -100,28 +100,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check credits - get dynamic cost from database
-    const creditCost = await getDynamicCreditCost("AI_VISUAL_DESIGN");
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-      select: { aiCredits: true },
-    });
-
+    // Check credits (free credits can only be used for email marketing)
     const isAdmin = !!session.adminId;
-
-    if (!isAdmin && (!user || user.aiCredits < creditCost)) {
+    const creditCheck = await checkCreditsForFeature(session.userId, "AI_VISUAL_DESIGN", isAdmin);
+    if (creditCheck) {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "INSUFFICIENT_CREDITS",
-            message: `Visual generation requires ${creditCost} credits. You have ${user?.aiCredits || 0} credits remaining.`,
-          },
-        },
+        { success: false, error: { code: creditCheck.code, message: creditCheck.message } },
         { status: 403 }
       );
     }
+    const creditCost = await getDynamicCreditCost("AI_VISUAL_DESIGN");
 
     // Create design record
     const design = await prisma.design.create({

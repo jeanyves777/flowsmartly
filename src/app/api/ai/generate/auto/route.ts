@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
-import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 
 // Validation schema
 const autoGenerateSchema = z.object({
@@ -79,16 +79,11 @@ export async function POST(request: NextRequest) {
 
     const cost = await getDynamicCreditCost("AI_AUTO");
 
-    // Check AI credits
-    if (session.user.aiCredits < cost) {
+    // Check AI credits (free credits can only be used for email marketing)
+    const creditCheck = await checkCreditsForFeature(session.userId, "AI_AUTO", !!session.adminId);
+    if (creditCheck) {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "INSUFFICIENT_CREDITS",
-            message: "You don't have enough AI credits.",
-          },
-        },
+        { success: false, error: { code: creditCheck.code, message: creditCheck.message } },
         { status: 403 }
       );
     }

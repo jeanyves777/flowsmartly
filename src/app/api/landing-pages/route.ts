@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { prisma } from "@/lib/db/client";
-import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { generateLandingPage } from "@/lib/landing-pages/generator";
 import { sanitizeHtml } from "@/lib/landing-pages/sanitizer";
@@ -64,21 +64,13 @@ export async function POST(request: NextRequest) {
     const gate = checkPlanAccess(session.user.plan, "AI landing page builder");
     if (gate) return gate;
 
-    // Get dynamic credit cost
+    // Check credits (free credits can only be used for email marketing)
     const creditCost = await getDynamicCreditCost("AI_LANDING_PAGE");
-
-    // Check credit balance
-    const balance = await creditService.getBalance(session.user.id);
-    if (balance < creditCost) {
+    const creditCheck = await checkCreditsForFeature(session.user.id, "AI_LANDING_PAGE");
+    if (creditCheck) {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "INSUFFICIENT_CREDITS",
-            message: `Insufficient credits. Need ${creditCost} credits, you have ${balance}.`,
-          },
-        },
-        { status: 402 }
+        { success: false, error: { code: creditCheck.code, message: creditCheck.message } },
+        { status: 403 }
       );
     }
 

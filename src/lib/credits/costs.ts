@@ -257,3 +257,86 @@ export function getCreditCost(key: CreditCostKey): number {
 export function getCreditCostLabel(key: CreditCostKey): string {
   return CREDIT_COST_LABELS[key];
 }
+
+// ── Free Credit Restrictions ──────────────────────────────────────────────────
+
+/**
+ * Features that can use free signup credits.
+ * All other features require purchased credits.
+ */
+const FREE_CREDIT_ELIGIBLE: CreditCostKey[] = [
+  "EMAIL_SEND",
+  "SMS_SEND",
+  "MMS_SEND",
+];
+
+/**
+ * Check if a feature can use free signup credits
+ */
+export function canUseFreeCredits(key: CreditCostKey): boolean {
+  return FREE_CREDIT_ELIGIBLE.includes(key);
+}
+
+/**
+ * Check if user has enough credits for a feature, accounting for free credit restrictions.
+ *
+ * Free signup credits (tracked by freeCredits field) can only be used for email/SMS marketing.
+ * AI features require purchased credits (aiCredits - freeCredits).
+ *
+ * Returns null if OK, or { code, message, cost } if blocked.
+ */
+export async function checkCreditsForFeature(
+  userId: string,
+  costKey: CreditCostKey,
+  isAdmin = false
+): Promise<{ code: string; message: string; cost: number } | null> {
+  if (isAdmin) return null;
+
+  const creditCost = await getDynamicCreditCost(costKey);
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { aiCredits: true, freeCredits: true },
+  });
+
+  if (!user) {
+    return {
+      code: "INSUFFICIENT_CREDITS",
+      message: "User not found.",
+      cost: creditCost,
+    };
+  }
+
+  const isFreeEligible = canUseFreeCredits(costKey);
+  const purchasedCredits = Math.max(0, user.aiCredits - (user.freeCredits || 0));
+
+  if (isFreeEligible) {
+    // Email/SMS: can use all credits (free + purchased)
+    if (user.aiCredits < creditCost) {
+      return {
+        code: "INSUFFICIENT_CREDITS",
+        message: `This requires ${creditCost} credits. You have ${user.aiCredits} credits remaining.`,
+        cost: creditCost,
+      };
+    }
+  } else {
+    // AI features: can only use purchased credits
+    if (purchasedCredits < creditCost) {
+      if (user.freeCredits > 0 && user.aiCredits >= creditCost) {
+        // Has enough total but they're free credits
+        return {
+          code: "FREE_CREDITS_RESTRICTED",
+          message: `Your free credits can only be used for email marketing. Purchase credits to use this feature (${creditCost} credits required).`,
+          cost: creditCost,
+        };
+      }
+      return {
+        code: "INSUFFICIENT_CREDITS",
+        message: `This requires ${creditCost} credits. You have ${purchasedCredits} purchased credits remaining.`,
+        cost: creditCost,
+      };
+    }
+  }
+
+  return null;
+}
