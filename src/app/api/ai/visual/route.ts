@@ -242,16 +242,21 @@ async function runDirectPipeline(params: PipelineParams) {
   // Build the comprehensive prompt
   let designPrompt = `Create a professional ${category.replace("_", " ")} design.
 
+CRITICAL — OUTPUT FORMAT:
+- The generated image IS the final design itself — it must fill the ENTIRE canvas edge-to-edge
+- Do NOT render the design inside a phone screen, browser window, mockup frame, or any other container
+- Do NOT place the design on a desk, table, or any surface as if it were a printed piece
+- Do NOT add any border, shadow, or margin around the design — the design goes right to every edge
+- The image you generate is the ACTUAL deliverable, not a preview or presentation of it
+
 VISUAL STYLE: ${style || "modern"} — ${styleDesc}
 
 LAYOUT:
-- Professional social media ad layout
-- Clean, minimal background (soft gradient or subtle texture)
+- Professional ${category.replace("_", " ")} layout filling the entire canvas
+- Clean background (soft gradient or subtle texture) extending to all edges
 - Text content on the LEFT side (40–50% of width)
 - Bold headline, subtitle, and a prominent CTA button
-- Small floating 3D social media icons as decorative accents
-- Engagement notification badges (heart icon + number like "1.2k")
-- USE THE FULL CANVAS — no large empty areas`;
+- USE THE FULL CANVAS — the design must bleed to every edge with no margin or frame`;
 
   // Hero type
   if (heroType === "people") {
@@ -274,12 +279,12 @@ LAYOUT:
   const hasLogo = !!params.brandLogo;
   designPrompt += `\n\nBRAND:`;
   if (hasLogo) {
-    designPrompt += `\n- TOP-LEFT CORNER: Do not place any text, icons, or design elements in the top-left corner area (roughly the first 12% width and 12% height). Just let the background flow naturally through that area — no boxes, no borders, no placeholder.`;
+    designPrompt += `\n- **TOP-LEFT EXCLUSION ZONE** (VERY IMPORTANT): The top-left corner is RESERVED — a brand logo will be composited there after generation. You MUST keep the top-left area (roughly 15% width × 15% height from the top-left corner) completely CLEAR of any text, headlines, icons, buttons, or important visual elements. Only background color/gradient should be in that zone. Do NOT put ANY text there — no brand name, no headline, no tagline, nothing.`;
 
     if (showBrandName && brandName) {
       const logoHasName = await logoContainsBrandName(params.brandLogo!, brandName);
       if (!logoHasName) {
-        designPrompt += `\n- Brand name: "${brandName}" — display it near the top but NOT in the top-left corner (place it to the right of the top-left area or in the top-center)`;
+        designPrompt += `\n- Brand name: "${brandName}" — display it in the top-center or top-right area, NEVER in the top-left corner`;
       }
     }
   } else if (showBrandName && brandName) {
@@ -332,11 +337,12 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
   }
 
   designPrompt += `\n\nCRITICAL RULES:
-- This must look like a REAL professional advertisement — polished, modern, print-ready
+- This IS the final design — NOT a mockup, NOT inside a frame/phone/browser. The image fills the canvas edge-to-edge.
 - All text must be perfectly readable and spelled correctly
 - Clean, modern typography (sans-serif)
 - Do NOT include any watermarks or AI-related text
-- The design should fill the entire canvas with no awkward empty space`;
+- Do NOT render the design on a background or inside any container — the design IS the full image
+- The design must bleed to all 4 edges with no margin, border, or shadow around it${hasLogo ? "\n- KEEP THE TOP-LEFT CORNER CLEAR — no text or icons there (logo will be added separately)" : ""}`;
 
   // ── Generate image via selected provider ──
 
