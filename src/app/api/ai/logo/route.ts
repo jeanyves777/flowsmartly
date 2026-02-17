@@ -149,6 +149,10 @@ export async function POST(request: NextRequest) {
 
     // Deduct credits
     if (!isAdmin) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { aiCredits: true },
+      });
       await prisma.$transaction([
         prisma.user.update({
           where: { id: session.userId },
@@ -159,7 +163,7 @@ export async function POST(request: NextRequest) {
             userId: session.userId,
             type: "USAGE",
             amount: -LOGO_CREDITS,
-            balanceAfter: (user?.aiCredits || 0) - LOGO_CREDITS,
+            balanceAfter: (currentUser?.aiCredits || 0) - LOGO_CREDITS,
             referenceType: "ai_logo",
             referenceId: logos[0].id,
             description: `Logo generation: ${brandName} (${logos.length} concepts)`,
