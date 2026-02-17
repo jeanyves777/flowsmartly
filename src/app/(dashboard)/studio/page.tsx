@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import {
@@ -19,7 +19,6 @@ import {
   Palette,
   History,
   FileImage,
-  FileCode,
   Maximize2,
   User,
   Package,
@@ -57,7 +56,9 @@ import { PostSharePanel } from "@/components/shared/post-share-panel";
 import {
   DESIGN_CATEGORIES,
   DESIGN_STYLES,
+  getProvidersForPreset,
   type DesignCategory,
+  type ImageProvider,
   type SizePreset,
 } from "@/lib/constants/design-presets";
 
@@ -146,8 +147,6 @@ interface Design {
   size: string;
   style: string | null;
   imageUrl: string | null;
-  svgContent?: string | null;
-  pipeline?: "direct" | "hybrid" | "svg-only";
   status: string;
   createdAt: string;
 }
@@ -174,46 +173,15 @@ interface BrandIdentity {
   handles: SocialHandles;
 }
 
-// ─── SVG to PNG helper ───
-
-function svgToPng(svgString: string, width: number, height: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      reject(new Error("Could not get canvas context"));
-      return;
-    }
-
-    const img = new window.Image();
-    img.onload = () => {
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob((blob) => {
-        if (blob) {
-          resolve(blob);
-        } else {
-          reject(new Error("Failed to convert canvas to blob"));
-        }
-      }, "image/png");
-    };
-    img.onerror = () => reject(new Error("Failed to load SVG into image"));
-
-    const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-    img.src = URL.createObjectURL(svgBlob);
-  });
-}
-
 // ─── Main Page ───
 
 export default function VisualDesignStudioPage() {
   const { toast } = useToast();
-  const svgContainerRef = useRef<HTMLDivElement>(null);
 
   // Generation state
   const [selectedCategory, setSelectedCategory] = useState<DesignCategory>("social_post");
   const [selectedSize, setSelectedSize] = useState<SizePreset | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>("openai");
   const [selectedStyle, setSelectedStyle] = useState("modern");
   const [heroType, setHeroType] = useState<"people" | "product" | "text-only">("people");
   const [prompt, setPrompt] = useState("");
@@ -250,12 +218,16 @@ export default function VisualDesignStudioPage() {
 
   const currentCategory = DESIGN_CATEGORIES.find((c) => c.id === selectedCategory)!;
 
+  // Auto-select first compatible preset when category or provider changes
   useEffect(() => {
     const cat = DESIGN_CATEGORIES.find((c) => c.id === selectedCategory);
     if (cat && cat.presets.length > 0) {
-      setSelectedSize(cat.presets[0]);
+      const compatiblePreset = cat.presets.find((p) =>
+        getProvidersForPreset(p.width, p.height).includes(selectedProvider)
+      );
+      setSelectedSize(compatiblePreset || cat.presets[0]);
     }
-  }, [selectedCategory]);
+  }, [selectedCategory, selectedProvider]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -390,6 +362,7 @@ export default function VisualDesignStudioPage() {
           category: selectedCategory,
           size: `${selectedSize.width}x${selectedSize.height}`,
           style: selectedStyle,
+          provider: selectedProvider,
           heroType,
           textMode,
           brandColors: brandIdentity?.colors || null,
@@ -438,69 +411,18 @@ export default function VisualDesignStudioPage() {
     }
   };
 
-  const handleDownloadSvg = (design: Design) => {
-    const svgContent = design.svgContent;
-    if (!svgContent) {
-      toast({ title: "No SVG content available", variant: "destructive" });
+  const handleDownloadPng = (design: Design) => {
+    if (!design.imageUrl) {
+      toast({ title: "No image available", variant: "destructive" });
       return;
     }
-
-    const blob = new Blob([svgContent], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = url;
-    link.download = `design-${design.id}.svg`;
+    link.href = design.imageUrl;
+    link.download = `design-${design.id}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast({ title: "SVG downloaded!" });
-  };
-
-  const handleDownloadPng = async (design: Design) => {
-    if (design.imageUrl && !design.imageUrl.startsWith("data:")) {
-      const link = document.createElement("a");
-      link.href = design.imageUrl;
-      link.download = `design-${design.id}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast({ title: "PNG downloaded!" });
-      return;
-    }
-
-    if (design.pipeline === "direct" && design.imageUrl) {
-      const link = document.createElement("a");
-      link.href = design.imageUrl;
-      link.download = `design-${design.id}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast({ title: "PNG downloaded!" });
-      return;
-    }
-
-    const svgContent = design.svgContent;
-    if (!svgContent) {
-      toast({ title: "No content available", variant: "destructive" });
-      return;
-    }
-
-    try {
-      const [width, height] = design.size.split("x").map(Number);
-      const pngBlob = await svgToPng(svgContent, width, height);
-      const url = URL.createObjectURL(pngBlob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `design-${design.id}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      toast({ title: "PNG downloaded!" });
-    } catch {
-      toast({ title: "Failed to convert to PNG", variant: "destructive" });
-    }
+    toast({ title: "PNG downloaded!" });
   };
 
   const getPromptSuggestions = () => {
@@ -543,31 +465,6 @@ export default function VisualDesignStudioPage() {
           `A promotional display sign with bold branding`,
         ];
     }
-  };
-
-  const renderSvgPreview = (design: Design) => {
-    if (design.svgContent && design.pipeline !== "direct") {
-      return (
-        <div
-          ref={svgContainerRef}
-          className="w-full flex items-center justify-center bg-white rounded-lg overflow-hidden"
-          dangerouslySetInnerHTML={{ __html: design.svgContent }}
-          style={{ maxHeight: "500px" }}
-        />
-      );
-    }
-
-    if (design.imageUrl) {
-      return (
-        <img
-          src={design.imageUrl}
-          alt={design.prompt}
-          className="max-w-full max-h-[500px] object-contain"
-        />
-      );
-    }
-
-    return null;
   };
 
   // ─── Summary badges for collapsed sections ───
@@ -733,6 +630,7 @@ export default function VisualDesignStudioPage() {
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <Badge variant="secondary" className="text-[10px]">{selectedCategory.replace("_", " ")}</Badge>
                         <Badge variant="outline" className="text-[10px]">{selectedSize?.width}x{selectedSize?.height}</Badge>
+                        <Badge variant="outline" className="text-[10px] capitalize">{selectedProvider === "xai" ? "xAI" : selectedProvider === "openai" ? "OpenAI" : "Gemini"}</Badge>
                         <Badge variant="outline" className="text-[10px]">{selectedStyle}</Badge>
                         <Badge variant="outline" className="text-[10px]">{heroType}</Badge>
                         {selectedTemplate && (
@@ -941,26 +839,66 @@ export default function VisualDesignStudioPage() {
                     </div>
                   </div>
 
+                  {/* AI Provider */}
+                  <div className="space-y-2.5">
+                    <Label className="text-sm font-medium text-muted-foreground">AI Provider</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {([
+                        { id: "openai" as ImageProvider, label: "OpenAI", sub: "GPT Image" },
+                        { id: "xai" as ImageProvider, label: "xAI", sub: "Grok" },
+                        { id: "gemini" as ImageProvider, label: "Google", sub: "Imagen 4" },
+                      ]).map((prov) => {
+                        const compatible = selectedSize
+                          ? getProvidersForPreset(selectedSize.width, selectedSize.height).includes(prov.id)
+                          : true;
+                        return (
+                          <button
+                            key={prov.id}
+                            onClick={() => setSelectedProvider(prov.id)}
+                            className={`flex flex-col items-center gap-0.5 p-3 rounded-xl border-2 transition-all ${
+                              selectedProvider === prov.id
+                                ? "border-brand-500 bg-brand-500/5"
+                                : compatible
+                                  ? "border-transparent bg-muted/50 hover:bg-muted"
+                                  : "border-transparent bg-muted/30 opacity-50 cursor-not-allowed"
+                            }`}
+                            disabled={!compatible}
+                          >
+                            <span className="text-sm font-medium">{prov.label}</span>
+                            <span className="text-[10px] text-muted-foreground">{prov.sub}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* Size */}
                   <div className="space-y-2.5">
                     <Label className="text-sm font-medium text-muted-foreground">Size Preset</Label>
                     <div className="flex flex-wrap gap-2">
-                      {currentCategory.presets.map((preset) => (
-                        <button
-                          key={preset.name}
-                          onClick={() => setSelectedSize(preset)}
-                          className={`px-3 py-2 rounded-xl text-sm transition-all ${
-                            selectedSize?.name === preset.name
-                              ? "bg-brand-500 text-white"
-                              : "bg-muted hover:bg-muted/80"
-                          }`}
-                        >
-                          <span className="font-medium">{preset.name}</span>
-                          <span className="block text-xs opacity-70">
-                            {preset.width} x {preset.height}
-                          </span>
-                        </button>
-                      ))}
+                      {currentCategory.presets.map((preset) => {
+                        const providers = getProvidersForPreset(preset.width, preset.height);
+                        const compatible = providers.includes(selectedProvider);
+                        return (
+                          <button
+                            key={preset.name}
+                            onClick={() => compatible && setSelectedSize(preset)}
+                            className={`px-3 py-2 rounded-xl text-sm transition-all ${
+                              selectedSize?.name === preset.name
+                                ? "bg-brand-500 text-white"
+                                : compatible
+                                  ? "bg-muted hover:bg-muted/80"
+                                  : "bg-muted/30 opacity-40 cursor-not-allowed line-through"
+                            }`}
+                            disabled={!compatible}
+                          >
+                            <span className="font-medium">{preset.name}</span>
+                            <span className="block text-xs opacity-70">
+                              {preset.width} x {preset.height}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1239,39 +1177,30 @@ export default function VisualDesignStudioPage() {
                     <RefreshCw className={`w-4 h-4 mr-1 ${isGenerating ? "animate-spin" : ""}`} />
                     Regenerate
                   </Button>
-                  {(generatedDesign.svgContent || generatedDesign.imageUrl) && (
-                    <>
-                      {generatedDesign.svgContent && generatedDesign.pipeline !== "direct" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownloadSvg(generatedDesign)}
-                          title="Download as SVG (vector)"
-                        >
-                          <FileCode className="w-4 h-4 mr-1" />
-                          SVG
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        onClick={() => handleDownloadPng(generatedDesign)}
-                        title="Download as PNG (image)"
-                      >
-                        <FileImage className="w-4 h-4 mr-1" />
-                        PNG
-                      </Button>
-                    </>
+                  {generatedDesign.imageUrl && (
+                    <Button
+                      size="sm"
+                      onClick={() => handleDownloadPng(generatedDesign)}
+                      title="Download as PNG (image)"
+                    >
+                      <FileImage className="w-4 h-4 mr-1" />
+                      PNG
+                    </Button>
                   )}
                 </div>
               </CardHeader>
               <CardContent>
-                {generatedDesign.status === "COMPLETED" && (generatedDesign.svgContent || generatedDesign.imageUrl) ? (
+                {generatedDesign.status === "COMPLETED" && generatedDesign.imageUrl ? (
                   <div className="space-y-4">
                     <div
                       className="rounded-xl overflow-hidden border bg-muted/30 flex items-center justify-center relative group cursor-pointer"
                       onClick={() => setPreviewDesign(generatedDesign)}
                     >
-                      {renderSvgPreview(generatedDesign)}
+                      <img
+                        src={generatedDesign.imageUrl}
+                        alt={generatedDesign.prompt}
+                        className="max-w-full max-h-[500px] object-contain"
+                      />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center rounded-lg">
                         <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <Maximize2 className="w-6 h-6 text-white" />
@@ -1397,8 +1326,8 @@ export default function VisualDesignStudioPage() {
                   </Card>
 
                   {/* Hover Actions */}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                    {design.svgContent && (
+                  {design.imageUrl && (
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                       <Button
                         size="icon"
                         variant="secondary"
@@ -1411,8 +1340,8 @@ export default function VisualDesignStudioPage() {
                       >
                         <Download className="w-3.5 h-3.5" />
                       </Button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </motion.div>
               ))}
             </div>
@@ -1432,14 +1361,11 @@ export default function VisualDesignStudioPage() {
           {previewDesign && (
             <div className="space-y-4">
               <div className="rounded-xl border bg-white overflow-hidden flex items-center justify-center" style={{ maxHeight: "60vh" }}>
-                {previewDesign.svgContent ? (
-                  <div
-                    className="w-full flex items-center justify-center p-6 [&>svg]:max-w-full [&>svg]:max-h-[55vh]"
-                    dangerouslySetInnerHTML={{ __html: previewDesign.svgContent }}
-                  />
-                ) : previewDesign.imageUrl ? (
+                {previewDesign.imageUrl ? (
                   <img src={previewDesign.imageUrl} alt={previewDesign.prompt} className="max-w-full max-h-[55vh] object-contain" />
-                ) : null}
+                ) : (
+                  <div className="p-8 text-muted-foreground text-sm">No preview available</div>
+                )}
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
@@ -1458,16 +1384,6 @@ export default function VisualDesignStudioPage() {
               </p>
 
               <div className="flex gap-2 justify-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    handleDownloadSvg(previewDesign);
-                  }}
-                >
-                  <FileCode className="w-4 h-4 mr-1" />
-                  SVG
-                </Button>
                 <Button
                   size="sm"
                   onClick={() => {

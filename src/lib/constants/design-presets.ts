@@ -1,4 +1,5 @@
 export type DesignCategory = "social_post" | "ad" | "flyer" | "poster" | "banner" | "signboard";
+export type ImageProvider = "openai" | "xai" | "gemini";
 
 export interface SizePreset {
   name: string;
@@ -37,8 +38,6 @@ export const DESIGN_CATEGORIES: CategoryConfig[] = [
       { name: "Facebook Ad", width: 1200, height: 628 },
       { name: "Instagram Ad", width: 1080, height: 1080 },
       { name: "Google Display", width: 300, height: 250 },
-      { name: "Leaderboard", width: 728, height: 90 },
-      { name: "Wide Skyscraper", width: 160, height: 600 },
     ],
   },
   {
@@ -71,11 +70,9 @@ export const DESIGN_CATEGORIES: CategoryConfig[] = [
     description: "Create web and social media banners",
     icon: "PanelTop",
     presets: [
-      { name: "Web Banner", width: 728, height: 90 },
       { name: "YouTube Banner", width: 2560, height: 1440 },
-      { name: "Facebook Cover", width: 820, height: 312 },
-      { name: "Twitter Header", width: 1500, height: 500 },
-      { name: "LinkedIn Cover", width: 1584, height: 396 },
+      { name: "Website Hero", width: 1920, height: 1080 },
+      { name: "Social Cover", width: 1640, height: 924 },
     ],
   },
   {
@@ -84,9 +81,7 @@ export const DESIGN_CATEGORIES: CategoryConfig[] = [
     description: "Design business signs and displays",
     icon: "Signpost",
     presets: [
-      { name: "Horizontal Sign", width: 3000, height: 1000 },
       { name: "Square Sign", width: 2000, height: 2000 },
-      { name: "Vertical Sign", width: 1000, height: 3000 },
       { name: "Small Sign", width: 1500, height: 750 },
     ],
   },
@@ -111,4 +106,32 @@ export function getCategoryById(id: DesignCategory): CategoryConfig | undefined 
 
 export function getSizeLabel(width: number, height: number): string {
   return `${width} x ${height}`;
+}
+
+/**
+ * Returns which providers can handle a given width/height.
+ * OpenAI: aspect ratio 0.67–1.5 (3 fixed sizes)
+ * xAI:    aspect ratio 0.5–2.0 (9 aspect ratios)
+ * Gemini: aspect ratio 0.5625–1.78 (5 aspect ratios)
+ */
+export function getProvidersForPreset(width: number, height: number): ImageProvider[] {
+  const ratio = width / height;
+  const providers: ImageProvider[] = [];
+
+  // OpenAI: 1024x1024, 1536x1024, 1024x1536 → ratios 0.67–1.5
+  if (ratio >= 0.67 && ratio <= 1.5) {
+    providers.push("openai");
+  }
+
+  // xAI: 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3, 2:1, 1:2 → ratios 0.5–2.0
+  if (ratio >= 0.5 && ratio <= 2.0) {
+    providers.push("xai");
+  }
+
+  // Gemini: 1:1, 4:3, 3:4, 16:9, 9:16 → ratios 0.5625–1.78
+  if (ratio >= 0.5625 && ratio <= 1.78) {
+    providers.push("gemini");
+  }
+
+  return providers;
 }
