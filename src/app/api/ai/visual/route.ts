@@ -404,9 +404,18 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
     throw new Error("Failed to generate design image. Please try again.");
   }
 
-  // ── Upscale to target dimensions ──
+  // ── Auto-trim white/light borders (AI often renders designs inside a "card") ──
 
-  let finalBase64 = base64;
+  let trimmedBase64 = base64;
+  try {
+    trimmedBase64 = await trimWhiteBorder(base64);
+  } catch (trimErr) {
+    console.warn("[Visual] Auto-trim failed, using original:", trimErr);
+  }
+
+  // ── Resize to target dimensions ──
+
+  let finalBase64 = trimmedBase64;
   let finalW = width;
   let finalH = height;
 
@@ -514,6 +523,117 @@ async function compositeLogo(
     .toBuffer();
 
   return result.toString("base64");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AUTO-TRIM — Remove white/light borders AI models often add
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Detect and crop white/light-colored borders from AI-generated images.
+ * AI models often render designs as "cards" floating on a white background.
+ * This scans the edges, finds where the actual design content starts, and crops.
+ * Only trims if edges are predominantly light (>85% of edge pixels are near-white).
+ */
+async function trimWhiteBorder(base64: string): Promise<string> {
+  const buffer = Buffer.from(base64, "base64");
+  const img = sharp(buffer);
+  const meta = await img.metadata();
+  const w = meta.width!;
+  const h = meta.height!;
+
+  // Extract raw pixel data (RGBA)
+  const { data } = await img.raw().ensureAlpha().toBuffer({ resolveWithObject: true });
+
+  // Check if a pixel is "light" (near-white or very light gray)
+  const isLight = (x: number, y: number): boolean => {
+    const idx = (y * w + x) * 4;
+    const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+    return r > 230 && g > 230 && b > 230;
+  };
+
+  // Scan each edge to find how many pixels are light
+  const scanThreshold = 0.85; // 85% of edge pixels must be light to count as border
+
+  // Find top border
+  let top = 0;
+  for (let y = 0; y < Math.floor(h * 0.25); y++) {
+    let lightCount = 0;
+    for (let x = 0; x < w; x += 2) { // sample every 2nd pixel for speed
+      if (isLight(x, y)) lightCount++;
+    }
+    if (lightCount / Math.ceil(w / 2) >= scanThreshold) {
+      top = y + 1;
+    } else {
+      break;
+    }
+  }
+
+  // Find bottom border
+  let bottom = h;
+  for (let y = h - 1; y >= Math.floor(h * 0.75); y--) {
+    let lightCount = 0;
+    for (let x = 0; x < w; x += 2) {
+      if (isLight(x, y)) lightCount++;
+    }
+    if (lightCount / Math.ceil(w / 2) >= scanThreshold) {
+      bottom = y;
+    } else {
+      break;
+    }
+  }
+
+  // Find left border
+  let left = 0;
+  for (let x = 0; x < Math.floor(w * 0.25); x++) {
+    let lightCount = 0;
+    for (let y = 0; y < h; y += 2) {
+      if (isLight(x, y)) lightCount++;
+    }
+    if (lightCount / Math.ceil(h / 2) >= scanThreshold) {
+      left = x + 1;
+    } else {
+      break;
+    }
+  }
+
+  // Find right border
+  let right = w;
+  for (let x = w - 1; x >= Math.floor(w * 0.75); x--) {
+    let lightCount = 0;
+    for (let y = 0; y < h; y += 2) {
+      if (isLight(x, y)) lightCount++;
+    }
+    if (lightCount / Math.ceil(h / 2) >= scanThreshold) {
+      right = x;
+    } else {
+      break;
+    }
+  }
+
+  const cropW = right - left;
+  const cropH = bottom - top;
+
+  // Only crop if we found a meaningful border (at least 2% on any side)
+  const minBorder = Math.min(w, h) * 0.02;
+  if (top < minBorder && left < minBorder && (w - right) < minBorder && (h - bottom) < minBorder) {
+    console.log("[Visual] No significant border detected, skipping trim");
+    return base64;
+  }
+
+  if (cropW < w * 0.5 || cropH < h * 0.5) {
+    console.log("[Visual] Trim would crop too aggressively, skipping");
+    return base64;
+  }
+
+  console.log(`[Visual] Trimming border: top=${top} left=${left} right=${w - right} bottom=${h - bottom} → ${cropW}x${cropH}`);
+
+  const trimmed = await sharp(buffer)
+    .extract({ left, top, width: cropW, height: cropH })
+    .png()
+    .toBuffer();
+
+  return trimmed.toString("base64");
 }
 
 // ═══════════════════════════════════════════════════════════════
