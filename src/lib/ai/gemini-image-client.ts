@@ -41,6 +41,81 @@ class GeminiImageClient {
    * Generate an image using Imagen 4.
    * Returns the image as a base64 PNG string.
    */
+  /**
+   * Edit/transform an image using Gemini Flash image model.
+   * Pass a reference image as base64 and a prompt describing the desired output.
+   * Uses gemini-2.5-flash with image generation capabilities.
+   */
+  async editImage(
+    prompt: string,
+    imageBase64: string,
+    options: { aspectRatio?: GeminiAspectRatio } = {}
+  ): Promise<string | null> {
+    const { aspectRatio = "1:1" } = options;
+
+    if (!this.client) {
+      throw new Error("GEMINI_API_KEY is not configured");
+    }
+
+    const maxRetries = 2;
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await this.client.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: prompt },
+                { inlineData: { mimeType: "image/png", data: imageBase64 } },
+              ],
+            },
+          ],
+          config: {
+            responseModalities: ["TEXT", "IMAGE"],
+            imageConfig: { aspectRatio },
+          },
+        });
+
+        // Extract image from response parts
+        const parts = response.candidates?.[0]?.content?.parts;
+        if (parts) {
+          for (const part of parts) {
+            if (part.inlineData?.data) {
+              return part.inlineData.data;
+            }
+          }
+        }
+
+        console.warn("[GeminiImage] No image data in edit response");
+        return null;
+      } catch (error) {
+        lastError = error;
+        console.error(
+          `[GeminiImage] Edit error (attempt ${attempt + 1}/${maxRetries + 1}):`,
+          error
+        );
+
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const isTransient = /rate|limit|timeout|503|529|overloaded|capacity|quota/i.test(errMsg);
+        if (!isTransient) break;
+
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        }
+      }
+    }
+
+    const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(`Gemini image edit failed: ${errMsg}`);
+  }
+
+  /**
+   * Generate an image using Imagen 4.
+   * Returns the image as a base64 PNG string.
+   */
   async generateImage(
     prompt: string,
     options: {

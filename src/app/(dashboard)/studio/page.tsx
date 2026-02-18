@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import {
@@ -35,6 +35,8 @@ import {
   LayoutTemplate,
   ImageIcon,
   X,
+  Upload,
+  FolderOpen,
 } from "lucide-react";
 import { TemplateBrowser, type DesignTemplate } from "@/components/studio/template-browser";
 import { Button } from "@/components/ui/button";
@@ -53,6 +55,7 @@ import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { PostSharePanel } from "@/components/shared/post-share-panel";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import {
   DESIGN_CATEGORIES,
   DESIGN_STYLES,
@@ -199,6 +202,14 @@ export default function VisualDesignStudioPage() {
   const [showBrandName, setShowBrandName] = useState(false);
   const [showSocialIcons, setShowSocialIcons] = useState(false);
   const [selectedSocialPlatforms, setSelectedSocialPlatforms] = useState<Set<string>>(new Set());
+
+  // Reference image
+  const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
+  const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
+  const [referenceImageName, setReferenceImageName] = useState<string | null>(null);
+  const [isUploadingReference, setIsUploadingReference] = useState(false);
+  const [showRefMediaLibrary, setShowRefMediaLibrary] = useState(false);
+  const referenceInputRef = useRef<HTMLInputElement>(null);
 
   // AI ideas state
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
@@ -378,6 +389,7 @@ export default function VisualDesignStudioPage() {
             address: includeInDesign.address ? brandIdentity?.address : null,
           },
           templateImageUrl: selectedTemplate?.image || null,
+          referenceImageUrl: referenceImageUrl || null,
         }),
       });
 
@@ -500,6 +512,12 @@ export default function VisualDesignStudioPage() {
       <Badge className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/20">
         {textMode === "creative" ? "AI Creative" : "Exact Text"}
       </Badge>
+      {referenceImageUrl && (
+        <Badge className="text-[10px] bg-violet-500/10 text-violet-600 border-violet-500/20 gap-1">
+          <ImageIcon className="w-3 h-3" />
+          Reference Image
+        </Badge>
+      )}
     </>
   );
 
@@ -979,6 +997,115 @@ export default function VisualDesignStudioPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Reference Image */}
+                  <div className="space-y-2.5 pt-2 border-t border-border/50">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium text-muted-foreground">
+                        Reference Image <span className="text-xs font-normal">(optional)</span>
+                      </Label>
+                      {referenceImageUrl && (
+                        <button
+                          onClick={() => {
+                            setReferenceImageUrl(null);
+                            setReferenceImagePreview(null);
+                            setReferenceImageName(null);
+                          }}
+                          className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground -mt-1">
+                      Upload a product photo or image — AI will use it as the exact visual in the design
+                    </p>
+
+                    {referenceImagePreview ? (
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border">
+                        <img
+                          src={referenceImagePreview}
+                          alt="Reference"
+                          className="w-16 h-16 rounded-lg object-cover border"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{referenceImageName || "Reference image"}</p>
+                          <p className="text-xs text-muted-foreground">Will be used as main visual</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setReferenceImageUrl(null);
+                            setReferenceImagePreview(null);
+                            setReferenceImageName(null);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          ref={referenceInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (file.size > 5 * 1024 * 1024) {
+                              toast({ title: "File too large", description: "Maximum 5MB", variant: "destructive" });
+                              return;
+                            }
+                            setIsUploadingReference(true);
+                            try {
+                              const formData = new FormData();
+                              formData.append("file", file);
+                              formData.append("type", "reference");
+                              const res = await fetch("/api/upload", { method: "POST", body: formData });
+                              const data = await res.json();
+                              if (data.success) {
+                                setReferenceImageUrl(data.data.url);
+                                setReferenceImagePreview(data.data.url);
+                                setReferenceImageName(file.name);
+                              } else {
+                                toast({ title: "Upload failed", description: data.error?.message || "Try again", variant: "destructive" });
+                              }
+                            } catch {
+                              toast({ title: "Upload failed", description: "Network error", variant: "destructive" });
+                            } finally {
+                              setIsUploadingReference(false);
+                              if (referenceInputRef.current) referenceInputRef.current.value = "";
+                            }
+                          }}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => referenceInputRef.current?.click()}
+                          disabled={isUploadingReference}
+                          className="flex-1"
+                        >
+                          {isUploadingReference ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="w-4 h-4 mr-2" />
+                          )}
+                          Upload Image
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowRefMediaLibrary(true)}
+                          disabled={isUploadingReference}
+                          className="flex-1"
+                        >
+                          <FolderOpen className="w-4 h-4 mr-2" />
+                          Browse Library
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </CollapsibleSection>
 
@@ -1409,6 +1536,19 @@ export default function VisualDesignStudioPage() {
           )}
         </DialogContent>
       </Dialog>
+      {/* Reference Image Media Library Picker */}
+      <MediaLibraryPicker
+        open={showRefMediaLibrary}
+        onClose={() => setShowRefMediaLibrary(false)}
+        onSelect={(url) => {
+          setReferenceImageUrl(url);
+          setReferenceImagePreview(url);
+          setReferenceImageName("Library image");
+          setShowRefMediaLibrary(false);
+        }}
+        title="Select Reference Image"
+        filterTypes={["image"]}
+      />
     </motion.div>
   );
 }

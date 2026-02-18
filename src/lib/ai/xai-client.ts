@@ -9,7 +9,8 @@
  * Uses aspect_ratio instead of size parameter.
  */
 
-const XAI_API_URL = "https://api.x.ai/v1/images/generations";
+const XAI_GENERATIONS_URL = "https://api.x.ai/v1/images/generations";
+const XAI_EDITS_URL = "https://api.x.ai/v1/images/edits";
 
 type AspectRatio =
   | "1:1"
@@ -69,7 +70,7 @@ class XAIClient {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const response = await fetch(XAI_API_URL, {
+        const response = await fetch(XAI_GENERATIONS_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -120,6 +121,84 @@ class XAIClient {
 
     const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
     throw new Error(`xAI image generation failed: ${errMsg}`);
+  }
+
+  /**
+   * Edit/transform an image using grok-imagine-image.
+   * Pass a reference image as base64 and a prompt describing the desired output.
+   * Returns the result as a base64 string.
+   */
+  async editImage(
+    prompt: string,
+    imageBase64: string,
+    options: { aspectRatio?: AspectRatio } = {}
+  ): Promise<string | null> {
+    const { aspectRatio = "1:1" } = options;
+
+    if (!this.apiKey) {
+      throw new Error("XAI_API_KEY is not configured");
+    }
+
+    const maxRetries = 2;
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(XAI_EDITS_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: "grok-imagine-image",
+            prompt,
+            image: {
+              url: `data:image/png;base64,${imageBase64}`,
+              type: "image_url",
+            },
+            n: 1,
+            aspect_ratio: aspectRatio,
+            response_format: "b64_json",
+          }),
+        });
+
+        if (!response.ok) {
+          const errBody = await response.text();
+          throw new Error(`xAI edit API error (${response.status}): ${errBody}`);
+        }
+
+        const data = await response.json();
+        const imageData = data.data?.[0];
+
+        if (imageData?.b64_json) {
+          return imageData.b64_json;
+        }
+        if (imageData?.url) {
+          const res = await fetch(imageData.url);
+          const buffer = Buffer.from(await res.arrayBuffer());
+          return buffer.toString("base64");
+        }
+        return null;
+      } catch (error) {
+        lastError = error;
+        console.error(
+          `[XAI] Image edit error (attempt ${attempt + 1}/${maxRetries + 1}):`,
+          error
+        );
+
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const isTransient = /rate|limit|timeout|503|529|overloaded|capacity/i.test(errMsg);
+        if (!isTransient) break;
+
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        }
+      }
+    }
+
+    const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(`xAI image edit failed: ${errMsg}`);
   }
 }
 

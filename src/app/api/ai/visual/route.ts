@@ -32,6 +32,19 @@ function getGptImageSize(width: number, height: number): "1024x1024" | "1536x102
   return "1024x1024";
 }
 
+/** Resolve an image URL (S3 presigned, /uploads/, or /public/) to a Buffer */
+async function resolveImageToBuffer(urlOrPath: string): Promise<Buffer> {
+  if (urlOrPath.startsWith("http")) {
+    const res = await fetch(urlOrPath);
+    if (!res.ok) throw new Error(`Failed to fetch reference image: ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
+  }
+  const localPath = urlOrPath.startsWith("/")
+    ? path.join(process.cwd(), "public", urlOrPath)
+    : path.join(process.cwd(), "public", urlOrPath);
+  return readFile(localPath);
+}
+
 // POST /api/ai/visual
 export async function POST(request: NextRequest) {
   try {
@@ -53,6 +66,7 @@ export async function POST(request: NextRequest) {
       brandLogo, brandName, contactInfo,
       showBrandName, showSocialIcons, socialHandles,
       templateImageUrl,
+      referenceImageUrl,
       provider,
     } = body;
 
@@ -98,6 +112,7 @@ export async function POST(request: NextRequest) {
       brandLogo, brandName, contactInfo,
       showBrandName, showSocialIcons, socialHandles,
       templateImageUrl,
+      referenceImageUrl,
       provider: selectedProvider,
     });
 
@@ -225,6 +240,7 @@ interface PipelineParams {
   showSocialIcons?: boolean;
   socialHandles?: Record<string, string> | null;
   templateImageUrl?: string | null;
+  referenceImageUrl?: string | null;
   provider: ImageProvider;
 }
 
@@ -344,21 +360,33 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
 - Do NOT render the design on a background or inside any container — the design IS the full image
 - The design must bleed to all 4 edges with no margin, border, or shadow around it${hasLogo ? "\n- KEEP THE TOP-LEFT CORNER CLEAR — no text or icons there (logo will be added separately)" : ""}`;
 
+  // ── Resolve reference image (if any) ──
+
+  const refUrl = params.referenceImageUrl || params.templateImageUrl;
+  let refBuffer: Buffer | null = null;
+  if (refUrl) {
+    refBuffer = await resolveImageToBuffer(refUrl);
+  }
+
+  const refPrompt = refBuffer
+    ? params.referenceImageUrl
+      ? `CRITICAL: The provided image is the EXACT product, person, or subject to feature in this design. Use this EXACT image as the main hero visual — do NOT recreate, reinterpret, or replace it with an AI-generated version. Build the design layout, text, colors, and branding AROUND this image.\n\n${designPrompt}`
+      : `IMPORTANT: Use the provided image as a DESIGN TEMPLATE REFERENCE. Recreate a very similar design following the same layout, composition, visual style, color scheme, and arrangement of elements — but customize it with the specific content, branding, and details described below.\n\n${designPrompt}`
+    : null;
+
   // ── Generate image via selected provider ──
 
   let base64: string | null;
   let model: string;
+  const hasRef = !!refBuffer;
 
   switch (provider) {
     case "openai": {
       const gptSize = getGptImageSize(width, height);
-      console.log(`[Visual] OpenAI gpt-image-1 @ ${gptSize}${params.templateImageUrl ? " (with template)" : ""}`);
+      console.log(`[Visual] OpenAI gpt-image-1 @ ${gptSize}${hasRef ? " (with reference)" : ""}`);
 
-      if (params.templateImageUrl) {
-        const templatePath = path.join(process.cwd(), "public", params.templateImageUrl);
-        const templateBuffer = await readFile(templatePath);
-        const templatePrompt = `IMPORTANT: Use the provided image as a DESIGN TEMPLATE REFERENCE. Recreate a very similar design following the same layout, composition, visual style, color scheme, and arrangement of elements — but customize it with the specific content, branding, and details described below.\n\n${designPrompt}`;
-        base64 = await openaiClient.editImage(templatePrompt, templateBuffer, {
+      if (refBuffer) {
+        base64 = await openaiClient.editImage(refPrompt!, refBuffer, {
           size: gptSize,
           quality: "high",
         });
@@ -374,25 +402,35 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
 
     case "xai": {
       const aspectRatio = sizeToAspectRatio(width, height);
-      console.log(`[Visual] xAI grok-imagine-image @ ${aspectRatio}`);
+      console.log(`[Visual] xAI grok-imagine-image @ ${aspectRatio}${hasRef ? " (with reference)" : ""}`);
 
       if (!xaiClient.isAvailable()) {
         throw new Error("xAI provider is not configured. Please set XAI_API_KEY.");
       }
-      base64 = await xaiClient.generateImage(designPrompt, { aspectRatio });
+      if (refBuffer) {
+        const refBase64 = refBuffer.toString("base64");
+        base64 = await xaiClient.editImage(refPrompt!, refBase64, { aspectRatio });
+      } else {
+        base64 = await xaiClient.generateImage(designPrompt, { aspectRatio });
+      }
       model = "grok-imagine-image";
       break;
     }
 
     case "gemini": {
       const aspectRatio = sizeToAspectRatioGemini(width, height);
-      console.log(`[Visual] Gemini imagen-4 @ ${aspectRatio}`);
+      console.log(`[Visual] Gemini imagen-4 @ ${aspectRatio}${hasRef ? " (with reference)" : ""}`);
 
       if (!geminiImageClient.isAvailable()) {
         throw new Error("Gemini provider is not configured. Please set GEMINI_API_KEY.");
       }
-      base64 = await geminiImageClient.generateImage(designPrompt, { aspectRatio });
-      model = "imagen-4.0-generate-001";
+      if (refBuffer) {
+        const refBase64 = refBuffer.toString("base64");
+        base64 = await geminiImageClient.editImage(refPrompt!, refBase64, { aspectRatio });
+      } else {
+        base64 = await geminiImageClient.generateImage(designPrompt, { aspectRatio });
+      }
+      model = hasRef ? "gemini-2.5-flash" : "imagen-4.0-generate-001";
       break;
     }
 
