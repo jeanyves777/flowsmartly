@@ -167,6 +167,7 @@ interface BrandIdentity {
   id: string;
   name: string;
   logo: string | null;
+  iconLogo: string | null;
   colors: Record<string, string>;
   voiceTone: string | null;
   email: string | null;
@@ -266,6 +267,7 @@ export default function VisualDesignStudioPage() {
           id: kit.id,
           name: kit.name,
           logo: kit.logo || null,
+          iconLogo: kit.iconLogo || null,
           colors: typeof kit.colors === "string" ? JSON.parse(kit.colors) : kit.colors,
           voiceTone: kit.voiceTone,
           email: kit.email || null,
@@ -377,7 +379,7 @@ export default function VisualDesignStudioPage() {
           heroType,
           textMode,
           brandColors: brandIdentity?.colors || null,
-          brandLogo: brandIdentity?.logo || null,
+          brandLogo: brandIdentity?.logo || brandIdentity?.iconLogo || null,
           brandName: showBrandName ? (brandIdentity?.name || null) : null,
           showBrandName,
           showSocialIcons,
