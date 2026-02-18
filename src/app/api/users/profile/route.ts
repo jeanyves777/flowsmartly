@@ -24,6 +24,7 @@ export async function GET() {
         avatarUrl: true,
         bio: true,
         website: true,
+        links: true,
         plan: true,
         aiCredits: true,
         balanceCents: true,
@@ -61,6 +62,7 @@ export async function GET() {
           avatarUrl: user.avatarUrl,
           bio: user.bio,
           website: user.website,
+          links: JSON.parse(user.links || "{}"),
           plan: user.plan,
           aiCredits: user.aiCredits,
           balance: user.balanceCents / 100,
@@ -102,6 +104,7 @@ export async function PATCH(request: NextRequest) {
       username,
       bio,
       website,
+      links,
       avatarUrl,
       timezone,
       language,
@@ -121,11 +124,14 @@ export async function PATCH(request: NextRequest) {
     if (notificationPrefs !== undefined) {
       updateData.notificationPrefs = JSON.stringify(notificationPrefs);
     }
+    if (links !== undefined) {
+      updateData.links = JSON.stringify(links);
+    }
 
-    // Check username uniqueness if changing
-    if (username !== undefined && username !== session.user.username) {
-      const existingUser = await prisma.user.findUnique({
-        where: { username },
+    // Check username uniqueness (exclude current user by ID)
+    if (username !== undefined) {
+      const existingUser = await prisma.user.findFirst({
+        where: { username, id: { not: session.userId } },
       });
       if (existingUser) {
         return NextResponse.json(
@@ -145,17 +151,31 @@ export async function PATCH(request: NextRequest) {
         username: true,
         bio: true,
         website: true,
+        links: true,
         avatarUrl: true,
         timezone: true,
         language: true,
         theme: true,
+        _count: {
+          select: {
+            posts: true,
+            followers: true,
+            following: true,
+          },
+        },
       },
     });
 
     return NextResponse.json({
       success: true,
       data: await presignAllUrls({
-        user: updatedUser,
+        user: {
+          ...updatedUser,
+          links: JSON.parse(updatedUser.links || "{}"),
+          postsCount: updatedUser._count.posts,
+          followersCount: updatedUser._count.followers,
+          followingCount: updatedUser._count.following,
+        },
       }),
     });
   } catch (error) {

@@ -184,6 +184,16 @@ export default function SettingsPage() {
     avatarUrl: "",
   });
 
+  const [links, setLinks] = useState<Record<string, string>>({
+    instagram: "",
+    twitter: "",
+    linkedin: "",
+    facebook: "",
+    tiktok: "",
+    youtube: "",
+    custom: "",
+  });
+
   const [notifications, setNotifications] = useState<NotificationPrefs>(defaultNotificationPrefs);
 
   const [passwords, setPasswords] = useState({
@@ -263,6 +273,18 @@ export default function SettingsPage() {
         website: userData.website || brandKit?.website || "",
         avatarUrl: userData.avatarUrl || brandKit?.iconLogo || brandKit?.logo || "",
       });
+      if (userData.links) {
+        setLinks({
+          instagram: "",
+          twitter: "",
+          linkedin: "",
+          facebook: "",
+          tiktok: "",
+          youtube: "",
+          custom: "",
+          ...userData.links,
+        });
+      }
       setNotifications({
         ...defaultNotificationPrefs,
         ...userData.notificationPrefs,
@@ -341,6 +363,12 @@ export default function SettingsPage() {
   const handleSaveProfile = async () => {
     setIsSaving(true);
     try {
+      // Filter out empty link values
+      const cleanLinks: Record<string, string> = {};
+      Object.entries(links).forEach(([key, val]) => {
+        if (val.trim()) cleanLinks[key] = val.trim();
+      });
+
       const response = await fetch("/api/users/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -350,6 +378,7 @@ export default function SettingsPage() {
           bio: profile.bio,
           website: profile.website,
           avatarUrl: profile.avatarUrl,
+          links: cleanLinks,
         }),
       });
 
@@ -904,6 +933,95 @@ export default function SettingsPage() {
                           }
                           placeholder="https://"
                         />
+                      </div>
+
+                      {/* Social Links */}
+                      <div className="space-y-3 pt-2">
+                        <Label className="text-base">Social Links</Label>
+                        <p className="text-xs text-muted-foreground -mt-1">
+                          Add your social media profiles
+                        </p>
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="link-instagram" className="text-xs flex items-center gap-1.5">
+                              <Instagram className="w-3.5 h-3.5" /> Instagram
+                            </Label>
+                            <Input
+                              id="link-instagram"
+                              value={links.instagram}
+                              onChange={(e) => setLinks({ ...links, instagram: e.target.value })}
+                              placeholder="@username or URL"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="link-twitter" className="text-xs flex items-center gap-1.5">
+                              <Twitter className="w-3.5 h-3.5" /> X / Twitter
+                            </Label>
+                            <Input
+                              id="link-twitter"
+                              value={links.twitter}
+                              onChange={(e) => setLinks({ ...links, twitter: e.target.value })}
+                              placeholder="@username or URL"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="link-linkedin" className="text-xs flex items-center gap-1.5">
+                              <Linkedin className="w-3.5 h-3.5" /> LinkedIn
+                            </Label>
+                            <Input
+                              id="link-linkedin"
+                              value={links.linkedin}
+                              onChange={(e) => setLinks({ ...links, linkedin: e.target.value })}
+                              placeholder="URL or username"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="link-facebook" className="text-xs flex items-center gap-1.5">
+                              <Facebook className="w-3.5 h-3.5" /> Facebook
+                            </Label>
+                            <Input
+                              id="link-facebook"
+                              value={links.facebook}
+                              onChange={(e) => setLinks({ ...links, facebook: e.target.value })}
+                              placeholder="URL or page name"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="link-tiktok" className="text-xs flex items-center gap-1.5">
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.62a8.16 8.16 0 0 0 4.76 1.52v-3.4c0-.01-1-.05-1-1.05z"/></svg>
+                              TikTok
+                            </Label>
+                            <Input
+                              id="link-tiktok"
+                              value={links.tiktok}
+                              onChange={(e) => setLinks({ ...links, tiktok: e.target.value })}
+                              placeholder="@username or URL"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="link-youtube" className="text-xs flex items-center gap-1.5">
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.54 3.5 12 3.5 12 3.5s-7.54 0-9.38.55A3.02 3.02 0 0 0 .5 6.19 31.6 31.6 0 0 0 0 12a31.6 31.6 0 0 0 .5 5.81 3.02 3.02 0 0 0 2.12 2.14c1.84.55 9.38.55 9.38.55s7.54 0 9.38-.55a3.02 3.02 0 0 0 2.12-2.14A31.6 31.6 0 0 0 24 12a31.6 31.6 0 0 0-.5-5.81zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/></svg>
+                              YouTube
+                            </Label>
+                            <Input
+                              id="link-youtube"
+                              value={links.youtube}
+                              onChange={(e) => setLinks({ ...links, youtube: e.target.value })}
+                              placeholder="Channel URL"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="link-custom" className="text-xs flex items-center gap-1.5">
+                            <Link2 className="w-3.5 h-3.5" /> Other Link
+                          </Label>
+                          <Input
+                            id="link-custom"
+                            value={links.custom}
+                            onChange={(e) => setLinks({ ...links, custom: e.target.value })}
+                            placeholder="https://..."
+                          />
+                        </div>
                       </div>
                     </>
                   )}

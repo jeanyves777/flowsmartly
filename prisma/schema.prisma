@@ -20,6 +20,7 @@ model User {
   avatarUrl         String?
   bio               String?
   website           String?
+  links             String    @default("{}")   // JSON: { instagram, twitter, linkedin, tiktok, youtube, facebook, custom }
   emailVerified     Boolean   @default(false)
   emailVerifiedAt   DateTime?
 
