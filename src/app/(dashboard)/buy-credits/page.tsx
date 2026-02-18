@@ -27,6 +27,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -225,6 +226,7 @@ function BuyCreditsContent() {
       // Payment succeeded — update balance from response or re-fetch
       if (data.data.newBalance) {
         setCurrentCredits(data.data.newBalance);
+        emitCreditsUpdate(data.data.newBalance);
       } else {
         // Fallback: re-fetch profile for updated balance
         try {
@@ -232,6 +234,7 @@ function BuyCreditsContent() {
           const profileData = await profileRes.json();
           if (profileData.success) {
             setCurrentCredits(profileData.data.user.aiCredits || 0);
+            emitCreditsUpdate(profileData.data.user.aiCredits);
           }
         } catch { /* non-critical */ }
       }
