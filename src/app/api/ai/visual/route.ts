@@ -292,8 +292,17 @@ LAYOUT — designed for ${formatDesc}:
 - Professional ${category.replace("_", " ")} layout filling the entire canvas
 - Clean background (soft gradient or subtle texture) extending to all edges
 - Text content on the LEFT side (40–50% of width)
-- Bold headline, subtitle, and a prominent CTA button
-- USE THE FULL CANVAS — the design must bleed to every edge with no margin or frame`;
+- USE THE FULL CANVAS — the design must bleed to every edge with no margin or frame
+
+TYPOGRAPHY & TEXT STYLING (VERY IMPORTANT — make the text look stunning):
+- HEADLINE: Extra-bold/black weight, large font size that commands attention. Use tight letter-spacing and strong line-height. Can use ALL CAPS or Title Case for impact.
+- SUBTITLE: Medium weight, smaller than headline, with generous spacing below the headline. Slightly muted color or lighter shade for visual hierarchy.
+- CTA BUTTON: Rounded or pill-shaped button with bold contrasting color. Text inside should be uppercase, semi-bold, with letter-spacing. Add a subtle shadow or glow to make it pop.
+- Ensure strong contrast between text and background — if the background is busy, add a semi-transparent overlay, gradient fade, or text shadow behind the text area so every word is crisp and readable.
+- Use consistent alignment (left-align or center-align all text elements together, never mix).
+- Maintain clear vertical spacing between headline → subtitle → CTA (don't stack them too tight).
+- Text should NEVER overlap the hero image awkwardly — keep text in its own clear zone with breathing room.
+- All text must be pixel-perfect: no cut-off letters, no words bleeding off the edge, no overlapping lines.`;
 
   // Hero type
   if (heroType === "people") {
@@ -379,8 +388,8 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
 
   designPrompt += `\n\nCRITICAL RULES:
 - This IS the final design — NOT a mockup, NOT inside a frame/phone/browser. The image fills the canvas edge-to-edge.
-- All text must be perfectly readable and spelled correctly
-- Clean, modern typography (sans-serif)
+- TYPOGRAPHY QUALITY: Every word must be perfectly spelled, fully visible, and razor-sharp. Use a premium sans-serif typeface. Headlines should have dramatic size contrast with body text. The text layout should look like it was done by a professional graphic designer — balanced, aligned, and beautifully spaced.
+- TEXT READABILITY: If text sits on a photo or complex background, you MUST ensure contrast — use a dark overlay behind light text, or a light overlay behind dark text, or add a strong drop shadow. No text should ever be hard to read.
 - Do NOT include any watermarks or AI-related text
 - Do NOT render the design on a background or inside any container — the design IS the full image
 - The design must bleed to all 4 edges with no margin, border, or shadow around it${hasLogo ? "\n- KEEP THE TOP-LEFT CORNER CLEAR — no text or icons there (logo will be added separately)" : ""}`;
