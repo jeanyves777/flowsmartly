@@ -211,6 +211,8 @@ export default function VisualDesignStudioPage() {
 
   // Call to action text
   const [ctaText, setCtaText] = useState("");
+  const [ctaSuggestions, setCtaSuggestions] = useState<string[]>([]);
+  const [isGeneratingCta, setIsGeneratingCta] = useState(false);
 
   // Reference image
   const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
@@ -1046,20 +1048,71 @@ export default function VisualDesignStudioPage() {
 
                   {/* Call to Action Text */}
                   <div className="space-y-2.5 pt-2 border-t border-border/50">
-                    <Label className="text-sm font-medium text-muted-foreground">
-                      Call to Action <span className="text-xs font-normal">(optional)</span>
-                    </Label>
-                    <input
-                      type="text"
-                      value={ctaText}
-                      onChange={(e) => setCtaText(e.target.value)}
-                      placeholder='e.g. "Shop Now", "Book Today", "Get 50% Off"'
-                      maxLength={60}
-                      className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 placeholder:text-muted-foreground/50"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      AI will use this exact text on the CTA button
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium text-muted-foreground">
+                        Call to Action <span className="text-xs font-normal">(optional)</span>
+                      </Label>
+                      <button
+                        onClick={async () => {
+                          if (!prompt.trim() || isGeneratingCta) return;
+                          setIsGeneratingCta(true);
+                          try {
+                            const res = await fetch("/api/ai/generate/cta", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ description: prompt.trim(), category: selectedCategory }),
+                            });
+                            const data = await res.json();
+                            if (data.success && data.data?.suggestions?.length) {
+                              setCtaSuggestions(data.data.suggestions);
+                            }
+                          } catch {
+                            toast({ title: "Failed to generate suggestions", variant: "destructive" });
+                          } finally {
+                            setIsGeneratingCta(false);
+                          }
+                        }}
+                        disabled={!prompt.trim() || isGeneratingCta}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-brand-600 hover:bg-brand-500/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {isGeneratingCta ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" />
+                        )}
+                        Suggest
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={ctaText}
+                        onChange={(e) => setCtaText(e.target.value)}
+                        placeholder='e.g. "Shop Now", "Book Today", "Get 50% Off"'
+                        maxLength={60}
+                        className="flex-1 px-4 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 placeholder:text-muted-foreground/50"
+                      />
+                    </div>
+                    {ctaSuggestions.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {ctaSuggestions.map((suggestion) => (
+                          <button
+                            key={suggestion}
+                            onClick={() => {
+                              setCtaText(suggestion);
+                              setCtaSuggestions([]);
+                            }}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                              ctaText === suggestion
+                                ? "border-brand-500 bg-brand-500/10 text-brand-600"
+                                : "border-border bg-muted/50 hover:bg-muted hover:border-brand-300 text-foreground"
+                            }`}
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Reference Image */}
