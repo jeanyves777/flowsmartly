@@ -205,6 +205,10 @@ export default function VisualDesignStudioPage() {
   const [showSocialIcons, setShowSocialIcons] = useState(false);
   const [selectedSocialPlatforms, setSelectedSocialPlatforms] = useState<Set<string>>(new Set());
 
+  // Logo compositing controls
+  const [logoType, setLogoType] = useState<"auto" | "icon" | "full">("auto");
+  const [logoSizePercent, setLogoSizePercent] = useState(18);
+
   // Reference image
   const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
   const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
@@ -412,7 +416,10 @@ export default function VisualDesignStudioPage() {
           heroType,
           textMode,
           brandColors: brandIdentity?.colors || null,
-          brandLogo: brandIdentity?.logo || brandIdentity?.iconLogo || null,
+          brandLogo: logoType === "icon" ? (brandIdentity?.iconLogo || brandIdentity?.logo || null)
+            : logoType === "full" ? (brandIdentity?.logo || brandIdentity?.iconLogo || null)
+            : (brandIdentity?.logo || brandIdentity?.iconLogo || null),
+          logoSizePercent,
           brandName: showBrandName ? (brandIdentity?.name || null) : null,
           showBrandName,
           showSocialIcons,
@@ -1154,6 +1161,54 @@ export default function VisualDesignStudioPage() {
                         </label>
                       </div>
 
+                      {/* Logo Type & Size */}
+                      <div className="space-y-2.5">
+                        <Label className="text-sm font-medium text-muted-foreground">Logo Settings</Label>
+                        {/* Logo Type Selector */}
+                        {brandIdentity.logo && brandIdentity.iconLogo ? (
+                          <div className="flex gap-2">
+                            {(["auto", "icon", "full"] as const).map((type) => (
+                              <button
+                                key={type}
+                                onClick={() => setLogoType(type)}
+                                className={`flex-1 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
+                                  logoType === type ? "border-brand-500 bg-brand-500/5 text-brand-600" : "bg-muted/50 hover:bg-muted text-muted-foreground"
+                                }`}
+                              >
+                                {type === "auto" ? "Auto" : type === "icon" ? "Icon Logo" : "Full Logo"}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic">
+                            Using {brandIdentity.iconLogo ? "icon" : "full"} logo (only one available)
+                          </p>
+                        )}
+                        {/* Logo Size Slider */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Logo Size</span>
+                            <span className="text-xs font-medium text-brand-600">{logoSizePercent}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={8}
+                            max={35}
+                            step={1}
+                            value={logoSizePercent}
+                            onChange={(e) => setLogoSizePercent(Number(e.target.value))}
+                            className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-brand-500 bg-muted"
+                          />
+                          <div className="flex justify-between text-[10px] text-muted-foreground">
+                            <span>Small</span>
+                            <span>Large</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Social Icons & Brand Name Row */}
+                    <div className="grid md:grid-cols-2 gap-5">
                       {/* Social Icons */}
                       <div className="space-y-2.5">
                         <Label className="text-sm font-medium text-muted-foreground">Social Media</Label>

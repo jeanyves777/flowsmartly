@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
       showBrandName, showSocialIcons, socialHandles,
       templateImageUrl,
       referenceImageUrl,
+      logoSizePercent,
       provider,
     } = body;
 
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
       showBrandName, showSocialIcons, socialHandles,
       templateImageUrl,
       referenceImageUrl,
+      logoSizePercent: logoSizePercent || null,
       provider: selectedProvider,
     });
 
@@ -241,6 +243,7 @@ interface PipelineParams {
   socialHandles?: Record<string, string> | null;
   templateImageUrl?: string | null;
   referenceImageUrl?: string | null;
+  logoSizePercent?: number | null;
   provider: ImageProvider;
 }
 
@@ -477,7 +480,7 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
   if (hasLogo && params.brandLogo) {
     try {
       console.log(`[Visual] Compositing logo on ${finalW}x${finalH} canvas...`);
-      finalBase64 = await compositeLogo(finalBase64, params.brandLogo, `${finalW}x${finalH}`);
+      finalBase64 = await compositeLogo(finalBase64, params.brandLogo, `${finalW}x${finalH}`, params.logoSizePercent || undefined);
       console.log("[Visual] Logo composited successfully");
     } catch (logoErr) {
       console.error("[Visual] Logo compositing failed:", logoErr);
@@ -499,13 +502,15 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
 async function compositeLogo(
   imageBase64: string,
   logoSource: string,
-  targetSize: string
+  targetSize: string,
+  sizePercent?: number
 ): Promise<string> {
   const [imgW, imgH] = targetSize.split("x").map(Number);
   const smallerDim = Math.min(imgW, imgH);
 
-  // Dynamic logo size: 18% of smaller dimension, 120–300px
-  const logoSize = Math.max(120, Math.min(Math.round(smallerDim * 0.18), 300));
+  // Dynamic logo size: user-chosen % of smaller dimension (default 18%), clamped 60–500px
+  const pct = (sizePercent && sizePercent >= 5 && sizePercent <= 50) ? sizePercent : 18;
+  const logoSize = Math.max(60, Math.min(Math.round(smallerDim * (pct / 100)), 500));
   const logoX = Math.round(imgW * 0.02);
   const logoY = Math.round(imgH * 0.007);
 
