@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 
 interface ContactList {
@@ -39,6 +40,7 @@ export default function NewFollowUpPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [contactListId, setContactListId] = useState<string>("");
+  const [autoImport, setAutoImport] = useState(true);
   const [contactLists, setContactLists] = useState<ContactList[]>([]);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -48,7 +50,7 @@ export default function NewFollowUpPage() {
       .then((r) => r.json())
       .then((json) => {
         if (json.success && json.data) {
-          setContactLists(json.data);
+          setContactLists(json.data.lists || json.data || []);
         }
       })
       .catch(() => {});
@@ -70,6 +72,7 @@ export default function NewFollowUpPage() {
           description: description.trim() || null,
           type,
           contactListId: contactListId || null,
+          autoImport: contactListId ? autoImport : false,
         }),
       });
       const json = await res.json();
@@ -229,9 +232,23 @@ export default function NewFollowUpPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    You can import contacts from this list after creation
-                  </p>
+                  {contactListId && contactListId !== "none" && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <Switch
+                        id="autoImport"
+                        checked={autoImport}
+                        onCheckedChange={setAutoImport}
+                      />
+                      <Label htmlFor="autoImport" className="text-sm font-normal cursor-pointer">
+                        Auto-import contacts from this list
+                      </Label>
+                    </div>
+                  )}
+                  {(!contactListId || contactListId === "none") && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      You can import contacts from a list after creation
+                    </p>
+                  )}
                 </div>
               )}
 

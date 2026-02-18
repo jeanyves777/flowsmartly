@@ -122,7 +122,49 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, data: followUp });
+    // Auto-import contacts from linked list if requested
+    let importedCount = 0;
+    if (contactListId && body.autoImport) {
+      const members = await prisma.contactListMember.findMany({
+        where: { contactListId },
+        include: {
+          contact: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+              address: true,
+            },
+          },
+        },
+      });
+
+      if (members.length > 0) {
+        await prisma.followUpEntry.createMany({
+          data: members.map((m) => ({
+            followUpId: followUp.id,
+            contactId: m.contact.id,
+            name: [m.contact.firstName, m.contact.lastName].filter(Boolean).join(" ") || null,
+            phone: m.contact.phone,
+            email: m.contact.email,
+            address: m.contact.address,
+          })),
+        });
+
+        importedCount = members.length;
+        await prisma.followUp.update({
+          where: { id: followUp.id },
+          data: { totalEntries: importedCount },
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: { ...followUp, totalEntries: importedCount },
+    });
   } catch (error) {
     console.error("Create follow-up error:", error);
     return NextResponse.json(

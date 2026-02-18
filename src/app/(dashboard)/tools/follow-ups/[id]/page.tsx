@@ -8,6 +8,7 @@ import {
   Plus,
   Search,
   Upload,
+  Download,
   Trash2,
   Edit,
   Phone,
@@ -156,6 +157,13 @@ export default function FollowUpDetailPage() {
   const [contactLists, setContactLists] = useState<ContactList[]>([]);
   const [isImporting, setIsImporting] = useState(false);
 
+  // Export to contacts dialog
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportListId, setExportListId] = useState("");
+  const [exportCreateList, setExportCreateList] = useState(false);
+  const [exportNewListName, setExportNewListName] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
+
   // Delete dialog
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -216,15 +224,15 @@ export default function FollowUpDetailPage() {
   useEffect(() => { fetchFollowUp(); }, [fetchFollowUp]);
   useEffect(() => { if (followUp) fetchEntries(); }, [fetchEntries, followUp]);
 
-  // Fetch contact lists for import
+  // Fetch contact lists for import/export
   useEffect(() => {
-    if (showImportDialog && contactLists.length === 0) {
+    if ((showImportDialog || showExportDialog) && contactLists.length === 0) {
       fetch("/api/contact-lists?limit=100")
         .then((r) => r.json())
-        .then((json) => { if (json.success) setContactLists(json.data || []); })
+        .then((json) => { if (json.success) setContactLists(json.data?.lists || json.data || []); })
         .catch(() => {});
     }
-  }, [showImportDialog, contactLists.length]);
+  }, [showImportDialog, showExportDialog, contactLists.length]);
 
   // Entry CRUD
   const openAddEntry = () => {
@@ -338,6 +346,46 @@ export default function FollowUpDetailPage() {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  // Export to contacts
+  const handleExportToContacts = async () => {
+    setIsExporting(true);
+    try {
+      let targetListId = exportListId || undefined;
+
+      // Create new list if requested
+      if (exportCreateList && exportNewListName.trim()) {
+        const listRes = await fetch("/api/contact-lists", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: exportNewListName.trim() }),
+        });
+        const listJson = await listRes.json();
+        if (!listJson.success) throw new Error(listJson.error?.message || "Failed to create list");
+        targetListId = listJson.data.list.id;
+        // Refresh contact lists cache
+        setContactLists([]);
+      }
+
+      const res = await fetch(`/api/follow-ups/${id}/export-contacts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listId: targetListId }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message);
+      toast({ title: "Exported!", description: json.data.message });
+      setShowExportDialog(false);
+      setExportListId("");
+      setExportCreateList(false);
+      setExportNewListName("");
+      fetchEntries();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -595,6 +643,11 @@ export default function FollowUpDetailPage() {
             <Button onClick={() => setShowImportDialog(true)} variant="outline" size="sm" className="gap-1.5">
               <Upload className="h-3.5 w-3.5" /> Import from List
             </Button>
+            {followUp.totalEntries > 0 && (
+              <Button onClick={() => setShowExportDialog(true)} variant="outline" size="sm" className="gap-1.5">
+                <Download className="h-3.5 w-3.5" /> Push to Contacts
+              </Button>
+            )}
             <div className="flex-1" />
             <div className="relative max-w-xs">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -1246,6 +1299,67 @@ export default function FollowUpDetailPage() {
             <Button onClick={handleImport} disabled={!importListId || isImporting}>
               {isImporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
               Import
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export to Contacts Dialog */}
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Push to Contacts</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Export all {followUp.totalEntries} entries as contacts. Existing contacts (matched by email/phone) will be linked, new ones will be created. Entries without email or phone will be skipped.
+            </p>
+
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Add to a contact list (optional)</Label>
+
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={exportCreateList}
+                  onCheckedChange={(checked) => {
+                    setExportCreateList(checked);
+                    if (checked) setExportListId("");
+                  }}
+                />
+                <Label className="text-sm">Create a new list</Label>
+              </div>
+
+              {exportCreateList ? (
+                <Input
+                  placeholder="New list name..."
+                  value={exportNewListName}
+                  onChange={(e) => setExportNewListName(e.target.value)}
+                />
+              ) : (
+                <Select value={exportListId} onValueChange={setExportListId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a list (optional)..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No list</SelectItem>
+                    {contactLists.map((cl) => (
+                      <SelectItem key={cl.id} value={cl.id}>
+                        {cl.name} ({cl.totalCount} contacts)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportDialog(false)}>Cancel</Button>
+            <Button
+              onClick={handleExportToContacts}
+              disabled={isExporting || (exportCreateList && !exportNewListName.trim())}
+            >
+              {isExporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+              Push to Contacts
             </Button>
           </DialogFooter>
         </DialogContent>
