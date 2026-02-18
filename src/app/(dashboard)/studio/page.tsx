@@ -399,7 +399,6 @@ export default function VisualDesignStudioPage() {
     }
 
     setIsGenerating(true);
-    setGeneratedDesign(null);
     setInputsCollapsed(true);
 
     try {
@@ -736,13 +735,13 @@ export default function VisualDesignStudioPage() {
       ) : activeView === "create" ? (
         <div className="space-y-4">
           {/* ─── Collapsed Summary Bar (shown after generation) ─── */}
-          {inputsCollapsed && (generatedDesign || isGenerating) && (
+          {inputsCollapsed && (generatedDesign || isGenerating || isEditing) && (
             <Card className="border-brand-500/20 bg-brand-500/5 rounded-2xl">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center shrink-0">
-                      {isGenerating ? (
+                      {(isGenerating || isEditing) ? (
                         <Loader2 className="w-4 h-4 text-brand-500 animate-spin" />
                       ) : (
                         <Sparkles className="w-4 h-4 text-brand-500" />
@@ -782,12 +781,12 @@ export default function VisualDesignStudioPage() {
           )}
 
           {/* ─── Loading State ─── */}
-          {isGenerating && !generatedDesign && (
+          {(isGenerating || isEditing) && !generatedDesign && (
             <Card className="border-brand-500/20 rounded-2xl">
               <CardContent className="p-6">
                 <AIGenerationLoader
-                  currentStep="Creating your design..."
-                  subtitle="AI is generating your custom visual"
+                  currentStep={isEditing ? "Editing your design..." : "Creating your design..."}
+                  subtitle={isEditing ? "AI is applying your changes" : "AI is generating your custom visual"}
                 />
                 <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
                   <Badge variant="secondary">{selectedCategory.replace("_", " ")}</Badge>
@@ -1520,7 +1519,14 @@ export default function VisualDesignStudioPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                {generatedDesign.status === "COMPLETED" && generatedDesign.imageUrl ? (
+                {(isGenerating || isEditing) ? (
+                  <div className="py-4">
+                    <AIGenerationLoader
+                      currentStep={isEditing ? "Editing your design..." : "Regenerating your design..."}
+                      subtitle={isEditing ? "AI is applying your changes" : "AI is creating a new version"}
+                    />
+                  </div>
+                ) : generatedDesign.status === "COMPLETED" && generatedDesign.imageUrl ? (
                   <div className="space-y-4">
                     <div
                       className="rounded-xl overflow-hidden border bg-muted/30 flex items-center justify-center relative group cursor-pointer"
