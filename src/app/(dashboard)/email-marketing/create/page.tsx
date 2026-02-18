@@ -17,7 +17,6 @@ import {
   Send,
   Eye,
   Calendar,
-  Loader2,
   AlertCircle,
   Info,
   Copy,
@@ -60,6 +59,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { getEmailTemplates, getTemplatesByCategory, TEMPLATE_CATEGORIES } from "@/lib/marketing/templates";
 import type { MarketingTemplate, TemplateCategory } from "@/lib/marketing/templates";
@@ -120,7 +120,7 @@ export default function CreateEmailCampaignPage() {
     <Suspense fallback={
       <div className="flex-1 flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin mx-auto mb-4 text-brand-500" />
+          <AISpinner className="w-10 h-10 mx-auto mb-4 text-brand-500" />
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
@@ -254,6 +254,7 @@ function CreateEmailCampaignContent() {
   const filteredTemplates = templateCategory === "all" ? emailTemplates : emailTemplates.filter(t => t.category === templateCategory);
 
   // Rebuild HTML with brand info injected into footer/header
+  // Supports both buildEmailHtml() output (specific patterns) and arbitrary AI-generated HTML (fallback patterns)
   const rebuildHtmlWithBrand = useCallback((rawHtml: string, brand?: EmailBrandInfo, opts?: { showLogo?: boolean; showName?: boolean; logoSz?: "normal" | "large" | "big" }): string => {
     if (!brand?.name && !brand?.logo) return rawHtml;
     const brandColor = "#6366f1";
@@ -263,7 +264,7 @@ function CreateEmailCampaignContent() {
     const logoMaxH = sz === "big" ? "120px" : sz === "large" ? "80px" : "48px";
     const logoMaxW = sz === "big" ? "400px" : sz === "large" ? "300px" : "200px";
 
-    // Build brand header
+    // Build brand header (table row variant for structured emails)
     let headerBlock = "";
     if ((wantName && brand.name) || (wantLogo && brand.logo)) {
       const logoTag = (wantLogo && brand.logo)
@@ -273,6 +274,18 @@ function CreateEmailCampaignContent() {
         ? `<p style="margin:0;font-size:18px;font-weight:700;color:${brandColor};text-align:center;">${brand.name}</p>`
         : "";
       headerBlock = `<tr><td style="padding:24px 40px 0;text-align:center;">${logoTag}${nameTag}</td></tr><tr><td style="padding:8px 40px 0;"><hr style="border:none;border-top:1px solid #e5e7eb;margin:0;"/></td></tr>`;
+    }
+
+    // Build standalone header (div variant for AI-generated HTML without table structure)
+    let headerDiv = "";
+    if ((wantName && brand.name) || (wantLogo && brand.logo)) {
+      const logoTag = (wantLogo && brand.logo)
+        ? `<img src="${brand.logo}" alt="${brand.name || ""}" style="max-height:${logoMaxH};max-width:${logoMaxW};display:block;margin:0 auto 8px;" />`
+        : "";
+      const nameTag = (wantName && brand.name)
+        ? `<p style="margin:0;font-size:18px;font-weight:700;color:${brandColor};text-align:center;">${brand.name}</p>`
+        : "";
+      headerDiv = `<div style="max-width:600px;margin:0 auto;padding:24px 40px 0;text-align:center;">${logoTag}${nameTag}<hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0 0;"/></div>`;
     }
 
     // Build brand footer parts
@@ -302,36 +315,73 @@ function CreateEmailCampaignContent() {
     }
 
     let result = rawHtml;
+
+    // Inject header
     if (headerBlock) {
-      result = result.replace(
-        /(<table[^>]*style="[^"]*background-color:\s*#ffffff[^"]*"[^>]*>)/i,
-        `$1${headerBlock}`
-      );
+      // Pattern 1: buildEmailHtml() output — table with background-color: #ffffff
+      const specificTable = /(<table[^>]*style="[^"]*background-color:\s*#ffffff[^"]*"[^>]*>)/i;
+      // Pattern 2: broader match — any table with white-ish background
+      const broadTable = /(<table[^>]*style="[^"]*background(?:-color)?:\s*(?:#fff(?:fff)?|white)[^"]*"[^>]*>)/i;
+
+      if (specificTable.test(result)) {
+        result = result.replace(specificTable, `$1${headerBlock}`);
+      } else if (broadTable.test(result)) {
+        result = result.replace(broadTable, `$1${headerBlock}`);
+      } else if (headerDiv) {
+        // Fallback: inject div-based header after <body> tag
+        result = result.replace(/(<body[^>]*>)/i, `$1${headerDiv}`);
+      }
     }
+
+    // Inject footer
     if (footerParts.length > 0) {
       const footerHtml = footerParts.join("\n              ");
-      result = result.replace(
-        /(<td[^>]*style="[^"]*background-color:\s*#f9fafb[^"]*"[^>]*>)\s*/i,
-        `$1\n              ${footerHtml}\n              `
-      );
+      // Pattern 1: buildEmailHtml() output — td with background-color: #f9fafb
+      const specificFooter = /(<td[^>]*style="[^"]*background-color:\s*#f9fafb[^"]*"[^>]*>)\s*/i;
+
+      if (specificFooter.test(result)) {
+        result = result.replace(specificFooter, `$1\n              ${footerHtml}\n              `);
+      } else {
+        // Fallback: inject a footer div before </body>
+        const footerDiv = `<div style="max-width:600px;margin:0 auto;padding:16px 40px;background-color:#f9fafb;text-align:center;border-radius:0 0 12px 12px;">${footerHtml}</div>`;
+        result = result.replace(/<\/body>/i, `${footerDiv}</body>`);
+      }
     }
     return result;
   }, []);
 
   // Post-process HTML: apply CTA + coupon overrides
+  // Supports both buildEmailHtml() output (inline-block links) and AI-generated button patterns
   const applyEmailOptions = useCallback((html: string, opts: { ctaText?: string; ctaLink?: string; showCoupon?: boolean; couponCode?: string }): string => {
     let result = html;
     if (opts.ctaText) {
-      result = result.replace(
-        /(<a\s+href="[^"]*"\s+style="[^"]*display:\s*inline-block[^"]*"[^>]*>)([\s\S]*?)(<\/a>)/i,
-        `$1${opts.ctaText}$3`
-      );
+      // Pattern 1: buildEmailHtml() output — <a> with display: inline-block
+      const specific = /(<a\s+href="[^"]*"\s+style="[^"]*display:\s*inline-block[^"]*"[^>]*>)([\s\S]*?)(<\/a>)/i;
+      // Pattern 2: AI-generated — <a> inside a <td> with background (button wrapper)
+      const tdButton = /(<td[^>]*style="[^"]*background[^"]*"[^>]*>\s*<a\s+href="[^"]*"[^>]*>)([\s\S]*?)(<\/a>)/i;
+      // Pattern 3: AI-generated — <a> with padding (button-like styling)
+      const paddedLink = /(<a\s+href="[^"]*"\s+style="[^"]*padding[^"]*"[^>]*>)([\s\S]*?)(<\/a>)/i;
+
+      if (specific.test(result)) {
+        result = result.replace(specific, `$1${opts.ctaText}$3`);
+      } else if (tdButton.test(result)) {
+        result = result.replace(tdButton, `$1${opts.ctaText}$3`);
+      } else if (paddedLink.test(result)) {
+        result = result.replace(paddedLink, `$1${opts.ctaText}$3`);
+      }
     }
     if (opts.ctaLink) {
-      result = result.replace(
-        /(<a\s+)href="[^"]*"(\s+style="[^"]*display:\s*inline-block[^"]*")/i,
-        `$1href="${opts.ctaLink}"$2`
-      );
+      const specific = /(<a\s+)href="[^"]*"(\s+style="[^"]*display:\s*inline-block[^"]*")/i;
+      const tdButton = /(<td[^>]*style="[^"]*background[^"]*"[^>]*>\s*<a\s+)href="[^"]*"/i;
+      const paddedLink = /(<a\s+)href="[^"]*"(\s+style="[^"]*padding[^"]*")/i;
+
+      if (specific.test(result)) {
+        result = result.replace(specific, `$1href="${opts.ctaLink}"$2`);
+      } else if (tdButton.test(result)) {
+        result = result.replace(tdButton, `$1href="${opts.ctaLink}"`);
+      } else if (paddedLink.test(result)) {
+        result = result.replace(paddedLink, `$1href="${opts.ctaLink}"$2`);
+      }
     }
     if (opts.showCoupon === false) {
       result = result.replace(
@@ -751,7 +801,7 @@ function CreateEmailCampaignContent() {
     return (
       <div className="flex-1 flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin mx-auto mb-4 text-brand-500" />
+          <AISpinner className="w-10 h-10 mx-auto mb-4 text-brand-500" />
           <p className="text-muted-foreground">Loading configuration...</p>
         </div>
       </div>
@@ -927,7 +977,15 @@ function CreateEmailCampaignContent() {
             )}
 
             {/* Step 2: Template & AI */}
-            {currentStep === "template" && (
+            {currentStep === "template" && isGenerating && (
+              <div className="space-y-6">
+                <AIGenerationLoader
+                  currentStep="Generating your email..."
+                  subtitle="AI is crafting your content"
+                />
+              </div>
+            )}
+            {currentStep === "template" && !isGenerating && (
               <div className="space-y-6">
                   {/* Mode Toggle */}
                   <div className="flex items-center gap-2">
@@ -1181,7 +1239,7 @@ function CreateEmailCampaignContent() {
                         >
                           {isGenerating ? (
                             <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              <AISpinner className="w-4 h-4 mr-2" />
                               Generating...
                             </>
                           ) : (
@@ -1489,7 +1547,7 @@ function CreateEmailCampaignContent() {
                       {imageSource === "upload" && !emailImageUrl && (
                         <label className="flex flex-col items-center gap-2 p-6 border-2 border-dashed rounded-lg cursor-pointer hover:border-brand-500/50 transition-colors">
                           {isUploadingImage ? (
-                            <Loader2 className="w-6 h-6 animate-spin text-brand-500" />
+                            <AISpinner className="w-6 h-6 text-brand-500" />
                           ) : (
                             <Upload className="w-6 h-6 text-muted-foreground" />
                           )}
@@ -1565,7 +1623,7 @@ function CreateEmailCampaignContent() {
                             }}
                           >
                             {isGeneratingImage ? (
-                              <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Generating...</>
+                              <><AISpinner className="w-3 h-3 mr-1" /> Generating...</>
                             ) : (
                               <><Sparkles className="w-3 h-3 mr-1" /> Generate ({creditCosts.AI_MARKETING_IMAGE || "..."} credits)</>
                             )}
@@ -1995,7 +2053,7 @@ function CreateEmailCampaignContent() {
                       >
                         {isLoading ? (
                           <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <AISpinner className="w-4 h-4 mr-2" />
                             Processing...
                           </>
                         ) : scheduleType === "now" ? (
