@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
-// GET /api/surveys/[slug] — Public: Get survey by slug (no auth required)
+// GET /api/surveys/public/[slug] — Public: Get survey by slug (no auth required)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -53,13 +53,13 @@ export async function GET(
   }
 }
 
-// POST /api/surveys/[slug] — Public: Submit survey response (no auth required)
-export async function POST(request: NextRequest) {
+// POST /api/surveys/public/[slug] — Public: Submit survey response (no auth required)
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
   try {
-    // Extract slug from URL path
-    const url = new URL(request.url);
-    const pathParts = url.pathname.split("/");
-    const slug = pathParts[pathParts.length - 1];
+    const { slug } = await params;
 
     const survey = await prisma.survey.findUnique({
       where: { slug },

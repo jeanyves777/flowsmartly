@@ -57,7 +57,7 @@ export function SurveyForm({ slug, title, description, questions, thankYouMessag
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/surveys/${slug}`, {
+      const res = await fetch(`/api/surveys/public/${slug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
