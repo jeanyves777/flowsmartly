@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
       templateImageUrl,
       referenceImageUrl,
       logoSizePercent,
+      ctaText,
       provider,
     } = body;
 
@@ -115,6 +116,7 @@ export async function POST(request: NextRequest) {
       templateImageUrl,
       referenceImageUrl,
       logoSizePercent: logoSizePercent || null,
+      ctaText: ctaText || null,
       provider: selectedProvider,
     });
 
@@ -244,6 +246,7 @@ interface PipelineParams {
   templateImageUrl?: string | null;
   referenceImageUrl?: string | null;
   logoSizePercent?: number | null;
+  ctaText?: string | null;
   provider: ImageProvider;
 }
 
@@ -349,14 +352,18 @@ ${handlesList}
   }
 
   // Text mode
+  const ctaInstruction = params.ctaText
+    ? `Use this EXACT call-to-action text on the CTA button: "${params.ctaText}"`
+    : `Add a short CTA button like "Learn More" or "Get Started".`;
+
   if (textMode === "exact") {
     designPrompt += `\n\nTEXT CONTENT — USE THIS EXACT TEXT on the design (do not change the wording, do not rephrase):
 "${prompt}"
-Display this text as the headline/main text. Add a short CTA button like "Learn More" or "Get Started".`;
+Display this text as the headline/main text. ${ctaInstruction}`;
   } else {
     designPrompt += `\n\nTEXT CONTENT — Create compelling ad copy based on this topic/description:
 "${prompt}"
-Generate a bold headline (2-4 words max per line), a short subtitle, and a CTA button text.`;
+Generate a bold headline (2-4 words max per line) and a short subtitle. ${ctaInstruction}`;
   }
 
   // Contact info

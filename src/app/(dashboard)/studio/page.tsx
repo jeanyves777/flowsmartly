@@ -209,6 +209,9 @@ export default function VisualDesignStudioPage() {
   const [logoType, setLogoType] = useState<"auto" | "icon" | "full">("auto");
   const [logoSizePercent, setLogoSizePercent] = useState(18);
 
+  // Call to action text
+  const [ctaText, setCtaText] = useState("");
+
   // Reference image
   const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
   const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
@@ -430,6 +433,7 @@ export default function VisualDesignStudioPage() {
             website: includeInDesign.website ? brandIdentity?.website : null,
             address: includeInDesign.address ? brandIdentity?.address : null,
           },
+          ctaText: ctaText.trim() || null,
           templateImageUrl: selectedTemplate?.image || null,
           referenceImageUrl: referenceImageUrl || null,
         }),
@@ -1038,6 +1042,24 @@ export default function VisualDesignStudioPage() {
                         ))}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Call to Action Text */}
+                  <div className="space-y-2.5 pt-2 border-t border-border/50">
+                    <Label className="text-sm font-medium text-muted-foreground">
+                      Call to Action <span className="text-xs font-normal">(optional)</span>
+                    </Label>
+                    <input
+                      type="text"
+                      value={ctaText}
+                      onChange={(e) => setCtaText(e.target.value)}
+                      placeholder='e.g. "Shop Now", "Book Today", "Get 50% Off"'
+                      maxLength={60}
+                      className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 placeholder:text-muted-foreground/50"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      AI will use this exact text on the CTA button
+                    </p>
                   </div>
 
                   {/* Reference Image */}
