@@ -34,6 +34,10 @@ function getGptImageSize(width: number, height: number): "1024x1024" | "1536x102
 
 /** Resolve an image URL (S3 presigned, /uploads/, or /public/) to a Buffer */
 async function resolveImageToBuffer(urlOrPath: string): Promise<Buffer> {
+  if (urlOrPath.startsWith("data:")) {
+    const b64 = urlOrPath.replace(/^data:image\/[^;]+;base64,/, "");
+    return Buffer.from(b64, "base64");
+  }
   if (urlOrPath.startsWith("http")) {
     const res = await fetch(urlOrPath);
     if (!res.ok) throw new Error(`Failed to fetch reference image: ${res.status}`);
@@ -69,6 +73,7 @@ export async function POST(request: NextRequest) {
       referenceImageUrl,
       logoSizePercent,
       ctaText,
+      editImageUrl,
       provider,
     } = body;
 
@@ -117,6 +122,7 @@ export async function POST(request: NextRequest) {
       referenceImageUrl,
       logoSizePercent: logoSizePercent || null,
       ctaText: ctaText || null,
+      editImageUrl: editImageUrl || null,
       provider: selectedProvider,
     });
 
@@ -247,10 +253,16 @@ interface PipelineParams {
   referenceImageUrl?: string | null;
   logoSizePercent?: number | null;
   ctaText?: string | null;
+  editImageUrl?: string | null;
   provider: ImageProvider;
 }
 
 async function runDirectPipeline(params: PipelineParams) {
+  // ── Edit mode: modify an existing design ──
+  if (params.editImageUrl) {
+    return runEditPipeline(params);
+  }
+
   const {
     prompt, category, width, height, style,
     brandColors, heroType, textMode,
@@ -509,6 +521,95 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
     pipeline: "direct" as const,
     model,
     promptUsed: designPrompt,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EDIT PIPELINE — modify an existing design with user instructions
+// ═══════════════════════════════════════════════════════════════
+
+async function runEditPipeline(params: PipelineParams) {
+  const { prompt, width, height, provider, editImageUrl } = params;
+
+  console.log(`[Visual/Edit] Provider: ${provider}, instruction: "${prompt.slice(0, 80)}"`);
+
+  const editPrompt = `You are editing an existing graphic design image. Apply ONLY the following change and keep everything else exactly the same — same layout, same colors, same style, same background, same composition.
+
+EDIT INSTRUCTION: ${prompt}
+
+RULES:
+- Preserve the overall design exactly as-is
+- Only modify what the instruction asks for
+- Keep all other text, images, shapes, and colors unchanged
+- Maintain the same dimensions and aspect ratio
+- The result must look like a professional design, not a rough edit`;
+
+  // Resolve the existing design image
+  const editBuffer = await resolveImageToBuffer(editImageUrl!);
+
+  let base64: string | null;
+  let model: string;
+
+  switch (provider) {
+    case "openai": {
+      const gptSize = getGptImageSize(width, height);
+      console.log(`[Visual/Edit] OpenAI gpt-image-1 @ ${gptSize}`);
+      base64 = await openaiClient.editImage(editPrompt, editBuffer, {
+        size: gptSize,
+        quality: "high",
+      });
+      model = "gpt-image-1";
+      break;
+    }
+
+    case "xai": {
+      const aspectRatio = sizeToAspectRatio(width, height);
+      console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}`);
+      if (!xaiClient.isAvailable()) {
+        throw new Error("xAI provider is not configured.");
+      }
+      const refBase64 = editBuffer.toString("base64");
+      base64 = await xaiClient.editImage(editPrompt, refBase64, { aspectRatio });
+      model = "grok-imagine-image";
+      break;
+    }
+
+    case "gemini": {
+      console.log(`[Visual/Edit] Gemini gemini-2.5-flash-image`);
+      if (!geminiImageClient.isAvailable()) {
+        throw new Error("Gemini provider is not configured.");
+      }
+      const refBase64 = editBuffer.toString("base64");
+      base64 = await geminiImageClient.editImage(editPrompt, refBase64);
+      model = "gemini-2.5-flash";
+      break;
+    }
+
+    default:
+      throw new Error(`Unknown provider: ${provider}`);
+  }
+
+  if (!base64) throw new Error("Edit returned no image");
+
+  // Composite logo if present
+  let finalBase64 = base64;
+  if (params.brandLogo) {
+    try {
+      const meta = await sharp(Buffer.from(base64, "base64")).metadata();
+      const finalW = meta.width || width;
+      const finalH = meta.height || height;
+      console.log(`[Visual/Edit] Compositing logo on ${finalW}x${finalH}...`);
+      finalBase64 = await compositeLogo(finalBase64, params.brandLogo, `${finalW}x${finalH}`, params.logoSizePercent || undefined);
+    } catch (logoErr) {
+      console.error("[Visual/Edit] Logo compositing failed:", logoErr);
+    }
+  }
+
+  return {
+    imageUrl: `data:image/png;base64,${finalBase64}`,
+    pipeline: "edit" as const,
+    model,
+    promptUsed: editPrompt,
   };
 }
 

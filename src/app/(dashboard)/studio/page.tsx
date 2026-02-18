@@ -212,6 +212,10 @@ export default function VisualDesignStudioPage() {
   // Call to action text
   const [ctaText, setCtaText] = useState("");
   const [ctaSuggestions, setCtaSuggestions] = useState<string[]>([]);
+
+  // Edit design
+  const [editInstruction, setEditInstruction] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
   const [isGeneratingCta, setIsGeneratingCta] = useState(false);
 
   // Reference image
@@ -468,6 +472,59 @@ export default function VisualDesignStudioPage() {
       setInputsCollapsed(false);
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleEditDesign = async () => {
+    if (!editInstruction.trim() || !generatedDesign?.imageUrl) return;
+
+    setIsEditing(true);
+
+    try {
+      const response = await fetch("/api/ai/visual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: editInstruction.trim(),
+          category: generatedDesign.category || selectedCategory,
+          size: generatedDesign.size || `${selectedSize?.width || 1080}x${selectedSize?.height || 1080}`,
+          style: generatedDesign.style || selectedStyle,
+          provider: selectedProvider,
+          heroType,
+          textMode: "exact",
+          editImageUrl: generatedDesign.imageUrl,
+          brandLogo: logoType === "icon" ? (brandIdentity?.iconLogo || brandIdentity?.logo || null)
+            : logoType === "full" ? (brandIdentity?.logo || brandIdentity?.iconLogo || null)
+            : (brandIdentity?.logo || brandIdentity?.iconLogo || null),
+          logoSizePercent,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (handleCreditError(data.error || {}, "visual design")) {
+          setIsEditing(false);
+          return;
+        }
+        throw new Error(data.error?.message || "Edit failed");
+      }
+
+      setGeneratedDesign(data.data.design);
+      setCreditsRemaining(data.data.creditsRemaining);
+      emitCreditsUpdate(data.data.creditsRemaining);
+      setRecentDesigns((prev) => [data.data.design, ...prev.slice(0, 9)]);
+      setEditInstruction("");
+
+      toast({ title: "Design updated successfully!" });
+    } catch (error) {
+      toast({
+        title: "Edit failed",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEditing(false);
     }
   };
 
@@ -1493,6 +1550,40 @@ export default function VisualDesignStudioPage() {
                     <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-xl">
                       <strong>Prompt:</strong> {generatedDesign.prompt}
                     </p>
+
+                    {/* ── Edit Design ── */}
+                    <div className="space-y-2.5 pt-3 border-t border-border/50">
+                      <Label className="text-sm font-medium flex items-center gap-2">
+                        <PenLine className="w-4 h-4 text-brand-500" />
+                        Edit This Design
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Describe what to change — e.g. &quot;change headline to Summer Sale&quot;, &quot;make background blue&quot;, &quot;remove the person&quot;
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={editInstruction}
+                          onChange={(e) => setEditInstruction(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter" && editInstruction.trim()) handleEditDesign(); }}
+                          placeholder="What would you like to change?"
+                          maxLength={300}
+                          disabled={isEditing}
+                          className="flex-1 px-4 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 placeholder:text-muted-foreground/50 disabled:opacity-50"
+                        />
+                        <Button
+                          onClick={handleEditDesign}
+                          disabled={isEditing || !editInstruction.trim()}
+                          className="bg-brand-500 hover:bg-brand-600 rounded-xl px-5"
+                        >
+                          {isEditing ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Wand2 className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
