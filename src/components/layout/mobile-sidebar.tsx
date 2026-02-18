@@ -32,6 +32,7 @@ import {
   Target,
   Store,
   Gift,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -74,6 +75,11 @@ const contentNavigation = [
   { name: "Schedule", href: "/content/schedule", icon: CalendarDays },
   { name: "Automation", href: "/content/automation", icon: Zap },
   { name: "Strategy", href: "/content/strategy", icon: Target },
+];
+
+// Tools
+const toolsNavigation = [
+  { name: "Follow-Ups", href: "/tools/follow-ups", icon: ClipboardList },
 ];
 
 // Marketing features
@@ -270,6 +276,19 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
                   const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                   const isLocked = item.premium === true && !hasMarketingAccess;
                   return renderNavItem(item, isActive, isLocked);
+                })}
+              </div>
+
+              {/* Tools Section */}
+              <div className="pt-4">
+                <div className="px-4 pb-2 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Tools
+                  </span>
+                </div>
+                {toolsNavigation.map((item) => {
+                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return renderNavItem(item, isActive);
                 })}
               </div>
             </nav>
