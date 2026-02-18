@@ -515,7 +515,7 @@ async function compositeLogo(
   // Dynamic logo size: 18% of smaller dimension, 120–300px
   const logoSize = Math.max(120, Math.min(Math.round(smallerDim * 0.18), 300));
   const logoX = Math.round(imgW * 0.02);
-  const logoY = Math.round(imgH * 0.015);
+  const logoY = Math.round(imgH * 0.007);
 
   console.log(`[Visual] Logo: target=${logoSize}px at (${logoX}, ${logoY}) on ${imgW}x${imgH}`);
 
