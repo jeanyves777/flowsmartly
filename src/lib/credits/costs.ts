@@ -45,7 +45,9 @@ export function calculateAdRevenueSplit(cpvCents: number): {
   viewerCents: number;
   platformCents: number;
 } {
-  const viewerCents = Math.floor((cpvCents * VIEWER_SHARE_PERCENT) / 100);
+  if (cpvCents <= 0) return { viewerCents: 0, platformCents: 0 };
+  // Minimum 1 cent for viewer when CPV >= 1 (prevents $0.00 earnings from Math.floor)
+  const viewerCents = Math.max(1, Math.floor((cpvCents * VIEWER_SHARE_PERCENT) / 100));
   const platformCents = cpvCents - viewerCents;
   return { viewerCents, platformCents };
 }

@@ -55,6 +55,12 @@ export async function GET(request: NextRequest) {
             plan: true,
           },
         },
+        adCampaign: {
+          select: {
+            destinationUrl: true,
+            cpvCents: true,
+          },
+        },
         _count: {
           select: {
             comments: true,
@@ -128,6 +134,8 @@ export async function GET(request: NextRequest) {
       isBookmarked: userBookmarks.has(post.id),
       isPromoted: post.isPromoted,
       hasEarned: userEarnedPosts.has(post.id),
+      destinationUrl: post.adCampaign?.destinationUrl || null,
+      cpvCents: post.adCampaign?.cpvCents || 0,
       createdAt: post.createdAt.toISOString(),
     }));
 

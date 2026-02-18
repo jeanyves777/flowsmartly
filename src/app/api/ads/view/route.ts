@@ -316,6 +316,7 @@ async function handleCompleteView(viewerUserId: string, viewId: string) {
       campaign: {
         select: {
           id: true,
+          name: true,
           status: true,
           budgetCents: true,
           spentCents: true,
@@ -458,6 +459,7 @@ async function handleCompleteView(viewerUserId: string, viewId: string) {
         earned: viewerCents / 100, // Viewer sees only their share
         earnedCents: viewerCents,
         viewDuration: Math.round(elapsedSeconds),
+        campaignName: view.campaign?.name || null,
         message: `You earned $${(viewerCents / 100).toFixed(2)} for viewing this ad!`,
       },
     });

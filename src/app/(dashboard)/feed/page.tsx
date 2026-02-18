@@ -35,6 +35,9 @@ import {
   DollarSign,
   Timer,
   CheckCircle2,
+  Pause,
+  ExternalLink,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -140,6 +143,8 @@ interface Post {
   isBookmarked: boolean;
   isPromoted: boolean;
   hasEarned: boolean;
+  destinationUrl?: string | null;
+  cpvCents?: number;
   createdAt: string;
 }
 
@@ -287,6 +292,27 @@ export default function FeedPage() {
   const [adEarnedAmount, setAdEarnedAmount] = useState(0);
   const adViewTimerRef = useRef<NodeJS.Timeout | null>(null);
   const AD_VIEW_DURATION = 35; // seconds
+
+  // Full-screen focus mode state
+  const [adFocusPost, setAdFocusPost] = useState<Post | null>(null);
+  const [isFocusPaused, setIsFocusPaused] = useState(false);
+  const focusedTimeRef = useRef(0); // accumulated focused seconds
+  const focusPauseTimeRef = useRef(0); // timestamp when paused
+  const visibilityHandlerRef = useRef<(() => void) | null>(null);
+
+  // External link redirect after ad completion
+  const [adRedirectUrl, setAdRedirectUrl] = useState<string | null>(null);
+  const [adRedirectCountdown, setAdRedirectCountdown] = useState(0);
+  const adRedirectTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Dismissed promoted posts (session-based)
+  const [dismissedAds, setDismissedAds] = useState<Set<string>>(() => {
+    try {
+      const stored = typeof window !== "undefined" ? sessionStorage.getItem("dismissedPromotedPosts") : null;
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
+  const promotedTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // Trending data
   const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
@@ -543,7 +569,7 @@ export default function FeedPage() {
     });
   };
 
-  // Start watching an ad to earn
+  // Start watching an ad to earn (full-screen focus mode with visibility tracking)
   const handleStartAdView = async (postId: string) => {
     if (activeAdView) return; // Already watching an ad
 
@@ -566,25 +592,76 @@ export default function FeedPage() {
 
       const { viewId, earnAmount } = data.data;
       const startedAt = Date.now();
+      const post = posts.find(p => p.id === postId);
 
       setActiveAdView({ postId, viewId, startedAt, earnAmount });
       setAdViewProgress(0);
       setAdViewCompleted(null);
+      setAdFocusPost(post || null);
+      setIsFocusPaused(false);
+      focusedTimeRef.current = 0;
+      focusPauseTimeRef.current = 0;
 
-      // Start countdown timer
+      // Visibility-aware timer: only counts time when tab is focused
+      let lastTickTime = Date.now();
+
       const interval = setInterval(() => {
-        const elapsed = (Date.now() - startedAt) / 1000;
-        const progress = Math.min((elapsed / AD_VIEW_DURATION) * 100, 100);
+        if (document.hidden) return; // Skip ticks when tab not visible
+
+        const now = Date.now();
+        const delta = (now - lastTickTime) / 1000;
+        lastTickTime = now;
+
+        // Only count time if delta is reasonable (< 1s means we're actively ticking)
+        if (delta < 1.5) {
+          focusedTimeRef.current += delta;
+        }
+
+        const progress = Math.min((focusedTimeRef.current / AD_VIEW_DURATION) * 100, 100);
         setAdViewProgress(progress);
 
-        if (elapsed >= AD_VIEW_DURATION) {
+        if (focusedTimeRef.current >= AD_VIEW_DURATION) {
           clearInterval(interval);
-          // Auto-complete the view
           handleCompleteAdView(viewId, postId, earnAmount);
         }
       }, 200);
 
       adViewTimerRef.current = interval;
+
+      // Visibility change handler — pause/resume timer
+      const handleVisibilityChange = () => {
+        if (document.hidden) {
+          // Tab lost focus — pause
+          setIsFocusPaused(true);
+          if (adViewTimerRef.current) {
+            clearInterval(adViewTimerRef.current);
+            adViewTimerRef.current = null;
+          }
+        } else {
+          // Tab regained focus — resume
+          setIsFocusPaused(false);
+          lastTickTime = Date.now();
+          const resumeInterval = setInterval(() => {
+            if (document.hidden) return;
+            const now = Date.now();
+            const delta = (now - lastTickTime) / 1000;
+            lastTickTime = now;
+            if (delta < 1.5) {
+              focusedTimeRef.current += delta;
+            }
+            const progress = Math.min((focusedTimeRef.current / AD_VIEW_DURATION) * 100, 100);
+            setAdViewProgress(progress);
+            if (focusedTimeRef.current >= AD_VIEW_DURATION) {
+              clearInterval(resumeInterval);
+              handleCompleteAdView(viewId, postId, earnAmount);
+            }
+          }, 200);
+          adViewTimerRef.current = resumeInterval;
+        }
+      };
+
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      visibilityHandlerRef.current = handleVisibilityChange;
     } catch {
       toast({
         title: "Error",
@@ -596,6 +673,12 @@ export default function FeedPage() {
 
   // Complete ad view and earn money
   const handleCompleteAdView = async (viewId: string, postId: string, earnAmount: number) => {
+    // Cleanup visibility handler
+    if (visibilityHandlerRef.current) {
+      document.removeEventListener("visibilitychange", visibilityHandlerRef.current);
+      visibilityHandlerRef.current = null;
+    }
+
     try {
       const response = await fetch("/api/ads/view", {
         method: "POST",
@@ -605,19 +688,46 @@ export default function FeedPage() {
       const data = await response.json();
 
       if (data.success) {
-        setAdEarnedAmount(data.data.earned);
+        // Use earnedCents as fallback to avoid floating point issues
+        const earnedDollars = data.data.earned || (data.data.earnedCents ? data.data.earnedCents / 100 : 0);
+        setAdEarnedAmount(earnedDollars);
         setAdViewCompleted(postId);
         setPosts(prev => prev.map(p => p.id === postId ? { ...p, hasEarned: true } : p));
         toast({
-          title: `You earned $${data.data.earned.toFixed(2)}!`,
+          title: `You earned $${earnedDollars.toFixed(2)}!`,
           description: "Added to your balance",
         });
+
+        // Check if ad has external link — start redirect countdown
+        const post = posts.find(p => p.id === postId);
+        if (post?.destinationUrl) {
+          setAdRedirectUrl(post.destinationUrl);
+          setAdRedirectCountdown(5);
+          let countdown = 5;
+          adRedirectTimerRef.current = setInterval(() => {
+            countdown--;
+            setAdRedirectCountdown(countdown);
+            if (countdown <= 0) {
+              if (adRedirectTimerRef.current) clearInterval(adRedirectTimerRef.current);
+              adRedirectTimerRef.current = null;
+              window.open(post.destinationUrl!, "_blank", "noopener,noreferrer");
+              setAdRedirectUrl(null);
+              setAdFocusPost(null);
+            }
+          }, 1000);
+        } else {
+          // No external link — close focus modal after short delay
+          setTimeout(() => {
+            setAdFocusPost(null);
+          }, 2000);
+        }
       } else {
         toast({
           title: "Earning failed",
           description: data.error?.message || "Could not process earning",
           variant: "destructive",
         });
+        setAdFocusPost(null);
       }
     } catch {
       toast({
@@ -625,17 +735,18 @@ export default function FeedPage() {
         description: "Failed to process ad view earning",
         variant: "destructive",
       });
+      setAdFocusPost(null);
     } finally {
       setActiveAdView(null);
       if (adViewTimerRef.current) {
         clearInterval(adViewTimerRef.current);
         adViewTimerRef.current = null;
       }
-      // Clear the completed state after 3 seconds
+      // Clear the completed state after 5 seconds
       setTimeout(() => {
         setAdViewCompleted(null);
         setAdEarnedAmount(0);
-      }, 3000);
+      }, 5000);
     }
   };
 
@@ -645,16 +756,62 @@ export default function FeedPage() {
       clearInterval(adViewTimerRef.current);
       adViewTimerRef.current = null;
     }
+    if (visibilityHandlerRef.current) {
+      document.removeEventListener("visibilitychange", visibilityHandlerRef.current);
+      visibilityHandlerRef.current = null;
+    }
+    if (adRedirectTimerRef.current) {
+      clearInterval(adRedirectTimerRef.current);
+      adRedirectTimerRef.current = null;
+    }
     setActiveAdView(null);
     setAdViewProgress(0);
+    setAdFocusPost(null);
+    setIsFocusPaused(false);
+    setAdRedirectUrl(null);
+    focusedTimeRef.current = 0;
   };
 
-  // Cleanup timer on unmount
+  // Dismiss a promoted ad (push it down the feed)
+  const dismissPromotedPost = useCallback((postId: string) => {
+    setDismissedAds(prev => {
+      const next = new Set(prev);
+      next.add(postId);
+      try { sessionStorage.setItem("dismissedPromotedPosts", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, []);
+
+  // Auto-dismiss promoted posts after 10s in viewport without interaction
+  const handlePromotedPostVisible = useCallback((postId: string, isInView: boolean) => {
+    if (isInView) {
+      // Start 10s timer
+      if (!promotedTimersRef.current.has(postId)) {
+        const timer = setTimeout(() => {
+          dismissPromotedPost(postId);
+          promotedTimersRef.current.delete(postId);
+        }, 10000);
+        promotedTimersRef.current.set(postId, timer);
+      }
+    } else {
+      // Clear timer if scrolled away
+      const timer = promotedTimersRef.current.get(postId);
+      if (timer) {
+        clearTimeout(timer);
+        promotedTimersRef.current.delete(postId);
+      }
+    }
+  }, [dismissPromotedPost]);
+
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
-      if (adViewTimerRef.current) {
-        clearInterval(adViewTimerRef.current);
+      if (adViewTimerRef.current) clearInterval(adViewTimerRef.current);
+      if (adRedirectTimerRef.current) clearInterval(adRedirectTimerRef.current);
+      if (visibilityHandlerRef.current) {
+        document.removeEventListener("visibilitychange", visibilityHandlerRef.current);
       }
+      promotedTimersRef.current.forEach(timer => clearTimeout(timer));
     };
   }, []);
 
@@ -1242,14 +1399,47 @@ export default function FeedPage() {
   }
 
   // Merge posts with ad campaigns for feed display
+  // Deprioritize promoted posts that were dismissed or already earned
   const feedItems: FeedItem[] = useMemo(() => {
-    const items: FeedItem[] = [...posts];
+    const regular: Post[] = [];
+    const deprioritized: Post[] = [];
+
+    for (const post of posts) {
+      if (post.isPromoted && (dismissedAds.has(post.id) || post.hasEarned)) {
+        deprioritized.push(post);
+      } else {
+        regular.push(post);
+      }
+    }
+
+    const items: FeedItem[] = [...regular, ...deprioritized];
+    // Insert ad campaign cards at every 5th position
     for (let i = 0; i < feedAds.length; i++) {
       const insertAt = Math.min((i + 1) * 5, items.length);
       items.splice(insertAt, 0, feedAds[i]);
     }
     return items;
-  }, [posts, feedAds]);
+  }, [posts, feedAds, dismissedAds]);
+
+  // IntersectionObserver for auto-dismissing promoted posts after 10s in viewport
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          const postId = (entry.target as HTMLElement).dataset.promotedPostId;
+          if (postId) {
+            handlePromotedPostVisible(postId, entry.isIntersecting);
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+
+    const elements = document.querySelectorAll("[data-promoted-post-id]");
+    elements.forEach(el => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, [feedItems, handlePromotedPostVisible]);
 
   return (
     <motion.div
@@ -1493,6 +1683,9 @@ export default function FeedPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ delay: index * 0.05 }}
+                  {...(post.isPromoted && !post.hasEarned && !dismissedAds.has(post.id)
+                    ? { "data-promoted-post-id": post.id }
+                    : {})}
                 >
                   <Card className="overflow-hidden hover:shadow-md transition-shadow relative">
                       {/* Ad View Progress Bar - shown on top of promoted posts while watching */}
@@ -2025,6 +2218,209 @@ export default function FeedPage() {
           </Card>
         </div>
       </div>
+
+      {/* Full-Screen Ad Focus Modal */}
+      <AnimatePresence>
+        {adFocusPost && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] bg-black/95 flex items-center justify-center"
+          >
+            {/* Close / Cancel button */}
+            {!adViewCompleted && (
+              <button
+                onClick={handleCancelAdView}
+                className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+
+            <div className="w-full max-w-lg mx-4 flex flex-col items-center">
+              {/* Sponsored label */}
+              <div className="flex items-center gap-2 mb-4">
+                <Megaphone className="w-4 h-4 text-amber-400" />
+                <span className="text-sm font-medium text-amber-400">Sponsored Ad</span>
+              </div>
+
+              {/* Ad Content Card */}
+              <div className="w-full bg-card rounded-2xl overflow-hidden border shadow-2xl">
+                {/* Media */}
+                {adFocusPost.mediaUrls.length > 0 && (
+                  <div className="max-h-[40vh] overflow-hidden">
+                    {(() => {
+                      const url = adFocusPost.mediaUrls[0];
+                      const isVideo = url.match(/\.(mp4|webm|mov)(\?|#|$)/i) || url.includes("video");
+                      return isVideo ? (
+                        <video src={url} controls autoPlay muted className="w-full max-h-[40vh] object-contain bg-black" />
+                      ) : (
+                        <img src={url} alt="Ad" className="w-full max-h-[40vh] object-contain" />
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Author & Content */}
+                <div className="p-5 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-10 h-10">
+                      <AvatarImage src={adFocusPost.author.avatarUrl || undefined} />
+                      <AvatarFallback className="bg-gradient-to-br from-brand-500 to-purple-500 text-white font-semibold">
+                        {adFocusPost.author.name.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <span className="font-semibold text-sm">{adFocusPost.author.name}</span>
+                      <p className="text-xs text-muted-foreground">@{adFocusPost.author.username}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {adFocusPost.content.length > 300 ? adFocusPost.content.substring(0, 300) + "..." : adFocusPost.content}
+                  </p>
+                </div>
+              </div>
+
+              {/* Progress & Status */}
+              <div className="w-full mt-6">
+                {adViewCompleted === adFocusPost.id ? (
+                  // Completed state
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="text-center space-y-4"
+                  >
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/20 text-green-400">
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span className="font-semibold">You earned ${adEarnedAmount.toFixed(2)}!</span>
+                    </div>
+
+                    {/* External link redirect */}
+                    {adRedirectUrl && (
+                      <div className="space-y-3">
+                        <p className="text-sm text-white/70">
+                          Redirecting in {adRedirectCountdown}s...
+                        </p>
+                        <div className="flex items-center justify-center gap-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-white/20 text-white hover:bg-white/10"
+                            onClick={() => {
+                              window.open(adRedirectUrl, "_blank", "noopener,noreferrer");
+                              if (adRedirectTimerRef.current) clearInterval(adRedirectTimerRef.current);
+                              setAdRedirectUrl(null);
+                              setAdFocusPost(null);
+                            }}
+                          >
+                            <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                            Visit Now
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-white/50 hover:text-white hover:bg-white/10"
+                            onClick={() => {
+                              if (adRedirectTimerRef.current) clearInterval(adRedirectTimerRef.current);
+                              setAdRedirectUrl(null);
+                              setAdFocusPost(null);
+                            }}
+                          >
+                            Skip
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Close if no redirect */}
+                    {!adRedirectUrl && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-white/50 hover:text-white hover:bg-white/10"
+                        onClick={() => setAdFocusPost(null)}
+                      >
+                        Close
+                      </Button>
+                    )}
+                  </motion.div>
+                ) : (
+                  // Watching state
+                  <div className="space-y-4">
+                    {/* Circular progress */}
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="relative w-20 h-20">
+                        <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
+                          <circle cx="40" cy="40" r="36" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="4" />
+                          <circle
+                            cx="40" cy="40" r="36" fill="none" stroke="url(#adProgressGradient)" strokeWidth="4"
+                            strokeLinecap="round"
+                            strokeDasharray={`${2 * Math.PI * 36}`}
+                            strokeDashoffset={`${2 * Math.PI * 36 * (1 - adViewProgress / 100)}`}
+                            className="transition-all duration-200"
+                          />
+                          <defs>
+                            <linearGradient id="adProgressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                              <stop offset="0%" stopColor="#4ade80" />
+                              <stop offset="100%" stopColor="#10b981" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          {isFocusPaused ? (
+                            <Pause className="w-6 h-6 text-amber-400" />
+                          ) : (
+                            <span className="text-lg font-bold text-white">
+                              {Math.max(0, Math.ceil(AD_VIEW_DURATION - focusedTimeRef.current))}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {isFocusPaused ? (
+                        <div className="text-center space-y-1">
+                          <p className="text-amber-400 font-medium text-sm">Paused</p>
+                          <p className="text-white/50 text-xs">Return to this tab to continue earning</p>
+                        </div>
+                      ) : (
+                        <div className="text-center space-y-1">
+                          <p className="text-white/70 text-sm flex items-center gap-1.5">
+                            <Shield className="w-3.5 h-3.5 text-green-400" />
+                            Focus tracking active
+                          </p>
+                          <p className="text-white/40 text-xs">
+                            Keep this tab in focus to earn ${activeAdView?.earnAmount?.toFixed(2) || "0.00"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full bg-gradient-to-r from-green-400 to-emerald-500"
+                        style={{ width: `${adViewProgress}%` }}
+                      />
+                    </div>
+
+                    <div className="text-center">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-white/40 hover:text-white hover:bg-white/10 text-xs"
+                        onClick={handleCancelAdView}
+                      >
+                        Cancel viewing
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Media Lightbox */}
       <AnimatePresence>
