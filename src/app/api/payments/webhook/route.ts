@@ -10,6 +10,7 @@ import {
   notifySubscriptionCancelled,
 } from "@/lib/notifications";
 import type Stripe from "stripe";
+import { calculateAndAwardCommission } from "@/lib/referrals";
 
 export const runtime = "nodejs";
 
@@ -66,6 +67,14 @@ async function processWebhookEvent(event: Stripe.Event) {
           }).catch((err) => console.error("Failed to send credit purchase notification:", err));
         }
 
+        // Process referral commission (fire-and-forget)
+        calculateAndAwardCommission({
+          payerUserId: userId,
+          paymentAmountCents: session.amount_total || 0,
+          sourceType: "CREDIT_PURCHASE",
+          sourcePaymentId: session.id,
+        }).catch((err) => console.error("[Stripe Webhook] Referral commission error:", err));
+
         console.log(
           `[Stripe Webhook] Credit purchase completed: ${totalCredits} credits for user ${userId}`
         );
@@ -117,6 +126,14 @@ async function processWebhookEvent(event: Stripe.Event) {
             interval: "monthly",
           }).catch((err) => console.error("Failed to send subscription activated notification:", err));
         }
+
+        // Process referral commission (fire-and-forget)
+        calculateAndAwardCommission({
+          payerUserId: userId,
+          paymentAmountCents: session.amount_total || 0,
+          sourceType: "SUBSCRIPTION",
+          sourcePaymentId: session.id,
+        }).catch((err) => console.error("[Stripe Webhook] Referral commission error:", err));
 
         console.log(
           `[Stripe Webhook] Subscription activated: ${validPlanId} plan for user ${userId} (+${plan.monthlyCredits} credits)`
@@ -176,6 +193,14 @@ async function processWebhookEvent(event: Stripe.Event) {
           newBalance: piUser.aiCredits,
         }).catch((err) => console.error("Failed to send credit purchase notification:", err));
       }
+
+      // Process referral commission (fire-and-forget)
+      calculateAndAwardCommission({
+        payerUserId: piMetadata.userId,
+        paymentAmountCents: paymentIntent.amount,
+        sourceType: "CREDIT_PURCHASE",
+        sourcePaymentId: paymentIntent.id,
+      }).catch((err) => console.error("[Stripe Webhook] Referral commission error:", err));
 
       console.log(
         `[Stripe Webhook] PaymentIntent credit purchase: ${piTotalCredits} credits for user ${piMetadata.userId}`
@@ -263,6 +288,14 @@ async function processWebhookEvent(event: Stripe.Event) {
           amountCents: invoice.amount_paid || 0,
         }).catch((err) => console.error("Failed to send subscription renewed notification:", err));
       }
+
+      // Process referral commission (fire-and-forget)
+      calculateAndAwardCommission({
+        payerUserId: subMetadata.userId,
+        paymentAmountCents: invoice.amount_paid || 0,
+        sourceType: "SUBSCRIPTION",
+        sourcePaymentId: invoice.id,
+      }).catch((err) => console.error("[Stripe Webhook] Referral commission error:", err));
 
       console.log(
         `[Stripe Webhook] Subscription invoice paid: ${subPlanId} plan for user ${subMetadata.userId} (+${subMonthlyCredits} credits)`

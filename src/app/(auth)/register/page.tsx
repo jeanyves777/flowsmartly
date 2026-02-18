@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Loader2, Check, X, Briefcase, CheckCircle } from "lucide-react";
+import { Eye, EyeOff, Loader2, Check, X, Briefcase, CheckCircle, Gift, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,18 +16,36 @@ function RegisterPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect");
+  const refCode = searchParams.get("ref");
   const isAgentFlow = redirectTo === "/agent/apply";
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showReferralInput, setShowReferralInput] = useState(!!refCode);
+  const [referrerName, setReferrerName] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     username: "",
     password: "",
+    referralCode: refCode || "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Validate referral code on mount if present
+  useEffect(() => {
+    if (refCode) {
+      fetch(`/api/referrals/check/${encodeURIComponent(refCode)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.data?.valid) {
+            setReferrerName(data.data.referrerName);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [refCode]);
 
   // Password strength indicators
   const passwordChecks = {
@@ -51,10 +69,16 @@ function RegisterPageContent() {
     setErrors({});
 
     try {
+      // Only include referralCode if it has a value
+      const payload = {
+        ...formData,
+        referralCode: formData.referralCode || undefined,
+      };
+
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
@@ -137,6 +161,20 @@ function RegisterPageContent() {
               Start your journey with AI-powered content creation
             </p>
           </div>
+        )}
+
+        {/* Referral badge */}
+        {referrerName && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mb-6 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400"
+          >
+            <Gift className="w-4 h-4 shrink-0" />
+            <span className="text-sm font-medium">
+              Referred by <strong>{referrerName}</strong>
+            </span>
+          </motion.div>
         )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -259,6 +297,50 @@ function RegisterPageContent() {
             </div>
           )}
         </div>
+
+        {/* Referral code field */}
+        {refCode ? (
+          <div className="space-y-2">
+            <Label htmlFor="referralCode">Referral Code</Label>
+            <Input
+              id="referralCode"
+              name="referralCode"
+              type="text"
+              value={formData.referralCode}
+              disabled
+              className="bg-muted"
+            />
+          </div>
+        ) : (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowReferralInput(!showReferralInput)}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Gift className="h-3.5 w-3.5" />
+              <span>Have a referral code?</span>
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showReferralInput ? "rotate-180" : ""}`} />
+            </button>
+            {showReferralInput && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                className="mt-2 overflow-hidden"
+              >
+                <Input
+                  id="referralCode"
+                  name="referralCode"
+                  type="text"
+                  placeholder="REF-XXXXXXXX"
+                  value={formData.referralCode}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                />
+              </motion.div>
+            )}
+          </div>
+        )}
 
         <Button type="submit" className={`w-full ${isAgentFlow ? "bg-violet-600 hover:bg-violet-700" : ""}`} size="lg" disabled={isLoading}>
           {isLoading ? (

@@ -38,6 +38,7 @@ import {
   X,
   Phone,
   Briefcase,
+  Gift,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -70,6 +71,7 @@ const navItems = [
   { href: "/admin/audit", icon: Activity, label: "Audit Logs" },
   { href: "/admin/earnings", icon: DollarSign, label: "Earnings" },
   { href: "/admin/agents", icon: Briefcase, label: "Agents" },
+  { href: "/admin/referrals", icon: Gift, label: "Referrals" },
   { href: "/admin/system", icon: Server, label: "System" },
   { href: "/admin/settings", icon: Settings, label: "Settings" },
 ];
@@ -95,6 +97,7 @@ const userExperienceItems = [
   { href: "/ads", icon: Megaphone, label: "User Ads" },
   { href: "/analytics", icon: BarChart3, label: "User Analytics" },
   { href: "/earnings", icon: DollarSign, label: "User Earnings" },
+  { href: "/referrals", icon: Gift, label: "User Referrals" },
   { href: "/settings", icon: Settings, label: "User Settings" },
 ];
 

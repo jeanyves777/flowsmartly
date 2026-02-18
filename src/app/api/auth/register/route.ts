@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { hashPassword, validatePasswordStrength, generateToken } from "@/lib/auth/password";
 import { createSession, setSessionCookies } from "@/lib/auth/session";
 import { notifyWelcome } from "@/lib/notifications";
+import { processReferralSignup } from "@/lib/referrals";
 
 // Validation schema
 const registerSchema = z.object({
@@ -19,6 +20,7 @@ const registerSchema = z.object({
       "Username can only contain letters, numbers, and underscores"
     )
     .toLowerCase(),
+  referralCode: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -129,6 +131,13 @@ export async function POST(request: NextRequest) {
         balanceAfter: 100,
       },
     });
+
+    // Process referral if code provided (fire-and-forget)
+    if (validation.data.referralCode) {
+      processReferralSignup(user.id, validation.data.referralCode).catch(
+        (err) => console.error("Failed to process referral signup:", err)
+      );
+    }
 
     // Create session
     const userAgent = request.headers.get("user-agent") || undefined;

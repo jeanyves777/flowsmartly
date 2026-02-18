@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { checkAgentFirstHireCommission } from "@/lib/referrals";
 
 export async function POST(request: Request) {
   try {
@@ -73,6 +74,12 @@ export async function POST(request: Request) {
       where: { id: agentId },
       data: { clientCount: { increment: 1 } },
     });
+
+    // Check for agent-to-agent referral commission (fire-and-forget)
+    checkAgentFirstHireCommission({
+      agentUserId: agent.userId,
+      firstMonthPriceCents: agent.minPricePerMonth,
+    }).catch((err) => console.error("Agent referral commission error:", err));
 
     // Log the activity
     await prisma.agentActivityLog.create({

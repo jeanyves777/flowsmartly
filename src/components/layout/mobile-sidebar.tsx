@@ -31,6 +31,7 @@ import {
   Zap,
   Target,
   Store,
+  Gift,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ const navigation = [
   { name: "Ads", href: "/ads", icon: Megaphone },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Earnings", href: "/earnings", icon: DollarSign },
+  { name: "Referrals", href: "/referrals", icon: Gift },
 ];
 
 // Content management features
