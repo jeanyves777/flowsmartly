@@ -255,8 +255,23 @@ async function runDirectPipeline(params: PipelineParams) {
 
   const styleDesc = getPhotoStyleDirection(style || "modern");
 
+  // Describe the format/dimensions to the AI
+  const ratio = width / height;
+  let formatDesc: string;
+  if (ratio > 1.7) {
+    formatDesc = `a WIDE HORIZONTAL BANNER (${width}×${height}px, ~${ratio.toFixed(1)}:1 ratio). This is a landscape banner — arrange content horizontally with ample width`;
+  } else if (ratio > 1.2) {
+    formatDesc = `a LANDSCAPE rectangle (${width}×${height}px, ~${ratio.toFixed(1)}:1 ratio). Slightly wider than tall — balance content across the width`;
+  } else if (ratio > 0.85) {
+    formatDesc = `a SQUARE format (${width}×${height}px). Equal width and height — center the composition`;
+  } else if (ratio > 0.6) {
+    formatDesc = `a PORTRAIT rectangle (${width}×${height}px). Taller than wide — stack content vertically`;
+  } else {
+    formatDesc = `a TALL VERTICAL format (${width}×${height}px, ~1:${(1 / ratio).toFixed(1)} ratio). Very tall and narrow — use strong vertical layout`;
+  }
+
   // Build the comprehensive prompt
-  let designPrompt = `Create a professional ${category.replace("_", " ")} design.
+  let designPrompt = `Create a professional ${category.replace("_", " ")} design for ${formatDesc}.
 
 CRITICAL — OUTPUT FORMAT:
 - The generated image IS the final design itself — it must fill the ENTIRE canvas edge-to-edge
@@ -267,7 +282,7 @@ CRITICAL — OUTPUT FORMAT:
 
 VISUAL STYLE: ${style || "modern"} — ${styleDesc}
 
-LAYOUT:
+LAYOUT — designed for ${formatDesc}:
 - Professional ${category.replace("_", " ")} layout filling the entire canvas
 - Clean background (soft gradient or subtle texture) extending to all edges
 - Text content on the LEFT side (40–50% of width)
@@ -442,42 +457,19 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
     throw new Error("Failed to generate design image. Please try again.");
   }
 
-  // ── Auto-trim white/light borders (AI often renders designs inside a "card") ──
+  // ── Get actual image dimensions for logo compositing ──
 
-  let trimmedBase64 = base64;
-  try {
-    trimmedBase64 = await trimWhiteBorder(base64);
-  } catch (trimErr) {
-    console.warn("[Visual] Auto-trim failed, using original:", trimErr);
-  }
-
-  // ── Resize to target dimensions ──
-
-  let finalBase64 = trimmedBase64;
+  let finalBase64 = base64;
   let finalW = width;
   let finalH = height;
 
   try {
-    const inputBuffer = Buffer.from(finalBase64, "base64");
-    const meta = await sharp(inputBuffer).metadata();
-    const srcW = meta.width || 1024;
-    const srcH = meta.height || 1024;
-
-    if (width !== srcW || height !== srcH) {
-      const upscaled = await sharp(inputBuffer)
-        .resize(width, height, {
-          fit: "fill",
-          kernel: sharp.kernel.lanczos3,
-        })
-        .png({ quality: 100, compressionLevel: 6 })
-        .toBuffer();
-      finalBase64 = upscaled.toString("base64");
-      finalW = width;
-      finalH = height;
-      console.log(`[Visual] Resized from ${srcW}x${srcH} to ${width}x${height}`);
-    }
-  } catch (upErr) {
-    console.warn("[Visual] Resize failed, using original resolution:", upErr);
+    const meta = await sharp(Buffer.from(base64, "base64")).metadata();
+    finalW = meta.width || width;
+    finalH = meta.height || height;
+    console.log(`[Visual] Generated image: ${finalW}x${finalH} (target was ${width}x${height})`);
+  } catch {
+    console.warn("[Visual] Could not read image metadata, using target dimensions");
   }
 
   // ── Composite brand logo (top-left, TOP layer) ──
