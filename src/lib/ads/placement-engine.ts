@@ -25,6 +25,7 @@ export interface AdCandidate {
   ctaText: string | null;
   budgetCents: number;
   spentCents: number;
+  cpvCents: number;
   adPage: { slug: string } | null;
 }
 
@@ -78,6 +79,7 @@ export async function getActiveAdCampaigns(options: {
       ctaText: c.ctaText,
       budgetCents: c.budgetCents,
       spentCents: c.spentCents,
+      cpvCents: c.cpvCents,
       adPage: c.adPage,
     }));
 }

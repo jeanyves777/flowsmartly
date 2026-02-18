@@ -8,6 +8,7 @@ import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { EmailVerificationBanner } from "@/components/layout/email-verification-banner";
 import { cn } from "@/lib/utils/cn";
 import { ChatWidget } from "@/components/ai-assistant/chat-widget";
+import { EarnWidget } from "@/components/earn/earn-widget";
 import { ShieldCheck } from "lucide-react";
 import { onCreditsUpdate } from "@/lib/utils/credits-event";
 
@@ -241,6 +242,9 @@ export default function DashboardLayout({
 
         {/* FlowAI Chat Assistant */}
         <ChatWidget />
+
+        {/* Earning Opportunities Widget (hidden for agent impersonation) */}
+        {!isAgentImpersonating && <EarnWidget />}
       </div>
     </div>
   );
