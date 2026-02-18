@@ -44,6 +44,7 @@ import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { AITextAssistant } from "@/components/feed/ai-text-assistant";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { FileDropZone } from "@/components/shared/file-drop-zone";
 import { PLATFORM_META } from "@/components/shared/social-platform-icons";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -175,20 +176,24 @@ export default function ContentPostsPage() {
   };
 
   // ── Media Upload (Direct File Input) ──────────────────────────────────
+  const uploadPostFile = useCallback((file: File) => {
+    const objectUrl = URL.createObjectURL(file);
+    const attachment: MediaAttachment = {
+      id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      file,
+      url: objectUrl,
+      name: file.name,
+      type: file.type.startsWith("video") ? "video" : "image",
+      preview: objectUrl,
+    };
+    setMediaAttachments((prev) => [...prev, attachment]);
+  }, []);
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
-    const newAttachments: MediaAttachment[] = Array.from(files).map((file) => ({
-      id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      file,
-      url: URL.createObjectURL(file),
-      name: file.name,
-      type: file.type.startsWith("video") ? "video" : "image",
-      preview: URL.createObjectURL(file),
-    }));
-
-    setMediaAttachments((prev) => [...prev, ...newAttachments]);
+    Array.from(files).forEach(uploadPostFile);
 
     // Reset file input so the same file can be re-selected
     if (fileInputRef.current) {
@@ -428,58 +433,65 @@ export default function ContentPostsPage() {
               </AnimatePresence>
 
               {/* Action Bar */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={showAIAssistant ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setShowAIAssistant(!showAIAssistant)}
-                      className={showAIAssistant ? "bg-brand-500 hover:bg-brand-600 text-white" : ""}
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      <span className="hidden sm:inline">AI Write</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Generate content with AI</TooltipContent>
-                </Tooltip>
+              <FileDropZone
+                onFileDrop={uploadPostFile}
+                accept="image/*,video/*"
+                disabled={isPublishing}
+                dragLabel="Drop image or video here"
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={showAIAssistant ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setShowAIAssistant(!showAIAssistant)}
+                        className={showAIAssistant ? "bg-brand-500 hover:bg-brand-600 text-white" : ""}
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span className="hidden sm:inline">AI Write</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Generate content with AI</TooltipContent>
+                  </Tooltip>
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <ImageIcon className="w-4 h-4" />
-                      <span className="hidden sm:inline">Upload</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Upload image or video</TooltipContent>
-                </Tooltip>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*,video/*"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileUpload}
-                />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <ImageIcon className="w-4 h-4" />
+                        <span className="hidden sm:inline">Upload</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Upload image or video</TooltipContent>
+                  </Tooltip>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowMediaLibrary(true)}
-                    >
-                      <FolderOpen className="w-4 h-4" />
-                      <span className="hidden sm:inline">Library</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Pick from media library</TooltipContent>
-                </Tooltip>
-              </div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowMediaLibrary(true)}
+                      >
+                        <FolderOpen className="w-4 h-4" />
+                        <span className="hidden sm:inline">Library</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Pick from media library</TooltipContent>
+                  </Tooltip>
+                </div>
+              </FileDropZone>
 
               {/* Media Previews */}
               <AnimatePresence>

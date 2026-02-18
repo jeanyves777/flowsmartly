@@ -52,6 +52,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { FileDropZone } from "@/components/shared/file-drop-zone";
 import { StripeProvider } from "@/components/providers/stripe-provider";
 import { AddCardForm } from "@/components/payments/add-card-form";
 import {
@@ -400,18 +401,12 @@ export default function SettingsPage() {
     }
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
+  const uploadAvatarFile = useCallback(async (file: File) => {
     const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"];
     if (!validTypes.includes(file.type)) {
       toast({ title: "Invalid file type", description: "Please upload a PNG, JPEG, GIF, or WebP image.", variant: "destructive" });
       return;
     }
-
-    // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
       toast({ title: "File too large", description: "Please upload an image smaller than 2MB.", variant: "destructive" });
       return;
@@ -423,15 +418,11 @@ export default function SettingsPage() {
       formData.append("file", file);
       formData.append("type", "avatar");
 
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || "Upload failed");
 
-      setProfile({ ...profile, avatarUrl: data.data.url });
+      setProfile((prev) => ({ ...prev, avatarUrl: data.data.url }));
       toast({ title: "Photo uploaded successfully!" });
     } catch (err) {
       toast({
@@ -443,6 +434,11 @@ export default function SettingsPage() {
       setIsUploadingAvatar(false);
       if (avatarInputRef.current) avatarInputRef.current.value = "";
     }
+  }, [toast]);
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadAvatarFile(file);
   };
 
   const handleSyncFromBrand = async () => {
@@ -822,49 +818,57 @@ export default function SettingsPage() {
                   ) : (
                     <>
                       {/* Avatar */}
-                      <div className="flex items-center gap-4">
-                        <Avatar className="w-20 h-20">
-                          <AvatarImage src={profile.avatarUrl} />
-                          <AvatarFallback className="text-lg">
-                            {getInitials(profile.name || "U")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="space-y-2">
-                          <input
-                            ref={avatarInputRef}
-                            type="file"
-                            accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
-                            className="hidden"
-                            onChange={handleAvatarUpload}
-                          />
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => avatarInputRef.current?.click()}
-                              disabled={isUploadingAvatar}
-                            >
-                              {isUploadingAvatar ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              ) : (
-                                <Upload className="w-4 h-4 mr-2" />
-                              )}
-                              Upload
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowMediaLibrary(true)}
-                            >
-                              <FolderOpen className="w-4 h-4 mr-2" />
-                              From Library
-                            </Button>
+                      <FileDropZone
+                        onFileDrop={uploadAvatarFile}
+                        accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                        maxSize={2 * 1024 * 1024}
+                        disabled={isUploadingAvatar}
+                        dragLabel="Drop photo here"
+                      >
+                        <div className="flex items-center gap-4">
+                          <Avatar className="w-20 h-20">
+                            <AvatarImage src={profile.avatarUrl} />
+                            <AvatarFallback className="text-lg">
+                              {getInitials(profile.name || "U")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="space-y-2">
+                            <input
+                              ref={avatarInputRef}
+                              type="file"
+                              accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                              className="hidden"
+                              onChange={handleAvatarUpload}
+                            />
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => avatarInputRef.current?.click()}
+                                disabled={isUploadingAvatar}
+                              >
+                                {isUploadingAvatar ? (
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Upload className="w-4 h-4 mr-2" />
+                                )}
+                                Upload
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowMediaLibrary(true)}
+                              >
+                                <FolderOpen className="w-4 h-4 mr-2" />
+                                From Library
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              JPG, PNG, GIF or WebP. Max 2MB. Or drag &amp; drop.
+                            </p>
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            JPG, PNG, GIF or WebP. Max 2MB.
-                          </p>
                         </div>
-                      </div>
+                      </FileDropZone>
 
                       {/* Form Fields */}
                       <div className="grid sm:grid-cols-2 gap-4">

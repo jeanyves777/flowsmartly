@@ -56,6 +56,7 @@ import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { PostSharePanel } from "@/components/shared/post-share-panel";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { FileDropZone } from "@/components/shared/file-drop-zone";
 import {
   DESIGN_CATEGORIES,
   DESIGN_STYLES,
@@ -211,6 +212,38 @@ export default function VisualDesignStudioPage() {
   const [isUploadingReference, setIsUploadingReference] = useState(false);
   const [showRefMediaLibrary, setShowRefMediaLibrary] = useState(false);
   const referenceInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadReferenceFile = useCallback(async (file: File) => {
+    const allowed = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      toast({ title: "Invalid file type", description: "Please upload PNG, JPEG, or WebP", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Maximum 5MB", variant: "destructive" });
+      return;
+    }
+    setIsUploadingReference(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "reference");
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.success) {
+        setReferenceImageUrl(data.data.url);
+        setReferenceImagePreview(data.data.url);
+        setReferenceImageName(file.name);
+      } else {
+        toast({ title: "Upload failed", description: data.error?.message || "Try again", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Upload failed", description: "Network error", variant: "destructive" });
+    } finally {
+      setIsUploadingReference(false);
+      if (referenceInputRef.current) referenceInputRef.current.value = "";
+    }
+  }, [toast]);
 
   // AI ideas state
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
@@ -1023,6 +1056,13 @@ export default function VisualDesignStudioPage() {
                       Upload a product photo or image — AI will use it as the exact visual in the design
                     </p>
 
+                    <FileDropZone
+                      onFileDrop={uploadReferenceFile}
+                      accept="image/png,image/jpeg,image/webp"
+                      maxSize={5 * 1024 * 1024}
+                      disabled={isUploadingReference}
+                      dragLabel="Drop reference image"
+                    >
                     {referenceImagePreview ? (
                       <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border">
                         <img
@@ -1052,34 +1092,7 @@ export default function VisualDesignStudioPage() {
                           type="file"
                           accept="image/png,image/jpeg,image/webp"
                           className="hidden"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            if (file.size > 5 * 1024 * 1024) {
-                              toast({ title: "File too large", description: "Maximum 5MB", variant: "destructive" });
-                              return;
-                            }
-                            setIsUploadingReference(true);
-                            try {
-                              const formData = new FormData();
-                              formData.append("file", file);
-                              formData.append("type", "reference");
-                              const res = await fetch("/api/upload", { method: "POST", body: formData });
-                              const data = await res.json();
-                              if (data.success) {
-                                setReferenceImageUrl(data.data.url);
-                                setReferenceImagePreview(data.data.url);
-                                setReferenceImageName(file.name);
-                              } else {
-                                toast({ title: "Upload failed", description: data.error?.message || "Try again", variant: "destructive" });
-                              }
-                            } catch {
-                              toast({ title: "Upload failed", description: "Network error", variant: "destructive" });
-                            } finally {
-                              setIsUploadingReference(false);
-                              if (referenceInputRef.current) referenceInputRef.current.value = "";
-                            }
-                          }}
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadReferenceFile(f); }}
                         />
                         <Button
                           variant="outline"
@@ -1107,6 +1120,7 @@ export default function VisualDesignStudioPage() {
                         </Button>
                       </div>
                     )}
+                    </FileDropZone>
                   </div>
                 </div>
               </CollapsibleSection>

@@ -43,6 +43,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { FileDropZone } from "@/components/shared/file-drop-zone";
 
 interface MediaFile {
   id: string;
@@ -198,6 +199,26 @@ export default function MediaLibraryPage() {
       fetchGeneratedContent();
     }
   }, [activeTab, fetchGeneratedContent]);
+
+  const uploadMediaFile = useCallback(async (file: File) => {
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      if (activeFolderId) formData.append("folderId", activeFolderId);
+
+      const res = await fetch("/api/media", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: "File uploaded!" });
+        fetchData();
+      }
+    } catch {
+      toast({ title: "Failed to upload file", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
+  }, [activeFolderId, fetchData, toast]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadFiles = e.target.files;
@@ -364,37 +385,44 @@ export default function MediaLibraryPage() {
             Manage all your uploaded files, images, and AI-generated content
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*,video/mp4,video/webm,video/quicktime,application/pdf"
-            className="hidden"
-            onChange={handleUpload}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowCreateFolder(true)}
-          >
-            <FolderPlus className="w-4 h-4 mr-1" />
-            New Folder
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="bg-brand-500 hover:bg-brand-600"
-          >
-            {isUploading ? (
-              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-            ) : (
-              <Upload className="w-4 h-4 mr-1" />
-            )}
-            Upload Files
-          </Button>
-        </div>
+        <FileDropZone
+          onFileDrop={uploadMediaFile}
+          accept="image/*,video/mp4,video/webm,video/quicktime,application/pdf"
+          disabled={isUploading}
+          dragLabel="Drop file to upload"
+        >
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,video/mp4,video/webm,video/quicktime,application/pdf"
+              className="hidden"
+              onChange={handleUpload}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCreateFolder(true)}
+            >
+              <FolderPlus className="w-4 h-4 mr-1" />
+              New Folder
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="bg-brand-500 hover:bg-brand-600"
+            >
+              {isUploading ? (
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4 mr-1" />
+              )}
+              Upload Files
+            </Button>
+          </div>
+        </FileDropZone>
       </div>
 
       {/* Tabs */}

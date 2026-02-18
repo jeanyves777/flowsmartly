@@ -51,6 +51,7 @@ import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { cn } from "@/lib/utils/cn";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { FileDropZone } from "@/components/shared/file-drop-zone";
 import { PAGE_TYPE_TEMPLATES, TemplateVariant } from "@/lib/landing-pages/templates";
 import { generateTemplatePreviewHtml } from "@/lib/landing-pages/template-preview";
 
@@ -274,6 +275,14 @@ export default function CreateLandingPage() {
       }
     },
     [toast]
+  );
+
+  const uploadLandingFile = useCallback(
+    (file: File) => {
+      const type = file.type.startsWith("video/") ? "video" : "image";
+      handleFileUpload(file, type);
+    },
+    [handleFileUpload]
   );
 
   // ---------------------------------------------------------------------------
@@ -518,6 +527,7 @@ export default function CreateLandingPage() {
             )}
 
             {activeTab === "upload" && (
+              <FileDropZone onFileDrop={uploadLandingFile} accept="image/*,video/mp4,video/webm" dragLabel="Drop media here">
               <div
                 className={cn(
                   "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 cursor-pointer transition-colors",
@@ -545,6 +555,7 @@ export default function CreateLandingPage() {
                   }}
                 />
               </div>
+              </FileDropZone>
             )}
 
             {activeTab === "url" && (

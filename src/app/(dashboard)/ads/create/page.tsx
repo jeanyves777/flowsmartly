@@ -57,6 +57,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
+import { FileDropZone } from "@/components/shared/file-drop-zone";
 
 // Platform SVG icons
 function InstagramIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
@@ -389,6 +390,11 @@ export default function CreateCampaignPage() {
       setIsUploadingMedia(false);
     }
   };
+
+  // Upload ad image file (used by FileDropZone and file input)
+  const uploadAdFile = useCallback((file: File) => {
+    handleMediaUpload(file, "image");
+  }, []);
 
   // Pre-select post from query parameter
   useEffect(() => {
@@ -940,33 +946,35 @@ export default function CreateCampaignPage() {
                 {/* Image upload */}
                 <div className="space-y-2">
                   <Label>Ad Image</Label>
-                  {mediaPreviewUrl ? (
-                    <div className="relative rounded-xl overflow-hidden border bg-muted">
-                      <img src={mediaPreviewUrl} alt="Ad preview" className="w-full max-h-64 object-cover" />
-                      <button
-                        onClick={() => setMediaPreviewUrl("")}
-                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="flex flex-col items-center justify-center gap-2 p-8 border-2 border-dashed rounded-xl cursor-pointer hover:border-brand-500/50 hover:bg-muted/50 transition-colors">
-                      <Upload className="w-8 h-8 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">Click to upload an image</span>
-                      <span className="text-xs text-muted-foreground">PNG, JPG, GIF up to 10MB</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleMediaUpload(file, "image");
-                        }}
-                        disabled={isUploadingMedia}
-                      />
-                    </label>
-                  )}
+                  <FileDropZone onFileDrop={uploadAdFile} accept="image/*" dragLabel="Drop ad image" disabled={isUploadingMedia}>
+                    {mediaPreviewUrl ? (
+                      <div className="relative rounded-xl overflow-hidden border bg-muted">
+                        <img src={mediaPreviewUrl} alt="Ad preview" className="w-full max-h-64 object-cover" />
+                        <button
+                          onClick={() => setMediaPreviewUrl("")}
+                          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center gap-2 p-8 border-2 border-dashed rounded-xl cursor-pointer hover:border-brand-500/50 hover:bg-muted/50 transition-colors">
+                        <Upload className="w-8 h-8 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">Click or drop to upload an image</span>
+                        <span className="text-xs text-muted-foreground">PNG, JPG, GIF up to 10MB</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleMediaUpload(file, "image");
+                          }}
+                          disabled={isUploadingMedia}
+                        />
+                      </label>
+                    )}
+                  </FileDropZone>
                 </div>
 
                 {/* Video upload (optional) */}

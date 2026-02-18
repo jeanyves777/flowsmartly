@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { FileDropZone } from "@/components/shared/file-drop-zone";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 const voiceTones = [
@@ -381,11 +382,7 @@ export default function BrandIdentityPage() {
     }));
   };
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate on client side
+  const uploadLogoFile = useCallback(async (file: File) => {
     const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/svg+xml"];
     if (!allowed.includes(file.type)) {
       toast({ title: "Invalid file type", description: "Please upload PNG, JPEG, WebP, or SVG", variant: "destructive" });
@@ -395,20 +392,13 @@ export default function BrandIdentityPage() {
       toast({ title: "File too large", description: "Maximum file size is 5MB", variant: "destructive" });
       return;
     }
-
     try {
       setIsUploadingLogo(true);
       const uploadData = new FormData();
       uploadData.append("file", file);
       uploadData.append("type", "logo");
-
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: uploadData,
-      });
-
+      const response = await fetch("/api/upload", { method: "POST", body: uploadData });
       const data = await response.json();
-
       if (data.success) {
         setFormData((prev) => ({ ...prev, logo: data.data.url }));
         toast({ title: "Logo uploaded successfully!" });
@@ -416,26 +406,23 @@ export default function BrandIdentityPage() {
         throw new Error(data.error?.message || "Upload failed");
       }
     } catch (error) {
-      toast({
-        title: "Upload failed",
-        description: error instanceof Error ? error.message : "Please try again",
-        variant: "destructive",
-      });
+      toast({ title: "Upload failed", description: error instanceof Error ? error.message : "Please try again", variant: "destructive" });
     } finally {
       setIsUploadingLogo(false);
-      // Reset input so the same file can be re-uploaded
       if (logoInputRef.current) logoInputRef.current.value = "";
     }
+  }, [toast]);
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadLogoFile(file);
   };
 
   const removeLogo = () => {
     setFormData((prev) => ({ ...prev, logo: "" }));
   };
 
-  const handleIconLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const uploadIconLogoFile = useCallback(async (file: File) => {
     const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/svg+xml"];
     if (!allowed.includes(file.type)) {
       toast({ title: "Invalid file type", description: "Please upload PNG, JPEG, WebP, or SVG", variant: "destructive" });
@@ -445,20 +432,13 @@ export default function BrandIdentityPage() {
       toast({ title: "File too large", description: "Maximum file size is 5MB", variant: "destructive" });
       return;
     }
-
     try {
       setIsUploadingIconLogo(true);
       const uploadData = new FormData();
       uploadData.append("file", file);
       uploadData.append("type", "logo");
-
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: uploadData,
-      });
-
+      const response = await fetch("/api/upload", { method: "POST", body: uploadData });
       const data = await response.json();
-
       if (data.success) {
         setFormData((prev) => ({ ...prev, iconLogo: data.data.url }));
         toast({ title: "Icon logo uploaded successfully!" });
@@ -466,15 +446,16 @@ export default function BrandIdentityPage() {
         throw new Error(data.error?.message || "Upload failed");
       }
     } catch (error) {
-      toast({
-        title: "Upload failed",
-        description: error instanceof Error ? error.message : "Please try again",
-        variant: "destructive",
-      });
+      toast({ title: "Upload failed", description: error instanceof Error ? error.message : "Please try again", variant: "destructive" });
     } finally {
       setIsUploadingIconLogo(false);
       if (iconLogoInputRef.current) iconLogoInputRef.current.value = "";
     }
+  }, [toast]);
+
+  const handleIconLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadIconLogoFile(file);
   };
 
   const removeIconLogo = () => {
@@ -801,6 +782,13 @@ export default function BrandIdentityPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   {/* Icon Logo */}
+                  <FileDropZone
+                    onFileDrop={uploadIconLogoFile}
+                    accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                    maxSize={5 * 1024 * 1024}
+                    disabled={isUploadingIconLogo}
+                    dragLabel="Drop icon logo"
+                  >
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Icon Logo</p>
                     <p className="text-xs text-muted-foreground">Square format, used as your social avatar</p>
@@ -864,8 +852,16 @@ export default function BrandIdentityPage() {
                       </button>
                     )}
                   </div>
+                  </FileDropZone>
 
                   {/* Full Logo */}
+                  <FileDropZone
+                    onFileDrop={uploadLogoFile}
+                    accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                    maxSize={5 * 1024 * 1024}
+                    disabled={isUploadingLogo}
+                    dragLabel="Drop full logo"
+                  >
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Full Logo</p>
                     <p className="text-xs text-muted-foreground">Wide format, used in designs & emails</p>
@@ -929,6 +925,7 @@ export default function BrandIdentityPage() {
                       </button>
                     )}
                   </div>
+                  </FileDropZone>
                 </div>
 
                 {/* Generate AI link for both */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -40,6 +40,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { FileDropZone } from "@/components/shared/file-drop-zone";
 import { SPECIALTY_OPTIONS, INDUSTRY_OPTIONS } from "@/lib/agent/constants";
 import Link from "next/link";
 
@@ -205,9 +206,7 @@ export default function AgentProfilePage() {
 
   // ─── Cover Image Handlers ────────────────────────────────────────────────
 
-  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadCoverFile = useCallback(async (file: File) => {
     setIsUploadingCover(true);
     try {
       const formData = new FormData();
@@ -221,6 +220,12 @@ export default function AgentProfilePage() {
       toast({ title: "Upload failed", variant: "destructive" });
     }
     setIsUploadingCover(false);
+  }, [patchProfile, toast]);
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadCoverFile(file);
     e.target.value = "";
   };
 
@@ -269,9 +274,7 @@ export default function AgentProfilePage() {
 
   // ─── Showcase Handlers ───────────────────────────────────────────────────
 
-  const handleAddShowcaseFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadShowcaseFile = useCallback(async (file: File) => {
     setIsUploadingShowcase(true);
     try {
       const formData = new FormData();
@@ -285,6 +288,12 @@ export default function AgentProfilePage() {
       toast({ title: "Upload failed", variant: "destructive" });
     }
     setIsUploadingShowcase(false);
+  }, [toast]);
+
+  const handleAddShowcaseFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadShowcaseFile(file);
     e.target.value = "";
   };
 
@@ -375,54 +384,56 @@ export default function AgentProfilePage() {
       )}
 
       {/* Cover Image */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.12 }}
-        className="relative w-full h-40 md:h-56 rounded-2xl overflow-hidden group"
-      >
-        {profile.coverImageUrl ? (
-          <img
-            src={profile.coverImageUrl}
-            alt="Cover"
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <ProfileBannerSVG />
-        )}
-
-        {/* Hover overlay */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
-          <label htmlFor="cover-upload" className="cursor-pointer">
-            <Button variant="secondary" size="sm" disabled={isUploadingCover} asChild>
-              <span>
-                {isUploadingCover ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</>
-                ) : (
-                  <><Camera className="h-4 w-4 mr-2" />Upload Cover</>
-                )}
-              </span>
-            </Button>
-          </label>
-          <Button variant="secondary" size="sm" onClick={() => setShowCoverLibrary(true)} disabled={isUploadingCover}>
-            <FolderOpen className="h-4 w-4 mr-2" />
-            Media Library
-          </Button>
-          {profile.coverImageUrl && (
-            <Button variant="destructive" size="sm" onClick={handleRemoveCover}>
-              <Trash2 className="h-4 w-4 mr-2" />Remove
-            </Button>
+      <FileDropZone onFileDrop={uploadCoverFile} accept="image/png,image/jpeg,image/webp" dragLabel="Drop cover image">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12 }}
+          className="relative w-full h-40 md:h-56 rounded-2xl overflow-hidden group"
+        >
+          {profile.coverImageUrl ? (
+            <img
+              src={profile.coverImageUrl}
+              alt="Cover"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <ProfileBannerSVG />
           )}
-        </div>
 
-        <input
-          id="cover-upload"
-          type="file"
-          className="hidden"
-          accept="image/png,image/jpeg,image/webp"
-          onChange={handleCoverUpload}
-        />
-      </motion.div>
+          {/* Hover overlay */}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
+            <label htmlFor="cover-upload" className="cursor-pointer">
+              <Button variant="secondary" size="sm" disabled={isUploadingCover} asChild>
+                <span>
+                  {isUploadingCover ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</>
+                  ) : (
+                    <><Camera className="h-4 w-4 mr-2" />Upload Cover</>
+                  )}
+                </span>
+              </Button>
+            </label>
+            <Button variant="secondary" size="sm" onClick={() => setShowCoverLibrary(true)} disabled={isUploadingCover}>
+              <FolderOpen className="h-4 w-4 mr-2" />
+              Media Library
+            </Button>
+            {profile.coverImageUrl && (
+              <Button variant="destructive" size="sm" onClick={handleRemoveCover}>
+                <Trash2 className="h-4 w-4 mr-2" />Remove
+              </Button>
+            )}
+          </div>
+
+          <input
+            id="cover-upload"
+            type="file"
+            className="hidden"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={handleCoverUpload}
+          />
+        </motion.div>
+      </FileDropZone>
 
       {/* Stats Grid */}
       <motion.div
@@ -856,32 +867,34 @@ export default function AgentProfilePage() {
 
                     {/* Add buttons */}
                     {draftShowcase.length < 12 && (
-                      <div className="aspect-video rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2">
-                        {isUploadingShowcase ? (
-                          <Loader2 className="h-6 w-6 text-violet-500 animate-spin" />
-                        ) : (
-                          <>
-                            <label className="cursor-pointer flex flex-col items-center gap-1 hover:text-violet-500 transition-colors">
-                              <Plus className="h-5 w-5" />
-                              <span className="text-xs">Upload</span>
-                              <input
-                                type="file"
-                                className="hidden"
-                                accept="image/png,image/jpeg,image/webp"
-                                onChange={handleAddShowcaseFile}
-                                disabled={isUploadingShowcase}
-                              />
-                            </label>
-                            <button
-                              className="text-xs text-muted-foreground hover:text-violet-500 transition-colors flex items-center gap-1"
-                              onClick={() => setShowShowcaseLibrary(true)}
-                            >
-                              <FolderOpen className="h-3.5 w-3.5" />
-                              Library
-                            </button>
-                          </>
-                        )}
-                      </div>
+                      <FileDropZone onFileDrop={uploadShowcaseFile} accept="image/png,image/jpeg,image/webp" dragLabel="Drop showcase image">
+                        <div className="aspect-video rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2">
+                          {isUploadingShowcase ? (
+                            <Loader2 className="h-6 w-6 text-violet-500 animate-spin" />
+                          ) : (
+                            <>
+                              <label className="cursor-pointer flex flex-col items-center gap-1 hover:text-violet-500 transition-colors">
+                                <Plus className="h-5 w-5" />
+                                <span className="text-xs">Upload</span>
+                                <input
+                                  type="file"
+                                  className="hidden"
+                                  accept="image/png,image/jpeg,image/webp"
+                                  onChange={handleAddShowcaseFile}
+                                  disabled={isUploadingShowcase}
+                                />
+                              </label>
+                              <button
+                                className="text-xs text-muted-foreground hover:text-violet-500 transition-colors flex items-center gap-1"
+                                onClick={() => setShowShowcaseLibrary(true)}
+                              >
+                                <FolderOpen className="h-3.5 w-3.5" />
+                                Library
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </FileDropZone>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">

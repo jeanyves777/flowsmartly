@@ -39,6 +39,7 @@ import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
+import { FileDropZone } from "@/components/shared/file-drop-zone";
 import { PostSharePanel } from "@/components/shared/post-share-panel";
 import {
   VIDEO_CATEGORIES,
@@ -305,10 +306,7 @@ export default function VideoStudioPage() {
 
   // ─── Reference image upload handler ───
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const uploadVideoStudioFile = useCallback(async (file: File) => {
     const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
     if (!allowed.includes(file.type)) {
       toast({ title: "Invalid file type", description: "Only PNG, JPEG, and WebP images are supported.", variant: "destructive" });
@@ -340,6 +338,12 @@ export default function VideoStudioPage() {
       setIsUploadingImage(false);
       if (imageInputRef.current) imageInputRef.current.value = "";
     }
+  }, [toast]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    uploadVideoStudioFile(file);
   };
 
   // ─── Generate handler with SSE ───
@@ -734,6 +738,7 @@ export default function VideoStudioPage() {
                       <span className="text-xs text-muted-foreground">(optional)</span>
                     </div>
 
+                    <FileDropZone onFileDrop={uploadVideoStudioFile} accept="image/png,image/jpeg,image/jpg,image/webp" dragLabel="Drop image here">
                     {referenceImageUrl ? (
                       <div className="flex items-center gap-4">
                         <div className="relative w-24 h-24 rounded-xl overflow-hidden border bg-muted shrink-0">
@@ -814,6 +819,7 @@ export default function VideoStudioPage() {
                       className="hidden"
                       onChange={handleImageUpload}
                     />
+                    </FileDropZone>
                   </CardContent>
                 </Card>
 
