@@ -96,6 +96,7 @@ model User {
   referralReceived    UserReferral?     @relation("ReferredUser")
   referralCommissions ReferralCommission[]
   followUps           FollowUp[]
+  surveys             Survey[]
 
   @@index([email])
   @@index([username])
@@ -562,6 +563,7 @@ model ContactList {
   campaigns   Campaign[]
   automations Automation[]
   followUps   FollowUp[]
+  surveys     Survey[]
 
   @@index([userId])
 }
@@ -2303,8 +2305,6 @@ model FollowUp {
   user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   contactList      ContactList? @relation(fields: [contactListId], references: [id], onDelete: SetNull)
   entries          FollowUpEntry[]
-  survey           FollowUpSurvey?
-
   @@index([userId])
   @@index([status])
   @@index([type])
@@ -2338,9 +2338,9 @@ model FollowUpEntry {
   @@index([nextFollowUp])
 }
 
-model FollowUpSurvey {
+model Survey {
   id              String    @id @default(cuid())
-  followUpId      String    @unique
+  userId          String
   title           String
   description     String?
   questions       String    @default("[]") // JSON array: [{ id, type, label, required, options?, placeholder? }]
@@ -2348,14 +2348,22 @@ model FollowUpSurvey {
   isActive        Boolean   @default(true)
   thankYouMessage String    @default("Thank you for your response!")
   responseCount   Int       @default(0)
+  contactListId   String?
+  status          String    @default("DRAFT") // DRAFT | ACTIVE | CLOSED
+  sendCount       Int       @default(0)
+  lastSentAt      DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  followUp        FollowUp         @relation(fields: [followUpId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contactList     ContactList?  @relation(fields: [contactListId], references: [id], onDelete: SetNull)
   responses       SurveyResponse[]
 
+  @@index([userId])
   @@index([slug])
+  @@index([status])
   @@index([isActive])
+  @@index([createdAt])
 }
 
 model SurveyResponse {
@@ -2371,7 +2379,7 @@ model SurveyResponse {
   userAgent       String?
   createdAt       DateTime  @default(now())
 
-  survey          FollowUpSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  survey          Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
 
   @@index([surveyId])
   @@index([contactId])

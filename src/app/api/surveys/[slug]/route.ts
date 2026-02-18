@@ -9,7 +9,7 @@ export async function GET(
   try {
     const { slug } = await params;
 
-    const survey = await prisma.followUpSurvey.findUnique({
+    const survey = await prisma.survey.findUnique({
       where: { slug },
       select: {
         id: true,
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     const pathParts = url.pathname.split("/");
     const slug = pathParts[pathParts.length - 1];
 
-    const survey = await prisma.followUpSurvey.findUnique({
+    const survey = await prisma.survey.findUnique({
       where: { slug },
       select: {
         id: true,
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Increment response count
-    await prisma.followUpSurvey.update({
+    await prisma.survey.update({
       where: { id: survey.id },
       data: { responseCount: { increment: 1 } },
     });

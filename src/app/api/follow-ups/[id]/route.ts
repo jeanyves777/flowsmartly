@@ -22,16 +22,6 @@ export async function GET(
       where: { id, userId: session.userId },
       include: {
         contactList: { select: { id: true, name: true } },
-        survey: {
-          select: {
-            id: true,
-            title: true,
-            slug: true,
-            isActive: true,
-            responseCount: true,
-            questions: true,
-          },
-        },
         _count: { select: { entries: true } },
       },
     });
@@ -60,12 +50,6 @@ export async function GET(
       data: {
         ...followUp,
         settings: JSON.parse(followUp.settings || "{}"),
-        survey: followUp.survey
-          ? {
-              ...followUp.survey,
-              questions: JSON.parse(followUp.survey.questions || "[]"),
-            }
-          : null,
         contactListName: followUp.contactList?.name || null,
         statusBreakdown,
       },

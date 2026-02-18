@@ -6,7 +6,6 @@ import { motion } from "framer-motion";
 import {
   Plus,
   ClipboardList,
-  FileQuestion,
   Search,
   MoreVertical,
   Trash2,
@@ -15,7 +14,6 @@ import {
   CheckCircle2,
   Clock,
   Users,
-  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,7 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { FollowUpData } from "@/types/follow-up";
 
-type FilterType = "ALL" | "TRACKER" | "SURVEY";
+type FilterType = "ALL";
 
 export default function FollowUpsPage() {
   const router = useRouter();
@@ -77,7 +75,7 @@ export default function FollowUpsPage() {
   }, [fetchFollowUps]);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete "${name}"? This will remove all entries and survey data.`)) return;
+    if (!confirm(`Delete "${name}"? This will remove all entries permanently.`)) return;
     try {
       const res = await fetch(`/api/follow-ups/${id}`, { method: "DELETE" });
       const json = await res.json();
@@ -118,7 +116,7 @@ export default function FollowUpsPage() {
         <div>
           <h1 className="text-3xl font-bold">Follow-Ups</h1>
           <p className="text-muted-foreground mt-1">
-            Track contacts, record interactions, and collect feedback
+            Track contacts, record interactions, and manage follow-up campaigns
           </p>
         </div>
         <Button onClick={() => router.push("/tools/follow-ups/new")} className="gap-2">
@@ -162,18 +160,7 @@ export default function FollowUpsPage() {
             className="pl-9"
           />
         </div>
-        <div className="flex gap-1">
-          {(["ALL", "TRACKER", "SURVEY"] as FilterType[]).map((f) => (
-            <Button
-              key={f}
-              variant={filter === f ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter(f)}
-            >
-              {f === "ALL" ? "All" : f === "TRACKER" ? "Trackers" : "Surveys"}
-            </Button>
-          ))}
-        </div>
+        <div className="flex gap-1" />
       </div>
 
       {/* Follow-Up List */}
@@ -225,14 +212,7 @@ export default function FollowUpsPage() {
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        {fu.type === "TRACKER" ? (
-                          <ClipboardList className="h-4 w-4 text-blue-500" />
-                        ) : (
-                          <FileQuestion className="h-4 w-4 text-violet-500" />
-                        )}
-                        <Badge variant="outline" className="text-[10px]">
-                          {fu.type === "TRACKER" ? "Tracker" : "Survey"}
-                        </Badge>
+                        <ClipboardList className="h-4 w-4 text-blue-500" />
                       </div>
                       <div className="flex items-center gap-1">
                         <Badge
@@ -286,12 +266,6 @@ export default function FollowUpsPage() {
                         <Users className="h-3 w-3" />
                         {fu.totalEntries} entries
                       </span>
-                      {fu.survey && (
-                        <span className="flex items-center gap-1">
-                          <BarChart3 className="h-3 w-3" />
-                          {fu.survey.responseCount} responses
-                        </span>
-                      )}
                     </div>
 
                     {/* Progress bar */}

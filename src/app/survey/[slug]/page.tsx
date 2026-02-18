@@ -10,7 +10,7 @@ interface SurveyPageProps {
 
 export async function generateMetadata({ params }: SurveyPageProps) {
   const { slug } = await params;
-  const survey = await prisma.followUpSurvey.findUnique({
+  const survey = await prisma.survey.findUnique({
     where: { slug },
     select: { title: true, description: true },
   });
@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: SurveyPageProps) {
 export default async function PublicSurveyPage({ params }: SurveyPageProps) {
   const { slug } = await params;
 
-  const survey = await prisma.followUpSurvey.findUnique({
+  const survey = await prisma.survey.findUnique({
     where: { slug },
     select: {
       title: true,

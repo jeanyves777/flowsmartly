@@ -17,26 +17,13 @@ import {
   UserPlus,
   MoreVertical,
   ClipboardList,
-  FileQuestion,
   CheckCircle2,
   Clock,
   BarChart3,
   Link2,
-  Copy,
-  ExternalLink,
   Loader2,
-  Star,
   Users,
-  MessageSquare,
   X,
-  Save,
-  ChevronUp,
-  ChevronDown,
-  type LucideIcon,
-  Type,
-  AlignLeft,
-  List,
-  ToggleLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,22 +67,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
   ENTRY_STATUS_CONFIG,
-  QUESTION_TYPES,
   type EntryData,
   type EntryStatus,
-  type SurveyQuestion,
-  type SurveyResponseData,
 } from "@/types/follow-up";
-
-const QUESTION_ICON_MAP: Record<string, LucideIcon> = {
-  text: Type,
-  textarea: AlignLeft,
-  rating: Star,
-  multiple_choice: List,
-  yes_no: ToggleLeft,
-  email: Mail,
-  phone: Phone,
-};
 
 interface FollowUpDetail {
   id: string;
@@ -109,14 +83,6 @@ interface FollowUpDetail {
   completedEntries: number;
   settings: Record<string, unknown>;
   statusBreakdown: Record<string, number>;
-  survey: {
-    id: string;
-    title: string;
-    slug: string;
-    isActive: boolean;
-    responseCount: number;
-    questions: SurveyQuestion[];
-  } | null;
   createdAt: string;
 }
 
@@ -167,17 +133,6 @@ export default function FollowUpDetailPage() {
   // Delete dialog
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  // Survey state
-  const [surveyTitle, setSurveyTitle] = useState("");
-  const [surveyDesc, setSurveyDesc] = useState("");
-  const [surveyThankYou, setSurveyThankYou] = useState("Thank you for your response!");
-  const [surveyQuestions, setSurveyQuestions] = useState<SurveyQuestion[]>([]);
-  const [surveySlug, setSurveySlug] = useState("");
-  const [surveyActive, setSurveyActive] = useState(true);
-  const [isSavingSurvey, setIsSavingSurvey] = useState(false);
-  const [surveyResponses, setSurveyResponses] = useState<SurveyResponseData[]>([]);
-  const [responsesLoading, setResponsesLoading] = useState(false);
-
   // Fetch follow-up details
   const fetchFollowUp = useCallback(async () => {
     try {
@@ -185,15 +140,6 @@ export default function FollowUpDetailPage() {
       const json = await res.json();
       if (!json.success) throw new Error(json.error?.message);
       setFollowUp(json.data);
-
-      // Populate survey form if exists
-      if (json.data.survey) {
-        setSurveyTitle(json.data.survey.title);
-        setSurveyDesc(json.data.survey.description || "");
-        setSurveyQuestions(json.data.survey.questions || []);
-        setSurveySlug(json.data.survey.slug);
-        setSurveyActive(json.data.survey.isActive);
-      }
     } catch (err) {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
     } finally {
@@ -389,103 +335,9 @@ export default function FollowUpDetailPage() {
     }
   };
 
-  // Survey
-  const addQuestion = (type: string) => {
-    const q: SurveyQuestion = {
-      id: `q_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      type: type as SurveyQuestion["type"],
-      label: "",
-      required: false,
-      ...(type === "multiple_choice" ? { options: ["Option 1", "Option 2"] } : {}),
-    };
-    setSurveyQuestions([...surveyQuestions, q]);
-  };
-
-  const updateQuestion = (index: number, updates: Partial<SurveyQuestion>) => {
-    const q = [...surveyQuestions];
-    q[index] = { ...q[index], ...updates };
-    setSurveyQuestions(q);
-  };
-
-  const removeQuestion = (index: number) => {
-    setSurveyQuestions(surveyQuestions.filter((_, i) => i !== index));
-  };
-
-  const moveQuestion = (index: number, direction: -1 | 1) => {
-    const newIndex = index + direction;
-    if (newIndex < 0 || newIndex >= surveyQuestions.length) return;
-    const q = [...surveyQuestions];
-    [q[index], q[newIndex]] = [q[newIndex], q[index]];
-    setSurveyQuestions(q);
-  };
-
-  const handleSaveSurvey = async () => {
-    if (!surveyTitle.trim()) {
-      toast({ title: "Error", description: "Survey title is required", variant: "destructive" });
-      return;
-    }
-    if (surveyQuestions.length === 0) {
-      toast({ title: "Error", description: "Add at least one question", variant: "destructive" });
-      return;
-    }
-    // Validate all questions have labels
-    const emptyLabel = surveyQuestions.find((q) => !q.label.trim());
-    if (emptyLabel) {
-      toast({ title: "Error", description: "All questions must have a label", variant: "destructive" });
-      return;
-    }
-
-    setIsSavingSurvey(true);
-    try {
-      const res = await fetch(`/api/follow-ups/${id}/survey`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: surveyTitle.trim(),
-          description: surveyDesc.trim() || null,
-          thankYouMessage: surveyThankYou.trim(),
-          questions: surveyQuestions,
-          slug: surveySlug || undefined,
-          isActive: surveyActive,
-        }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error?.message);
-      toast({ title: "Saved!", description: "Survey saved successfully" });
-      setSurveySlug(json.data.slug);
-      fetchFollowUp();
-    } catch (err) {
-      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
-    } finally {
-      setIsSavingSurvey(false);
-    }
-  };
-
-  const fetchResponses = useCallback(async () => {
-    if (!followUp?.survey) return;
-    setResponsesLoading(true);
-    try {
-      const res = await fetch(`/api/follow-ups/${id}/survey/responses?limit=50`);
-      const json = await res.json();
-      if (json.success) setSurveyResponses(json.data || []);
-    } catch { /* silent */ } finally {
-      setResponsesLoading(false);
-    }
-  }, [id, followUp?.survey]);
-
-  useEffect(() => {
-    if (activeTab === "survey" && followUp?.survey) fetchResponses();
-  }, [activeTab, fetchResponses, followUp?.survey]);
-
-  const copyLink = () => {
-    const url = `${window.location.origin}/survey/${surveySlug}`;
-    navigator.clipboard.writeText(url);
-    toast({ title: "Copied!", description: "Survey link copied to clipboard" });
-  };
-
   // Delete follow-up
   const handleDeleteFollowUp = async () => {
-    if (!confirm(`Delete "${followUp?.name}"? This will remove all entries and survey data permanently.`)) return;
+    if (!confirm(`Delete "${followUp?.name}"? This will remove all entries permanently.`)) return;
     try {
       const res = await fetch(`/api/follow-ups/${id}`, { method: "DELETE" });
       const json = await res.json();
@@ -502,8 +354,8 @@ export default function FollowUpDetailPage() {
       <div className="space-y-6">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-4 w-48" />
-        <div className="grid grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+        <div className="grid grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20" />)}
         </div>
         <Skeleton className="h-64" />
       </div>
@@ -539,9 +391,6 @@ export default function FollowUpDetailPage() {
               <h1 className="text-2xl font-bold">{followUp.name}</h1>
               <Badge variant={followUp.status === "ACTIVE" ? "default" : "secondary"} className={followUp.status === "ACTIVE" ? "bg-green-500" : ""}>
                 {followUp.status}
-              </Badge>
-              <Badge variant="outline">
-                {followUp.type === "TRACKER" ? "Tracker" : "Survey"}
               </Badge>
             </div>
             {followUp.description && (
@@ -580,7 +429,7 @@ export default function FollowUpDetailPage() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <Users className="h-5 w-5 text-blue-500" />
@@ -608,15 +457,6 @@ export default function FollowUpDetailPage() {
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <MessageSquare className="h-5 w-5 text-amber-500" />
-            <div>
-              <p className="text-xl font-bold">{followUp.survey?.responseCount || 0}</p>
-              <p className="text-xs text-muted-foreground">Survey Responses</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Tabs */}
@@ -624,9 +464,6 @@ export default function FollowUpDetailPage() {
         <TabsList>
           <TabsTrigger value="entries" className="gap-1.5">
             <ClipboardList className="h-3.5 w-3.5" /> Entries
-          </TabsTrigger>
-          <TabsTrigger value="survey" className="gap-1.5">
-            <FileQuestion className="h-3.5 w-3.5" /> Survey
           </TabsTrigger>
           <TabsTrigger value="analytics" className="gap-1.5">
             <BarChart3 className="h-3.5 w-3.5" /> Analytics
@@ -813,280 +650,6 @@ export default function FollowUpDetailPage() {
                 </div>
               )}
             </>
-          )}
-        </TabsContent>
-
-        {/* SURVEY TAB */}
-        <TabsContent value="survey" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Survey Builder</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {/* Survey Settings */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label>Survey Title *</Label>
-                  <Input
-                    value={surveyTitle}
-                    onChange={(e) => setSurveyTitle(e.target.value)}
-                    placeholder="e.g. Customer Satisfaction Survey"
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label>Thank You Message</Label>
-                  <Input
-                    value={surveyThankYou}
-                    onChange={(e) => setSurveyThankYou(e.target.value)}
-                    placeholder="Thank you for your response!"
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label>Description</Label>
-                <Textarea
-                  value={surveyDesc}
-                  onChange={(e) => setSurveyDesc(e.target.value)}
-                  placeholder="Optional description shown to respondents..."
-                  className="mt-1"
-                  rows={2}
-                />
-              </div>
-
-              {/* Questions */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <Label className="text-base">Questions ({surveyQuestions.length})</Label>
-                </div>
-
-                {surveyQuestions.length === 0 ? (
-                  <div className="border-2 border-dashed rounded-lg p-6 text-center text-muted-foreground">
-                    <FileQuestion className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No questions yet. Add your first question below.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {surveyQuestions.map((q, i) => {
-                      const QIcon = QUESTION_ICON_MAP[q.type] || Type;
-                      return (
-                        <Card key={q.id} className="border">
-                          <CardContent className="p-4">
-                            <div className="flex items-start gap-3">
-                              <div className="flex flex-col items-center gap-1 pt-1">
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveQuestion(i, -1)} disabled={i === 0}>
-                                  <ChevronUp className="h-3 w-3" />
-                                </Button>
-                                <span className="text-xs text-muted-foreground font-mono">{i + 1}</span>
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveQuestion(i, 1)} disabled={i === surveyQuestions.length - 1}>
-                                  <ChevronDown className="h-3 w-3" />
-                                </Button>
-                              </div>
-
-                              <div className="flex-1 space-y-3">
-                                <div className="flex items-center gap-2">
-                                  <QIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-                                  <Badge variant="outline" className="text-[10px]">
-                                    {QUESTION_TYPES.find((t) => t.value === q.type)?.label || q.type}
-                                  </Badge>
-                                  <div className="flex-1" />
-                                  <div className="flex items-center gap-1.5">
-                                    <Label htmlFor={`req-${q.id}`} className="text-xs text-muted-foreground">Required</Label>
-                                    <Switch
-                                      id={`req-${q.id}`}
-                                      checked={q.required}
-                                      onCheckedChange={(c) => updateQuestion(i, { required: c })}
-                                    />
-                                  </div>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeQuestion(i)}>
-                                    <X className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-
-                                <Input
-                                  value={q.label}
-                                  onChange={(e) => updateQuestion(i, { label: e.target.value })}
-                                  placeholder="Enter your question..."
-                                  className="text-sm"
-                                />
-
-                                {q.type === "multiple_choice" && q.options && (
-                                  <div className="pl-4 space-y-2">
-                                    {q.options.map((opt, oi) => (
-                                      <div key={oi} className="flex items-center gap-2">
-                                        <div className="w-3 h-3 rounded-full border-2 shrink-0" />
-                                        <Input
-                                          value={opt}
-                                          onChange={(e) => {
-                                            const opts = [...(q.options || [])];
-                                            opts[oi] = e.target.value;
-                                            updateQuestion(i, { options: opts });
-                                          }}
-                                          className="h-8 text-sm"
-                                          placeholder={`Option ${oi + 1}`}
-                                        />
-                                        {(q.options?.length || 0) > 2 && (
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-7 w-7 shrink-0"
-                                            onClick={() => {
-                                              const opts = (q.options || []).filter((_, idx) => idx !== oi);
-                                              updateQuestion(i, { options: opts });
-                                            }}
-                                          >
-                                            <X className="h-3 w-3" />
-                                          </Button>
-                                        )}
-                                      </div>
-                                    ))}
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="text-xs"
-                                      onClick={() => {
-                                        updateQuestion(i, { options: [...(q.options || []), `Option ${(q.options?.length || 0) + 1}`] });
-                                      }}
-                                    >
-                                      <Plus className="h-3 w-3 mr-1" /> Add Option
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Add Question Buttons */}
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {QUESTION_TYPES.map((qt) => {
-                    const QIcon = QUESTION_ICON_MAP[qt.value] || Type;
-                    return (
-                      <Button
-                        key={qt.value}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => addQuestion(qt.value)}
-                        className="gap-1.5 text-xs"
-                      >
-                        <QIcon className="h-3 w-3" />
-                        {qt.label}
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Public URL & Controls */}
-              <div className="border-t pt-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Label>Survey Active</Label>
-                    <Switch checked={surveyActive} onCheckedChange={setSurveyActive} />
-                  </div>
-                </div>
-
-                {surveySlug && (
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
-                    <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <code className="text-sm flex-1 truncate">
-                      {typeof window !== "undefined" ? window.location.origin : ""}/survey/{surveySlug}
-                    </code>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={copyLink}>
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 shrink-0"
-                      onClick={() => window.open(`/survey/${surveySlug}`, "_blank")}
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                )}
-
-                <Button onClick={handleSaveSurvey} disabled={isSavingSurvey} className="gap-2">
-                  {isSavingSurvey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  Save Survey
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Survey Responses */}
-          {followUp.survey && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  Responses ({followUp.survey.responseCount})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {responsesLoading ? (
-                  <div className="space-y-2">
-                    {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16" />)}
-                  </div>
-                ) : surveyResponses.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-6">
-                    No responses yet. Share your survey link to start collecting feedback.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {surveyResponses.map((resp) => {
-                      const answers = typeof resp.answers === "string" ? JSON.parse(resp.answers as string) : resp.answers;
-                      return (
-                        <Card key={resp.id} className="border">
-                          <CardContent className="p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2 text-sm">
-                                {resp.respondentName && <span className="font-medium">{resp.respondentName}</span>}
-                                {resp.respondentEmail && <span className="text-muted-foreground">{resp.respondentEmail}</span>}
-                                {resp.respondentPhone && <span className="text-muted-foreground">{resp.respondentPhone}</span>}
-                                {!resp.respondentName && !resp.respondentEmail && (
-                                  <span className="text-muted-foreground italic">Anonymous</span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {resp.rating && (
-                                  <div className="flex items-center gap-0.5">
-                                    {[...Array(5)].map((_, si) => (
-                                      <Star
-                                        key={si}
-                                        className={`h-3 w-3 ${si < resp.rating! ? "fill-amber-400 text-amber-400" : "text-gray-300"}`}
-                                      />
-                                    ))}
-                                  </div>
-                                )}
-                                <span className="text-xs text-muted-foreground">
-                                  {new Date(resp.createdAt).toLocaleDateString()}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                              {Object.entries(answers).map(([qId, answer]) => {
-                                const question = followUp.survey?.questions.find((q) => q.id === qId);
-                                return (
-                                  <div key={qId} className="text-xs">
-                                    <span className="text-muted-foreground">{question?.label || qId}:</span>{" "}
-                                    <span className="font-medium">{String(answer)}</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           )}
         </TabsContent>
 

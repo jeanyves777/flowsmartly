@@ -33,6 +33,7 @@ import {
   Store,
   Gift,
   ClipboardList,
+  FileQuestion,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -80,6 +81,7 @@ const contentNavigation = [
 // Tools
 const toolsNavigation = [
   { name: "Follow-Ups", href: "/tools/follow-ups", icon: ClipboardList },
+  { name: "Surveys", href: "/tools/surveys", icon: FileQuestion },
 ];
 
 // Marketing features

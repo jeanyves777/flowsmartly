@@ -16,7 +16,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
-    const type = searchParams.get("type"); // TRACKER | SURVEY
     const status = searchParams.get("status");
     const search = searchParams.get("search") || "";
 
@@ -24,7 +23,6 @@ export async function GET(request: NextRequest) {
       userId: session.userId,
     };
 
-    if (type) where.type = type;
     if (status) where.status = status;
     if (search) {
       where.OR = [
@@ -41,7 +39,6 @@ export async function GET(request: NextRequest) {
         take: limit,
         include: {
           contactList: { select: { id: true, name: true } },
-          survey: { select: { id: true, slug: true, responseCount: true } },
           _count: { select: { entries: true } },
         },
       }),
@@ -83,18 +80,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, type, contactListId } = body;
+    const { name, description, contactListId } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json(
         { success: false, error: { message: "Name is required" } },
-        { status: 400 }
-      );
-    }
-
-    if (type && !["TRACKER", "SURVEY"].includes(type)) {
-      return NextResponse.json(
-        { success: false, error: { message: "Type must be TRACKER or SURVEY" } },
         { status: 400 }
       );
     }
@@ -117,7 +107,7 @@ export async function POST(request: NextRequest) {
         userId: session.userId,
         name: name.trim(),
         description: description?.trim() || null,
-        type: type || "TRACKER",
+        type: "TRACKER",
         contactListId: contactListId || null,
       },
     });

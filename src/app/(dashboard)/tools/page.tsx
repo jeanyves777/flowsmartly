@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 const tools = [
   {
     name: "Follow-Ups",
-    description: "Track contacts, record calls, manage follow-up campaigns, and create surveys to collect feedback.",
+    description: "Track contacts, record calls, and manage follow-up campaigns for sales and outreach.",
     href: "/tools/follow-ups",
     icon: ClipboardList,
     color: "from-blue-500 to-indigo-600",
@@ -21,9 +21,9 @@ const tools = [
     available: true,
   },
   {
-    name: "Survey Builder",
-    description: "Create public surveys and forms to collect reviews, opinions, and customer feedback.",
-    href: "/tools/follow-ups/new",
+    name: "Surveys",
+    description: "Create shareable surveys and forms to collect reviews, opinions, and customer feedback.",
+    href: "/tools/surveys",
     icon: FileQuestion,
     color: "from-violet-500 to-purple-600",
     bgLight: "bg-violet-50 dark:bg-violet-950/30",

@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ClipboardList,
   ArrowLeft,
   Loader2,
   Plus,
+  FileQuestion,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 
 interface ContactList {
@@ -29,13 +28,13 @@ interface ContactList {
   totalCount: number;
 }
 
-export default function NewFollowUpPage() {
+export default function NewSurveyPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [name, setName] = useState("");
+  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [thankYouMessage, setThankYouMessage] = useState("Thank you for your response!");
   const [contactListId, setContactListId] = useState<string>("");
-  const [autoImport, setAutoImport] = useState(true);
   const [contactLists, setContactLists] = useState<ContactList[]>([]);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -51,30 +50,29 @@ export default function NewFollowUpPage() {
   }, []);
 
   const handleCreate = async () => {
-    if (!name.trim()) {
-      toast({ title: "Error", description: "Name is required", variant: "destructive" });
+    if (!title.trim()) {
+      toast({ title: "Error", description: "Title is required", variant: "destructive" });
       return;
     }
 
     setIsCreating(true);
     try {
-      const res = await fetch("/api/follow-ups", {
+      const res = await fetch("/api/surveys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: name.trim(),
+          title: title.trim(),
           description: description.trim() || null,
-          type: "TRACKER",
+          thankYouMessage: thankYouMessage.trim(),
           contactListId: contactListId && contactListId !== "none" ? contactListId : null,
-          autoImport: contactListId && contactListId !== "none" ? autoImport : false,
         }),
       });
       const json = await res.json();
 
-      if (!json.success) throw new Error(json.error?.message || "Failed to create");
+      if (!json.success) throw new Error(json.error?.message || "Failed to create survey");
 
-      toast({ title: "Created!", description: `Follow-up "${name}" created successfully` });
-      router.push(`/tools/follow-ups/${json.data.id}`);
+      toast({ title: "Created!", description: `Survey "${title}" created successfully` });
+      router.push(`/tools/surveys/${json.data.id}`);
     } catch (err) {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
     } finally {
@@ -86,34 +84,34 @@ export default function NewFollowUpPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/tools/follow-ups")}>
+        <Button variant="ghost" size="icon" onClick={() => router.push("/tools/surveys")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">New Follow-Up</h1>
-          <p className="text-muted-foreground text-sm">Set up your contact tracker</p>
+          <h1 className="text-2xl font-bold">New Survey</h1>
+          <p className="text-muted-foreground text-sm">Create a shareable survey to collect feedback</p>
         </div>
       </div>
 
       <Card>
         <CardContent className="p-6 space-y-5">
           <div className="flex items-center gap-3 pb-4 border-b">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-              <ClipboardList className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+              <FileQuestion className="w-5 h-5 text-white" />
             </div>
             <div>
-              <p className="font-medium">Contact Tracker</p>
-              <p className="text-xs text-muted-foreground">Track interactions with your contacts</p>
+              <p className="font-medium">Survey / Feedback</p>
+              <p className="text-xs text-muted-foreground">Collect feedback with a shareable survey</p>
             </div>
           </div>
 
           <div>
-            <Label htmlFor="name">Name *</Label>
+            <Label htmlFor="title">Title *</Label>
             <Input
-              id="name"
-              placeholder="e.g. Q1 Sales Outreach"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              id="title"
+              placeholder="e.g. Customer Satisfaction Survey"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               className="mt-1.5"
             />
           </div>
@@ -122,11 +120,22 @@ export default function NewFollowUpPage() {
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              placeholder="Optional description..."
+              placeholder="Optional description shown to respondents..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="mt-1.5"
               rows={3}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="thankYou">Thank You Message</Label>
+            <Input
+              id="thankYou"
+              placeholder="Thank you for your response!"
+              value={thankYouMessage}
+              onChange={(e) => setThankYouMessage(e.target.value)}
+              className="mt-1.5"
             />
           </div>
 
@@ -146,34 +155,20 @@ export default function NewFollowUpPage() {
                   ))}
                 </SelectContent>
               </Select>
-              {contactListId && contactListId !== "none" && (
-                <div className="flex items-center gap-2 mt-2">
-                  <Switch
-                    id="autoImport"
-                    checked={autoImport}
-                    onCheckedChange={setAutoImport}
-                  />
-                  <Label htmlFor="autoImport" className="text-sm font-normal cursor-pointer">
-                    Auto-import contacts from this list
-                  </Label>
-                </div>
-              )}
-              {(!contactListId || contactListId === "none") && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  You can import contacts from a list after creation
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                Link a contact list to send your survey via email or SMS
+              </p>
             </div>
           )}
 
           <div className="flex items-center justify-end pt-4 border-t">
-            <Button onClick={handleCreate} disabled={!name.trim() || isCreating} className="gap-2">
+            <Button onClick={handleCreate} disabled={!title.trim() || isCreating} className="gap-2">
               {isCreating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Plus className="h-4 w-4" />
               )}
-              Create Follow-Up
+              Create Survey
             </Button>
           </div>
         </CardContent>
