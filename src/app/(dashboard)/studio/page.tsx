@@ -258,6 +258,46 @@ export default function VisualDesignStudioPage() {
     }
   }, [toast]);
 
+  // Style reference (design inspiration)
+  const [styleRefUrl, setStyleRefUrl] = useState<string | null>(null);
+  const [styleRefPreview, setStyleRefPreview] = useState<string | null>(null);
+  const [styleRefName, setStyleRefName] = useState<string | null>(null);
+  const [isUploadingStyleRef, setIsUploadingStyleRef] = useState(false);
+  const [showStyleRefMediaLibrary, setShowStyleRefMediaLibrary] = useState(false);
+  const styleRefInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadStyleRefFile = useCallback(async (file: File) => {
+    const allowed = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      toast({ title: "Invalid file type", description: "Please upload PNG, JPEG, or WebP", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Maximum 5MB", variant: "destructive" });
+      return;
+    }
+    setIsUploadingStyleRef(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "reference");
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.success) {
+        setStyleRefUrl(data.data.url);
+        setStyleRefPreview(data.data.url);
+        setStyleRefName(file.name);
+      } else {
+        toast({ title: "Upload failed", description: data.error?.message || "Try again", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Upload failed", description: "Network error", variant: "destructive" });
+    } finally {
+      setIsUploadingStyleRef(false);
+      if (styleRefInputRef.current) styleRefInputRef.current.value = "";
+    }
+  }, [toast]);
+
   // AI ideas state
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
   const [aiIdeas, setAiIdeas] = useState<string[]>([]);
@@ -439,7 +479,7 @@ export default function VisualDesignStudioPage() {
             address: includeInDesign.address ? brandIdentity?.address : null,
           },
           ctaText: ctaText.trim() || null,
-          templateImageUrl: selectedTemplate?.image || null,
+          templateImageUrl: styleRefUrl || selectedTemplate?.image || null,
           referenceImageUrl: referenceImageUrl || null,
         }),
       });
@@ -1171,6 +1211,88 @@ export default function VisualDesignStudioPage() {
                     )}
                   </div>
 
+                  {/* Design Style Reference */}
+                  <div className="space-y-2.5 pt-2 border-t border-border/50">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium text-muted-foreground">
+                        Design Style Reference <span className="text-xs font-normal">(optional)</span>
+                      </Label>
+                      {styleRefUrl && (
+                        <button
+                          onClick={() => { setStyleRefUrl(null); setStyleRefPreview(null); setStyleRefName(null); }}
+                          className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground -mt-1">
+                      Upload a design you like — AI will recreate the same style and layout with your content
+                    </p>
+
+                    <FileDropZone
+                      onFileDrop={uploadStyleRefFile}
+                      accept="image/png,image/jpeg,image/webp"
+                      maxSize={5 * 1024 * 1024}
+                      disabled={isUploadingStyleRef}
+                      dragLabel="Drop style reference"
+                    >
+                    {styleRefPreview ? (
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border">
+                        <img
+                          src={styleRefPreview}
+                          alt="Style reference"
+                          className="w-16 h-16 rounded-lg object-cover border"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{styleRefName || "Style reference"}</p>
+                          <p className="text-xs text-muted-foreground">AI will match this design style</p>
+                        </div>
+                        <button
+                          onClick={() => { setStyleRefUrl(null); setStyleRefPreview(null); setStyleRefName(null); }}
+                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          ref={styleRefInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadStyleRefFile(f); }}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => styleRefInputRef.current?.click()}
+                          disabled={isUploadingStyleRef}
+                          className="flex-1"
+                        >
+                          {isUploadingStyleRef ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="w-4 h-4 mr-2" />
+                          )}
+                          Upload Design
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowStyleRefMediaLibrary(true)}
+                          disabled={isUploadingStyleRef}
+                          className="flex-1"
+                        >
+                          <FolderOpen className="w-4 h-4 mr-2" />
+                          Browse Library
+                        </Button>
+                      </div>
+                    )}
+                    </FileDropZone>
+                  </div>
+
                   {/* Reference Image */}
                   <div className="space-y-2.5 pt-2 border-t border-border/50">
                     <div className="flex items-center justify-between">
@@ -1790,6 +1912,19 @@ export default function VisualDesignStudioPage() {
           setShowRefMediaLibrary(false);
         }}
         title="Select Reference Image"
+        filterTypes={["image"]}
+      />
+      {/* Style Reference Media Library Picker */}
+      <MediaLibraryPicker
+        open={showStyleRefMediaLibrary}
+        onClose={() => setShowStyleRefMediaLibrary(false)}
+        onSelect={(url) => {
+          setStyleRefUrl(url);
+          setStyleRefPreview(url);
+          setStyleRefName("Library design");
+          setShowStyleRefMediaLibrary(false);
+        }}
+        title="Select Design Style Reference"
         filterTypes={["image"]}
       />
     </motion.div>
