@@ -293,14 +293,15 @@ LAYOUT — designed for ${formatDesc}:
 - Clean background (soft gradient or subtle texture) extending to all edges
 - Text content on the LEFT side (40–50% of width)
 - USE THE FULL CANVAS — the design must bleed to every edge with no margin or frame
+- VERTICAL DISTRIBUTION: Spread content across the FULL height of the canvas. The headline should start in the upper third (not pushed to the middle). The CTA button should sit in the lower third. Use the entire vertical space — do NOT leave a big empty gap at the top or cluster everything in the center.
 
 TYPOGRAPHY & TEXT STYLING (VERY IMPORTANT — make the text look stunning):
-- HEADLINE: Extra-bold/black weight, large font size that commands attention. Use tight letter-spacing and strong line-height. Can use ALL CAPS or Title Case for impact.
-- SUBTITLE: Medium weight, smaller than headline, with generous spacing below the headline. Slightly muted color or lighter shade for visual hierarchy.
-- CTA BUTTON: Rounded or pill-shaped button with bold contrasting color. Text inside should be uppercase, semi-bold, with letter-spacing. Add a subtle shadow or glow to make it pop.
+- HEADLINE: Extra-bold/black weight, large font size that commands attention. Use tight letter-spacing and strong line-height. Can use ALL CAPS or Title Case for impact. Position it HIGH on the canvas — near the top, not floating in the middle.
+- SUBTITLE: Medium weight, noticeably smaller than headline. Place it WELL BELOW the headline with generous vertical gap between them (at least 2–3x the line height). Slightly muted color or lighter shade for visual hierarchy. The subtitle must NOT touch or crowd the headline — give clear separation.
+- CTA BUTTON: Rounded or pill-shaped button with bold contrasting color. Text inside should be uppercase, semi-bold, with letter-spacing. Add a subtle shadow or glow to make it pop. Place it further below the subtitle with clear spacing.
+- SPACING HIERARCHY: headline → (large gap) → subtitle → (medium gap) → CTA button. Each element must have distinct breathing room. Never stack text elements tightly together.
 - Ensure strong contrast between text and background — if the background is busy, add a semi-transparent overlay, gradient fade, or text shadow behind the text area so every word is crisp and readable.
 - Use consistent alignment (left-align or center-align all text elements together, never mix).
-- Maintain clear vertical spacing between headline → subtitle → CTA (don't stack them too tight).
 - Text should NEVER overlap the hero image awkwardly — keep text in its own clear zone with breathing room.
 - All text must be pixel-perfect: no cut-off letters, no words bleeding off the edge, no overlapping lines.`;
 
