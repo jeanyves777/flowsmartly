@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const gate = checkPlanAccess(session.user.plan, "AI campaign name suggestion");
+    const gate = await checkPlanAccess(session.user.plan, "AI campaign name suggestion", session.userId);
     if (gate) return gate;
 
     const body = await request.json();

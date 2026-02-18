@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const gate = checkPlanAccess(session.user.plan, "AI caption generation");
+    const gate = await checkPlanAccess(session.user.plan, "AI caption generation", session.userId);
     if (gate) return gate;
 
     const cost = await getDynamicCreditCost("AI_CAPTION");

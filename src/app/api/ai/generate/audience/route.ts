@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const gate = checkPlanAccess(session.user.plan, "AI audience targeting");
+    const gate = await checkPlanAccess(session.user.plan, "AI audience targeting", session.userId);
     if (gate) return gate;
 
     const body = await request.json();

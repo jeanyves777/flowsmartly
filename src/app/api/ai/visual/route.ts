@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const gate = checkPlanAccess(session.user.plan, "AI visual design");
+    const gate = await checkPlanAccess(session.user.plan, "AI visual design", session.userId);
     if (gate) return gate;
 
     const body = await request.json();

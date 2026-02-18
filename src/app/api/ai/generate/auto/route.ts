@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const gate = checkPlanAccess(session.user.plan, "AI auto-generation");
+    const gate = await checkPlanAccess(session.user.plan, "AI auto-generation", session.userId);
     if (gate) return gate;
 
     const cost = await getDynamicCreditCost("AI_AUTO");

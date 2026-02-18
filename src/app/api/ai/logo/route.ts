@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const gate = checkPlanAccess(session.user.plan, "AI logo generation");
+    const gate = await checkPlanAccess(session.user.plan, "AI logo generation", session.userId);
     if (gate) return gate;
 
     // Get dynamic credit cost from database

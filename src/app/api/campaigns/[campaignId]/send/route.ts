@@ -488,7 +488,7 @@ export async function POST(
     // SMS campaigns: deliver via Twilio
     // ------------------------------------------------------------------
     // Plan gate: SMS campaigns require Pro plan or higher
-    const gate = checkPlanAccess(session.user.plan, "SMS messaging");
+    const gate = await checkPlanAccess(session.user.plan, "SMS messaging", session.userId);
     if (gate) return gate;
 
     // Get user's SMS phone number from marketing config

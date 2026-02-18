@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const gate = checkPlanAccess(session.user.plan, "AI landing page builder");
+    const gate = await checkPlanAccess(session.user.plan, "AI landing page builder", session.userId);
     if (gate) return gate;
 
     // Check credits (free credits can only be used for email marketing)

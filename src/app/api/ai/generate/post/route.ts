@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const gate = checkPlanAccess(session.user.plan, "AI post generation");
+    const gate = await checkPlanAccess(session.user.plan, "AI post generation", session.userId);
     if (gate) return gate;
 
     // Parse and validate request body

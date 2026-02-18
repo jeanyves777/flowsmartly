@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const gate = checkPlanAccess(session.user.plan, "AI hashtag generation");
+    const gate = await checkPlanAccess(session.user.plan, "AI hashtag generation", session.userId);
     if (gate) return gate;
 
     const cost = await getDynamicCreditCost("AI_HASHTAGS");

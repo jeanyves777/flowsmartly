@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const gate = checkPlanAccess(session.user.plan, "SMS phone numbers");
+    const gate = await checkPlanAccess(session.user.plan, "SMS phone numbers", session.userId);
     if (gate) return gate;
 
     const body = await request.json();
