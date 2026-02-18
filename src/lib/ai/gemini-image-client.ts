@@ -75,7 +75,6 @@ class GeminiImageClient {
           ],
           config: {
             responseModalities: ["TEXT", "IMAGE"],
-            imageConfig: { aspectRatio },
           },
         });
 
