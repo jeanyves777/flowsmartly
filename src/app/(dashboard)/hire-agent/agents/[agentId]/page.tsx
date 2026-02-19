@@ -28,6 +28,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Image as ImageIcon,
+  Video,
   ZoomIn,
   FileText,
   Clock,
@@ -50,10 +51,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
-interface ShowcaseImage {
+interface ShowcaseProject {
   url: string;
   title: string;
   description: string;
+  highlights?: string[];
+  mediaType?: "image" | "video";
 }
 
 interface AgentDetail {
@@ -61,7 +64,7 @@ interface AgentDetail {
   displayName: string;
   bio: string | null;
   coverImageUrl: string | null;
-  showcaseImages: ShowcaseImage[];
+  showcaseImages: ShowcaseProject[];
   specialties: string[];
   industries: string[];
   portfolioUrls: string[];
@@ -181,7 +184,7 @@ export default function AgentDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isHiring, setIsHiring] = useState(false);
   const [isAboutExpanded, setIsAboutExpanded] = useState(false);
-  const [selectedShowcase, setSelectedShowcase] = useState<ShowcaseImage | null>(null);
+  const [selectedShowcase, setSelectedShowcase] = useState<ShowcaseProject | null>(null);
 
   // Hire dialog state
   const [showHireDialog, setShowHireDialog] = useState(false);
@@ -648,6 +651,110 @@ export default function AgentDetailPage() {
             </Card>
           </motion.div>
 
+          {/* Featured Projects */}
+          {agent.showcaseImages && agent.showcaseImages.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.52 }}
+            >
+              <Card className="overflow-hidden">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-pink-500/20 to-violet-500/20 flex items-center justify-center">
+                      <ImageIcon className="h-4 w-4 text-pink-500" />
+                    </div>
+                    Featured Projects
+                    <Badge variant="secondary" className="ml-1 text-xs">
+                      {agent.showcaseImages.length}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0 space-y-0">
+                  {agent.showcaseImages.map((project, i) => {
+                    const isVideo = project.mediaType === "video" || /\.(mp4|webm|mov)$/i.test(project.url);
+                    const isEven = i % 2 === 1;
+                    const hasDetails = project.description || (project.highlights && project.highlights.length > 0);
+
+                    return (
+                      <motion.div
+                        key={project.url}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.55 + i * 0.08 }}
+                      >
+                        {i > 0 && <div className="border-t my-6" />}
+                        <div className={`flex flex-col ${hasDetails ? `md:flex-row ${isEven ? "md:flex-row-reverse" : ""}` : ""} gap-5`}>
+                          {/* Media */}
+                          <div
+                            className={`${hasDetails ? "md:w-1/2" : "w-full"} cursor-pointer group`}
+                            onClick={() => setSelectedShowcase(project)}
+                          >
+                            <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-muted relative shadow-sm">
+                              {isVideo ? (
+                                <video
+                                  src={project.url}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                  playsInline
+                                  onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                                  onMouseLeave={(e) => { const v = e.target as HTMLVideoElement; v.pause(); v.currentTime = 0; }}
+                                />
+                              ) : (
+                                <img
+                                  src={project.url}
+                                  alt={project.title}
+                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                />
+                              )}
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
+                                <div className="h-11 w-11 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 scale-75 group-hover:scale-100">
+                                  {isVideo ? (
+                                    <Video className="h-5 w-5 text-white" />
+                                  ) : (
+                                    <ZoomIn className="h-5 w-5 text-white" />
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Details */}
+                          {hasDetails ? (
+                            <div className="md:w-1/2 flex flex-col justify-center py-2">
+                              {project.title && (
+                                <h3 className="text-xl font-bold mb-2">{project.title}</h3>
+                              )}
+                              {project.description && (
+                                <p className="text-muted-foreground leading-relaxed text-sm mb-4">
+                                  {project.description}
+                                </p>
+                              )}
+                              {project.highlights && project.highlights.length > 0 && (
+                                <div className="space-y-2.5">
+                                  {project.highlights.map((h, hi) => (
+                                    <div key={hi} className="flex items-start gap-2.5">
+                                      <CheckCircle className="h-4 w-4 text-violet-500 mt-0.5 shrink-0" />
+                                      <span className="text-sm">{h}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : project.title ? (
+                            <div className="px-1 -mt-2">
+                              <p className="text-sm font-medium">{project.title}</p>
+                            </div>
+                          ) : null}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
           {/* Specialties */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -711,65 +818,6 @@ export default function AgentDetailPage() {
               </CardContent>
             </Card>
           </motion.div>
-
-          {/* Project Showcase */}
-          {agent.showcaseImages && agent.showcaseImages.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.62 }}
-            >
-              <Card className="overflow-hidden">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-pink-500/10 flex items-center justify-center">
-                      <ImageIcon className="h-4 w-4 text-pink-500" />
-                    </div>
-                    Project Showcase
-                    <Badge variant="secondary" className="ml-1 text-xs">
-                      {agent.showcaseImages.length} project{agent.showcaseImages.length !== 1 ? "s" : ""}
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="px-4 pb-4 pt-0">
-                  <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory">
-                    {agent.showcaseImages.map((img, i) => (
-                      <motion.div
-                        key={img.url}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.65 + i * 0.06 }}
-                        className="shrink-0 w-56 snap-start cursor-pointer group"
-                        onClick={() => setSelectedShowcase(img)}
-                      >
-                        <div className="aspect-video rounded-xl overflow-hidden bg-muted relative shadow-sm">
-                          <img
-                            src={img.url}
-                            alt={img.title}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
-                            <div>
-                              {img.title && <p className="text-white text-xs font-semibold truncate">{img.title}</p>}
-                              <p className="text-white/70 text-xs">View project</p>
-                            </div>
-                          </div>
-                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                            <div className="h-10 w-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                              <ZoomIn className="h-5 w-5 text-white" />
-                            </div>
-                          </div>
-                        </div>
-                        {img.title && (
-                          <p className="text-xs font-medium mt-2 truncate px-0.5">{img.title}</p>
-                        )}
-                      </motion.div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
 
           {/* Portfolio */}
           {agent.portfolioUrls.length > 0 && (
@@ -1126,49 +1174,71 @@ export default function AgentDetailPage() {
       {/* Showcase Lightbox */}
       <Dialog open={!!selectedShowcase} onOpenChange={() => setSelectedShowcase(null)}>
         <DialogContent className="max-w-4xl p-0 overflow-hidden">
-          {selectedShowcase && (
-            <>
-              <div className="relative bg-black/90">
-                <img
-                  src={selectedShowcase.url}
-                  alt={selectedShowcase.title}
-                  className="w-full max-h-[75vh] object-contain"
-                />
-                {agent.showcaseImages.length > 1 && (
-                  <>
-                    <button
-                      className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors"
-                      onClick={() => {
-                        const idx = agent.showcaseImages.findIndex((i) => i.url === selectedShowcase.url);
-                        setSelectedShowcase(agent.showcaseImages[(idx - 1 + agent.showcaseImages.length) % agent.showcaseImages.length]);
-                      }}
-                    >
-                      <ChevronLeft className="h-5 w-5" />
-                    </button>
-                    <button
-                      className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors"
-                      onClick={() => {
-                        const idx = agent.showcaseImages.findIndex((i) => i.url === selectedShowcase.url);
-                        setSelectedShowcase(agent.showcaseImages[(idx + 1) % agent.showcaseImages.length]);
-                      }}
-                    >
-                      <ChevronRight className="h-5 w-5" />
-                    </button>
-                  </>
-                )}
-              </div>
-              {(selectedShowcase.title || selectedShowcase.description) && (
-                <div className="p-5 border-t">
-                  {selectedShowcase.title && (
-                    <h3 className="text-lg font-bold">{selectedShowcase.title}</h3>
+          {selectedShowcase && (() => {
+            const isVideo = selectedShowcase.mediaType === "video" || /\.(mp4|webm|mov)$/i.test(selectedShowcase.url);
+            return (
+              <>
+                <div className="relative bg-black/90">
+                  {isVideo ? (
+                    <video
+                      src={selectedShowcase.url}
+                      controls
+                      autoPlay
+                      className="w-full max-h-[75vh]"
+                    />
+                  ) : (
+                    <img
+                      src={selectedShowcase.url}
+                      alt={selectedShowcase.title}
+                      className="w-full max-h-[75vh] object-contain"
+                    />
                   )}
-                  {selectedShowcase.description && (
-                    <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{selectedShowcase.description}</p>
+                  {agent.showcaseImages.length > 1 && (
+                    <>
+                      <button
+                        className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                        onClick={() => {
+                          const idx = agent.showcaseImages.findIndex((i) => i.url === selectedShowcase.url);
+                          setSelectedShowcase(agent.showcaseImages[(idx - 1 + agent.showcaseImages.length) % agent.showcaseImages.length]);
+                        }}
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                      <button
+                        className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                        onClick={() => {
+                          const idx = agent.showcaseImages.findIndex((i) => i.url === selectedShowcase.url);
+                          setSelectedShowcase(agent.showcaseImages[(idx + 1) % agent.showcaseImages.length]);
+                        }}
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+                    </>
                   )}
                 </div>
-              )}
-            </>
-          )}
+                {(selectedShowcase.title || selectedShowcase.description || (selectedShowcase.highlights && selectedShowcase.highlights.length > 0)) && (
+                  <div className="p-5 border-t">
+                    {selectedShowcase.title && (
+                      <h3 className="text-lg font-bold">{selectedShowcase.title}</h3>
+                    )}
+                    {selectedShowcase.description && (
+                      <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{selectedShowcase.description}</p>
+                    )}
+                    {selectedShowcase.highlights && selectedShowcase.highlights.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {selectedShowcase.highlights.map((h, hi) => (
+                          <div key={hi} className="flex items-start gap-2">
+                            <CheckCircle className="h-4 w-4 text-violet-500 mt-0.5 shrink-0" />
+                            <span className="text-sm">{h}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

@@ -31,6 +31,9 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderOpen,
+  Sparkles,
+  CheckCircle,
+  Video,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,10 +66,12 @@ interface AgentProfile {
   _count: { clients: number; warnings: number };
 }
 
-interface ShowcaseImage {
+interface ShowcaseProject {
   url: string;
   title: string;
   description: string;
+  highlights?: string[];
+  mediaType?: "image" | "video";
 }
 
 // ─── Banner SVG ───────────────────────────────────────────────────────────────
@@ -132,10 +137,13 @@ export default function AgentProfilePage() {
   const [draftIndustries, setDraftIndustries] = useState<string[]>([]);
   const [draftMinPrice, setDraftMinPrice] = useState(0);
   const [draftPortfolioUrls, setDraftPortfolioUrls] = useState<string[]>([]);
-  const [draftShowcase, setDraftShowcase] = useState<ShowcaseImage[]>([]);
+  const [draftShowcase, setDraftShowcase] = useState<ShowcaseProject[]>([]);
+
+  // AI generation
+  const [generatingAIIndex, setGeneratingAIIndex] = useState<number | null>(null);
 
   // Lightbox
-  const [selectedShowcase, setSelectedShowcase] = useState<ShowcaseImage | null>(null);
+  const [selectedShowcase, setSelectedShowcase] = useState<ShowcaseProject | null>(null);
 
   // ─── Fetch ────────────────────────────────────────────────────────────────
 
@@ -172,7 +180,7 @@ export default function AgentProfilePage() {
   const specialties: string[] = (() => { try { return JSON.parse(profile.specialties); } catch { return []; } })();
   const industries: string[] = (() => { try { return JSON.parse(profile.industries); } catch { return []; } })();
   const portfolioUrls: string[] = (() => { try { return JSON.parse(profile.portfolioUrls); } catch { return []; } })();
-  const showcaseImages: ShowcaseImage[] = (() => { try { return JSON.parse(profile.showcaseImages); } catch { return []; } })();
+  const showcaseImages: ShowcaseProject[] = (() => { try { return JSON.parse(profile.showcaseImages); } catch { return []; } })();
 
   // ─── Save Helper ──────────────────────────────────────────────────────────
 
@@ -282,7 +290,8 @@ export default function AgentProfilePage() {
       const res = await fetch("/api/media", { method: "POST", body: formData });
       const data = await res.json();
       if (data.success) {
-        setDraftShowcase((d) => [...d, { url: data.data.file.url, title: "", description: "" }]);
+        const mediaType: "image" | "video" = file.type.startsWith("video/") ? "video" : "image";
+        setDraftShowcase((d) => [...d, { url: data.data.file.url, title: "", description: "", highlights: [], mediaType }]);
       }
     } catch {
       toast({ title: "Upload failed", variant: "destructive" });
@@ -299,7 +308,44 @@ export default function AgentProfilePage() {
 
   const handleAddShowcaseFromLibrary = (url: string) => {
     setShowShowcaseLibrary(false);
-    setDraftShowcase((d) => [...d, { url, title: "", description: "" }]);
+    const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url);
+    setDraftShowcase((d) => [...d, { url, title: "", description: "", highlights: [], mediaType: isVideo ? "video" : "image" }]);
+  };
+
+  const handleAIGenerate = async (index: number) => {
+    const item = draftShowcase[index];
+    if (!item?.title?.trim()) {
+      toast({ title: "Add a project title first", description: "AI needs a title to generate the description.", variant: "destructive" });
+      return;
+    }
+    setGeneratingAIIndex(index);
+    try {
+      const res = await fetch("/api/ai/project-description", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: item.title }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDraftShowcase((d) =>
+          d.map((p, j) =>
+            j === index
+              ? { ...p, description: data.data.description, highlights: data.data.highlights }
+              : p
+          )
+        );
+        toast({ title: "Description generated!" });
+      } else {
+        throw new Error(data.error?.message || "Generation failed");
+      }
+    } catch (error) {
+      toast({
+        title: "Generation failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+    setGeneratingAIIndex(null);
   };
 
   const handleSaveShowcase = async () => {
@@ -643,6 +689,285 @@ export default function AgentProfilePage() {
             </AnimatePresence>
           </Card>
 
+          {/* ── Project Showcase Card ── */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-pink-500/20 to-violet-500/20 flex items-center justify-center">
+                  <ImageIcon className="h-4 w-4 text-pink-500" />
+                </div>
+                Featured Projects
+                {showcaseImages.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs">{showcaseImages.length}</Badge>
+                )}
+              </CardTitle>
+              {isEditingShowcase ? (
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setIsEditingShowcase(false)}>Cancel</Button>
+                  <Button size="sm" onClick={handleSaveShowcase} disabled={isSaving}>
+                    {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+                    Save
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setDraftShowcase(showcaseImages.map(p => ({ ...p, highlights: p.highlights || [], mediaType: p.mediaType || "image" }))); setIsEditingShowcase(true); }}
+                >
+                  <Pencil className="h-3.5 w-3.5 mr-1" />Manage
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent>
+              {!isEditingShowcase ? (
+                showcaseImages.length === 0 ? (
+                  <div className="border-2 border-dashed rounded-xl p-8 text-center">
+                    <ImageIcon className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">No projects yet.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Showcase your best work to attract clients.</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => { setDraftShowcase([]); setIsEditingShowcase(true); }}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" />Add Projects
+                    </Button>
+                  </div>
+                ) : (
+                  /* View mode — presentation style */
+                  <div className="space-y-6">
+                    {showcaseImages.map((project, i) => (
+                      <motion.div
+                        key={project.url}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.08 }}
+                      >
+                        {i > 0 && <div className="h-px bg-border mb-6" />}
+                        <div className="flex flex-col md:flex-row gap-5 items-start">
+                          {/* Media */}
+                          <div
+                            className="w-full md:w-1/2 shrink-0 cursor-pointer group"
+                            onClick={() => setSelectedShowcase(project)}
+                          >
+                            <div className="aspect-[4/3] rounded-xl overflow-hidden bg-muted relative shadow-sm">
+                              {project.mediaType === "video" ? (
+                                <video
+                                  src={project.url}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                  playsInline
+                                  onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                                  onMouseLeave={(e) => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = 0; }}
+                                />
+                              ) : (
+                                <img src={project.url} alt={project.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                              )}
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                <div className="h-10 w-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {project.mediaType === "video" ? <Video className="h-5 w-5 text-white" /> : <Eye className="h-5 w-5 text-white" />}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Details */}
+                          <div className="flex-1 min-w-0 py-1">
+                            <h3 className="text-lg font-bold">{project.title || "Untitled Project"}</h3>
+                            {project.description && (
+                              <p className="text-sm text-muted-foreground leading-relaxed mt-2">
+                                {project.description}
+                              </p>
+                            )}
+                            {project.highlights && project.highlights.length > 0 && (
+                              <ul className="mt-3 space-y-2">
+                                {project.highlights.map((h, hi) => (
+                                  <li key={hi} className="flex items-start gap-2 text-sm">
+                                    <CheckCircle className="h-4 w-4 text-violet-500 shrink-0 mt-0.5" />
+                                    <span>{h}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                /* Edit mode */
+                <div className="space-y-6">
+                  {draftShowcase.map((project, i) => (
+                    <div key={`${project.url}-${i}`} className="border rounded-xl p-4 space-y-3 relative">
+                      {/* Delete button */}
+                      <button
+                        className="absolute top-3 right-3 h-7 w-7 rounded-full bg-destructive/10 hover:bg-destructive/20 text-destructive flex items-center justify-center transition-colors"
+                        onClick={() => setDraftShowcase((d) => d.filter((_, j) => j !== i))}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+
+                      {/* Media preview */}
+                      <div className="aspect-video rounded-lg overflow-hidden bg-muted max-w-xs">
+                        {project.mediaType === "video" ? (
+                          <video src={project.url} className="w-full h-full object-cover" muted playsInline />
+                        ) : (
+                          <img src={project.url} alt={project.title} className="w-full h-full object-cover" />
+                        )}
+                      </div>
+
+                      {/* Title */}
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Title</Label>
+                        <Input
+                          placeholder="Project title..."
+                          value={project.title}
+                          onChange={(e) =>
+                            setDraftShowcase((d) =>
+                              d.map((item, j) => (j === i ? { ...item, title: e.target.value } : item))
+                            )
+                          }
+                          className="h-9"
+                        />
+                      </div>
+
+                      {/* Description with AI button */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <Label className="text-xs text-muted-foreground">Description</Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs text-violet-600 hover:text-violet-700 hover:bg-violet-500/10"
+                            onClick={() => handleAIGenerate(i)}
+                            disabled={generatingAIIndex !== null}
+                          >
+                            {generatingAIIndex === i ? (
+                              <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Generating...</>
+                            ) : (
+                              <><Sparkles className="h-3 w-3 mr-1" />AI Generate</>
+                            )}
+                          </Button>
+                        </div>
+                        <textarea
+                          value={project.description}
+                          onChange={(e) =>
+                            setDraftShowcase((d) =>
+                              d.map((item, j) => (j === i ? { ...item, description: e.target.value } : item))
+                            )
+                          }
+                          placeholder="Describe what you delivered, the impact, and results..."
+                          rows={3}
+                          maxLength={500}
+                          className="w-full p-2.5 rounded-lg border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50"
+                        />
+                      </div>
+
+                      {/* Highlights */}
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Key Highlights</Label>
+                        <div className="space-y-1.5">
+                          {(project.highlights || []).map((h, hi) => (
+                            <div key={hi} className="flex items-center gap-1.5">
+                              <CheckCircle className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                              <Input
+                                value={h}
+                                onChange={(e) =>
+                                  setDraftShowcase((d) =>
+                                    d.map((item, j) =>
+                                      j === i
+                                        ? { ...item, highlights: (item.highlights || []).map((hl, hli) => (hli === hi ? e.target.value : hl)) }
+                                        : item
+                                    )
+                                  )
+                                }
+                                placeholder="e.g. 250% engagement increase"
+                                className="h-8 text-sm flex-1"
+                              />
+                              <button
+                                className="h-6 w-6 rounded text-muted-foreground hover:text-destructive transition-colors flex items-center justify-center shrink-0"
+                                onClick={() =>
+                                  setDraftShowcase((d) =>
+                                    d.map((item, j) =>
+                                      j === i
+                                        ? { ...item, highlights: (item.highlights || []).filter((_, hli) => hli !== hi) }
+                                        : item
+                                    )
+                                  )
+                                }
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                          {(project.highlights || []).length < 5 && (
+                            <button
+                              className="text-xs text-violet-600 hover:text-violet-700 flex items-center gap-1 mt-1"
+                              onClick={() =>
+                                setDraftShowcase((d) =>
+                                  d.map((item, j) =>
+                                    j === i
+                                      ? { ...item, highlights: [...(item.highlights || []), ""] }
+                                      : item
+                                  )
+                                )
+                              }
+                            >
+                              <Plus className="h-3 w-3" />Add highlight
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Add project button */}
+                  {draftShowcase.length < 12 && (
+                    <FileDropZone
+                      onFileDrop={uploadShowcaseFile}
+                      accept="image/png,image/jpeg,image/webp,video/mp4,video/webm"
+                      dragLabel="Drop project media"
+                    >
+                      <div className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2">
+                        {isUploadingShowcase ? (
+                          <Loader2 className="h-6 w-6 text-violet-500 animate-spin" />
+                        ) : (
+                          <>
+                            <label className="cursor-pointer flex flex-col items-center gap-1.5 hover:text-violet-500 transition-colors">
+                              <Plus className="h-6 w-6" />
+                              <span className="text-sm font-medium">Add Project</span>
+                              <span className="text-xs text-muted-foreground">Image or Video</span>
+                              <input
+                                type="file"
+                                className="hidden"
+                                accept="image/png,image/jpeg,image/webp,video/mp4,video/webm"
+                                onChange={handleAddShowcaseFile}
+                                disabled={isUploadingShowcase}
+                              />
+                            </label>
+                            <button
+                              className="text-xs text-muted-foreground hover:text-violet-500 transition-colors flex items-center gap-1 mt-1"
+                              onClick={() => setShowShowcaseLibrary(true)}
+                            >
+                              <FolderOpen className="h-3.5 w-3.5" />
+                              From Media Library
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </FileDropZone>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Up to 12 projects. Add a title then click AI Generate to create a description.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* ── Specialties Card ── */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -767,143 +1092,6 @@ export default function AgentProfilePage() {
             </CardContent>
           </Card>
 
-          {/* ── Project Showcase Card ── */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-pink-500/10 flex items-center justify-center">
-                  <ImageIcon className="h-4 w-4 text-pink-500" />
-                </div>
-                Project Showcase
-                {showcaseImages.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 text-xs">{showcaseImages.length}</Badge>
-                )}
-              </CardTitle>
-              {isEditingShowcase ? (
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setIsEditingShowcase(false)}>Cancel</Button>
-                  <Button size="sm" onClick={handleSaveShowcase} disabled={isSaving}>
-                    {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
-                    Save
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { setDraftShowcase([...showcaseImages]); setIsEditingShowcase(true); }}
-                >
-                  <Pencil className="h-3.5 w-3.5 mr-1" />Manage
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent>
-              {!isEditingShowcase ? (
-                showcaseImages.length === 0 ? (
-                  <div className="border-2 border-dashed rounded-xl p-8 text-center">
-                    <ImageIcon className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">No showcase images yet.</p>
-                    <p className="text-xs text-muted-foreground mt-1">Add images of your past projects to attract clients.</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-3"
-                      onClick={() => { setDraftShowcase([]); setIsEditingShowcase(true); }}
-                    >
-                      <Plus className="h-3.5 w-3.5 mr-1" />Add Projects
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex gap-4 overflow-x-auto pb-3 -mx-1 px-1 snap-x snap-mandatory">
-                    {showcaseImages.map((img, i) => (
-                      <motion.div
-                        key={img.url}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: i * 0.05 }}
-                        className="shrink-0 w-52 snap-start cursor-pointer group"
-                        onClick={() => setSelectedShowcase(img)}
-                      >
-                        <div className="aspect-video rounded-lg overflow-hidden bg-muted relative">
-                          <img src={img.url} alt={img.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                            <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        </div>
-                        <p className="text-xs font-medium mt-1.5 truncate">{img.title || "Untitled Project"}</p>
-                        {img.description && (
-                          <p className="text-xs text-muted-foreground truncate">{img.description}</p>
-                        )}
-                      </motion.div>
-                    ))}
-                  </div>
-                )
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {draftShowcase.map((img, i) => (
-                      <div key={`${img.url}-${i}`} className="relative group">
-                        <div className="aspect-video rounded-lg overflow-hidden bg-muted">
-                          <img src={img.url} alt={img.title} className="w-full h-full object-cover" />
-                        </div>
-                        <button
-                          className="absolute top-1 right-1 h-6 w-6 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => setDraftShowcase((d) => d.filter((_, j) => j !== i))}
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                        <input
-                          className="mt-1.5 w-full text-xs border rounded-md px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-violet-500/30"
-                          placeholder="Project title..."
-                          value={img.title}
-                          onChange={(e) =>
-                            setDraftShowcase((d) =>
-                              d.map((item, j) => (j === i ? { ...item, title: e.target.value } : item))
-                            )
-                          }
-                        />
-                      </div>
-                    ))}
-
-                    {/* Add buttons */}
-                    {draftShowcase.length < 12 && (
-                      <FileDropZone onFileDrop={uploadShowcaseFile} accept="image/png,image/jpeg,image/webp" dragLabel="Drop showcase image">
-                        <div className="aspect-video rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2">
-                          {isUploadingShowcase ? (
-                            <Loader2 className="h-6 w-6 text-violet-500 animate-spin" />
-                          ) : (
-                            <>
-                              <label className="cursor-pointer flex flex-col items-center gap-1 hover:text-violet-500 transition-colors">
-                                <Plus className="h-5 w-5" />
-                                <span className="text-xs">Upload</span>
-                                <input
-                                  type="file"
-                                  className="hidden"
-                                  accept="image/png,image/jpeg,image/webp"
-                                  onChange={handleAddShowcaseFile}
-                                  disabled={isUploadingShowcase}
-                                />
-                              </label>
-                              <button
-                                className="text-xs text-muted-foreground hover:text-violet-500 transition-colors flex items-center gap-1"
-                                onClick={() => setShowShowcaseLibrary(true)}
-                              >
-                                <FolderOpen className="h-3.5 w-3.5" />
-                                Library
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </FileDropZone>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Up to 12 images. Hover to remove, click title to rename.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </motion.div>
 
         {/* Right Column */}
@@ -1121,12 +1309,22 @@ export default function AgentProfilePage() {
                 )}
               </div>
               {(selectedShowcase.title || selectedShowcase.description) && (
-                <div className="p-4 border-t">
+                <div className="p-5 border-t">
                   {selectedShowcase.title && (
-                    <h3 className="font-semibold">{selectedShowcase.title}</h3>
+                    <h3 className="text-lg font-bold">{selectedShowcase.title}</h3>
                   )}
                   {selectedShowcase.description && (
-                    <p className="text-sm text-muted-foreground mt-1">{selectedShowcase.description}</p>
+                    <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{selectedShowcase.description}</p>
+                  )}
+                  {selectedShowcase.highlights && selectedShowcase.highlights.length > 0 && (
+                    <ul className="mt-3 space-y-1.5">
+                      {selectedShowcase.highlights.map((h, hi) => (
+                        <li key={hi} className="flex items-start gap-2 text-sm">
+                          <CheckCircle className="h-4 w-4 text-violet-500 shrink-0 mt-0.5" />
+                          <span>{h}</span>
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </div>
               )}
