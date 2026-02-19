@@ -40,7 +40,11 @@ import {
   Shield,
   Pencil,
   Lightbulb,
+  Upload,
+  FolderOpen,
+  Zap,
 } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -280,6 +284,9 @@ export default function FeedPage() {
   const [selectedMedia, setSelectedMedia] = useState<MediaFile[]>([]);
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [isLoadingMedia, setIsLoadingMedia] = useState(false);
+  const [mediaPickerTab, setMediaPickerTab] = useState<"upload" | "library">("upload");
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Current user info
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -1336,6 +1343,41 @@ export default function FeedPage() {
     });
   };
 
+  // Direct file upload in media picker
+  const handleDirectUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setIsUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/media", { method: "POST", body: formData });
+        const data = await res.json();
+        if (data.success && data.data) {
+          const uploaded: MediaFile = {
+            id: data.data.id,
+            url: data.data.url,
+            originalName: data.data.originalName || file.name,
+            type: file.type.startsWith("video/") ? "video" : "image",
+            mimeType: file.type,
+            width: data.data.width || null,
+            height: data.data.height || null,
+          };
+          setMediaFiles(prev => [uploaded, ...prev]);
+          setSelectedMedia(prev => [...prev, uploaded]);
+        } else {
+          toast({ title: data.error?.message || "Upload failed", variant: "destructive" });
+        }
+      }
+      toast({ title: "Upload complete!" });
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   // Expand composer
   const expandComposer = () => {
     setIsComposerExpanded(true);
@@ -1576,7 +1618,7 @@ export default function FeedPage() {
                         contentType="post_ideas"
                         onSelect={(idea) => setNewPostContent(idea)}
                         mode="single"
-                        className="h-7 w-7"
+                        className="h-7"
                       />
                     </div>
                     {isGeneratingIdea ? (
@@ -1694,6 +1736,12 @@ export default function FeedPage() {
                           Post
                         </>
                       )}
+                    </Button>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/content/posts">
+                        <Zap className="w-4 h-4 mr-2" />
+                        Automation
+                      </Link>
                     </Button>
                   </div>
                 )}
@@ -2722,13 +2770,13 @@ export default function FeedPage() {
         )}
       </AnimatePresence>
 
-      {/* Media Library Picker Dialog */}
+      {/* Media Picker Dialog */}
       <Dialog open={showMediaPicker} onOpenChange={setShowMediaPicker}>
         <DialogContent className="max-w-2xl w-[90vw] max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ImagePlus className="w-5 h-5 text-brand-500" />
-              Select Media
+              Add Media
               {selectedMedia.length > 0 && (
                 <Badge variant="secondary" className="ml-2">
                   {selectedMedia.length} selected
@@ -2737,60 +2785,154 @@ export default function FeedPage() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="overflow-y-auto" style={{ maxHeight: "55vh" }}>
-            {isLoadingMedia ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 p-1">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                  <Skeleton key={i} className="aspect-square rounded-lg" />
-                ))}
-              </div>
-            ) : mediaFiles.length === 0 ? (
-              <div className="text-center py-12">
-                <Image className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
-                <p className="font-medium">No media files</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Upload files in the Media Library first
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 p-1">
-                {mediaFiles.map((file) => {
-                  const isSelected = selectedMedia.some(m => m.id === file.id);
-                  return (
-                    <button
-                      key={file.id}
-                      onClick={() => toggleMediaSelection(file)}
-                      className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                        isSelected
-                          ? "border-brand-500 ring-2 ring-brand-500/20"
-                          : "border-transparent hover:border-muted-foreground/30"
-                      }`}
-                    >
-                      {file.type === "video" ? (
-                        <div className="w-full h-full bg-muted flex items-center justify-center">
-                          <Video className="w-8 h-8 text-muted-foreground" />
-                        </div>
-                      ) : (
-                        <img
-                          src={file.url}
-                          alt={file.originalName}
-                          className="w-full h-full object-cover"
-                        />
-                      )}
-                      {isSelected && (
-                        <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-brand-500 flex items-center justify-center">
-                          <Check className="w-3.5 h-3.5 text-white" />
-                        </div>
-                      )}
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-1.5">
-                        <p className="text-[10px] text-white truncate">
-                          {file.originalName}
+          {/* Tabs */}
+          <div className="flex gap-1 p-1 bg-muted/50 rounded-lg">
+            <button
+              onClick={() => setMediaPickerTab("upload")}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                mediaPickerTab === "upload"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Upload className="w-4 h-4" />
+              Upload
+            </button>
+            <button
+              onClick={() => {
+                setMediaPickerTab("library");
+                if (mediaFiles.length === 0) fetchMediaFiles();
+              }}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                mediaPickerTab === "library"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <FolderOpen className="w-4 h-4" />
+              Library
+            </button>
+          </div>
+
+          <div className="overflow-y-auto" style={{ maxHeight: "50vh" }}>
+            {mediaPickerTab === "upload" ? (
+              <div className="space-y-4">
+                {/* Upload area */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => handleDirectUpload(e.target.files)}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="w-full border-2 border-dashed border-border/60 rounded-xl p-8 text-center hover:border-brand-500/50 hover:bg-brand-50/30 dark:hover:bg-brand-500/5 transition-colors"
+                >
+                  {isUploading ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <AISpinner className="w-8 h-8" />
+                      <p className="text-sm font-medium">Uploading...</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center">
+                        <Upload className="w-6 h-6 text-brand-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Click to upload files</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          PNG, JPEG, WebP, SVG, MP4, WebM
                         </p>
                       </div>
-                    </button>
-                  );
-                })}
+                    </div>
+                  )}
+                </button>
+
+                {/* Show selected files preview */}
+                {selectedMedia.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Selected files</p>
+                    <div className="grid grid-cols-4 gap-2">
+                      {selectedMedia.map((file) => (
+                        <div key={file.id} className="relative aspect-square rounded-lg overflow-hidden border border-border/60">
+                          {file.type === "video" ? (
+                            <div className="w-full h-full bg-muted flex items-center justify-center">
+                              <Video className="w-6 h-6 text-muted-foreground" />
+                            </div>
+                          ) : (
+                            <img src={file.url} alt={file.originalName} className="w-full h-full object-cover" />
+                          )}
+                          <button
+                            onClick={() => toggleMediaSelection(file)}
+                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center"
+                          >
+                            <X className="w-3 h-3 text-white" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
+            ) : (
+              /* Library tab */
+              isLoadingMedia ? (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 p-1">
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                    <Skeleton key={i} className="aspect-square rounded-lg" />
+                  ))}
+                </div>
+              ) : mediaFiles.length === 0 ? (
+                <div className="text-center py-12">
+                  <Image className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                  <p className="font-medium">No media files</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Upload files first using the Upload tab
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 p-1">
+                  {mediaFiles.map((file) => {
+                    const isSelected = selectedMedia.some(m => m.id === file.id);
+                    return (
+                      <button
+                        key={file.id}
+                        onClick={() => toggleMediaSelection(file)}
+                        className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                          isSelected
+                            ? "border-brand-500 ring-2 ring-brand-500/20"
+                            : "border-transparent hover:border-muted-foreground/30"
+                        }`}
+                      >
+                        {file.type === "video" ? (
+                          <div className="w-full h-full bg-muted flex items-center justify-center">
+                            <Video className="w-8 h-8 text-muted-foreground" />
+                          </div>
+                        ) : (
+                          <img
+                            src={file.url}
+                            alt={file.originalName}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                        {isSelected && (
+                          <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-brand-500 flex items-center justify-center">
+                            <Check className="w-3.5 h-3.5 text-white" />
+                          </div>
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-1.5">
+                          <p className="text-[10px] text-white truncate">
+                            {file.originalName}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )
             )}
           </div>
 
@@ -2798,7 +2940,7 @@ export default function FeedPage() {
             <p className="text-xs text-muted-foreground">
               {selectedMedia.length > 0
                 ? `${selectedMedia.length} file${selectedMedia.length > 1 ? "s" : ""} selected`
-                : "Click images to select them"}
+                : mediaPickerTab === "upload" ? "Upload files to attach" : "Click images to select them"}
             </p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setShowMediaPicker(false)}>
