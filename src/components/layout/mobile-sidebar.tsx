@@ -35,6 +35,7 @@ import {
   ClipboardList,
   FileQuestion,
   MessageCircle,
+  UsersRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -94,6 +95,7 @@ const marketingNavigation = [
 ];
 
 const secondaryNavigation = [
+  { name: "Teams", href: "/teams", icon: UsersRound },
   { name: "Messages", href: "/messages", icon: MessageCircle },
   { name: "Hire Agent", href: "/hire-agent", icon: Store },
   { name: "Settings", href: "/settings", icon: Settings },
@@ -299,7 +301,9 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
 
             {/* Secondary Navigation */}
             <div className="p-4 border-t space-y-1">
-              {secondaryNavigation.map((item) => {
+              {secondaryNavigation
+                .filter((item) => item.name !== "Teams" || hasMarketingAccess)
+                .map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href.split("?")[0] + "/");
                 return (
                   <Link

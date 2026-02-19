@@ -15,8 +15,8 @@ export async function GET() {
 
     const userId = session.userId;
 
-    // Find all conversation IDs where the user is a participant
-    const conversations = await prisma.conversation.findMany({
+    // Find all conversation IDs where the user is a participant (agent-client + group)
+    const directConvos = await prisma.conversation.findMany({
       where: {
         OR: [
           { agentUserId: userId },
@@ -26,7 +26,17 @@ export async function GET() {
       select: { id: true },
     });
 
-    const conversationIds = conversations.map((c) => c.id);
+    const groupParticipants = await prisma.conversationParticipant.findMany({
+      where: { userId },
+      select: { conversationId: true },
+    });
+
+    const conversationIds = [
+      ...new Set([
+        ...directConvos.map((c) => c.id),
+        ...groupParticipants.map((p) => p.conversationId),
+      ]),
+    ];
 
     if (conversationIds.length === 0) {
       return NextResponse.json({

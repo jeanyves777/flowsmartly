@@ -54,7 +54,7 @@ export async function POST(
     }
 
     // Validate relationship is ACTIVE
-    if (conversation.agentClient.status !== "ACTIVE") {
+    if (conversation.agentClient?.status !== "ACTIVE") {
       return NextResponse.json(
         { success: false, error: { message: "Agent-client relationship is not active" } },
         { status: 403 }
@@ -110,7 +110,7 @@ export async function POST(
     });
 
     // Fire-and-forget notification for client
-    createNotification({
+    if (conversation.clientUserId) createNotification({
       userId: conversation.clientUserId,
       type: "APPROVAL_REQUEST",
       title: "Content approval requested",

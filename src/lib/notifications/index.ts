@@ -33,6 +33,7 @@ import {
   sendTollfreeVerificationRejectedEmail,
   sendAgentApprovedEmail,
   sendAgentRejectedEmail,
+  sendTeamInvitationEmail,
 } from "@/lib/email";
 
 // ── Notification Types ──
@@ -105,6 +106,13 @@ export const NOTIFICATION_TYPES = {
   APPROVAL_REQUEST: "APPROVAL_REQUEST",
   APPROVAL_APPROVED: "APPROVAL_APPROVED",
   APPROVAL_REJECTED: "APPROVAL_REJECTED",
+
+  // Teams
+  TEAM_INVITATION: "TEAM_INVITATION",
+  TEAM_MEMBER_JOINED: "TEAM_MEMBER_JOINED",
+  TASK_ASSIGNED: "TASK_ASSIGNED",
+  TASK_STATUS_CHANGED: "TASK_STATUS_CHANGED",
+  TASK_COMMENT_ADDED: "TASK_COMMENT_ADDED",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -1241,6 +1249,38 @@ export async function notifyApprovalDecision(params: {
   });
 }
 
+// ── Team Notifications ──
+
+export async function notifyTeamInvitation(params: {
+  userId: string;
+  teamName: string;
+  inviterName: string;
+  inviteToken: string;
+}) {
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.TEAM_INVITATION,
+    title: "Team Invitation",
+    message: `${params.inviterName} invited you to join ${params.teamName}`,
+    actionUrl: `/teams/invite/${params.inviteToken}`,
+  });
+}
+
+export async function notifyTeamMemberJoined(params: {
+  ownerUserId: string;
+  memberName: string;
+  teamName: string;
+  teamId: string;
+}) {
+  await createNotification({
+    userId: params.ownerUserId,
+    type: NOTIFICATION_TYPES.TEAM_MEMBER_JOINED,
+    title: "New Team Member",
+    message: `${params.memberName} joined ${params.teamName}`,
+    actionUrl: `/teams/${params.teamId}`,
+  });
+}
+
 /**
  * Create a system notification for all users or specific users
  */
@@ -1368,4 +1408,102 @@ export async function shouldSendEmail(
 ): Promise<boolean> {
   const prefs = await getNotificationPreferences(userId);
   return prefs.email[category] ?? true;
+}
+
+// ── Team Project & Task Notifications ──
+
+/**
+ * Notify user that a task has been assigned to them
+ */
+export async function notifyTaskAssigned(params: {
+  userId: string;
+  taskTitle: string;
+  projectName: string;
+  assignedBy: string;
+  taskId: string;
+  projectId: string;
+  teamId: string;
+}) {
+  const assigner = await prisma.user.findUnique({
+    where: { id: params.assignedBy },
+    select: { name: true },
+  });
+
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.TASK_ASSIGNED,
+    title: "Task Assigned",
+    message: `${assigner?.name || "Someone"} assigned you "${params.taskTitle}" in ${params.projectName}`,
+    data: {
+      taskId: params.taskId,
+      projectId: params.projectId,
+      teamId: params.teamId,
+      assignedBy: params.assignedBy,
+    },
+    actionUrl: `/teams/${params.teamId}/projects/${params.projectId}`,
+  });
+}
+
+/**
+ * Notify user that a task status has changed
+ */
+export async function notifyTaskStatusChanged(params: {
+  userId: string;
+  taskTitle: string;
+  projectName: string;
+  oldStatus: string;
+  newStatus: string;
+  changedBy: string;
+  taskId: string;
+  projectId: string;
+  teamId: string;
+}) {
+  const changer = await prisma.user.findUnique({
+    where: { id: params.changedBy },
+    select: { name: true },
+  });
+
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.TASK_STATUS_CHANGED,
+    title: "Task Status Updated",
+    message: `${changer?.name || "Someone"} changed "${params.taskTitle}" from ${params.oldStatus} to ${params.newStatus}`,
+    data: {
+      taskId: params.taskId,
+      projectId: params.projectId,
+      teamId: params.teamId,
+      oldStatus: params.oldStatus,
+      newStatus: params.newStatus,
+      changedBy: params.changedBy,
+    },
+    actionUrl: `/teams/${params.teamId}/projects/${params.projectId}`,
+  });
+}
+
+/**
+ * Notify task assignee that a comment was added to their task
+ */
+export async function notifyTaskCommentAdded(params: {
+  userId: string;
+  taskTitle: string;
+  projectName: string;
+  commenterName: string;
+  commentPreview: string;
+  taskId: string;
+  projectId: string;
+  teamId: string;
+}) {
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.TASK_COMMENT_ADDED,
+    title: "New Comment on Task",
+    message: `${params.commenterName} commented on "${params.taskTitle}": ${params.commentPreview.substring(0, 80)}${params.commentPreview.length > 80 ? "..." : ""}`,
+    data: {
+      taskId: params.taskId,
+      projectId: params.projectId,
+      teamId: params.teamId,
+      commenterName: params.commenterName,
+    },
+    actionUrl: `/teams/${params.teamId}/projects/${params.projectId}`,
+  });
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { checkPlanAccess } from "@/lib/auth/plan-gate";
 
 // GET /api/teams - List teams the current user is a member of
 export async function GET() {
@@ -64,6 +65,10 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    // Plan gate — team creation requires PRO+
+    const gate = await checkPlanAccess(session.user.plan, "Team collaboration", session.userId);
+    if (gate) return gate;
 
     const body = await request.json();
     const { name, description } = body;

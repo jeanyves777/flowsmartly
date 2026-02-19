@@ -37,6 +37,7 @@ import {
   ClipboardList,
   FileQuestion,
   MessageCircle,
+  UsersRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -299,6 +300,27 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             return renderNavItem(item, isActive);
           })}
         </div>
+
+        {/* Teams Section — paid users only */}
+        {hasMarketingAccess && (
+          <div className="pt-4">
+            {!isCollapsed ? (
+              <div className="px-3 pb-2 flex items-center gap-2">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Teams
+                </span>
+              </div>
+            ) : (
+              <div className="flex justify-center py-2">
+                <UsersRound className={cn("h-4 w-4", pathname.startsWith("/teams") ? "text-brand-500" : "text-muted-foreground")} />
+              </div>
+            )}
+            {renderNavItem(
+              { name: "My Teams", href: "/teams", icon: UsersRound },
+              pathname.startsWith("/teams")
+            )}
+          </div>
+        )}
 
         {/* Agent Section — shown for agents with profile + marketplace links */}
         {isAgent ? (

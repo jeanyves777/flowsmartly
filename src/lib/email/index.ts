@@ -1502,6 +1502,38 @@ export async function sendAgentRejectedEmail(params: {
   });
 }
 
+// Team Invitation Email
+export async function sendTeamInvitationEmail(params: {
+  to: string;
+  inviterName: string;
+  teamName: string;
+  role: string;
+  inviteUrl: string;
+  expiresInDays: number;
+}) {
+  const content = `
+    <h2>You've Been Invited!</h2>
+    <p>Hi there,</p>
+    <p><strong>${params.inviterName}</strong> has invited you to join <strong>${params.teamName}</strong> as a <strong>${params.role}</strong> on FlowSmartly.</p>
+    <div class="highlight">
+      <strong>Team:</strong> ${params.teamName}<br>
+      <strong>Role:</strong> ${params.role}<br>
+      <strong>Expires:</strong> ${params.expiresInDays} days from now
+    </div>
+    <p style="text-align: center;">
+      <a href="${params.inviteUrl}" class="button">Accept Invitation</a>
+    </p>
+    <p>If you don't have a FlowSmartly account yet, you'll be prompted to create one.</p>
+    <p style="color: #71717a; font-size: 13px;">This invitation will expire in ${params.expiresInDays} days. If you didn't expect this invitation, you can safely ignore this email.</p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `${params.inviterName} invited you to join ${params.teamName} on FlowSmartly`,
+    html: baseTemplate(content, `You've been invited to join ${params.teamName}`),
+  });
+}
+
 // Test Email Function (for admin/debugging)
 export async function sendTestEmail(to: string): Promise<{
   success: boolean;

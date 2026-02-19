@@ -97,6 +97,7 @@ model User {
   referralCommissions ReferralCommission[]
   followUps           FollowUp[]
   surveys             Survey[]
+  projectMemberships  ProjectMember[]
 
   @@index([email])
   @@index([username])
@@ -1272,19 +1273,25 @@ model AgentClient {
 
 model Conversation {
   id              String    @id @default(cuid())
-  agentClientId   String    @unique
-  agentUserId     String
-  clientUserId    String
+  agentClientId   String?   @unique
+  agentUserId     String?
+  clientUserId    String?
+  teamId          String?
+  isGroup         Boolean   @default(false)
   lastMessageAt   DateTime  @default(now())
   lastMessageText String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  agentClient     AgentClient @relation(fields: [agentClientId], references: [id], onDelete: Cascade)
+  agentClient     AgentClient? @relation(fields: [agentClientId], references: [id], onDelete: Cascade)
+  team            Team?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
   messages        Message[]
+  participants    ConversationParticipant[]
+  readReceipts    MessageReadReceipt[]
 
   @@index([agentUserId, lastMessageAt])
   @@index([clientUserId, lastMessageAt])
+  @@index([teamId, lastMessageAt])
 }
 
 model Message {
@@ -1860,6 +1867,9 @@ model Team {
   ownerId     String
   owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   members     TeamMember[]
+  invitations TeamInvitation[]
+  projects    Project[]
+  conversations Conversation[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -1880,6 +1890,140 @@ model TeamMember {
   @@unique([teamId, userId])
   @@index([teamId])
   @@index([userId])
+}
+
+model TeamInvitation {
+  id          String    @id @default(cuid())
+  teamId      String
+  email       String
+  role        String    @default("MEMBER") // ADMIN, EDITOR, MEMBER
+  token       String    @unique
+  status      String    @default("PENDING") // PENDING, ACCEPTED, EXPIRED, CANCELLED
+  invitedBy   String
+  acceptedAt  DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, email])
+  @@index([token])
+  @@index([email])
+  @@index([teamId])
+}
+
+// ============================================
+// TEAM PROJECTS & TASKS
+// ============================================
+
+model Project {
+  id             String    @id @default(cuid())
+  teamId         String
+  name           String
+  description    String?
+  brief          String?
+  status         String    @default("ACTIVE") // ACTIVE, COMPLETED, ARCHIVED
+  deadline       DateTime?
+  totalTasks     Int       @default(0)
+  completedTasks Int       @default(0)
+  createdBy      String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  team           Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  tasks          ProjectTask[]
+  members        ProjectMember[]
+
+  @@index([teamId])
+  @@index([status])
+  @@index([createdBy])
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  addedAt   DateTime @default(now())
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+}
+
+model ProjectTask {
+  id          String    @id @default(cuid())
+  projectId   String
+  title       String
+  description String?
+  status      String    @default("TODO") // TODO, IN_PROGRESS, REVIEW, DONE
+  priority    String    @default("MEDIUM") // LOW, MEDIUM, HIGH
+  assigneeId  String?
+  createdById String
+  startDate   DateTime?
+  dueDate     DateTime?
+  completedAt DateTime?
+  sortOrder   Int       @default(0)
+  progress    Int       @default(0)
+  attachments String    @default("[]") // JSON: [{url, filename, mimeType, size}]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  comments    TaskComment[]
+
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model TaskComment {
+  id          String      @id @default(cuid())
+  taskId      String
+  userId      String
+  content     String
+  attachments String      @default("[]")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  task        ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId])
+}
+
+// ============================================
+// TEAM CONVERSATION SUPPORT
+// ============================================
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime     @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([conversationId])
+  @@index([userId])
+}
+
+model MessageReadReceipt {
+  id             String       @id @default(cuid())
+  conversationId String
+  messageId      String
+  userId         String
+  readAt         DateTime     @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([conversationId, userId])
 }
 
 // ============================================

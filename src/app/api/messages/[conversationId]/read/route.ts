@@ -19,13 +19,14 @@ export async function PATCH(
     const { conversationId } = await params;
     const userId = session.userId;
 
-    // Validate the user is a participant
+    // Validate the user is a participant (agent-client or group)
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
       select: {
         id: true,
         agentUserId: true,
         clientUserId: true,
+        isGroup: true,
       },
     });
 
@@ -36,10 +37,17 @@ export async function PATCH(
       );
     }
 
-    if (
-      conversation.agentUserId !== userId &&
-      conversation.clientUserId !== userId
-    ) {
+    let isValidParticipant =
+      conversation.agentUserId === userId || conversation.clientUserId === userId;
+
+    if (!isValidParticipant && conversation.isGroup) {
+      const p = await prisma.conversationParticipant.findUnique({
+        where: { conversationId_userId: { conversationId, userId } },
+      });
+      isValidParticipant = !!p;
+    }
+
+    if (!isValidParticipant) {
       return NextResponse.json(
         { success: false, error: { message: "Not a participant in this conversation" } },
         { status: 403 }

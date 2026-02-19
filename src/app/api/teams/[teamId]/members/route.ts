@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import crypto from "crypto";
+import { sendTeamInvitationEmail } from "@/lib/email";
+import { notifyTeamInvitation } from "@/lib/notifications";
 
 const VALID_ROLES = ["OWNER", "ADMIN", "EDITOR", "MEMBER"];
 
@@ -60,66 +63,106 @@ export async function POST(
       );
     }
 
-    // Find the user by email
-    const invitedUser = await prisma.user.findUnique({
-      where: { email: email.trim().toLowerCase() },
-      select: { id: true, name: true, email: true, avatarUrl: true },
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Check if user is already a member
+    const existingUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true, name: true },
     });
 
-    if (!invitedUser) {
-      return NextResponse.json(
-        { success: false, error: { message: "User not found with that email address" } },
-        { status: 404 }
-      );
+    if (existingUser) {
+      const existingMember = await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId, userId: existingUser.id } },
+      });
+      if (existingMember) {
+        return NextResponse.json(
+          { success: false, error: { message: "User is already a member of this team" } },
+          { status: 409 }
+        );
+      }
     }
 
-    // Check if the user is already a member
-    const existingMember = await prisma.teamMember.findUnique({
-      where: {
-        teamId_userId: { teamId, userId: invitedUser.id },
-      },
+    // Check if there's already a pending invitation
+    const existingInvite = await prisma.teamInvitation.findUnique({
+      where: { teamId_email: { teamId, email: normalizedEmail } },
     });
 
-    if (existingMember) {
+    if (existingInvite && existingInvite.status === "PENDING" && existingInvite.expiresAt > new Date()) {
       return NextResponse.json(
-        { success: false, error: { message: "User is already a member of this team" } },
+        { success: false, error: { message: "An invitation has already been sent to this email" } },
         { status: 409 }
       );
     }
 
-    // Create the team member
-    const member = await prisma.teamMember.create({
-      data: {
-        teamId,
-        userId: invitedUser.id,
-        role: assignedRole,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatarUrl: true,
+    // Generate token and create invitation (upsert to handle expired/cancelled)
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    const invitation = existingInvite
+      ? await prisma.teamInvitation.update({
+          where: { id: existingInvite.id },
+          data: {
+            token,
+            role: assignedRole,
+            status: "PENDING",
+            invitedBy: session.userId,
+            expiresAt,
+            acceptedAt: null,
           },
-        },
-      },
+        })
+      : await prisma.teamInvitation.create({
+          data: {
+            teamId,
+            email: normalizedEmail,
+            role: assignedRole,
+            token,
+            invitedBy: session.userId,
+            expiresAt,
+          },
+        });
+
+    // Get team name for email
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      select: { name: true },
     });
+
+    // Send invitation email (fire-and-forget)
+    const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    sendTeamInvitationEmail({
+      to: normalizedEmail,
+      inviterName: session.user.name,
+      teamName: team?.name || "Team",
+      role: assignedRole,
+      inviteUrl: `${APP_URL}/teams/invite/${token}`,
+      expiresInDays: 7,
+    }).catch((err) => console.error("Team invitation email error:", err));
+
+    // If user exists on platform, also send in-app notification
+    if (existingUser) {
+      notifyTeamInvitation({
+        userId: existingUser.id,
+        teamName: team?.name || "Team",
+        inviterName: session.user.name,
+        inviteToken: token,
+      }).catch((err) => console.error("Team invitation notification error:", err));
+    }
 
     return NextResponse.json({
       success: true,
       data: {
-        id: member.id,
-        teamId: member.teamId,
-        role: member.role,
-        joinedAt: member.joinedAt.toISOString(),
-        user: member.user,
+        id: invitation.id,
+        email: normalizedEmail,
+        role: assignedRole,
+        status: "PENDING",
+        expiresAt: expiresAt.toISOString(),
       },
     });
   } catch (error) {
     console.error("Invite member error:", error);
     return NextResponse.json(
-      { success: false, error: { message: "Failed to invite member" } },
+      { success: false, error: { message: "Failed to send invitation" } },
       { status: 500 }
     );
   }

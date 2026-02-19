@@ -4,6 +4,26 @@ import { getSession } from "@/lib/auth/session";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 import { createNotification } from "@/lib/notifications";
 
+/** Check if the user is a participant in the conversation (agent-client or group) */
+async function isParticipant(conversationId: string, userId: string, conversation: {
+  agentUserId: string | null;
+  clientUserId: string | null;
+  isGroup: boolean;
+}): Promise<boolean> {
+  // Direct agent-client participant
+  if (conversation.agentUserId === userId || conversation.clientUserId === userId) {
+    return true;
+  }
+  // Group conversation participant
+  if (conversation.isGroup) {
+    const p = await prisma.conversationParticipant.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+    });
+    return !!p;
+  }
+  return false;
+}
+
 // GET /api/messages/[conversationId] — Get messages in a conversation
 export async function GET(
   request: Request,
@@ -28,6 +48,14 @@ export async function GET(
         agentClient: {
           select: { id: true, status: true },
         },
+        team: {
+          select: { id: true, name: true, avatarUrl: true },
+        },
+        participants: {
+          include: {
+            // We need user info for group chats
+          },
+        },
       },
     });
 
@@ -38,10 +66,7 @@ export async function GET(
       );
     }
 
-    if (
-      conversation.agentUserId !== userId &&
-      conversation.clientUserId !== userId
-    ) {
+    if (!(await isParticipant(conversationId, userId, conversation))) {
       return NextResponse.json(
         { success: false, error: { message: "Not a participant in this conversation" } },
         { status: 403 }
@@ -54,17 +79,13 @@ export async function GET(
     const before = searchParams.get("before");
 
     // Build cursor-based query
-    const whereClause: Record<string, unknown> = {
-      conversationId,
-    };
+    const whereClause: Record<string, unknown> = { conversationId };
 
     if (before) {
-      // Get the createdAt of the cursor message
       const cursorMessage = await prisma.message.findUnique({
         where: { id: before },
         select: { createdAt: true },
       });
-
       if (cursorMessage) {
         whereClause.createdAt = { lt: cursorMessage.createdAt };
       }
@@ -79,6 +100,19 @@ export async function GET(
       },
     });
 
+    // For group chats, fetch sender info for all unique senders
+    let senderMap: Record<string, { id: string; name: string; avatarUrl: string | null }> = {};
+    if (conversation.isGroup) {
+      const senderIds = [...new Set(messages.map((m) => m.senderUserId))];
+      if (senderIds.length > 0) {
+        const senders = await prisma.user.findMany({
+          where: { id: { in: senderIds } },
+          select: { id: true, name: true, avatarUrl: true },
+        });
+        senderMap = Object.fromEntries(senders.map((s) => [s.id, s]));
+      }
+    }
+
     // Parse JSON fields and format messages
     const formattedMessages = messages.map((msg) => {
       const parsed: Record<string, unknown> = {
@@ -92,6 +126,11 @@ export async function GET(
         createdAt: msg.createdAt,
         updatedAt: msg.updatedAt,
       };
+
+      // Include sender info for group chats
+      if (conversation.isGroup && senderMap[msg.senderUserId]) {
+        parsed.sender = senderMap[msg.senderUserId];
+      }
 
       if (msg.approvalRequest) {
         parsed.approvalRequest = {
@@ -113,39 +152,52 @@ export async function GET(
       return parsed;
     });
 
-    // Get the other participant's info
-    const otherUserId =
-      conversation.agentUserId === userId
-        ? conversation.clientUserId
-        : conversation.agentUserId;
+    // Build conversation metadata based on type
+    let conversationMeta: Record<string, unknown>;
 
-    const otherUser = await prisma.user.findUnique({
-      where: { id: otherUserId },
-      select: {
-        id: true,
-        name: true,
-        avatarUrl: true,
-      },
-    });
-
-    const data = await presignAllUrls({
-      messages: formattedMessages,
-      conversation: {
+    if (conversation.isGroup) {
+      // Team conversation
+      conversationMeta = {
         id: conversation.id,
+        type: "team",
+        teamId: conversation.teamId,
+        teamName: conversation.team?.name || "Team",
+        teamAvatarUrl: conversation.team?.avatarUrl || null,
+        isGroup: true,
+      };
+    } else {
+      // Agent-client conversation
+      const otherUserId =
+        conversation.agentUserId === userId
+          ? conversation.clientUserId
+          : conversation.agentUserId;
+
+      const otherUser = otherUserId
+        ? await prisma.user.findUnique({
+            where: { id: otherUserId },
+            select: { id: true, name: true, avatarUrl: true },
+          })
+        : null;
+
+      conversationMeta = {
+        id: conversation.id,
+        type: "agent-client",
         agentClientId: conversation.agentClientId,
         agentUserId: conversation.agentUserId,
         clientUserId: conversation.clientUserId,
-        agentClient: {
-          status: conversation.agentClient.status,
-        },
-        otherParticipant: otherUser
-          ? {
-              id: otherUser.id,
-              name: otherUser.name,
-              avatarUrl: otherUser.avatarUrl,
-            }
+        agentClient: conversation.agentClient
+          ? { status: conversation.agentClient.status }
           : null,
-      },
+        otherParticipant: otherUser
+          ? { id: otherUser.id, name: otherUser.name, avatarUrl: otherUser.avatarUrl }
+          : null,
+        isGroup: false,
+      };
+    }
+
+    const data = await presignAllUrls({
+      messages: formattedMessages,
+      conversation: conversationMeta,
       hasMore: messages.length === limit,
     });
 
@@ -193,40 +245,31 @@ export async function POST(
       );
     }
 
-    if (
-      conversation.agentUserId !== userId &&
-      conversation.clientUserId !== userId
-    ) {
+    if (!(await isParticipant(conversationId, userId, conversation))) {
       return NextResponse.json(
         { success: false, error: { message: "Not a participant in this conversation" } },
         { status: 403 }
       );
     }
 
-    // Validate the relationship is ACTIVE
-    if (conversation.agentClient.status !== "ACTIVE") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { message: "Cannot send messages — relationship is not active" },
-        },
-        { status: 403 }
-      );
+    // For agent-client convos, validate the relationship is ACTIVE
+    if (!conversation.isGroup && conversation.agentClient) {
+      if (conversation.agentClient.status !== "ACTIVE") {
+        return NextResponse.json(
+          { success: false, error: { message: "Cannot send messages — relationship is not active" } },
+          { status: 403 }
+        );
+      }
     }
 
     // Parse request body
     const body = await request.json();
     const { text, attachments, type } = body;
-
     const messageType = type || "TEXT";
 
-    // Validate at least text or attachments provided
     if (!text && (!attachments || attachments.length === 0)) {
       return NextResponse.json(
-        {
-          success: false,
-          error: { message: "Message must have text or attachments" },
-        },
+        { success: false, error: { message: "Message must have text or attachments" } },
         { status: 400 }
       );
     }
@@ -244,33 +287,49 @@ export async function POST(
     });
 
     // Update conversation with latest message info
-    const lastMessageText = text
-      ? text.substring(0, 100)
-      : "Sent an attachment";
+    const lastMessageText = text ? text.substring(0, 100) : "Sent an attachment";
 
     await prisma.conversation.update({
       where: { id: conversationId },
-      data: {
-        lastMessageAt: now,
-        lastMessageText,
-      },
+      data: { lastMessageAt: now, lastMessageText },
     });
 
-    // Determine recipient and send notification
-    const recipientUserId =
-      conversation.agentUserId === userId
-        ? conversation.clientUserId
-        : conversation.agentUserId;
-
+    // Notify recipients
     const senderName = session.user.name;
 
-    createNotification({
-      userId: recipientUserId,
-      type: "NEW_MESSAGE",
-      title: "New message from " + senderName,
-      message: text?.substring(0, 100) || "Sent an attachment",
-      actionUrl: "/messages/" + conversationId,
-    }).catch((err) => console.error("Message notification error:", err));
+    if (conversation.isGroup) {
+      // Notify all participants except sender
+      const participants = await prisma.conversationParticipant.findMany({
+        where: { conversationId, userId: { not: userId } },
+        select: { userId: true },
+      });
+
+      for (const p of participants) {
+        createNotification({
+          userId: p.userId,
+          type: "NEW_MESSAGE",
+          title: `${senderName} in team chat`,
+          message: text?.substring(0, 100) || "Sent an attachment",
+          actionUrl: `/messages/${conversationId}`,
+        }).catch((err) => console.error("Team message notification error:", err));
+      }
+    } else {
+      // Agent-client: notify the other user
+      const recipientUserId =
+        conversation.agentUserId === userId
+          ? conversation.clientUserId
+          : conversation.agentUserId;
+
+      if (recipientUserId) {
+        createNotification({
+          userId: recipientUserId,
+          type: "NEW_MESSAGE",
+          title: "New message from " + senderName,
+          message: text?.substring(0, 100) || "Sent an attachment",
+          actionUrl: "/messages/" + conversationId,
+        }).catch((err) => console.error("Message notification error:", err));
+      }
+    }
 
     // Format response
     const formattedMessage = {

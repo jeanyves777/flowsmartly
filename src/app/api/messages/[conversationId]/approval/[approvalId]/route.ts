@@ -99,7 +99,7 @@ export async function PATCH(
     });
 
     // Fire-and-forget notification for agent
-    createNotification({
+    if (conversation.agentUserId) createNotification({
       userId: conversation.agentUserId,
       type: action === "approve" ? "APPROVAL_APPROVED" : "APPROVAL_REJECTED",
       title: `Content ${action === "approve" ? "approved" : "rejected"}`,
