@@ -60,9 +60,16 @@ const MARKETING_PLANS = ["PRO", "BUSINESS", "ENTERPRISE", "ADMIN", "AGENT"];
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+];
+
+// AI Creatives
+const aiCreativesNavigation = [
   { name: "Image Studio", href: "/studio", icon: Palette },
   { name: "Video Studio", href: "/video-studio", icon: Video },
   { name: "Logo Generator", href: "/logo-generator", icon: Crown },
+];
+
+const generalNavigation = [
   { name: "Media Library", href: "/media", icon: FolderOpen },
   { name: "Landing Pages", href: "/landing-pages", icon: Globe },
   { name: "Feed", href: "/feed", icon: Rss },
@@ -253,12 +260,13 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
 
             {/* Main Navigation */}
             <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+              {/* Dashboard */}
               {navigation.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                 return renderNavItem(item, isActive);
               })}
 
-              {/* Content Section */}
+              {/* Content Section — right below Dashboard */}
               <div className="pt-4">
                 <div className="px-4 pb-2 flex items-center gap-2">
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -270,6 +278,25 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
                   return renderNavItem(item, isActive);
                 })}
               </div>
+
+              {/* AI Creatives Section */}
+              <div className="pt-4">
+                <div className="px-4 pb-2 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    AI Creatives
+                  </span>
+                </div>
+                {aiCreativesNavigation.map((item) => {
+                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return renderNavItem(item, isActive);
+                })}
+              </div>
+
+              {/* General items */}
+              {generalNavigation.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                return renderNavItem(item, isActive);
+              })}
 
               {/* Marketing Section */}
               <div className="pt-4">

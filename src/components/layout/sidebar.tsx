@@ -60,10 +60,17 @@ const MARKETING_PLANS = ["PRO", "BUSINESS", "ENTERPRISE", "ADMIN", "AGENT"];
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "FlowAI", href: "/flow-ai", icon: Sparkles },
+];
+
+// AI Creatives
+const aiCreativesNavigation = [
   { name: "Image Studio", href: "/studio", icon: Palette },
   { name: "Video Studio", href: "/video-studio", icon: Video },
   { name: "Logo Generator", href: "/logo-generator", icon: Crown },
+];
+
+const generalNavigation = [
+  { name: "FlowAI", href: "/flow-ai", icon: Sparkles },
   { name: "Media Library", href: "/media", icon: FolderOpen },
   { name: "Landing Pages", href: "/landing-pages", icon: Globe },
   { name: "Feed", href: "/feed", icon: Rss },
@@ -104,7 +111,9 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
   const pathname = usePathname();
   const hasMarketingAccess = MARKETING_PLANS.includes(userPlan.toUpperCase());
   const isContentActive = pathname.startsWith("/content");
+  const isAICreativesActive = ["/studio", "/video-studio", "/logo-generator"].some(p => pathname.startsWith(p));
   const [contentOpen, setContentOpen] = useState(isContentActive);
+  const [aiCreativesOpen, setAiCreativesOpen] = useState(isAICreativesActive);
 
   const renderNavItem = (
     item: { name: string; href: string; icon: React.ElementType; premium?: boolean },
@@ -214,12 +223,13 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
 
       {/* Main Navigation */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+        {/* Dashboard */}
         {navigation.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return renderNavItem(item, isActive);
         })}
 
-        {/* Content Section (Collapsible) */}
+        {/* Content Section (Collapsible) — right below Dashboard */}
         <div className="pt-4">
           {!isCollapsed ? (
             <button
@@ -260,6 +270,54 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             )}
           </AnimatePresence>
         </div>
+
+        {/* AI Creatives Section (Collapsible) */}
+        <div className="pt-4">
+          {!isCollapsed ? (
+            <button
+              onClick={() => setAiCreativesOpen(!aiCreativesOpen)}
+              className="w-full px-3 pb-2 flex items-center gap-2 group"
+            >
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                AI Creatives
+              </span>
+              <ChevronDown
+                className={cn(
+                  "h-3 w-3 text-muted-foreground transition-transform",
+                  aiCreativesOpen && "rotate-180"
+                )}
+              />
+            </button>
+          ) : (
+            <div className="flex justify-center py-2">
+              <Palette className={cn("h-4 w-4", isAICreativesActive ? "text-brand-500" : "text-muted-foreground")} />
+            </div>
+          )}
+          <AnimatePresence initial={false}>
+            {(aiCreativesOpen || isCollapsed) && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="space-y-1">
+                  {aiCreativesNavigation.map((item) => {
+                    const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                    return renderNavItem(item, isActive);
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* General nav items */}
+        {generalNavigation.map((item) => {
+          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          return renderNavItem(item, isActive);
+        })}
 
         {/* Marketing Section */}
         <div className="pt-4">
