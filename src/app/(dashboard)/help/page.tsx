@@ -140,13 +140,10 @@ export default function HelpPage() {
     >
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <HelpCircle className="w-8 h-8 text-brand-500" />
+        <h1 className="text-xl font-bold flex items-center gap-2">
+          <HelpCircle className="w-5 h-5 text-brand-500" />
           Help Center
         </h1>
-        <p className="text-muted-foreground mt-2">
-          Find answers, learn features, and get the most out of FlowSmartly
-        </p>
       </div>
 
       {/* Quick Links */}

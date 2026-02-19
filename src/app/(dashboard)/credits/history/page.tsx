@@ -217,15 +217,12 @@ export default function CreditHistoryPage() {
           </Link>
         </Button>
         <div className="flex-1">
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
-              <Wallet className="w-6 h-6 text-white" />
+          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
+              <Wallet className="w-4 h-4 text-white" />
             </div>
             Credits & Billing
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your credits, view transactions, and download invoices
-          </p>
         </div>
         <Button size="sm" asChild>
           <Link href="/buy-credits">

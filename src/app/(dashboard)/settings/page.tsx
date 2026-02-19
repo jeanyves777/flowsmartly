@@ -834,15 +834,12 @@ export default function SettingsPage() {
     >
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-500 to-gray-700 flex items-center justify-center">
-            <Settings className="w-6 h-6 text-white" />
+        <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-gray-500 to-gray-700 flex items-center justify-center">
+            <Settings className="w-4 h-4 text-white" />
           </div>
           Settings
         </h1>
-        <p className="text-muted-foreground mt-2">
-          Manage your account settings and preferences
-        </p>
       </div>
 
       <div className="grid lg:grid-cols-[240px_1fr] gap-6">

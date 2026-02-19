@@ -226,15 +226,12 @@ export default function EmailAutomationsPage() {
             </Link>
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center">
-                <Zap className="w-6 h-6 text-white" />
+            <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center">
+                <Zap className="w-4 h-4 text-white" />
               </div>
               Email Automations
             </h1>
-            <p className="text-muted-foreground mt-2">
-              Set up automated email messages that send at the right time
-            </p>
           </div>
         </div>
         <Button size="lg" asChild>

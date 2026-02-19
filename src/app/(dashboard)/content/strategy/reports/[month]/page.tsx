@@ -424,7 +424,7 @@ export default function MonthlyReportPage({
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{monthLabel}</h1>
+            <h1 className="text-xl font-bold tracking-tight">{monthLabel}</h1>
             {report.strategyName && (
               <Badge
                 variant="outline"

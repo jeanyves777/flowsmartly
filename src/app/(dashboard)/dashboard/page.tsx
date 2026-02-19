@@ -166,10 +166,7 @@ export default function DashboardPage() {
       {/* Welcome Section */}
       <motion.div variants={itemVariants} className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
-            Welcome back, {data?.user.name || "User"}! Here&apos;s what&apos;s happening with your content.
-          </p>
+          <h1 className="text-xl font-bold tracking-tight">Dashboard</h1>
         </div>
         <Button asChild>
           <Link href="/studio">

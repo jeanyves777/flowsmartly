@@ -709,15 +709,12 @@ export default function VisualDesignStudioPage() {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
-              <Palette className="w-6 h-6 text-white" />
+          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
+              <Palette className="w-4 h-4 text-white" />
             </div>
             Visual Design Studio
           </h1>
-          <p className="text-muted-foreground mt-2">
-            Create stunning visuals with AI-powered design generation
-          </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted">

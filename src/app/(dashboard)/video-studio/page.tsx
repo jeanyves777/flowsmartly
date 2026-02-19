@@ -500,15 +500,12 @@ export default function VideoStudioPage() {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-purple-600 flex items-center justify-center">
-              <Video className="w-6 h-6 text-white" />
+          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-500 to-purple-600 flex items-center justify-center">
+              <Video className="w-4 h-4 text-white" />
             </div>
             Video Studio
           </h1>
-          <p className="text-muted-foreground mt-2">
-            Create product ads &amp; promotional videos with AI
-          </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted">

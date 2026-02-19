@@ -239,15 +239,12 @@ export default function LandingPagesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center">
-              <Globe className="w-6 h-6 text-white" />
+          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center">
+              <Globe className="w-4 h-4 text-white" />
             </div>
             Landing Pages
           </h1>
-          <p className="text-muted-foreground mt-2">
-            Create, manage, and publish AI-generated landing pages
-          </p>
         </div>
         <Button size="lg" asChild>
           <Link href="/landing-pages/create">

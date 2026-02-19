@@ -802,26 +802,10 @@ export default function FeedPage() {
     });
   }, []);
 
-  // Auto-dismiss promoted posts after 10s in viewport without interaction
-  const handlePromotedPostVisible = useCallback((postId: string, isInView: boolean) => {
-    if (isInView) {
-      // Start 10s timer
-      if (!promotedTimersRef.current.has(postId)) {
-        const timer = setTimeout(() => {
-          dismissPromotedPost(postId);
-          promotedTimersRef.current.delete(postId);
-        }, 10000);
-        promotedTimersRef.current.set(postId, timer);
-      }
-    } else {
-      // Clear timer if scrolled away
-      const timer = promotedTimersRef.current.get(postId);
-      if (timer) {
-        clearTimeout(timer);
-        promotedTimersRef.current.delete(postId);
-      }
-    }
-  }, [dismissPromotedPost]);
+  // Track promoted post visibility (no auto-dismiss — ads stay until user interacts)
+  const handlePromotedPostVisible = useCallback((_postId: string, _isInView: boolean) => {
+    // No-op: promoted posts persist in feed until user earns or manually dismisses
+  }, []);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -1502,28 +1486,10 @@ export default function FeedPage() {
     );
   }
 
-  // Merge posts with ad campaigns for feed display
-  // Deprioritize promoted posts that were dismissed or already earned
+  // Merge posts for feed display — promoted posts stay in their original position
   const feedItems: FeedItem[] = useMemo(() => {
-    const regular: Post[] = [];
-    const deprioritized: Post[] = [];
-
-    for (const post of posts) {
-      if (post.isPromoted && (dismissedAds.has(post.id) || post.hasEarned)) {
-        deprioritized.push(post);
-      } else {
-        regular.push(post);
-      }
-    }
-
-    const items: FeedItem[] = [...regular, ...deprioritized];
-    // Insert ad campaign cards at every 5th position
-    for (let i = 0; i < feedAds.length; i++) {
-      const insertAt = Math.min((i + 1) * 5, items.length);
-      items.splice(insertAt, 0, feedAds[i]);
-    }
-    return items;
-  }, [posts, feedAds, dismissedAds]);
+    return [...posts];
+  }, [posts]);
 
   // IntersectionObserver for auto-dismissing promoted posts after 10s in viewport
   useEffect(() => {
@@ -1551,23 +1517,8 @@ export default function FeedPage() {
       animate={{ opacity: 1 }}
       className="max-w-6xl mx-auto"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
-              <Users className="w-6 h-6 text-white" />
-            </div>
-            FlowSocial Feed
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Connect with creators and share your content
-          </p>
-        </div>
-      </div>
-
       {/* Feed Type Tabs */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-4">
         {[
           { value: "feed", label: "For You" },
           { value: "following", label: "Following" },
@@ -1841,15 +1792,17 @@ export default function FeedPage() {
                       {/* Author Header */}
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <Avatar className="w-11 h-11">
-                            <AvatarImage src={getAuthorAvatar(post) || undefined} />
-                            <AvatarFallback className="bg-gradient-to-br from-brand-500 to-purple-500 text-white font-semibold">
-                              {post.author.name.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
+                          <a href={`/profile/${post.author.username}`} className="shrink-0">
+                            <Avatar className="w-11 h-11 hover:ring-2 hover:ring-brand-500/40 transition-all cursor-pointer">
+                              <AvatarImage src={getAuthorAvatar(post) || undefined} />
+                              <AvatarFallback className="bg-gradient-to-br from-brand-500 to-purple-500 text-white font-semibold">
+                                {post.author.name.charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                          </a>
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-[15px]">{post.author.name}</span>
+                              <a href={`/profile/${post.author.username}`} className="font-semibold text-[15px] hover:underline">{post.author.name}</a>
                               {post.author.isVerified && (
                                 <svg className="w-4 h-4 text-brand-500" viewBox="0 0 24 24" fill="currentColor">
                                   <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
@@ -2329,6 +2282,15 @@ export default function FeedPage() {
 
         {/* Sidebar */}
         <div className="space-y-4 hidden lg:block">
+          {/* Boosted Ads */}
+          {feedAds.length > 0 && (
+            <div className="space-y-4">
+              {feedAds.map((ad) => (
+                <AdCard key={ad.id} campaign={ad} currentUserId={currentUserId} />
+              ))}
+            </div>
+          )}
+
           {/* Trending Topics */}
           <Card>
             <CardHeader className="pb-3">
@@ -2932,6 +2894,83 @@ export default function FeedPage() {
 }
 
 /** Displays 1+ media items with carousel navigation and click-to-enlarge */
+function MediaImage({ url, className, alt, onClick }: { url: string; className?: string; alt?: string; onClick?: (e: React.MouseEvent) => void }) {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    setLoaded(false);
+    setError(false);
+  }, [url]);
+
+  // Check if already loaded (cached images fire load before useEffect)
+  useEffect(() => {
+    if (imgRef.current?.complete && imgRef.current?.naturalWidth > 0) {
+      setLoaded(true);
+    }
+  }, [url]);
+
+  if (error) {
+    return (
+      <div className={`flex items-center justify-center bg-muted/40 text-muted-foreground ${className || ""}`} style={{ minHeight: 200 }}>
+        <div className="text-center p-4">
+          <Image className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <p className="text-xs">Media unavailable</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {!loaded && (
+        <div className={`animate-pulse bg-muted/40 ${className || ""}`} style={{ minHeight: 200 }} />
+      )}
+      <img
+        ref={imgRef}
+        src={url}
+        alt={alt || "Post media"}
+        loading="lazy"
+        className={`${className || ""} ${loaded ? "" : "absolute opacity-0 pointer-events-none"}`}
+        onLoad={() => setLoaded(true)}
+        onError={() => setError(true)}
+        onClick={onClick}
+      />
+    </>
+  );
+}
+
+function MediaVideo({ url, className, onClick }: { url: string; className?: string; onClick?: (e: React.MouseEvent) => void }) {
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    setError(false);
+  }, [url]);
+
+  if (error) {
+    return (
+      <div className={`flex items-center justify-center bg-muted/40 text-muted-foreground ${className || ""}`} style={{ minHeight: 200 }}>
+        <div className="text-center p-4">
+          <Video className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <p className="text-xs">Video unavailable</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <video
+      src={url}
+      controls
+      preload="metadata"
+      className={className}
+      onError={() => setError(true)}
+      onClick={onClick}
+    />
+  );
+}
+
 function PostMediaGallery({ mediaUrls, onMediaClick }: { mediaUrls: string[]; onMediaClick?: (index: number) => void }) {
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -2946,13 +2985,13 @@ function PostMediaGallery({ mediaUrls, onMediaClick }: { mediaUrls: string[]; on
         onClick={() => onMediaClick?.(0)}
       >
         {isVideo ? (
-          <video src={url} controls className="w-full max-h-[480px] object-contain" onClick={(e) => e.stopPropagation()} />
+          <MediaVideo url={url} className="w-full max-h-[480px] object-contain" onClick={(e) => e.stopPropagation()} />
         ) : (
-          <img src={url} alt="Post media" className="w-full max-h-[480px] object-contain" />
+          <MediaImage url={url} className="w-full max-h-[480px] object-contain" />
         )}
         {/* Zoom overlay on hover (images only) */}
         {!isVideo && (
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center pointer-events-none">
             <div className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
               <ZoomIn className="w-5 h-5 text-white" />
             </div>
@@ -2972,9 +3011,9 @@ function PostMediaGallery({ mediaUrls, onMediaClick }: { mediaUrls: string[]; on
         onClick={() => onMediaClick?.(activeIndex)}
       >
         {isVideo ? (
-          <video src={url} controls className="w-full max-h-[480px] object-contain" onClick={(e) => e.stopPropagation()} />
+          <MediaVideo url={url} className="w-full max-h-[480px] object-contain" onClick={(e) => e.stopPropagation()} />
         ) : (
-          <img src={url} alt="Post media" className="w-full max-h-[480px] object-contain" />
+          <MediaImage url={url} className="w-full max-h-[480px] object-contain" />
         )}
         {/* Zoom overlay on hover (images only) */}
         {!isVideo && (
