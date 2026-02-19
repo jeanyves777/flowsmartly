@@ -172,9 +172,11 @@ export default function SettingsPage() {
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [isSyncingFromBrand, setIsSyncingFromBrand] = useState(false);
   const { platforms: socialPlatforms, isLoading: socialLoading } = useSocialPlatforms();
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState({
     name: "",
@@ -183,6 +185,7 @@ export default function SettingsPage() {
     bio: "",
     website: "",
     avatarUrl: "",
+    coverImageUrl: "",
   });
 
   const [links, setLinks] = useState<Record<string, string>>({
@@ -273,6 +276,7 @@ export default function SettingsPage() {
         bio: userData.bio || brandKit?.description || "",
         website: userData.website || brandKit?.website || "",
         avatarUrl: userData.avatarUrl || brandKit?.iconLogo || brandKit?.logo || "",
+        coverImageUrl: userData.coverImageUrl || "",
       });
       // Merge social links: brand identity handles → user profile links
       // Brand handles are the source of truth; user links override if set
@@ -404,6 +408,7 @@ export default function SettingsPage() {
           bio: profile.bio,
           website: profile.website,
           avatarUrl: profile.avatarUrl,
+          coverImageUrl: profile.coverImageUrl,
           links: cleanLinks,
         }),
       });
@@ -483,6 +488,57 @@ export default function SettingsPage() {
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) uploadAvatarFile(file);
+  };
+
+  const uploadCoverFile = useCallback(async (file: File) => {
+    const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      toast({ title: "Invalid file type", description: "Please upload a PNG, JPEG, or WebP image.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Please upload an image smaller than 5MB.", variant: "destructive" });
+      return;
+    }
+
+    setIsUploadingCover(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "cover");
+
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || "Upload failed");
+
+      const url = data.data.url;
+
+      // Save to profile immediately
+      const saveRes = await fetch("/api/users/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coverImageUrl: url }),
+      });
+      const saveData = await saveRes.json();
+      if (!saveData.success) throw new Error(saveData.error?.message || "Failed to save");
+
+      setProfile((prev) => ({ ...prev, coverImageUrl: url }));
+      toast({ title: "Cover photo uploaded successfully!" });
+    } catch (err) {
+      toast({
+        title: "Upload failed",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingCover(false);
+      if (coverInputRef.current) coverInputRef.current.value = "";
+    }
+  }, [toast]);
+
+  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadCoverFile(file);
   };
 
   const handleSyncFromBrand = async () => {
@@ -913,6 +969,77 @@ export default function SettingsPage() {
                           </div>
                         </div>
                       </FileDropZone>
+
+                      {/* Cover Photo */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Cover Photo</Label>
+                        <FileDropZone
+                          onFileDrop={uploadCoverFile}
+                          accept="image/png,image/jpeg,image/jpg,image/webp"
+                          maxSize={5 * 1024 * 1024}
+                          disabled={isUploadingCover}
+                          dragLabel="Drop cover image here"
+                        >
+                          <div className="relative w-full h-32 rounded-lg overflow-hidden bg-muted border">
+                            {profile.coverImageUrl ? (
+                              <img
+                                src={profile.coverImageUrl}
+                                alt="Cover"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gradient-to-br from-brand-500/20 via-purple-500/20 to-pink-500/20 flex items-center justify-center">
+                                <Camera className="w-8 h-8 text-muted-foreground/40" />
+                              </div>
+                            )}
+                            <div className="absolute bottom-2 right-2 flex gap-2">
+                              <input
+                                ref={coverInputRef}
+                                type="file"
+                                accept="image/png,image/jpeg,image/jpg,image/webp"
+                                className="hidden"
+                                onChange={handleCoverUpload}
+                              />
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => coverInputRef.current?.click()}
+                                disabled={isUploadingCover}
+                                className="bg-black/60 hover:bg-black/80 text-white border-0 shadow-lg"
+                              >
+                                {isUploadingCover ? (
+                                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                                ) : (
+                                  <Upload className="w-4 h-4 mr-1.5" />
+                                )}
+                                {isUploadingCover ? "Uploading..." : profile.coverImageUrl ? "Change Cover" : "Upload Cover"}
+                              </Button>
+                              {profile.coverImageUrl && (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={async () => {
+                                    await fetch("/api/users/profile", {
+                                      method: "PATCH",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ coverImageUrl: "" }),
+                                    });
+                                    setProfile((prev) => ({ ...prev, coverImageUrl: "" }));
+                                    toast({ title: "Cover photo removed" });
+                                  }}
+                                  className="bg-black/60 hover:bg-black/80 text-white border-0 shadow-lg"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-1.5" />
+                                  Remove
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            JPG, PNG or WebP. Max 5MB. Recommended: 1500x500px. Or drag &amp; drop.
+                          </p>
+                        </FileDropZone>
+                      </div>
 
                       {/* Form Fields */}
                       <div className="grid sm:grid-cols-2 gap-4">
