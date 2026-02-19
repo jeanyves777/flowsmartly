@@ -274,17 +274,42 @@ export default function SettingsPage() {
         website: userData.website || brandKit?.website || "",
         avatarUrl: userData.avatarUrl || brandKit?.iconLogo || brandKit?.logo || "",
       });
-      if (userData.links) {
-        setLinks({
-          instagram: "",
-          twitter: "",
-          linkedin: "",
-          facebook: "",
-          tiktok: "",
-          youtube: "",
-          custom: "",
-          ...userData.links,
-        });
+      // Merge social links: brand identity handles → user profile links
+      // Brand handles are the source of truth; user links override if set
+      const brandHandles = brandKit?.handles || {};
+      const userLinks = userData.links || {};
+      const mergedLinks: Record<string, string> = {
+        instagram: "",
+        twitter: "",
+        linkedin: "",
+        facebook: "",
+        tiktok: "",
+        youtube: "",
+        custom: "",
+      };
+      // First apply brand handles, then overlay user links
+      for (const key of Object.keys(mergedLinks)) {
+        if (userLinks[key]) {
+          mergedLinks[key] = userLinks[key];
+        } else if (brandHandles[key]) {
+          mergedLinks[key] = brandHandles[key];
+        }
+      }
+      setLinks(mergedLinks);
+
+      // Sync brand handles → user links if user links are empty but brand has them
+      const linkSyncUpdates: Record<string, string> = {};
+      for (const platform of ["instagram", "twitter", "linkedin", "facebook", "tiktok", "youtube"]) {
+        if (!userLinks[platform] && brandHandles[platform]) {
+          linkSyncUpdates[platform] = brandHandles[platform];
+        }
+      }
+      if (Object.keys(linkSyncUpdates).length > 0) {
+        fetch("/api/users/profile", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ links: { ...userLinks, ...linkSyncUpdates } }),
+        }).catch(() => {});
       }
       setNotifications({
         ...defaultNotificationPrefs,
@@ -387,6 +412,25 @@ export default function SettingsPage() {
 
       if (!data.success) {
         throw new Error(data.error?.message || "Failed to update profile");
+      }
+
+      // Sync social links to brand identity handles (fire-and-forget)
+      const brandHandles: Record<string, string> = {};
+      for (const p of ["instagram", "twitter", "linkedin", "facebook", "tiktok", "youtube"]) {
+        if (cleanLinks[p]) brandHandles[p] = cleanLinks[p];
+      }
+      if (Object.keys(brandHandles).length > 0) {
+        fetch("/api/brand").then(r => r.json()).then(brandData => {
+          if (brandData.success && brandData.data?.brandKit) {
+            const kit = brandData.data.brandKit;
+            const mergedHandles = { ...(kit.handles || {}), ...brandHandles };
+            fetch("/api/brand", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...kit, handles: mergedHandles }),
+            });
+          }
+        }).catch(() => {});
       }
 
       toast({ title: "Profile updated successfully!" });

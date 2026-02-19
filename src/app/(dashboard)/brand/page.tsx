@@ -26,6 +26,11 @@ import {
   MapPin,
   Link,
   FolderOpen,
+  Instagram,
+  Twitter,
+  Linkedin,
+  Facebook,
+  Link2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,6 +50,27 @@ import { useToast } from "@/hooks/use-toast";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { FileDropZone } from "@/components/shared/file-drop-zone";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+
+function TikTokIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.62a8.16 8.16 0 0 0 4.76 1.52v-3.4c0-.01-1-.05-1-1.05z"/></svg>
+  );
+}
+
+function YouTubeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.54 3.5 12 3.5 12 3.5s-7.54 0-9.38.55A3.02 3.02 0 0 0 .5 6.19 31.6 31.6 0 0 0 0 12a31.6 31.6 0 0 0 .5 5.81 3.02 3.02 0 0 0 2.12 2.14c1.84.55 9.38.55 9.38.55s7.54 0 9.38-.55a3.02 3.02 0 0 0 2.12-2.14A31.6 31.6 0 0 0 24 12a31.6 31.6 0 0 0-.5-5.81zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/></svg>
+  );
+}
+
+const socialPlatforms = [
+  { id: "instagram", label: "Instagram", icon: Instagram, placeholder: "@username or URL" },
+  { id: "twitter", label: "X / Twitter", icon: Twitter, placeholder: "@username or URL" },
+  { id: "linkedin", label: "LinkedIn", icon: Linkedin, placeholder: "URL or username" },
+  { id: "facebook", label: "Facebook", icon: Facebook, placeholder: "URL or page name" },
+  { id: "tiktok", label: "TikTok", icon: TikTokIcon, placeholder: "@username or URL" },
+  { id: "youtube", label: "YouTube", icon: YouTubeIcon, placeholder: "Channel URL" },
+];
 
 const voiceTones = [
   { id: "professional", label: "Professional", description: "Formal, authoritative, expert" },
@@ -176,11 +202,32 @@ export default function BrandIdentityPage() {
   const fetchBrandIdentity = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch("/api/brand");
-      const data = await response.json();
+      const [brandRes, profileRes] = await Promise.all([
+        fetch("/api/brand"),
+        fetch("/api/users/profile"),
+      ]);
+      const data = await brandRes.json();
+      const profileData = await profileRes.json();
 
       if (data.success && data.data.brandKit) {
-        setFormData(data.data.brandKit);
+        const kit = data.data.brandKit;
+        // Sync social handles from user profile links if brand handles are empty
+        if (profileData.success && profileData.data?.user?.links) {
+          const userLinks = profileData.data.user.links;
+          const currentHandles = kit.handles || {};
+          const mergedHandles: Record<string, string> = { ...currentHandles };
+          let needsSync = false;
+          for (const p of ["instagram", "twitter", "linkedin", "facebook", "tiktok", "youtube"]) {
+            if (!mergedHandles[p] && userLinks[p]) {
+              mergedHandles[p] = userLinks[p];
+              needsSync = true;
+            }
+          }
+          if (needsSync) {
+            kit.handles = mergedHandles;
+          }
+        }
+        setFormData(kit);
         setHasSetup(data.data.hasSetup);
       }
     } catch (error) {
@@ -237,6 +284,27 @@ export default function BrandIdentityPage() {
 
       if (data.success) {
         setHasSetup(data.data.brandKit.isComplete);
+
+        // Sync social handles to user profile links (fire-and-forget, merge with existing)
+        if (formData.handles) {
+          const newHandles: Record<string, string> = {};
+          for (const p of ["instagram", "twitter", "linkedin", "facebook", "tiktok", "youtube"]) {
+            if (formData.handles[p]) newHandles[p] = formData.handles[p];
+          }
+          if (Object.keys(newHandles).length > 0) {
+            fetch("/api/users/profile").then(r => r.json()).then(profileData => {
+              if (profileData.success) {
+                const existingLinks = profileData.data?.user?.links || {};
+                fetch("/api/users/profile", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ links: { ...existingLinks, ...newHandles } }),
+                });
+              }
+            }).catch(() => {});
+          }
+        }
+
         toast({
           title: "Brand identity saved!",
           description: "Your brand settings have been updated. AI will now use these for content generation.",
@@ -1223,22 +1291,28 @@ export default function BrandIdentityPage() {
               <CardDescription>Your social media presence</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-3">
-                {["instagram", "twitter", "linkedin", "facebook", "youtube", "tiktok"].map((platform) => (
-                  <div key={platform} className="flex items-center gap-2">
-                    <Label className="w-24 capitalize">{platform}</Label>
-                    <Input
-                      placeholder={`@your${platform}`}
-                      value={formData.handles?.[platform] || ""}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          handles: { ...formData.handles, [platform]: e.target.value },
-                        })
-                      }
-                    />
-                  </div>
-                ))}
+              <div className="grid sm:grid-cols-2 gap-3">
+                {socialPlatforms.map((platform) => {
+                  const Icon = platform.icon;
+                  return (
+                    <div key={platform.id} className="space-y-1.5">
+                      <Label htmlFor={`brand-${platform.id}`} className="text-xs flex items-center gap-1.5">
+                        <Icon className="w-3.5 h-3.5" /> {platform.label}
+                      </Label>
+                      <Input
+                        id={`brand-${platform.id}`}
+                        placeholder={platform.placeholder}
+                        value={formData.handles?.[platform.id] || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            handles: { ...formData.handles, [platform.id]: e.target.value },
+                          })
+                        }
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
