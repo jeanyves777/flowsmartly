@@ -185,6 +185,7 @@ export default function AgentDetailPage() {
   const [isHiring, setIsHiring] = useState(false);
   const [isAboutExpanded, setIsAboutExpanded] = useState(false);
   const [selectedShowcase, setSelectedShowcase] = useState<ShowcaseProject | null>(null);
+  const [currentProjectIndex, setCurrentProjectIndex] = useState(0);
 
   // Hire dialog state
   const [showHireDialog, setShowHireDialog] = useState(false);
@@ -548,10 +549,8 @@ export default function AgentDetailPage() {
         ))}
       </motion.div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - 2/3 */}
-        <div className="lg:col-span-2 space-y-6">
+      {/* About Section — Full Width */}
+      <div className="space-y-6">
           {/* About — Rich Collapsible */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -651,115 +650,205 @@ export default function AgentDetailPage() {
             </Card>
           </motion.div>
 
-          {/* Featured Projects */}
-          {agent.showcaseImages && agent.showcaseImages.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.52 }}
-            >
-              <Card className="overflow-hidden">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-pink-500/20 to-violet-500/20 flex items-center justify-center">
-                      <ImageIcon className="h-4 w-4 text-pink-500" />
-                    </div>
-                    Featured Projects
-                    <Badge variant="secondary" className="ml-1 text-xs">
-                      {agent.showcaseImages.length}
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0 space-y-0">
-                  {agent.showcaseImages.map((project, i) => {
-                    const isVideo = project.mediaType === "video" || /\.(mp4|webm|mov)$/i.test(project.url);
-                    const isEven = i % 2 === 1;
-                    const hasDetails = project.description || (project.highlights && project.highlights.length > 0);
+      </div>
 
-                    return (
-                      <motion.div
-                        key={project.url}
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.55 + i * 0.08 }}
-                      >
-                        {i > 0 && <div className="border-t my-6" />}
-                        <div className={`flex flex-col ${hasDetails ? `md:flex-row ${isEven ? "md:flex-row-reverse" : ""}` : ""} gap-5`}>
-                          {/* Media */}
-                          <div
-                            className={`${hasDetails ? "md:w-1/2" : "w-full"} cursor-pointer group`}
-                            onClick={() => setSelectedShowcase(project)}
-                          >
-                            <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-muted relative shadow-sm">
-                              {isVideo ? (
-                                <video
-                                  src={project.url}
-                                  className="w-full h-full object-cover"
-                                  muted
-                                  playsInline
-                                  onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
-                                  onMouseLeave={(e) => { const v = e.target as HTMLVideoElement; v.pause(); v.currentTime = 0; }}
-                                />
-                              ) : (
-                                <img
-                                  src={project.url}
-                                  alt={project.title}
-                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                />
-                              )}
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
-                                <div className="h-11 w-11 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 scale-75 group-hover:scale-100">
-                                  {isVideo ? (
-                                    <Video className="h-5 w-5 text-white" />
-                                  ) : (
-                                    <ZoomIn className="h-5 w-5 text-white" />
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+      {/* Featured Projects — Full Width, Single Project View */}
+      {agent.showcaseImages && agent.showcaseImages.length > 0 && (() => {
+        const project = agent.showcaseImages[currentProjectIndex] || agent.showcaseImages[0];
+        const isVideo = project.mediaType === "video" || /\.(mp4|webm|mov)$/i.test(project.url);
+        const hasDetails = project.description || (project.highlights && project.highlights.length > 0);
+        const total = agent.showcaseImages.length;
 
-                          {/* Details */}
-                          {hasDetails ? (
-                            <div className="md:w-1/2 flex flex-col justify-center py-2">
-                              {project.title && (
-                                <h3 className="text-xl font-bold mb-2">{project.title}</h3>
-                              )}
-                              {project.description && (
-                                <p className="text-muted-foreground leading-relaxed text-sm mb-4">
-                                  {project.description}
-                                </p>
-                              )}
-                              {project.highlights && project.highlights.length > 0 && (
-                                <div className="space-y-2.5">
-                                  {project.highlights.map((h, hi) => (
-                                    <div key={hi} className="flex items-start gap-2.5">
-                                      <CheckCircle className="h-4 w-4 text-violet-500 mt-0.5 shrink-0" />
-                                      <span className="text-sm">{h}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ) : project.title ? (
-                            <div className="px-1 -mt-2">
-                              <p className="text-sm font-medium">{project.title}</p>
-                            </div>
-                          ) : null}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-
-          {/* Specialties */}
+        return (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.55 }}
+            transition={{ delay: 0.52 }}
+          >
+            <Card className="overflow-hidden">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg font-semibold flex items-center gap-2.5">
+                    <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-pink-500/15 to-violet-500/15 flex items-center justify-center">
+                      <Briefcase className="h-4 w-4 text-violet-500" />
+                    </div>
+                    Featured Projects
+                  </CardTitle>
+                  {total > 1 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground font-medium">
+                        {currentProjectIndex + 1} / {total}
+                      </span>
+                      <button
+                        className="h-8 w-8 rounded-lg border flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-30"
+                        onClick={() => setCurrentProjectIndex((currentProjectIndex - 1 + total) % total)}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <button
+                        className="h-8 w-8 rounded-lg border flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-30"
+                        onClick={() => setCurrentProjectIndex((currentProjectIndex + 1) % total)}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="pt-2">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentProjectIndex}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.25 }}
+                  >
+                    {/* Title — full width above media & details */}
+                    {project.title && (
+                      <h3 className="text-xl font-bold tracking-tight mb-3">{project.title}</h3>
+                    )}
+
+                    <div className={`flex flex-col ${hasDetails ? "md:flex-row md:items-stretch" : ""} gap-6`}>
+                      {/* Media */}
+                      <div
+                        className={`${hasDetails ? "md:w-[55%]" : "w-full"} cursor-pointer group shrink-0`}
+                        onClick={() => setSelectedShowcase(project)}
+                      >
+                        <div className="h-full min-h-[240px] rounded-2xl overflow-hidden bg-muted relative shadow-sm">
+                          {isVideo ? (
+                            <video
+                              src={project.url}
+                              className="w-full h-full object-cover"
+                              muted
+                              playsInline
+                              onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                              onMouseLeave={(e) => { const v = e.target as HTMLVideoElement; v.pause(); v.currentTime = 0; }}
+                            />
+                          ) : (
+                            <img
+                              src={project.url}
+                              alt={project.title}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            />
+                          )}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
+                            <div className="h-11 w-11 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 scale-75 group-hover:scale-100">
+                              {isVideo ? (
+                                <Video className="h-5 w-5 text-white" />
+                              ) : (
+                                <ZoomIn className="h-5 w-5 text-white" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Details */}
+                      {hasDetails && (
+                        <div className="flex-1 flex flex-col justify-center py-1">
+                          {project.description && (
+                            <p className="text-muted-foreground leading-relaxed text-[15px] line-clamp-2 mb-4">
+                              {project.description}
+                            </p>
+                          )}
+                          {project.highlights && project.highlights.length > 0 && (
+                            <div className="space-y-3">
+                              {project.highlights.map((h, hi) => (
+                                <div key={hi} className="flex items-start gap-3">
+                                  <div className="h-5 w-5 rounded-full bg-violet-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                                    <CheckCircle className="h-3.5 w-3.5 text-violet-500" />
+                                  </div>
+                                  <span className="text-[14px] leading-snug">{h}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                </AnimatePresence>
+              </CardContent>
+            </Card>
+          </motion.div>
+        );
+      })()}
+
+      {/* Trust & Pricing Bar — Compact */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.54 }}
+      >
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              {/* Trust badges inline */}
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Shield className="h-4 w-4 text-emerald-500" />
+                <span>Verified</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <CheckCircle className="h-4 w-4 text-emerald-500" />
+                <span>Background Checked</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Shield className="h-4 w-4 text-emerald-500" />
+                <span>Financials Restricted</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <TrendingUp className="h-4 w-4 text-emerald-500" />
+                <span>Performance Monitored</span>
+              </div>
+
+              {/* Spacer */}
+              <div className="flex-1" />
+
+              {/* Pricing + CTA inline */}
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-lg font-bold text-violet-600">${(agent.minPricePerMonth / 100).toLocaleString()}<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
+                </div>
+                {isOwnProfile ? (
+                  <Badge variant="secondary" className="text-xs px-3 py-1">Your Profile</Badge>
+                ) : relationship?.status === "ACTIVE" ? (
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-emerald-500 text-xs px-3 py-1">
+                      <Heart className="h-3 w-3 mr-1 fill-current" />Hired
+                    </Badge>
+                    <Button variant="outline" size="sm" className="h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setShowUnhireDialog(true)}>
+                      Unhire
+                    </Button>
+                  </div>
+                ) : relationship?.status === "PENDING" ? (
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-amber-500 text-xs px-3 py-1">
+                      <Clock className="h-3 w-3 mr-1" />Pending
+                    </Badge>
+                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowUnhireDialog(true)}>
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <Button size="sm" className="h-8 bg-violet-600 hover:bg-violet-700" onClick={() => setShowHireDialog(true)}>
+                    <Sparkles className="h-3.5 w-3.5 mr-1.5" />Hire Agent
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Content — Full Width */}
+      <div className="space-y-6">
+          {/* Specialties & Industries */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.56 }}
+            className="grid grid-cols-1 md:grid-cols-2 gap-6"
           >
             <Card>
               <CardHeader>
@@ -770,29 +859,14 @@ export default function AgentDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  {agent.specialties.map((s, i) => (
-                    <motion.div
-                      key={s}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.6 + i * 0.05 }}
-                    >
-                      <Badge className="bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-200/50 hover:bg-violet-500/20 px-3 py-1.5 text-sm">
-                        {s}
-                      </Badge>
-                    </motion.div>
+                  {agent.specialties.map((s) => (
+                    <Badge key={s} className="bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-200/50 hover:bg-violet-500/20 px-3 py-1.5 text-sm">
+                      {s}
+                    </Badge>
                   ))}
                 </div>
               </CardContent>
             </Card>
-          </motion.div>
-
-          {/* Industries */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-          >
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -801,18 +875,12 @@ export default function AgentDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {agent.industries.map((ind, i) => (
-                    <motion.div
-                      key={ind}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.65 + i * 0.05 }}
-                      className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/50 text-sm"
-                    >
-                      <Globe className="h-4 w-4 text-brand-500 shrink-0" />
+                <div className="flex flex-wrap gap-2">
+                  {agent.industries.map((ind) => (
+                    <div key={ind} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 text-sm">
+                      <Globe className="h-3.5 w-3.5 text-brand-500 shrink-0" />
                       {ind}
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </CardContent>
@@ -824,7 +892,7 @@ export default function AgentDetailPage() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.65 }}
+              transition={{ delay: 0.58 }}
             >
               <Card>
                 <CardHeader>
@@ -833,153 +901,26 @@ export default function AgentDetailPage() {
                     Portfolio & Links
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  {agent.portfolioUrls.map((url) => (
-                    <a
-                      key={url}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 p-3 rounded-lg border hover:border-violet-300 hover:bg-violet-500/5 transition-all group"
-                    >
-                      <Globe className="h-4 w-4 text-muted-foreground group-hover:text-violet-500" />
-                      <span className="text-sm truncate flex-1 group-hover:text-violet-600">{url}</span>
-                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </a>
-                  ))}
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {agent.portfolioUrls.map((url) => (
+                      <a
+                        key={url}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg border hover:border-violet-300 hover:bg-violet-500/5 transition-all group"
+                      >
+                        <Globe className="h-4 w-4 text-muted-foreground group-hover:text-violet-500" />
+                        <span className="text-sm truncate group-hover:text-violet-600">{url}</span>
+                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </a>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             </motion.div>
           )}
-        </div>
-
-        {/* Right Column - 1/3 */}
-        <div className="space-y-6">
-          {/* Performance Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Performance Rating</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center gap-4">
-                <ScoreRing score={agent.performanceScore} size={100} />
-                <div className="text-center">
-                  <RatingStars score={agent.performanceScore} size="lg" />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {scoreLabel} Performance
-                  </p>
-                </div>
-                <div className="w-full space-y-2 pt-2 border-t">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Total Clients Served</span>
-                    <span className="font-medium">{totalClients}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Currently Active</span>
-                    <span className="font-medium">{agent.clientCount}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Projects Completed</span>
-                    <span className="font-medium">{agent.completedClients}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Pricing Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.55 }}
-          >
-            <Card className="border-violet-200/50">
-              <CardContent className="p-6 text-center">
-                <div className="h-12 w-12 rounded-2xl bg-violet-500/10 flex items-center justify-center mx-auto mb-3">
-                  <DollarSign className="h-6 w-6 text-violet-500" />
-                </div>
-                <p className="text-3xl font-bold text-violet-600">
-                  ${(agent.minPricePerMonth / 100).toLocaleString()}
-                </p>
-                <p className="text-sm text-muted-foreground mb-4">per month starting rate</p>
-                {!isOwnProfile && !relationship && (
-                  <Button
-                    className="w-full bg-violet-600 hover:bg-violet-700"
-                    onClick={() => setShowHireDialog(true)}
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Hire This Agent
-                  </Button>
-                )}
-                {relationship?.status === "ACTIVE" && (
-                  <div className="space-y-2 w-full">
-                    <Badge className="bg-emerald-500 text-sm px-4 py-1.5">
-                      <Heart className="h-3.5 w-3.5 mr-1.5 fill-current" />
-                      Currently Hired
-                    </Badge>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
-                      onClick={() => setShowUnhireDialog(true)}
-                    >
-                      <XCircle className="h-3.5 w-3.5 mr-1.5" />
-                      Unhire Agent
-                    </Button>
-                  </div>
-                )}
-                {relationship?.status === "PENDING" && (
-                  <div className="space-y-2 w-full">
-                    <Badge className="bg-amber-500 text-sm px-4 py-1.5">
-                      <Clock className="h-3.5 w-3.5 mr-1.5" />
-                      Pending Approval
-                    </Badge>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full text-muted-foreground hover:text-destructive"
-                      onClick={() => setShowUnhireDialog(true)}
-                    >
-                      Cancel Request
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Trust Badges */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-          >
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center gap-3 text-sm">
-                  <Shield className="h-5 w-5 text-emerald-500 shrink-0" />
-                  <span>Verified by FlowSmartly</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />
-                  <span>Background checked</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <Shield className="h-5 w-5 text-emerald-500 shrink-0" />
-                  <span>Financial actions restricted</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <TrendingUp className="h-5 w-5 text-emerald-500 shrink-0" />
-                  <span>Performance monitored</span>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
       </div>
 
       {/* Hire Confirmation Dialog */}
