@@ -2330,11 +2330,60 @@ export default function FeedPage() {
 
         {/* Sidebar */}
         <div className="space-y-4 hidden lg:block">
-          {/* Sponsored Ads — ad campaigns + promoted posts */}
+          {/* Sponsored Ads — ad campaigns + promoted posts, OR trending posts fallback */}
           {(() => {
             const promotedPosts = posts.filter(p => p.isPromoted && p.author.id !== currentUserId);
             const hasAds = feedAds.length > 0 || promotedPosts.length > 0;
-            if (!hasAds) return null;
+
+            if (!hasAds) {
+              // Fallback: show most trending/popular posts
+              const trendingPosts = [...posts]
+                .filter(p => !p.isPromoted && p.author.id !== currentUserId)
+                .sort((a, b) => (b.likesCount + b.commentsCount + (b.viewCount || 0)) - (a.likesCount + a.commentsCount + (a.viewCount || 0)))
+                .slice(0, 3);
+              if (trendingPosts.length === 0) return null;
+              return (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-brand-500" />
+                      <h3 className="font-semibold">Trending Posts</h3>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0 space-y-3">
+                    {trendingPosts.map((post) => (
+                      <div
+                        key={post.id}
+                        className="border rounded-lg p-3 hover:bg-muted/30 transition-colors cursor-pointer"
+                        onClick={() => {
+                          const el = document.getElementById(`post-${post.id}`);
+                          el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                        }}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <Avatar className="w-6 h-6">
+                            <AvatarImage src={post.author.avatarUrl || undefined} />
+                            <AvatarFallback className="text-[10px]">{post.author.name?.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs font-medium truncate">{post.author.name}</span>
+                        </div>
+                        {post.mediaUrls.length > 0 && (
+                          <div className="w-full aspect-video rounded-lg overflow-hidden bg-muted mb-2">
+                            <img src={post.mediaUrls[0]} alt="" className="w-full h-full object-cover" loading="lazy" />
+                          </div>
+                        )}
+                        <p className="text-xs line-clamp-2">{post.content}</p>
+                        <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                          <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" /> {post.viewCount || 0}</span>
+                          <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" /> {post.likesCount}</span>
+                          <span className="flex items-center gap-0.5"><MessageCircle className="w-3 h-3" /> {post.commentsCount}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              );
+            }
             return (
               <Card>
                 <CardHeader className="pb-3">
