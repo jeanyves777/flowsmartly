@@ -34,6 +34,8 @@ import {
   Clock,
   XCircle,
   AlertTriangle,
+  Quote,
+  Send,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,6 +61,18 @@ interface ShowcaseProject {
   mediaType?: "image" | "video";
 }
 
+interface AgentReview {
+  id: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+  reviewer: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  };
+}
+
 interface AgentDetail {
   id: string;
   displayName: string;
@@ -73,6 +87,8 @@ interface AgentDetail {
   clientCount: number;
   completedClients: number;
   approvedAt: string;
+  reviews: AgentReview[];
+  avgRating: number;
   user: {
     id: string;
     name: string;
@@ -198,6 +214,13 @@ export default function AgentDetailPage() {
   const [unhireAgreed, setUnhireAgreed] = useState(false);
   const [isUnhiring, setIsUnhiring] = useState(false);
 
+  // Review state
+  const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [isReviewsPaused, setIsReviewsPaused] = useState(false);
+
   useEffect(() => {
     const fetchAgent = async () => {
       try {
@@ -304,6 +327,39 @@ export default function AgentDetailPage() {
       });
     }
     setIsUnhiring(false);
+  };
+
+  const handleSubmitReview = async () => {
+    if (reviewComment.trim().length < 10) {
+      toast({ title: "Review too short", description: "Please write at least 10 characters.", variant: "destructive" });
+      return;
+    }
+    setIsSubmittingReview(true);
+    try {
+      const res = await fetch(`/api/marketplace/agents/${agentId}/reviews`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating: reviewRating, comment: reviewComment.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Refresh agent data to get updated reviews
+        const agentRes = await fetch(`/api/marketplace/agents/${agentId}`);
+        const agentData = await agentRes.json();
+        if (agentData.success) {
+          setAgent(agentData.data.agent);
+        }
+        setShowReviewDialog(false);
+        setReviewComment("");
+        setReviewRating(5);
+        toast({ title: "Review submitted!", description: "Thank you for your feedback." });
+      } else {
+        toast({ title: "Error", description: data.error?.message || "Failed to submit review", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "An error occurred. Please try again.", variant: "destructive" });
+    }
+    setIsSubmittingReview(false);
   };
 
   if (isLoading) {
@@ -841,6 +897,165 @@ export default function AgentDetailPage() {
         );
       })()}
 
+      {/* Customer Reviews — Auto-scrolling Marquee */}
+      {agent.reviews && agent.reviews.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.54 }}
+        >
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2.5">
+                  <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-500/15 to-orange-500/15 flex items-center justify-center">
+                    <MessageSquare className="h-4 w-4 text-amber-500" />
+                  </div>
+                  Customer Reviews
+                  <Badge variant="secondary" className="text-xs ml-1">
+                    {agent.reviews.length}
+                  </Badge>
+                </CardTitle>
+                <div className="flex items-center gap-3">
+                  {agent.avgRating > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <Star
+                            key={i}
+                            className={`h-4 w-4 ${
+                              i <= Math.round(agent.avgRating)
+                                ? "fill-amber-400 text-amber-400"
+                                : "fill-muted text-muted"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-sm font-semibold">{agent.avgRating}</span>
+                    </div>
+                  )}
+                  {!isOwnProfile && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={() => setShowReviewDialog(true)}
+                    >
+                      <Star className="h-3.5 w-3.5 mr-1.5" />
+                      Write Review
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 pb-5">
+              {/* Scrolling container */}
+              <div
+                className="relative overflow-hidden"
+                onMouseEnter={() => setIsReviewsPaused(true)}
+                onMouseLeave={() => setIsReviewsPaused(false)}
+              >
+                {/* Fade edges */}
+                <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-card to-transparent z-10 pointer-events-none" />
+                <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-card to-transparent z-10 pointer-events-none" />
+
+                <motion.div
+                  className="flex gap-4"
+                  animate={{
+                    x: isReviewsPaused ? undefined : [0, -(agent.reviews.length * 320)],
+                  }}
+                  transition={
+                    isReviewsPaused
+                      ? { duration: 0 }
+                      : {
+                          x: {
+                            duration: agent.reviews.length * 6,
+                            repeat: Infinity,
+                            ease: "linear",
+                          },
+                        }
+                  }
+                  style={{ width: "max-content" }}
+                >
+                  {/* Duplicate reviews for seamless loop */}
+                  {[...agent.reviews, ...agent.reviews].map((review, i) => (
+                    <div
+                      key={`${review.id}-${i}`}
+                      className="w-[300px] shrink-0 rounded-xl border bg-muted/30 p-4 hover:bg-muted/50 transition-colors"
+                    >
+                      {/* Quote icon */}
+                      <Quote className="h-5 w-5 text-violet-400/40 mb-2" />
+
+                      {/* Review text */}
+                      <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 min-h-[3.75rem]">
+                        {review.comment}
+                      </p>
+
+                      {/* Stars */}
+                      <div className="flex items-center gap-0.5 mt-3 mb-3">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <Star
+                            key={s}
+                            className={`h-3.5 w-3.5 ${
+                              s <= review.rating
+                                ? "fill-amber-400 text-amber-400"
+                                : "fill-muted text-muted"
+                            }`}
+                          />
+                        ))}
+                      </div>
+
+                      {/* Reviewer */}
+                      <div className="flex items-center gap-2.5 pt-3 border-t">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={review.reviewer.avatarUrl || undefined} />
+                          <AvatarFallback className="bg-gradient-to-br from-violet-500 to-purple-600 text-white text-xs font-semibold">
+                            {review.reviewer.name?.charAt(0) || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{review.reviewer.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(review.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </motion.div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Write Review button if no reviews yet */}
+      {(!agent.reviews || agent.reviews.length === 0) && !isOwnProfile && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.54 }}
+        >
+          <Card>
+            <CardContent className="p-6 text-center">
+              <div className="h-12 w-12 rounded-xl bg-amber-500/10 flex items-center justify-center mx-auto mb-3">
+                <MessageSquare className="h-6 w-6 text-amber-500" />
+              </div>
+              <h3 className="font-semibold mb-1">No Reviews Yet</h3>
+              <p className="text-sm text-muted-foreground mb-4">Be the first to review {agent.displayName}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowReviewDialog(true)}
+              >
+                <Star className="h-3.5 w-3.5 mr-1.5" />
+                Write a Review
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
       {/* Content — Full Width */}
       <div className="space-y-6">
           {/* Specialties & Industries */}
@@ -1180,6 +1395,78 @@ export default function AgentDetailPage() {
               </>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Write Review Dialog */}
+      <Dialog open={showReviewDialog} onOpenChange={(open) => { if (!open) { setShowReviewDialog(false); setReviewComment(""); setReviewRating(5); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Star className="h-5 w-5 text-amber-500" />
+              Review {agent.displayName}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Star rating picker */}
+            <div>
+              <Label className="text-sm font-medium mb-2 block">Rating</Label>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className="p-0.5 transition-transform hover:scale-110"
+                    onClick={() => setReviewRating(s)}
+                  >
+                    <Star
+                      className={`h-7 w-7 transition-colors ${
+                        s <= reviewRating
+                          ? "fill-amber-400 text-amber-400"
+                          : "fill-muted text-muted-foreground/30 hover:text-amber-300"
+                      }`}
+                    />
+                  </button>
+                ))}
+                <span className="ml-2 text-sm text-muted-foreground">
+                  {reviewRating === 5 ? "Excellent" : reviewRating === 4 ? "Great" : reviewRating === 3 ? "Good" : reviewRating === 2 ? "Fair" : "Poor"}
+                </span>
+              </div>
+            </div>
+
+            {/* Comment */}
+            <div>
+              <Label className="text-sm font-medium mb-1.5 block">Your Review</Label>
+              <Textarea
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                placeholder="Share your experience working with this agent..."
+                rows={4}
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground text-right mt-1">
+                {reviewComment.length} / 500
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowReviewDialog(false); setReviewComment(""); setReviewRating(5); }}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-violet-600 hover:bg-violet-700"
+              onClick={handleSubmitReview}
+              disabled={isSubmittingReview || reviewComment.trim().length < 10}
+            >
+              {isSubmittingReview ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Submitting...</>
+              ) : (
+                <><Send className="h-4 w-4 mr-2" />Submit Review</>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

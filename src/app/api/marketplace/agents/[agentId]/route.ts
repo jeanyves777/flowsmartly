@@ -62,6 +62,22 @@ export async function GET(
       },
     });
 
+    // Get reviews
+    const reviews = await prisma.agentReview.findMany({
+      where: { agentProfileId: agent.id },
+      include: {
+        reviewer: {
+          select: { id: true, name: true, avatarUrl: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const avgRating =
+      reviews.length > 0
+        ? Math.round((reviews.reduce((s, r) => s + r.rating, 0) / reviews.length) * 10) / 10
+        : 0;
+
     return NextResponse.json({
       success: true,
       data: {
@@ -80,6 +96,8 @@ export async function GET(
           completedClients,
           approvedAt: agent.approvedAt,
           user: agent.user,
+          reviews,
+          avgRating,
         },
         relationship: existingRelationship,
         isOwnProfile: agent.userId === session.userId,
