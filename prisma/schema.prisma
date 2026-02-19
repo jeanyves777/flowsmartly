@@ -18,6 +18,7 @@ model User {
   name              String
   username          String    @unique
   avatarUrl         String?
+  coverImageUrl     String?
   bio               String?
   website           String?
   links             String    @default("{}")   // JSON: { instagram, twitter, linkedin, tiktok, youtube, facebook, custom }

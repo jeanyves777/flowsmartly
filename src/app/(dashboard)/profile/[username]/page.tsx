@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import Image from "next/image";
 import {
   User,
   MapPin,
@@ -17,9 +18,14 @@ import {
   Sparkles,
   Crown,
   Star,
-  Loader2,
   AlertCircle,
   ExternalLink,
+  Camera,
+  Heart,
+  MessageCircle,
+  Share2,
+  ImageIcon,
+  Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +39,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface UserProfile {
   id: string;
@@ -40,6 +47,7 @@ interface UserProfile {
   name: string;
   username: string;
   avatarUrl: string | null;
+  coverImageUrl: string | null;
   bio: string | null;
   website: string | null;
   plan: string;
@@ -50,6 +58,28 @@ interface UserProfile {
   postsCount: number;
   followersCount: number;
   followingCount: number;
+  createdAt: string;
+}
+
+interface Post {
+  id: string;
+  content: string;
+  mediaUrls: string[];
+  mediaType: string | null;
+  hashtags: string[];
+  author: {
+    id: string;
+    name: string;
+    username: string;
+    avatarUrl: string | null;
+    isVerified: boolean;
+  };
+  likesCount: number;
+  commentsCount: number;
+  sharesCount: number;
+  viewCount: number;
+  isLiked: boolean;
+  isBookmarked: boolean;
   createdAt: string;
 }
 
@@ -81,16 +111,18 @@ export default function ProfilePage() {
   const params = useParams();
   const username = params.username as string;
   const { toast } = useToast();
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
 
   const fetchProfile = useCallback(async () => {
     try {
       setIsLoading(true);
-      // Currently uses the current user's profile endpoint
-      // In the future, this could be a public profile endpoint by username
       const response = await fetch("/api/users/profile");
       const data = await response.json();
 
@@ -100,7 +132,6 @@ export default function ProfilePage() {
 
       const user = data.data.user as UserProfile;
       setProfile(user);
-      // Check if the URL username matches the logged-in user
       setIsOwnProfile(
         user.username?.toLowerCase() === username?.toLowerCase()
       );
@@ -116,9 +147,71 @@ export default function ProfilePage() {
     }
   }, [username, toast]);
 
+  const fetchPosts = useCallback(async (userId: string) => {
+    try {
+      setIsLoadingPosts(true);
+      const response = await fetch(`/api/posts?userId=${userId}&limit=6`);
+      const data = await response.json();
+      if (data.success) {
+        setPosts(data.data.posts || []);
+      }
+    } catch {
+      // Silent fail for posts
+    } finally {
+      setIsLoadingPosts(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  useEffect(() => {
+    if (profile?.id) {
+      fetchPosts(profile.id);
+    }
+  }, [profile?.id, fetchPosts]);
+
+  const handleCoverUpload = useCallback(async (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Please upload an image smaller than 5MB.", variant: "destructive" });
+      return;
+    }
+
+    setIsUploadingCover(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "cover");
+
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      const uploadData = await uploadRes.json();
+      if (!uploadData.success) throw new Error(uploadData.error?.message || "Upload failed");
+
+      const url = uploadData.data.url;
+
+      // Save to profile
+      const saveRes = await fetch("/api/users/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coverImageUrl: url }),
+      });
+      const saveData = await saveRes.json();
+      if (!saveData.success) throw new Error(saveData.error?.message || "Failed to save");
+
+      setProfile((prev) => prev ? { ...prev, coverImageUrl: url } : prev);
+      toast({ title: "Cover photo updated!" });
+    } catch (err) {
+      toast({
+        title: "Upload failed",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingCover(false);
+      if (coverInputRef.current) coverInputRef.current.value = "";
+    }
+  }, [toast]);
 
   const formatDate = (dateString: string) => {
     const d = new Date(dateString);
@@ -126,6 +219,20 @@ export default function ProfilePage() {
       month: "long",
       year: "numeric",
     });
+  };
+
+  const formatPostDate = (dateString: string) => {
+    const d = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
   const getInitials = (name: string) => {
@@ -140,26 +247,25 @@ export default function ProfilePage() {
   // Loading
   if (isLoading) {
     return (
-      <div className="flex-1 flex flex-col items-center pb-8">
-        <div className="w-full max-w-3xl space-y-6">
-          {/* Cover skeleton */}
-          <Skeleton className="h-48 w-full rounded-xl" />
-          {/* Avatar + name skeleton */}
+      <div className="flex-1 flex flex-col pb-8">
+        <div className="w-full space-y-6">
+          <Skeleton className="h-56 w-full rounded-xl" />
           <div className="flex items-end gap-6 -mt-16 px-6">
-            <Skeleton className="w-28 h-28 rounded-full border-4 border-background" />
+            <Skeleton className="w-32 h-32 rounded-full border-4 border-background" />
             <div className="space-y-2 pb-2">
               <Skeleton className="h-7 w-48" />
               <Skeleton className="h-4 w-32" />
             </div>
           </div>
-          {/* Stats skeleton */}
           <div className="grid grid-cols-3 gap-4 px-6">
             {[1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-20 w-full rounded-xl" />
             ))}
           </div>
-          {/* Bio skeleton */}
-          <Skeleton className="h-32 w-full rounded-xl mx-6" />
+          <div className="grid lg:grid-cols-3 gap-6 px-6">
+            <Skeleton className="h-40 lg:col-span-2 rounded-xl" />
+            <Skeleton className="h-40 rounded-xl" />
+          </div>
         </div>
       </div>
     );
@@ -190,22 +296,63 @@ export default function ProfilePage() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex-1 flex flex-col items-center pb-8"
+      className="flex-1 flex flex-col pb-8"
     >
-      <div className="w-full max-w-3xl">
+      <div className="w-full">
         {/* Cover / Banner */}
-        <div className="h-48 rounded-xl bg-gradient-to-br from-brand-500/20 via-purple-500/20 to-pink-500/20 relative overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(99,102,241,0.15),transparent_70%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(168,85,247,0.1),transparent_60%)]" />
+        <div className="h-56 rounded-xl relative overflow-hidden group">
+          {profile.coverImageUrl ? (
+            <Image
+              src={profile.coverImageUrl}
+              alt="Cover"
+              fill
+              className="object-cover"
+              priority
+            />
+          ) : (
+            <>
+              <div className="absolute inset-0 bg-gradient-to-br from-brand-500/20 via-purple-500/20 to-pink-500/20" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(99,102,241,0.15),transparent_70%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(168,85,247,0.1),transparent_60%)]" />
+            </>
+          )}
+
+          {/* Cover upload button */}
+          {isOwnProfile && (
+            <>
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleCoverUpload(file);
+                }}
+              />
+              <button
+                onClick={() => coverInputRef.current?.click()}
+                disabled={isUploadingCover}
+                className="absolute bottom-3 right-3 bg-black/50 hover:bg-black/70 text-white rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+              >
+                {isUploadingCover ? (
+                  <AISpinner className="w-4 h-4" />
+                ) : (
+                  <Camera className="w-4 h-4" />
+                )}
+                {isUploadingCover ? "Uploading..." : profile.coverImageUrl ? "Change Cover" : "Add Cover"}
+              </button>
+            </>
+          )}
         </div>
 
         {/* Profile header */}
         <div className="px-6 -mt-16 relative z-10">
           <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6">
             {/* Avatar */}
-            <Avatar className="w-28 h-28 border-4 border-background shadow-lg">
+            <Avatar className="w-32 h-32 border-4 border-background shadow-lg">
               <AvatarImage src={profile.avatarUrl || undefined} />
-              <AvatarFallback className="text-2xl font-bold bg-gradient-to-br from-brand-500 to-purple-500 text-white">
+              <AvatarFallback className="text-3xl font-bold bg-gradient-to-br from-brand-500 to-purple-500 text-white">
                 {getInitials(profile.name || profile.username || "U")}
               </AvatarFallback>
             </Avatar>
@@ -290,9 +437,9 @@ export default function ProfilePage() {
           ))}
         </div>
 
-        {/* Bio + Details */}
+        {/* Bio + Details + Posts */}
         <div className="grid lg:grid-cols-3 gap-6 px-6 mt-6">
-          {/* Left: About */}
+          {/* Left: About + Posts */}
           <div className="lg:col-span-2 space-y-6">
             {/* Bio */}
             <Card>
@@ -317,16 +464,38 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
 
-            {/* Activity placeholder */}
+            {/* Recent Posts */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-brand-500" />
-                  Recent Posts
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-brand-500" />
+                    Recent Posts
+                  </CardTitle>
+                  {posts.length > 0 && (
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href="/feed" className="text-xs text-muted-foreground hover:text-foreground">
+                        View all
+                      </Link>
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
-                {profile.postsCount === 0 ? (
+                {isLoadingPosts ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex gap-3">
+                        <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+                        <div className="flex-1 space-y-2">
+                          <Skeleton className="h-4 w-32" />
+                          <Skeleton className="h-3 w-full" />
+                          <Skeleton className="h-3 w-3/4" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : posts.length === 0 ? (
                   <div className="text-center py-12">
                     <FileText className="w-10 h-10 mx-auto mb-3 text-muted-foreground/30" />
                     <p className="text-sm text-muted-foreground">
@@ -336,17 +505,85 @@ export default function ProfilePage() {
                     </p>
                     {isOwnProfile && (
                       <Button variant="outline" size="sm" className="mt-3" asChild>
-                        <Link href="/visual-studio">Create your first post</Link>
+                        <Link href="/content/posts">Create your first post</Link>
                       </Button>
                     )}
                   </div>
                 ) : (
-                  <div className="text-center py-12">
-                    <FileText className="w-10 h-10 mx-auto mb-3 text-muted-foreground/30" />
-                    <p className="text-sm text-muted-foreground">
-                      {profile.postsCount} post
-                      {profile.postsCount !== 1 ? "s" : ""} created
-                    </p>
+                  <div className="space-y-4">
+                    {posts.map((post) => (
+                      <div key={post.id} className="border rounded-lg p-4 hover:bg-muted/30 transition-colors">
+                        <div className="flex items-start gap-3">
+                          {/* Post media thumbnail */}
+                          {post.mediaUrls.length > 0 && (
+                            <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted shrink-0 relative">
+                              {post.mediaType === "VIDEO" ? (
+                                <div className="w-full h-full flex items-center justify-center bg-muted">
+                                  <Video className="w-6 h-6 text-muted-foreground" />
+                                </div>
+                              ) : (
+                                <Image
+                                  src={post.mediaUrls[0]}
+                                  alt=""
+                                  fill
+                                  className="object-cover"
+                                />
+                              )}
+                              {post.mediaUrls.length > 1 && (
+                                <div className="absolute bottom-0.5 right-0.5 bg-black/60 rounded text-[10px] text-white px-1">
+                                  +{post.mediaUrls.length - 1}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Post content */}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm line-clamp-2 mb-2">
+                              {post.content || "No caption"}
+                            </p>
+
+                            {/* Hashtags */}
+                            {post.hashtags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mb-2">
+                                {post.hashtags.slice(0, 3).map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className="text-xs text-brand-500"
+                                  >
+                                    #{tag}
+                                  </span>
+                                ))}
+                                {post.hashtags.length > 3 && (
+                                  <span className="text-xs text-muted-foreground">
+                                    +{post.hashtags.length - 3}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Post stats */}
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Heart className={cn("w-3.5 h-3.5", post.isLiked && "fill-red-500 text-red-500")} />
+                                {post.likesCount}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <MessageCircle className="w-3.5 h-3.5" />
+                                {post.commentsCount}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Share2 className="w-3.5 h-3.5" />
+                                {post.sharesCount}
+                              </span>
+                              <span className="ml-auto">
+                                {formatPostDate(post.createdAt)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>

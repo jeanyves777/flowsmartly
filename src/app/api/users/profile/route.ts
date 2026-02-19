@@ -22,6 +22,7 @@ export async function GET() {
         name: true,
         username: true,
         avatarUrl: true,
+        coverImageUrl: true,
         bio: true,
         website: true,
         links: true,
@@ -60,6 +61,7 @@ export async function GET() {
           name: user.name,
           username: user.username,
           avatarUrl: user.avatarUrl,
+          coverImageUrl: user.coverImageUrl,
           bio: user.bio,
           website: user.website,
           links: JSON.parse(user.links || "{}"),
@@ -106,6 +108,7 @@ export async function PATCH(request: NextRequest) {
       website,
       links,
       avatarUrl,
+      coverImageUrl,
       timezone,
       language,
       theme,
@@ -118,6 +121,7 @@ export async function PATCH(request: NextRequest) {
     if (bio !== undefined) updateData.bio = bio;
     if (website !== undefined) updateData.website = website;
     if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl;
+    if (coverImageUrl !== undefined) updateData.coverImageUrl = coverImageUrl;
     if (timezone !== undefined) updateData.timezone = timezone;
     if (language !== undefined) updateData.language = language;
     if (theme !== undefined) updateData.theme = theme;
@@ -153,6 +157,7 @@ export async function PATCH(request: NextRequest) {
         website: true,
         links: true,
         avatarUrl: true,
+        coverImageUrl: true,
         timezone: true,
         language: true,
         theme: true,
