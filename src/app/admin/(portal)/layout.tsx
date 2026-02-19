@@ -39,6 +39,7 @@ import {
   Phone,
   Briefcase,
   Gift,
+  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -62,6 +63,7 @@ interface AdminUser {
 const navItems = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/admin/users", icon: Users, label: "Users" },
+  { href: "/admin/plans", icon: CreditCard, label: "Plans" },
   { href: "/admin/credits", icon: Coins, label: "Credits" },
   { href: "/admin/credit-pricing", icon: DollarSign, label: "Credit Pricing" },
   { href: "/admin/content", icon: FileText, label: "Content" },

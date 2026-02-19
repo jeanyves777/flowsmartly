@@ -8,20 +8,20 @@
 export const PLANS = {
   STARTER: {
     name: "Starter",
-    monthlyCredits: 100,
+    monthlyCredits: 500,
     priceCentsMonthly: 0,
     priceCentsYearly: 0,
-    features: ["100 credits/month (email)", "Email marketing", "Basic design tools", "FlowSocial feed access"],
+    features: ["500 credits/month", "Email marketing", "Basic design tools", "FlowSocial feed access"],
   },
   PRO: {
     name: "Pro",
-    monthlyCredits: 300,
+    monthlyCredits: 1500,
     priceCentsMonthly: 1999,
     priceCentsYearly: 19990,
     stripePriceIdMonthly: process.env.STRIPE_PRO_MONTHLY_PRICE_ID || "",
     stripePriceIdYearly: process.env.STRIPE_PRO_YEARLY_PRICE_ID || "",
     features: [
-      "300 credits/month",
+      "1,500 credits/month",
       "AI content generation",
       "All design tools & styles",
       "Brand Identity & Logo Generator",
@@ -31,13 +31,13 @@ export const PLANS = {
   },
   BUSINESS: {
     name: "Business",
-    monthlyCredits: 750,
+    monthlyCredits: 4000,
     priceCentsMonthly: 4999,
     priceCentsYearly: 49990,
     stripePriceIdMonthly: process.env.STRIPE_BUSINESS_MONTHLY_PRICE_ID || "",
     stripePriceIdYearly: process.env.STRIPE_BUSINESS_YEARLY_PRICE_ID || "",
     features: [
-      "750 credits/month",
+      "4,000 credits/month",
       "Everything in Pro",
       "Campaign management",
       "Analytics dashboard",
@@ -46,13 +46,13 @@ export const PLANS = {
   },
   ENTERPRISE: {
     name: "Enterprise",
-    monthlyCredits: 2250,
+    monthlyCredits: 10000,
     priceCentsMonthly: 14999,
     priceCentsYearly: 149990,
     stripePriceIdMonthly: process.env.STRIPE_ENTERPRISE_MONTHLY_PRICE_ID || "",
     stripePriceIdYearly: process.env.STRIPE_ENTERPRISE_YEARLY_PRICE_ID || "",
     features: [
-      "2,250 credits/month",
+      "10,000 credits/month",
       "Everything in Business",
       "White-label support",
       "Team collaboration",

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { stripe, PLANS, type PlanId } from "@/lib/stripe";
+import { stripe, PLANS } from "@/lib/stripe";
 import { prisma } from "@/lib/db/client";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import {
@@ -79,8 +79,13 @@ async function processWebhookEvent(event: Stripe.Event) {
           `[Stripe Webhook] Credit purchase completed: ${totalCredits} credits for user ${userId}`
         );
       } else if (type === "subscription") {
-        const validPlanId = planId as PlanId;
-        const plan = PLANS[validPlanId];
+        // Fetch plan from database (dynamic credits, admin-configurable)
+        const dbPlan = await prisma.plan.findUnique({
+          where: { planId: planId || "" },
+        });
+        // Fallback to hardcoded config for safety
+        const configPlan = PLANS[planId as keyof typeof PLANS];
+        const plan = dbPlan || configPlan;
 
         if (!plan) {
           console.error(
@@ -93,7 +98,7 @@ async function processWebhookEvent(event: Stripe.Event) {
         await prisma.user.update({
           where: { id: userId },
           data: {
-            plan: validPlanId,
+            plan: planId!,
             planExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
             stripeCustomerId: session.customer as string,
           },
@@ -136,7 +141,7 @@ async function processWebhookEvent(event: Stripe.Event) {
         }).catch((err) => console.error("[Stripe Webhook] Referral commission error:", err));
 
         console.log(
-          `[Stripe Webhook] Subscription activated: ${validPlanId} plan for user ${userId} (+${plan.monthlyCredits} credits)`
+          `[Stripe Webhook] Subscription activated: ${planId} plan for user ${userId} (+${plan.monthlyCredits} credits)`
         );
       }
 
@@ -244,8 +249,13 @@ async function processWebhookEvent(event: Stripe.Event) {
         break;
       }
 
-      const subPlanId = subMetadata.planId as PlanId;
-      const subPlan = PLANS[subPlanId];
+      const subPlanId = subMetadata.planId;
+      // Fetch from DB first, fallback to hardcoded config
+      const dbSubPlan = await prisma.plan.findUnique({
+        where: { planId: subPlanId || "" },
+      });
+      const configSubPlan = PLANS[subPlanId as keyof typeof PLANS];
+      const subPlan = dbSubPlan || configSubPlan;
 
       if (!subPlan) {
         console.error(`[Stripe Webhook] Invalid planId in subscription metadata: ${subMetadata.planId}`);
@@ -256,7 +266,7 @@ async function processWebhookEvent(event: Stripe.Event) {
       await prisma.user.update({
         where: { id: subMetadata.userId },
         data: {
-          plan: subPlanId,
+          plan: subPlanId!,
           planExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         },
       });
