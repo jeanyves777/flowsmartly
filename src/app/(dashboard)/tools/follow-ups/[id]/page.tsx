@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -24,6 +24,8 @@ import {
   Loader2,
   Users,
   X,
+  MessageSquare,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -129,6 +131,12 @@ export default function FollowUpDetailPage() {
   const [exportCreateList, setExportCreateList] = useState(false);
   const [exportNewListName, setExportNewListName] = useState("");
   const [isExporting, setIsExporting] = useState(false);
+
+  // Inline note editing
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteValue, setEditingNoteValue] = useState("");
+  const [isSavingNote, setIsSavingNote] = useState(false);
+  const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Delete dialog
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -268,6 +276,47 @@ export default function FollowUpDetailPage() {
       fetchFollowUp();
     } catch (err) {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    }
+  };
+
+  // Inline note editing
+  const startEditingNote = (entry: EntryData) => {
+    setEditingNoteId(entry.id);
+    setEditingNoteValue(entry.notes || "");
+    setTimeout(() => noteTextareaRef.current?.focus(), 0);
+  };
+
+  const cancelEditingNote = () => {
+    setEditingNoteId(null);
+    setEditingNoteValue("");
+  };
+
+  const saveInlineNote = async (entryId: string) => {
+    const trimmed = editingNoteValue.trim();
+    const entry = entries.find((e) => e.id === entryId);
+    // Skip save if unchanged
+    if (trimmed === (entry?.notes || "")) {
+      cancelEditingNote();
+      return;
+    }
+    setIsSavingNote(true);
+    try {
+      const res = await fetch(`/api/follow-ups/${id}/entries/${entryId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: trimmed || null }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message);
+      // Update locally without full refetch
+      setEntries((prev) =>
+        prev.map((e) => (e.id === entryId ? { ...e, notes: trimmed || null } : e))
+      );
+      cancelEditingNote();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setIsSavingNote(false);
     }
   };
 
@@ -581,10 +630,62 @@ export default function FollowUpDetailPage() {
                                   </span>
                                 )}
                               </div>
-                              {entry.notes && (
-                                <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic">
+                              {/* Inline Notes */}
+                              {editingNoteId === entry.id ? (
+                                <div className="mt-1.5 flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <Textarea
+                                    ref={noteTextareaRef}
+                                    value={editingNoteValue}
+                                    onChange={(e) => setEditingNoteValue(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" && !e.shiftKey) {
+                                        e.preventDefault();
+                                        saveInlineNote(entry.id);
+                                      }
+                                      if (e.key === "Escape") cancelEditingNote();
+                                    }}
+                                    placeholder="Add a note..."
+                                    className="text-xs min-h-[60px] resize-none flex-1"
+                                    rows={2}
+                                    disabled={isSavingNote}
+                                  />
+                                  <div className="flex flex-col gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                      onClick={() => saveInlineNote(entry.id)}
+                                      disabled={isSavingNote}
+                                    >
+                                      {isSavingNote ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                      onClick={cancelEditingNote}
+                                      disabled={isSavingNote}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : entry.notes ? (
+                                <p
+                                  className="text-xs text-muted-foreground mt-1 line-clamp-1 italic cursor-pointer hover:text-foreground transition-colors"
+                                  onClick={() => startEditingNote(entry)}
+                                  title="Click to edit note"
+                                >
                                   {entry.notes}
                                 </p>
+                              ) : (
+                                <button
+                                  className="flex items-center gap-1 text-[11px] text-muted-foreground/50 hover:text-muted-foreground mt-1 transition-colors"
+                                  onClick={() => startEditingNote(entry)}
+                                >
+                                  <MessageSquare className="h-3 w-3" />
+                                  Add note
+                                </button>
                               )}
                             </div>
 

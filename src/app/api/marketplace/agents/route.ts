@@ -82,11 +82,12 @@ export async function GET(request: NextRequest) {
     const total = filtered.length;
     const paginated = filtered.slice(skip, skip + limit);
 
-    // Check which agents the current user already has a relationship with
+    // Check which agents the current user already has a relationship with (exclude terminated so they can re-hire)
     const existingRelationships = await prisma.agentClient.findMany({
       where: {
         clientUserId: session.userId,
         agentProfileId: { in: paginated.map((a) => a.id) },
+        status: { in: ["ACTIVE", "PAUSED", "PENDING"] },
       },
       select: { agentProfileId: true, status: true },
     });

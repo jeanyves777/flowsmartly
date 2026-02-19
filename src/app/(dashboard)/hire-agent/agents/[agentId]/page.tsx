@@ -30,12 +30,24 @@ import {
   Image as ImageIcon,
   ZoomIn,
   FileText,
+  Clock,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
 interface ShowcaseImage {
@@ -171,6 +183,17 @@ export default function AgentDetailPage() {
   const [isAboutExpanded, setIsAboutExpanded] = useState(false);
   const [selectedShowcase, setSelectedShowcase] = useState<ShowcaseImage | null>(null);
 
+  // Hire dialog state
+  const [showHireDialog, setShowHireDialog] = useState(false);
+  const [hireMessage, setHireMessage] = useState("");
+  const [hireAgreed, setHireAgreed] = useState(false);
+
+  // Unhire dialog state
+  const [showUnhireDialog, setShowUnhireDialog] = useState(false);
+  const [unhireReason, setUnhireReason] = useState("");
+  const [unhireAgreed, setUnhireAgreed] = useState(false);
+  const [isUnhiring, setIsUnhiring] = useState(false);
+
   useEffect(() => {
     const fetchAgent = async () => {
       try {
@@ -193,30 +216,38 @@ export default function AgentDetailPage() {
   }, [agentId, router]);
 
   const handleHire = async () => {
+    if (!hireAgreed) return;
     setIsHiring(true);
     try {
       const res = await fetch("/api/marketplace/hire", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId }),
+        body: JSON.stringify({
+          agentId,
+          message: hireMessage.trim() || undefined,
+          agreedToTerms: true,
+        }),
       });
       const data = await res.json();
 
       if (data.success) {
         setRelationship({
           id: data.data.client.id,
-          status: "ACTIVE",
+          status: "PENDING",
           monthlyPriceCents: data.data.client.monthlyPriceCents,
           startDate: data.data.client.startDate,
         });
+        setShowHireDialog(false);
+        setHireMessage("");
+        setHireAgreed(false);
         toast({
-          title: "Agent Hired!",
-          description: `You've successfully hired ${agent?.displayName}. They can now manage your account.`,
+          title: "Request Sent!",
+          description: `Your hire request has been sent to ${agent?.displayName}. They will review and accept your request.`,
         });
       } else {
         toast({
           title: "Error",
-          description: data.error?.message || "Failed to hire agent",
+          description: data.error?.message || "Failed to send hire request",
           variant: "destructive",
         });
       }
@@ -228,6 +259,47 @@ export default function AgentDetailPage() {
       });
     }
     setIsHiring(false);
+  };
+
+  const handleUnhire = async () => {
+    if (!unhireAgreed || !relationship) return;
+    setIsUnhiring(true);
+    try {
+      const res = await fetch("/api/marketplace/hire/terminate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: relationship.id,
+          reason: unhireReason.trim() || undefined,
+          agreedToRelease: true,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setRelationship(null);
+        setShowUnhireDialog(false);
+        setUnhireReason("");
+        setUnhireAgreed(false);
+        toast({
+          title: relationship.status === "PENDING" ? "Request Cancelled" : "Agent Unhired",
+          description: data.data.message,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: data.error?.message || "Failed to unhire agent",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Error",
+        description: "An error occurred. Please try again.",
+        variant: "destructive",
+      });
+    }
+    setIsUnhiring(false);
   };
 
   if (isLoading) {
@@ -366,29 +438,45 @@ export default function AgentDetailPage() {
                         <Briefcase className="h-3.5 w-3.5 mr-1.5" />
                         This is your profile
                       </Badge>
-                    ) : relationship ? (
-                      <Badge className="text-sm px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600">
-                        <Heart className="h-3.5 w-3.5 mr-1.5 fill-current" />
-                        {relationship.status === "ACTIVE" ? "Currently Hired" : relationship.status}
-                      </Badge>
+                    ) : relationship?.status === "ACTIVE" ? (
+                      <div className="flex flex-col items-end gap-2">
+                        <Badge className="text-sm px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600">
+                          <Heart className="h-3.5 w-3.5 mr-1.5 fill-current" />
+                          Currently Hired
+                        </Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                          onClick={() => setShowUnhireDialog(true)}
+                        >
+                          <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                          Unhire Agent
+                        </Button>
+                      </div>
+                    ) : relationship?.status === "PENDING" ? (
+                      <div className="flex flex-col items-end gap-2">
+                        <Badge className="text-sm px-4 py-1.5 bg-amber-500 hover:bg-amber-600">
+                          <Clock className="h-3.5 w-3.5 mr-1.5" />
+                          Pending Approval
+                        </Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => setShowUnhireDialog(true)}
+                        >
+                          Cancel Request
+                        </Button>
+                      </div>
                     ) : (
                       <Button
                         size="lg"
                         className="bg-violet-600 hover:bg-violet-700 shadow-lg shadow-violet-500/20"
-                        onClick={handleHire}
-                        disabled={isHiring}
+                        onClick={() => setShowHireDialog(true)}
                       >
-                        {isHiring ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Hiring...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="h-4 w-4 mr-2" />
-                            Hire This Agent
-                          </>
-                        )}
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Hire This Agent
                       </Button>
                     )}
                   </motion.div>
@@ -773,22 +861,44 @@ export default function AgentDetailPage() {
                 {!isOwnProfile && !relationship && (
                   <Button
                     className="w-full bg-violet-600 hover:bg-violet-700"
-                    onClick={handleHire}
-                    disabled={isHiring}
+                    onClick={() => setShowHireDialog(true)}
                   >
-                    {isHiring ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4 mr-2" />
-                    )}
-                    {isHiring ? "Hiring..." : "Hire This Agent"}
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Hire This Agent
                   </Button>
                 )}
                 {relationship?.status === "ACTIVE" && (
-                  <Badge className="bg-emerald-500 text-sm px-4 py-1.5">
-                    <Heart className="h-3.5 w-3.5 mr-1.5 fill-current" />
-                    Currently Hired
-                  </Badge>
+                  <div className="space-y-2 w-full">
+                    <Badge className="bg-emerald-500 text-sm px-4 py-1.5">
+                      <Heart className="h-3.5 w-3.5 mr-1.5 fill-current" />
+                      Currently Hired
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                      onClick={() => setShowUnhireDialog(true)}
+                    >
+                      <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                      Unhire Agent
+                    </Button>
+                  </div>
+                )}
+                {relationship?.status === "PENDING" && (
+                  <div className="space-y-2 w-full">
+                    <Badge className="bg-amber-500 text-sm px-4 py-1.5">
+                      <Clock className="h-3.5 w-3.5 mr-1.5" />
+                      Pending Approval
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-muted-foreground hover:text-destructive"
+                      onClick={() => setShowUnhireDialog(true)}
+                    >
+                      Cancel Request
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -823,6 +933,195 @@ export default function AgentDetailPage() {
           </motion.div>
         </div>
       </div>
+
+      {/* Hire Confirmation Dialog */}
+      <Dialog open={showHireDialog} onOpenChange={(open) => { if (!open) { setShowHireDialog(false); setHireMessage(""); setHireAgreed(false); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-violet-500" />
+              Hire {agent.displayName}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Pricing summary */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-violet-500/5 border border-violet-200/50">
+              <span className="text-sm font-medium">Monthly Rate</span>
+              <span className="text-lg font-bold text-violet-600">
+                ${(agent.minPricePerMonth / 100).toLocaleString()}/mo
+              </span>
+            </div>
+
+            {/* Message to agent */}
+            <div>
+              <Label className="text-sm font-medium">Message to Agent (optional)</Label>
+              <Textarea
+                value={hireMessage}
+                onChange={(e) => setHireMessage(e.target.value)}
+                placeholder="Tell the agent about your business and what you need help with..."
+                className="mt-1.5"
+                rows={3}
+              />
+            </div>
+
+            {/* Service Agreement */}
+            <div className="rounded-lg border p-4 bg-muted/30 space-y-3">
+              <h4 className="font-semibold text-sm flex items-center gap-2">
+                <Shield className="h-4 w-4 text-emerald-500" />
+                Service Agreement
+              </h4>
+              <div className="text-xs text-muted-foreground space-y-2 max-h-40 overflow-y-auto pr-2">
+                <p><strong>1. Agent Access & Management</strong><br />
+                By hiring this agent, you authorize them to access and manage your FlowSmartly account on your behalf. The agent can create, edit, and schedule content, manage campaigns, and perform marketing tasks within the platform. Financial actions (purchases, billing changes) remain restricted to you.</p>
+                <p><strong>2. Plan Conversion</strong><br />
+                Your current subscription plan will be converted to an agent-managed plan. The agent&apos;s monthly fee (${(agent.minPricePerMonth / 100).toLocaleString()}/mo) is paid directly to the agent. There are no additional platform fees from FlowSmartly for agent-managed accounts.</p>
+                <p><strong>3. Performance Monitoring</strong><br />
+                FlowSmartly monitors agent performance and activity. Agents are subject to performance reviews, and you can view all actions taken on your account. You may terminate the relationship at any time.</p>
+                <p><strong>4. Approval Process</strong><br />
+                Your hire request will be sent to the agent for review. The agent must accept and sign the service agreement before the relationship is activated. Until accepted, no account access is granted.</p>
+                <p><strong>5. Termination</strong><br />
+                Either party may end the relationship at any time. Upon termination, all agent access is immediately revoked and your account returns to self-managed mode.</p>
+              </div>
+            </div>
+
+            {/* Agreement checkbox */}
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="hire-agree"
+                checked={hireAgreed}
+                onCheckedChange={(checked) => setHireAgreed(checked === true)}
+                className="mt-0.5"
+              />
+              <Label htmlFor="hire-agree" className="text-sm leading-relaxed cursor-pointer">
+                I have read and agree to the Service Agreement. I understand that my request will be reviewed by the agent and that no access is granted until accepted.
+              </Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowHireDialog(false); setHireMessage(""); setHireAgreed(false); }}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-violet-600 hover:bg-violet-700"
+              onClick={handleHire}
+              disabled={!hireAgreed || isHiring}
+            >
+              {isHiring ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending Request...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Send Hire Request
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unhire / Cancel Request Dialog */}
+      <Dialog open={showUnhireDialog} onOpenChange={(open) => { if (!open) { setShowUnhireDialog(false); setUnhireReason(""); setUnhireAgreed(false); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              {relationship?.status === "PENDING" ? "Cancel Hire Request" : "Unhire Agent"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {relationship?.status === "PENDING" ? (
+              <p className="text-sm text-muted-foreground">
+                Your hire request to <strong>{agent.displayName}</strong> is still pending their approval. You can cancel it now.
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                You are about to end your relationship with <strong>{agent.displayName}</strong>. Their access to your account will be immediately revoked.
+              </p>
+            )}
+
+            {/* Reason */}
+            <div>
+              <Label className="text-sm font-medium">
+                Reason {relationship?.status !== "PENDING" ? "(required)" : "(optional)"}
+              </Label>
+              <Textarea
+                value={unhireReason}
+                onChange={(e) => setUnhireReason(e.target.value)}
+                placeholder={relationship?.status === "PENDING"
+                  ? "Why are you cancelling the request?"
+                  : "Please share why you're ending this relationship..."
+                }
+                className="mt-1.5"
+                rows={3}
+              />
+            </div>
+
+            {/* Termination Release Agreement */}
+            {relationship?.status !== "PENDING" && (
+              <div className="rounded-lg border p-4 bg-muted/30 space-y-3">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-amber-500" />
+                  Termination Release Agreement
+                </h4>
+                <div className="text-xs text-muted-foreground space-y-2 max-h-32 overflow-y-auto pr-2">
+                  <p><strong>1. Immediate Effect</strong><br />
+                  Upon confirmation, the agent&apos;s access to your account will be immediately revoked. All active agent sessions will be terminated.</p>
+                  <p><strong>2. Content & Work Product</strong><br />
+                  All content created by the agent on your behalf remains in your account and is fully owned by you. The agent retains no rights to your account data or content.</p>
+                  <p><strong>3. Billing</strong><br />
+                  The agent&apos;s monthly fee will cease immediately. No prorated refunds are issued for partial months. Your account will revert to your current subscription plan with standard platform features.</p>
+                  <p><strong>4. No Platform Fees</strong><br />
+                  FlowSmartly does not charge any termination or early cancellation fees.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Agreement checkbox */}
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="unhire-agree"
+                checked={unhireAgreed}
+                onCheckedChange={(checked) => setUnhireAgreed(checked === true)}
+                className="mt-0.5"
+              />
+              <Label htmlFor="unhire-agree" className="text-sm leading-relaxed cursor-pointer">
+                {relationship?.status === "PENDING"
+                  ? "I confirm I want to cancel this hire request."
+                  : "I have read the Termination Release Agreement and confirm I want to end this agent relationship."}
+              </Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowUnhireDialog(false); setUnhireReason(""); setUnhireAgreed(false); }}>
+              Go Back
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleUnhire}
+              disabled={!unhireAgreed || isUnhiring || (relationship?.status !== "PENDING" && !unhireReason.trim())}
+            >
+              {isUnhiring ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-4 w-4 mr-2" />
+                  {relationship?.status === "PENDING" ? "Cancel Request" : "Confirm Unhire"}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Showcase Lightbox */}
       <Dialog open={!!selectedShowcase} onOpenChange={() => setSelectedShowcase(null)}>

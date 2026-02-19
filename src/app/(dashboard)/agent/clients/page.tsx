@@ -15,6 +15,10 @@ import {
   AlertCircle,
   Loader2,
   TrendingUp,
+  Bell,
+  Shield,
+  XCircle,
+  MessageSquare,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +39,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 
 interface ClientUser {
   id: string;
@@ -63,9 +70,18 @@ interface AgentClient {
   stats: ClientStats;
 }
 
+interface PendingRequest {
+  id: string;
+  clientUser: ClientUser;
+  monthlyPriceCents: number;
+  message: string | null;
+  createdAt: string;
+}
+
 interface Summary {
   totalClients: number;
   activeClients: number;
+  pendingCount: number;
   needsAttention: number;
   monthlyRevenue: number;
 }
@@ -79,8 +95,10 @@ function getStatusColor(status: string) {
   switch (status) {
     case "ACTIVE":
       return "bg-emerald-500/10 text-emerald-600 border-emerald-200";
-    case "PAUSED":
+    case "PENDING":
       return "bg-amber-500/10 text-amber-600 border-amber-200";
+    case "PAUSED":
+      return "bg-orange-500/10 text-orange-600 border-orange-200";
     case "TERMINATED":
       return "bg-red-500/10 text-red-600 border-red-200";
     default:
@@ -111,7 +129,9 @@ function getActivityLabel(status: "on_time" | "late" | "needs_attention") {
 }
 
 export default function AgentClientsPage() {
+  const { toast } = useToast();
   const [clients, setClients] = useState<AgentClient[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -120,6 +140,11 @@ export default function AgentClientsPage() {
   const [impersonateDialog, setImpersonateDialog] = useState<AgentClient | null>(null);
   const [impersonateReason, setImpersonateReason] = useState("");
   const [isImpersonating, setIsImpersonating] = useState(false);
+
+  // Accept/Reject dialog
+  const [respondDialog, setRespondDialog] = useState<{ request: PendingRequest; action: "accept" | "reject" } | null>(null);
+  const [respondAgreed, setRespondAgreed] = useState(false);
+  const [isResponding, setIsResponding] = useState(false);
 
   const fetchClients = useCallback(async () => {
     try {
@@ -133,6 +158,7 @@ export default function AgentClientsPage() {
 
       if (data.success) {
         setClients(data.data.clients);
+        setPendingRequests(data.data.pendingRequests || []);
         setSummary(data.data.summary);
       }
     } catch (error) {
@@ -169,6 +195,38 @@ export default function AgentClientsPage() {
       setImpersonateDialog(null);
       setImpersonateReason("");
     }
+  };
+
+  const handleRespondToRequest = async () => {
+    if (!respondDialog) return;
+    if (respondDialog.action === "accept" && !respondAgreed) return;
+    setIsResponding(true);
+    try {
+      const res = await fetch("/api/marketplace/hire/respond", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: respondDialog.request.id,
+          action: respondDialog.action,
+          agreedToTerms: respondDialog.action === "accept" ? true : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({
+          title: respondDialog.action === "accept" ? "Client Accepted" : "Request Declined",
+          description: data.data.message,
+        });
+        setRespondDialog(null);
+        setRespondAgreed(false);
+        fetchClients();
+      } else {
+        toast({ title: "Error", description: data.error?.message, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "An error occurred", variant: "destructive" });
+    }
+    setIsResponding(false);
   };
 
   const formatCurrency = (cents: number) => {
@@ -322,6 +380,7 @@ export default function AgentClientsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All Status</SelectItem>
+            <SelectItem value="PENDING">Pending</SelectItem>
             <SelectItem value="ACTIVE">Active</SelectItem>
             <SelectItem value="PAUSED">Paused</SelectItem>
             <SelectItem value="TERMINATED">Terminated</SelectItem>
@@ -338,6 +397,86 @@ export default function AgentClientsPage() {
           </SelectContent>
         </Select>
       </motion.div>
+
+      {/* Pending Requests */}
+      {pendingRequests.length > 0 && (
+        <motion.div variants={fadeUp} initial="hidden" animate="visible" className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Bell className="h-4 w-4 text-amber-500" />
+            <h2 className="font-semibold text-sm">
+              Pending Hire Requests ({pendingRequests.length})
+            </h2>
+          </div>
+          {pendingRequests.map((req, index) => (
+            <motion.div
+              key={req.id}
+              variants={fadeUp}
+              initial="hidden"
+              animate="visible"
+              transition={{ delay: index * 0.05 }}
+            >
+              <Card className="border-amber-200/50 bg-amber-500/5">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-4">
+                    <div className="shrink-0">
+                      {req.clientUser.avatarUrl ? (
+                        <img src={req.clientUser.avatarUrl} alt={req.clientUser.name} className="h-12 w-12 rounded-full object-cover" />
+                      ) : (
+                        <div className="h-12 w-12 rounded-full bg-amber-500/10 flex items-center justify-center">
+                          <span className="text-lg font-semibold text-amber-600">
+                            {req.clientUser.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="font-semibold truncate">{req.clientUser.name}</span>
+                        <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-200">
+                          PENDING
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground truncate">{req.clientUser.email}</p>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        <span>{formatCurrency(req.monthlyPriceCents)}/mo</span>
+                        <span className="capitalize">{req.clientUser.plan} plan</span>
+                        <span>Requested {formatDate(req.createdAt)}</span>
+                      </div>
+                      {req.message && (
+                        <div className="mt-2 p-2 rounded bg-white/50 dark:bg-white/5 border text-sm">
+                          <div className="flex items-start gap-1.5">
+                            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                            <span className="text-muted-foreground">{req.message}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                        onClick={() => setRespondDialog({ request: req, action: "reject" })}
+                      >
+                        <XCircle className="h-4 w-4 mr-1" />
+                        Decline
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                        onClick={() => setRespondDialog({ request: req, action: "accept" })}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Accept
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
 
       {/* Client List */}
       <div className="space-y-3">
@@ -527,6 +666,139 @@ export default function AgentClientsPage() {
                 </>
               )}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Accept/Reject Request Dialog */}
+      <Dialog
+        open={!!respondDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRespondDialog(null);
+            setRespondAgreed(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {respondDialog?.action === "accept" ? (
+                <>
+                  <CheckCircle className="h-5 w-5 text-emerald-500" />
+                  Accept Client
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-5 w-5 text-red-500" />
+                  Decline Request
+                </>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          {respondDialog && (
+            <div className="space-y-4">
+              {/* Client info */}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                {respondDialog.request.clientUser.avatarUrl ? (
+                  <img src={respondDialog.request.clientUser.avatarUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+                ) : (
+                  <div className="h-10 w-10 rounded-full bg-brand-500/10 flex items-center justify-center">
+                    <span className="text-sm font-semibold text-brand-500">
+                      {respondDialog.request.clientUser.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <p className="font-medium">{respondDialog.request.clientUser.name}</p>
+                  <p className="text-xs text-muted-foreground">{respondDialog.request.clientUser.email} &middot; {respondDialog.request.clientUser.plan} plan</p>
+                </div>
+                <div className="ml-auto text-right">
+                  <p className="font-semibold">{formatCurrency(respondDialog.request.monthlyPriceCents)}/mo</p>
+                </div>
+              </div>
+
+              {respondDialog.request.message && (
+                <div className="p-3 rounded-lg bg-muted/30 border">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Client&apos;s Message:</p>
+                  <p className="text-sm">{respondDialog.request.message}</p>
+                </div>
+              )}
+
+              {respondDialog.action === "accept" ? (
+                <>
+                  {/* Service Agreement for agent */}
+                  <div className="rounded-lg border p-4 bg-muted/30 space-y-3">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-emerald-500" />
+                      Agent Service Agreement
+                    </h4>
+                    <div className="text-xs text-muted-foreground space-y-2 max-h-40 overflow-y-auto pr-2">
+                      <p><strong>1. Account Access & Responsibilities</strong><br />
+                      By accepting this client, you agree to manage their FlowSmartly account professionally and in accordance with their marketing goals. You may create, edit, and schedule content, manage campaigns, and perform marketing tasks on their behalf.</p>
+                      <p><strong>2. Financial Restrictions</strong><br />
+                      You are prohibited from making purchases, changing billing, or accessing the client&apos;s financial settings. All financial actions are restricted to the account owner.</p>
+                      <p><strong>3. Content Ownership</strong><br />
+                      All content created for the client belongs to the client. You retain no rights to their account data, content, or intellectual property.</p>
+                      <p><strong>4. Performance Standards</strong><br />
+                      FlowSmartly monitors agent performance. Repeated poor performance, inactivity, or violations may result in warnings, suspension, or removal from the marketplace.</p>
+                      <p><strong>5. Payment</strong><br />
+                      You will receive the agreed monthly rate ({formatCurrency(respondDialog.request.monthlyPriceCents)}/mo) for managing this client&apos;s account. FlowSmartly does not charge a platform fee on agent earnings.</p>
+                      <p><strong>6. Termination</strong><br />
+                      Either party may end the relationship at any time. Upon termination, all access to the client&apos;s account is immediately revoked.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="accept-agree"
+                      checked={respondAgreed}
+                      onCheckedChange={(checked) => setRespondAgreed(checked === true)}
+                      className="mt-0.5"
+                    />
+                    <Label htmlFor="accept-agree" className="text-sm leading-relaxed cursor-pointer">
+                      I have read and agree to the Agent Service Agreement. I commit to managing this client&apos;s account professionally and adhering to all platform guidelines.
+                    </Label>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Are you sure you want to decline this hire request from <strong>{respondDialog.request.clientUser.name}</strong>? They will be notified that their request was declined.
+                </p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRespondDialog(null); setRespondAgreed(false); }}>
+              Cancel
+            </Button>
+            {respondDialog?.action === "accept" ? (
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700"
+                onClick={handleRespondToRequest}
+                disabled={!respondAgreed || isResponding}
+              >
+                {isResponding ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Accepting...</>
+                ) : (
+                  <><CheckCircle className="h-4 w-4 mr-2" />Accept & Sign Agreement</>
+                )}
+              </Button>
+            ) : (
+              <Button
+                variant="destructive"
+                onClick={handleRespondToRequest}
+                disabled={isResponding}
+              >
+                {isResponding ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Declining...</>
+                ) : (
+                  <><XCircle className="h-4 w-4 mr-2" />Decline Request</>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

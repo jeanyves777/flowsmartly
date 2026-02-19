@@ -23,6 +23,7 @@ import {
   ExternalLink,
   CheckCircle,
   X,
+  Clock,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -604,9 +605,16 @@ export default function MarketplacePage() {
                         animate={{ opacity: 1, y: 0 }}
                         className="mt-3 pt-3 border-t flex items-center justify-between"
                       >
-                        <Badge className={agent.relationship === "ACTIVE" ? "bg-emerald-500 hover:bg-emerald-600" : ""}>
-                          <Heart className="h-3 w-3 mr-1 fill-current" />
-                          {agent.relationship === "ACTIVE" ? "Currently Hired" : agent.relationship}
+                        <Badge className={
+                          agent.relationship === "ACTIVE" ? "bg-emerald-500 hover:bg-emerald-600"
+                          : agent.relationship === "PENDING" ? "bg-amber-500 hover:bg-amber-600"
+                          : ""
+                        }>
+                          {agent.relationship === "PENDING" ? (
+                            <><Clock className="h-3 w-3 mr-1" />Pending Approval</>
+                          ) : (
+                            <><Heart className="h-3 w-3 mr-1 fill-current" />{agent.relationship === "ACTIVE" ? "Currently Hired" : agent.relationship}</>
+                          )}
                         </Badge>
                         <span className="text-xs text-muted-foreground">View Details →</span>
                       </motion.div>

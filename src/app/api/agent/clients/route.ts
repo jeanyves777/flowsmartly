@@ -33,6 +33,11 @@ export async function GET(request: NextRequest) {
       where.status = status;
     }
 
+    // Count pending requests separately
+    const pendingCount = await prisma.agentClient.count({
+      where: { agentProfileId: agentProfile.id, status: "PENDING" },
+    });
+
     // Get clients with user info
     const clients = await prisma.agentClient.findMany({
       where,
@@ -126,13 +131,39 @@ export async function GET(request: NextRequest) {
       .filter((c) => c.status === "ACTIVE")
       .reduce((sum, c) => sum + c.monthlyPriceCents, 0);
 
+    // Get pending requests with client info
+    const pendingRequests = await prisma.agentClient.findMany({
+      where: { agentProfileId: agentProfile.id, status: "PENDING" },
+      include: {
+        clientUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatarUrl: true,
+            plan: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
     return NextResponse.json({
       success: true,
       data: {
         clients: clientsWithStats,
+        pendingRequests: pendingRequests.map((r) => ({
+          id: r.id,
+          clientUser: r.clientUser,
+          monthlyPriceCents: r.monthlyPriceCents,
+          message: r.message,
+          createdAt: r.createdAt,
+        })),
         summary: {
           totalClients,
           activeClients,
+          pendingCount,
           needsAttention,
           monthlyRevenue,
         },

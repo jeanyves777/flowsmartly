@@ -43,11 +43,12 @@ export async function GET(
       );
     }
 
-    // Check existing relationship
+    // Check existing active/pending relationship (ignore terminated so they can re-hire)
     const existingRelationship = await prisma.agentClient.findFirst({
       where: {
         clientUserId: session.userId,
         agentProfileId: agent.id,
+        status: { in: ["ACTIVE", "PAUSED", "PENDING"] },
       },
       select: { id: true, status: true, monthlyPriceCents: true, startDate: true },
     });

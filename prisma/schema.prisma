@@ -1236,8 +1236,11 @@ model AgentClient {
   clientUserId      String
 
   // Relationship
-  status            String    @default("ACTIVE") // ACTIVE, PAUSED, TERMINATED
+  status            String    @default("PENDING") // PENDING, ACTIVE, PAUSED, TERMINATED
   monthlyPriceCents Int
+  message           String?   // Client's message when requesting to hire
+  agreedToTerms     Boolean   @default(false) // Client agreed to service agreement
+  agentAgreedToTerms Boolean  @default(false) // Agent agreed on acceptance
   startDate         DateTime  @default(now())
   endDate           DateTime?
   warningCount      Int       @default(0)

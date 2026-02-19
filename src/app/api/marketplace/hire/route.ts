@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { checkAgentFirstHireCommission } from "@/lib/referrals";
 
 export async function POST(request: Request) {
   try {
@@ -14,11 +13,18 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { agentId, message } = body;
+    const { agentId, message, agreedToTerms } = body;
 
     if (!agentId) {
       return NextResponse.json(
         { success: false, error: { message: "Agent ID is required" } },
+        { status: 400 }
+      );
+    }
+
+    if (!agreedToTerms) {
+      return NextResponse.json(
+        { success: false, error: { message: "You must agree to the service terms" } },
         { status: 400 }
       );
     }
@@ -43,51 +49,53 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if already has an active/paused relationship
+    // Check if already has an active/paused/pending relationship
     const existing = await prisma.agentClient.findFirst({
       where: {
         clientUserId: session.userId,
         agentProfileId: agentId,
-        status: { in: ["ACTIVE", "PAUSED"] },
+        status: { in: ["ACTIVE", "PAUSED", "PENDING"] },
       },
     });
 
     if (existing) {
+      const msg = existing.status === "PENDING"
+        ? "You already have a pending request with this agent"
+        : "You already have an active relationship with this agent";
       return NextResponse.json(
-        { success: false, error: { message: "You already have an active relationship with this agent" } },
+        { success: false, error: { message: msg } },
         { status: 400 }
       );
     }
 
-    // Create the agent-client relationship
+    // Delete any old terminated record (unique constraint: one record per agent-client pair)
+    await prisma.agentClient.deleteMany({
+      where: {
+        clientUserId: session.userId,
+        agentProfileId: agentId,
+        status: "TERMINATED",
+      },
+    });
+
+    // Create the agent-client relationship as PENDING (agent must accept)
     const agentClient = await prisma.agentClient.create({
       data: {
         agentProfileId: agentId,
         clientUserId: session.userId,
         monthlyPriceCents: agent.minPricePerMonth,
-        status: "ACTIVE",
+        status: "PENDING",
+        message: message?.trim() || null,
+        agreedToTerms: true,
       },
     });
-
-    // Update agent's client count
-    await prisma.agentProfile.update({
-      where: { id: agentId },
-      data: { clientCount: { increment: 1 } },
-    });
-
-    // Check for agent-to-agent referral commission (fire-and-forget)
-    checkAgentFirstHireCommission({
-      agentUserId: agent.userId,
-      firstMonthPriceCents: agent.minPricePerMonth,
-    }).catch((err) => console.error("Agent referral commission error:", err));
 
     // Log the activity
     await prisma.agentActivityLog.create({
       data: {
         agentClientId: agentClient.id,
         agentProfileId: agentId,
-        action: "client_hired",
-        description: `New client hired agent${message ? `: ${message}` : ""}`,
+        action: "hire_requested",
+        description: `Client sent a hire request${message ? `: ${message}` : ""}`,
       },
     });
 
