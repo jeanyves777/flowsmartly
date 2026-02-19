@@ -20,7 +20,7 @@ async function main() {
   // Super Admin credentials
   const email = "admin@flowsmartly.com";
   const password = "Admin@123456";
-  const name = "Super Admin";
+  const name = "FlowSmartly";
 
   // Check if admin already exists
   const existing = await prisma.adminUser.findUnique({
