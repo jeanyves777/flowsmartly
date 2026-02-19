@@ -319,30 +319,35 @@ export default function ProfilePage() {
 
           {/* Cover upload button */}
           {isOwnProfile && (
-            <>
+            <div className="absolute bottom-3 right-3 z-10">
               <input
                 ref={coverInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/jpg,image/webp"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) handleCoverUpload(file);
                 }}
               />
-              <button
-                onClick={() => coverInputRef.current?.click()}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  coverInputRef.current?.click();
+                }}
                 disabled={isUploadingCover}
-                className="absolute bottom-3 right-3 bg-black/50 hover:bg-black/70 text-white rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                className="bg-black/60 hover:bg-black/80 text-white border-0 shadow-lg"
               >
                 {isUploadingCover ? (
-                  <AISpinner className="w-4 h-4" />
+                  <AISpinner className="w-4 h-4 mr-1.5" />
                 ) : (
-                  <Camera className="w-4 h-4" />
+                  <Camera className="w-4 h-4 mr-1.5" />
                 )}
                 {isUploadingCover ? "Uploading..." : profile.coverImageUrl ? "Change Cover" : "Add Cover"}
-              </button>
-            </>
+              </Button>
+            </div>
           )}
         </div>
 
