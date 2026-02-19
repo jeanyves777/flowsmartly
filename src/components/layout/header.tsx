@@ -28,6 +28,7 @@ import {
   Palette,
   Target,
   Briefcase,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -86,15 +87,20 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
   // Strategy score
   const [strategyScore, setStrategyScore] = useState<number | null>(null);
 
+  // Unread messages
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
   useEffect(() => {
     setMounted(true);
     fetchNotificationCount();
     fetchStrategyScore();
+    fetchUnreadMessages();
 
-    // Poll for new notifications + score every 30 seconds
+    // Poll for new notifications + score + messages every 30 seconds
     const interval = setInterval(() => {
       fetchNotificationCount();
       fetchStrategyScore();
+      fetchUnreadMessages();
     }, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -125,6 +131,18 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
       }
     } catch (error) {
       console.error("Failed to fetch notification count:", error);
+    }
+  };
+
+  const fetchUnreadMessages = async () => {
+    try {
+      const res = await fetch("/api/messages/unread-count");
+      const data = await res.json();
+      if (data.success) {
+        setUnreadMessages(data.data.unreadCount);
+      }
+    } catch (error) {
+      // Silently fail - messages may not be relevant for all users
     }
   };
 
@@ -403,6 +421,26 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
               </Button>
             </TooltipTrigger>
             <TooltipContent>{mounted && resolvedTheme === "dark" ? "Light mode" : "Dark mode"}</TooltipContent>
+          </Tooltip>
+
+          {/* Messages */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative"
+                onClick={() => router.push("/messages")}
+              >
+                <MessageSquare className="h-5 w-5" />
+                {unreadMessages > 0 && (
+                  <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-brand-500 text-white text-xs flex items-center justify-center">
+                    {unreadMessages > 9 ? "9+" : unreadMessages}
+                  </span>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Messages</TooltipContent>
           </Tooltip>
 
           {/* Notifications */}

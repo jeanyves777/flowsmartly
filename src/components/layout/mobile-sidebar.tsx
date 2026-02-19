@@ -34,6 +34,7 @@ import {
   Gift,
   ClipboardList,
   FileQuestion,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -93,6 +94,7 @@ const marketingNavigation = [
 ];
 
 const secondaryNavigation = [
+  { name: "Messages", href: "/messages", icon: MessageCircle },
   { name: "Hire Agent", href: "/hire-agent", icon: Store },
   { name: "Settings", href: "/settings", icon: Settings },
   { name: "Billing", href: "/settings?tab=billing", icon: CreditCard },

@@ -36,6 +36,7 @@ import {
   Wrench,
   ClipboardList,
   FileQuestion,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -323,12 +324,20 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
               pathname.startsWith("/agent/clients")
             )}
             {renderNavItem(
+              { name: "Messages", href: "/messages", icon: MessageCircle },
+              pathname.startsWith("/messages")
+            )}
+            {renderNavItem(
               { name: "Marketplace", href: "/hire-agent", icon: Store },
               pathname.startsWith("/hire-agent")
             )}
           </div>
         ) : (
           <div className="pt-4">
+            {renderNavItem(
+              { name: "Messages", href: "/messages", icon: MessageCircle },
+              pathname.startsWith("/messages")
+            )}
             {renderNavItem(
               { name: "Hire Agent", href: "/hire-agent", icon: Store },
               pathname.startsWith("/hire-agent")

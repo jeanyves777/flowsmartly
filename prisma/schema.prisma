@@ -1257,11 +1257,82 @@ model AgentClient {
   clientUser        User         @relation("ClientOfAgent", fields: [clientUserId], references: [id], onDelete: Cascade)
   activityLogs      AgentActivityLog[]
   warnings          AgentWarning[]
+  conversation      Conversation?
+  approvalSettings  ApprovalSettings?
 
   @@unique([agentProfileId, clientUserId])
   @@index([agentProfileId])
   @@index([clientUserId])
   @@index([status])
+}
+
+// ============================================
+// AGENT-CLIENT MESSAGING
+// ============================================
+
+model Conversation {
+  id              String    @id @default(cuid())
+  agentClientId   String    @unique
+  agentUserId     String
+  clientUserId    String
+  lastMessageAt   DateTime  @default(now())
+  lastMessageText String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  agentClient     AgentClient @relation(fields: [agentClientId], references: [id], onDelete: Cascade)
+  messages        Message[]
+
+  @@index([agentUserId, lastMessageAt])
+  @@index([clientUserId, lastMessageAt])
+}
+
+model Message {
+  id              String    @id @default(cuid())
+  conversationId  String
+  senderUserId    String
+  type            String    @default("TEXT") // TEXT, MEDIA, APPROVAL_REQUEST
+  text            String?
+  attachments     String    @default("[]") // JSON: [{url, filename, mimeType, size, type}]
+  readAt          DateTime? // null = unread by recipient (1:1 so single field suffices)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  conversation    Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  approvalRequest ContentApproval?
+
+  @@index([conversationId, createdAt])
+  @@index([conversationId, readAt])
+}
+
+model ContentApproval {
+  id              String    @id @default(cuid())
+  messageId       String    @unique
+  conversationId  String
+  postContent     String?
+  mediaUrls       String    @default("[]") // JSON array of S3 URLs
+  platforms       String    @default("[]") // JSON: ["instagram", "twitter", "feed"]
+  scheduledAt     DateTime?
+  status          String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewComment   String?
+  reviewedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  message         Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, status])
+}
+
+model ApprovalSettings {
+  id                          String    @id @default(cuid())
+  agentClientId               String    @unique
+  requireApproval             String    @default("ALL") // ALL, MEDIA_ONLY, PLATFORM_SPECIFIC, NONE
+  platformsRequiringApproval  String    @default("[]") // JSON: ["instagram", "twitter"]
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+
+  agentClient     AgentClient @relation(fields: [agentClientId], references: [id], onDelete: Cascade)
 }
 
 model AgentSession {

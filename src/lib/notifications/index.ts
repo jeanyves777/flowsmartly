@@ -99,6 +99,12 @@ export const NOTIFICATION_TYPES = {
   // Strategy Scoring
   STRATEGY_MILESTONE: "STRATEGY_MILESTONE",
   STRATEGY_MONTHLY_REPORT: "STRATEGY_MONTHLY_REPORT",
+
+  // Messaging
+  NEW_MESSAGE: "NEW_MESSAGE",
+  APPROVAL_REQUEST: "APPROVAL_REQUEST",
+  APPROVAL_APPROVED: "APPROVAL_APPROVED",
+  APPROVAL_REJECTED: "APPROVAL_REJECTED",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -1176,6 +1182,62 @@ export async function notifyTollfreeVerificationRejected(params: {
     phoneNumber: params.phoneNumber,
     businessName: params.businessName,
     rejectionReason: params.rejectionReason,
+  });
+}
+
+/**
+ * Notify user of a new message in a conversation
+ */
+export async function notifyNewMessage(params: {
+  recipientUserId: string;
+  senderName: string;
+  messagePreview: string;
+  conversationId: string;
+}) {
+  await createNotification({
+    userId: params.recipientUserId,
+    type: NOTIFICATION_TYPES.NEW_MESSAGE,
+    title: `New message from ${params.senderName}`,
+    message: params.messagePreview.substring(0, 100) || "Sent an attachment",
+    actionUrl: `/messages/${params.conversationId}`,
+  });
+}
+
+/**
+ * Notify client that content approval has been requested
+ */
+export async function notifyApprovalRequest(params: {
+  clientUserId: string;
+  agentName: string;
+  postPreview: string;
+  conversationId: string;
+}) {
+  await createNotification({
+    userId: params.clientUserId,
+    type: NOTIFICATION_TYPES.APPROVAL_REQUEST,
+    title: "Content approval requested",
+    message: `${params.agentName} sent content for review: ${params.postPreview.substring(0, 80)}`,
+    actionUrl: `/messages/${params.conversationId}`,
+  });
+}
+
+/**
+ * Notify agent of client's approval decision (approved or rejected)
+ */
+export async function notifyApprovalDecision(params: {
+  agentUserId: string;
+  clientName: string;
+  decision: "approved" | "rejected";
+  comment?: string;
+  conversationId: string;
+}) {
+  const type = params.decision === "approved" ? NOTIFICATION_TYPES.APPROVAL_APPROVED : NOTIFICATION_TYPES.APPROVAL_REJECTED;
+  await createNotification({
+    userId: params.agentUserId,
+    type,
+    title: `Content ${params.decision}`,
+    message: `${params.clientName} ${params.decision} your content${params.comment ? ": " + params.comment.substring(0, 80) : ""}`,
+    actionUrl: `/messages/${params.conversationId}`,
   });
 }
 

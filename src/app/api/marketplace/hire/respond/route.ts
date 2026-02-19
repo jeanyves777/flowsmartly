@@ -85,6 +85,27 @@ export async function POST(request: Request) {
         firstMonthPriceCents: agentClient.monthlyPriceCents,
       }).catch((err) => console.error("Agent referral commission error:", err));
 
+      // Create conversation for messaging
+      await prisma.conversation.create({
+        data: {
+          agentClientId: clientId,
+          agentUserId: agentProfile.userId,
+          clientUserId: agentClient.clientUserId,
+        },
+      }).catch(() => {
+        // Conversation may already exist (idempotent)
+      });
+
+      // Create default approval settings
+      await prisma.approvalSettings.create({
+        data: {
+          agentClientId: clientId,
+          requireApproval: "ALL",
+        },
+      }).catch(() => {
+        // Settings may already exist (idempotent)
+      });
+
       // Log
       await prisma.agentActivityLog.create({
         data: {
