@@ -87,6 +87,46 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST /api/content-library - Save generated content
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: { message: "Unauthorized" } },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { type, content, prompt } = body;
+
+    if (!type || !content) {
+      return NextResponse.json(
+        { success: false, error: { message: "type and content are required" } },
+        { status: 400 }
+      );
+    }
+
+    const item = await prisma.generatedContent.create({
+      data: {
+        userId: session.userId,
+        type,
+        content: typeof content === "string" ? content : JSON.stringify(content),
+        prompt: prompt || "",
+      },
+    });
+
+    return NextResponse.json({ success: true, data: item }, { status: 201 });
+  } catch (error) {
+    console.error("Save content error:", error);
+    return NextResponse.json(
+      { success: false, error: { message: "Failed to save content" } },
+      { status: 500 }
+    );
+  }
+}
+
 // PATCH /api/content-library - Update content (favorite, used)
 export async function PATCH(request: NextRequest) {
   try {

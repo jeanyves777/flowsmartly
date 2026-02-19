@@ -38,6 +38,8 @@ import {
   Pause,
   ExternalLink,
   Shield,
+  Pencil,
+  Lightbulb,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -55,6 +57,15 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { AITextAssistant } from "@/components/feed/ai-text-assistant";
 import { AdCard } from "@/components/ads/ad-card";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
+import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // Real social media SVG icons for sharing
 function FacebookShareIcon({ className }: { className?: string }) {
@@ -228,6 +239,15 @@ export default function FeedPage() {
   const [hasMore, setHasMore] = useState(false);
   const [feedType, setFeedType] = useState<"feed" | "following" | "trending">("feed");
   const [showAIAssistant, setShowAIAssistant] = useState(false);
+
+  // Edit/Delete post state
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
+
+  // AI post idea state
+  const [isGeneratingIdea, setIsGeneratingIdea] = useState(false);
 
   // Share panel state
   const [expandedSharePostId, setExpandedSharePostId] = useState<string | null>(null);
@@ -1206,6 +1226,90 @@ export default function FeedPage() {
     }
   };
 
+  // Delete post
+  const handleDeletePost = async (postId: string) => {
+    setDeletingPostId(postId);
+    try {
+      const response = await fetch(`/api/posts/${postId}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error?.message || "Failed to delete post");
+      setPosts(prev => prev.filter(p => p.id !== postId));
+      toast({ title: "Post deleted" });
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : "Failed to delete post", variant: "destructive" });
+    } finally {
+      setDeletingPostId(null);
+    }
+  };
+
+  // Save edited post
+  const handleSaveEdit = async (postId: string) => {
+    if (!editingContent.trim()) return;
+    setIsSavingEdit(true);
+    try {
+      const response = await fetch(`/api/posts/${postId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editingContent }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error?.message || "Failed to update post");
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, content: editingContent } : p));
+      setEditingPostId(null);
+      setEditingContent("");
+      toast({ title: "Post updated" });
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : "Failed to update post", variant: "destructive" });
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // Generate AI post idea
+  const handleGenerateIdea = async () => {
+    setIsGeneratingIdea(true);
+    if (!isComposerExpanded) expandComposer();
+    try {
+      const brandRes = await fetch("/api/brand");
+      const brandData = await brandRes.json();
+      const brand = brandData.success ? brandData.data?.brandKit : null;
+
+      const response = await fetch("/api/ai/generate/post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platforms: ["facebook"],
+          topic: brand?.niche
+            ? `Engaging post about ${brand.niche} for ${brand.name || "my brand"}`
+            : "An engaging, creative social media post that sparks conversation",
+          tone: "casual",
+          length: "medium",
+          includeHashtags: true,
+          includeEmojis: true,
+          includeCTA: false,
+        }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error?.message || "Failed to generate idea");
+
+      const generatedText = data.data?.posts?.[0]?.content || data.data?.content || "";
+      if (generatedText) {
+        setNewPostContent(generatedText);
+        // Save to content library for history
+        fetch("/api/content-library", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "post_ideas", content: generatedText, prompt: "Feed post idea" }),
+        }).catch(() => {});
+      }
+      toast({ title: "AI idea generated!" });
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : "Failed to generate idea", variant: "destructive" });
+    } finally {
+      setIsGeneratingIdea(false);
+    }
+  };
+
   // Follow user
   const handleFollow = useCallback(async (userId: string) => {
     const user = suggestedUsers.find(u => u.id === userId);
@@ -1505,13 +1609,42 @@ export default function FeedPage() {
                   </div>
                 ) : (
                   <div className="flex-1">
-                    <textarea
-                      ref={textareaRef}
-                      value={newPostContent}
-                      onChange={(e) => setNewPostContent(e.target.value)}
-                      placeholder="What's on your mind?"
-                      className="w-full min-h-[100px] bg-transparent text-sm resize-none focus:outline-none"
-                    />
+                    {/* AI Idea bar */}
+                    <div className="flex items-center gap-1 mb-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs gap-1.5 border-brand-500/30 text-brand-600 hover:bg-brand-500/10"
+                        onClick={handleGenerateIdea}
+                        disabled={isGeneratingIdea}
+                      >
+                        {isGeneratingIdea ? <AISpinner className="w-3.5 h-3.5" /> : <Lightbulb className="w-3.5 h-3.5" />}
+                        AI Idea
+                      </Button>
+                      <AIIdeasHistory
+                        contentType="post_ideas"
+                        onSelect={(idea) => setNewPostContent(idea)}
+                        mode="single"
+                        className="h-7 w-7"
+                      />
+                    </div>
+                    {isGeneratingIdea ? (
+                      <div className="w-full min-h-[100px] flex items-center justify-center">
+                        <AIGenerationLoader
+                          currentStep="Generating post idea..."
+                          subtitle="Crafting something creative for you"
+                          compact
+                        />
+                      </div>
+                    ) : (
+                      <textarea
+                        ref={textareaRef}
+                        value={newPostContent}
+                        onChange={(e) => setNewPostContent(e.target.value)}
+                        placeholder="What's on your mind?"
+                        className="w-full min-h-[100px] bg-transparent text-sm resize-none focus:outline-none"
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -1545,8 +1678,8 @@ export default function FeedPage() {
                 </div>
               )}
 
-              {/* AI Text Assistant */}
-              {showAIAssistant && isComposerExpanded && (
+              {/* AI Text Assistant — hidden for now */}
+              {false && showAIAssistant && isComposerExpanded && (
                 <div className="mt-4 pl-[52px]">
                   <AITextAssistant
                     onInsert={(content) => {
@@ -1577,18 +1710,7 @@ export default function FeedPage() {
                       </Badge>
                     )}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={`text-muted-foreground ${showAIAssistant ? "text-brand-500 bg-brand-500/10" : ""}`}
-                    onClick={() => {
-                      if (!isComposerExpanded) expandComposer();
-                      setShowAIAssistant(!showAIAssistant);
-                    }}
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    AI Generate
-                  </Button>
+                  {/* AI Generate button — hidden for now, replaced by AI Idea above */}
                 </div>
 
                 {isComposerExpanded && (
@@ -1612,7 +1734,7 @@ export default function FeedPage() {
                     >
                       {isPosting ? (
                         <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          <AISpinner className="w-4 h-4 mr-2" />
                           Posting...
                         </>
                       ) : (
@@ -1750,42 +1872,108 @@ export default function FeedPage() {
                             </div>
                           </div>
                         </div>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            {post.author.id === currentUserId && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setEditingPostId(post.id);
+                                    setEditingContent(post.content);
+                                  }}
+                                >
+                                  <Pencil className="w-4 h-4 mr-2" />
+                                  Edit post
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => handleDeletePost(post.id)}
+                                  disabled={deletingPostId === post.id}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  {deletingPostId === post.id ? "Deleting..." : "Delete post"}
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            {post.author.id !== currentUserId && (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`${window.location.origin}/feed?post=${post.id}`);
+                                  toast({ title: "Link copied" });
+                                }}
+                              >
+                                <Link2 className="w-4 h-4 mr-2" />
+                                Copy link
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
 
-                      {/* Content - with truncation */}
-                      <div className="text-[15px] leading-relaxed whitespace-pre-wrap mb-3">
-                        {post.content.length > POST_TRUNCATE_LENGTH && !expandedPostContent.has(post.id) ? (
-                          <>
-                            {renderContent(post.content.substring(0, POST_TRUNCATE_LENGTH).trimEnd())}
-                            <span className="text-muted-foreground">... </span>
-                            <button
-                              onClick={() => setExpandedPostContent(prev => new Set(prev).add(post.id))}
-                              className="text-brand-500 hover:text-brand-600 font-medium text-[14px]"
+                      {/* Content - with truncation or inline edit */}
+                      {editingPostId === post.id ? (
+                        <div className="mb-3 space-y-2">
+                          <textarea
+                            value={editingContent}
+                            onChange={(e) => setEditingContent(e.target.value)}
+                            className="w-full min-h-[80px] text-[15px] leading-relaxed bg-muted/50 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-brand-500/30 border"
+                            autoFocus
+                          />
+                          <div className="flex items-center gap-2 justify-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setEditingPostId(null); setEditingContent(""); }}
                             >
-                              more
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            {renderContent(post.content)}
-                            {post.content.length > POST_TRUNCATE_LENGTH && (
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleSaveEdit(post.id)}
+                              disabled={isSavingEdit || !editingContent.trim()}
+                            >
+                              {isSavingEdit ? <><AISpinner className="w-4 h-4 mr-2" /> Saving...</> : "Save"}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-[15px] leading-relaxed whitespace-pre-wrap mb-3">
+                          {post.content.length > POST_TRUNCATE_LENGTH && !expandedPostContent.has(post.id) ? (
+                            <>
+                              {renderContent(post.content.substring(0, POST_TRUNCATE_LENGTH).trimEnd())}
+                              <span className="text-muted-foreground">... </span>
                               <button
-                                onClick={() => setExpandedPostContent(prev => {
-                                  const next = new Set(prev);
-                                  next.delete(post.id);
-                                  return next;
-                                })}
-                                className="text-muted-foreground hover:text-foreground font-medium text-[14px] ml-1"
+                                onClick={() => setExpandedPostContent(prev => new Set(prev).add(post.id))}
+                                className="text-brand-500 hover:text-brand-600 font-medium text-[14px]"
                               >
-                                less
+                                more
                               </button>
-                            )}
-                          </>
-                        )}
-                      </div>
+                            </>
+                          ) : (
+                            <>
+                              {renderContent(post.content)}
+                              {post.content.length > POST_TRUNCATE_LENGTH && (
+                                <button
+                                  onClick={() => setExpandedPostContent(prev => {
+                                    const next = new Set(prev);
+                                    next.delete(post.id);
+                                    return next;
+                                  })}
+                                  className="text-muted-foreground hover:text-foreground font-medium text-[14px] ml-1"
+                                >
+                                  less
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
 
                       {/* Media */}
                       {post.mediaUrls.length > 0 && (
@@ -2128,7 +2316,7 @@ export default function FeedPage() {
               >
                 {isLoadingMore ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <AISpinner className="w-4 h-4 mr-2" />
                     Loading...
                   </>
                 ) : (
