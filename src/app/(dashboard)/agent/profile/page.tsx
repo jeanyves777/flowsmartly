@@ -540,15 +540,8 @@ export default function AgentProfilePage() {
         </Card>
       </motion.div>
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="lg:col-span-2 space-y-6"
-        >
+      {/* Main Content — Full Width */}
+      <div className="space-y-6">
           {/* ── About Card (Collapsible) ── */}
           <Card className="overflow-hidden">
             <CardHeader
@@ -968,7 +961,8 @@ export default function AgentProfilePage() {
             </CardContent>
           </Card>
 
-          {/* ── Specialties Card ── */}
+          {/* ── Specialties & Industries — Side by Side ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
@@ -1091,16 +1085,10 @@ export default function AgentProfilePage() {
               )}
             </CardContent>
           </Card>
+          </div>
 
-        </motion.div>
-
-        {/* Right Column */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="space-y-6"
-        >
+          {/* ── Pricing & Links — Side by Side ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* ── Pricing Card ── */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -1243,34 +1231,33 @@ export default function AgentProfilePage() {
               )}
             </CardContent>
           </Card>
+          </div>
 
-          {/* ── Quick Actions ── */}
+          {/* ── Quick Actions — Horizontal ── */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Link href="/agent/clients" className="block">
-                <Button variant="outline" className="w-full justify-start">
-                  <Users className="h-4 w-4 mr-2" />
-                  View My Clients
-                </Button>
-              </Link>
-              <Link href={`/hire-agent/agents/${profile.id}`} className="block">
-                <Button variant="outline" className="w-full justify-start">
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  View Public Profile
-                </Button>
-              </Link>
-              <Link href="/hire-agent" className="block">
-                <Button variant="outline" className="w-full justify-start">
-                  <Star className="h-4 w-4 mr-2" />
-                  Browse Marketplace
-                </Button>
-              </Link>
+            <CardContent className="p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <Link href="/agent/clients">
+                  <Button variant="outline" size="sm">
+                    <Users className="h-4 w-4 mr-2" />
+                    View My Clients
+                  </Button>
+                </Link>
+                <Link href={`/hire-agent/agents/${profile.id}`}>
+                  <Button variant="outline" size="sm">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View Public Profile
+                  </Button>
+                </Link>
+                <Link href="/hire-agent">
+                  <Button variant="outline" size="sm">
+                    <Star className="h-4 w-4 mr-2" />
+                    Browse Marketplace
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
-        </motion.div>
       </div>
 
       {/* ── Showcase Lightbox ── */}
