@@ -3,8 +3,8 @@ import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 
-// GET /api/users/profile - Get current user's profile
-export async function GET() {
+// GET /api/users/profile - Get current user's profile, or public profile by ?username=
+export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
@@ -14,6 +14,65 @@ export async function GET() {
       );
     }
 
+    const { searchParams } = new URL(request.url);
+    const lookupUsername = searchParams.get("username");
+
+    // If username param provided, return public profile for that user
+    if (lookupUsername) {
+      const targetUser = await prisma.user.findFirst({
+        where: { username: lookupUsername },
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          avatarUrl: true,
+          coverImageUrl: true,
+          bio: true,
+          website: true,
+          plan: true,
+          emailVerified: true,
+          createdAt: true,
+          _count: {
+            select: {
+              posts: { where: { status: "PUBLISHED" } },
+              followers: true,
+              following: true,
+            },
+          },
+        },
+      });
+
+      if (!targetUser) {
+        return NextResponse.json(
+          { success: false, error: { message: "User not found" } },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: await presignAllUrls({
+          user: {
+            id: targetUser.id,
+            name: targetUser.name,
+            username: targetUser.username,
+            avatarUrl: targetUser.avatarUrl,
+            coverImageUrl: targetUser.coverImageUrl,
+            bio: targetUser.bio,
+            website: targetUser.website,
+            plan: targetUser.plan,
+            emailVerified: targetUser.emailVerified,
+            postsCount: targetUser._count.posts,
+            followersCount: targetUser._count.followers,
+            followingCount: targetUser._count.following,
+            createdAt: targetUser.createdAt.toISOString(),
+          },
+          isOwnProfile: targetUser.id === session.userId,
+        }),
+      });
+    }
+
+    // Default: return current user's own full profile
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
       select: {

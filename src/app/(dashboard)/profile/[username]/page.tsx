@@ -7,10 +7,8 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   User,
-  MapPin,
   Globe,
   Calendar,
-  Mail,
   Edit2,
   FileText,
   Users,
@@ -43,7 +41,6 @@ import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface UserProfile {
   id: string;
-  email: string;
   name: string;
   username: string;
   avatarUrl: string | null;
@@ -51,9 +48,6 @@ interface UserProfile {
   bio: string | null;
   website: string | null;
   plan: string;
-  aiCredits: number;
-  balance: number;
-  timezone: string;
   emailVerified: boolean;
   postsCount: number;
   followersCount: number;
@@ -123,18 +117,15 @@ export default function ProfilePage() {
   const fetchProfile = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch("/api/users/profile");
+      const response = await fetch(`/api/users/profile?username=${encodeURIComponent(username)}`);
       const data = await response.json();
 
       if (!data.success) {
         throw new Error(data.error?.message || "Failed to fetch profile");
       }
 
-      const user = data.data.user as UserProfile;
-      setProfile(user);
-      setIsOwnProfile(
-        user.username?.toLowerCase() === username?.toLowerCase()
-      );
+      setProfile(data.data.user as UserProfile);
+      setIsOwnProfile(data.data.isOwnProfile === true);
     } catch (err) {
       toast({
         title: "Error",
@@ -622,26 +613,6 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-                {isOwnProfile && (
-                  <div className="flex items-center gap-2.5">
-                    <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <span className="text-sm truncate">{profile.email}</span>
-                    {profile.emailVerified && (
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] bg-green-500/10 text-green-600 border-green-500/20 shrink-0"
-                      >
-                        Verified
-                      </Badge>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2.5">
-                  <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
-                  <span className="text-sm">{profile.timezone}</span>
-                </div>
-
                 <div className="flex items-center gap-2.5">
                   <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
                   <span className="text-sm">
@@ -651,54 +622,17 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
 
-            {/* Credits & Plan (own profile only) */}
+            {/* Quick actions (own profile only) */}
             {isOwnProfile && (
               <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-brand-500" />
-                    Credits & Plan
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Plan</span>
-                    <Badge
-                      className={cn(
-                        "gap-1",
-                        planInfo.bgColor,
-                        planInfo.color,
-                        "border-0"
-                      )}
-                      variant="outline"
-                    >
-                      <PlanIcon className="w-3 h-3" />
-                      {planInfo.label}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      AI Credits
-                    </span>
-                    <span className="text-sm font-bold">
-                      {profile.aiCredits.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      Balance
-                    </span>
-                    <span className="text-sm font-bold">
-                      ${profile.balance.toFixed(2)}
-                    </span>
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full mt-2"
-                    asChild
-                  >
+                <CardContent className="p-4 space-y-2">
+                  <Button variant="outline" size="sm" className="w-full" asChild>
+                    <Link href="/settings">
+                      <Edit2 className="w-3.5 h-3.5 mr-1.5" />
+                      Edit Profile
+                    </Link>
+                  </Button>
+                  <Button variant="outline" size="sm" className="w-full" asChild>
                     <Link href="/settings?tab=billing">Manage Billing</Link>
                   </Button>
                 </CardContent>

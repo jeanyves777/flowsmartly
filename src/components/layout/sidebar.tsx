@@ -58,29 +58,13 @@ interface SidebarProps {
 // Plans that have access to marketing features
 const MARKETING_PLANS = ["PRO", "BUSINESS", "ENTERPRISE", "ADMIN", "AGENT"];
 
-const navigation = [
+// Top-level (always visible, not in a group)
+const topNavigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-];
-
-// AI Creatives
-const aiCreativesNavigation = [
-  { name: "Image Studio", href: "/studio", icon: Palette },
-  { name: "Video Studio", href: "/video-studio", icon: Video },
-  { name: "Logo Generator", href: "/logo-generator", icon: Crown },
-];
-
-const generalNavigation = [
-  { name: "FlowAI", href: "/flow-ai", icon: Sparkles },
-  { name: "Media Library", href: "/media", icon: FolderOpen },
-  { name: "Landing Pages", href: "/landing-pages", icon: Globe },
   { name: "Feed", href: "/feed", icon: Rss },
-  { name: "Ads", href: "/ads", icon: Megaphone },
-  { name: "Analytics", href: "/analytics", icon: BarChart3 },
-  { name: "Earnings", href: "/earnings", icon: DollarSign },
-  { name: "Referrals", href: "/referrals", icon: Gift },
 ];
 
-// Content management features
+// Content management
 const contentNavigation = [
   { name: "Posts", href: "/content/posts", icon: PenSquare },
   { name: "Schedule", href: "/content/schedule", icon: CalendarDays },
@@ -88,10 +72,12 @@ const contentNavigation = [
   { name: "Strategy", href: "/content/strategy", icon: Target },
 ];
 
-// Tools
-const toolsNavigation = [
-  { name: "Follow-Ups", href: "/tools/follow-ups", icon: ClipboardList },
-  { name: "Surveys", href: "/tools/surveys", icon: FileQuestion },
+// AI Creatives
+const aiCreativesNavigation = [
+  { name: "Image Studio", href: "/studio", icon: Palette },
+  { name: "Video Studio", href: "/video-studio", icon: Video },
+  { name: "Logo Generator", href: "/logo-generator", icon: Crown },
+  { name: "FlowAI", href: "/flow-ai", icon: Sparkles },
 ];
 
 // Marketing features
@@ -100,6 +86,22 @@ const marketingNavigation = [
   { name: "Campaigns", href: "/campaigns", icon: Megaphone },
   { name: "Email Marketing", href: "/email-marketing", icon: Mail },
   { name: "SMS Marketing", href: "/sms-marketing", icon: MessageSquare, premium: true },
+  { name: "Ads", href: "/ads", icon: Megaphone },
+  { name: "Landing Pages", href: "/landing-pages", icon: Globe },
+];
+
+// Tools & Insights
+const toolsNavigation = [
+  { name: "Follow-Ups", href: "/tools/follow-ups", icon: ClipboardList },
+  { name: "Surveys", href: "/tools/surveys", icon: FileQuestion },
+  { name: "Analytics", href: "/analytics", icon: BarChart3 },
+  { name: "Media Library", href: "/media", icon: FolderOpen },
+];
+
+// Money
+const moneyNavigation = [
+  { name: "Earnings", href: "/earnings", icon: DollarSign },
+  { name: "Referrals", href: "/referrals", icon: Gift },
 ];
 
 const secondaryNavigation = [
@@ -110,10 +112,11 @@ const secondaryNavigation = [
 export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = false }: SidebarProps) {
   const pathname = usePathname();
   const hasMarketingAccess = MARKETING_PLANS.includes(userPlan.toUpperCase());
-  const isContentActive = pathname.startsWith("/content");
-  const isAICreativesActive = ["/studio", "/video-studio", "/logo-generator"].some(p => pathname.startsWith(p));
-  const [contentOpen, setContentOpen] = useState(isContentActive);
-  const [aiCreativesOpen, setAiCreativesOpen] = useState(isAICreativesActive);
+  const [contentOpen, setContentOpen] = useState(true);
+  const [aiCreativesOpen, setAiCreativesOpen] = useState(true);
+  const [marketingOpen, setMarketingOpen] = useState(true);
+  const [toolsOpen, setToolsOpen] = useState(true);
+  const [moneyOpen, setMoneyOpen] = useState(true);
 
   const renderNavItem = (
     item: { name: string; href: string; icon: React.ElementType; premium?: boolean },
@@ -178,6 +181,58 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
     );
   };
 
+  const renderCollapsibleSection = (
+    label: string,
+    Icon: React.ElementType,
+    isOpen: boolean,
+    setOpen: (v: boolean) => void,
+    isActive: boolean,
+    items: { name: string; href: string; icon: React.ElementType; premium?: boolean }[],
+    checkLocked: boolean = false
+  ) => (
+    <div className="pt-3">
+      {!isCollapsed ? (
+        <button
+          onClick={() => setOpen(!isOpen)}
+          className="w-full px-3 pb-2 flex items-center gap-2"
+        >
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            {label}
+          </span>
+          <ChevronDown
+            className={cn(
+              "h-3 w-3 text-muted-foreground transition-transform",
+              isOpen && "rotate-180"
+            )}
+          />
+        </button>
+      ) : (
+        <div className="flex justify-center py-2">
+          <Icon className={cn("h-4 w-4", isActive ? "text-brand-500" : "text-muted-foreground")} />
+        </div>
+      )}
+      <AnimatePresence initial={false}>
+        {(isOpen || isCollapsed) && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="space-y-1">
+              {items.map((item) => {
+                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const locked = checkLocked && item.premium === true && !hasMarketingAccess;
+                return renderNavItem(item, active, locked);
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+
   return (
     <motion.aside
       initial={false}
@@ -223,152 +278,38 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
 
       {/* Main Navigation */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-        {/* Dashboard */}
-        {navigation.map((item) => {
+        {/* Dashboard + Feed (always visible) */}
+        {topNavigation.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return renderNavItem(item, isActive);
         })}
 
-        {/* Content Section (Collapsible) — right below Dashboard */}
-        <div className="pt-4">
-          {!isCollapsed ? (
-            <button
-              onClick={() => setContentOpen(!contentOpen)}
-              className="w-full px-3 pb-2 flex items-center gap-2 group"
-            >
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Content
-              </span>
-              <ChevronDown
-                className={cn(
-                  "h-3 w-3 text-muted-foreground transition-transform",
-                  contentOpen && "rotate-180"
-                )}
-              />
-            </button>
-          ) : (
-            <div className="flex justify-center py-2">
-              <PenSquare className={cn("h-4 w-4", isContentActive ? "text-brand-500" : "text-muted-foreground")} />
-            </div>
-          )}
-          <AnimatePresence initial={false}>
-            {(contentOpen || isCollapsed) && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="space-y-1">
-                  {contentNavigation.map((item) => {
-                    const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                    return renderNavItem(item, isActive);
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        {/* Content Section */}
+        {renderCollapsibleSection("Content", PenSquare, contentOpen, setContentOpen, pathname.startsWith("/content"), contentNavigation)}
 
-        {/* AI Creatives Section (Collapsible) */}
-        <div className="pt-4">
-          {!isCollapsed ? (
-            <button
-              onClick={() => setAiCreativesOpen(!aiCreativesOpen)}
-              className="w-full px-3 pb-2 flex items-center gap-2 group"
-            >
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                AI Creatives
-              </span>
-              <ChevronDown
-                className={cn(
-                  "h-3 w-3 text-muted-foreground transition-transform",
-                  aiCreativesOpen && "rotate-180"
-                )}
-              />
-            </button>
-          ) : (
-            <div className="flex justify-center py-2">
-              <Palette className={cn("h-4 w-4", isAICreativesActive ? "text-brand-500" : "text-muted-foreground")} />
-            </div>
-          )}
-          <AnimatePresence initial={false}>
-            {(aiCreativesOpen || isCollapsed) && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="space-y-1">
-                  {aiCreativesNavigation.map((item) => {
-                    const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                    return renderNavItem(item, isActive);
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* General nav items */}
-        {generalNavigation.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-          return renderNavItem(item, isActive);
-        })}
+        {/* AI Creatives Section */}
+        {renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/logo-generator", "/flow-ai"].some(p => pathname.startsWith(p)), aiCreativesNavigation)}
 
         {/* Marketing Section */}
-        <div className="pt-4">
-          {!isCollapsed && (
-            <div className="px-3 pb-2 flex items-center gap-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Marketing
-              </span>
-            </div>
-          )}
-          {isCollapsed && (
-            <div className="flex justify-center py-2">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-            </div>
-          )}
-          {marketingNavigation.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            const isLocked = item.premium === true && !hasMarketingAccess;
-            return renderNavItem(item, isActive, isLocked);
-          })}
-        </div>
+        {renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), marketingNavigation, true)}
 
-        {/* Tools Section */}
-        <div className="pt-4">
-          {!isCollapsed ? (
-            <div className="px-3 pb-2 flex items-center gap-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Tools
-              </span>
-            </div>
-          ) : (
-            <div className="flex justify-center py-2">
-              <Wrench className={cn("h-4 w-4", pathname.startsWith("/tools") ? "text-brand-500" : "text-muted-foreground")} />
-            </div>
-          )}
-          {toolsNavigation.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            return renderNavItem(item, isActive);
-          })}
-        </div>
+        {/* Tools & Insights Section */}
+        {renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics", "/media"].some(p => pathname.startsWith(p)), toolsNavigation)}
+
+        {/* Money Section */}
+        {renderCollapsibleSection("Money", DollarSign, moneyOpen, setMoneyOpen, ["/earnings", "/referrals"].some(p => pathname.startsWith(p)), moneyNavigation)}
 
         {/* Teams Section — paid users only */}
         {hasMarketingAccess && (
-          <div className="pt-4">
-            {!isCollapsed ? (
-              <div className="px-3 pb-2 flex items-center gap-2">
+          <div className="pt-3">
+            {!isCollapsed && (
+              <div className="px-3 pb-2">
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Teams
                 </span>
               </div>
-            ) : (
+            )}
+            {isCollapsed && (
               <div className="flex justify-center py-2">
                 <UsersRound className={cn("h-4 w-4", pathname.startsWith("/teams") ? "text-brand-500" : "text-muted-foreground")} />
               </div>
@@ -380,11 +321,11 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
           </div>
         )}
 
-        {/* Agent Section — shown for agents with profile + marketplace links */}
+        {/* Agent / Marketplace Section */}
         {isAgent ? (
-          <div className="pt-4">
+          <div className="pt-3">
             {!isCollapsed && (
-              <div className="px-3 pb-2 flex items-center gap-2">
+              <div className="px-3 pb-2">
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Agent
                 </span>
@@ -413,7 +354,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             )}
           </div>
         ) : (
-          <div className="pt-4">
+          <div className="pt-3">
             {renderNavItem(
               { name: "Messages", href: "/messages", icon: MessageCircle },
               pathname.startsWith("/messages")
