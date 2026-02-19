@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -214,7 +214,7 @@ export default function AgentProfilePage() {
 
   // ─── Cover Image Handlers ────────────────────────────────────────────────
 
-  const uploadCoverFile = useCallback(async (file: File) => {
+  const uploadCoverFile = async (file: File) => {
     setIsUploadingCover(true);
     try {
       const formData = new FormData();
@@ -228,7 +228,7 @@ export default function AgentProfilePage() {
       toast({ title: "Upload failed", variant: "destructive" });
     }
     setIsUploadingCover(false);
-  }, [patchProfile, toast]);
+  };
 
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -282,7 +282,7 @@ export default function AgentProfilePage() {
 
   // ─── Showcase Handlers ───────────────────────────────────────────────────
 
-  const uploadShowcaseFile = useCallback(async (file: File) => {
+  const uploadShowcaseFile = async (file: File) => {
     setIsUploadingShowcase(true);
     try {
       const formData = new FormData();
@@ -297,7 +297,7 @@ export default function AgentProfilePage() {
       toast({ title: "Upload failed", variant: "destructive" });
     }
     setIsUploadingShowcase(false);
-  }, [toast]);
+  };
 
   const handleAddShowcaseFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
