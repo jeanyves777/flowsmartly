@@ -549,6 +549,72 @@ export default function AgentDetailPage() {
         ))}
       </motion.div>
 
+      {/* Trust & Pricing Bar — Compact */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+      >
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              {/* Trust badges inline */}
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Shield className="h-4 w-4 text-emerald-500" />
+                <span>Verified</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <CheckCircle className="h-4 w-4 text-emerald-500" />
+                <span>Background Checked</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Shield className="h-4 w-4 text-emerald-500" />
+                <span>Financials Restricted</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <TrendingUp className="h-4 w-4 text-emerald-500" />
+                <span>Performance Monitored</span>
+              </div>
+
+              {/* Spacer */}
+              <div className="flex-1" />
+
+              {/* Pricing + CTA inline */}
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-lg font-bold text-violet-600">${(agent.minPricePerMonth / 100).toLocaleString()}<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
+                </div>
+                {isOwnProfile ? (
+                  <Badge variant="secondary" className="text-xs px-3 py-1">Your Profile</Badge>
+                ) : relationship?.status === "ACTIVE" ? (
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-emerald-500 text-xs px-3 py-1">
+                      <Heart className="h-3 w-3 mr-1 fill-current" />Hired
+                    </Badge>
+                    <Button variant="outline" size="sm" className="h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setShowUnhireDialog(true)}>
+                      Unhire
+                    </Button>
+                  </div>
+                ) : relationship?.status === "PENDING" ? (
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-amber-500 text-xs px-3 py-1">
+                      <Clock className="h-3 w-3 mr-1" />Pending
+                    </Badge>
+                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowUnhireDialog(true)}>
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <Button size="sm" className="h-8 bg-violet-600 hover:bg-violet-700" onClick={() => setShowHireDialog(true)}>
+                    <Sparkles className="h-3.5 w-3.5 mr-1.5" />Hire Agent
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
       {/* About Section — Full Width */}
       <div className="space-y-6">
           {/* About — Rich Collapsible */}
@@ -774,72 +840,6 @@ export default function AgentDetailPage() {
           </motion.div>
         );
       })()}
-
-      {/* Trust & Pricing Bar — Compact */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.54 }}
-      >
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-              {/* Trust badges inline */}
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Shield className="h-4 w-4 text-emerald-500" />
-                <span>Verified</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <CheckCircle className="h-4 w-4 text-emerald-500" />
-                <span>Background Checked</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Shield className="h-4 w-4 text-emerald-500" />
-                <span>Financials Restricted</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <TrendingUp className="h-4 w-4 text-emerald-500" />
-                <span>Performance Monitored</span>
-              </div>
-
-              {/* Spacer */}
-              <div className="flex-1" />
-
-              {/* Pricing + CTA inline */}
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <p className="text-lg font-bold text-violet-600">${(agent.minPricePerMonth / 100).toLocaleString()}<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
-                </div>
-                {isOwnProfile ? (
-                  <Badge variant="secondary" className="text-xs px-3 py-1">Your Profile</Badge>
-                ) : relationship?.status === "ACTIVE" ? (
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-emerald-500 text-xs px-3 py-1">
-                      <Heart className="h-3 w-3 mr-1 fill-current" />Hired
-                    </Badge>
-                    <Button variant="outline" size="sm" className="h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setShowUnhireDialog(true)}>
-                      Unhire
-                    </Button>
-                  </div>
-                ) : relationship?.status === "PENDING" ? (
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-amber-500 text-xs px-3 py-1">
-                      <Clock className="h-3 w-3 mr-1" />Pending
-                    </Badge>
-                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowUnhireDialog(true)}>
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <Button size="sm" className="h-8 bg-violet-600 hover:bg-violet-700" onClick={() => setShowHireDialog(true)}>
-                    <Sparkles className="h-3.5 w-3.5 mr-1.5" />Hire Agent
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
 
       {/* Content — Full Width */}
       <div className="space-y-6">
