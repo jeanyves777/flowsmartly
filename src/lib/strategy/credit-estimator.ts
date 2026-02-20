@@ -8,7 +8,7 @@
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 
 /** Categories that can be automated via post generation */
-const AUTOMATABLE_CATEGORIES = ["social", "content"];
+const AUTOMATABLE_CATEGORIES = ["social", "content", "email"];
 
 interface StrategyTaskInput {
   id: string;

@@ -440,7 +440,7 @@ interface WizardEstimate {
   hasEnoughCredits: boolean;
 }
 
-const AUTOMATABLE_CATEGORIES = ["social", "content"];
+const AUTOMATABLE_CATEGORIES = ["social", "content", "email"];
 
 const IMAGE_STYLE_OPTIONS = [
   { value: "photorealistic", label: "Photorealistic" },
