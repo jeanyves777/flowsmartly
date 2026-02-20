@@ -4,39 +4,35 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
-  TrendingUp,
   Users,
-  DollarSign,
   Eye,
   Heart,
   MessageCircle,
   ArrowRight,
   FileText,
-  Loader2,
   Building2,
   X,
   Wand2,
   Star,
   Briefcase,
   Award,
-  Megaphone,
-  ExternalLink,
   Zap,
   BarChart3,
   PenTool,
   Image as ImageIcon,
   Palette,
-  Hash,
   Activity,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { TrendingTopics, type TrendingTopic } from "@/components/shared/trending-topics";
+import { SponsoredSidebar, type SponsoredAd, type PromotedPost } from "@/components/shared/sponsored-sidebar";
+import { TrendingPosts, type TrendingPost } from "@/components/shared/trending-posts";
 
 interface SidebarPost {
   id: string;
@@ -48,16 +44,6 @@ interface SidebarPost {
   viewCount?: number;
   likeCount?: number;
   commentCount?: number;
-}
-
-interface SidebarAd {
-  id: string;
-  name: string;
-  headline: string | null;
-  description: string | null;
-  mediaUrl: string | null;
-  destinationUrl: string | null;
-  ctaText: string | null;
 }
 
 interface DashboardData {
@@ -103,10 +89,10 @@ interface DashboardData {
     specialties: string | null;
   } | null;
   sidebar: {
-    sponsoredAds: SidebarAd[];
+    sponsoredAds: SponsoredAd[];
     promotedPosts: SidebarPost[];
     trendingPosts: SidebarPost[];
-    trendingTopics: Array<{ tag: string; postCount: number }>;
+    trendingTopics: TrendingTopic[];
   };
 }
 
@@ -160,7 +146,6 @@ function DashboardLoader() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
-      {/* Logo pulse */}
       <motion.div
         className="relative"
         initial={{ scale: 0.8, opacity: 0 }}
@@ -177,7 +162,6 @@ function DashboardLoader() {
         </div>
       </motion.div>
 
-      {/* Animated dots */}
       <div className="flex items-center gap-1.5">
         {[0, 1, 2].map((i) => (
           <motion.div
@@ -189,7 +173,6 @@ function DashboardLoader() {
         ))}
       </div>
 
-      {/* Rotating tips */}
       <AnimatePresence mode="wait">
         <motion.p
           key={tipIndex}
@@ -208,7 +191,6 @@ function DashboardLoader() {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const router = useRouter();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBrandBanner, setShowBrandBanner] = useState(true);
@@ -244,9 +226,30 @@ export default function DashboardPage() {
     postsCount: 0,
   };
 
-  // Only show ads that have media (images/video), unless they're promoted posts (always show those)
+  // Only show ads that have media
   const adsWithMedia = data?.sidebar.sponsoredAds.filter(ad => ad.mediaUrl) || [];
   const hasSponsored = adsWithMedia.length > 0 || (data?.sidebar.promotedPosts.length || 0) > 0;
+
+  // Map sidebar data to shared component types
+  const promotedPosts: PromotedPost[] = (data?.sidebar.promotedPosts || []).map(p => ({
+    id: p.id,
+    content: p.content,
+    mediaUrl: p.mediaUrl,
+    authorName: p.authorName,
+    authorAvatar: p.authorAvatar,
+    destinationUrl: p.destinationUrl,
+  }));
+
+  const trendingPosts: TrendingPost[] = (data?.sidebar.trendingPosts || []).map(p => ({
+    id: p.id,
+    content: p.content,
+    mediaUrl: p.mediaUrl,
+    authorName: p.authorName,
+    authorAvatar: p.authorAvatar,
+    viewCount: p.viewCount,
+    likeCount: p.likeCount,
+    commentCount: p.commentCount,
+  }));
 
   return (
     <motion.div
@@ -317,53 +320,60 @@ export default function DashboardPage() {
                 {data?.user.plan || "STARTER"}
               </Badge>
               {data?.agentStats && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-violet-500/30 text-violet-600">
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-violet-500/10 text-violet-600 border-violet-500/20">
                   <Briefcase className="w-2.5 h-2.5 mr-0.5" /> Agent
                 </Badge>
               )}
             </div>
           </div>
         </div>
-        <Button asChild size="sm" className="w-full sm:w-auto">
-          <Link href="/studio">
-            <Sparkles className="h-4 w-4 mr-2" />
-            Create Content
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="text-xs h-8" asChild>
+            <Link href="/studio">
+              <PenTool className="h-3.5 w-3.5 mr-1.5" />
+              Create
+            </Link>
+          </Button>
+          <Button size="sm" className="text-xs h-8" asChild>
+            <Link href="/feed">
+              <ArrowRight className="h-3.5 w-3.5 mr-1.5" />
+              My Feed
+            </Link>
+          </Button>
+        </div>
       </motion.div>
 
-      {/* Main grid with sidebar */}
-      <div className="grid lg:grid-cols-[1fr_300px] gap-6">
-        {/* Left Column — Main Content */}
-        <div className="space-y-5">
-          {/* Stats Grid */}
-          <motion.div variants={itemVariants} className="grid gap-3 grid-cols-2 md:grid-cols-4">
-            <StatCard title="Total Views" value={formatCount(stats.totalViews)} icon={Eye} color="blue" />
-            <StatCard title="Engagement" value={formatCount(stats.engagement)} icon={Heart} color="rose" />
-            <StatCard title="Followers" value={formatCount(stats.followers)} icon={Users} color="violet" />
-            <StatCard title="Earnings" value={`$${stats.earnings.toFixed(2)}`} icon={DollarSign} color="emerald" />
-          </motion.div>
+      {/* Stats Grid */}
+      <motion.div variants={itemVariants} className="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-5">
+        <StatCard title="Total Views" value={formatCount(stats.totalViews)} icon={Eye} color="blue" />
+        <StatCard title="Engagement" value={formatCount(stats.engagement)} icon={Heart} color="rose" />
+        <StatCard title="Followers" value={formatCount(stats.followers)} icon={Users} color="violet" />
+        <StatCard title="Earnings" value={`$${stats.earnings.toFixed(2)}`} icon={Sparkles} color="emerald" />
+      </motion.div>
 
-          {/* Agent Stats (if user is an agent) */}
+      {/* Main Grid: Content + Sidebar */}
+      <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
+        {/* Left Column */}
+        <div className="space-y-5">
+          {/* Agent Stats */}
           {data?.agentStats && (
             <motion.div variants={itemVariants}>
-              <Card className="border-violet-500/30 bg-gradient-to-r from-violet-500/5 to-purple-500/5">
-                <CardHeader className="pb-3">
+              <Card className="bg-gradient-to-r from-violet-500/5 to-brand-500/5 border-violet-500/20">
+                <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
-                    <Briefcase className="w-4 h-4 text-violet-500" />
-                    Agent Performance
-                    {data.agentStats.isApproved && (
-                      <Badge className="bg-green-100 text-green-700 text-[10px] ml-auto">Approved</Badge>
-                    )}
+                    <div className="w-6 h-6 rounded-md bg-violet-500/10 flex items-center justify-center">
+                      <Briefcase className="h-3.5 w-3.5 text-violet-500" />
+                    </div>
+                    Agent Dashboard
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ml-auto ${data.agentStats.isApproved ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"}`}>
+                      {data.agentStats.status}
+                    </Badge>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <CardContent className="pt-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <div className="text-center p-2.5 rounded-lg bg-background/60">
-                      <div className="flex items-center justify-center gap-1 text-amber-500 mb-0.5">
-                        <Star className="w-3.5 h-3.5 fill-amber-500" />
-                        <span className="text-base font-bold">{data.agentStats.avgRating || "—"}</span>
-                      </div>
+                      <p className="text-base font-bold text-amber-600">{data.agentStats.avgRating > 0 ? `${data.agentStats.avgRating}` : "—"}</p>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Rating</p>
                     </div>
                     <div className="text-center p-2.5 rounded-lg bg-background/60">
@@ -404,9 +414,8 @@ export default function DashboardPage() {
             <QuickActionCard icon={BarChart3} label="Analytics" href="/analytics" color="green" />
           </motion.div>
 
-          {/* Recent Posts + Performance — Side by Side on Desktop, Stacked on Mobile */}
-          <motion.div variants={itemVariants} className="grid gap-4 md:grid-cols-2">
-            {/* Recent Posts */}
+          {/* Recent Posts — Full width */}
+          <motion.div variants={itemVariants}>
             <Card>
               <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -424,7 +433,7 @@ export default function DashboardPage() {
               <CardContent className="pt-1">
                 {data?.recentActivity && data.recentActivity.length > 0 ? (
                   <div className="divide-y">
-                    {data.recentActivity.slice(0, 4).map((activity, index) => (
+                    {data.recentActivity.slice(0, 5).map((activity, index) => (
                       <motion.div
                         key={index}
                         initial={{ opacity: 0, x: -8 }}
@@ -468,8 +477,10 @@ export default function DashboardPage() {
                 )}
               </CardContent>
             </Card>
+          </motion.div>
 
-            {/* Performance + Credits */}
+          {/* Overview — Full width */}
+          <motion.div variants={itemVariants}>
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -480,29 +491,29 @@ export default function DashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-1">
-                <div className="space-y-1">
-                  <PerformanceRow label="Posts" value={stats.postsCount} icon={FileText} color="text-blue-500" />
-                  <PerformanceRow label="Views" value={stats.totalViews} icon={Eye} color="text-sky-500" />
-                  <PerformanceRow label="Engagement" value={stats.engagement} icon={Heart} color="text-rose-500" />
-                  <PerformanceRow label="Followers" value={stats.followers} icon={Users} color="text-violet-500" />
-                  <PerformanceRow label="Following" value={stats.following} icon={Users} color="text-indigo-400" />
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <OverviewItem label="Posts" value={stats.postsCount} icon={FileText} color="text-blue-500" />
+                  <OverviewItem label="Views" value={stats.totalViews} icon={Eye} color="text-sky-500" />
+                  <OverviewItem label="Engagement" value={stats.engagement} icon={Heart} color="text-rose-500" />
+                  <OverviewItem label="Followers" value={stats.followers} icon={Users} color="text-violet-500" />
+                  <OverviewItem label="Following" value={stats.following} icon={Users} color="text-indigo-400" />
                 </div>
 
                 {/* Credits section */}
-                <div className="mt-3 pt-3 border-t space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm flex items-center gap-2 text-muted-foreground">
-                      <Sparkles className="w-3.5 h-3.5 text-brand-500" />
-                      AI Credits
-                    </span>
-                    <span className="font-bold text-brand-600 text-sm">{(data?.user.aiCredits || 0).toLocaleString()}</span>
+                <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-brand-500 shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">AI Credits</p>
+                      <p className="font-bold text-brand-600">{(data?.user.aiCredits || 0).toLocaleString()}</p>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm flex items-center gap-2 text-muted-foreground">
-                      <Zap className="w-3.5 h-3.5 text-amber-500" />
-                      Used This Month
-                    </span>
-                    <span className="font-bold text-sm">{data?.aiUsage.thisMonth || 0}</span>
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-amber-500 shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Used This Month</p>
+                      <p className="font-bold">{data?.aiUsage.thisMonth || 0}</p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -537,304 +548,75 @@ export default function DashboardPage() {
           </motion.div>
         </div>
 
-        {/* Right Sidebar — Hidden on mobile, scrollable on desktop */}
+        {/* Right Sidebar — Hidden on mobile */}
         <div className="hidden lg:flex lg:flex-col gap-4">
-          {/* Sponsored ads — clicking navigates to /feed for view-to-earn */}
-          {hasSponsored && (
+          {/* Sponsored OR Trending Posts */}
+          {hasSponsored ? (
             <motion.div variants={itemVariants}>
-              <Card>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md bg-amber-500/10 flex items-center justify-center">
-                      <Megaphone className="w-3.5 h-3.5 text-amber-500" />
-                    </div>
-                    <h3 className="font-semibold text-sm">Sponsored</h3>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0 space-y-3">
-                  {adsWithMedia.map((ad) => (
-                    <div
-                      key={ad.id}
-                      className="block border rounded-lg p-2.5 hover:bg-muted/30 transition-colors cursor-pointer"
-                      onClick={() => router.push("/feed")}
-                    >
-                      <div className="w-full aspect-video rounded-md overflow-hidden bg-muted mb-2">
-                        <img src={ad.mediaUrl!} alt={ad.headline || ad.name} className="w-full h-full object-cover" />
-                      </div>
-                      <p className="text-sm font-medium line-clamp-1">{ad.headline || ad.name}</p>
-                      {ad.description && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{ad.description}</p>}
-                      <span className="text-xs text-brand-500 mt-1 inline-flex items-center gap-1">
-                        {ad.ctaText || "Watch & Earn"} <ExternalLink className="w-3 h-3" />
-                      </span>
-                    </div>
-                  ))}
-                  {data?.sidebar.promotedPosts.map((post) => (
-                    <div
-                      key={post.id}
-                      className="block border rounded-lg p-2.5 hover:bg-muted/30 transition-colors cursor-pointer"
-                      onClick={() => router.push("/feed")}
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <Avatar className="w-5 h-5">
-                          <AvatarImage src={post.authorAvatar || undefined} />
-                          <AvatarFallback className="text-[8px]">{post.authorName?.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs font-medium truncate">{post.authorName}</span>
-                        <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-500/10 text-amber-600 border-amber-500/20 ml-auto">Boosted</Badge>
-                      </div>
-                      {post.mediaUrl && (
-                        <div className="w-full aspect-video rounded-md overflow-hidden bg-muted mb-2">
-                          <img src={post.mediaUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
-                        </div>
-                      )}
-                      <p className="text-xs line-clamp-2">{post.content}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
+              <SponsoredSidebar ads={adsWithMedia} promotedPosts={promotedPosts} />
             </motion.div>
-          )}
-
-          {/* Trending posts — only show when NO sponsored content */}
-          {!hasSponsored && data?.sidebar.trendingPosts && data.sidebar.trendingPosts.length > 0 && (
+          ) : trendingPosts.length > 0 ? (
             <motion.div variants={itemVariants}>
-              <Card>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md bg-brand-500/10 flex items-center justify-center">
-                      <TrendingUp className="w-3.5 h-3.5 text-brand-500" />
-                    </div>
-                    <h3 className="font-semibold text-sm">Trending Posts</h3>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0 space-y-3">
-                  {data.sidebar.trendingPosts.map((post, i) => (
-                    <motion.div
-                      key={post.id}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4 + i * 0.1 }}
-                      className="border rounded-lg p-2.5 hover:bg-muted/30 transition-colors cursor-pointer"
-                      onClick={() => setSelectedPost(post)}
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <Avatar className="w-5 h-5">
-                          <AvatarImage src={post.authorAvatar || undefined} />
-                          <AvatarFallback className="text-[8px]">{post.authorName?.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs font-medium truncate">{post.authorName}</span>
-                      </div>
-                      {post.mediaUrl && (
-                        <div className="w-full aspect-video rounded-md overflow-hidden bg-muted mb-2">
-                          <img src={post.mediaUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
-                        </div>
-                      )}
-                      <p className="text-xs line-clamp-2">{post.content}</p>
-                      <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
-                        <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" /> {formatCount(post.viewCount || 0)}</span>
-                        <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" /> {formatCount(post.likeCount || 0)}</span>
-                        <span className="flex items-center gap-0.5"><MessageCircle className="w-3 h-3" /> {formatCount(post.commentCount || 0)}</span>
-                      </div>
-                    </motion.div>
-                  ))}
-                </CardContent>
-              </Card>
+              <TrendingPosts
+                posts={trendingPosts}
+                onPostClick={(post) => setSelectedPost({
+                  id: post.id,
+                  content: post.content,
+                  mediaUrl: post.mediaUrl,
+                  destinationUrl: null,
+                  authorName: post.authorName,
+                  authorAvatar: post.authorAvatar,
+                  viewCount: post.viewCount,
+                  likeCount: post.likeCount,
+                  commentCount: post.commentCount,
+                })}
+              />
             </motion.div>
-          )}
+          ) : null}
 
-          {/* Trending Topics — Redesigned */}
+          {/* Trending Topics */}
           {data?.sidebar.trendingTopics && data.sidebar.trendingTopics.length > 0 && (
             <motion.div variants={itemVariants}>
-              <Card>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md bg-violet-500/10 flex items-center justify-center">
-                      <Hash className="w-3.5 h-3.5 text-violet-500" />
-                    </div>
-                    <h3 className="font-semibold text-sm">Trending Topics</h3>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="space-y-1.5">
-                    {data.sidebar.trendingTopics.map((topic, i) => {
-                      // Find max postCount for relative bar width
-                      const maxCount = Math.max(...data.sidebar.trendingTopics.map(t => t.postCount), 1);
-                      const barWidth = Math.max((topic.postCount / maxCount) * 100, 12);
-                      const colors = [
-                        "from-brand-500/20 to-brand-500/5",
-                        "from-violet-500/20 to-violet-500/5",
-                        "from-blue-500/20 to-blue-500/5",
-                        "from-emerald-500/20 to-emerald-500/5",
-                        "from-amber-500/20 to-amber-500/5",
-                      ];
-                      const textColors = [
-                        "text-brand-600",
-                        "text-violet-600",
-                        "text-blue-600",
-                        "text-emerald-600",
-                        "text-amber-600",
-                      ];
-
-                      return (
-                        <motion.div
-                          key={topic.tag}
-                          initial={{ opacity: 0, x: -8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.5 + i * 0.08 }}
-                          className="relative rounded-lg overflow-hidden"
-                        >
-                          {/* Background bar */}
-                          <motion.div
-                            className={`absolute inset-y-0 left-0 bg-gradient-to-r ${colors[i % colors.length]} rounded-lg`}
-                            initial={{ width: 0 }}
-                            animate={{ width: `${barWidth}%` }}
-                            transition={{ duration: 0.6, delay: 0.6 + i * 0.1, ease: "easeOut" }}
-                          />
-                          <div className="relative flex items-center justify-between px-3 py-2.5">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className={`text-xs font-bold ${textColors[i % textColors.length]} w-4 shrink-0`}>
-                                {i + 1}
-                              </span>
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium truncate">{topic.tag}</p>
-                              </div>
-                            </div>
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0 ml-2">
-                              {topic.postCount} {topic.postCount === 1 ? "post" : "posts"}
-                            </Badge>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
+              <TrendingTopics topics={data.sidebar.trendingTopics} />
             </motion.div>
           )}
         </div>
       </div>
 
-      {/* Mobile-only: Trending Topics (shown below main content on small screens) */}
+      {/* Mobile-only sections */}
       <div className="lg:hidden mt-5 space-y-4">
+        {/* Trending Topics — badges on mobile */}
         {data?.sidebar.trendingTopics && data.sidebar.trendingTopics.length > 0 && (
           <motion.div variants={itemVariants}>
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-violet-500/10 flex items-center justify-center">
-                    <Hash className="w-3.5 h-3.5 text-violet-500" />
-                  </div>
-                  <h3 className="font-semibold text-sm">Trending Topics</h3>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex flex-wrap gap-2">
-                  {data.sidebar.trendingTopics.map((topic, i) => {
-                    const colors = [
-                      "bg-brand-500/10 text-brand-600 border-brand-500/20",
-                      "bg-violet-500/10 text-violet-600 border-violet-500/20",
-                      "bg-blue-500/10 text-blue-600 border-blue-500/20",
-                      "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-                      "bg-amber-500/10 text-amber-600 border-amber-500/20",
-                    ];
-                    return (
-                      <motion.div
-                        key={topic.tag}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: 0.3 + i * 0.06 }}
-                      >
-                        <Badge variant="outline" className={`${colors[i % colors.length]} px-2.5 py-1 text-xs font-medium`}>
-                          <Hash className="w-3 h-3 mr-0.5" />
-                          {topic.tag}
-                          <span className="ml-1.5 text-[10px] opacity-70">{topic.postCount}</span>
-                        </Badge>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+            <TrendingTopics topics={data.sidebar.trendingTopics} variant="badges" />
           </motion.div>
         )}
 
-        {/* Mobile: Sponsored — link to feed */}
-        {hasSponsored && (
+        {/* Sponsored OR Trending Posts */}
+        {hasSponsored ? (
           <motion.div variants={itemVariants}>
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-amber-500/10 flex items-center justify-center">
-                    <Megaphone className="w-3.5 h-3.5 text-amber-500" />
-                  </div>
-                  <h3 className="font-semibold text-sm">Sponsored</h3>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {adsWithMedia.slice(0, 2).map((ad) => (
-                    <div
-                      key={ad.id}
-                      className="border rounded-lg p-2.5 cursor-pointer hover:bg-muted/30 transition-colors"
-                      onClick={() => router.push("/feed")}
-                    >
-                      <div className="w-full aspect-video rounded-md overflow-hidden bg-muted mb-2">
-                        <img src={ad.mediaUrl!} alt={ad.headline || ad.name} className="w-full h-full object-cover" />
-                      </div>
-                      <p className="text-sm font-medium line-clamp-1">{ad.headline || ad.name}</p>
-                      {ad.description && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{ad.description}</p>}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <SponsoredSidebar ads={adsWithMedia} promotedPosts={promotedPosts} grid limit={2} />
           </motion.div>
-        )}
-
-        {/* Mobile: Trending Posts — only when no sponsored */}
-        {!hasSponsored && data?.sidebar.trendingPosts && data.sidebar.trendingPosts.length > 0 && (
+        ) : trendingPosts.length > 0 ? (
           <motion.div variants={itemVariants}>
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-brand-500/10 flex items-center justify-center">
-                    <TrendingUp className="w-3.5 h-3.5 text-brand-500" />
-                  </div>
-                  <h3 className="font-semibold text-sm">Trending Posts</h3>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {data.sidebar.trendingPosts.slice(0, 2).map((post) => (
-                    <div
-                      key={post.id}
-                      className="border rounded-lg p-2.5 cursor-pointer hover:bg-muted/30 transition-colors"
-                      onClick={() => setSelectedPost(post)}
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <Avatar className="w-5 h-5">
-                          <AvatarImage src={post.authorAvatar || undefined} />
-                          <AvatarFallback className="text-[8px]">{post.authorName?.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs font-medium truncate">{post.authorName}</span>
-                      </div>
-                      {post.mediaUrl && (
-                        <div className="w-full aspect-video rounded-md overflow-hidden bg-muted mb-2">
-                          <img src={post.mediaUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
-                        </div>
-                      )}
-                      <p className="text-xs line-clamp-2">{post.content}</p>
-                      <div className="flex items-center gap-3 mt-1.5 text-[10px] text-muted-foreground">
-                        <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" /> {formatCount(post.viewCount || 0)}</span>
-                        <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" /> {formatCount(post.likeCount || 0)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <TrendingPosts
+              posts={trendingPosts}
+              grid
+              limit={2}
+              onPostClick={(post) => setSelectedPost({
+                id: post.id,
+                content: post.content,
+                mediaUrl: post.mediaUrl,
+                destinationUrl: null,
+                authorName: post.authorName,
+                authorAvatar: post.authorAvatar,
+                viewCount: post.viewCount,
+                likeCount: post.likeCount,
+                commentCount: post.commentCount,
+              })}
+            />
           </motion.div>
-        )}
+        ) : null}
       </div>
 
       {/* Post Detail Modal */}
@@ -846,20 +628,17 @@ export default function DashboardPage() {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.2 }}
             >
-              {/* Media */}
               {selectedPost.mediaUrl && (
                 <div className="w-full aspect-video bg-muted">
                   <img
                     src={selectedPost.mediaUrl}
                     alt=""
                     className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
                 </div>
               )}
-
-              {/* Content */}
               <div className="p-5 space-y-4">
-                {/* Author */}
                 <div className="flex items-center gap-3">
                   <Avatar className="w-9 h-9">
                     <AvatarImage src={selectedPost.authorAvatar || undefined} />
@@ -872,13 +651,9 @@ export default function DashboardPage() {
                     <p className="text-xs text-muted-foreground">Post</p>
                   </div>
                 </div>
-
-                {/* Caption */}
                 {selectedPost.content && (
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">{selectedPost.content}</p>
                 )}
-
-                {/* Stats */}
                 <div className="flex items-center gap-4 pt-3 border-t">
                   <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <Eye className="h-4 w-4" />
@@ -893,8 +668,6 @@ export default function DashboardPage() {
                     <span>{formatCount(selectedPost.commentCount || 0)}</span>
                   </div>
                 </div>
-
-                {/* View in Feed button */}
                 <Button className="w-full" size="sm" asChild>
                   <Link href="/feed">
                     <ArrowRight className="h-4 w-4 mr-2" />
@@ -947,6 +720,30 @@ function StatCard({
   );
 }
 
+// ─── Overview Item ─────────────────────────────────────────────────────────────
+
+function OverviewItem({
+  label,
+  value,
+  icon: Icon,
+  color,
+}: {
+  label: string;
+  value: number;
+  icon: React.ElementType;
+  color: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+      <Icon className={`h-4 w-4 shrink-0 ${color}`} />
+      <div className="min-w-0">
+        <p className="text-sm font-bold leading-tight">{formatCount(value)}</p>
+        <p className="text-[10px] text-muted-foreground">{label}</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Quick Action Card ────────────────────────────────────────────────────────
 
 function QuickActionCard({
@@ -961,45 +758,21 @@ function QuickActionCard({
   color: "brand" | "purple" | "amber" | "green";
 }) {
   const colorMap = {
-    brand: "bg-brand-500/10 text-brand-500 group-hover:bg-brand-500/20",
-    purple: "bg-purple-500/10 text-purple-500 group-hover:bg-purple-500/20",
-    amber: "bg-amber-500/10 text-amber-500 group-hover:bg-amber-500/20",
-    green: "bg-green-500/10 text-green-500 group-hover:bg-green-500/20",
+    brand: "bg-brand-500/10 text-brand-600 group-hover:bg-brand-500/20",
+    purple: "bg-purple-500/10 text-purple-600 group-hover:bg-purple-500/20",
+    amber: "bg-amber-500/10 text-amber-600 group-hover:bg-amber-500/20",
+    green: "bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-500/20",
   };
 
   return (
     <Link
       href={href}
-      className="group flex flex-col items-center gap-2 p-3 sm:p-4 rounded-xl border hover:border-brand-500/30 hover:shadow-sm transition-all text-center"
+      className="group flex items-center gap-2.5 p-3 rounded-xl border hover:border-brand-500/30 hover:shadow-sm transition-all"
     >
-      <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-colors ${colorMap[color]}`}>
-        <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${colorMap[color]}`}>
+        <Icon className="h-4 w-4" />
       </div>
-      <p className="text-xs font-medium">{label}</p>
+      <span className="text-xs font-medium">{label}</span>
     </Link>
-  );
-}
-
-// ─── Performance Row ──────────────────────────────────────────────────────────
-
-function PerformanceRow({
-  label,
-  value,
-  icon: Icon,
-  color = "text-muted-foreground",
-}: {
-  label: string;
-  value: number;
-  icon: React.ElementType;
-  color?: string;
-}) {
-  return (
-    <div className="flex items-center justify-between py-1.5">
-      <span className="text-sm text-muted-foreground flex items-center gap-2">
-        <Icon className={`w-3.5 h-3.5 ${color}`} />
-        {label}
-      </span>
-      <span className="font-semibold text-sm">{formatCount(value)}</span>
-    </div>
   );
 }

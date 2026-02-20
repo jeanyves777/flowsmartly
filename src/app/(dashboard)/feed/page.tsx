@@ -63,6 +63,9 @@ import { AITextAssistant } from "@/components/feed/ai-text-assistant";
 import { AdCard } from "@/components/ads/ad-card";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
+import { TrendingTopics } from "@/components/shared/trending-topics";
+import { SponsoredSidebar } from "@/components/shared/sponsored-sidebar";
+import { TrendingPosts } from "@/components/shared/trending-posts";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -2330,168 +2333,63 @@ export default function FeedPage() {
 
         {/* Sidebar */}
         <div className="space-y-4 hidden lg:block">
-          {/* Sponsored Ads — ad campaigns + promoted posts, OR trending posts fallback */}
+          {/* Sponsored Ads OR Trending Posts fallback */}
           {(() => {
             const promotedPosts = posts.filter(p => p.isPromoted && p.author.id !== currentUserId);
             const hasAds = feedAds.length > 0 || promotedPosts.length > 0;
 
             if (!hasAds) {
-              // Fallback: show most trending/popular posts
-              const trendingPosts = [...posts]
+              const trendingPostsList = [...posts]
                 .filter(p => !p.isPromoted && p.author.id !== currentUserId)
                 .sort((a, b) => (b.likesCount + b.commentsCount + (b.viewCount || 0)) - (a.likesCount + a.commentsCount + (a.viewCount || 0)))
                 .slice(0, 3);
-              if (trendingPosts.length === 0) return null;
+              if (trendingPostsList.length === 0) return null;
               return (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-brand-500" />
-                      <h3 className="font-semibold">Trending Posts</h3>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0 space-y-3">
-                    {trendingPosts.map((post) => (
-                      <div
-                        key={post.id}
-                        className="border rounded-lg p-3 hover:bg-muted/30 transition-colors cursor-pointer"
-                        onClick={() => {
-                          const el = document.getElementById(`post-${post.id}`);
-                          el?.scrollIntoView({ behavior: "smooth", block: "center" });
-                        }}
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <Avatar className="w-6 h-6">
-                            <AvatarImage src={post.author.avatarUrl || undefined} />
-                            <AvatarFallback className="text-[10px]">{post.author.name?.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <span className="text-xs font-medium truncate">{post.author.name}</span>
-                        </div>
-                        {post.mediaUrls.length > 0 && (
-                          <div className="w-full aspect-video rounded-lg overflow-hidden bg-muted mb-2">
-                            <img src={post.mediaUrls[0]} alt="" className="w-full h-full object-cover" loading="lazy" />
-                          </div>
-                        )}
-                        <p className="text-xs line-clamp-2">{post.content}</p>
-                        <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
-                          <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" /> {post.viewCount || 0}</span>
-                          <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" /> {post.likesCount}</span>
-                          <span className="flex items-center gap-0.5"><MessageCircle className="w-3 h-3" /> {post.commentsCount}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
+                <TrendingPosts
+                  posts={trendingPostsList.map(p => ({
+                    id: p.id,
+                    content: p.content,
+                    mediaUrl: p.mediaUrls[0] || null,
+                    authorName: p.author.name,
+                    authorAvatar: p.author.avatarUrl,
+                    viewCount: p.viewCount || 0,
+                    likeCount: p.likesCount,
+                    commentCount: p.commentsCount,
+                  }))}
+                  onPostClick={(post) => {
+                    const el = document.getElementById(`post-${post.id}`);
+                    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }}
+                />
               );
             }
+
             return (
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-2">
-                    <Megaphone className="w-5 h-5 text-amber-500" />
-                    <h3 className="font-semibold">Sponsored</h3>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0 space-y-3">
-                  {/* Ad campaign cards */}
-                  {feedAds.map((ad) => {
-                    const CardWrapper = ad.destinationUrl ? "a" : "div";
-                    const linkProps = ad.destinationUrl ? { href: ad.destinationUrl, target: "_blank", rel: "noopener noreferrer" } : {};
-                    return (
-                      <CardWrapper key={ad.id} {...linkProps} className="block border rounded-lg p-3 hover:bg-muted/30 hover:border-brand-500/30 transition-colors cursor-pointer">
-                        {ad.mediaUrl && (
-                          <div className="w-full aspect-video rounded-lg overflow-hidden bg-muted mb-2">
-                            <img src={ad.mediaUrl} alt={ad.headline || ad.name} className="w-full h-full object-cover" />
-                          </div>
-                        )}
-                        <p className="text-sm font-medium line-clamp-1">{ad.headline || ad.name}</p>
-                        {ad.description && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{ad.description}</p>}
-                        {ad.destinationUrl && (
-                          <span className="text-xs text-brand-500 mt-1 inline-flex items-center gap-1">
-                            {ad.ctaText || "Learn more"} <ExternalLink className="w-3 h-3" />
-                          </span>
-                        )}
-                      </CardWrapper>
-                    );
-                  })}
-                  {/* Promoted posts */}
-                  {promotedPosts.slice(0, 3).map((post) => {
-                    const hasLink = !!post.destinationUrl;
-                    const CardWrapper = hasLink ? "a" : "div";
-                    const linkProps = hasLink ? { href: post.destinationUrl!, target: "_blank", rel: "noopener noreferrer" } : {};
-                    return (
-                      <CardWrapper key={post.id} {...linkProps} className="block border rounded-lg p-3 hover:bg-muted/30 hover:border-brand-500/30 transition-colors cursor-pointer">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Avatar className="w-6 h-6">
-                            <AvatarImage src={post.author.avatarUrl || undefined} />
-                            <AvatarFallback className="text-[10px]">{post.author.name?.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <span className="text-xs font-medium truncate">{post.author.name}</span>
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-600 border-amber-500/20 ml-auto">Boosted</Badge>
-                        </div>
-                        {post.mediaUrls.length > 0 && (
-                          <div className="w-full aspect-video rounded-lg overflow-hidden bg-muted mb-2">
-                            <img src={post.mediaUrls[0]} alt="" className="w-full h-full object-cover" loading="lazy" />
-                          </div>
-                        )}
-                        <p className="text-xs line-clamp-2">{post.content}</p>
-                        {hasLink && (
-                          <span className="text-xs text-brand-500 mt-1 inline-flex items-center gap-1">
-                            Visit <ExternalLink className="w-3 h-3" />
-                          </span>
-                        )}
-                        {/* Credit availability indicator */}
-                        {!post.hasEarned && (
-                          <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-dashed">
-                            <DollarSign className="w-3.5 h-3.5 text-green-500" />
-                            <span className="text-[11px] font-medium text-green-600">Earn credits available</span>
-                          </div>
-                        )}
-                        {post.hasEarned && (
-                          <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-dashed">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-muted-foreground" />
-                            <span className="text-[11px] text-muted-foreground">Earned</span>
-                          </div>
-                        )}
-                      </CardWrapper>
-                    );
-                  })}
-                </CardContent>
-              </Card>
+              <SponsoredSidebar
+                ads={feedAds.map(ad => ({
+                  id: ad.id,
+                  name: ad.name,
+                  headline: ad.headline,
+                  description: ad.description,
+                  mediaUrl: ad.mediaUrl,
+                  destinationUrl: ad.destinationUrl,
+                  ctaText: ad.ctaText,
+                }))}
+                promotedPosts={promotedPosts.slice(0, 3).map(p => ({
+                  id: p.id,
+                  content: p.content,
+                  mediaUrl: p.mediaUrls[0] || null,
+                  authorName: p.author.name,
+                  authorAvatar: p.author.avatarUrl,
+                  destinationUrl: p.destinationUrl,
+                  hasEarned: p.hasEarned,
+                }))}
+              />
             );
           })()}
 
           {/* Trending Topics */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-brand-500" />
-                <h3 className="font-semibold">Trending Topics</h3>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {trendingTopics.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No trending topics yet</p>
-              ) : (
-                <div className="space-y-3">
-                  {trendingTopics.map((topic, index) => (
-                    <div
-                      key={topic.tag}
-                      className="flex items-center justify-between py-2 cursor-pointer hover:bg-muted/50 -mx-4 px-4 rounded-lg transition-colors"
-                    >
-                      <div>
-                        <p className="font-medium text-sm">{topic.tag}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatCount(topic.postCount)} posts
-                        </p>
-                      </div>
-                      <span className="text-xs text-muted-foreground">#{index + 1}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <TrendingTopics topics={trendingTopics} />
 
           {/* Suggested Users */}
           <Card>
