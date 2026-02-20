@@ -1368,9 +1368,9 @@ export default function PostAutomationPage() {
 
               {/* Video Toggle */}
               {(() => {
-                const videoTaskCount = wizardTaskConfigs.filter((c) => c.enabled && c.mediaType === "video").length;
-                const hasAnyVideoTasks = wizardTaskConfigs.some((c) => c.mediaType === "video");
-                const allVideoEnabled = wizardTaskConfigs.filter((c) => c.enabled).every((c) => c.mediaType === "video");
+                const enabledConfigs = wizardTaskConfigs.filter((c) => c.enabled);
+                const videoTaskCount = enabledConfigs.filter((c) => c.mediaType === "video").length;
+                const allVideoEnabled = enabledConfigs.length > 0 && enabledConfigs.every((c) => c.mediaType === "video");
                 return (
                   <div className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
                     videoTaskCount > 0
@@ -1381,16 +1381,16 @@ export default function PostAutomationPage() {
                       <p className="text-sm font-medium flex items-center gap-2">
                         <Film className={`h-4 w-4 ${videoTaskCount > 0 ? "text-purple-500" : "text-muted-foreground"}`} />
                         Video Generation
-                        {hasAnyVideoTasks && !allVideoEnabled && (
+                        {videoTaskCount > 0 && !allVideoEnabled && (
                           <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-500/10 text-purple-600 border-purple-500/20">
                             {videoTaskCount} task{videoTaskCount !== 1 ? "s" : ""}
                           </Badge>
                         )}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {hasAnyVideoTasks
-                          ? "AI detected video content in your strategy — toggle to enable/disable for all tasks"
-                          : "AI-generated video per post (higher credit cost)"}
+                        {videoTaskCount > 0
+                          ? `AI detected video content in ${videoTaskCount} task${videoTaskCount !== 1 ? "s" : ""} — toggle to enable/disable for all`
+                          : "Enable AI-generated video per post (higher credit cost)"}
                       </p>
                     </div>
                     <Switch
