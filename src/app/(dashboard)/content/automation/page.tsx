@@ -62,6 +62,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useSocialPlatforms } from "@/hooks/use-social-platforms";
+import { PLATFORM_META, PLATFORM_ORDER } from "@/components/shared/social-platform-icons";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import {
@@ -503,15 +505,18 @@ export default function PostAutomationPage() {
     onConfirm: () => void;
   }>({ open: false, title: "", description: "", variant: "default", onConfirm: () => {} });
 
-  // TODO: When OAuth social connections are implemented, check connected accounts here.
-  // For now, only Feed is operational. Social platforms show as "coming soon".
+  // Platform connection status from DB (same pattern as posts page)
+  const { isConnected } = useSocialPlatforms();
   const platforms = useMemo(() => {
-    return ALL_PLATFORMS.map((p) => ({
-      ...p,
-      connected: false, // No social accounts connected yet (OAuth not implemented)
-      enabled: p.id === "feed", // Only Feed is operational
-    }));
-  }, []);
+    return PLATFORM_ORDER
+      .filter((id) => PLATFORM_META[id])
+      .map((id) => ({
+        id,
+        label: PLATFORM_META[id].label,
+        icon: PLATFORM_META[id].icon,
+        enabled: id === "feed" || isConnected(id),
+      }));
+  }, [isConnected]);
 
   // Brand-prefilled defaults (memoized so they don't recompute on every render)
   const brandDefaults = useMemo<Partial<AutomationFormData>>(() => {
@@ -591,11 +596,14 @@ export default function PostAutomationPage() {
     setWizardTaskConfigs([]);
     setWizardEstimate(null);
     setWizardTone(brandKit ? mapBrandTone(brandKit.voiceTone) : "professional");
-    const defaultEnd = new Date();
-    defaultEnd.setMonth(defaultEnd.getMonth() + 3);
-    setWizardEndDate(defaultEnd.toISOString().split("T")[0]);
     setMode("strategy-wizard");
     setWizardLoading(true);
+
+    // Auto-select platforms from connected accounts + feed (always)
+    const connectedPlatforms = PLATFORM_ORDER.filter(
+      (id) => id === "feed" || isConnected(id)
+    );
+    setWizardPlatforms(connectedPlatforms.length > 0 ? connectedPlatforms : ["feed"]);
 
     try {
       const url = strategyId
@@ -607,23 +615,50 @@ export default function PostAutomationPage() {
         const strategy = json.data.strategy || json.data;
         setWizardStrategy(strategy);
 
-        // Pre-fill task configs
+        // Auto-fill end date from latest task dueDate in strategy
         const tasks = strategy.tasks || [];
+        const dueDates = tasks
+          .map((t: StrategyForWizard["tasks"][0]) => t.dueDate)
+          .filter(Boolean)
+          .map((d: string) => new Date(d).getTime());
+        if (dueDates.length > 0) {
+          const latestDue = new Date(Math.max(...dueDates));
+          setWizardEndDate(latestDue.toISOString().split("T")[0]);
+        } else {
+          // Fallback: 3 months from now
+          const defaultEnd = new Date();
+          defaultEnd.setMonth(defaultEnd.getMonth() + 3);
+          setWizardEndDate(defaultEnd.toISOString().split("T")[0]);
+        }
+
+        // Detect if strategy has video-related tasks
+        const hasVideoContent = tasks.some((t: StrategyForWizard["tasks"][0]) => {
+          const text = `${t.title} ${t.description || ""}`.toLowerCase();
+          return text.includes("video") || text.includes("reel") || text.includes("tiktok") || text.includes("youtube") || text.includes("short");
+        });
+
+        // Pre-fill task configs from strategy + brand
         const configs: WizardTaskConfig[] = tasks
           .filter((t: StrategyForWizard["tasks"][0]) => t.status !== "DONE")
-          .map((t: StrategyForWizard["tasks"][0]) => ({
-            taskId: t.id,
-            title: t.title,
-            category: t.category || "content",
-            enabled: AUTOMATABLE_CATEGORIES.includes(t.category || ""),
-            includeMedia: true,
-            mediaType: "image" as const,
-            mediaStyle: "photorealistic",
-            frequency: "WEEKLY" as const,
-            dayOfWeek: 1,
-            time: "09:00",
-            customPrompt: "",
-          }));
+          .map((t: StrategyForWizard["tasks"][0]) => {
+            // Detect per-task if video content
+            const taskText = `${t.title} ${t.description || ""}`.toLowerCase();
+            const isVideoTask = taskText.includes("video") || taskText.includes("reel") || taskText.includes("tiktok") || taskText.includes("youtube short");
+
+            return {
+              taskId: t.id,
+              title: t.title,
+              category: t.category || "content",
+              enabled: AUTOMATABLE_CATEGORIES.includes(t.category || ""),
+              includeMedia: true,
+              mediaType: (isVideoTask && hasVideoContent ? "video" : "image") as "image" | "video",
+              mediaStyle: "photorealistic",
+              frequency: "WEEKLY" as const,
+              dayOfWeek: 1,
+              time: "09:00",
+              customPrompt: "",
+            };
+          });
         setWizardTaskConfigs(configs);
       } else {
         toast({ title: "No active strategy found", description: "Generate a strategy first", variant: "destructive" });
@@ -1272,6 +1307,15 @@ export default function PostAutomationPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Content Settings</CardTitle>
+              {brandKit && (
+                <div className="flex items-center gap-2 mt-1 text-xs text-emerald-600 bg-emerald-500/10 rounded-lg px-3 py-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    AI-configured from your brand <strong>{brandKit.name}</strong>.{" "}
+                    <Link href="/brand" className="underline hover:no-underline">Edit brand</Link>
+                  </span>
+                </div>
+              )}
             </CardHeader>
             <CardContent className="space-y-5">
               {/* Tone */}
@@ -1323,51 +1367,84 @@ export default function PostAutomationPage() {
               </div>
 
               {/* Video Toggle */}
-              <div className="flex items-center justify-between p-3 rounded-lg border border-border/40 bg-muted/20">
-                <div>
-                  <p className="text-sm font-medium flex items-center gap-2">
-                    <Film className="h-4 w-4 text-muted-foreground" /> Video Generation
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    AI-generated video per post (500 credits/post instead of 130)
-                  </p>
-                </div>
-                <Switch
-                  checked={wizardTaskConfigs.some((c) => c.enabled && c.mediaType === "video")}
-                  onCheckedChange={(checked) => {
-                    setWizardTaskConfigs((prev) =>
-                      prev.map((c) =>
-                        c.enabled ? { ...c, mediaType: checked ? "video" : "image" } : c
-                      )
-                    );
-                  }}
-                />
-              </div>
+              {(() => {
+                const videoTaskCount = wizardTaskConfigs.filter((c) => c.enabled && c.mediaType === "video").length;
+                const hasAnyVideoTasks = wizardTaskConfigs.some((c) => c.mediaType === "video");
+                const allVideoEnabled = wizardTaskConfigs.filter((c) => c.enabled).every((c) => c.mediaType === "video");
+                return (
+                  <div className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                    videoTaskCount > 0
+                      ? "border-purple-500/30 bg-purple-500/5"
+                      : "border-border/40 bg-muted/20"
+                  }`}>
+                    <div>
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        <Film className={`h-4 w-4 ${videoTaskCount > 0 ? "text-purple-500" : "text-muted-foreground"}`} />
+                        Video Generation
+                        {hasAnyVideoTasks && !allVideoEnabled && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-500/10 text-purple-600 border-purple-500/20">
+                            {videoTaskCount} task{videoTaskCount !== 1 ? "s" : ""}
+                          </Badge>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {hasAnyVideoTasks
+                          ? "AI detected video content in your strategy — toggle to enable/disable for all tasks"
+                          : "AI-generated video per post (higher credit cost)"}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={allVideoEnabled}
+                      onCheckedChange={(checked) => {
+                        setWizardTaskConfigs((prev) =>
+                          prev.map((c) =>
+                            c.enabled ? { ...c, mediaType: checked ? "video" : "image" } : c
+                          )
+                        );
+                      }}
+                    />
+                  </div>
+                );
+              })()}
 
-              {/* Platform Selection */}
+              {/* Platform Selection — from connected social accounts */}
               <div className="space-y-2">
                 <Label>Publish To</Label>
                 <div className="flex flex-wrap gap-2">
-                  {ALL_PLATFORMS.map((p) => {
+                  {platforms.map((p) => {
                     const selected = wizardPlatforms.includes(p.id);
                     const PIcon = p.icon;
                     return (
-                      <button
-                        key={p.id}
-                        onClick={() => {
-                          setWizardPlatforms((prev) =>
-                            selected ? prev.filter((x) => x !== p.id) : [...prev, p.id]
-                          );
-                        }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                          selected
-                            ? "border-orange-500 bg-orange-500/10 text-orange-600"
-                            : "border-border/60 hover:border-orange-500/40 text-muted-foreground"
-                        }`}
-                      >
-                        <PIcon className="w-3.5 h-3.5" />
-                        {p.label}
-                      </button>
+                      <TooltipProvider key={p.id}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => {
+                                if (p.id === "feed") return; // Feed always selected
+                                if (!p.enabled) return; // Can't select unconnected
+                                setWizardPlatforms((prev) =>
+                                  selected ? prev.filter((x) => x !== p.id) : [...prev, p.id]
+                                );
+                              }}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                                !p.enabled
+                                  ? "border-border/30 text-muted-foreground/40 cursor-not-allowed opacity-50"
+                                  : selected
+                                  ? "border-orange-500 bg-orange-500/10 text-orange-600"
+                                  : "border-border/60 hover:border-orange-500/40 text-muted-foreground"
+                              }`}
+                            >
+                              <PIcon className="w-3.5 h-3.5" />
+                              {p.label}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {p.enabled
+                              ? (selected ? `${p.label} — selected` : `Add ${p.label}`)
+                              : `Connect ${p.label} in Settings`}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     );
                   })}
                 </div>
@@ -1393,6 +1470,18 @@ export default function PostAutomationPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Schedule & Budget</CardTitle>
+              {wizardStrategy && (() => {
+                const tasks = wizardStrategy.tasks || [];
+                const dueDates = tasks.map((t) => t.dueDate).filter(Boolean);
+                if (dueDates.length > 0) {
+                  return (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      End date auto-set from your strategy timeline (latest task due date)
+                    </p>
+                  );
+                }
+                return null;
+              })()}
             </CardHeader>
             <CardContent className="space-y-5">
               {/* End Date */}
