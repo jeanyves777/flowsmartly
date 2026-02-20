@@ -2971,7 +2971,7 @@ function IframeBrowse({ url, title, earnAmount, onCancel }: {
       <iframe
         src={proxyUrl}
         className="flex-1 w-full bg-white rounded-t-lg"
-        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+        sandbox="allow-scripts allow-popups allow-forms"
         title={title}
       />
       {/* Bottom info bar */}
