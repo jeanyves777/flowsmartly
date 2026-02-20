@@ -179,6 +179,29 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Prevent duplicate subscriptions: check if user already has an active one
+      if (stripeClient) {
+        const existingSubs = await stripeClient.subscriptions.list({
+          customer: customerId,
+          status: "active",
+          limit: 10,
+        });
+        const activeSub = existingSubs.data.find(
+          (s) => s.metadata.type === "subscription" && s.metadata.userId === session.userId
+        );
+        if (activeSub) {
+          // If same plan, return existing — no new subscription
+          if (activeSub.metadata.planId === planId) {
+            return NextResponse.json({
+              success: false,
+              error: `You already have an active ${planId} subscription.`,
+            }, { status: 409 });
+          }
+          // Different plan: cancel old subscription before creating new one
+          await stripeClient.subscriptions.cancel(activeSub.id);
+        }
+      }
+
       const result = await createInlineSubscription({
         userId: session.userId,
         planId,
