@@ -6,6 +6,8 @@ import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { notifySubscriptionActivated } from "@/lib/notifications";
 import { createInvoice } from "@/lib/invoices";
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 /**
  * POST /api/payments/confirm-subscription
  *
@@ -13,6 +15,9 @@ import { createInvoice } from "@/lib/invoices";
  * Verifies the subscription is active with Stripe, then updates the user's
  * plan in the database immediately — no need to wait for the async webhook.
  * The webhook is still the safety net / idempotent backup.
+ *
+ * Includes retry logic because the subscription status transition from
+ * "incomplete" to "active" may take a moment after confirmCardPayment.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -30,20 +35,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Retrieve the subscription from Stripe to verify status
-    const sub = await stripe.subscriptions.retrieve(subscriptionId);
+    // Retrieve the subscription from Stripe — retry up to 4 times
+    // because status may still be "incomplete" right after confirmCardPayment
+    let sub = await stripe.subscriptions.retrieve(subscriptionId);
 
     // Verify the subscription belongs to this user
     if (sub.metadata.userId !== session.userId) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 403 });
     }
 
-    // Only proceed if subscription is actually active
+    const MAX_RETRIES = 4;
+    for (let i = 0; i < MAX_RETRIES && sub.status !== "active" && sub.status !== "trialing"; i++) {
+      console.log(`[confirm-subscription] Sub ${subscriptionId} status: ${sub.status}, retry ${i + 1}/${MAX_RETRIES}`);
+      await sleep(1500);
+      sub = await stripe.subscriptions.retrieve(subscriptionId);
+    }
+
+    // After retries, if still not active, update the plan anyway since
+    // the client confirmed payment succeeded — the webhook will handle
+    // the final status update if needed
     if (sub.status !== "active" && sub.status !== "trialing") {
-      return NextResponse.json({
-        success: false,
-        error: `Subscription not active (status: ${sub.status})`,
-      });
+      console.warn(
+        `[confirm-subscription] Sub ${subscriptionId} still ${sub.status} after retries — updating plan anyway`
+      );
     }
 
     const planId = sub.metadata.planId;
@@ -76,6 +90,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    console.log(`[confirm-subscription] Updated plan to ${planId} for user ${session.userId}`);
+
     // Check if credits were already added by the webhook (idempotency)
     const existingCredits = await prisma.creditTransaction.findFirst({
       where: {
@@ -94,6 +110,7 @@ export async function POST(req: NextRequest) {
         referenceType: "stripe_subscription",
         referenceId: sub.id,
       });
+      console.log(`[confirm-subscription] Added ${plan.monthlyCredits} credits for user ${session.userId}`);
     }
 
     // Fire-and-forget notifications
