@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,6 +15,8 @@ import {
   AlertTriangle,
   RefreshCw,
   Sparkles,
+  Shield,
+  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -24,7 +26,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useStripe } from "@stripe/react-stripe-js";
 import { StripeProvider } from "@/components/providers/stripe-provider";
 import { AddCardForm } from "@/components/payments/add-card-form";
-import { CreditCard } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface PlanData {
   id: string;
@@ -90,7 +98,11 @@ function UpgradeContent() {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [showAddCardModal, setShowAddCardModal] = useState(false);
-  const [pendingPlanId, setPendingPlanId] = useState<string | null>(null);
+  // Confirmation dialog state
+  const [confirmPlan, setConfirmPlan] = useState<PlanData | null>(null);
+  const [confirmPaymentMethod, setConfirmPaymentMethod] = useState<PaymentMethod | null>(null);
+  // Use a ref for pendingPlanId to avoid closure issues with callbacks
+  const pendingPlanIdRef = useRef<string | null>(null);
 
   const fetchPaymentMethods = useCallback(async () => {
     try {
@@ -98,10 +110,12 @@ function UpgradeContent() {
       const data = await response.json();
       if (data.success) {
         setPaymentMethods(data.data.paymentMethods || []);
+        return data.data.paymentMethods || [];
       }
     } catch {
       // Non-critical
     }
+    return [];
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -170,7 +184,7 @@ function UpgradeContent() {
         title: "Subscription activated!",
         description: "Your plan has been upgraded successfully.",
       });
-      router.push("/settings?tab=billing&payment=success");
+      router.push("/settings?tab=billing&payment=success&type=subscription");
     } catch (err) {
       toast({
         title: "Error",
@@ -180,10 +194,13 @@ function UpgradeContent() {
     } finally {
       setIsCheckingOut(false);
       setSelectedPlan(null);
+      setConfirmPlan(null);
+      setConfirmPaymentMethod(null);
     }
   }, [billingInterval, stripeInstance, toast, router]);
 
-  const handleSelectPlan = async (planId: string) => {
+  // Show confirmation dialog (or add card first if needed)
+  const handleSelectPlan = (planId: string) => {
     if (planId === "STARTER") {
       toast({
         title: "Downgrade to Starter",
@@ -192,40 +209,49 @@ function UpgradeContent() {
       return;
     }
 
+    const plan = plans.find((p) => p.id === planId);
+    if (!plan) return;
+
     // Check if user has a payment method
     const defaultMethod = paymentMethods.find((m) => m.isDefault) || paymentMethods[0];
     if (!defaultMethod) {
-      // No payment method — show add card modal, then retry after card added
-      setPendingPlanId(planId);
+      // No payment method — show add card modal, store pending plan in ref
+      pendingPlanIdRef.current = planId;
       setShowAddCardModal(true);
       return;
     }
 
-    await processSubscription(planId, defaultMethod.id);
+    // Show confirmation dialog
+    setConfirmPlan(plan);
+    setConfirmPaymentMethod(defaultMethod);
   };
 
-  const handleCardAdded = useCallback(() => {
-    fetchPaymentMethods().then(() => {
-      toast({ title: "Card saved", description: "Your payment method has been added." });
-      // Auto-retry the pending subscription
-      if (pendingPlanId) {
-        // Refetch methods to get the new one, then process
-        fetch("/api/payments/methods")
-          .then((r) => r.json())
-          .then((data) => {
-            if (data.success) {
-              const methods: PaymentMethod[] = data.data.paymentMethods || [];
-              setPaymentMethods(methods);
-              const method = methods.find((m: PaymentMethod) => m.isDefault) || methods[0];
-              if (method) {
-                processSubscription(pendingPlanId, method.id);
-              }
-            }
-            setPendingPlanId(null);
-          });
+  // Confirm and process the upgrade
+  const handleConfirmUpgrade = async () => {
+    if (!confirmPlan || !confirmPaymentMethod) return;
+    await processSubscription(confirmPlan.id, confirmPaymentMethod.id);
+  };
+
+  // After card is added, show the confirmation dialog for the pending plan
+  const handleCardAdded = useCallback(async () => {
+    toast({ title: "Card saved", description: "Your payment method has been added." });
+
+    // Fetch updated payment methods
+    const methods: PaymentMethod[] = await fetchPaymentMethods();
+    const method = methods.find((m: PaymentMethod) => m.isDefault) || methods[0];
+
+    // If there was a pending plan, show confirmation dialog
+    const pendingId = pendingPlanIdRef.current;
+    pendingPlanIdRef.current = null;
+
+    if (pendingId && method) {
+      const plan = plans.find((p) => p.id === pendingId);
+      if (plan) {
+        setConfirmPlan(plan);
+        setConfirmPaymentMethod(method);
       }
-    });
-  }, [fetchPaymentMethods, toast, pendingPlanId, processSubscription]);
+    }
+  }, [fetchPaymentMethods, toast, plans]);
 
   const getPlanStatus = (planId: string) => {
     if (!user) return "available";
@@ -482,10 +508,130 @@ function UpgradeContent() {
         open={showAddCardModal}
         onClose={() => {
           setShowAddCardModal(false);
-          setPendingPlanId(null);
+          // Don't clear pendingPlanIdRef here — handleCardAdded reads it
         }}
         onSuccess={handleCardAdded}
       />
+
+      {/* Upgrade Confirmation Dialog */}
+      <AnimatePresence>
+        {confirmPlan && confirmPaymentMethod && (
+          <Dialog
+            open={!!confirmPlan}
+            onOpenChange={(open) => {
+              if (!open && !isCheckingOut) {
+                setConfirmPlan(null);
+                setConfirmPaymentMethod(null);
+              }
+            }}
+          >
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${planColors[confirmPlan.id] || "from-gray-500 to-gray-700"} flex items-center justify-center`}>
+                    <Crown className="w-4 h-4 text-white" />
+                  </div>
+                  Confirm Upgrade
+                </DialogTitle>
+                <DialogDescription>
+                  Review your upgrade details before proceeding
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-2">
+                {/* Plan Details */}
+                <div className="p-4 rounded-xl bg-muted/50 border space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Plan</span>
+                    <span className="font-semibold">{confirmPlan.name}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Billing</span>
+                    <span className="font-medium capitalize">{billingInterval}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Monthly Credits</span>
+                    <span className="font-medium">{confirmPlan.monthlyCredits.toLocaleString()}</span>
+                  </div>
+
+                  <div className="border-t pt-3 mt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        {billingInterval === "yearly" ? "Annual Total" : "Monthly Total"}
+                      </span>
+                      <span className="text-lg font-bold">
+                        ${billingInterval === "yearly"
+                          ? (confirmPlan.priceCentsYearly / 100).toFixed(2)
+                          : (confirmPlan.priceCentsMonthly / 100).toFixed(2)
+                        }
+                      </span>
+                    </div>
+                    {billingInterval === "yearly" && (
+                      <p className="text-xs text-green-600 text-right mt-1">
+                        ${((confirmPlan.priceCentsYearly / 100) / 12).toFixed(2)}/month — Save ${((confirmPlan.priceCentsMonthly * 12 - confirmPlan.priceCentsYearly) / 100).toFixed(2)}/year
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Payment Method */}
+                <div className="flex items-center gap-3 p-3 rounded-lg border bg-background">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
+                    <CreditCard className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">
+                      <span className="capitalize">{confirmPaymentMethod.brand}</span> ending in {confirmPaymentMethod.last4}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Expires {confirmPaymentMethod.expMonth}/{confirmPaymentMethod.expYear}
+                    </p>
+                  </div>
+                  <Check className="w-4 h-4 text-green-500 shrink-0" />
+                </div>
+
+                {/* Security Note */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Shield className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                  <span>Your payment is securely processed by Stripe. You can cancel anytime.</span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setConfirmPlan(null);
+                    setConfirmPaymentMethod(null);
+                  }}
+                  disabled={isCheckingOut}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-gradient-to-r from-brand-500 to-purple-600 hover:from-brand-600 hover:to-purple-700"
+                  onClick={handleConfirmUpgrade}
+                  disabled={isCheckingOut}
+                >
+                  {isCheckingOut ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 mr-2" />
+                      Confirm Upgrade
+                    </>
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </AnimatePresence>
 
       {/* FAQ Section */}
       <Card className="mt-6">

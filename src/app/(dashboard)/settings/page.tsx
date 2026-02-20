@@ -376,9 +376,14 @@ export default function SettingsPage() {
     const paymentMethod = searchParams.get("payment_method");
     const tab = searchParams.get("tab");
     if (tab === "billing") setActiveTab("billing");
+    const paymentType = searchParams.get("type");
     if (payment === "success") {
-      toast({ title: "Payment successful!", description: "Your credits have been added to your account." });
-      fetchProfile(); // Refresh to show updated credits
+      if (paymentType === "subscription") {
+        toast({ title: "Plan upgraded!", description: "Your subscription is now active." });
+      } else {
+        toast({ title: "Payment successful!", description: "Your credits have been added to your account." });
+      }
+      fetchProfile(); // Refresh to show updated plan/credits
     } else if (payment === "cancelled") {
       toast({ title: "Payment cancelled", description: "No charges were made.", variant: "destructive" });
     }
