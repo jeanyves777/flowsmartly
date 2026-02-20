@@ -301,20 +301,31 @@ export default function CreateCampaignPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  // Fetch current user
+  // Fetch current user + brand kit (for auto-filling website on boost)
   useEffect(() => {
-    async function fetchUser() {
+    async function fetchUserAndBrand() {
       try {
-        const res = await fetch("/api/auth/me");
-        const data = await res.json();
-        if (data.success && data.data?.user) {
-          setCurrentUserId(data.data.user.id);
+        const [userRes, brandRes] = await Promise.all([
+          fetch("/api/auth/me"),
+          fetch("/api/brand"),
+        ]);
+        const userData = await userRes.json();
+        if (userData.success && userData.data?.user) {
+          setCurrentUserId(userData.data.user.id);
+        }
+        // Auto-fill destinationUrl with brand website when boosting a post
+        if (preSelectedPostId) {
+          const brandData = await brandRes.json();
+          const website = brandData?.data?.brandKit?.website;
+          if (website && !destinationUrl) {
+            setDestinationUrl(website);
+          }
         }
       } catch {
-        console.error("Failed to fetch user");
+        console.error("Failed to fetch user/brand");
       }
     }
-    fetchUser();
+    fetchUserAndBrand();
   }, []);
 
   // Fetch user's posts

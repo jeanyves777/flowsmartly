@@ -2379,134 +2379,185 @@ export default function FeedPage() {
 
       {/* Full-Screen Ad Focus Modal */}
       <AnimatePresence>
-        {adFocusPost && (
+        {adFocusPost && (() => {
+          const firstMedia = adFocusPost.mediaUrls.filter(Boolean)[0];
+          const adHasVideo = !!(firstMedia?.match(/\.(mp4|webm|mov)(\?|#|$)/i) || firstMedia?.includes("video"));
+          const adSiteUrl = adFocusPost.destinationUrl;
+          // Show iframe browsing mode: non-video post with a destination URL, during watching state
+          const showIframe = !!(adSiteUrl && !adHasVideo && !adViewCompleted);
+
+          return (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] bg-black/95 flex items-center justify-center"
+            className="fixed inset-0 z-[110] bg-black/95 flex flex-col"
           >
-            {/* Close / Cancel button */}
-            {!adViewCompleted && (
-              <button
-                onClick={handleCancelAdView}
-                className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            )}
-
-            <div className="w-full max-w-lg mx-4 flex flex-col items-center">
-              {/* Sponsored label */}
-              <div className="flex items-center gap-2 mb-4">
+            {/* Top bar: sponsor label + countdown + cancel */}
+            <div className="flex items-center justify-between px-4 py-2.5 bg-black/80 border-b border-white/10 shrink-0">
+              <div className="flex items-center gap-2">
                 <Megaphone className="w-4 h-4 text-amber-400" />
                 <span className="text-sm font-medium text-amber-400">Sponsored Ad</span>
+                {adFocusPost.author && (
+                  <span className="text-xs text-white/50 hidden sm:inline">by {adFocusPost.author.name}</span>
+                )}
               </div>
-
-              {/* Ad Content Card */}
-              <div className="w-full bg-card rounded-2xl overflow-hidden border shadow-2xl">
-                {/* Media */}
-                {adFocusPost.mediaUrls.length > 0 && (
-                  <div className="max-h-[40vh] overflow-hidden">
-                    {(() => {
-                      const url = adFocusPost.mediaUrls[0];
-                      const isVideo = url?.match(/\.(mp4|webm|mov)(\?|#|$)/i) || url?.includes("video");
-                      return isVideo ? (
-                        <video src={url} controls autoPlay muted className="w-full max-h-[40vh] object-contain bg-black" />
-                      ) : (
-                        <img src={url} alt="Ad" className="w-full max-h-[40vh] object-contain" />
-                      );
-                    })()}
+              <div className="flex items-center gap-3">
+                {activeAdView && !adViewCompleted && (
+                  <div className="flex items-center gap-2">
+                    {isFocusPaused ? (
+                      <span className="text-xs text-amber-400 font-medium">Paused</span>
+                    ) : (
+                      <span className="text-xs text-white/70 font-mono">
+                        {Math.max(0, Math.ceil(AD_VIEW_DURATION - focusedTimeRef.current))}s
+                      </span>
+                    )}
+                    <div className="w-16 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-200"
+                        style={{ width: `${adViewProgress}%` }}
+                      />
+                    </div>
                   </div>
                 )}
-
-                {/* Author & Content */}
-                <div className="p-5 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src={adFocusPost.author.avatarUrl || undefined} />
-                      <AvatarFallback className="bg-gradient-to-br from-brand-500 to-purple-500 text-white font-semibold">
-                        {adFocusPost.author.name.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <span className="font-semibold text-sm">{adFocusPost.author.name}</span>
-                      <p className="text-xs text-muted-foreground">@{adFocusPost.author.username}</p>
-                    </div>
-                  </div>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {adFocusPost.content.length > 300 ? adFocusPost.content.substring(0, 300) + "..." : adFocusPost.content}
-                  </p>
-                </div>
-              </div>
-
-              {/* Progress & Status */}
-              <div className="w-full mt-6">
-                {adViewCompleted === adFocusPost.id ? (
-                  // Completed state
-                  <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="text-center space-y-4"
+                {!adViewCompleted && (
+                  <button
+                    onClick={handleCancelAdView}
+                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
                   >
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/20 text-green-400">
-                      <CheckCircle2 className="w-5 h-5" />
-                      <span className="font-semibold">You earned ${adEarnedAmount.toFixed(2)}!</span>
-                    </div>
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
 
-                    {/* External link redirect */}
-                    {adRedirectUrl && (
-                      <div className="space-y-3">
-                        <p className="text-sm text-white/70">
-                          Redirecting in {adRedirectCountdown}s...
-                        </p>
-                        <div className="flex items-center justify-center gap-3">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="border-white/20 text-white hover:bg-white/10"
-                            onClick={() => {
-                              window.open(adRedirectUrl, "_blank", "noopener,noreferrer");
-                              if (adRedirectTimerRef.current) clearInterval(adRedirectTimerRef.current);
-                              setAdRedirectUrl(null);
-                              setAdFocusPost(null);
-                            }}
-                          >
-                            <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                            Visit Now
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-white/50 hover:text-white hover:bg-white/10"
-                            onClick={() => {
-                              if (adRedirectTimerRef.current) clearInterval(adRedirectTimerRef.current);
-                              setAdRedirectUrl(null);
-                              setAdFocusPost(null);
-                            }}
-                          >
-                            Skip
-                          </Button>
-                        </div>
+            {/* Main content area */}
+            <div className="flex-1 flex items-center justify-center overflow-hidden">
+              {adViewCompleted === adFocusPost.id ? (
+                // ─── Completed state ───
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="text-center space-y-4 px-4"
+                >
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/20 text-green-400">
+                    <CheckCircle2 className="w-5 h-5" />
+                    <span className="font-semibold">You earned ${adEarnedAmount.toFixed(2)}!</span>
+                  </div>
+
+                  {adRedirectUrl && (
+                    <div className="space-y-3">
+                      <p className="text-sm text-white/70">
+                        Redirecting in {adRedirectCountdown}s...
+                      </p>
+                      <div className="flex items-center justify-center gap-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-white/20 text-white hover:bg-white/10"
+                          onClick={() => {
+                            window.open(adRedirectUrl, "_blank", "noopener,noreferrer");
+                            if (adRedirectTimerRef.current) clearInterval(adRedirectTimerRef.current);
+                            setAdRedirectUrl(null);
+                            setAdFocusPost(null);
+                          }}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                          Visit Now
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-white/50 hover:text-white hover:bg-white/10"
+                          onClick={() => {
+                            if (adRedirectTimerRef.current) clearInterval(adRedirectTimerRef.current);
+                            setAdRedirectUrl(null);
+                            setAdFocusPost(null);
+                          }}
+                        >
+                          Skip
+                        </Button>
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    {/* Close if no redirect */}
-                    {!adRedirectUrl && (
+                  {!adRedirectUrl && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-white/50 hover:text-white hover:bg-white/10"
+                      onClick={() => setAdFocusPost(null)}
+                    >
+                      Close
+                    </Button>
+                  )}
+                </motion.div>
+              ) : showIframe ? (
+                // ─── Iframe browsing mode: non-video post with destination URL ───
+                <div className="w-full h-full flex flex-col">
+                  <iframe
+                    src={adSiteUrl!}
+                    className="flex-1 w-full bg-white rounded-t-lg"
+                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                    title={`Visit ${adFocusPost.author.name}`}
+                  />
+                  {/* Bottom info bar */}
+                  <div className="shrink-0 bg-black/90 border-t border-white/10 px-4 py-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ExternalLink className="w-3.5 h-3.5 text-white/50 shrink-0" />
+                      <span className="text-xs text-white/50 truncate">{adSiteUrl}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-white/40">
+                        Earn ${activeAdView?.earnAmount?.toFixed(2) || "0.00"}
+                      </span>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-white/50 hover:text-white hover:bg-white/10"
-                        onClick={() => setAdFocusPost(null)}
+                        className="text-white/40 hover:text-white hover:bg-white/10 text-xs h-7 px-2"
+                        onClick={handleCancelAdView}
                       >
-                        Close
+                        Cancel
                       </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                // ─── Standard mode: video or post card without URL ───
+                <div className="w-full max-w-lg mx-4 flex flex-col items-center">
+                  {/* Ad Content Card */}
+                  <div className="w-full bg-card rounded-2xl overflow-hidden border shadow-2xl">
+                    {adFocusPost.mediaUrls.filter(Boolean).length > 0 && (
+                      <div className="max-h-[40vh] overflow-hidden">
+                        {adHasVideo ? (
+                          <video src={firstMedia} controls autoPlay muted className="w-full max-h-[40vh] object-contain bg-black" />
+                        ) : (
+                          <img src={firstMedia} alt="Ad" className="w-full max-h-[40vh] object-contain" />
+                        )}
+                      </div>
                     )}
-                  </motion.div>
-                ) : (
-                  // Watching state
-                  <div className="space-y-4">
-                    {/* Circular progress */}
+
+                    <div className="p-5 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-10 h-10">
+                          <AvatarImage src={adFocusPost.author.avatarUrl || undefined} />
+                          <AvatarFallback className="bg-gradient-to-br from-brand-500 to-purple-500 text-white font-semibold">
+                            {adFocusPost.author.name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <span className="font-semibold text-sm">{adFocusPost.author.name}</span>
+                          <p className="text-xs text-muted-foreground">@{adFocusPost.author.username}</p>
+                        </div>
+                      </div>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                        {adFocusPost.content.length > 300 ? adFocusPost.content.substring(0, 300) + "..." : adFocusPost.content}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Watching state progress */}
+                  <div className="w-full mt-6 space-y-4">
                     <div className="flex flex-col items-center gap-3">
                       <div className="relative w-20 h-20">
                         <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
@@ -2554,7 +2605,6 @@ export default function FeedPage() {
                       )}
                     </div>
 
-                    {/* Progress bar */}
                     <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
                       <motion.div
                         className="h-full rounded-full bg-gradient-to-r from-green-400 to-emerald-500"
@@ -2573,11 +2623,12 @@ export default function FeedPage() {
                       </Button>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </motion.div>
-        )}
+          );
+        })()}
       </AnimatePresence>
 
       {/* Media Lightbox */}
