@@ -2324,7 +2324,18 @@ export default function FeedPage() {
                   destinationUrl: p.destinationUrl,
                   hasEarned: p.hasEarned,
                 }))}
-                onPostClick={(postId) => handleStartAdView(postId)}
+                onPostClick={(postId) => {
+                  // If already earned, just scroll to the post instead of opening ad view
+                  const promoted = promotedPosts.find(p => p.id === postId);
+                  if (promoted?.hasEarned) {
+                    const el = document.getElementById(`post-${postId}`);
+                    if (el) {
+                      el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }
+                    return;
+                  }
+                  handleStartAdView(postId);
+                }}
               />
             );
           })()}
@@ -2955,7 +2966,7 @@ function MediaVideo({ url, className, onClick }: { url: string; className?: stri
   );
 }
 
-/** Iframe browsing via server proxy — bypasses X-Frame-Options blocking */
+/** Iframe browsing — uses proxy for external sites, direct URL for internal (flowsmartly.com) */
 function IframeBrowse({ url, title, earnAmount, onCancel }: {
   url: string;
   title: string;
@@ -2963,15 +2974,22 @@ function IframeBrowse({ url, title, earnAmount, onCancel }: {
   onCancel: () => void;
   post: { content: string; author: { name: string; username: string; avatarUrl: string | null }; mediaUrls: string[] };
 }) {
-  // Proxy through our server to strip X-Frame-Options and CSP frame-ancestors
-  const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+  // Internal URLs (our own domain) load directly — no proxy needed, no X-Frame-Options issue
+  // External URLs go through proxy to strip X-Frame-Options and CSP frame-ancestors
+  const isInternal = /flowsmartly\.com/i.test(url);
+  const iframeSrc = isInternal ? url : `/api/proxy?url=${encodeURIComponent(url)}`;
+  // Internal: allow-same-origin so our own site works properly (auth, cookies, etc.)
+  // External via proxy: NO allow-same-origin to prevent foreign JS from accessing parent frame
+  const sandboxAttr = isInternal
+    ? "allow-scripts allow-same-origin allow-popups allow-forms"
+    : "allow-scripts allow-popups allow-forms";
 
   return (
     <div className="w-full h-full flex flex-col">
       <iframe
-        src={proxyUrl}
+        src={iframeSrc}
         className="flex-1 w-full bg-white rounded-t-lg"
-        sandbox="allow-scripts allow-popups allow-forms"
+        sandbox={sandboxAttr}
         title={title}
       />
       {/* Bottom info bar */}
