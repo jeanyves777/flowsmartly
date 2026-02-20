@@ -34,6 +34,8 @@ interface SponsoredSidebarProps {
   grid?: boolean;
   /** Max items to show */
   limit?: number;
+  /** Called when a promoted post is clicked (triggers Watch & Earn instead of direct navigation) */
+  onPostClick?: (postId: string) => void;
 }
 
 function MediaImage({ src, alt }: { src: string; alt: string }) {
@@ -52,7 +54,7 @@ function MediaImage({ src, alt }: { src: string; alt: string }) {
   );
 }
 
-export function SponsoredSidebar({ ads = [], promotedPosts = [], grid = false, limit }: SponsoredSidebarProps) {
+export function SponsoredSidebar({ ads = [], promotedPosts = [], grid = false, limit, onPostClick }: SponsoredSidebarProps) {
   // Filter ads that have media
   const adsWithMedia = ads.filter((ad) => ad.mediaUrl);
   const hasContent = adsWithMedia.length > 0 || promotedPosts.length > 0;
@@ -162,15 +164,14 @@ export function SponsoredSidebar({ ads = [], promotedPosts = [], grid = false, l
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: (allAds.length + i) * 0.08 }}
               >
-                {isExternal ? (
-                  <a
-                    href={post.destinationUrl!}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block border rounded-lg p-2.5 hover:bg-muted/30 hover:border-brand-500/30 transition-colors cursor-pointer"
+                {onPostClick ? (
+                  <button
+                    type="button"
+                    onClick={() => onPostClick(post.id)}
+                    className="block w-full text-left border rounded-lg p-2.5 hover:bg-muted/30 hover:border-brand-500/30 transition-colors cursor-pointer"
                   >
                     {innerContent}
-                  </a>
+                  </button>
                 ) : (
                   <Link
                     href={`/feed#post-${post.id}`}

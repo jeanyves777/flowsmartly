@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
@@ -139,6 +140,7 @@ const dashboardTips = [
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBrandBanner, setShowBrandBanner] = useState(true);
@@ -500,7 +502,7 @@ export default function DashboardPage() {
           {/* Sponsored OR Trending Posts */}
           {hasSponsored ? (
             <motion.div variants={itemVariants}>
-              <SponsoredSidebar ads={adsWithMedia} promotedPosts={promotedPosts} />
+              <SponsoredSidebar ads={adsWithMedia} promotedPosts={promotedPosts} onPostClick={(postId) => router.push(`/feed#post-${postId}`)} />
             </motion.div>
           ) : trendingPosts.length > 0 ? (
             <motion.div variants={itemVariants}>
@@ -529,7 +531,7 @@ export default function DashboardPage() {
         {/* Sponsored OR Trending Posts */}
         {hasSponsored ? (
           <motion.div variants={itemVariants}>
-            <SponsoredSidebar ads={adsWithMedia} promotedPosts={promotedPosts} grid limit={2} />
+            <SponsoredSidebar ads={adsWithMedia} promotedPosts={promotedPosts} grid limit={2} onPostClick={(postId) => router.push(`/feed#post-${postId}`)} />
           </motion.div>
         ) : trendingPosts.length > 0 ? (
           <motion.div variants={itemVariants}>

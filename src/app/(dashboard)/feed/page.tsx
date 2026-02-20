@@ -2324,6 +2324,7 @@ export default function FeedPage() {
                   destinationUrl: p.destinationUrl,
                   hasEarned: p.hasEarned,
                 }))}
+                onPostClick={(postId) => handleStartAdView(postId)}
               />
             );
           })()}
@@ -2491,34 +2492,13 @@ export default function FeedPage() {
                 </motion.div>
               ) : showIframe ? (
                 // ─── Iframe browsing mode: non-video post with destination URL ───
-                <div className="w-full h-full flex flex-col">
-                  <iframe
-                    src={adSiteUrl!}
-                    className="flex-1 w-full bg-white rounded-t-lg"
-                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-                    title={`Visit ${adFocusPost.author.name}`}
-                  />
-                  {/* Bottom info bar */}
-                  <div className="shrink-0 bg-card/90 border-t px-4 py-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                      <span className="text-xs text-muted-foreground truncate">{adSiteUrl}</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-muted-foreground">
-                        Earn ${activeAdView?.earnAmount?.toFixed(2) || "0.00"}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-500 hover:text-red-600 hover:bg-red-500/10 text-xs h-7 px-2"
-                        onClick={handleCancelAdView}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+                <IframeBrowse
+                  url={adSiteUrl!}
+                  title={`Visit ${adFocusPost.author.name}`}
+                  earnAmount={activeAdView?.earnAmount}
+                  onCancel={handleCancelAdView}
+                  post={adFocusPost}
+                />
               ) : (
                 // ─── Standard mode: video or post card without URL ───
                 <div className="w-full max-w-lg mx-4 flex flex-col items-center">
@@ -2972,6 +2952,49 @@ function MediaVideo({ url, className, onClick }: { url: string; className?: stri
       onError={() => setError(true)}
       onClick={onClick}
     />
+  );
+}
+
+/** Iframe browsing via server proxy — bypasses X-Frame-Options blocking */
+function IframeBrowse({ url, title, earnAmount, onCancel }: {
+  url: string;
+  title: string;
+  earnAmount?: number;
+  onCancel: () => void;
+  post: { content: string; author: { name: string; username: string; avatarUrl: string | null }; mediaUrls: string[] };
+}) {
+  // Proxy through our server to strip X-Frame-Options and CSP frame-ancestors
+  const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+
+  return (
+    <div className="w-full h-full flex flex-col">
+      <iframe
+        src={proxyUrl}
+        className="flex-1 w-full bg-white rounded-t-lg"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+        title={title}
+      />
+      {/* Bottom info bar */}
+      <div className="shrink-0 bg-card/90 border-t px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-2 min-w-0">
+          <ExternalLink className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          <span className="text-xs text-muted-foreground truncate">{url}</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-muted-foreground">
+            Earn ${earnAmount?.toFixed(2) || "0.00"}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-red-500 hover:text-red-600 hover:bg-red-500/10 text-xs h-7 px-2"
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
