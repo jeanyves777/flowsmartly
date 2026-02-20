@@ -26,6 +26,7 @@ import {
   ExternalLink,
   ListChecks,
   ArrowRight,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -96,6 +97,7 @@ interface StrategyTask {
   autoCompleted: boolean;
   progress: number;
   matchedActivities: string;
+  automationStatus: string;
 }
 
 interface ParsedActivity {
@@ -369,6 +371,21 @@ function SortableTaskCard({
                 <Calendar className="h-2.5 w-2.5" />
                 {formatDate(task.dueDate)}
               </span>
+            )}
+            {task.automationStatus === "AUTOMATED" && (
+              <Badge className="text-[10px] px-1.5 py-0 bg-green-500/10 text-green-600 border-green-500/20">
+                <Zap className="h-2.5 w-2.5 mr-0.5" /> Automated
+              </Badge>
+            )}
+            {task.automationStatus === "AUTOMATABLE" && (
+              <Badge className="text-[10px] px-1.5 py-0 bg-blue-500/10 text-blue-600 border-blue-500/20">
+                Can Automate
+              </Badge>
+            )}
+            {task.automationStatus === "MANUAL_ONLY" && (
+              <Badge className="text-[10px] px-1.5 py-0 bg-gray-500/10 text-gray-500 border-gray-500/20">
+                Manual
+              </Badge>
             )}
           </div>
 
@@ -1206,6 +1223,15 @@ export default function MarketingStrategyPage() {
             <Sparkles className="h-4 w-4 mr-2" />
             Generate with AI
           </Button>
+          {strategy && (
+            <Button
+              onClick={() => router.push(`/content/automation?strategy=${strategy.id}`)}
+              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+            >
+              <Zap className="h-4 w-4 mr-2" />
+              Automate Strategy
+            </Button>
+          )}
         </div>
       </div>
 

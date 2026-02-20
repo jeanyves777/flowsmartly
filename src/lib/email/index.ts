@@ -1558,3 +1558,111 @@ export async function sendTestEmail(to: string): Promise<{
     html: baseTemplate(content, "This is a test email"),
   });
 }
+
+// ── Strategy Automation Emails ──────────────────────────────────────────────
+
+// Strategy Automation Started
+export async function sendStrategyAutomationStartedEmail(params: {
+  to: string;
+  name: string;
+  strategyName: string;
+  taskCount: number;
+  taskNames: string[];
+  estimatedCredits: number;
+}) {
+  const taskList = params.taskNames
+    .map((t) => `<li style="padding: 4px 0;">${t}</li>`)
+    .join("");
+
+  const content = `
+    <h2>Your Strategy Is Now on Autopilot</h2>
+    <p>Hi ${params.name},</p>
+    <p>Great news! <strong>${params.taskCount} task${params.taskCount > 1 ? "s" : ""}</strong> from your strategy &ldquo;<strong>${params.strategyName}</strong>&rdquo; are now automated:</p>
+    <div class="stats-box">
+      <ul style="margin: 0; padding-left: 20px;">
+        ${taskList}
+      </ul>
+    </div>
+    <p>Each task will generate AI-crafted posts with images on your schedule. Credits are deducted per post (~${params.estimatedCredits} credits estimated total).</p>
+    <p style="text-align: center;">
+      <a href="${APP_URL}/content/automation" class="button">View Automations</a>
+    </p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Strategy automated: ${params.taskCount} tasks on autopilot`,
+    html: baseTemplate(content, `Your strategy "${params.strategyName}" is now automated`),
+  });
+}
+
+// Automation Credit Warning
+export async function sendAutomationCreditWarningEmail(params: {
+  to: string;
+  name: string;
+  remainingCredits: number;
+  estimatedNeeded: number;
+}) {
+  const content = `
+    <h2>Running Low on Credits</h2>
+    <p>Hi ${params.name},</p>
+    <p>Your credit balance (<strong>${params.remainingCredits} credits</strong>) is getting low. Your active strategy automations need approximately <strong>${params.estimatedNeeded} credits</strong> to complete all scheduled posts.</p>
+    <div class="highlight">
+      <strong>What happens?</strong><br>
+      Automations will pause when credits run out. Top up to keep your marketing strategy running smoothly.
+    </div>
+    <p style="text-align: center;">
+      <a href="${APP_URL}/settings?tab=billing" class="button">Add Credits</a>
+    </p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Low credits: ${params.remainingCredits} remaining for automations`,
+    html: baseTemplate(content, "Your automation credits are running low"),
+  });
+}
+
+// Strategy Automation Summary (weekly)
+export async function sendStrategyAutomationSummaryEmail(params: {
+  to: string;
+  name: string;
+  strategyName: string;
+  postsCreated: number;
+  creditsSpent: number;
+  tasksCompleted: number;
+  totalTasks: number;
+}) {
+  const progressPercent = params.totalTasks > 0
+    ? Math.round((params.tasksCompleted / params.totalTasks) * 100)
+    : 0;
+
+  const content = `
+    <h2>Automation Weekly Summary</h2>
+    <p>Hi ${params.name},</p>
+    <p>Here's your weekly automation summary for &ldquo;<strong>${params.strategyName}</strong>&rdquo;:</p>
+    <div class="stats-box">
+      <div class="stats-row">
+        <span>Posts Generated</span>
+        <strong>${params.postsCreated}</strong>
+      </div>
+      <div class="stats-row">
+        <span>Credits Used</span>
+        <strong>${params.creditsSpent}</strong>
+      </div>
+      <div class="stats-row">
+        <span>Strategy Progress</span>
+        <strong>${progressPercent}% (${params.tasksCompleted}/${params.totalTasks})</strong>
+      </div>
+    </div>
+    <p style="text-align: center;">
+      <a href="${APP_URL}/content/strategy/reports" class="button">View Full Report</a>
+    </p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Automation update: ${params.postsCreated} posts created this week`,
+    html: baseTemplate(content, `Weekly automation summary for ${params.strategyName}`),
+  });
+}

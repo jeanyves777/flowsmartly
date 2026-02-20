@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { EmailVerificationBanner } from "@/components/layout/email-verification-banner";
+import { OnboardingBanner } from "@/components/layout/onboarding-banner";
 import { cn } from "@/lib/utils/cn";
 import { ChatWidget } from "@/components/ai-assistant/chat-widget";
 import { EarnWidget } from "@/components/earn/earn-widget";
@@ -244,6 +245,7 @@ export default function DashboardLayout({
         >
           <div className="p-4 md:p-6">
             {user && !user.emailVerified && <EmailVerificationBanner />}
+            {user && user.emailVerified && <OnboardingBanner />}
             {children}
           </div>
         </main>

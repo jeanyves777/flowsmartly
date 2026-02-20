@@ -43,6 +43,7 @@ model User {
   language          String    @default("en")
   theme             String    @default("SYSTEM")
   notificationPrefs String    @default("{}")
+  dismissedBanners  String    @default("[]")  // JSON array of dismissed banner IDs
 
   // Metadata
   createdAt         DateTime  @default(now())
@@ -2388,6 +2389,10 @@ model PostAutomation {
   startDate       DateTime  @default(now())
   endDate         DateTime?
 
+  // Strategy link (when created from strategy automation)
+  strategyTaskId    String?   // Links to originating StrategyTask
+  sourceStrategyId  String?   // Which strategy this came from
+
   // Stats
   totalGenerated    Int      @default(0)
   totalCreditsSpent Int      @default(0)
@@ -2401,6 +2406,8 @@ model PostAutomation {
   @@index([userId])
   @@index([enabled, type])
   @@index([endDate])
+  @@index([strategyTaskId])
+  @@index([sourceStrategyId])
 }
 
 model MarketingStrategy {
@@ -2452,6 +2459,10 @@ model StrategyTask {
   // AI tracking
   aiSuggested   Boolean   @default(false)
   autoCompleted Boolean   @default(false)
+
+  // Automation tracking
+  automationStatus  String    @default("NONE")  // NONE, AUTOMATABLE, AUTOMATED, MANUAL_ONLY
+  automationId      String?   // Links to created PostAutomation
 
   // Activity matching
   progress          Int       @default(0)    // 0-100 completion percentage

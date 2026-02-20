@@ -73,6 +73,7 @@ interface FetchedActivities {
     totalGenerated: number;
     lastTriggered: Date | null;
     topic: string | null;
+    strategyTaskId: string | null;
   }>;
   adCampaigns: Array<{
     id: string;
@@ -230,6 +231,7 @@ async function fetchActivities(
           totalGenerated: true,
           lastTriggered: true,
           topic: true,
+          strategyTaskId: true,
         },
       }),
       prisma.adCampaign.findMany({
@@ -279,6 +281,36 @@ function matchTaskToActivities(
 ): TaskUpdate | null {
   const category = task.category?.toLowerCase();
   if (!category) return null;
+
+  // Direct-link matching: if a PostAutomation was created FROM this task, guaranteed match
+  const directLinked = activities.postAutomations.find(
+    (pa) => pa.strategyTaskId === task.id && pa.totalGenerated > 0
+  );
+  if (directLinked) {
+    let existingMatches: MatchedActivity[] = [];
+    try { existingMatches = JSON.parse(task.matchedActivities || "[]"); } catch { /* ignore */ }
+
+    const alreadyMatched = existingMatches.some((m) => m.activityId === directLinked.id);
+    if (!alreadyMatched) {
+      existingMatches.push({
+        activityType: "postAutomation",
+        activityId: directLinked.id,
+        activityName: directLinked.name,
+        activityUrl: "/content/automation",
+        matchedAt: new Date().toISOString(),
+        confidence: "high",
+        matchReason: "Direct strategy automation link",
+      });
+    }
+
+    return {
+      taskId: task.id,
+      newStatus: "DONE",
+      newProgress: 100,
+      autoCompleted: true,
+      activities: existingMatches,
+    };
+  }
 
   // Parse existing matched IDs to avoid duplicates
   let existingMatches: MatchedActivity[] = [];

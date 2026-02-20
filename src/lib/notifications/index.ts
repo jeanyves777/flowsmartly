@@ -101,6 +101,12 @@ export const NOTIFICATION_TYPES = {
   STRATEGY_MILESTONE: "STRATEGY_MILESTONE",
   STRATEGY_MONTHLY_REPORT: "STRATEGY_MONTHLY_REPORT",
 
+  // Strategy Automation
+  STRATEGY_AUTOMATION_STARTED: "STRATEGY_AUTOMATION_STARTED",
+  STRATEGY_AUTOMATION_POST_CREATED: "STRATEGY_AUTOMATION_POST_CREATED",
+  STRATEGY_AUTOMATION_CREDIT_WARNING: "STRATEGY_AUTOMATION_CREDIT_WARNING",
+  STRATEGY_AUTOMATION_COMPLETE: "STRATEGY_AUTOMATION_COMPLETE",
+
   // Messaging
   NEW_MESSAGE: "NEW_MESSAGE",
   APPROVAL_REQUEST: "APPROVAL_REQUEST",
@@ -1505,5 +1511,97 @@ export async function notifyTaskCommentAdded(params: {
       commenterName: params.commenterName,
     },
     actionUrl: `/teams/${params.teamId}/projects/${params.projectId}`,
+  });
+}
+
+// ── Strategy Automation Notifications ──
+
+/**
+ * Notify when strategy automation is launched
+ */
+export async function notifyStrategyAutomationStarted(params: {
+  userId: string;
+  strategyName: string;
+  taskCount: number;
+  estimatedCredits: number;
+}) {
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.STRATEGY_AUTOMATION_STARTED,
+    title: "Strategy Automation Launched",
+    message: `${params.taskCount} task${params.taskCount > 1 ? "s" : ""} from "${params.strategyName}" are now automated. Estimated cost: ${params.estimatedCredits} credits.`,
+    data: {
+      strategyName: params.strategyName,
+      taskCount: params.taskCount,
+      estimatedCredits: params.estimatedCredits,
+    },
+    actionUrl: "/content/automation",
+  });
+}
+
+/**
+ * Notify when an automated strategy post is created
+ */
+export async function notifyAutomationPostCreated(params: {
+  userId: string;
+  taskTitle: string;
+  postId: string;
+  creditsUsed: number;
+}) {
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.STRATEGY_AUTOMATION_POST_CREATED,
+    title: "Automated Post Created",
+    message: `New post generated for strategy task "${params.taskTitle}" (${params.creditsUsed} credits used)`,
+    data: {
+      taskTitle: params.taskTitle,
+      postId: params.postId,
+      creditsUsed: params.creditsUsed,
+    },
+    actionUrl: "/content/schedule",
+  });
+}
+
+/**
+ * Notify when credits are running low for automation
+ */
+export async function notifyAutomationCreditWarning(params: {
+  userId: string;
+  remainingCredits: number;
+  estimatedNeeded: number;
+}) {
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.STRATEGY_AUTOMATION_CREDIT_WARNING,
+    title: "Low Credits for Automation",
+    message: `Your balance (${params.remainingCredits} credits) may not cover remaining automated posts (~${params.estimatedNeeded} credits needed). Top up to keep automations running.`,
+    data: {
+      remainingCredits: params.remainingCredits,
+      estimatedNeeded: params.estimatedNeeded,
+    },
+    actionUrl: "/settings?tab=billing",
+  });
+}
+
+/**
+ * Notify when all strategy automations have completed their run
+ */
+export async function notifyStrategyAutomationComplete(params: {
+  userId: string;
+  strategyName: string;
+  totalPosts: number;
+  totalCreditsSpent: number;
+}) {
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.STRATEGY_AUTOMATION_COMPLETE,
+    title: "Strategy Automation Complete",
+    message: `All automations for "${params.strategyName}" have finished. ${params.totalPosts} posts generated, ${params.totalCreditsSpent} credits spent.`,
+    data: {
+      strategyName: params.strategyName,
+      totalPosts: params.totalPosts,
+      totalCreditsSpent: params.totalCreditsSpent,
+    },
+    actionUrl: "/content/strategy/reports",
   });
 }

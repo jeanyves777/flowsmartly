@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -32,6 +33,9 @@ import {
   ImageIcon,
   Film,
   Coins,
+  Target,
+  ArrowRight,
+  ChevronLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +53,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
+import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import {
   Tooltip,
   TooltipContent,
@@ -392,8 +397,64 @@ function calculateRuns(frequency: Frequency, startDate: string, endDate: string)
 
 // --- Component ---
 
+// --- Strategy Wizard Types ---
+
+interface StrategyForWizard {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  tasks: Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    category: string | null;
+    status: string;
+    priority: string;
+    startDate: string | null;
+    dueDate: string | null;
+    automationStatus: string;
+  }>;
+}
+
+interface WizardTaskConfig {
+  taskId: string;
+  title: string;
+  category: string;
+  enabled: boolean;
+  includeMedia: boolean;
+  mediaType: "image" | "video";
+  mediaStyle: string;
+  frequency: "DAILY" | "WEEKLY" | "MONTHLY";
+  dayOfWeek: number;
+  time: string;
+  customPrompt: string;
+}
+
+interface WizardEstimate {
+  automatableTasks: Array<{ taskId: string; title: string; runs: number; costPerRun: number; totalCost: number }>;
+  manualOnlyTasks: Array<{ taskId: string; title: string; category: string }>;
+  totalPosts: number;
+  totalCredits: number;
+  userCredits: number;
+  hasEnoughCredits: boolean;
+}
+
+const AUTOMATABLE_CATEGORIES = ["social", "content"];
+
+const IMAGE_STYLE_OPTIONS = [
+  { value: "photorealistic", label: "Photorealistic" },
+  { value: "illustration", label: "Illustration" },
+  { value: "minimalist", label: "Minimalist" },
+  { value: "3d_render", label: "3D Render" },
+  { value: "watercolor", label: "Watercolor" },
+  { value: "flat_design", label: "Flat Design" },
+];
+
 export default function PostAutomationPage() {
   const { toast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -401,7 +462,7 @@ export default function PostAutomationPage() {
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
 
   // Create/Edit mode — inline full page, not dialog
-  const [mode, setMode] = useState<"list" | "create" | "edit">("list");
+  const [mode, setMode] = useState<"list" | "create" | "edit" | "strategy-wizard">("list");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [runningId, setRunningId] = useState<string | null>(null);
@@ -410,6 +471,18 @@ export default function PostAutomationPage() {
   const [aiPreview, setAiPreview] = useState<string | null>(null);
 
   const [form, setForm] = useState<AutomationFormData>({ ...DEFAULT_FORM });
+
+  // --- Strategy Wizard State ---
+  const [wizardStep, setWizardStep] = useState(1);
+  const [wizardStrategy, setWizardStrategy] = useState<StrategyForWizard | null>(null);
+  const [wizardLoading, setWizardLoading] = useState(false);
+  const [wizardLaunching, setWizardLaunching] = useState(false);
+  const [wizardTaskConfigs, setWizardTaskConfigs] = useState<WizardTaskConfig[]>([]);
+  const [wizardTone, setWizardTone] = useState<Tone>("professional");
+  const [wizardEndDate, setWizardEndDate] = useState("");
+  const [wizardPlatforms, setWizardPlatforms] = useState<string[]>(["feed"]);
+  const [wizardEstimate, setWizardEstimate] = useState<WizardEstimate | null>(null);
+  const [wizardEstimateLoading, setWizardEstimateLoading] = useState(false);
 
   // TODO: When OAuth social connections are implemented, check connected accounts here.
   // For now, only Feed is operational. Social platforms show as "coming soon".
@@ -481,6 +554,146 @@ export default function PostAutomationPage() {
   useEffect(() => {
     fetchAutomations();
   }, [fetchAutomations]);
+
+  // --- Strategy URL param: auto-open wizard ---
+  useEffect(() => {
+    const strategyParam = searchParams.get("strategy");
+    if (strategyParam && mode === "list" && !isLoading) {
+      openStrategyWizard(strategyParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, isLoading]);
+
+  // --- Strategy Wizard Handlers ---
+
+  const openStrategyWizard = async (strategyId?: string) => {
+    setWizardStep(1);
+    setWizardStrategy(null);
+    setWizardTaskConfigs([]);
+    setWizardEstimate(null);
+    setWizardTone(brandKit ? mapBrandTone(brandKit.voiceTone) : "professional");
+    const defaultEnd = new Date();
+    defaultEnd.setMonth(defaultEnd.getMonth() + 3);
+    setWizardEndDate(defaultEnd.toISOString().split("T")[0]);
+    setMode("strategy-wizard");
+    setWizardLoading(true);
+
+    try {
+      const url = strategyId
+        ? `/api/content/strategy?id=${strategyId}`
+        : "/api/content/strategy";
+      const res = await fetch(url);
+      const json = await res.json();
+      if (json.success && json.data) {
+        const strategy = json.data.strategy || json.data;
+        setWizardStrategy(strategy);
+
+        // Pre-fill task configs
+        const tasks = strategy.tasks || [];
+        const configs: WizardTaskConfig[] = tasks
+          .filter((t: StrategyForWizard["tasks"][0]) => t.status !== "DONE")
+          .map((t: StrategyForWizard["tasks"][0]) => ({
+            taskId: t.id,
+            title: t.title,
+            category: t.category || "content",
+            enabled: AUTOMATABLE_CATEGORIES.includes(t.category || ""),
+            includeMedia: true,
+            mediaType: "image" as const,
+            mediaStyle: "photorealistic",
+            frequency: "WEEKLY" as const,
+            dayOfWeek: 1,
+            time: "09:00",
+            customPrompt: "",
+          }));
+        setWizardTaskConfigs(configs);
+      } else {
+        toast({ title: "No active strategy found", description: "Generate a strategy first", variant: "destructive" });
+        setMode("list");
+      }
+    } catch {
+      toast({ title: "Failed to load strategy", variant: "destructive" });
+      setMode("list");
+    } finally {
+      setWizardLoading(false);
+    }
+  };
+
+  const fetchWizardEstimate = useCallback(async () => {
+    if (!wizardStrategy) return;
+    setWizardEstimateLoading(true);
+    try {
+      const enabledConfigs = wizardTaskConfigs.filter((c) => c.enabled);
+      if (enabledConfigs.length === 0) {
+        setWizardEstimate(null);
+        return;
+      }
+      const firstConfig = enabledConfigs[0];
+      const res = await fetch("/api/content/strategy/automate/estimate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          strategyId: wizardStrategy.id,
+          frequency: firstConfig.frequency,
+          includeMedia: firstConfig.includeMedia,
+          mediaType: firstConfig.mediaType,
+          endDate: wizardEndDate,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setWizardEstimate(json.data);
+      }
+    } catch {
+      // Silent fail
+    } finally {
+      setWizardEstimateLoading(false);
+    }
+  }, [wizardStrategy, wizardTaskConfigs, wizardEndDate]);
+
+  // Fetch estimate when reaching step 4
+  useEffect(() => {
+    if (wizardStep === 4) fetchWizardEstimate();
+  }, [wizardStep, fetchWizardEstimate]);
+
+  const launchStrategyAutomation = async () => {
+    if (!wizardStrategy) return;
+    const enabledTasks = wizardTaskConfigs.filter((c) => c.enabled);
+    if (enabledTasks.length === 0) {
+      toast({ title: "Select at least one task to automate", variant: "destructive" });
+      return;
+    }
+
+    setWizardLaunching(true);
+    try {
+      const res = await fetch("/api/content/strategy/automate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          strategyId: wizardStrategy.id,
+          taskConfigs: enabledTasks,
+          globalTone: wizardTone,
+          globalEndDate: wizardEndDate,
+          platforms: wizardPlatforms,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast({
+          title: "Strategy Automation Launched!",
+          description: `${json.data.automatedTaskCount} automation${json.data.automatedTaskCount > 1 ? "s" : ""} created from "${json.data.strategyName}"`,
+        });
+        setMode("list");
+        fetchAutomations();
+        emitCreditsUpdate();
+      } else {
+        throw new Error(json.error?.message || "Failed to launch");
+      }
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : "Failed to launch automation", variant: "destructive" });
+    } finally {
+      setWizardLaunching(false);
+    }
+  };
 
   // --- Stats ---
 
@@ -760,6 +973,551 @@ export default function PostAutomationPage() {
       aiPrompt: template.prompt.replace(/\{topic\}/g, topicValue),
     }));
   };
+
+  // --- Render: Strategy Wizard ---
+
+  if (mode === "strategy-wizard") {
+    const enabledCount = wizardTaskConfigs.filter((c) => c.enabled).length;
+    const manualCount = wizardTaskConfigs.filter((c) => !AUTOMATABLE_CATEGORIES.includes(c.category)).length;
+    const automatableCount = wizardTaskConfigs.filter((c) => AUTOMATABLE_CATEGORIES.includes(c.category)).length;
+
+    const WIZARD_STEPS = [
+      { num: 1, label: "Strategy" },
+      { num: 2, label: "Tasks" },
+      { num: 3, label: "Content" },
+      { num: 4, label: "Schedule" },
+      { num: 5, label: "Review" },
+    ];
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-6"
+      >
+        {/* Back + Title */}
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => { setMode("list"); router.replace("/content/automation"); }}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <Target className="h-6 w-6 text-orange-500" />
+              Automate Your Strategy
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Convert your marketing strategy into automated content workflows
+            </p>
+          </div>
+        </div>
+
+        {/* Step Indicator */}
+        <div className="flex items-center gap-2">
+          {WIZARD_STEPS.map((step, i) => (
+            <div key={step.num} className="flex items-center gap-2">
+              {i > 0 && <div className={`h-px w-6 ${wizardStep > step.num - 1 ? "bg-orange-500" : "bg-border"}`} />}
+              <button
+                onClick={() => step.num < wizardStep && setWizardStep(step.num)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  wizardStep === step.num
+                    ? "bg-orange-500 text-white"
+                    : wizardStep > step.num
+                    ? "bg-orange-500/10 text-orange-600 cursor-pointer hover:bg-orange-500/20"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {wizardStep > step.num ? <CheckCircle2 className="w-3.5 h-3.5" /> : <span>{step.num}</span>}
+                <span className="hidden sm:inline">{step.label}</span>
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Loading */}
+        {wizardLoading && (
+          <div className="flex items-center justify-center py-16">
+            <AIGenerationLoader compact currentStep="Loading strategy..." />
+          </div>
+        )}
+
+        {/* Step 1: Strategy Selection */}
+        {!wizardLoading && wizardStep === 1 && wizardStrategy && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Your Active Strategy</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 rounded-xl bg-gradient-to-r from-blue-500/5 to-purple-500/5 border border-border/40">
+                <h3 className="font-semibold text-lg">{wizardStrategy.name}</h3>
+                {wizardStrategy.description && (
+                  <p className="text-sm text-muted-foreground mt-1">{wizardStrategy.description}</p>
+                )}
+                <div className="flex flex-wrap gap-3 mt-3">
+                  <Badge variant="secondary">{wizardStrategy.tasks.length} Total Tasks</Badge>
+                  <Badge className="bg-green-500/10 text-green-600 border-green-500/20">{automatableCount} Automatable</Badge>
+                  <Badge className="bg-gray-500/10 text-gray-600 border-gray-500/20">{manualCount} Manual Only</Badge>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-green-500/5 border border-green-500/20 text-center">
+                  <p className="text-2xl font-bold text-green-600">{automatableCount}</p>
+                  <p className="text-xs text-muted-foreground">Social & Content tasks</p>
+                  <p className="text-[10px] text-green-600 mt-0.5">Can be automated</p>
+                </div>
+                <div className="p-3 rounded-lg bg-gray-500/5 border border-gray-500/20 text-center">
+                  <p className="text-2xl font-bold text-gray-600">{manualCount}</p>
+                  <p className="text-xs text-muted-foreground">Ads, Email & Analytics</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">Require manual action</p>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button onClick={() => setWizardStep(2)} className="bg-gradient-to-r from-amber-500 to-orange-600 text-white">
+                  Configure Tasks <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 2: Task Configuration */}
+        {!wizardLoading && wizardStep === 2 && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Select Tasks to Automate</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setWizardTaskConfigs((prev) =>
+                        prev.map((c) => ({ ...c, enabled: AUTOMATABLE_CATEGORIES.includes(c.category) }))
+                      );
+                    }}
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setWizardTaskConfigs((prev) => prev.map((c) => ({ ...c, enabled: false })));
+                    }}
+                  >
+                    Deselect All
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {wizardTaskConfigs.map((config, idx) => {
+                const isAutomatable = AUTOMATABLE_CATEGORIES.includes(config.category);
+                return (
+                  <div
+                    key={config.taskId}
+                    className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                      config.enabled && isAutomatable
+                        ? "border-orange-500/30 bg-orange-500/5"
+                        : "border-border/40 bg-muted/20"
+                    } ${!isAutomatable ? "opacity-60" : ""}`}
+                  >
+                    <Switch
+                      checked={config.enabled}
+                      disabled={!isAutomatable}
+                      onCheckedChange={(checked) => {
+                        setWizardTaskConfigs((prev) => {
+                          const copy = [...prev];
+                          copy[idx] = { ...copy[idx], enabled: checked };
+                          return copy;
+                        });
+                      }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{config.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] px-1.5 py-0 ${
+                            config.category === "social"
+                              ? "bg-green-500/10 text-green-600 border-green-500/20"
+                              : config.category === "content"
+                              ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
+                              : config.category === "ads"
+                              ? "bg-orange-500/10 text-orange-600 border-orange-500/20"
+                              : config.category === "email"
+                              ? "bg-purple-500/10 text-purple-600 border-purple-500/20"
+                              : "bg-cyan-500/10 text-cyan-600 border-cyan-500/20"
+                          }`}
+                        >
+                          {config.category}
+                        </Badge>
+                        {!isAutomatable && (
+                          <span className="text-[10px] text-muted-foreground">Manual Only</span>
+                        )}
+                      </div>
+                    </div>
+                    {config.enabled && isAutomatable && (
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={config.frequency}
+                          onValueChange={(v) => {
+                            setWizardTaskConfigs((prev) => {
+                              const copy = [...prev];
+                              copy[idx] = { ...copy[idx], frequency: v as "DAILY" | "WEEKLY" | "MONTHLY" };
+                              return copy;
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="h-7 w-24 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="DAILY">Daily</SelectItem>
+                            <SelectItem value="WEEKLY">Weekly</SelectItem>
+                            <SelectItem value="MONTHLY">Monthly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setWizardStep(1)}>
+                  <ChevronLeft className="mr-2 h-4 w-4" /> Back
+                </Button>
+                <Button
+                  onClick={() => setWizardStep(3)}
+                  disabled={enabledCount === 0}
+                  className="bg-gradient-to-r from-amber-500 to-orange-600 text-white"
+                >
+                  Content Settings <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 3: Content Settings */}
+        {!wizardLoading && wizardStep === 3 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Content Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {/* Tone */}
+              <div className="space-y-2">
+                <Label>Brand Voice / Tone</Label>
+                <div className="flex flex-wrap gap-2">
+                  {TONE_OPTIONS.map((t) => (
+                    <button
+                      key={t.value}
+                      onClick={() => setWizardTone(t.value)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                        wizardTone === t.value
+                          ? "border-orange-500 bg-orange-500/10 text-orange-600"
+                          : "border-border/60 hover:border-orange-500/40"
+                      }`}
+                    >
+                      {t.emoji} {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Media Settings */}
+              <div className="space-y-2">
+                <Label>Image Style</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {IMAGE_STYLE_OPTIONS.map((style) => {
+                    const firstEnabled = wizardTaskConfigs.find((c) => c.enabled);
+                    const isSelected = firstEnabled?.mediaStyle === style.value;
+                    return (
+                      <button
+                        key={style.value}
+                        onClick={() => {
+                          setWizardTaskConfigs((prev) =>
+                            prev.map((c) => (c.enabled ? { ...c, mediaStyle: style.value } : c))
+                          );
+                        }}
+                        className={`p-2.5 rounded-lg text-xs font-medium border text-center transition-colors ${
+                          isSelected
+                            ? "border-orange-500 bg-orange-500/10 text-orange-600"
+                            : "border-border/60 hover:border-orange-500/40"
+                        }`}
+                      >
+                        {style.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Video Toggle */}
+              <div className="flex items-center justify-between p-3 rounded-lg border border-border/40 bg-muted/20">
+                <div>
+                  <p className="text-sm font-medium flex items-center gap-2">
+                    <Film className="h-4 w-4 text-muted-foreground" /> Video Generation
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    AI-generated video per post (500 credits/post instead of 130)
+                  </p>
+                </div>
+                <Switch
+                  checked={wizardTaskConfigs.some((c) => c.enabled && c.mediaType === "video")}
+                  onCheckedChange={(checked) => {
+                    setWizardTaskConfigs((prev) =>
+                      prev.map((c) =>
+                        c.enabled ? { ...c, mediaType: checked ? "video" : "image" } : c
+                      )
+                    );
+                  }}
+                />
+              </div>
+
+              {/* Platform Selection */}
+              <div className="space-y-2">
+                <Label>Publish To</Label>
+                <div className="flex flex-wrap gap-2">
+                  {ALL_PLATFORMS.map((p) => {
+                    const selected = wizardPlatforms.includes(p.id);
+                    const PIcon = p.icon;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          setWizardPlatforms((prev) =>
+                            selected ? prev.filter((x) => x !== p.id) : [...prev, p.id]
+                          );
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                          selected
+                            ? "border-orange-500 bg-orange-500/10 text-orange-600"
+                            : "border-border/60 hover:border-orange-500/40 text-muted-foreground"
+                        }`}
+                      >
+                        <PIcon className="w-3.5 h-3.5" />
+                        {p.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setWizardStep(2)}>
+                  <ChevronLeft className="mr-2 h-4 w-4" /> Back
+                </Button>
+                <Button
+                  onClick={() => setWizardStep(4)}
+                  className="bg-gradient-to-r from-amber-500 to-orange-600 text-white"
+                >
+                  Schedule & Budget <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 4: Schedule & Budget */}
+        {!wizardLoading && wizardStep === 4 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Schedule & Budget</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {/* End Date */}
+              <div className="space-y-2">
+                <Label>Automation End Date</Label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {DURATION_PRESETS.map((preset) => {
+                    const today = new Date().toISOString().split("T")[0];
+                    const matches = matchesDurationPreset(today, wizardEndDate, preset);
+                    return (
+                      <button
+                        key={preset.label}
+                        onClick={() => setWizardEndDate(applyDurationPreset(today, preset))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                          matches
+                            ? "border-orange-500 bg-orange-500/10 text-orange-600"
+                            : "border-border/60 hover:border-orange-500/40"
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <Input
+                  type="date"
+                  value={wizardEndDate}
+                  onChange={(e) => setWizardEndDate(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                />
+              </div>
+
+              {/* Credit Estimate */}
+              <div className="p-4 rounded-xl border border-border/40 bg-muted/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold flex items-center gap-2">
+                    <Coins className="h-4 w-4 text-amber-500" />
+                    Estimated Credit Cost
+                  </p>
+                  {wizardEstimateLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                </div>
+                {wizardEstimate && (
+                  <>
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      <div>
+                        <p className="text-xl font-bold">{wizardEstimate.totalPosts}</p>
+                        <p className="text-[10px] text-muted-foreground">Total Posts</p>
+                      </div>
+                      <div>
+                        <p className="text-xl font-bold text-amber-600">{wizardEstimate.totalCredits.toLocaleString()}</p>
+                        <p className="text-[10px] text-muted-foreground">Credits Required</p>
+                      </div>
+                      <div>
+                        <p className="text-xl font-bold">{wizardEstimate.userCredits.toLocaleString()}</p>
+                        <p className="text-[10px] text-muted-foreground">Your Balance</p>
+                      </div>
+                    </div>
+                    {!wizardEstimate.hasEnoughCredits && (
+                      <div className="flex items-center gap-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20">
+                        <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
+                        <p className="text-xs text-red-600">
+                          Insufficient credits. You need {(wizardEstimate.totalCredits - wizardEstimate.userCredits).toLocaleString()} more credits.
+                          Credits are deducted per post, not upfront — you can start and add credits later.
+                        </p>
+                      </div>
+                    )}
+                    {wizardEstimate.hasEnoughCredits && (
+                      <div className="flex items-center gap-2 p-2.5 rounded-lg bg-green-500/10 border border-green-500/20">
+                        <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                        <p className="text-xs text-green-600">
+                          You have enough credits for full automation. Credits are deducted as each post is generated.
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setWizardStep(3)}>
+                  <ChevronLeft className="mr-2 h-4 w-4" /> Back
+                </Button>
+                <Button
+                  onClick={() => setWizardStep(5)}
+                  className="bg-gradient-to-r from-amber-500 to-orange-600 text-white"
+                >
+                  Review & Launch <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 5: Review & Launch */}
+        {!wizardLoading && wizardStep === 5 && wizardStrategy && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Review & Launch</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Summary */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-orange-500/5 to-amber-500/5 border border-orange-500/20 space-y-3">
+                <h3 className="font-semibold">{wizardStrategy.name}</h3>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                  <div>
+                    <p className="text-lg font-bold text-orange-600">{enabledCount}</p>
+                    <p className="text-[10px] text-muted-foreground">Tasks Automated</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold">{manualCount}</p>
+                    <p className="text-[10px] text-muted-foreground">Manual Tasks</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-amber-600">{wizardEstimate?.totalCredits.toLocaleString() || "—"}</p>
+                    <p className="text-[10px] text-muted-foreground">Est. Credits</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold">{wizardEstimate?.totalPosts || "—"}</p>
+                    <p className="text-[10px] text-muted-foreground">Total Posts</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Task List */}
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">Automated Tasks</p>
+                {wizardTaskConfigs.filter((c) => c.enabled).map((config) => (
+                  <div key={config.taskId} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/20">
+                    <Zap className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                    <span className="text-xs flex-1 truncate">{config.title}</span>
+                    <Badge variant="outline" className="text-[10px]">{config.frequency}</Badge>
+                    <Badge variant="outline" className="text-[10px]">
+                      {config.mediaType === "video" ? <Film className="h-2.5 w-2.5 mr-1" /> : <ImageIcon className="h-2.5 w-2.5 mr-1" />}
+                      {config.mediaType}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+
+              {manualCount > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-sm font-medium text-muted-foreground">Manual Tasks (not automated)</p>
+                  {wizardTaskConfigs.filter((c) => !c.enabled || !AUTOMATABLE_CATEGORIES.includes(c.category)).map((config) => (
+                    <div key={config.taskId} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 border border-border/30">
+                      <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="text-xs flex-1 truncate text-muted-foreground">{config.title}</span>
+                      <Badge variant="outline" className="text-[10px] text-muted-foreground">{config.category}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Settings summary */}
+              <div className="grid grid-cols-3 gap-3 text-center p-3 rounded-lg bg-muted/20 border border-border/40">
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Tone</p>
+                  <p className="text-xs font-medium capitalize">{wizardTone}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">End Date</p>
+                  <p className="text-xs font-medium">{wizardEndDate ? new Date(wizardEndDate).toLocaleDateString() : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Platforms</p>
+                  <p className="text-xs font-medium">{wizardPlatforms.length} selected</p>
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setWizardStep(4)}>
+                  <ChevronLeft className="mr-2 h-4 w-4" /> Back
+                </Button>
+                <Button
+                  onClick={launchStrategyAutomation}
+                  disabled={wizardLaunching || enabledCount === 0}
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+                >
+                  {wizardLaunching ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Launching...</>
+                  ) : (
+                    <><Zap className="mr-2 h-4 w-4" /> Launch Automation ({enabledCount} tasks)</>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </motion.div>
+    );
+  }
 
   // --- Render: Create/Edit Page ---
 
@@ -1628,13 +2386,23 @@ export default function PostAutomationPage() {
             Automation
           </h1>
         </div>
-        <Button
-          onClick={openCreate}
-          className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Automation
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => openStrategyWizard()}
+            className="border-orange-500/30 text-orange-600 hover:bg-orange-500/10"
+          >
+            <Target className="h-4 w-4 mr-2" />
+            Import from Strategy
+          </Button>
+          <Button
+            onClick={openCreate}
+            className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Automation
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
