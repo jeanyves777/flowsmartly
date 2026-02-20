@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { emitPlanUpdate } from "@/lib/utils/plan-event";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check,
@@ -120,6 +121,18 @@ function InlineUpgradeInner({
           throw new Error(confirmError.message || "Payment authentication failed");
         }
       }
+
+      // Confirm subscription and update plan in DB immediately (don't wait for webhook)
+      if (data.data.subscriptionId) {
+        await fetch("/api/payments/confirm-subscription", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subscriptionId: data.data.subscriptionId }),
+        });
+      }
+
+      // Notify layout/nav of plan change
+      emitPlanUpdate(planId);
 
       toast({
         title: "Subscription activated!",

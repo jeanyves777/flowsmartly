@@ -11,6 +11,7 @@ import { ChatWidget } from "@/components/ai-assistant/chat-widget";
 import { EarnWidget } from "@/components/earn/earn-widget";
 import { ShieldCheck } from "lucide-react";
 import { onCreditsUpdate } from "@/lib/utils/credits-event";
+import { onPlanUpdate } from "@/lib/utils/plan-event";
 
 interface User {
   id: string;
@@ -133,6 +134,13 @@ export default function DashboardLayout({
   useEffect(() => {
     return onCreditsUpdate(refreshCredits);
   }, [refreshCredits]);
+
+  // Listen for plan upgrades and update nav display immediately
+  useEffect(() => {
+    return onPlanUpdate((newPlan) => {
+      setUser((prev) => prev ? { ...prev, plan: newPlan } : prev);
+    });
+  }, []);
 
   if (isLoading) {
     return (
