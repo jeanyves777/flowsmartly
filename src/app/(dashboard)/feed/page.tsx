@@ -2391,28 +2391,28 @@ export default function FeedPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] bg-black/95 flex flex-col"
+            className="fixed inset-0 z-[110] bg-background/95 backdrop-blur-sm flex flex-col"
           >
             {/* Top bar: sponsor label + countdown + cancel */}
-            <div className="flex items-center justify-between px-4 py-2.5 bg-black/80 border-b border-white/10 shrink-0">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-card/90 border-b shrink-0">
               <div className="flex items-center gap-2">
-                <Megaphone className="w-4 h-4 text-amber-400" />
-                <span className="text-sm font-medium text-amber-400">Sponsored Ad</span>
+                <Megaphone className="w-4 h-4 text-amber-500" />
+                <span className="text-sm font-medium text-amber-500">Sponsored Ad</span>
                 {adFocusPost.author && (
-                  <span className="text-xs text-white/50 hidden sm:inline">by {adFocusPost.author.name}</span>
+                  <span className="text-xs text-muted-foreground hidden sm:inline">by {adFocusPost.author.name}</span>
                 )}
               </div>
               <div className="flex items-center gap-3">
                 {activeAdView && !adViewCompleted && (
                   <div className="flex items-center gap-2">
                     {isFocusPaused ? (
-                      <span className="text-xs text-amber-400 font-medium">Paused</span>
+                      <span className="text-sm text-amber-500 font-bold">Paused</span>
                     ) : (
-                      <span className="text-xs text-white/70 font-mono">
+                      <span className="text-sm text-foreground font-bold font-mono bg-muted px-2.5 py-0.5 rounded-full">
                         {Math.max(0, Math.ceil(AD_VIEW_DURATION - focusedTimeRef.current))}s
                       </span>
                     )}
-                    <div className="w-16 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <div className="w-24 h-2 rounded-full bg-muted overflow-hidden">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-200"
                         style={{ width: `${adViewProgress}%` }}
@@ -2423,7 +2423,7 @@ export default function FeedPage() {
                 {!adViewCompleted && (
                   <button
                     onClick={handleCancelAdView}
-                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+                    className="w-8 h-8 rounded-full bg-red-500/80 hover:bg-red-500 text-white flex items-center justify-center transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -2447,14 +2447,13 @@ export default function FeedPage() {
 
                   {adRedirectUrl && (
                     <div className="space-y-3">
-                      <p className="text-sm text-white/70">
+                      <p className="text-sm text-muted-foreground">
                         Redirecting in {adRedirectCountdown}s...
                       </p>
                       <div className="flex items-center justify-center gap-3">
                         <Button
-                          variant="outline"
                           size="sm"
-                          className="border-white/20 text-white hover:bg-white/10"
+                          className="bg-green-500 hover:bg-green-600 text-white font-semibold"
                           onClick={() => {
                             window.open(adRedirectUrl, "_blank", "noopener,noreferrer");
                             if (adRedirectTimerRef.current) clearInterval(adRedirectTimerRef.current);
@@ -2463,12 +2462,11 @@ export default function FeedPage() {
                           }}
                         >
                           <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                          Visit Now
+                          Visit Site Now
                         </Button>
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
-                          className="text-white/50 hover:text-white hover:bg-white/10"
                           onClick={() => {
                             if (adRedirectTimerRef.current) clearInterval(adRedirectTimerRef.current);
                             setAdRedirectUrl(null);
@@ -2483,9 +2481,8 @@ export default function FeedPage() {
 
                   {!adRedirectUrl && (
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="text-white/50 hover:text-white hover:bg-white/10"
                       onClick={() => setAdFocusPost(null)}
                     >
                       Close
@@ -2502,19 +2499,19 @@ export default function FeedPage() {
                     title={`Visit ${adFocusPost.author.name}`}
                   />
                   {/* Bottom info bar */}
-                  <div className="shrink-0 bg-black/90 border-t border-white/10 px-4 py-2 flex items-center justify-between">
+                  <div className="shrink-0 bg-card/90 border-t px-4 py-2 flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0">
-                      <ExternalLink className="w-3.5 h-3.5 text-white/50 shrink-0" />
-                      <span className="text-xs text-white/50 truncate">{adSiteUrl}</span>
+                      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <span className="text-xs text-muted-foreground truncate">{adSiteUrl}</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-white/40">
+                      <span className="text-xs text-muted-foreground">
                         Earn ${activeAdView?.earnAmount?.toFixed(2) || "0.00"}
                       </span>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-white/40 hover:text-white hover:bg-white/10 text-xs h-7 px-2"
+                        className="text-red-500 hover:text-red-600 hover:bg-red-500/10 text-xs h-7 px-2"
                         onClick={handleCancelAdView}
                       >
                         Cancel
@@ -2561,7 +2558,7 @@ export default function FeedPage() {
                     <div className="flex flex-col items-center gap-3">
                       <div className="relative w-20 h-20">
                         <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
-                          <circle cx="40" cy="40" r="36" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="4" />
+                          <circle cx="40" cy="40" r="36" fill="none" className="stroke-muted" strokeWidth="4" />
                           <circle
                             cx="40" cy="40" r="36" fill="none" stroke="url(#adProgressGradient)" strokeWidth="4"
                             strokeLinecap="round"
@@ -2580,7 +2577,7 @@ export default function FeedPage() {
                           {isFocusPaused ? (
                             <Pause className="w-6 h-6 text-amber-400" />
                           ) : (
-                            <span className="text-lg font-bold text-white">
+                            <span className="text-lg font-bold text-foreground">
                               {Math.max(0, Math.ceil(AD_VIEW_DURATION - focusedTimeRef.current))}
                             </span>
                           )}
@@ -2590,22 +2587,22 @@ export default function FeedPage() {
                       {isFocusPaused ? (
                         <div className="text-center space-y-1">
                           <p className="text-amber-400 font-medium text-sm">Paused</p>
-                          <p className="text-white/50 text-xs">Return to this tab to continue earning</p>
+                          <p className="text-muted-foreground text-xs">Return to this tab to continue earning</p>
                         </div>
                       ) : (
                         <div className="text-center space-y-1">
-                          <p className="text-white/70 text-sm flex items-center gap-1.5">
-                            <Shield className="w-3.5 h-3.5 text-green-400" />
+                          <p className="text-foreground/70 text-sm flex items-center gap-1.5">
+                            <Shield className="w-3.5 h-3.5 text-green-500" />
                             Focus tracking active
                           </p>
-                          <p className="text-white/40 text-xs">
+                          <p className="text-muted-foreground text-xs">
                             Keep this tab in focus to earn ${activeAdView?.earnAmount?.toFixed(2) || "0.00"}
                           </p>
                         </div>
                       )}
                     </div>
 
-                    <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                       <motion.div
                         className="h-full rounded-full bg-gradient-to-r from-green-400 to-emerald-500"
                         style={{ width: `${adViewProgress}%` }}
@@ -2616,7 +2613,7 @@ export default function FeedPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-white/40 hover:text-white hover:bg-white/10 text-xs"
+                        className="text-red-500 hover:text-red-600 hover:bg-red-500/10 text-xs"
                         onClick={handleCancelAdView}
                       >
                         Cancel viewing
