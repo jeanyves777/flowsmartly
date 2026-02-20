@@ -2974,22 +2974,18 @@ function IframeBrowse({ url, title, earnAmount, onCancel }: {
   onCancel: () => void;
   post: { content: string; author: { name: string; username: string; avatarUrl: string | null }; mediaUrls: string[] };
 }) {
-  // Internal URLs (our own domain) load directly — no proxy needed, no X-Frame-Options issue
-  // External URLs go through proxy to strip X-Frame-Options and CSP frame-ancestors
+  // Internal URLs (our own domain) load directly — no proxy needed
+  // External URLs go through proxy which strips X-Frame-Options, CSP, and
+  // injects a frame-neutralizer script that defeats frame-busting JS
   const isInternal = /flowsmartly\.com/i.test(url);
   const iframeSrc = isInternal ? url : `/api/proxy?url=${encodeURIComponent(url)}`;
-  // Internal: allow-same-origin so our own site works properly (auth, cookies, etc.)
-  // External via proxy: NO allow-same-origin to prevent foreign JS from accessing parent frame
-  const sandboxAttr = isInternal
-    ? "allow-scripts allow-same-origin allow-popups allow-forms"
-    : "allow-scripts allow-popups allow-forms";
 
   return (
     <div className="w-full h-full flex flex-col">
       <iframe
         src={iframeSrc}
         className="flex-1 w-full bg-white rounded-t-lg"
-        sandbox={sandboxAttr}
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
         title={title}
       />
       {/* Bottom info bar */}
