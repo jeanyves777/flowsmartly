@@ -48,6 +48,13 @@ export function isAutomatableCategory(category: string | null): boolean {
 }
 
 /**
+ * Check if a task category is email (creates Campaign instead of PostAutomation)
+ */
+export function isEmailCategory(category: string | null): boolean {
+  return (category || "").toLowerCase() === "email";
+}
+
+/**
  * Calculate runs between two dates for a given frequency
  */
 function calculateRuns(

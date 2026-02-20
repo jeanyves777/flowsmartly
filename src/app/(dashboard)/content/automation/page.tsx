@@ -51,6 +51,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
@@ -484,6 +494,15 @@ export default function PostAutomationPage() {
   const [wizardEstimate, setWizardEstimate] = useState<WizardEstimate | null>(null);
   const [wizardEstimateLoading, setWizardEstimateLoading] = useState(false);
 
+  // --- Confirmation Dialog State ---
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    variant: "default" | "destructive";
+    onConfirm: () => void;
+  }>({ open: false, title: "", description: "", variant: "default", onConfirm: () => {} });
+
   // TODO: When OAuth social connections are implemented, check connected accounts here.
   // For now, only Feed is operational. Social platforms show as "coming soon".
   const platforms = useMemo(() => {
@@ -678,9 +697,16 @@ export default function PostAutomationPage() {
       });
       const json = await res.json();
       if (json.success) {
+        const parts = [];
+        if (json.data.postAutomationCount > 0) {
+          parts.push(`${json.data.postAutomationCount} post automation${json.data.postAutomationCount > 1 ? "s" : ""}`);
+        }
+        if (json.data.emailCampaignCount > 0) {
+          parts.push(`${json.data.emailCampaignCount} email campaign${json.data.emailCampaignCount > 1 ? "s" : ""}`);
+        }
         toast({
           title: "Strategy Automation Launched!",
-          description: `${json.data.automatedTaskCount} automation${json.data.automatedTaskCount > 1 ? "s" : ""} created from "${json.data.strategyName}"`,
+          description: `${parts.join(" + ")} created from "${json.data.strategyName}"`,
         });
         setMode("list");
         fetchAutomations();
@@ -828,7 +854,7 @@ export default function PostAutomationPage() {
     }
   };
 
-  const handleToggle = async (id: string, enabled: boolean) => {
+  const executeToggle = async (id: string, enabled: boolean) => {
     try {
       const response = await fetch("/api/content/automation", {
         method: "PATCH",
@@ -841,6 +867,7 @@ export default function PostAutomationPage() {
       setAutomations((prev) =>
         prev.map((a) => (a.id === id ? { ...a, enabled } : a))
       );
+      toast({ title: enabled ? "Automation enabled" : "Automation paused" });
     } catch (err) {
       toast({
         title: err instanceof Error ? err.message : "Failed to toggle automation",
@@ -849,9 +876,23 @@ export default function PostAutomationPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this automation?")) return;
+  const handleToggle = (id: string, enabled: boolean) => {
+    if (!enabled) {
+      // Pausing — needs confirmation
+      const automation = automations.find((a) => a.id === id);
+      setConfirmDialog({
+        open: true,
+        title: "Pause Automation",
+        description: `Are you sure you want to pause "${automation?.name || "this automation"}"? It will stop generating content until you re-enable it.`,
+        variant: "default",
+        onConfirm: () => executeToggle(id, false),
+      });
+    } else {
+      executeToggle(id, true);
+    }
+  };
 
+  const executeDelete = async (id: string) => {
     try {
       const response = await fetch(`/api/content/automation?id=${id}`, {
         method: "DELETE",
@@ -869,7 +910,18 @@ export default function PostAutomationPage() {
     }
   };
 
-  const handleRunNow = async (id: string) => {
+  const handleDelete = (id: string) => {
+    const automation = automations.find((a) => a.id === id);
+    setConfirmDialog({
+      open: true,
+      title: "Delete Automation",
+      description: `Are you sure you want to permanently delete "${automation?.name || "this automation"}"? This action cannot be undone.`,
+      variant: "destructive",
+      onConfirm: () => executeDelete(id),
+    });
+  };
+
+  const executeRunNow = async (id: string) => {
     try {
       setRunningId(id);
       const response = await fetch(`/api/content/automation/${id}/run`, {
@@ -895,6 +947,17 @@ export default function PostAutomationPage() {
     } finally {
       setRunningId(null);
     }
+  };
+
+  const handleRunNow = (id: string) => {
+    const automation = automations.find((a) => a.id === id);
+    setConfirmDialog({
+      open: true,
+      title: "Run Automation Now",
+      description: `This will immediately generate AI content and schedule a post for "${automation?.name || "this automation"}". Credits will be deducted.`,
+      variant: "default",
+      onConfirm: () => executeRunNow(id),
+    });
   };
 
   const handleGeneratePreview = async () => {
@@ -1155,6 +1218,9 @@ export default function PostAutomationPage() {
                         </Badge>
                         {!isAutomatable && (
                           <span className="text-[10px] text-muted-foreground">Manual Only</span>
+                        )}
+                        {isAutomatable && config.category === "email" && (
+                          <span className="text-[10px] text-purple-600 font-medium">Email Campaign</span>
                         )}
                       </div>
                     </div>
@@ -1455,14 +1521,24 @@ export default function PostAutomationPage() {
               <div className="space-y-1.5">
                 <p className="text-sm font-medium">Automated Tasks</p>
                 {wizardTaskConfigs.filter((c) => c.enabled).map((config) => (
-                  <div key={config.taskId} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/20">
-                    <Zap className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                  <div key={config.taskId} className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
+                    config.category === "email"
+                      ? "bg-purple-500/5 border-purple-500/20"
+                      : "bg-green-500/5 border-green-500/20"
+                  }`}>
+                    <Zap className={`h-3.5 w-3.5 shrink-0 ${config.category === "email" ? "text-purple-500" : "text-green-500"}`} />
                     <span className="text-xs flex-1 truncate">{config.title}</span>
-                    <Badge variant="outline" className="text-[10px]">{config.frequency}</Badge>
-                    <Badge variant="outline" className="text-[10px]">
-                      {config.mediaType === "video" ? <Film className="h-2.5 w-2.5 mr-1" /> : <ImageIcon className="h-2.5 w-2.5 mr-1" />}
-                      {config.mediaType}
-                    </Badge>
+                    {config.category === "email" ? (
+                      <Badge variant="outline" className="text-[10px] bg-purple-500/10 text-purple-600 border-purple-500/20">Email Campaign</Badge>
+                    ) : (
+                      <>
+                        <Badge variant="outline" className="text-[10px]">{config.frequency}</Badge>
+                        <Badge variant="outline" className="text-[10px]">
+                          {config.mediaType === "video" ? <Film className="h-2.5 w-2.5 mr-1" /> : <ImageIcon className="h-2.5 w-2.5 mr-1" />}
+                          {config.mediaType}
+                        </Badge>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -2643,6 +2719,31 @@ export default function PostAutomationPage() {
           </AnimatePresence>
         </div>
       )}
+
+      {/* Confirmation Dialog */}
+      <AlertDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => setConfirmDialog((prev) => ({ ...prev, open }))}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmDialog.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                confirmDialog.onConfirm();
+                setConfirmDialog((prev) => ({ ...prev, open: false }));
+              }}
+              className={confirmDialog.variant === "destructive" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 }

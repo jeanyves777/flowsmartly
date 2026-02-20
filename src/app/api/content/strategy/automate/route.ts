@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { isAutomatableCategory } from "@/lib/strategy/credit-estimator";
+import { isAutomatableCategory, isEmailCategory } from "@/lib/strategy/credit-estimator";
 
 interface TaskConfig {
   taskId: string;
@@ -94,6 +94,7 @@ export async function POST(request: NextRequest) {
 
     // Create automations for each enabled task
     const createdAutomations: string[] = [];
+    const createdCampaigns: string[] = [];
     const taskUpdates: Array<{ taskId: string; automationId: string; status: string }> = [];
 
     for (const config of taskConfigs) {
@@ -106,7 +107,50 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Build AI prompt from task description + brand context
+      // EMAIL tasks → create Campaign (email blast) record
+      if (isEmailCategory(category)) {
+        const emailSubject = config.customPrompt
+          ? config.customPrompt.substring(0, 150)
+          : `${task.title} — ${brandKit?.name || "Update"}`;
+
+        const emailContent = config.customPrompt ||
+          `Email campaign about: ${task.title}. ${task.description || ""}\n\n${brandContext}`;
+
+        // Calculate scheduled send time from frequency config
+        const scheduledAt = (() => {
+          const d = task.startDate ? new Date(task.startDate) : new Date();
+          const [h, m] = (config.time || "09:00").split(":");
+          d.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
+          if (d <= new Date()) d.setDate(d.getDate() + 1);
+          return d;
+        })();
+
+        const campaign = await prisma.campaign.create({
+          data: {
+            userId: session.userId,
+            name: `Strategy: ${task.title}`,
+            type: "EMAIL",
+            subject: emailSubject,
+            content: emailContent,
+            contentHtml: null,
+            fromName: brandKit?.name || null,
+            imageUrl: null,
+            imageSource: config.includeMedia ? "ai" : null,
+            status: "DRAFT",
+            scheduledAt,
+          },
+        });
+
+        createdCampaigns.push(campaign.id);
+        taskUpdates.push({
+          taskId: task.id,
+          automationId: campaign.id,
+          status: "AUTOMATED",
+        });
+        continue;
+      }
+
+      // SOCIAL/CONTENT tasks → create PostAutomation record
       const taskPrompt = config.customPrompt ||
         `Write an engaging social media post about: ${task.title}. ${task.description || ""} ${brandContext}`;
 
@@ -175,11 +219,12 @@ export async function POST(request: NextRequest) {
         userId: session.userId,
         type: "STRATEGY_AUTOMATION_STARTED",
         title: "Strategy Automation Launched",
-        message: `${createdAutomations.length} automation${createdAutomations.length > 1 ? "s" : ""} created from "${strategy.name}"`,
+        message: `${createdAutomations.length + createdCampaigns.length} automation${(createdAutomations.length + createdCampaigns.length) > 1 ? "s" : ""} created from "${strategy.name}"${createdCampaigns.length > 0 ? ` (${createdCampaigns.length} email campaign${createdCampaigns.length > 1 ? "s" : ""})` : ""}`,
         data: JSON.stringify({
           strategyId,
           strategyName: strategy.name,
           automationCount: createdAutomations.length,
+          campaignCount: createdCampaigns.length,
         }),
       },
     });
@@ -188,7 +233,10 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         automationIds: createdAutomations,
-        automatedTaskCount: createdAutomations.length,
+        campaignIds: createdCampaigns,
+        automatedTaskCount: createdAutomations.length + createdCampaigns.length,
+        postAutomationCount: createdAutomations.length,
+        emailCampaignCount: createdCampaigns.length,
         totalTasks: strategy.tasks.length,
         strategyName: strategy.name,
       },
