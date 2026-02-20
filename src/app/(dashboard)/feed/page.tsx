@@ -459,6 +459,24 @@ export default function FeedPage() {
     fetchUserAndBrand();
   }, [fetchPosts, fetchTrending, fetchUserAndBrand]);
 
+  // Scroll to post when navigated with hash (e.g. /feed#post-xyz)
+  useEffect(() => {
+    if (isLoading || posts.length === 0) return;
+    const hash = window.location.hash;
+    if (hash && hash.startsWith("#post-")) {
+      // Small delay to let DOM render
+      const timer = setTimeout(() => {
+        const el = document.getElementById(hash.slice(1));
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.classList.add("ring-2", "ring-brand-500/50");
+          setTimeout(() => el.classList.remove("ring-2", "ring-brand-500/50"), 2000);
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, posts.length]);
+
   // Get avatar for a post author - use brand logo for own posts
   const getAuthorAvatar = (post: Post) => {
     if (post.author.avatarUrl) return post.author.avatarUrl;
@@ -1802,6 +1820,7 @@ export default function FeedPage() {
                 const post = item as Post;
                 return (
                 <motion.div
+                  id={`post-${post.id}`}
                   key={post.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}

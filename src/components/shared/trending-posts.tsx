@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { TrendingUp, Eye, Heart, MessageCircle } from "lucide-react";
+import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
@@ -55,41 +56,50 @@ export function TrendingPosts({ posts, onPostClick, grid = false, limit }: Trend
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 + i * 0.08 }}
-              className="border rounded-lg p-2.5 hover:bg-muted/30 hover:border-brand-500/30 transition-colors cursor-pointer"
-              onClick={() => onPostClick?.(post)}
             >
-              <div className="flex items-center gap-2 mb-2">
-                <Avatar className="w-5 h-5">
-                  <AvatarImage src={post.authorAvatar || undefined} />
-                  <AvatarFallback className="text-[8px]">{post.authorName?.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <span className="text-xs font-medium truncate">{post.authorName}</span>
-              </div>
-              {post.mediaUrl && (
-                <div className="w-full aspect-video rounded-md overflow-hidden bg-muted mb-2">
-                  <img
-                    src={post.mediaUrl}
-                    alt=""
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                    }}
-                  />
+              <Link
+                href={`/feed#post-${post.id}`}
+                className="block border rounded-lg p-2.5 hover:bg-muted/30 hover:border-brand-500/30 transition-colors cursor-pointer"
+                onClick={(e) => {
+                  if (onPostClick) {
+                    e.preventDefault();
+                    onPostClick(post);
+                  }
+                }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Avatar className="w-5 h-5">
+                    <AvatarImage src={post.authorAvatar || undefined} />
+                    <AvatarFallback className="text-[8px]">{post.authorName?.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <span className="text-xs font-medium truncate">{post.authorName}</span>
                 </div>
-              )}
-              <p className="text-xs line-clamp-2">{post.content}</p>
-              <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
-                <span className="flex items-center gap-0.5">
-                  <Eye className="w-3 h-3" /> {formatCount(post.viewCount || 0)}
-                </span>
-                <span className="flex items-center gap-0.5">
-                  <Heart className="w-3 h-3" /> {formatCount(post.likeCount || 0)}
-                </span>
-                <span className="flex items-center gap-0.5">
-                  <MessageCircle className="w-3 h-3" /> {formatCount(post.commentCount || 0)}
-                </span>
-              </div>
+                {post.mediaUrl && (
+                  <div className="w-full aspect-video rounded-md overflow-hidden bg-muted mb-2">
+                    <img
+                      src={post.mediaUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  </div>
+                )}
+                <p className="text-xs line-clamp-2">{post.content}</p>
+                <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                  <span className="flex items-center gap-0.5">
+                    <Eye className="w-3 h-3" /> {formatCount(post.viewCount || 0)}
+                  </span>
+                  <span className="flex items-center gap-0.5">
+                    <Heart className="w-3 h-3" /> {formatCount(post.likeCount || 0)}
+                  </span>
+                  <span className="flex items-center gap-0.5">
+                    <MessageCircle className="w-3 h-3" /> {formatCount(post.commentCount || 0)}
+                  </span>
+                </div>
+              </Link>
             </motion.div>
           ))}
         </div>

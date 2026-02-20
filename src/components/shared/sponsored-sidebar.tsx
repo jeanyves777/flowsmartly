@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Megaphone, ExternalLink, DollarSign, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -77,10 +78,7 @@ export function SponsoredSidebar({ ads = [], promotedPosts = [], grid = false, l
         <div className={containerClass}>
           {/* Ad campaign cards */}
           {allAds.map((ad, i) => {
-            const Wrapper = ad.destinationUrl ? "a" : "div";
-            const linkProps = ad.destinationUrl
-              ? { href: ad.destinationUrl, target: "_blank" as const, rel: "noopener noreferrer" }
-              : {};
+            const isExternal = !!ad.destinationUrl;
 
             return (
               <motion.div
@@ -89,31 +87,73 @@ export function SponsoredSidebar({ ads = [], promotedPosts = [], grid = false, l
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.08 }}
               >
-                <Wrapper
-                  {...linkProps}
-                  className="block border rounded-lg p-2.5 hover:bg-muted/30 hover:border-brand-500/30 transition-colors cursor-pointer"
-                >
-                  {ad.mediaUrl && <MediaImage src={ad.mediaUrl} alt={ad.headline || ad.name} />}
-                  <p className="text-sm font-medium line-clamp-1">{ad.headline || ad.name}</p>
-                  {ad.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{ad.description}</p>
-                  )}
-                  {ad.destinationUrl && (
+                {isExternal ? (
+                  <a
+                    href={ad.destinationUrl!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block border rounded-lg p-2.5 hover:bg-muted/30 hover:border-brand-500/30 transition-colors cursor-pointer"
+                  >
+                    {ad.mediaUrl && <MediaImage src={ad.mediaUrl} alt={ad.headline || ad.name} />}
+                    <p className="text-sm font-medium line-clamp-1">{ad.headline || ad.name}</p>
+                    {ad.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{ad.description}</p>
+                    )}
                     <span className="text-xs text-brand-500 mt-1 inline-flex items-center gap-1">
                       {ad.ctaText || "Learn more"} <ExternalLink className="w-3 h-3" />
                     </span>
-                  )}
-                </Wrapper>
+                  </a>
+                ) : (
+                  <Link
+                    href="/feed"
+                    className="block border rounded-lg p-2.5 hover:bg-muted/30 hover:border-brand-500/30 transition-colors cursor-pointer"
+                  >
+                    {ad.mediaUrl && <MediaImage src={ad.mediaUrl} alt={ad.headline || ad.name} />}
+                    <p className="text-sm font-medium line-clamp-1">{ad.headline || ad.name}</p>
+                    {ad.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{ad.description}</p>
+                    )}
+                  </Link>
+                )}
               </motion.div>
             );
           })}
 
           {/* Promoted posts */}
           {allPosts.map((post, i) => {
-            const Wrapper = post.destinationUrl ? "a" : "div";
-            const linkProps = post.destinationUrl
-              ? { href: post.destinationUrl, target: "_blank" as const, rel: "noopener noreferrer" }
-              : {};
+            const isExternal = !!post.destinationUrl;
+
+            const innerContent = (
+              <>
+                <div className="flex items-center gap-2 mb-2">
+                  <Avatar className="w-5 h-5">
+                    <AvatarImage src={post.authorAvatar || undefined} />
+                    <AvatarFallback className="text-[8px]">{post.authorName?.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <span className="text-xs font-medium truncate">{post.authorName}</span>
+                  <Badge
+                    variant="outline"
+                    className="text-[9px] px-1 py-0 bg-amber-500/10 text-amber-600 border-amber-500/20 ml-auto"
+                  >
+                    Boosted
+                  </Badge>
+                </div>
+                {post.mediaUrl && <MediaImage src={post.mediaUrl} alt="" />}
+                <p className="text-xs line-clamp-2">{post.content}</p>
+                {post.hasEarned === false && (
+                  <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-dashed">
+                    <DollarSign className="w-3.5 h-3.5 text-green-500" />
+                    <span className="text-[11px] font-medium text-green-600">Earn credits available</span>
+                  </div>
+                )}
+                {post.hasEarned === true && (
+                  <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-dashed">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-[11px] text-muted-foreground">Earned</span>
+                  </div>
+                )}
+              </>
+            );
 
             return (
               <motion.div
@@ -122,38 +162,23 @@ export function SponsoredSidebar({ ads = [], promotedPosts = [], grid = false, l
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: (allAds.length + i) * 0.08 }}
               >
-                <Wrapper
-                  {...linkProps}
-                  className="block border rounded-lg p-2.5 hover:bg-muted/30 hover:border-brand-500/30 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <Avatar className="w-5 h-5">
-                      <AvatarImage src={post.authorAvatar || undefined} />
-                      <AvatarFallback className="text-[8px]">{post.authorName?.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <span className="text-xs font-medium truncate">{post.authorName}</span>
-                    <Badge
-                      variant="outline"
-                      className="text-[9px] px-1 py-0 bg-amber-500/10 text-amber-600 border-amber-500/20 ml-auto"
-                    >
-                      Boosted
-                    </Badge>
-                  </div>
-                  {post.mediaUrl && <MediaImage src={post.mediaUrl} alt="" />}
-                  <p className="text-xs line-clamp-2">{post.content}</p>
-                  {post.hasEarned === false && (
-                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-dashed">
-                      <DollarSign className="w-3.5 h-3.5 text-green-500" />
-                      <span className="text-[11px] font-medium text-green-600">Earn credits available</span>
-                    </div>
-                  )}
-                  {post.hasEarned === true && (
-                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-dashed">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="text-[11px] text-muted-foreground">Earned</span>
-                    </div>
-                  )}
-                </Wrapper>
+                {isExternal ? (
+                  <a
+                    href={post.destinationUrl!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block border rounded-lg p-2.5 hover:bg-muted/30 hover:border-brand-500/30 transition-colors cursor-pointer"
+                  >
+                    {innerContent}
+                  </a>
+                ) : (
+                  <Link
+                    href={`/feed#post-${post.id}`}
+                    className="block border rounded-lg p-2.5 hover:bg-muted/30 hover:border-brand-500/30 transition-colors cursor-pointer"
+                  >
+                    {innerContent}
+                  </Link>
+                )}
               </motion.div>
             );
           })}

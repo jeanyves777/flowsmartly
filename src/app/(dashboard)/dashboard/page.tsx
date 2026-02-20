@@ -13,7 +13,6 @@ import {
   Building2,
   X,
   Wand2,
-  Star,
   Briefcase,
   Award,
   Zap,
@@ -29,22 +28,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { TrendingTopics, type TrendingTopic } from "@/components/shared/trending-topics";
 import { SponsoredSidebar, type SponsoredAd, type PromotedPost } from "@/components/shared/sponsored-sidebar";
 import { TrendingPosts, type TrendingPost } from "@/components/shared/trending-posts";
-
-interface SidebarPost {
-  id: string;
-  content: string;
-  mediaUrl: string | null;
-  destinationUrl: string | null;
-  authorName: string;
-  authorAvatar: string | null;
-  viewCount?: number;
-  likeCount?: number;
-  commentCount?: number;
-}
 
 interface DashboardData {
   user: {
@@ -90,8 +76,24 @@ interface DashboardData {
   } | null;
   sidebar: {
     sponsoredAds: SponsoredAd[];
-    promotedPosts: SidebarPost[];
-    trendingPosts: SidebarPost[];
+    promotedPosts: Array<{
+      id: string;
+      content: string;
+      mediaUrl: string | null;
+      destinationUrl: string | null;
+      authorName: string;
+      authorAvatar: string | null;
+    }>;
+    trendingPosts: Array<{
+      id: string;
+      content: string;
+      mediaUrl: string | null;
+      authorName: string;
+      authorAvatar: string | null;
+      viewCount?: number;
+      likeCount?: number;
+      commentCount?: number;
+    }>;
     trendingTopics: TrendingTopic[];
   };
 }
@@ -194,7 +196,6 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBrandBanner, setShowBrandBanner] = useState(true);
-  const [selectedPost, setSelectedPost] = useState<SidebarPost | null>(null);
 
   useEffect(() => {
     async function fetchDashboard() {
@@ -557,20 +558,7 @@ export default function DashboardPage() {
             </motion.div>
           ) : trendingPosts.length > 0 ? (
             <motion.div variants={itemVariants}>
-              <TrendingPosts
-                posts={trendingPosts}
-                onPostClick={(post) => setSelectedPost({
-                  id: post.id,
-                  content: post.content,
-                  mediaUrl: post.mediaUrl,
-                  destinationUrl: null,
-                  authorName: post.authorName,
-                  authorAvatar: post.authorAvatar,
-                  viewCount: post.viewCount,
-                  likeCount: post.likeCount,
-                  commentCount: post.commentCount,
-                })}
-              />
+              <TrendingPosts posts={trendingPosts} />
             </motion.div>
           ) : null}
 
@@ -599,86 +587,11 @@ export default function DashboardPage() {
           </motion.div>
         ) : trendingPosts.length > 0 ? (
           <motion.div variants={itemVariants}>
-            <TrendingPosts
-              posts={trendingPosts}
-              grid
-              limit={2}
-              onPostClick={(post) => setSelectedPost({
-                id: post.id,
-                content: post.content,
-                mediaUrl: post.mediaUrl,
-                destinationUrl: null,
-                authorName: post.authorName,
-                authorAvatar: post.authorAvatar,
-                viewCount: post.viewCount,
-                likeCount: post.likeCount,
-                commentCount: post.commentCount,
-              })}
-            />
+            <TrendingPosts posts={trendingPosts} grid limit={2} />
           </motion.div>
         ) : null}
       </div>
 
-      {/* Post Detail Modal */}
-      <Dialog open={!!selectedPost} onOpenChange={() => setSelectedPost(null)}>
-        <DialogContent className="max-w-lg p-0 overflow-hidden">
-          {selectedPost && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.2 }}
-            >
-              {selectedPost.mediaUrl && (
-                <div className="w-full aspect-video bg-muted">
-                  <img
-                    src={selectedPost.mediaUrl}
-                    alt=""
-                    className="w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                  />
-                </div>
-              )}
-              <div className="p-5 space-y-4">
-                <div className="flex items-center gap-3">
-                  <Avatar className="w-9 h-9">
-                    <AvatarImage src={selectedPost.authorAvatar || undefined} />
-                    <AvatarFallback className="text-sm font-semibold bg-gradient-to-br from-brand-500 to-violet-600 text-white">
-                      {selectedPost.authorName?.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-semibold text-sm">{selectedPost.authorName}</p>
-                    <p className="text-xs text-muted-foreground">Post</p>
-                  </div>
-                </div>
-                {selectedPost.content && (
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{selectedPost.content}</p>
-                )}
-                <div className="flex items-center gap-4 pt-3 border-t">
-                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <Eye className="h-4 w-4" />
-                    <span>{formatCount(selectedPost.viewCount || 0)} views</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <Heart className="h-4 w-4" />
-                    <span>{formatCount(selectedPost.likeCount || 0)} likes</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <MessageCircle className="h-4 w-4" />
-                    <span>{formatCount(selectedPost.commentCount || 0)}</span>
-                  </div>
-                </div>
-                <Button className="w-full" size="sm" asChild>
-                  <Link href="/feed">
-                    <ArrowRight className="h-4 w-4 mr-2" />
-                    View in Feed
-                  </Link>
-                </Button>
-              </div>
-            </motion.div>
-          )}
-        </DialogContent>
-      </Dialog>
     </motion.div>
   );
 }

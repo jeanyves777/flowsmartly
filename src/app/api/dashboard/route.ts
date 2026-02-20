@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { presignAllUrls } from "@/lib/utils/s3-client";
 
 export async function GET() {
   try {
@@ -119,18 +120,16 @@ export async function GET() {
           },
         },
       }),
-      // Trending tags (top 5 from recent posts)
-      prisma.$queryRaw`
-        SELECT hashtags as tag, COUNT(*) as count
-        FROM "Post"
-        WHERE "deletedAt" IS NULL
-          AND hashtags IS NOT NULL
-          AND hashtags != ''
-          AND "createdAt" > ${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)}
-        GROUP BY hashtags
-        ORDER BY count DESC
-        LIMIT 5
-      `.catch(() => []),
+      // Trending tags (top 5 from recent posts — parse JSON hashtags like /api/feed/trending)
+      prisma.post.findMany({
+        where: {
+          status: "PUBLISHED",
+          deletedAt: null,
+          hashtags: { not: "[]" },
+          createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        },
+        select: { hashtags: true },
+      }),
       // Promoted posts
       prisma.post.findMany({
         where: {
@@ -233,13 +232,26 @@ export async function GET() {
       };
     }
 
-    // Process trending tags
-    const trending = Array.isArray(trendingTags)
-      ? (trendingTags as Array<{ tag: string; count: bigint }>).map((t) => ({
-          tag: t.tag,
-          postCount: Number(t.count),
-        }))
-      : [];
+    // Process trending tags — parse JSON hashtags array per post, count individual tags
+    const hashtagCounts: Record<string, number> = {};
+    if (Array.isArray(trendingTags)) {
+      (trendingTags as Array<{ hashtags: string | null }>).forEach((post) => {
+        try {
+          const tags: string[] = JSON.parse(post.hashtags || "[]");
+          tags.forEach((tag: string) => {
+            const normalized = tag.toLowerCase();
+            hashtagCounts[normalized] = (hashtagCounts[normalized] || 0) + 1;
+          });
+        } catch { /* skip malformed */ }
+      });
+    }
+    const trending = Object.entries(hashtagCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([tag, count]) => ({
+        tag: tag.startsWith("#") ? tag : `#${tag}`,
+        postCount: count,
+      }));
 
     // Sidebar data
     const sidebar = {
@@ -273,6 +285,9 @@ export async function GET() {
       trendingTopics: trending,
     };
 
+    // Presign S3 URLs in sidebar data (avatars, media, etc.)
+    const presignedSidebar = await presignAllUrls(sidebar);
+
     return NextResponse.json({
       success: true,
       data: {
@@ -280,7 +295,7 @@ export async function GET() {
           name: user?.name || "User",
           plan: user?.plan || "STARTER",
           aiCredits: user?.aiCredits || 0,
-          avatarUrl: user?.avatarUrl || null,
+          avatarUrl: user?.avatarUrl ? await presignAllUrls(user.avatarUrl) : null,
         },
         brandKit: brandKit ? {
           id: brandKit.id,
@@ -300,7 +315,7 @@ export async function GET() {
         },
         recentActivity,
         agentStats,
-        sidebar,
+        sidebar: presignedSidebar,
       },
     });
   } catch (error) {
