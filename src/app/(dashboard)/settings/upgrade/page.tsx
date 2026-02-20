@@ -17,9 +17,9 @@ import {
   Sparkles,
   Shield,
   CreditCard,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -70,12 +70,49 @@ const planColors: Record<string, string> = {
   ENTERPRISE: "from-orange-500 to-red-600",
 };
 
+const planAccentColors: Record<string, string> = {
+  STARTER: "from-gray-400 to-gray-600",
+  PRO: "from-brand-400 to-purple-500",
+  BUSINESS: "from-blue-400 to-indigo-500",
+  ENTERPRISE: "from-orange-400 to-red-500",
+};
+
 const planDescriptions: Record<string, string> = {
   STARTER: "Perfect for getting started with AI-powered content creation",
   PRO: "For creators who want more power and professional tools",
   BUSINESS: "For teams and businesses scaling their marketing efforts",
   ENTERPRISE: "Full-featured solution for large organizations",
 };
+
+const planCreditBg: Record<string, string> = {
+  STARTER: "bg-gray-500/5",
+  PRO: "bg-purple-500/5",
+  BUSINESS: "bg-blue-500/5",
+  ENTERPRISE: "bg-orange-500/5",
+};
+
+const faqItems = [
+  {
+    question: "Can I change plans anytime?",
+    answer:
+      "Yes! You can upgrade or downgrade your plan at any time. When upgrading, you\u2019ll be charged the prorated difference. When downgrading, the change takes effect at the end of your billing cycle.",
+  },
+  {
+    question: "What happens to unused credits?",
+    answer:
+      "Monthly credits reset at the beginning of each billing cycle. Purchased credit packages never expire and remain in your account until used.",
+  },
+  {
+    question: "Is there a free trial?",
+    answer:
+      "Our Starter plan is free forever with 500 credits per month. You can upgrade to a paid plan anytime to access more features and credits.",
+  },
+  {
+    question: "How do I cancel my subscription?",
+    answer:
+      "You can cancel your subscription anytime from your billing settings. You\u2019ll continue to have access until the end of your current billing period.",
+  },
+];
 
 export default function UpgradePage() {
   return (
@@ -103,6 +140,8 @@ function UpgradeContent() {
   const [confirmPaymentMethod, setConfirmPaymentMethod] = useState<PaymentMethod | null>(null);
   // Use a ref for pendingPlanId to avoid closure issues with callbacks
   const pendingPlanIdRef = useRef<string | null>(null);
+  // FAQ accordion state
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
   const fetchPaymentMethods = useCallback(async () => {
     try {
@@ -301,51 +340,54 @@ function UpgradeContent() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex-1 flex flex-col space-y-6 p-6"
+      className="flex-1 flex flex-col space-y-8 p-6"
     >
-      {/* Header */}
-      <div className="flex items-center gap-4">
+      {/* Back Button */}
+      <div className="flex items-center">
         <Button variant="ghost" size="icon" asChild>
           <Link href="/settings?tab=billing">
             <ArrowLeft className="w-5 h-5" />
           </Link>
         </Button>
-        <div>
-          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
-              <Crown className="w-4 h-4 text-white" />
-            </div>
-            Choose Your Plan
-          </h1>
-        </div>
       </div>
 
-      {/* Billing Toggle */}
-      <div className="flex justify-center">
-        <div className="inline-flex items-center gap-2 p-1 rounded-xl bg-muted">
-          <button
-            onClick={() => setBillingInterval("monthly")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              billingInterval === "monthly"
-                ? "bg-background shadow-sm text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Monthly
-          </button>
-          <button
-            onClick={() => setBillingInterval("yearly")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
-              billingInterval === "yearly"
-                ? "bg-background shadow-sm text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Yearly
-            <Badge variant="secondary" className="bg-green-500/10 text-green-500 text-xs">
-              Save 17%
-            </Badge>
-          </button>
+      {/* Hero Section */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-500/10 to-purple-500/10 border border-brand-500/10 px-8 py-10 text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-purple-600 shadow-lg shadow-purple-500/25">
+          <Crown className="w-7 h-7 text-white" />
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight mb-2">Choose Your Plan</h1>
+        <p className="text-muted-foreground max-w-md mx-auto mb-6">
+          Unlock powerful AI tools and grow your business faster
+        </p>
+
+        {/* Billing Toggle */}
+        <div className="flex justify-center">
+          <div className="inline-flex items-center gap-2 p-1 rounded-xl bg-background/80 backdrop-blur-sm border shadow-sm">
+            <button
+              onClick={() => setBillingInterval("monthly")}
+              className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
+                billingInterval === "monthly"
+                  ? "bg-foreground text-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBillingInterval("yearly")}
+              className={`px-5 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                billingInterval === "yearly"
+                  ? "bg-foreground text-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Yearly
+              <Badge variant="secondary" className="bg-green-500/15 text-green-600 dark:text-green-400 text-xs border-0">
+                Save 17%
+              </Badge>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -353,95 +395,103 @@ function UpgradeContent() {
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-[500px] rounded-2xl" />
+            <Skeleton key={i} className="h-[520px] rounded-2xl" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
           {plans.map((plan) => {
             const Icon = planIcons[plan.id] || Sparkles;
             const colorClass = planColors[plan.id] || "from-gray-500 to-gray-700";
+            const accentColor = planAccentColors[plan.id] || "from-gray-400 to-gray-600";
+            const creditBg = planCreditBg[plan.id] || "bg-gray-500/5";
             const description = planDescriptions[plan.id] || "";
             const status = getPlanStatus(plan.id);
             const price = getPrice(plan);
             const isPopular = plan.id === "PRO";
+            const isCurrent = status === "current";
 
             return (
-              <Card
+              <div
                 key={plan.id}
-                className={`relative overflow-hidden transition-all hover:shadow-lg ${
-                  status === "current"
-                    ? "ring-2 ring-brand-500"
+                className={`relative flex flex-col rounded-2xl border bg-card text-card-foreground overflow-hidden transition-all duration-200 hover:shadow-lg ${
+                  isCurrent
+                    ? "ring-2 ring-green-500/50 shadow-md"
                     : isPopular
-                    ? "ring-2 ring-purple-500"
-                    : ""
+                    ? "shadow-xl ring-2 ring-purple-500/50 scale-[1.02]"
+                    : "hover:shadow-md"
                 }`}
               >
+                {/* Top Accent Strip */}
+                <div className={`h-1 w-full bg-gradient-to-r ${accentColor}`} />
+
                 {/* Popular Badge */}
-                {isPopular && status !== "current" && (
-                  <div className="absolute top-0 right-0">
-                    <div className="bg-purple-500 text-white text-xs font-medium px-3 py-1 rounded-bl-lg">
+                {isPopular && !isCurrent && (
+                  <div className="absolute top-1 right-0 z-10">
+                    <div className="bg-gradient-to-r from-brand-500 to-purple-600 text-white text-xs font-semibold px-3.5 py-1.5 rounded-bl-xl shadow-md">
                       Most Popular
                     </div>
                   </div>
                 )}
 
-                {/* Current Badge */}
-                {status === "current" && (
-                  <div className="absolute top-0 right-0">
-                    <div className="bg-brand-500 text-white text-xs font-medium px-3 py-1 rounded-bl-lg">
+                {/* Current Plan Badge */}
+                {isCurrent && (
+                  <div className="absolute top-1 right-0 z-10">
+                    <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-semibold px-3.5 py-1.5 rounded-bl-xl shadow-md flex items-center gap-1">
+                      <Check className="w-3 h-3" />
                       Current Plan
                     </div>
                   </div>
                 )}
 
-                <CardHeader className="pb-4">
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${colorClass} flex items-center justify-center mb-4`}>
-                    <Icon className="w-6 h-6 text-white" />
+                <div className="flex flex-col flex-1 p-6 pt-5">
+                  {/* Icon & Title */}
+                  <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${colorClass} flex items-center justify-center mb-4 shadow-sm`}>
+                    <Icon className="w-7 h-7 text-white" />
                   </div>
-                  <CardTitle className="text-xl">{plan.name}</CardTitle>
-                  <CardDescription className="min-h-[40px]">
+                  <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
+                  <p className="text-sm text-muted-foreground min-h-[40px] mb-5">
                     {description}
-                  </CardDescription>
-                </CardHeader>
+                  </p>
 
-                <CardContent className="space-y-6">
                   {/* Pricing */}
-                  <div>
+                  <div className="mb-5">
                     {plan.priceCentsMonthly === 0 ? (
-                      <div className="text-3xl font-bold">Free</div>
+                      <div className="text-4xl font-bold">Free</div>
                     ) : (
                       <>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-3xl font-bold">${price.display}</span>
-                          <span className="text-muted-foreground">/month</span>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-4xl font-bold">${price.display}</span>
+                          <span className="text-sm text-muted-foreground">/month</span>
                         </div>
                         {billingInterval === "yearly" && price.total && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            ${price.total} billed yearly
+                          <div className="mt-1.5 space-y-0.5">
+                            <p className="text-sm text-muted-foreground">
+                              ${price.total} billed annually
+                            </p>
                             {price.savings && (
-                              <span className="text-green-500 ml-1">
-                                (Save ${price.savings})
-                              </span>
+                              <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                                You save ${price.savings}/year
+                              </p>
                             )}
-                          </p>
+                          </div>
                         )}
                       </>
                     )}
                   </div>
 
                   {/* Credits */}
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
-                    <Sparkles className="w-4 h-4 text-brand-500" />
-                    <span className="font-medium">
+                  <div className={`flex items-center gap-2.5 p-3.5 rounded-xl ${creditBg} mb-5`}>
+                    <Sparkles className="w-4.5 h-4.5 text-brand-500 shrink-0" />
+                    <span className="font-semibold text-sm">
                       {plan.monthlyCredits.toLocaleString()} credits/month
                     </span>
                   </div>
 
                   {/* Features */}
-                  <ul className="space-y-2.5">
+                  <ul className="space-y-3 mb-6 flex-1">
                     {plan.features.map((feature, index) => (
-                      <li key={index} className="flex items-start gap-2 text-sm">
+                      <li key={index} className="flex items-start gap-2.5 text-[13px] leading-relaxed">
                         <Check className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
                         <span>{feature}</span>
                       </li>
@@ -449,19 +499,19 @@ function UpgradeContent() {
                   </ul>
 
                   {/* Action Button */}
-                  <div className="pt-2">
-                    {status === "current" ? (
-                      <Button variant="outline" className="w-full" disabled>
+                  <div className="pt-2 mt-auto">
+                    {isCurrent ? (
+                      <Button
+                        variant="outline"
+                        className="w-full border-green-500/30 text-green-600 dark:text-green-400 hover:bg-green-500/5"
+                        disabled
+                      >
                         <Check className="w-4 h-4 mr-2" />
                         Current Plan
                       </Button>
                     ) : status === "upgrade" ? (
                       <Button
-                        className={`w-full ${
-                          isPopular
-                            ? "bg-gradient-to-r from-purple-500 to-brand-500 hover:from-purple-600 hover:to-brand-600"
-                            : ""
-                        }`}
+                        className={`w-full bg-gradient-to-r ${colorClass} hover:opacity-90 text-white shadow-sm transition-all`}
                         onClick={() => handleSelectPlan(plan.id)}
                         disabled={isCheckingOut}
                       >
@@ -486,10 +536,28 @@ function UpgradeContent() {
                       </Button>
                     )}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Trust Indicators */}
+      {!isLoading && (
+        <div className="flex flex-wrap items-center justify-center gap-8 py-2">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Shield className="w-4 h-4 text-green-500" />
+            <span>Secure payment</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <RefreshCw className="w-4 h-4 text-blue-500" />
+            <span>Cancel anytime</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Zap className="w-4 h-4 text-amber-500" />
+            <span>Instant access</span>
+          </div>
         </div>
       )}
 
@@ -502,6 +570,43 @@ function UpgradeContent() {
           </span>
         </div>
       )}
+
+      {/* FAQ Section - Accordion */}
+      <div className="max-w-2xl mx-auto w-full">
+        <h2 className="text-lg font-semibold mb-4 text-center">Frequently Asked Questions</h2>
+        <div className="divide-y rounded-xl border overflow-hidden">
+          {faqItems.map((item, index) => (
+            <div key={index} className="bg-card">
+              <button
+                onClick={() => setExpandedFaq(expandedFaq === index ? null : index)}
+                className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-muted/50 transition-colors"
+              >
+                <span className="font-medium text-sm pr-4">{item.question}</span>
+                <ChevronDown
+                  className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200 ${
+                    expandedFaq === index ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+              <AnimatePresence initial={false}>
+                {expandedFaq === index && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                    className="overflow-hidden"
+                  >
+                    <p className="px-5 pb-4 text-sm text-muted-foreground leading-relaxed">
+                      {item.answer}
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Add Card Modal */}
       <AddCardForm
@@ -632,41 +737,6 @@ function UpgradeContent() {
           </Dialog>
         )}
       </AnimatePresence>
-
-      {/* FAQ Section */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Frequently Asked Questions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-semibold mb-2">Can I change plans anytime?</h4>
-              <p className="text-sm text-muted-foreground">
-                Yes! You can upgrade or downgrade your plan at any time. When upgrading, you&apos;ll be charged the prorated difference. When downgrading, the change takes effect at the end of your billing cycle.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-2">What happens to unused credits?</h4>
-              <p className="text-sm text-muted-foreground">
-                Monthly credits reset at the beginning of each billing cycle. Purchased credit packages never expire and remain in your account until used.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-2">Is there a free trial?</h4>
-              <p className="text-sm text-muted-foreground">
-                Our Starter plan is free forever with 500 credits per month. You can upgrade to a paid plan anytime to access more features and credits.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-2">How do I cancel my subscription?</h4>
-              <p className="text-sm text-muted-foreground">
-                You can cancel your subscription anytime from your billing settings. You&apos;ll continue to have access until the end of your current billing period.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </motion.div>
   );
 }

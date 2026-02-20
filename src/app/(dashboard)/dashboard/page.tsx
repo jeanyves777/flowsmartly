@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingTopics, type TrendingTopic } from "@/components/shared/trending-topics";
 import { SponsoredSidebar, type SponsoredAd, type PromotedPost } from "@/components/shared/sponsored-sidebar";
 import { TrendingPosts, type TrendingPost } from "@/components/shared/trending-posts";
+import { PageLoader } from "@/components/shared/page-loader";
 
 interface DashboardData {
   user: {
@@ -129,66 +130,11 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-// ─── Full-page Loader ─────────────────────────────────────────────────────────
-
-function DashboardLoader() {
-  const tips = [
-    "Loading your dashboard...",
-    "Crunching your numbers...",
-    "Fetching latest stats...",
-  ];
-  const [tipIndex, setTipIndex] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTipIndex((i) => (i + 1) % tips.length);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [tips.length]);
-
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
-      <motion.div
-        className="relative"
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.5 }}
-      >
-        <motion.div
-          className="absolute inset-0 rounded-2xl bg-gradient-to-br from-brand-500/30 to-violet-500/30 blur-xl"
-          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        />
-        <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-violet-600 flex items-center justify-center shadow-lg shadow-brand-500/25">
-          <Image src="/logo.svg" alt="FlowSmartly" width={32} height={32} className="invert" />
-        </div>
-      </motion.div>
-
-      <div className="flex items-center gap-1.5">
-        {[0, 1, 2].map((i) => (
-          <motion.div
-            key={i}
-            className="w-2 h-2 rounded-full bg-brand-500"
-            animate={{ scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }}
-            transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
-          />
-        ))}
-      </div>
-
-      <AnimatePresence mode="wait">
-        <motion.p
-          key={tipIndex}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          className="text-sm text-muted-foreground"
-        >
-          {tips[tipIndex]}
-        </motion.p>
-      </AnimatePresence>
-    </div>
-  );
-}
+const dashboardTips = [
+  "Loading your dashboard...",
+  "Crunching your numbers...",
+  "Fetching latest stats...",
+];
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -215,7 +161,7 @@ export default function DashboardPage() {
   }, []);
 
   if (loading) {
-    return <DashboardLoader />;
+    return <PageLoader tips={dashboardTips} />;
   }
 
   const stats = data?.stats || {

@@ -55,6 +55,7 @@ import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { FileDropZone } from "@/components/shared/file-drop-zone";
 import { StripeProvider } from "@/components/providers/stripe-provider";
 import { AddCardForm } from "@/components/payments/add-card-form";
+import { InlineUpgrade } from "@/components/payments/inline-upgrade";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -162,6 +163,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [plans, setPlans] = useState<PlanData[]>([]);
+  const [allPlans, setAllPlans] = useState<PlanData[]>([]);
   const [creditPackages, setCreditPackages] = useState<CreditPackageData[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(true);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -347,6 +349,23 @@ export default function SettingsPage() {
     }
   }, []);
 
+  // Version that returns data for InlineUpgrade callback
+  const fetchPaymentMethodsReturn = useCallback(async (): Promise<PaymentMethod[]> => {
+    try {
+      const response = await fetch("/api/payments/methods");
+      const data = await response.json();
+      if (data.success) {
+        const methods = data.data.paymentMethods || [];
+        setPaymentMethods(methods);
+        return methods;
+      }
+      return [];
+    } catch (err) {
+      console.error("Failed to fetch payment methods:", err);
+      return [];
+    }
+  }, []);
+
   useEffect(() => {
     fetchPaymentMethods();
   }, [fetchPaymentMethods]);
@@ -360,6 +379,7 @@ export default function SettingsPage() {
         const data = await response.json();
         if (data.success) {
           setPlans(data.data.plans.filter((p: PlanData) => p.id !== "STARTER"));
+          setAllPlans(data.data.plans);
           setCreditPackages(data.data.creditPackages);
         }
       } catch (err) {
@@ -1439,65 +1459,30 @@ export default function SettingsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {(user?.plan === "STARTER" || !user?.plan) ? (
-                          <Button asChild>
-                            <Link href="/settings/upgrade">
-                              <Zap className="w-4 h-4 mr-2" />
-                              Upgrade Plan
-                            </Link>
+                          <Button onClick={() => document.getElementById("plan-selector")?.scrollIntoView({ behavior: "smooth", block: "center" })}>
+                            <Zap className="w-4 h-4 mr-2" />
+                            Upgrade Plan
                           </Button>
                         ) : (
-                          <Button variant="outline" asChild>
-                            <Link href="/settings/upgrade">
-                              <ArrowUpRight className="w-4 h-4 mr-2" />
-                              Change Plan
-                            </Link>
+                          <Button variant="outline" onClick={() => document.getElementById("plan-selector")?.scrollIntoView({ behavior: "smooth", block: "center" })}>
+                            <ArrowUpRight className="w-4 h-4 mr-2" />
+                            Change Plan
                           </Button>
                         )}
                       </div>
                     </div>
                   )}
 
-                  {/* Plan comparison */}
-                  {(user?.plan === "STARTER" || !user?.plan) && !isLoading && (
-                    <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {packagesLoading ? (
-                        <>
-                          <Skeleton className="h-64" />
-                          <Skeleton className="h-64" />
-                          <Skeleton className="h-64" />
-                        </>
-                      ) : (
-                        plans.map((plan) => (
-                          <div key={plan.id} className="p-4 rounded-xl border border-border hover:border-brand-500/50 transition-colors">
-                            <h4 className="font-semibold">{plan.name}</h4>
-                            <p className="text-2xl font-bold mt-1">
-                              ${(plan.priceCentsMonthly / 100).toFixed(2)}
-                              <span className="text-sm font-normal text-muted-foreground">/mo</span>
-                            </p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {plan.monthlyCredits.toLocaleString()} credits/month
-                            </p>
-                            <ul className="mt-3 space-y-1">
-                              {plan.features.map((f) => (
-                                <li key={f} className="text-xs text-muted-foreground flex items-center gap-1.5">
-                                  <Check className="w-3 h-3 text-green-500 shrink-0" />
-                                  {f}
-                                </li>
-                              ))}
-                            </ul>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full mt-4"
-                              asChild
-                            >
-                              <Link href="/settings/upgrade">
-                                Choose {plan.name}
-                              </Link>
-                            </Button>
-                          </div>
-                        ))
-                      )}
+                  {/* Inline Plan Selector */}
+                  {!isLoading && !packagesLoading && allPlans.length > 0 && (
+                    <div className="mt-6" id="plan-selector">
+                      <InlineUpgrade
+                        plans={allPlans}
+                        currentPlan={user?.plan || "STARTER"}
+                        paymentMethods={paymentMethods}
+                        onUpgradeSuccess={fetchProfile}
+                        onPaymentMethodsChanged={fetchPaymentMethodsReturn}
+                      />
                     </div>
                   )}
                 </CardContent>
