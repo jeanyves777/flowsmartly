@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
-import { PLATFORM_META } from "@/components/shared/social-platform-icons";
+import { PLATFORM_META, PLATFORM_ORDER } from "@/components/shared/social-platform-icons";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -34,8 +34,6 @@ const TONES = [
   { id: "humorous", label: "Humorous" },
   { id: "inspirational", label: "Inspirational" },
 ] as const;
-
-const PLATFORM_ORDER = ["feed", "instagram", "twitter", "linkedin", "facebook", "tiktok"];
 
 // ─── Component ──────────────────────────────────────────────────────────────
 

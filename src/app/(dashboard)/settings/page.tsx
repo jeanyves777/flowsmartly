@@ -51,6 +51,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
+import { PLATFORM_META } from "@/components/shared/social-platform-icons";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { FileDropZone } from "@/components/shared/file-drop-zone";
 import { StripeProvider } from "@/components/providers/stripe-provider";
@@ -136,12 +137,12 @@ const tabs: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: "appearance", label: "Appearance", icon: Palette },
 ];
 
-const platformIcons: Record<string, React.ElementType> = {
-  instagram: Instagram,
-  twitter: Twitter,
-  linkedin: Linkedin,
-  facebook: Facebook,
-};
+// Platform icons from shared PLATFORM_META — covers all 8 social platforms
+const platformIcons: Record<string, React.ElementType> = Object.fromEntries(
+  Object.entries(PLATFORM_META)
+    .filter(([k]) => k !== "feed")
+    .map(([k, v]) => [k, v.icon])
+);
 
 const defaultNotificationPrefs: NotificationPrefs = {
   emailDigest: true,
@@ -1803,7 +1804,7 @@ export default function SettingsPage() {
                   )}
                   <div className="mt-6 p-4 rounded-lg bg-muted/50 border border-dashed">
                     <p className="text-sm text-muted-foreground text-center">
-                      Social media integrations are coming soon. You&apos;ll be able to connect Instagram, X, LinkedIn, Facebook, and more to publish directly from FlowSmartly.
+                      Social media integrations are coming soon. You&apos;ll be able to connect Instagram, X, LinkedIn, Facebook, TikTok, YouTube, Pinterest, Threads and more to publish directly from FlowSmartly.
                     </p>
                   </div>
                 </CardContent>

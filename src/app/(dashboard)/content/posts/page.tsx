@@ -33,7 +33,7 @@ import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { FileDropZone } from "@/components/shared/file-drop-zone";
-import { PLATFORM_META } from "@/components/shared/social-platform-icons";
+import { PLATFORM_META, PLATFORM_ORDER } from "@/components/shared/social-platform-icons";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface MediaAttachment {
@@ -55,8 +55,7 @@ export default function ContentPostsPage() {
 
   // Build dynamic platform list from DB connections
   const SOCIAL_PLATFORMS = useMemo(() => {
-    const platformOrder = ["feed", "instagram", "twitter", "linkedin", "facebook", "tiktok"];
-    return platformOrder
+    return PLATFORM_ORDER
       .filter((id) => PLATFORM_META[id])
       .map((id) => ({
         id,

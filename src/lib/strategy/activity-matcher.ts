@@ -101,7 +101,7 @@ const STOP_WORDS = new Set([
 ]);
 
 // Social platforms that distinguish "social" from "content"
-const SOCIAL_PLATFORMS = ["instagram", "facebook", "twitter", "tiktok", "linkedin", "threads"];
+const SOCIAL_PLATFORMS = ["instagram", "facebook", "twitter", "tiktok", "linkedin", "youtube", "pinterest", "threads"];
 
 // ── Keyword Extraction ──
 
