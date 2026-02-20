@@ -2410,7 +2410,7 @@ export default function FeedPage() {
                   <div className="max-h-[40vh] overflow-hidden">
                     {(() => {
                       const url = adFocusPost.mediaUrls[0];
-                      const isVideo = url.match(/\.(mp4|webm|mov)(\?|#|$)/i) || url.includes("video");
+                      const isVideo = url?.match(/\.(mp4|webm|mov)(\?|#|$)/i) || url?.includes("video");
                       return isVideo ? (
                         <video src={url} controls autoPlay muted className="w-full max-h-[40vh] object-contain bg-black" />
                       ) : (
@@ -2636,7 +2636,7 @@ export default function FeedPage() {
             >
               {(() => {
                 const url = lightboxMedia.urls[lightboxMedia.index];
-                const isVideo = url.match(/\.(mp4|webm|mov)(\?|#|$)/i) || url.includes("video");
+                const isVideo = url?.match(/\.(mp4|webm|mov)(\?|#|$)/i) || url?.includes("video");
                 return isVideo ? (
                   <video
                     src={url}
@@ -2927,14 +2927,15 @@ function MediaVideo({ url, className, onClick }: { url: string; className?: stri
   );
 }
 
-function PostMediaGallery({ mediaUrls, onMediaClick }: { mediaUrls: string[]; onMediaClick?: (index: number) => void }) {
+function PostMediaGallery({ mediaUrls: rawUrls, onMediaClick }: { mediaUrls: string[]; onMediaClick?: (index: number) => void }) {
+  const mediaUrls = rawUrls.filter(Boolean);
   const [activeIndex, setActiveIndex] = useState(0);
 
   if (mediaUrls.length === 0) return null;
 
   if (mediaUrls.length === 1) {
     const url = mediaUrls[0];
-    const isVideo = url.match(/\.(mp4|webm|mov)(\?|#|$)/i) || url.includes("video");
+    const isVideo = url?.match(/\.(mp4|webm|mov)(\?|#|$)/i) || url?.includes("video");
     return (
       <div
         className="mb-3 rounded-xl overflow-hidden border bg-muted/20 relative group cursor-pointer"
@@ -2958,7 +2959,7 @@ function PostMediaGallery({ mediaUrls, onMediaClick }: { mediaUrls: string[]; on
   }
 
   const url = mediaUrls[activeIndex];
-  const isVideo = url.match(/\.(mp4|webm|mov)(\?|#|$)/i) || url.includes("video");
+  const isVideo = url?.match(/\.(mp4|webm|mov)(\?|#|$)/i) || url?.includes("video");
 
   return (
     <div className="mb-3 rounded-xl overflow-hidden relative group border bg-muted/20">
