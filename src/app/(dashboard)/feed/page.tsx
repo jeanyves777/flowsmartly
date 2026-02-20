@@ -45,6 +45,7 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,8 +57,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { AITextAssistant } from "@/components/feed/ai-text-assistant";
 import { AdCard } from "@/components/ads/ad-card";
@@ -299,16 +298,7 @@ export default function FeedPage() {
   // Brand identity for user avatar
   const [brandLogo, setBrandLogo] = useState<string | null>(null);
 
-  // Boost dialog state
-  const [showBoostDialog, setShowBoostDialog] = useState(false);
-  const [boostPostId, setBoostPostId] = useState<string | null>(null);
-  const [isBoosting, setIsBoosting] = useState(false);
-  const [boostConfig, setBoostConfig] = useState({
-    budget: "50",
-    duration: "7",
-    objective: "ENGAGEMENT",
-  });
-  const [boostPlatforms, setBoostPlatforms] = useState<Set<string>>(new Set(["feed"]));
+  const router = useRouter();
 
   // Ad viewing / Watch & Earn state
   const [activeAdView, setActiveAdView] = useState<{
@@ -547,75 +537,6 @@ export default function FeedPage() {
     }
   }, [posts, toast]);
 
-  // Boost post
-  const handleBoostPost = async () => {
-    if (!boostPostId) return;
-    if (boostPlatforms.size === 0) {
-      toast({ title: "Select at least one platform", variant: "destructive" });
-      return;
-    }
-    setIsBoosting(true);
-    try {
-      const post = posts.find(p => p.id === boostPostId);
-      const baseCredits = Math.round(parseFloat(boostConfig.budget) || 0);
-      const totalCredits = baseCredits * Math.max(1, boostPlatforms.size);
-      if (baseCredits < 1) {
-        toast({ title: "Minimum boost is 1 credit per platform", variant: "destructive" });
-        setIsBoosting(false);
-        return;
-      }
-      const response = await fetch("/api/ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: `Boost: ${post?.content?.substring(0, 50) || "Post"}...`,
-          objective: boostConfig.objective,
-          budget: totalCredits, // Total credits (per-platform × platform count)
-          costPerView: 0.01,
-          startDate: new Date().toISOString(),
-          endDate: new Date(Date.now() + parseInt(boostConfig.duration) * 86400000).toISOString(),
-          postId: boostPostId,
-          targeting: { platforms: Array.from(boostPlatforms) },
-        }),
-      });
-
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error?.message || "Failed to boost post");
-
-      // Update local state to reflect boosted status
-      setPosts(prev => prev.map(p => p.id === boostPostId ? { ...p, isPromoted: true } : p));
-      toast({ title: "Post boosted!", description: "Your campaign is now active." });
-      setShowBoostDialog(false);
-      setBoostPostId(null);
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Failed to boost post",
-        variant: "destructive",
-      });
-    } finally {
-      setIsBoosting(false);
-    }
-  };
-
-  const openBoostDialog = (postId: string) => {
-    setBoostPostId(postId);
-    setBoostConfig({ budget: "50", duration: "7", objective: "ENGAGEMENT" });
-    setBoostPlatforms(new Set(["feed"]));
-    setShowBoostDialog(true);
-  };
-
-  const toggleBoostPlatform = (platformId: string) => {
-    setBoostPlatforms(prev => {
-      const next = new Set(prev);
-      if (next.has(platformId)) {
-        next.delete(platformId);
-      } else {
-        next.add(platformId);
-      }
-      return next;
-    });
-  };
 
   // Start watching an ad to earn (full-screen focus mode with visibility tracking)
   const handleStartAdView = async (postId: string) => {
@@ -2125,7 +2046,7 @@ export default function FeedPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="gap-1.5 rounded-lg px-3 text-muted-foreground hover:text-amber-500"
-                                onClick={() => openBoostDialog(post.id)}
+                                onClick={() => router.push(`/ads/create?postId=${post.id}`)}
                               >
                                 <Rocket className="w-[18px] h-[18px]" />
                                 <span className="text-xs font-medium">Boost</span>
@@ -2924,152 +2845,6 @@ export default function FeedPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Boost Post Dialog */}
-      <Dialog open={showBoostDialog} onOpenChange={setShowBoostDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Rocket className="w-5 h-5 text-amber-500" />
-              Boost Post
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <p className="text-sm text-muted-foreground">
-              Select platforms and set credits per platform. More platforms &amp; credits = more reach.
-            </p>
-
-            {/* Platform Selection */}
-            <div className="space-y-2">
-              <Label>Boost on</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: "feed", name: "Feed", color: "#8B5CF6" },
-                  { id: "instagram", name: "Instagram", color: "#E4405F" },
-                  { id: "facebook", name: "Facebook", color: "#1877F2" },
-                  { id: "twitter", name: "X", color: "#000000" },
-                  { id: "linkedin", name: "LinkedIn", color: "#0A66C2" },
-                  { id: "tiktok", name: "TikTok", color: "#000000" },
-                ].map((platform) => {
-                  const isSelected = boostPlatforms.has(platform.id);
-                  return (
-                    <button
-                      key={platform.id}
-                      type="button"
-                      onClick={() => toggleBoostPlatform(platform.id)}
-                      className={`px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
-                        isSelected
-                          ? "border-2 bg-muted"
-                          : "border-border hover:border-muted-foreground/30"
-                      }`}
-                      style={isSelected ? { borderColor: platform.color, color: platform.color } : undefined}
-                    >
-                      {isSelected && <Check className="w-3 h-3 inline mr-1" />}
-                      {platform.name}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {boostPlatforms.size} platform{boostPlatforms.size !== 1 ? "s" : ""} selected
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="boost-objective">Goal</Label>
-              <select
-                id="boost-objective"
-                value={boostConfig.objective}
-                onChange={(e) => setBoostConfig(prev => ({ ...prev, objective: e.target.value }))}
-                className="w-full px-3 py-2 rounded-md border bg-background text-sm"
-              >
-                <option value="ENGAGEMENT">More Engagement</option>
-                <option value="AWARENESS">Brand Awareness</option>
-                <option value="TRAFFIC">Website Traffic</option>
-                <option value="CONVERSIONS">Conversions</option>
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="boost-budget">Credits per platform</Label>
-                <Input
-                  id="boost-budget"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={boostConfig.budget}
-                  onChange={(e) => setBoostConfig(prev => ({ ...prev, budget: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="boost-duration">Duration (days)</Label>
-                <Input
-                  id="boost-duration"
-                  type="number"
-                  min="1"
-                  max="30"
-                  value={boostConfig.duration}
-                  onChange={(e) => setBoostConfig(prev => ({ ...prev, duration: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            {(() => {
-              const baseCredits = Math.round(parseFloat(boostConfig.budget || "0"));
-              const platCount = Math.max(1, boostPlatforms.size);
-              const totalCredits = baseCredits * platCount;
-              const totalCents = totalCredits * 5;
-              const totalDollars = totalCents / 100;
-              const estViews = Math.floor(totalCents / 1);
-              return (
-                <div className="rounded-lg bg-muted/50 p-3 text-sm space-y-1">
-                  {platCount > 1 && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Per platform</span>
-                      <span className="font-medium">{baseCredits} credits &times; {platCount}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Total credits</span>
-                    <span className="font-semibold">{totalCredits} credits (${totalDollars.toFixed(2)})</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Cost per view</span>
-                    <span className="font-medium">$0.01</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Estimated views</span>
-                    <span className="font-medium">{estViews.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Estimated reach</span>
-                    <span className="font-medium">{(estViews * 2).toLocaleString()} - {(estViews * 5).toLocaleString()} people</span>
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setShowBoostDialog(false)} disabled={isBoosting}>
-                Cancel
-              </Button>
-              <Button onClick={handleBoostPost} disabled={isBoosting || boostPlatforms.size === 0} className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white">
-                {isBoosting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Boosting...
-                  </>
-                ) : (
-                  <>
-                    <Rocket className="w-4 h-4 mr-2" />
-                    Boost ({Math.round(parseFloat(boostConfig.budget || "0")) * Math.max(1, boostPlatforms.size)} credits)
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </motion.div>
   );
 }
