@@ -30,8 +30,6 @@ import {
   Info,
   RefreshCw,
   Image,
-  Upload,
-  FolderOpen,
   Wand,
   UserCircle,
   X,
@@ -60,7 +58,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
-import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { MediaUploader } from "@/components/shared/media-uploader";
 import { US_HOLIDAYS, getHolidayDate } from "@/lib/marketing/holidays";
 import type { Holiday } from "@/lib/marketing/holidays";
 import { getEmailTemplates, TEMPLATE_CATEGORIES } from "@/lib/marketing/templates";
@@ -282,11 +280,9 @@ export default function CreateEmailAutomationPage() {
   // Image / attachment
   const [emailImageUrl, setEmailImageUrl] = useState("");
   const [imageSource, setImageSource] = useState<"upload" | "media" | "ai" | "contact_photo" | "">("");
-  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageOverlayText, setImageOverlayText] = useState("");
   const [imagePrompt, setImagePrompt] = useState("");
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const hasImage = !!emailImageUrl || imageSource === "contact_photo";
 
   // Build preview HTML with image injected after greeting paragraph
@@ -1585,12 +1581,10 @@ export default function CreateEmailAutomationPage() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {/* Image source tabs */}
-                      <div className="grid grid-cols-4 gap-1.5">
+                      <div className="grid grid-cols-2 gap-1.5">
                         {[
-                          { id: "upload" as const, label: "Upload", icon: Upload },
-                          { id: "media" as const, label: "Library", icon: FolderOpen },
-                          { id: "ai" as const, label: "AI Gen", icon: Wand },
-                          { id: "contact_photo" as const, label: "Contact", icon: UserCircle },
+                          { id: "ai" as const, label: "AI Generate", icon: Wand },
+                          { id: "contact_photo" as const, label: "Contact Photo", icon: UserCircle },
                         ].map((tab) => (
                           <button
                             key={tab.id}
@@ -1599,8 +1593,6 @@ export default function CreateEmailAutomationPage() {
                               if (tab.id === "contact_photo") {
                                 setImageSource("contact_photo");
                                 setEmailImageUrl("");
-                              } else if (tab.id === "media") {
-                                setShowMediaLibrary(true);
                               } else {
                                 setImageSource(tab.id);
                               }
@@ -1618,46 +1610,21 @@ export default function CreateEmailAutomationPage() {
                         ))}
                       </div>
 
-                      {/* Upload area */}
-                      {imageSource === "upload" && !emailImageUrl && (
-                        <label className="flex flex-col items-center gap-2 p-6 border-2 border-dashed rounded-lg cursor-pointer hover:border-brand-500/50 transition-colors">
-                          {isUploadingImage ? (
-                            <Loader2 className="w-6 h-6 animate-spin text-brand-500" />
-                          ) : (
-                            <Upload className="w-6 h-6 text-muted-foreground" />
-                          )}
-                          <span className="text-xs text-muted-foreground">
-                            {isUploadingImage ? "Uploading..." : "Click to upload (PNG, JPG, max 5MB)"}
-                          </span>
-                          <input
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp"
-                            className="hidden"
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              if (file.size > 5 * 1024 * 1024) {
-                                toast({ title: "Image must be under 5MB", variant: "destructive" });
-                                return;
-                              }
-                              setIsUploadingImage(true);
-                              try {
-                                const formData = new FormData();
-                                formData.append("file", file);
-                                const res = await fetch("/api/media", { method: "POST", body: formData });
-                                const data = await res.json();
-                                if (data.success && data.data?.file?.url) {
-                                  setEmailImageUrl(data.data.file.url);
-                                  setImageSource("upload");
-                                }
-                              } catch {
-                                toast({ title: "Upload failed", variant: "destructive" });
-                              } finally {
-                                setIsUploadingImage(false);
-                              }
-                            }}
-                          />
-                        </label>
+                      {/* Upload / Media Library */}
+                      {imageSource !== "ai" && imageSource !== "contact_photo" && (
+                        <MediaUploader
+                          value={emailImageUrl ? [emailImageUrl] : []}
+                          onChange={(urls) => {
+                            setEmailImageUrl(urls[0] || "");
+                            setImageSource(urls[0] ? "upload" : "");
+                          }}
+                          accept="image/png,image/jpeg,image/jpg,image/webp"
+                          maxSize={10 * 1024 * 1024}
+                          filterTypes={["image"]}
+                          variant="medium"
+                          placeholder="Add image"
+                          libraryTitle="Select Image"
+                        />
                       )}
 
                       {/* AI Generate */}
@@ -1722,8 +1689,8 @@ export default function CreateEmailAutomationPage() {
                         </div>
                       )}
 
-                      {/* Image preview */}
-                      {emailImageUrl && (
+                      {/* Image preview (AI-generated only — MediaUploader handles its own preview) */}
+                      {emailImageUrl && imageSource === "ai" && (
                         <div className="relative group">
                           <img
                             src={emailImageUrl}
@@ -2463,18 +2430,6 @@ export default function CreateEmailAutomationPage() {
         )}
       </div>
 
-      {/* Media Library Picker */}
-      <MediaLibraryPicker
-        open={showMediaLibrary}
-        onClose={() => setShowMediaLibrary(false)}
-        onSelect={(url) => {
-          setEmailImageUrl(url);
-          setImageSource("media");
-          setShowMediaLibrary(false);
-        }}
-        title="Select Email Image"
-        filterTypes={["image"]}
-      />
     </motion.div>
   );
 }

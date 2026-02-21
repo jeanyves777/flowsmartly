@@ -32,7 +32,6 @@ import {
   Plus,
   Image,
   Upload,
-  FolderOpen,
   Wand,
   UserCircle,
   X,
@@ -57,7 +56,7 @@ import { cn } from "@/lib/utils/cn";
 import { getSmsTemplates, TEMPLATE_CATEGORIES } from "@/lib/marketing/templates";
 import type { MarketingTemplate, TemplateCategory } from "@/lib/marketing/templates";
 import { MERGE_TAGS, type MergeTagCategory } from "@/lib/email/merge-tags";
-import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { MediaUploader } from "@/components/shared/media-uploader";
 import { NumberStatusBanner } from "@/components/sms/number-status-banner";
 
 // Types
@@ -185,11 +184,9 @@ function CreateSmsCampaignContent() {
   // MMS Image
   const [mmsImageUrl, setMmsImageUrl] = useState("");
   const [imageSource, setImageSource] = useState<"upload" | "media" | "ai" | "contact_photo" | "">("");
-  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageOverlayText, setImageOverlayText] = useState("");
   const [imagePrompt, setImagePrompt] = useState("");
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const isMMS = !!mmsImageUrl || imageSource === "contact_photo";
 
   // Dynamic credit costs
@@ -1100,10 +1097,9 @@ function CreateSmsCampaignContent() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {/* Image source tabs */}
-                      <div className="grid grid-cols-4 gap-1.5">
+                      <div className="grid grid-cols-3 gap-1.5">
                         {[
-                          { id: "upload" as const, label: "Upload", icon: Upload },
-                          { id: "media" as const, label: "Library", icon: FolderOpen },
+                          { id: "upload" as const, label: "Upload/Library", icon: Upload },
                           { id: "ai" as const, label: "AI Gen", icon: Wand },
                           { id: "contact_photo" as const, label: "Contact", icon: UserCircle },
                         ].map((tab) => (
@@ -1114,8 +1110,6 @@ function CreateSmsCampaignContent() {
                               if (tab.id === "contact_photo") {
                                 setImageSource("contact_photo");
                                 setMmsImageUrl("");
-                              } else if (tab.id === "media") {
-                                setShowMediaLibrary(true);
                               } else {
                                 setImageSource(tab.id);
                               }
@@ -1133,46 +1127,21 @@ function CreateSmsCampaignContent() {
                         ))}
                       </div>
 
-                      {/* Upload area */}
+                      {/* Upload / Library */}
                       {imageSource === "upload" && !mmsImageUrl && (
-                        <label className="flex flex-col items-center gap-2 p-6 border-2 border-dashed rounded-lg cursor-pointer hover:border-brand-500/50 transition-colors">
-                          {isUploadingImage ? (
-                            <Loader2 className="w-6 h-6 animate-spin text-brand-500" />
-                          ) : (
-                            <Upload className="w-6 h-6 text-muted-foreground" />
-                          )}
-                          <span className="text-xs text-muted-foreground">
-                            {isUploadingImage ? "Uploading..." : "Click to upload (PNG, JPG, max 5MB)"}
-                          </span>
-                          <input
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp"
-                            className="hidden"
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              if (file.size > 5 * 1024 * 1024) {
-                                toast({ title: "Image must be under 5MB", variant: "destructive" });
-                                return;
-                              }
-                              setIsUploadingImage(true);
-                              try {
-                                const formData = new FormData();
-                                formData.append("file", file);
-                                const res = await fetch("/api/media", { method: "POST", body: formData });
-                                const data = await res.json();
-                                if (data.success && data.data?.file?.url) {
-                                  setMmsImageUrl(data.data.file.url);
-                                  setImageSource("upload");
-                                }
-                              } catch {
-                                toast({ title: "Upload failed", variant: "destructive" });
-                              } finally {
-                                setIsUploadingImage(false);
-                              }
-                            }}
-                          />
-                        </label>
+                        <MediaUploader
+                          value={mmsImageUrl ? [mmsImageUrl] : []}
+                          onChange={(urls) => {
+                            setMmsImageUrl(urls[0] || "");
+                            if (urls[0]) setImageSource("upload");
+                          }}
+                          accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                          maxSize={5 * 1024 * 1024}
+                          filterTypes={["image"]}
+                          variant="medium"
+                          placeholder="Add MMS image"
+                          libraryTitle="Select MMS Image"
+                        />
                       )}
 
                       {/* AI Generate */}
@@ -1800,18 +1769,6 @@ function CreateSmsCampaignContent() {
         )}
       </div>
 
-      {/* Media Library Picker */}
-      <MediaLibraryPicker
-        open={showMediaLibrary}
-        onClose={() => setShowMediaLibrary(false)}
-        onSelect={(url) => {
-          setMmsImageUrl(url);
-          setImageSource("media");
-          setShowMediaLibrary(false);
-        }}
-        title="Select MMS Image"
-        filterTypes={["image"]}
-      />
     </motion.div>
   );
 }

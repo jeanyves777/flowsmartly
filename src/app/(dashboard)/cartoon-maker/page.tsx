@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { motion, AnimatePresence } from "framer-motion";
@@ -28,8 +28,6 @@ import {
   FolderPlus,
   Wand2,
   Lightbulb,
-  ImagePlus,
-  Upload,
   Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,7 +40,7 @@ import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { useCreditCosts } from "@/hooks/use-credit-costs";
-import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { MediaUploader } from "@/components/shared/media-uploader";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { CharacterBrowser, type SelectedCharacter } from "@/components/cartoon/character-browser";
@@ -299,14 +297,11 @@ function CartoonMakerContent() {
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [uploadedCharacters, setUploadedCharacters] = useState<UploadedCharacter[]>([]);
-  const [isUploadingChar, setIsUploadingChar] = useState(false);
-  const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [libraryCharacters, setLibraryCharacters] = useState<SelectedCharacter[]>([]);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [historyPage, setHistoryPage] = useState(0);
   const HISTORY_PAGE_SIZE = 8;
-  const charFileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch user credits and brand kit
   useEffect(() => {
@@ -897,63 +892,6 @@ function CartoonMakerContent() {
     toast({ title: `Selected: "${suggestion.title}"` });
   };
 
-  const handleCharacterImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setIsUploadingChar(true);
-
-    for (const file of Array.from(files)) {
-      // Validate file type
-      const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
-      if (!allowedTypes.includes(file.type)) {
-        toast({ title: `${file.name}: Only PNG, JPEG, and WebP images are allowed`, variant: "destructive" });
-        continue;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        toast({ title: `${file.name}: Image must be under 5MB`, variant: "destructive" });
-        continue;
-      }
-
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("type", "cartoon-character");
-
-        const res = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        const data = await res.json();
-        if (data.success) {
-          // Generate a default name from filename (strip extension)
-          const baseName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
-          const defaultName = baseName.charAt(0).toUpperCase() + baseName.slice(1);
-
-          setUploadedCharacters((prev) => [
-            ...prev,
-            {
-              name: defaultName,
-              imageUrl: data.data.url,
-              fileName: file.name,
-            },
-          ]);
-        } else {
-          toast({ title: `Failed to upload ${file.name}`, variant: "destructive" });
-        }
-      } catch {
-        toast({ title: `Failed to upload ${file.name}`, variant: "destructive" });
-      }
-    }
-
-    setIsUploadingChar(false);
-    // Reset the file input
-    if (charFileInputRef.current) {
-      charFileInputRef.current.value = "";
-    }
-  };
-
   const handleRemoveUploadedCharacter = (index: number) => {
     setUploadedCharacters((prev) => prev.filter((_, i) => i !== index));
   };
@@ -964,14 +902,20 @@ function CartoonMakerContent() {
     );
   };
 
-  const handleMediaLibrarySelect = (url: string, file?: { originalName: string }) => {
-    const origName = file?.originalName || url.split("/").pop() || "Character";
-    const baseName = origName.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
-    const defaultName = baseName.charAt(0).toUpperCase() + baseName.slice(1);
-    setUploadedCharacters((prev) => [
-      ...prev,
-      { name: defaultName, imageUrl: url, fileName: origName },
-    ]);
+  const handleCharacterMediaChange = (urls: string[]) => {
+    // Find new URLs that aren't already in uploadedCharacters
+    const existingUrls = uploadedCharacters.map((c) => c.imageUrl);
+    const newUrls = urls.filter((u) => !existingUrls.includes(u));
+    if (newUrls.length === 0) return;
+
+    const newChars = newUrls.map((url) => {
+      const fileName = url.split("/").pop() || "Character";
+      const baseName = fileName.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+      const defaultName = baseName.charAt(0).toUpperCase() + baseName.slice(1);
+      return { name: defaultName, imageUrl: url, fileName };
+    });
+
+    setUploadedCharacters((prev) => [...prev, ...newChars]);
   };
 
   const getStatusIcon = (status: string, createdAt?: string) => {
@@ -1320,62 +1264,21 @@ function CartoonMakerContent() {
                       </div>
                     ))}
 
-                    {/* Upload button */}
-                    <button
-                      type="button"
-                      onClick={() => charFileInputRef.current?.click()}
-                      disabled={isGenerating || isUploadingChar}
-                      className={cn(
-                        "w-32 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all",
-                        isUploadingChar
-                          ? "border-brand-500/50 bg-brand-500/5"
-                          : "border-border hover:border-brand-500 hover:bg-brand-500/5 cursor-pointer"
-                      )}
-                      style={{ aspectRatio: uploadedCharacters.length > 0 ? undefined : "1" , minHeight: "6rem" }}
-                    >
-                      {isUploadingChar ? (
-                        <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
-                      ) : (
-                        <>
-                          <Upload className="h-5 w-5 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">Upload File</span>
-                        </>
-                      )}
-                    </button>
-
-                    {/* Media Library button */}
-                    <button
-                      type="button"
-                      onClick={() => setShowMediaPicker(true)}
-                      disabled={isGenerating}
-                      className={cn(
-                        "w-32 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all",
-                        "border-border hover:border-brand-500 hover:bg-brand-500/5 cursor-pointer"
-                      )}
-                      style={{ aspectRatio: uploadedCharacters.length > 0 ? undefined : "1", minHeight: "6rem" }}
-                    >
-                      <FolderOpen className="h-5 w-5 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">Media Library</span>
-                    </button>
                   </div>
 
-                  {/* Hidden file input */}
-                  <input
-                    ref={charFileInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
+                  {/* Character image uploader (upload + media library) */}
+                  <MediaUploader
+                    value={[]}
+                    onChange={handleCharacterMediaChange}
                     multiple
-                    onChange={handleCharacterImageUpload}
-                    className="hidden"
-                  />
-
-                  {/* Media Library Picker Modal */}
-                  <MediaLibraryPicker
-                    open={showMediaPicker}
-                    onClose={() => setShowMediaPicker(false)}
-                    onSelect={handleMediaLibrarySelect}
-                    title="Select Character Image"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    maxSize={5 * 1024 * 1024}
                     filterTypes={["image", "png", "jpg", "jpeg", "webp"]}
+                    uploadEndpoint="/api/upload"
+                    disabled={isGenerating}
+                    variant="medium"
+                    placeholder="Add character"
+                    libraryTitle="Select Character Image"
                   />
                 </div>}
 

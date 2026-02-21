@@ -16,8 +16,6 @@ import {
   ExternalLink,
   AlertCircle,
   ChevronDown,
-  Camera,
-  Trash2,
   Check,
   X,
   Plus,
@@ -30,7 +28,6 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
-  FolderOpen,
   Sparkles,
   CheckCircle,
   Video,
@@ -42,8 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
-import { FileDropZone } from "@/components/shared/file-drop-zone";
+import { MediaUploader } from "@/components/shared/media-uploader";
 import { SPECIALTY_OPTIONS, INDUSTRY_OPTIONS } from "@/lib/agent/constants";
 import Link from "next/link";
 
@@ -74,34 +70,6 @@ interface ShowcaseProject {
   mediaType?: "image" | "video";
 }
 
-// ─── Banner SVG ───────────────────────────────────────────────────────────────
-
-function ProfileBannerSVG() {
-  return (
-    <svg viewBox="0 0 800 200" fill="none" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
-      <rect width="800" height="200" fill="url(#bannerGrad)" />
-      <motion.circle cx="100" cy="100" r="60" fill="white" fillOpacity="0.03"
-        animate={{ r: [60, 70, 60] }} transition={{ duration: 4, repeat: Infinity }} />
-      <motion.circle cx="700" cy="80" r="40" fill="white" fillOpacity="0.03"
-        animate={{ r: [40, 50, 40] }} transition={{ duration: 3, repeat: Infinity, delay: 1 }} />
-      <motion.circle cx="400" cy="150" r="80" fill="white" fillOpacity="0.02"
-        animate={{ r: [80, 90, 80] }} transition={{ duration: 5, repeat: Infinity, delay: 0.5 }} />
-      {[150, 250, 350, 450, 550, 650].map((x, i) => (
-        <motion.circle key={x} cx={x} cy={30 + (i % 3) * 20} r="2" fill="white" fillOpacity="0.15"
-          animate={{ opacity: [0.15, 0.3, 0.15] }}
-          transition={{ duration: 2, repeat: Infinity, delay: i * 0.3 }} />
-      ))}
-      <defs>
-        <linearGradient id="bannerGrad" x1="0" y1="0" x2="800" y2="200" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#7c3aed" />
-          <stop offset="0.5" stopColor="#8b5cf6" />
-          <stop offset="1" stopColor="#6d28d9" />
-        </linearGradient>
-      </defs>
-    </svg>
-  );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AgentProfilePage() {
@@ -118,14 +86,6 @@ export default function AgentProfilePage() {
   const [isEditingPrice, setIsEditingPrice] = useState(false);
   const [isEditingLinks, setIsEditingLinks] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-
-  // Cover upload
-  const [isUploadingCover, setIsUploadingCover] = useState(false);
-  const [showCoverLibrary, setShowCoverLibrary] = useState(false);
-
-  // Showcase upload
-  const [isUploadingShowcase, setIsUploadingShowcase] = useState(false);
-  const [showShowcaseLibrary, setShowShowcaseLibrary] = useState(false);
 
   // Collapse
   const [isAboutExpanded, setIsAboutExpanded] = useState(false);
@@ -212,42 +172,6 @@ export default function AgentProfilePage() {
     }
   };
 
-  // ─── Cover Image Handlers ────────────────────────────────────────────────
-
-  const uploadCoverFile = async (file: File) => {
-    setIsUploadingCover(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/media", { method: "POST", body: formData });
-      const data = await res.json();
-      if (data.success) {
-        await patchProfile({ coverImageUrl: data.data.file.url });
-      }
-    } catch {
-      toast({ title: "Upload failed", variant: "destructive" });
-    }
-    setIsUploadingCover(false);
-  };
-
-  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await uploadCoverFile(file);
-    e.target.value = "";
-  };
-
-  const handleCoverFromLibrary = async (url: string) => {
-    setShowCoverLibrary(false);
-    setIsUploadingCover(true);
-    await patchProfile({ coverImageUrl: url });
-    setIsUploadingCover(false);
-  };
-
-  const handleRemoveCover = async () => {
-    await patchProfile({ coverImageUrl: null });
-  };
-
   // ─── About Handlers ──────────────────────────────────────────────────────
 
   const startEditAbout = () => {
@@ -282,34 +206,21 @@ export default function AgentProfilePage() {
 
   // ─── Showcase Handlers ───────────────────────────────────────────────────
 
-  const uploadShowcaseFile = async (file: File) => {
-    setIsUploadingShowcase(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/media", { method: "POST", body: formData });
-      const data = await res.json();
-      if (data.success) {
-        const mediaType: "image" | "video" = file.type.startsWith("video/") ? "video" : "image";
-        setDraftShowcase((d) => [...d, { url: data.data.file.url, title: "", description: "", highlights: [], mediaType }]);
-      }
-    } catch {
-      toast({ title: "Upload failed", variant: "destructive" });
-    }
-    setIsUploadingShowcase(false);
-  };
-
-  const handleAddShowcaseFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await uploadShowcaseFile(file);
-    e.target.value = "";
-  };
-
-  const handleAddShowcaseFromLibrary = (url: string) => {
-    setShowShowcaseLibrary(false);
-    const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url);
-    setDraftShowcase((d) => [...d, { url, title: "", description: "", highlights: [], mediaType: isVideo ? "video" : "image" }]);
+  // Handle showcase URL changes from MediaUploader — map new URLs to ShowcaseProject objects
+  const handleShowcaseUrlsChange = (urls: string[]) => {
+    setDraftShowcase((prev) => {
+      // Keep existing projects that are still in the URL list (preserves title/desc/highlights)
+      const kept = prev.filter((p) => urls.includes(p.url));
+      // Find newly added URLs
+      const existingUrls = new Set(prev.map((p) => p.url));
+      const added = urls.filter((u) => !existingUrls.has(u));
+      // Create new ShowcaseProject entries for new URLs
+      const newProjects: ShowcaseProject[] = added.map((url) => {
+        const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url);
+        return { url, title: "", description: "", highlights: [], mediaType: isVideo ? "video" : "image" };
+      });
+      return [...kept, ...newProjects];
+    });
   };
 
   const handleAIGenerate = async (index: number) => {
@@ -430,56 +341,22 @@ export default function AgentProfilePage() {
       )}
 
       {/* Cover Image */}
-      <FileDropZone onFileDrop={uploadCoverFile} accept="image/png,image/jpeg,image/webp" dragLabel="Drop cover image">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12 }}
-          className="relative w-full h-40 md:h-56 rounded-2xl overflow-hidden group"
-        >
-          {profile.coverImageUrl ? (
-            <img
-              src={profile.coverImageUrl}
-              alt="Cover"
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <ProfileBannerSVG />
-          )}
-
-          {/* Hover overlay */}
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
-            <label htmlFor="cover-upload" className="cursor-pointer">
-              <Button variant="secondary" size="sm" disabled={isUploadingCover} asChild>
-                <span>
-                  {isUploadingCover ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</>
-                  ) : (
-                    <><Camera className="h-4 w-4 mr-2" />Upload Cover</>
-                  )}
-                </span>
-              </Button>
-            </label>
-            <Button variant="secondary" size="sm" onClick={() => setShowCoverLibrary(true)} disabled={isUploadingCover}>
-              <FolderOpen className="h-4 w-4 mr-2" />
-              Media Library
-            </Button>
-            {profile.coverImageUrl && (
-              <Button variant="destructive" size="sm" onClick={handleRemoveCover}>
-                <Trash2 className="h-4 w-4 mr-2" />Remove
-              </Button>
-            )}
-          </div>
-
-          <input
-            id="cover-upload"
-            type="file"
-            className="hidden"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={handleCoverUpload}
-          />
-        </motion.div>
-      </FileDropZone>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.12 }}
+      >
+        <MediaUploader
+          value={profile.coverImageUrl ? [profile.coverImageUrl] : []}
+          onChange={(urls) => patchProfile({ coverImageUrl: urls[0] || null })}
+          accept="image/png,image/jpeg,image/jpg,image/webp"
+          maxSize={10 * 1024 * 1024}
+          filterTypes={["image"]}
+          variant="large"
+          placeholder="Upload cover"
+          libraryTitle="Select Cover Image"
+        />
+      </motion.div>
 
       {/* Stats Grid */}
       <motion.div
@@ -917,41 +794,21 @@ export default function AgentProfilePage() {
                     </div>
                   ))}
 
-                  {/* Add project button */}
+                  {/* Add project media */}
                   {draftShowcase.length < 12 && (
-                    <FileDropZone
-                      onFileDrop={uploadShowcaseFile}
-                      accept="image/png,image/jpeg,image/webp,video/mp4,video/webm"
-                      dragLabel="Drop project media"
-                    >
-                      <div className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2">
-                        {isUploadingShowcase ? (
-                          <Loader2 className="h-6 w-6 text-violet-500 animate-spin" />
-                        ) : (
-                          <>
-                            <label className="cursor-pointer flex flex-col items-center gap-1.5 hover:text-violet-500 transition-colors">
-                              <Plus className="h-6 w-6" />
-                              <span className="text-sm font-medium">Add Project</span>
-                              <span className="text-xs text-muted-foreground">Image or Video</span>
-                              <input
-                                type="file"
-                                className="hidden"
-                                accept="image/png,image/jpeg,image/webp,video/mp4,video/webm"
-                                onChange={handleAddShowcaseFile}
-                                disabled={isUploadingShowcase}
-                              />
-                            </label>
-                            <button
-                              className="text-xs text-muted-foreground hover:text-violet-500 transition-colors flex items-center gap-1 mt-1"
-                              onClick={() => setShowShowcaseLibrary(true)}
-                            >
-                              <FolderOpen className="h-3.5 w-3.5" />
-                              From Media Library
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </FileDropZone>
+                    <MediaUploader
+                      value={draftShowcase.map((p) => p.url)}
+                      onChange={handleShowcaseUrlsChange}
+                      multiple
+                      maxFiles={12}
+                      accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm"
+                      maxSize={100 * 1024 * 1024}
+                      filterTypes={["image", "video"]}
+                      variant="medium"
+                      placeholder="Add work"
+                      libraryTitle="Select Showcase Media"
+                      showButtons={true}
+                    />
                   )}
                   <p className="text-xs text-muted-foreground">
                     Up to 12 projects. Add a title then click AI Generate to create a description.
@@ -1320,21 +1177,6 @@ export default function AgentProfilePage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Media Library Pickers ── */}
-      <MediaLibraryPicker
-        open={showCoverLibrary}
-        onClose={() => setShowCoverLibrary(false)}
-        onSelect={handleCoverFromLibrary}
-        title="Select Cover Image"
-        filterTypes={["image"]}
-      />
-      <MediaLibraryPicker
-        open={showShowcaseLibrary}
-        onClose={() => setShowShowcaseLibrary(false)}
-        onSelect={handleAddShowcaseFromLibrary}
-        title="Select Showcase Image"
-        filterTypes={["image"]}
-      />
     </div>
   );
 }

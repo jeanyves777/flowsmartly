@@ -1,23 +1,19 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
-  Image as ImageIcon,
-  FolderOpen,
-  X,
   Loader2,
   Send,
   CalendarDays,
-  FileEdit,
   PenSquare,
   Save,
   Clock,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -31,19 +27,8 @@ import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
-import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
-import { FileDropZone } from "@/components/shared/file-drop-zone";
+import { MediaUploader } from "@/components/shared/media-uploader";
 import { PLATFORM_META, PLATFORM_ORDER } from "@/components/shared/social-platform-icons";
-
-// ─── Types ──────────────────────────────────────────────────────────────────
-interface MediaAttachment {
-  id: string;
-  file?: File;
-  url: string;
-  name: string;
-  type: string;
-  preview: string;
-}
 
 const MAX_CHARS = 2000;
 
@@ -51,7 +36,6 @@ export default function ContentPostsPage() {
   const { toast } = useToast();
   const { costs } = useCreditCosts("AI_POST");
   const { isConnected } = useSocialPlatforms();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Build dynamic platform list from DB connections
   const SOCIAL_PLATFORMS = useMemo(() => {
@@ -67,56 +51,14 @@ export default function ContentPostsPage() {
 
   // ── Composer State ──────────────────────────────────────────────────────
   const [caption, setCaption] = useState("");
-  const [mediaAttachments, setMediaAttachments] = useState<MediaAttachment[]>([]);
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["feed"]);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
-  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishAction, setPublishAction] = useState<"publish" | "draft" | "schedule" | null>(null);
   const [isGeneratingIdea, setIsGeneratingIdea] = useState(false);
-
-  // ── Media Upload (Direct File Input) ──────────────────────────────────
-  const uploadPostFile = useCallback((file: File) => {
-    const objectUrl = URL.createObjectURL(file);
-    const attachment: MediaAttachment = {
-      id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      file,
-      url: objectUrl,
-      name: file.name,
-      type: file.type.startsWith("video") ? "video" : "image",
-      preview: objectUrl,
-    };
-    setMediaAttachments((prev) => [...prev, attachment]);
-  }, []);
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    Array.from(files).forEach(uploadPostFile);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleMediaLibrarySelect = (url: string) => {
-    const attachment: MediaAttachment = {
-      id: `lib-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      url,
-      name: url.split("/").pop() || "media",
-      type: url.match(/\.(mp4|mov|webm|avi)$/i) ? "video" : "image",
-      preview: url,
-    };
-    setMediaAttachments((prev) => [...prev, attachment]);
-    setShowMediaLibrary(false);
-  };
-
-  const removeAttachment = (id: string) => {
-    setMediaAttachments((prev) => {
-      const removed = prev.find((a) => a.id === id);
-      if (removed?.file) URL.revokeObjectURL(removed.preview);
-      return prev.filter((a) => a.id !== id);
-    });
-  };
 
   // ── AI Idea Generation ──────────────────────────────────────────────────
   const handleGenerateIdea = async () => {
@@ -139,7 +81,7 @@ export default function ContentPostsPage() {
 
   // ── Publish / Schedule / Draft ────────────────────────────────────────
   const handleSubmit = async (action: "publish" | "draft" | "schedule") => {
-    if (!caption.trim() && mediaAttachments.length === 0) {
+    if (!caption.trim() && mediaUrls.length === 0) {
       toast({
         title: "Nothing to post",
         description: "Add some text or media before posting.",
@@ -161,25 +103,9 @@ export default function ContentPostsPage() {
     setPublishAction(action);
 
     try {
-      // Upload local files first
-      const uploadedUrls: string[] = [];
-      for (const attachment of mediaAttachments) {
-        if (attachment.file) {
-          const formData = new FormData();
-          formData.append("file", attachment.file);
-          const uploadRes = await fetch("/api/media/upload", { method: "POST", body: formData });
-          const uploadData = await uploadRes.json();
-          if (uploadData.success && uploadData.data?.url) {
-            uploadedUrls.push(uploadData.data.url);
-          }
-        } else {
-          uploadedUrls.push(attachment.url);
-        }
-      }
-
       const payload: Record<string, unknown> = {
         caption: caption.trim(),
-        mediaUrls: uploadedUrls,
+        mediaUrls,
         platforms: selectedPlatforms,
         aiGenerated: false,
       };
@@ -211,7 +137,7 @@ export default function ContentPostsPage() {
 
         // Reset composer
         setCaption("");
-        setMediaAttachments([]);
+        setMediaUrls([]);
         setShowSchedulePicker(false);
         setScheduleDate("");
         setScheduleTime("");
@@ -230,7 +156,7 @@ export default function ContentPostsPage() {
     }
   };
 
-  const hasContent = caption.trim().length > 0 || mediaAttachments.length > 0;
+  const hasContent = caption.trim().length > 0 || mediaUrls.length > 0;
 
   return (
     <TooltipProvider>
@@ -312,95 +238,21 @@ export default function ContentPostsPage() {
               </span>
             </div>
 
-            {/* Action Bar: Upload + Library */}
-            <FileDropZone
-              onFileDrop={uploadPostFile}
-              accept="image/*,video/*"
+            {/* Media Upload */}
+            <MediaUploader
+              value={mediaUrls}
+              onChange={setMediaUrls}
+              multiple
+              maxFiles={10}
+              accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm"
+              maxSize={100 * 1024 * 1024}
+              filterTypes={["image", "video"]}
+              uploadEndpoint="/api/media/upload"
               disabled={isPublishing}
-              dragLabel="Drop image or video here"
-            >
-              <div className="flex items-center gap-2 flex-wrap">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <ImageIcon className="w-4 h-4" />
-                      <span className="hidden sm:inline">Upload</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Upload image or video</TooltipContent>
-                </Tooltip>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*,video/*"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileUpload}
-                />
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowMediaLibrary(true)}
-                    >
-                      <FolderOpen className="w-4 h-4" />
-                      <span className="hidden sm:inline">Library</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Pick from media library</TooltipContent>
-                </Tooltip>
-              </div>
-            </FileDropZone>
-
-            {/* Media Previews */}
-            <AnimatePresence>
-              {mediaAttachments.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="flex gap-2 flex-wrap">
-                    {mediaAttachments.map((attachment) => (
-                      <motion.div
-                        key={attachment.id}
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.8, opacity: 0 }}
-                        className="relative w-20 h-20 rounded-lg overflow-hidden border border-border group"
-                      >
-                        {attachment.type === "video" ? (
-                          <div className="w-full h-full bg-gray-900 flex items-center justify-center">
-                            <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M8 5v14l11-7z" />
-                            </svg>
-                          </div>
-                        ) : (
-                          <img
-                            src={attachment.preview}
-                            alt={attachment.name}
-                            className="w-full h-full object-cover"
-                          />
-                        )}
-                        <button
-                          onClick={() => removeAttachment(attachment.id)}
-                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="w-3 h-3 text-white" />
-                        </button>
-                      </motion.div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+              variant="small"
+              placeholder="Add media"
+              libraryTitle="Select Media for Post"
+            />
 
             {/* Publish to Platforms */}
             <div className="space-y-2">
@@ -557,14 +409,6 @@ export default function ContentPostsPage() {
           </CardContent>
         </Card>
 
-        {/* ─── MEDIA LIBRARY PICKER ─────────────────────────────────── */}
-        <MediaLibraryPicker
-          open={showMediaLibrary}
-          onClose={() => setShowMediaLibrary(false)}
-          onSelect={handleMediaLibrarySelect}
-          title="Select Media for Post"
-          filterTypes={["image", "video"]}
-        />
       </motion.div>
     </TooltipProvider>
   );

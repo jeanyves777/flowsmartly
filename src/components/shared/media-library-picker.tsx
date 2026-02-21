@@ -46,6 +46,9 @@ interface MediaLibraryPickerProps {
   open: boolean;
   onClose: () => void;
   onSelect: (url: string, file?: MediaFile) => void;
+  onMultiSelect?: (urls: string[], files: MediaFile[]) => void;
+  multiSelect?: boolean;
+  maxSelection?: number;
   title?: string;
   filterTypes?: string[]; // e.g., ["image"], ["video"], ["image", "svg"]
 }
@@ -60,6 +63,9 @@ export function MediaLibraryPicker({
   open,
   onClose,
   onSelect,
+  onMultiSelect,
+  multiSelect = false,
+  maxSelection,
   title,
   filterTypes = ["image"],
 }: MediaLibraryPickerProps) {
@@ -68,6 +74,7 @@ export function MediaLibraryPicker({
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFile, setSelectedFile] = useState<MediaFile | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<MediaFile[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -154,6 +161,7 @@ export function MediaLibraryPicker({
   useEffect(() => {
     if (!open) {
       setSelectedFile(null);
+      setSelectedFiles([]);
       setSearchQuery("");
       setPage(1);
       setActiveFolderId(null);
@@ -162,11 +170,33 @@ export function MediaLibraryPicker({
   }, [open]);
 
   const handleSelect = () => {
-    if (selectedFile) {
+    if (multiSelect) {
+      if (selectedFiles.length > 0 && onMultiSelect) {
+        onMultiSelect(
+          selectedFiles.map((f) => f.url),
+          selectedFiles
+        );
+        onClose();
+      }
+    } else if (selectedFile) {
       onSelect(selectedFile.url, selectedFile);
       onClose();
     }
   };
+
+  const toggleFileSelection = (file: MediaFile) => {
+    setSelectedFiles((prev) => {
+      const exists = prev.some((f) => f.id === file.id);
+      if (exists) return prev.filter((f) => f.id !== file.id);
+      if (maxSelection && prev.length >= maxSelection) return prev;
+      return [...prev, file];
+    });
+  };
+
+  const isFileSelected = (file: MediaFile) =>
+    multiSelect
+      ? selectedFiles.some((f) => f.id === file.id)
+      : selectedFile?.id === file.id;
 
   const navigateToFolder = (folderId: string, folderName: string) => {
     setActiveFolderId(folderId);
@@ -320,9 +350,11 @@ export function MediaLibraryPicker({
                       return (
                         <button
                           key={file.id}
-                          onClick={() => setSelectedFile(file)}
+                          onClick={() =>
+                            multiSelect ? toggleFileSelection(file) : setSelectedFile(file)
+                          }
                           className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group ${
-                            selectedFile?.id === file.id
+                            isFileSelected(file)
                               ? "border-brand-500 ring-2 ring-brand-500/30"
                               : "border-transparent hover:border-muted-foreground/30"
                           }`}
@@ -373,10 +405,16 @@ export function MediaLibraryPicker({
                           )}
 
                           {/* Selection overlay */}
-                          {selectedFile?.id === file.id && (
+                          {isFileSelected(file) && (
                             <div className="absolute inset-0 bg-brand-500/20 flex items-center justify-center">
                               <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center">
-                                <Check className="w-5 h-5 text-white" />
+                                {multiSelect ? (
+                                  <span className="text-xs font-bold text-white">
+                                    {selectedFiles.findIndex((f) => f.id === file.id) + 1}
+                                  </span>
+                                ) : (
+                                  <Check className="w-5 h-5 text-white" />
+                                )}
                               </div>
                             </div>
                           )}
@@ -423,7 +461,18 @@ export function MediaLibraryPicker({
           {/* Footer */}
           <div className="flex items-center justify-between p-4 border-t border-border bg-muted/30">
             <div className="text-sm text-muted-foreground">
-              {selectedFile ? (
+              {multiSelect ? (
+                selectedFiles.length > 0 ? (
+                  <span>
+                    <strong>{selectedFiles.length}</strong> {mediaLabel}{selectedFiles.length !== 1 ? "s" : ""} selected
+                    {maxSelection && (
+                      <span className="ml-1 text-xs">(max {maxSelection})</span>
+                    )}
+                  </span>
+                ) : (
+                  <span>Click {mediaLabel}s to select them{maxSelection ? ` (max ${maxSelection})` : ""}</span>
+                )
+              ) : selectedFile ? (
                 <span>
                   Selected: <strong>{selectedFile.originalName}</strong>
                   {selectedFile.size > 0 && (
@@ -435,16 +484,23 @@ export function MediaLibraryPicker({
               )}
             </div>
             <div className="flex gap-2">
+              {multiSelect && selectedFiles.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => setSelectedFiles([])}>
+                  Clear
+                </Button>
+              )}
               <Button variant="outline" onClick={onClose}>
                 Cancel
               </Button>
               <Button
                 onClick={handleSelect}
-                disabled={!selectedFile}
+                disabled={multiSelect ? selectedFiles.length === 0 : !selectedFile}
                 className="bg-brand-500 hover:bg-brand-600"
               >
                 <Check className="w-4 h-4 mr-2" />
-                Select {isVideoMode ? "Video" : "File"}
+                {multiSelect
+                  ? `Select ${selectedFiles.length || ""} ${isVideoMode ? "Video" : "File"}${selectedFiles.length !== 1 ? "s" : ""}`
+                  : `Select ${isVideoMode ? "Video" : "File"}`}
               </Button>
             </div>
           </div>

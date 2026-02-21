@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import Image from "next/image";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import {
@@ -24,11 +23,7 @@ import {
   Monitor,
   Video,
   Sparkles,
-  Upload,
-  FolderOpen,
-  X,
   ImageIcon,
-  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,10 +32,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
-import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { MediaUploader } from "@/components/shared/media-uploader";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
-import { FileDropZone } from "@/components/shared/file-drop-zone";
 import { PostSharePanel } from "@/components/shared/post-share-panel";
 import {
   VIDEO_CATEGORIES,
@@ -174,9 +168,6 @@ export default function VideoStudioPage() {
 
   // Media (images/videos) state — supports multiple
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -313,50 +304,6 @@ export default function VideoStudioPage() {
       });
     } finally {
       setIsGeneratingIdeas(false);
-    }
-  };
-
-  // ─── Media upload handler (supports multiple files) ───
-
-  const uploadVideoStudioFile = useCallback(async (file: File) => {
-    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "video/mp4", "video/webm"];
-    if (!allowed.includes(file.type)) {
-      toast({ title: "Invalid file type", description: "Supported: PNG, JPEG, WebP, MP4, WebM", variant: "destructive" });
-      return;
-    }
-    if (file.size > 20 * 1024 * 1024) {
-      toast({ title: "File too large", description: "File must be under 20MB.", variant: "destructive" });
-      return;
-    }
-
-    try {
-      setIsUploadingImage(true);
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", "video-reference");
-
-      const response = await fetch("/api/upload", { method: "POST", body: formData });
-      const data = await response.json();
-
-      if (data.success) {
-        setMediaUrls((prev) => [...prev, data.data.url]);
-        toast({ title: "Media uploaded!" });
-      } else {
-        throw new Error(data.error?.message || "Upload failed");
-      }
-    } catch (error) {
-      toast({ title: "Upload failed", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
-    } finally {
-      setIsUploadingImage(false);
-      if (imageInputRef.current) imageInputRef.current.value = "";
-    }
-  }, [toast]);
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    for (const file of Array.from(files)) {
-      await uploadVideoStudioFile(file);
     }
   };
 
@@ -742,114 +689,19 @@ export default function VideoStudioPage() {
                 </Card>
 
                 {/* Media (images/videos) — supports multiple */}
-                <Card className="rounded-2xl border-border bg-card/50">
-                  <CardContent className="p-5">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <ImageIcon className="w-5 h-5 text-muted-foreground" />
-                        <Label className="text-base font-semibold">Media</Label>
-                        <span className="text-xs text-muted-foreground">(optional, multiple)</span>
-                      </div>
-                      {mediaUrls.length > 0 && (
-                        <button
-                          onClick={() => setMediaUrls([])}
-                          className="text-xs text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          Clear all
-                        </button>
-                      )}
-                    </div>
-
-                    <FileDropZone onFileDrop={uploadVideoStudioFile} accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm" dragLabel="Drop media here">
-                    {mediaUrls.length > 0 ? (
-                      <div className="space-y-3">
-                        {/* Thumbnail grid */}
-                        <div className="flex flex-wrap gap-2">
-                          {mediaUrls.map((url, i) => (
-                            <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border bg-muted shrink-0 group">
-                              {url.match(/\.(mp4|webm)$/i) ? (
-                                <video src={url} className="w-full h-full object-cover" muted />
-                              ) : (
-                                <Image src={url} alt={`Media ${i + 1}`} fill className="object-cover" unoptimized />
-                              )}
-                              <button
-                                onClick={() => setMediaUrls((prev) => prev.filter((_, j) => j !== i))}
-                                className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                              >
-                                <X className="w-4 h-4 text-white" />
-                              </button>
-                            </div>
-                          ))}
-                          {/* Add more button */}
-                          <button
-                            onClick={() => imageInputRef.current?.click()}
-                            className="w-16 h-16 rounded-lg border-2 border-dashed border-muted-foreground/20 hover:border-brand-500/30 flex items-center justify-center transition-colors"
-                          >
-                            <Plus className="w-5 h-5 text-muted-foreground" />
-                          </button>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" onClick={() => imageInputRef.current?.click()}>
-                            <Upload className="w-3.5 h-3.5 mr-1.5" />
-                            Add More
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => setShowMediaLibrary(true)}>
-                            <FolderOpen className="w-3.5 h-3.5 mr-1.5" />
-                            From Library
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col sm:flex-row items-center gap-3">
-                        <div
-                          className="w-full sm:w-auto flex-1 flex items-center justify-center gap-3 p-6 rounded-xl border-2 border-dashed border-muted-foreground/20 hover:border-brand-500/30 hover:bg-brand-500/5 cursor-pointer transition-all"
-                          onClick={() => imageInputRef.current?.click()}
-                        >
-                          {isUploadingImage ? (
-                            <AISpinner className="w-5 h-5 text-brand-500" />
-                          ) : (
-                            <Upload className="w-5 h-5 text-muted-foreground" />
-                          )}
-                          <span className="text-sm text-muted-foreground">
-                            {isUploadingImage ? "Uploading..." : "Upload images or videos"}
-                          </span>
-                        </div>
-                        <span className="text-xs text-muted-foreground">or</span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowMediaLibrary(true)}
-                          className="shrink-0"
-                        >
-                          <FolderOpen className="w-3.5 h-3.5 mr-1.5" />
-                          From Library
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Hidden file input — multiple */}
-                    <input
-                      ref={imageInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm"
-                      className="hidden"
-                      multiple
-                      onChange={handleImageUpload}
-                    />
-                    </FileDropZone>
-                  </CardContent>
-                </Card>
-
-                {/* Media Library Picker */}
-                <MediaLibraryPicker
-                  open={showMediaLibrary}
-                  onClose={() => setShowMediaLibrary(false)}
-                  onSelect={(url) => {
-                    setMediaUrls((prev) => prev.includes(url) ? prev : [...prev, url]);
-                    toast({ title: "Media added from library" });
-                  }}
-                  title="Select Media"
+                <MediaUploader
+                  value={mediaUrls}
+                  onChange={setMediaUrls}
+                  multiple
+                  maxFiles={10}
+                  accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm"
+                  maxSize={100 * 1024 * 1024}
                   filterTypes={["image", "video"]}
+                  variant="medium"
+                  label="Reference Media"
+                  description="Upload images or videos for reference"
+                  placeholder="Upload"
+                  libraryTitle="Select Media"
                 />
 
                 {/* Section 1: Video Type & Format */}

@@ -36,7 +36,6 @@ import {
   Plus,
   Trash2,
   MoreVertical,
-  FolderOpen,
   Upload,
   History,
   Receipt,
@@ -47,13 +46,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { PLATFORM_META } from "@/components/shared/social-platform-icons";
-import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { FileDropZone } from "@/components/shared/file-drop-zone";
+import { MediaUploader } from "@/components/shared/media-uploader";
 import { StripeProvider } from "@/components/providers/stripe-provider";
 import { AddCardForm } from "@/components/payments/add-card-form";
 import { InlineUpgrade } from "@/components/payments/inline-upgrade";
@@ -173,12 +171,9 @@ export default function SettingsPage() {
   const [isDeletingPaymentMethod, setIsDeletingPaymentMethod] = useState<string | null>(null);
   const [confirmDeleteMethod, setConfirmDeleteMethod] = useState<PaymentMethod | null>(null);
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
-  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [isSyncingFromBrand, setIsSyncingFromBrand] = useState(false);
   const { platforms: socialPlatforms, isLoading: socialLoading } = useSocialPlatforms();
-  const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState({
@@ -476,46 +471,6 @@ export default function SettingsPage() {
     }
   };
 
-  const uploadAvatarFile = useCallback(async (file: File) => {
-    const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"];
-    if (!validTypes.includes(file.type)) {
-      toast({ title: "Invalid file type", description: "Please upload a PNG, JPEG, GIF, or WebP image.", variant: "destructive" });
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Please upload an image smaller than 2MB.", variant: "destructive" });
-      return;
-    }
-
-    setIsUploadingAvatar(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", "avatar");
-
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error?.message || "Upload failed");
-
-      setProfile((prev) => ({ ...prev, avatarUrl: data.data.url }));
-      toast({ title: "Photo uploaded successfully!" });
-    } catch (err) {
-      toast({
-        title: "Upload failed",
-        description: err instanceof Error ? err.message : "Please try again",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploadingAvatar(false);
-      if (avatarInputRef.current) avatarInputRef.current.value = "";
-    }
-  }, [toast]);
-
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) uploadAvatarFile(file);
-  };
-
   const uploadCoverFile = useCallback(async (file: File) => {
     const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
     if (!validTypes.includes(file.type)) {
@@ -810,15 +765,6 @@ export default function SettingsPage() {
     }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -941,57 +887,17 @@ export default function SettingsPage() {
                   ) : (
                     <>
                       {/* Avatar */}
-                      <FileDropZone
-                        onFileDrop={uploadAvatarFile}
-                        accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
-                        maxSize={2 * 1024 * 1024}
-                        disabled={isUploadingAvatar}
-                        dragLabel="Drop photo here"
-                      >
-                        <div className="flex items-center gap-4">
-                          <Avatar className="w-20 h-20">
-                            <AvatarImage src={profile.avatarUrl} />
-                            <AvatarFallback className="text-lg">
-                              {getInitials(profile.name || "U")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="space-y-2">
-                            <input
-                              ref={avatarInputRef}
-                              type="file"
-                              accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
-                              className="hidden"
-                              onChange={handleAvatarUpload}
-                            />
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => avatarInputRef.current?.click()}
-                                disabled={isUploadingAvatar}
-                              >
-                                {isUploadingAvatar ? (
-                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                ) : (
-                                  <Upload className="w-4 h-4 mr-2" />
-                                )}
-                                Upload
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setShowMediaLibrary(true)}
-                              >
-                                <FolderOpen className="w-4 h-4 mr-2" />
-                                From Library
-                              </Button>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              JPG, PNG, GIF or WebP. Max 2MB. Or drag &amp; drop.
-                            </p>
-                          </div>
-                        </div>
-                      </FileDropZone>
+                      <MediaUploader
+                        value={profile.avatarUrl ? [profile.avatarUrl] : []}
+                        onChange={(urls) => setProfile({ ...profile, avatarUrl: urls[0] || "" })}
+                        accept="image/png,image/jpeg,image/jpg,image/webp"
+                        maxSize={5 * 1024 * 1024}
+                        filterTypes={["image"]}
+                        label="Profile Photo"
+                        placeholder="Upload"
+                        variant="medium"
+                        libraryTitle="Select Avatar from Library"
+                      />
 
                       {/* Cover Photo */}
                       <div className="space-y-2">
@@ -1877,19 +1783,6 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
-
-      {/* Media Library Picker */}
-      <MediaLibraryPicker
-        open={showMediaLibrary}
-        onClose={() => setShowMediaLibrary(false)}
-        onSelect={(url) => {
-          setProfile({ ...profile, avatarUrl: url });
-          setShowMediaLibrary(false);
-          toast({ title: "Photo selected from library" });
-        }}
-        title="Select Profile Photo"
-        filterTypes={["image", "png", "jpg", "jpeg", "gif", "webp"]}
-      />
 
       {/* Add Card Modal */}
       <StripeProvider>

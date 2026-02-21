@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -11,21 +11,17 @@ import {
   Hash,
   Save,
   CheckCircle,
-  Upload,
   Sparkles,
   Target,
   Globe,
   Package,
   Plus,
   X,
-  ImageIcon,
   Paintbrush,
-  Trash2,
   Mail,
   Phone,
   MapPin,
   Link,
-  FolderOpen,
   Instagram,
   Twitter,
   Linkedin,
@@ -47,8 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
-import { FileDropZone } from "@/components/shared/file-drop-zone";
+import { MediaUploader } from "@/components/shared/media-uploader";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 function TikTokIcon({ className }: { className?: string }) {
@@ -188,12 +183,6 @@ export default function BrandIdentityPage() {
   const [newKeyword, setNewKeyword] = useState("");
   const [newHashtag, setNewHashtag] = useState("");
   const [newProduct, setNewProduct] = useState("");
-  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
-  const [isUploadingIconLogo, setIsUploadingIconLogo] = useState(false);
-  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
-  const [showIconMediaLibrary, setShowIconMediaLibrary] = useState(false);
-  const logoInputRef = useRef<HTMLInputElement>(null);
-  const iconLogoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchBrandIdentity();
@@ -448,86 +437,6 @@ export default function BrandIdentityPage() {
       ...prev,
       products: prev.products?.filter((p) => p !== product) || [],
     }));
-  };
-
-  const uploadLogoFile = useCallback(async (file: File) => {
-    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/svg+xml"];
-    if (!allowed.includes(file.type)) {
-      toast({ title: "Invalid file type", description: "Please upload PNG, JPEG, WebP, or SVG", variant: "destructive" });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Maximum file size is 5MB", variant: "destructive" });
-      return;
-    }
-    try {
-      setIsUploadingLogo(true);
-      const uploadData = new FormData();
-      uploadData.append("file", file);
-      uploadData.append("type", "logo");
-      const response = await fetch("/api/upload", { method: "POST", body: uploadData });
-      const data = await response.json();
-      if (data.success) {
-        setFormData((prev) => ({ ...prev, logo: data.data.url }));
-        toast({ title: "Logo uploaded successfully!" });
-      } else {
-        throw new Error(data.error?.message || "Upload failed");
-      }
-    } catch (error) {
-      toast({ title: "Upload failed", description: error instanceof Error ? error.message : "Please try again", variant: "destructive" });
-    } finally {
-      setIsUploadingLogo(false);
-      if (logoInputRef.current) logoInputRef.current.value = "";
-    }
-  }, [toast]);
-
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) uploadLogoFile(file);
-  };
-
-  const removeLogo = () => {
-    setFormData((prev) => ({ ...prev, logo: "" }));
-  };
-
-  const uploadIconLogoFile = useCallback(async (file: File) => {
-    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/svg+xml"];
-    if (!allowed.includes(file.type)) {
-      toast({ title: "Invalid file type", description: "Please upload PNG, JPEG, WebP, or SVG", variant: "destructive" });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Maximum file size is 5MB", variant: "destructive" });
-      return;
-    }
-    try {
-      setIsUploadingIconLogo(true);
-      const uploadData = new FormData();
-      uploadData.append("file", file);
-      uploadData.append("type", "logo");
-      const response = await fetch("/api/upload", { method: "POST", body: uploadData });
-      const data = await response.json();
-      if (data.success) {
-        setFormData((prev) => ({ ...prev, iconLogo: data.data.url }));
-        toast({ title: "Icon logo uploaded successfully!" });
-      } else {
-        throw new Error(data.error?.message || "Upload failed");
-      }
-    } catch (error) {
-      toast({ title: "Upload failed", description: error instanceof Error ? error.message : "Please try again", variant: "destructive" });
-    } finally {
-      setIsUploadingIconLogo(false);
-      if (iconLogoInputRef.current) iconLogoInputRef.current.value = "";
-    }
-  }, [toast]);
-
-  const handleIconLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) uploadIconLogoFile(file);
-  };
-
-  const removeIconLogo = () => {
-    setFormData((prev) => ({ ...prev, iconLogo: "" }));
   };
 
   const updateColor = (key: "primary" | "secondary" | "accent", value: string) => {
@@ -847,150 +756,32 @@ export default function BrandIdentityPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   {/* Icon Logo */}
-                  <FileDropZone
-                    onFileDrop={uploadIconLogoFile}
+                  <MediaUploader
+                    value={formData.iconLogo ? [formData.iconLogo] : []}
+                    onChange={(urls) => setFormData({ ...formData, iconLogo: urls[0] || "" })}
                     accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
                     maxSize={5 * 1024 * 1024}
-                    disabled={isUploadingIconLogo}
-                    dragLabel="Drop icon logo"
-                  >
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Icon Logo</p>
-                    <p className="text-xs text-muted-foreground">Square format, used as your social avatar</p>
-                    <div
-                      className={`relative w-20 h-20 rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden transition-colors ${
-                        formData.iconLogo ? "border-brand-500/30 bg-white" : "border-muted-foreground/25 bg-muted/50 hover:border-brand-500/50 hover:bg-muted"
-                      }`}
-                    >
-                      {formData.iconLogo ? (
-                        <>
-                          <img
-                            src={formData.iconLogo}
-                            alt="Icon logo"
-                            className="w-full h-full object-contain p-1"
-                          />
-                          <button
-                            onClick={removeIconLogo}
-                            className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center hover:bg-destructive/80"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => iconLogoInputRef.current?.click()}
-                          className="flex flex-col items-center gap-1 text-muted-foreground"
-                          disabled={isUploadingIconLogo}
-                        >
-                          {isUploadingIconLogo ? (
-                            <AISpinner className="w-5 h-5" />
-                          ) : (
-                            <>
-                              <ImageIcon className="w-5 h-5" />
-                              <span className="text-[10px]">Upload</span>
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                    <input
-                      ref={iconLogoInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
-                      className="hidden"
-                      onChange={handleIconLogoUpload}
-                    />
-                    <div className="flex flex-wrap gap-1.5">
-                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => iconLogoInputRef.current?.click()} disabled={isUploadingIconLogo}>
-                        {isUploadingIconLogo ? <AISpinner className="w-3 h-3 mr-1" /> : <Upload className="w-3 h-3 mr-1" />}
-                        Upload
-                      </Button>
-                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowIconMediaLibrary(true)}>
-                        <FolderOpen className="w-3 h-3 mr-1" />
-                        Library
-                      </Button>
-                    </div>
-                    {formData.iconLogo && (
-                      <button onClick={removeIconLogo} className="text-xs text-destructive hover:underline flex items-center gap-1">
-                        <Trash2 className="w-3 h-3" />
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  </FileDropZone>
+                    filterTypes={["image", "png", "jpg", "jpeg", "webp", "svg"]}
+                    label="Icon Logo"
+                    description="Square format, used as your social avatar"
+                    placeholder="Upload"
+                    variant="medium"
+                    libraryTitle="Select Icon Logo from Library"
+                  />
 
                   {/* Full Logo */}
-                  <FileDropZone
-                    onFileDrop={uploadLogoFile}
+                  <MediaUploader
+                    value={formData.logo ? [formData.logo] : []}
+                    onChange={(urls) => setFormData({ ...formData, logo: urls[0] || "" })}
                     accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
                     maxSize={5 * 1024 * 1024}
-                    disabled={isUploadingLogo}
-                    dragLabel="Drop full logo"
-                  >
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Full Logo</p>
-                    <p className="text-xs text-muted-foreground">Wide format, used in designs & emails</p>
-                    <div
-                      className={`relative w-20 h-20 rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden transition-colors ${
-                        formData.logo ? "border-brand-500/30 bg-white" : "border-muted-foreground/25 bg-muted/50 hover:border-brand-500/50 hover:bg-muted"
-                      }`}
-                    >
-                      {formData.logo ? (
-                        <>
-                          <img
-                            src={formData.logo}
-                            alt="Full logo"
-                            className="w-full h-full object-contain p-1"
-                          />
-                          <button
-                            onClick={removeLogo}
-                            className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center hover:bg-destructive/80"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => logoInputRef.current?.click()}
-                          className="flex flex-col items-center gap-1 text-muted-foreground"
-                          disabled={isUploadingLogo}
-                        >
-                          {isUploadingLogo ? (
-                            <AISpinner className="w-5 h-5" />
-                          ) : (
-                            <>
-                              <ImageIcon className="w-5 h-5" />
-                              <span className="text-[10px]">Upload</span>
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                    <input
-                      ref={logoInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
-                      className="hidden"
-                      onChange={handleLogoUpload}
-                    />
-                    <div className="flex flex-wrap gap-1.5">
-                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => logoInputRef.current?.click()} disabled={isUploadingLogo}>
-                        {isUploadingLogo ? <AISpinner className="w-3 h-3 mr-1" /> : <Upload className="w-3 h-3 mr-1" />}
-                        Upload
-                      </Button>
-                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowMediaLibrary(true)}>
-                        <FolderOpen className="w-3 h-3 mr-1" />
-                        Library
-                      </Button>
-                    </div>
-                    {formData.logo && (
-                      <button onClick={removeLogo} className="text-xs text-destructive hover:underline flex items-center gap-1">
-                        <Trash2 className="w-3 h-3" />
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  </FileDropZone>
+                    filterTypes={["image", "png", "jpg", "jpeg", "webp", "svg"]}
+                    label="Full Logo"
+                    description="Wide format, used in designs & emails"
+                    placeholder="Upload"
+                    variant="medium"
+                    libraryTitle="Select Full Logo from Library"
+                  />
                 </div>
 
                 {/* Generate AI link for both */}
@@ -1328,31 +1119,6 @@ export default function BrandIdentityPage() {
         </Button>
       </motion.div>
 
-      {/* Media Library Picker - Full Logo */}
-      <MediaLibraryPicker
-        open={showMediaLibrary}
-        onClose={() => setShowMediaLibrary(false)}
-        onSelect={(url) => {
-          setFormData({ ...formData, logo: url });
-          setShowMediaLibrary(false);
-          toast({ title: "Full logo selected from library" });
-        }}
-        title="Select Full Logo from Library"
-        filterTypes={["image", "png", "jpg", "jpeg", "webp", "svg"]}
-      />
-
-      {/* Media Library Picker - Icon Logo */}
-      <MediaLibraryPicker
-        open={showIconMediaLibrary}
-        onClose={() => setShowIconMediaLibrary(false)}
-        onSelect={(url) => {
-          setFormData({ ...formData, iconLogo: url });
-          setShowIconMediaLibrary(false);
-          toast({ title: "Icon logo selected from library" });
-        }}
-        title="Select Icon Logo from Library"
-        filterTypes={["image", "png", "jpg", "jpeg", "webp", "svg"]}
-      />
     </motion.div>
   );
 }

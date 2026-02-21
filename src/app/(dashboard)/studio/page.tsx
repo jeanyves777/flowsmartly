@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import {
@@ -35,8 +35,6 @@ import {
   LayoutTemplate,
   ImageIcon,
   X,
-  Upload,
-  FolderOpen,
 } from "lucide-react";
 import { TemplateBrowser, type DesignTemplate } from "@/components/studio/template-browser";
 import { Button } from "@/components/ui/button";
@@ -56,8 +54,7 @@ import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { PostSharePanel } from "@/components/shared/post-share-panel";
-import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
-import { FileDropZone } from "@/components/shared/file-drop-zone";
+import { MediaUploader } from "@/components/shared/media-uploader";
 import {
   DESIGN_CATEGORIES,
   DESIGN_STYLES,
@@ -219,85 +216,11 @@ export default function VisualDesignStudioPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isGeneratingCta, setIsGeneratingCta] = useState(false);
 
-  // Reference image
-  const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
-  const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
-  const [referenceImageName, setReferenceImageName] = useState<string | null>(null);
-  const [isUploadingReference, setIsUploadingReference] = useState(false);
-  const [showRefMediaLibrary, setShowRefMediaLibrary] = useState(false);
-  const referenceInputRef = useRef<HTMLInputElement>(null);
+  // Reference images (exact images to include in design)
+  const [exactImageUrls, setExactImageUrls] = useState<string[]>([]);
 
-  const uploadReferenceFile = useCallback(async (file: File) => {
-    const allowed = ["image/png", "image/jpeg", "image/webp"];
-    if (!allowed.includes(file.type)) {
-      toast({ title: "Invalid file type", description: "Please upload PNG, JPEG, or WebP", variant: "destructive" });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Maximum 5MB", variant: "destructive" });
-      return;
-    }
-    setIsUploadingReference(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", "reference");
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const data = await res.json();
-      if (data.success) {
-        setReferenceImageUrl(data.data.url);
-        setReferenceImagePreview(data.data.url);
-        setReferenceImageName(file.name);
-      } else {
-        toast({ title: "Upload failed", description: data.error?.message || "Try again", variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Upload failed", description: "Network error", variant: "destructive" });
-    } finally {
-      setIsUploadingReference(false);
-      if (referenceInputRef.current) referenceInputRef.current.value = "";
-    }
-  }, [toast]);
-
-  // Style reference (design inspiration)
-  const [styleRefUrl, setStyleRefUrl] = useState<string | null>(null);
-  const [styleRefPreview, setStyleRefPreview] = useState<string | null>(null);
-  const [styleRefName, setStyleRefName] = useState<string | null>(null);
-  const [isUploadingStyleRef, setIsUploadingStyleRef] = useState(false);
-  const [showStyleRefMediaLibrary, setShowStyleRefMediaLibrary] = useState(false);
-  const styleRefInputRef = useRef<HTMLInputElement>(null);
-
-  const uploadStyleRefFile = useCallback(async (file: File) => {
-    const allowed = ["image/png", "image/jpeg", "image/webp"];
-    if (!allowed.includes(file.type)) {
-      toast({ title: "Invalid file type", description: "Please upload PNG, JPEG, or WebP", variant: "destructive" });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Maximum 5MB", variant: "destructive" });
-      return;
-    }
-    setIsUploadingStyleRef(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", "reference");
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const data = await res.json();
-      if (data.success) {
-        setStyleRefUrl(data.data.url);
-        setStyleRefPreview(data.data.url);
-        setStyleRefName(file.name);
-      } else {
-        toast({ title: "Upload failed", description: data.error?.message || "Try again", variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Upload failed", description: "Network error", variant: "destructive" });
-    } finally {
-      setIsUploadingStyleRef(false);
-      if (styleRefInputRef.current) styleRefInputRef.current.value = "";
-    }
-  }, [toast]);
+  // Style reference images (design inspiration)
+  const [styleReferenceUrls, setStyleReferenceUrls] = useState<string[]>([]);
 
   // AI ideas state
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
@@ -480,8 +403,8 @@ export default function VisualDesignStudioPage() {
             address: includeInDesign.address ? brandIdentity?.address : null,
           },
           ctaText: ctaText.trim() || null,
-          templateImageUrl: styleRefUrl || selectedTemplate?.image || null,
-          referenceImageUrl: referenceImageUrl || null,
+          templateImageUrl: styleReferenceUrls[0] || selectedTemplate?.image || null,
+          referenceImageUrl: exactImageUrls[0] || null,
         }),
       });
 
@@ -657,10 +580,10 @@ export default function VisualDesignStudioPage() {
       <Badge className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/20">
         {textMode === "creative" ? "AI Creative" : "Exact Text"}
       </Badge>
-      {referenceImageUrl && (
+      {exactImageUrls.length > 0 && (
         <Badge className="text-[10px] bg-violet-500/10 text-violet-600 border-violet-500/20 gap-1">
           <ImageIcon className="w-3 h-3" />
-          Exact Image
+          {exactImageUrls.length === 1 ? "Exact Image" : `${exactImageUrls.length} Exact Images`}
         </Badge>
       )}
     </>
@@ -1180,122 +1103,38 @@ export default function VisualDesignStudioPage() {
                   <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/50">
                     {/* Design Style Reference */}
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs font-medium text-muted-foreground">Style Reference</Label>
-                        {styleRefUrl && (
-                          <button
-                            onClick={() => { setStyleRefUrl(null); setStyleRefPreview(null); setStyleRefName(null); }}
-                            className="text-[10px] text-muted-foreground hover:text-destructive transition-colors"
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
-
-                      <FileDropZone
-                        onFileDrop={uploadStyleRefFile}
-                        accept="image/png,image/jpeg,image/webp"
-                        maxSize={5 * 1024 * 1024}
-                        disabled={isUploadingStyleRef}
-                        dragLabel="Drop style reference"
-                      >
-                      {styleRefPreview ? (
-                        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border">
-                          <img src={styleRefPreview} alt="Style reference" className="w-10 h-10 rounded object-cover border" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium truncate">{styleRefName || "Style ref"}</p>
-                            <p className="text-[10px] text-muted-foreground">AI matches this style</p>
-                          </div>
-                          <button
-                            onClick={() => { setStyleRefUrl(null); setStyleRefPreview(null); setStyleRefName(null); }}
-                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-1.5">
-                          <p className="text-[10px] text-muted-foreground">AI recreates this style with your content</p>
-                          <input
-                            ref={styleRefInputRef}
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp"
-                            className="hidden"
-                            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadStyleRefFile(f); }}
-                          />
-                          <div className="flex gap-1.5">
-                            <Button variant="outline" size="sm" onClick={() => styleRefInputRef.current?.click()} disabled={isUploadingStyleRef} className="flex-1 h-8 text-xs">
-                              {isUploadingStyleRef ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />}
-                              Upload
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => setShowStyleRefMediaLibrary(true)} disabled={isUploadingStyleRef} className="flex-1 h-8 text-xs">
-                              <FolderOpen className="w-3.5 h-3.5 mr-1" />
-                              Library
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                      </FileDropZone>
+                      <Label className="text-xs font-medium text-muted-foreground">Style Reference</Label>
+                      <p className="text-[10px] text-muted-foreground">AI recreates this style with your content</p>
+                      <MediaUploader
+                        value={styleReferenceUrls}
+                        onChange={setStyleReferenceUrls}
+                        multiple
+                        maxFiles={5}
+                        accept="image/png,image/jpeg,image/jpg,image/webp"
+                        maxSize={10 * 1024 * 1024}
+                        filterTypes={["image"]}
+                        variant="small"
+                        placeholder="Upload"
+                        libraryTitle="Select Style Reference"
+                      />
                     </div>
 
                     {/* Exact Image */}
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs font-medium text-muted-foreground">Exact Image</Label>
-                        {referenceImageUrl && (
-                          <button
-                            onClick={() => { setReferenceImageUrl(null); setReferenceImagePreview(null); setReferenceImageName(null); }}
-                            className="text-[10px] text-muted-foreground hover:text-destructive transition-colors"
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
-
-                      <FileDropZone
-                        onFileDrop={uploadReferenceFile}
-                        accept="image/png,image/jpeg,image/webp"
-                        maxSize={5 * 1024 * 1024}
-                        disabled={isUploadingReference}
-                        dragLabel="Drop exact image"
-                      >
-                      {referenceImagePreview ? (
-                        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border">
-                          <img src={referenceImagePreview} alt="Exact image" className="w-10 h-10 rounded object-cover border" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium truncate">{referenceImageName || "Exact image"}</p>
-                            <p className="text-[10px] text-muted-foreground">Used as-is in design</p>
-                          </div>
-                          <button
-                            onClick={() => { setReferenceImageUrl(null); setReferenceImagePreview(null); setReferenceImageName(null); }}
-                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-1.5">
-                          <p className="text-[10px] text-muted-foreground">AI uses your exact image in the design</p>
-                          <input
-                            ref={referenceInputRef}
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp"
-                            className="hidden"
-                            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadReferenceFile(f); }}
-                          />
-                          <div className="flex gap-1.5">
-                            <Button variant="outline" size="sm" onClick={() => referenceInputRef.current?.click()} disabled={isUploadingReference} className="flex-1 h-8 text-xs">
-                              {isUploadingReference ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />}
-                              Upload
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => setShowRefMediaLibrary(true)} disabled={isUploadingReference} className="flex-1 h-8 text-xs">
-                              <FolderOpen className="w-3.5 h-3.5 mr-1" />
-                              Library
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                      </FileDropZone>
+                      <Label className="text-xs font-medium text-muted-foreground">Exact Image</Label>
+                      <p className="text-[10px] text-muted-foreground">AI uses your exact image in the design</p>
+                      <MediaUploader
+                        value={exactImageUrls}
+                        onChange={setExactImageUrls}
+                        multiple
+                        maxFiles={5}
+                        accept="image/png,image/jpeg,image/jpg,image/webp"
+                        maxSize={10 * 1024 * 1024}
+                        filterTypes={["image"]}
+                        variant="small"
+                        placeholder="Upload"
+                        libraryTitle="Select Exact Image"
+                      />
                     </div>
                   </div>
                 </div>
@@ -1840,32 +1679,6 @@ export default function VisualDesignStudioPage() {
           )}
         </DialogContent>
       </Dialog>
-      {/* Reference Image Media Library Picker */}
-      <MediaLibraryPicker
-        open={showRefMediaLibrary}
-        onClose={() => setShowRefMediaLibrary(false)}
-        onSelect={(url) => {
-          setReferenceImageUrl(url);
-          setReferenceImagePreview(url);
-          setReferenceImageName("Library image");
-          setShowRefMediaLibrary(false);
-        }}
-        title="Select Exact Image"
-        filterTypes={["image"]}
-      />
-      {/* Style Reference Media Library Picker */}
-      <MediaLibraryPicker
-        open={showStyleRefMediaLibrary}
-        onClose={() => setShowStyleRefMediaLibrary(false)}
-        onSelect={(url) => {
-          setStyleRefUrl(url);
-          setStyleRefPreview(url);
-          setStyleRefName("Library design");
-          setShowStyleRefMediaLibrary(false);
-        }}
-        title="Select Design Style Reference"
-        filterTypes={["image"]}
-      />
     </motion.div>
   );
 }

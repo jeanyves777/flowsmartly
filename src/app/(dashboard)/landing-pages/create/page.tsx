@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -31,11 +31,6 @@ import {
   Copy,
   Check,
   ExternalLink,
-  Image,
-  Video,
-  Upload,
-  FolderOpen,
-  Link2,
   X,
   Info,
 } from "lucide-react";
@@ -50,8 +45,7 @@ import { useToast } from "@/hooks/use-toast";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { cn } from "@/lib/utils/cn";
-import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
-import { FileDropZone } from "@/components/shared/file-drop-zone";
+import { MediaUploader } from "@/components/shared/media-uploader";
 import { PAGE_TYPE_TEMPLATES, TemplateVariant } from "@/lib/landing-pages/templates";
 import { generateTemplatePreviewHtml } from "@/lib/landing-pages/template-preview";
 
@@ -114,8 +108,6 @@ const EVENT_FIELDS: FormField[] = [
   { name: "message", label: "Notes / Message", type: "textarea", enabled: true, required: false },
 ];
 
-type MediaTab = "library" | "upload" | "url";
-
 // ---------------------------------------------------------------------------
 // Animation variants
 // ---------------------------------------------------------------------------
@@ -174,15 +166,6 @@ export default function CreateLandingPage() {
   const [ctaUrl, setCtaUrl] = useState("");
   const [keywords, setKeywords] = useState("");
 
-  // Media picker state
-  const [imageTab, setImageTab] = useState<MediaTab>("library");
-  const [videoTab, setVideoTab] = useState<MediaTab>("library");
-  const [imagePickerOpen, setImagePickerOpen] = useState(false);
-  const [videoPickerOpen, setVideoPickerOpen] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadingVideo, setUploadingVideo] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
 
   // Template selection state
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
@@ -240,50 +223,6 @@ export default function CreateLandingPage() {
       setFormFields([]);
     }
   }, [pageType]);
-
-  // ---------------------------------------------------------------------------
-  // Media Upload Handler
-  // ---------------------------------------------------------------------------
-
-  const handleFileUpload = useCallback(
-    async (file: File, type: "image" | "video") => {
-      const setter = type === "image" ? setImageUrl : setVideoUrl;
-      const setUploading = type === "image" ? setUploadingImage : setUploadingVideo;
-
-      setUploading(true);
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const res = await fetch("/api/media", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!res.ok) throw new Error("Upload failed");
-
-        const data = await res.json();
-        const url = data.data?.file?.url || data.url;
-        if (url) {
-          setter(url);
-          toast({ title: "Uploaded", description: `${type === "image" ? "Image" : "Video"} uploaded successfully.` });
-        }
-      } catch {
-        toast({ title: "Upload failed", description: "Could not upload file.", variant: "destructive" });
-      } finally {
-        setUploading(false);
-      }
-    },
-    [toast]
-  );
-
-  const uploadLandingFile = useCallback(
-    (file: File) => {
-      const type = file.type.startsWith("video/") ? "video" : "image";
-      handleFileUpload(file, type);
-    },
-    [handleFileUpload]
-  );
 
   // ---------------------------------------------------------------------------
   // Handlers
@@ -433,154 +372,6 @@ export default function CreateLandingPage() {
       prev.map((f) => (f.name === fieldName && f.name !== "email" ? { ...f, required: !f.required } : f))
     );
   }, []);
-
-  // ---------------------------------------------------------------------------
-  // Media Picker Component
-  // ---------------------------------------------------------------------------
-
-  function renderMediaPicker(
-    type: "image" | "video",
-    value: string,
-    setValue: (v: string) => void,
-    activeTab: MediaTab,
-    setActiveTab: (t: MediaTab) => void,
-    pickerOpen: boolean,
-    setPickerOpen: (v: boolean) => void,
-    uploading: boolean,
-    inputRef: React.RefObject<HTMLInputElement | null>,
-  ) {
-    const isImage = type === "image";
-    const IconComp = isImage ? Image : Video;
-    const acceptTypes = isImage ? "image/*" : "video/mp4,video/webm,video/quicktime";
-    const filterTypes = isImage ? ["image"] : ["video"];
-
-    return (
-      <div className="space-y-2">
-        <Label className="flex items-center gap-2 text-sm">
-          <IconComp className="h-4 w-4 text-muted-foreground" />
-          Hero {isImage ? "Image" : "Video"}
-          <span className="text-muted-foreground">(optional)</span>
-        </Label>
-
-        {/* Preview */}
-        {value && (
-          <div className="relative group">
-            {isImage ? (
-              <img
-                src={value}
-                alt="Selected"
-                className="h-24 w-full rounded-lg border object-cover"
-              />
-            ) : (
-              <div className="flex h-16 items-center gap-3 rounded-lg border bg-muted/30 px-3">
-                <Video className="h-5 w-5 text-muted-foreground shrink-0" />
-                <span className="text-sm truncate flex-1">{value}</span>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => setValue("")}
-              className="absolute top-1 right-1 rounded-full bg-background/80 p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
-
-        {!value && (
-          <>
-            {/* Tab buttons */}
-            <div className="flex gap-1 rounded-md border bg-muted/30 p-0.5">
-              {([
-                { key: "library" as MediaTab, icon: FolderOpen, label: "Library" },
-                { key: "upload" as MediaTab, icon: Upload, label: "Upload" },
-                { key: "url" as MediaTab, icon: Link2, label: "URL" },
-              ]).map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-all flex-1 justify-center",
-                    activeTab === tab.key
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <tab.icon className="h-3.5 w-3.5" />
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Tab content */}
-            {activeTab === "library" && (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full gap-2"
-                onClick={() => setPickerOpen(true)}
-              >
-                <FolderOpen className="h-4 w-4" />
-                Browse Media Library
-              </Button>
-            )}
-
-            {activeTab === "upload" && (
-              <FileDropZone onFileDrop={uploadLandingFile} accept="image/*,video/mp4,video/webm" dragLabel="Drop media here">
-              <div
-                className={cn(
-                  "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 cursor-pointer transition-colors",
-                  uploading ? "border-brand-500 bg-brand-500/5" : "border-border hover:border-muted-foreground/50"
-                )}
-                onClick={() => inputRef.current?.click()}
-              >
-                {uploading ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-brand-500" />
-                ) : (
-                  <Upload className="h-5 w-5 text-muted-foreground" />
-                )}
-                <span className="text-xs text-muted-foreground">
-                  {uploading ? "Uploading..." : `Click to upload ${type}`}
-                </span>
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept={acceptTypes}
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleFileUpload(file, type);
-                    e.target.value = "";
-                  }}
-                />
-              </div>
-              </FileDropZone>
-            )}
-
-            {activeTab === "url" && (
-              <Input
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder={isImage ? "https://example.com/hero.jpg" : "https://youtube.com/watch?v=..."}
-              />
-            )}
-          </>
-        )}
-
-        <MediaLibraryPicker
-          open={pickerOpen}
-          onClose={() => setPickerOpen(false)}
-          onSelect={(url) => {
-            setValue(url);
-            setPickerOpen(false);
-          }}
-          title={`Select ${isImage ? "Image" : "Video"}`}
-          filterTypes={filterTypes}
-        />
-      </div>
-    );
-  }
 
   // ---------------------------------------------------------------------------
   // Step 1: Input Form
@@ -846,18 +637,30 @@ export default function CreateLandingPage() {
 
         {/* Media: Image & Video */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {renderMediaPicker(
-            "image", imageUrl, setImageUrl,
-            imageTab, setImageTab,
-            imagePickerOpen, setImagePickerOpen,
-            uploadingImage, imageInputRef
-          )}
-          {renderMediaPicker(
-            "video", videoUrl, setVideoUrl,
-            videoTab, setVideoTab,
-            videoPickerOpen, setVideoPickerOpen,
-            uploadingVideo, videoInputRef
-          )}
+          <MediaUploader
+            value={imageUrl ? [imageUrl] : []}
+            onChange={(urls) => setImageUrl(urls[0] || "")}
+            accept="image/png,image/jpeg,image/jpg,image/webp"
+            maxSize={10 * 1024 * 1024}
+            filterTypes={["image"]}
+            variant="medium"
+            label="Hero Image"
+            description="Optional"
+            placeholder="Add image"
+            libraryTitle="Select Image"
+          />
+          <MediaUploader
+            value={videoUrl ? [videoUrl] : []}
+            onChange={(urls) => setVideoUrl(urls[0] || "")}
+            accept="video/mp4,video/webm,video/quicktime"
+            maxSize={100 * 1024 * 1024}
+            filterTypes={["video"]}
+            variant="medium"
+            label="Hero Video"
+            description="Optional"
+            placeholder="Add video"
+            libraryTitle="Select Video"
+          />
         </div>
 
         {/* Form Fields Config (for lead-capture / event types) */}

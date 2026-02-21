@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
@@ -22,9 +22,6 @@ import {
   Loader2,
   Check,
   Info,
-  Upload,
-  ImageIcon,
-  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,7 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { FileDropZone } from "@/components/shared/file-drop-zone";
+import { MediaUploader } from "@/components/shared/media-uploader";
 
 // ------------------------------------------------------------------
 // Types
@@ -147,8 +144,6 @@ export default function SmsCompliancePage() {
 
   // Step 2b - Opt-In Screenshot
   const [smsOptInImageUrl, setSmsOptInImageUrl] = useState("");
-  const [isUploadingOptIn, setIsUploadingOptIn] = useState(false);
-  const optInImageRef = useRef<HTMLInputElement>(null);
 
   // Track whether fields were auto-filled from brand identity
   const [brandPrefilled, setBrandPrefilled] = useState(false);
@@ -276,58 +271,6 @@ export default function SmsCompliancePage() {
     } catch {
       setStatus("error");
     }
-  };
-
-  // ------------------------------------------------------------------
-  // Opt-In Screenshot Upload
-  // ------------------------------------------------------------------
-
-  const uploadOptInFile = useCallback(async (file: File) => {
-    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
-    if (!allowed.includes(file.type)) {
-      toast({ title: "Invalid file type", description: "Please upload PNG, JPEG, or WebP", variant: "destructive" });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Maximum file size is 5MB", variant: "destructive" });
-      return;
-    }
-
-    try {
-      setIsUploadingOptIn(true);
-      const uploadData = new FormData();
-      uploadData.append("file", file);
-      uploadData.append("type", "compliance");
-
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: uploadData,
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setSmsOptInImageUrl(data.data.url);
-        toast({ title: "Opt-in screenshot uploaded!" });
-      } else {
-        throw new Error(data.error?.message || "Upload failed");
-      }
-    } catch (error) {
-      toast({
-        title: "Upload failed",
-        description: error instanceof Error ? error.message : "Please try again",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploadingOptIn(false);
-      if (optInImageRef.current) optInImageRef.current.value = "";
-    }
-  }, [toast]);
-
-  const handleOptInImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    uploadOptInFile(file);
   };
 
   // ------------------------------------------------------------------
@@ -920,51 +863,16 @@ export default function SmsCompliancePage() {
                           Upload a screenshot of your website or app showing how customers consent to receive SMS messages (e.g., a signup form with an SMS checkbox).
                         </p>
 
-                        <FileDropZone onFileDrop={uploadOptInFile} accept="image/png,image/jpeg,image/jpg,image/webp" dragLabel="Drop screenshot here">
-                          {smsOptInImageUrl ? (
-                            <div className="relative inline-block">
-                              <div className="w-full max-w-xs rounded-xl border-2 border-green-500/30 bg-white overflow-hidden">
-                                <img
-                                  src={smsOptInImageUrl}
-                                  alt="Opt-in screenshot"
-                                  className="w-full h-auto max-h-48 object-contain"
-                                />
-                              </div>
-                              <button
-                                onClick={() => setSmsOptInImageUrl("")}
-                                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center hover:bg-destructive/80"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                              <p className="text-xs text-green-600 flex items-center gap-1 mt-2">
-                                <CheckCircle2 className="w-3 h-3" />
-                                Screenshot uploaded
-                              </p>
-                            </div>
-                          ) : (
-                            <div
-                              onClick={() => !isUploadingOptIn && optInImageRef.current?.click()}
-                              className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:border-brand-500/50 hover:bg-muted/50 transition-colors"
-                            >
-                              {isUploadingOptIn ? (
-                                <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
-                              ) : (
-                                <>
-                                  <ImageIcon className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-                                  <p className="text-sm font-medium">Click or drop to upload screenshot</p>
-                                  <p className="text-xs text-muted-foreground mt-1">PNG, JPEG, or WebP (max 5MB)</p>
-                                </>
-                              )}
-                            </div>
-                          )}
-                          <input
-                            ref={optInImageRef}
-                            type="file"
-                            accept="image/png,image/jpeg,image/jpg,image/webp"
-                            className="hidden"
-                            onChange={handleOptInImageUpload}
-                          />
-                        </FileDropZone>
+                        <MediaUploader
+                          value={smsOptInImageUrl ? [smsOptInImageUrl] : []}
+                          onChange={(urls) => setSmsOptInImageUrl(urls[0] || "")}
+                          accept="image/png,image/jpeg,image/jpg,image/webp"
+                          maxSize={5 * 1024 * 1024}
+                          filterTypes={["image"]}
+                          variant="medium"
+                          placeholder="Upload proof"
+                          libraryTitle="Select Opt-in Proof"
+                        />
                       </div>
 
                       <div className="p-4 rounded-lg bg-purple-500/5 border border-purple-500/20">
