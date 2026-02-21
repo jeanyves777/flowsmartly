@@ -12,7 +12,7 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { resolveToLocalPath } from "@/lib/utils/s3-client";
 
-const PYTHON_PATH = process.env.REMBG_PYTHON_PATH || "python";
+const PYTHON_PATH = process.env.REMBG_PYTHON_PATH || (process.platform === "win32" ? "python" : "python3");
 const SCRIPT_PATH = path.join(process.cwd(), "scripts", "remove_background.py");
 const TIMEOUT_MS = 120_000; // 2 minutes
 
