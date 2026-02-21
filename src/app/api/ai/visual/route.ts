@@ -277,15 +277,15 @@ async function runDirectPipeline(params: PipelineParams) {
   const ratio = width / height;
   let formatDesc: string;
   if (ratio > 1.7) {
-    formatDesc = `a WIDE HORIZONTAL BANNER (${width}×${height}px, ~${ratio.toFixed(1)}:1 ratio). This is a landscape banner — arrange content horizontally with ample width`;
+    formatDesc = `a WIDE HORIZONTAL BANNER (~${ratio.toFixed(1)}:1 ratio). This is a landscape banner — arrange content horizontally with ample width`;
   } else if (ratio > 1.2) {
-    formatDesc = `a LANDSCAPE rectangle (${width}×${height}px, ~${ratio.toFixed(1)}:1 ratio). Slightly wider than tall — balance content across the width`;
+    formatDesc = `a LANDSCAPE rectangle (~${ratio.toFixed(1)}:1 ratio). Slightly wider than tall — balance content across the width`;
   } else if (ratio > 0.85) {
-    formatDesc = `a SQUARE format (${width}×${height}px). Equal width and height — center the composition`;
+    formatDesc = `a SQUARE format. Equal width and height — center the composition`;
   } else if (ratio > 0.6) {
-    formatDesc = `a PORTRAIT rectangle (${width}×${height}px). Taller than wide — stack content vertically`;
+    formatDesc = `a PORTRAIT rectangle. Taller than wide — stack content vertically`;
   } else {
-    formatDesc = `a TALL VERTICAL format (${width}×${height}px, ~1:${(1 / ratio).toFixed(1)} ratio). Very tall and narrow — use strong vertical layout`;
+    formatDesc = `a TALL VERTICAL format (~1:${(1 / ratio).toFixed(1)} ratio). Very tall and narrow — use strong vertical layout`;
   }
 
   // Build the comprehensive prompt
@@ -352,16 +352,13 @@ TYPOGRAPHY & TEXT STYLING (VERY IMPORTANT — make the text look stunning):
 
   // Social media handles
   if (showSocialIcons && socialHandles && Object.keys(socialHandles).length > 0) {
-    const socialIconSize = Math.max(24, Math.min(Math.round(Math.sqrt(width * height) / 30), 60));
-    const socialTextSize = Math.max(12, Math.min(Math.round(Math.sqrt(width * height) / 50), 28));
     const handlesList = Object.entries(socialHandles)
       .map(([platform, handle]) => `${platform === "twitter" ? "X" : platform}: @${handle}`)
       .join(", ");
     designPrompt += `\n\nSOCIAL MEDIA — Include these handles with their platform icons at the bottom or near contact info:
 ${handlesList}
-- Icon size: ${socialIconSize}px (scales with design size)
-- Handle text size: ${socialTextSize}px
-- Display as recognizable platform icons with the @handle text next to each`;
+- Display as small, recognizable platform icons with the @handle text next to each
+- Keep them subtle and proportional to the overall design`;
   }
   if (brandColors) {
     const colorParts = [];
@@ -403,7 +400,7 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
 - This IS the final design — NOT a mockup, NOT inside a frame/phone/browser. The image fills the canvas edge-to-edge.
 - TYPOGRAPHY QUALITY: Every word must be perfectly spelled, fully visible, and razor-sharp. Use a premium sans-serif typeface. Headlines should have dramatic size contrast with body text. The text layout should look like it was done by a professional graphic designer — balanced, aligned, and beautifully spaced.
 - TEXT READABILITY: If text sits on a photo or complex background, you MUST ensure contrast — use a dark overlay behind light text, or a light overlay behind dark text, or add a strong drop shadow. No text should ever be hard to read.
-- Do NOT include any watermarks or AI-related text
+- Do NOT include any watermarks, AI-related text, image dimensions, pixel sizes, or technical metadata on the design
 - Do NOT render the design on a background or inside any container — the design IS the full image
 - The design must bleed to all 4 edges with no margin, border, or shadow around it${hasLogo ? "\n- KEEP THE TOP-LEFT CORNER CLEAR — no text or icons there (logo will be added separately)" : ""}`;
 
