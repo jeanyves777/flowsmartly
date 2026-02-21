@@ -417,7 +417,7 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
 
   const refPrompt = refBuffer
     ? params.referenceImageUrl
-      ? `CRITICAL: The provided image is the EXACT product, person, or subject to feature in this design. Use this EXACT image as the main hero visual — do NOT recreate, reinterpret, or replace it with an AI-generated version. Build the design layout, text, colors, and branding AROUND this image.\n\n${designPrompt}`
+      ? `ABSOLUTE REQUIREMENT — READ THIS FIRST:\nThe attached image is a REAL photograph/image provided by the user. You MUST place this EXACT image — pixel-for-pixel, unmodified, unaltered — as the main hero visual in the design. Do NOT redraw it, do NOT recreate it, do NOT reinterpret it, do NOT generate a similar-looking version. The provided image must appear EXACTLY as-is with zero modifications to its content, colors, style, or details. Treat it as a sacred, untouchable photograph that you are placing into a professionally designed layout. Your job is ONLY to build the surrounding design (background, text, branding, decorative elements) AROUND this exact image. If you modify, redraw, or replace the provided image in ANY way, the output is a failure.\n\n${designPrompt}`
       : `IMPORTANT: Use the provided image as a DESIGN TEMPLATE REFERENCE. Recreate a very similar design following the same layout, composition, visual style, color scheme, and arrangement of elements — but customize it with the specific content, branding, and details described below.\n\n${designPrompt}`
     : null;
 
