@@ -230,7 +230,7 @@ export default function BackgroundRemoverPage() {
       <motion.div variants={itemVariants} className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center shadow-lg shadow-rose-500/20">
+            <div className="w-12 h-12 rounded-xl bg-brand-500 flex items-center justify-center shadow-lg shadow-brand-500/20">
               <Scissors className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -388,7 +388,7 @@ export default function BackgroundRemoverPage() {
                       <span className="absolute top-3 left-3 text-[11px] font-bold bg-black/60 text-white rounded-md px-2 py-1">
                         ORIGINAL
                       </span>
-                      <span className="absolute top-3 right-3 text-[11px] font-bold bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-md px-2 py-1">
+                      <span className="absolute top-3 right-3 text-[11px] font-bold bg-brand-500 text-white rounded-md px-2 py-1">
                         REMOVED
                       </span>
                     </div>
@@ -454,7 +454,7 @@ export default function BackgroundRemoverPage() {
                           "_self"
                         );
                       }}
-                      className="flex-1 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white"
+                      className="flex-1 bg-brand-500 hover:bg-brand-600 text-white"
                     >
                       <ArrowRight className="w-4 h-4 mr-2" />
                       Use in Studio
@@ -488,7 +488,7 @@ export default function BackgroundRemoverPage() {
                     <Button
                       onClick={handleRemove}
                       size="lg"
-                      className="w-full bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg shadow-rose-500/20"
+                      className="w-full bg-brand-500 hover:bg-brand-600 text-white shadow-lg shadow-brand-500/20"
                     >
                       <Scissors className="w-5 h-5 mr-2" />
                       Remove Background

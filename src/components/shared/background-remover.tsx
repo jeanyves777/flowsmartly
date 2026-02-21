@@ -167,7 +167,7 @@ export function BackgroundRemover({
       <DialogContent className="max-w-2xl w-[90vw] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center">
               <Scissors className="w-4 h-4 text-white" />
             </div>
             Remove Background
@@ -391,7 +391,7 @@ export function BackgroundRemover({
               {!processedUrl ? (
                 <Button
                   onClick={handleRemove}
-                  className="w-full bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white"
+                  className="w-full bg-brand-500 hover:bg-brand-600 text-white"
                   size="lg"
                 >
                   <Scissors className="w-4 h-4 mr-2" />
@@ -421,7 +421,7 @@ export function BackgroundRemover({
                   </Button>
                   <Button
                     onClick={handleUse}
-                    className="flex-1 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white"
+                    className="flex-1 bg-brand-500 hover:bg-brand-600 text-white"
                   >
                     <Check className="w-4 h-4 mr-2" />
                     Use This Image
