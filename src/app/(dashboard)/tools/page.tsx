@@ -6,6 +6,7 @@ import {
   ClipboardList,
   ArrowRight,
   FileQuestion,
+  Scissors,
   BarChart3,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +28,15 @@ const tools = [
     icon: FileQuestion,
     color: "from-violet-500 to-purple-600",
     bgLight: "bg-violet-50 dark:bg-violet-950/30",
+    available: true,
+  },
+  {
+    name: "Background Remover",
+    description: "Remove backgrounds from any image with AI precision. Perfect for product photos, logos, and design assets.",
+    href: "/tools/background-remover",
+    icon: Scissors,
+    color: "from-rose-500 to-pink-600",
+    bgLight: "bg-rose-50 dark:bg-rose-950/30",
     available: true,
   },
   {

@@ -43,6 +43,8 @@ const DEFAULT_PRICING: {
   { key: "EMAIL_SEND", name: "Email Send", description: "Send a single marketing email (~$0.001)", credits: 1, category: "marketing" },
   { key: "SMS_SEND", name: "SMS Send", description: "Send a single SMS message (~$0.008)", credits: 3, category: "marketing" },
   { key: "MMS_SEND", name: "MMS Send", description: "Send a single MMS message with image (~$0.02)", credits: 5, category: "marketing" },
+  // AI Image Tools
+  { key: "AI_BG_REMOVE", name: "AI Background Removal", description: "Remove background from a single image (rembg, server-side)", credits: 1, category: "ai_image" },
 ];
 
 // GET /api/admin/credit-pricing - List all credit pricing

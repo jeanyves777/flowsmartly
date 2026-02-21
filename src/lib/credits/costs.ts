@@ -97,6 +97,9 @@ export const DEFAULT_CREDIT_COSTS = {
 
   // --- AI Marketing Image ---
   AI_MARKETING_IMAGE: 12, // Single image for MMS/email campaigns (~$0.06)
+
+  // --- AI Image Tools ---
+  AI_BG_REMOVE: 1,        // Background removal (rembg, free server-side)
 } as const;
 
 /**
@@ -135,6 +138,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_VIDEO_STUDIO: "AI video studio generation",
   AI_VIDEO_SLIDESHOW: "AI slideshow video generation",
   AI_MARKETING_IMAGE: "AI marketing image generation",
+  AI_BG_REMOVE: "AI background removal",
 };
 
 /**

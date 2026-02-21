@@ -35,6 +35,7 @@ import {
   LayoutTemplate,
   ImageIcon,
   X,
+  Scissors,
 } from "lucide-react";
 import { TemplateBrowser, type DesignTemplate } from "@/components/studio/template-browser";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,7 @@ import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { PostSharePanel } from "@/components/shared/post-share-panel";
 import { MediaUploader } from "@/components/shared/media-uploader";
+import { BackgroundRemover } from "@/components/shared/background-remover";
 import {
   DESIGN_CATEGORIES,
   DESIGN_STYLES,
@@ -221,6 +223,10 @@ export default function VisualDesignStudioPage() {
 
   // Style reference images (design inspiration)
   const [styleReferenceUrls, setStyleReferenceUrls] = useState<string[]>([]);
+
+  // Background remover state
+  const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
+  const [bgRemoverImageUrl, setBgRemoverImageUrl] = useState("");
 
   // AI ideas state
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
@@ -1135,6 +1141,20 @@ export default function VisualDesignStudioPage() {
                         placeholder="Upload"
                         libraryTitle="Select Exact Image"
                       />
+                      {exactImageUrls.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs gap-1.5"
+                          onClick={() => {
+                            setBgRemoverImageUrl(exactImageUrls[0]);
+                            setBgRemoverOpen(true);
+                          }}
+                        >
+                          <Scissors className="w-3 h-3" />
+                          Remove Background
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1618,6 +1638,18 @@ export default function VisualDesignStudioPage() {
           )}
         </div>
       )}
+
+      {/* Background Remover Dialog */}
+      <BackgroundRemover
+        imageUrl={bgRemoverImageUrl}
+        open={bgRemoverOpen}
+        onClose={() => setBgRemoverOpen(false)}
+        onComplete={(processedUrl) => {
+          // Replace the first exact image with the processed one
+          setExactImageUrls((prev) => [processedUrl, ...prev.slice(1)]);
+          setBgRemoverOpen(false);
+        }}
+      />
 
       {/* Large Preview Modal */}
       <Dialog open={!!previewDesign} onOpenChange={(open) => !open && setPreviewDesign(null)}>
