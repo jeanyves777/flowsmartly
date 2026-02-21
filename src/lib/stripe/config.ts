@@ -8,20 +8,20 @@
 export const PLANS = {
   STARTER: {
     name: "Starter",
-    monthlyCredits: 500,
+    monthlyCredits: 100,
     priceCentsMonthly: 0,
     priceCentsYearly: 0,
-    features: ["500 credits/month", "Email marketing", "Basic design tools", "FlowSocial feed access"],
+    features: ["100 credits/month", "Email marketing", "Basic design tools", "FlowSocial feed access"],
   },
   PRO: {
     name: "Pro",
-    monthlyCredits: 1500,
+    monthlyCredits: 500,
     priceCentsMonthly: 1999,
     priceCentsYearly: 19990,
     stripePriceIdMonthly: process.env.STRIPE_PRO_MONTHLY_PRICE_ID || "",
     stripePriceIdYearly: process.env.STRIPE_PRO_YEARLY_PRICE_ID || "",
     features: [
-      "1,500 credits/month",
+      "500 credits/month",
       "AI content generation",
       "All design tools & styles",
       "Brand Identity & Logo Generator",
@@ -31,13 +31,13 @@ export const PLANS = {
   },
   BUSINESS: {
     name: "Business",
-    monthlyCredits: 4000,
+    monthlyCredits: 1500,
     priceCentsMonthly: 4999,
     priceCentsYearly: 49990,
     stripePriceIdMonthly: process.env.STRIPE_BUSINESS_MONTHLY_PRICE_ID || "",
     stripePriceIdYearly: process.env.STRIPE_BUSINESS_YEARLY_PRICE_ID || "",
     features: [
-      "4,000 credits/month",
+      "1,500 credits/month",
       "Everything in Pro",
       "Campaign management",
       "Analytics dashboard",
@@ -46,13 +46,13 @@ export const PLANS = {
   },
   ENTERPRISE: {
     name: "Enterprise",
-    monthlyCredits: 10000,
+    monthlyCredits: 5000,
     priceCentsMonthly: 14999,
     priceCentsYearly: 149990,
     stripePriceIdMonthly: process.env.STRIPE_ENTERPRISE_MONTHLY_PRICE_ID || "",
     stripePriceIdYearly: process.env.STRIPE_ENTERPRISE_YEARLY_PRICE_ID || "",
     features: [
-      "10,000 credits/month",
+      "5,000 credits/month",
       "Everything in Business",
       "White-label support",
       "Team collaboration",
@@ -67,10 +67,10 @@ export type PlanId = keyof typeof PLANS;
 // ── Credit packages ──
 
 export const CREDIT_PACKAGES = [
-  { id: "credits_100", credits: 100, priceCents: 100, bonus: 0, label: "100 Credits" },
-  { id: "credits_500", credits: 500, priceCents: 500, bonus: 0, label: "500 Credits" },
-  { id: "credits_1000", credits: 1000, priceCents: 1000, bonus: 50, label: "1,000 + 50 Bonus" },
-  { id: "credits_2500", credits: 2500, priceCents: 2500, bonus: 150, label: "2,500 + 150 Bonus" },
-  { id: "credits_5000", credits: 5000, priceCents: 5000, bonus: 500, label: "5,000 + 500 Bonus" },
-  { id: "credits_25000", credits: 25000, priceCents: 25000, bonus: 3000, label: "25,000 + 3,000 Bonus" },
+  { id: "credits_50", credits: 50, priceCents: 199, bonus: 0, label: "50 Credits" },
+  { id: "credits_150", credits: 150, priceCents: 499, bonus: 0, label: "150 Credits" },
+  { id: "credits_500", credits: 500, priceCents: 1499, bonus: 25, label: "500 + 25 Bonus" },
+  { id: "credits_1000", credits: 1000, priceCents: 2499, bonus: 75, label: "1,000 + 75 Bonus" },
+  { id: "credits_3000", credits: 3000, priceCents: 5999, bonus: 300, label: "3,000 + 300 Bonus" },
+  { id: "credits_10000", credits: 10000, priceCents: 14999, bonus: 1500, label: "10,000 + 1,500 Bonus" },
 ] as const;
