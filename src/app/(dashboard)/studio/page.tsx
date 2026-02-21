@@ -659,7 +659,7 @@ export default function VisualDesignStudioPage() {
       {referenceImageUrl && (
         <Badge className="text-[10px] bg-violet-500/10 text-violet-600 border-violet-500/20 gap-1">
           <ImageIcon className="w-3 h-3" />
-          Reference Image
+          Exact Image
         </Badge>
       )}
     </>
@@ -1208,176 +1208,127 @@ export default function VisualDesignStudioPage() {
                     )}
                   </div>
 
-                  {/* Design Style Reference */}
-                  <div className="space-y-2.5 pt-2 border-t border-border/50">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium text-muted-foreground">
-                        Design Style Reference <span className="text-xs font-normal">(optional)</span>
-                      </Label>
-                      {styleRefUrl && (
-                        <button
-                          onClick={() => { setStyleRefUrl(null); setStyleRefPreview(null); setStyleRefName(null); }}
-                          className="text-xs text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground -mt-1">
-                      Upload a design you like — AI will recreate the same style and layout with your content
-                    </p>
+                  {/* Style Reference + Exact Image — side by side */}
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/50">
+                    {/* Design Style Reference */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-medium text-muted-foreground">Style Reference</Label>
+                        {styleRefUrl && (
+                          <button
+                            onClick={() => { setStyleRefUrl(null); setStyleRefPreview(null); setStyleRefName(null); }}
+                            className="text-[10px] text-muted-foreground hover:text-destructive transition-colors"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
 
-                    <FileDropZone
-                      onFileDrop={uploadStyleRefFile}
-                      accept="image/png,image/jpeg,image/webp"
-                      maxSize={5 * 1024 * 1024}
-                      disabled={isUploadingStyleRef}
-                      dragLabel="Drop style reference"
-                    >
-                    {styleRefPreview ? (
-                      <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border">
-                        <img
-                          src={styleRefPreview}
-                          alt="Style reference"
-                          className="w-16 h-16 rounded-lg object-cover border"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{styleRefName || "Style reference"}</p>
-                          <p className="text-xs text-muted-foreground">AI will match this design style</p>
+                      <FileDropZone
+                        onFileDrop={uploadStyleRefFile}
+                        accept="image/png,image/jpeg,image/webp"
+                        maxSize={5 * 1024 * 1024}
+                        disabled={isUploadingStyleRef}
+                        dragLabel="Drop style reference"
+                      >
+                      {styleRefPreview ? (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border">
+                          <img src={styleRefPreview} alt="Style reference" className="w-10 h-10 rounded object-cover border" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium truncate">{styleRefName || "Style ref"}</p>
+                            <p className="text-[10px] text-muted-foreground">AI matches this style</p>
+                          </div>
+                          <button
+                            onClick={() => { setStyleRefUrl(null); setStyleRefPreview(null); setStyleRefName(null); }}
+                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => { setStyleRefUrl(null); setStyleRefPreview(null); setStyleRefName(null); }}
-                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2">
-                        <input
-                          ref={styleRefInputRef}
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp"
-                          className="hidden"
-                          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadStyleRefFile(f); }}
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => styleRefInputRef.current?.click()}
-                          disabled={isUploadingStyleRef}
-                          className="flex-1"
-                        >
-                          {isUploadingStyleRef ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <Upload className="w-4 h-4 mr-2" />
-                          )}
-                          Upload Design
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowStyleRefMediaLibrary(true)}
-                          disabled={isUploadingStyleRef}
-                          className="flex-1"
-                        >
-                          <FolderOpen className="w-4 h-4 mr-2" />
-                          Browse Library
-                        </Button>
-                      </div>
-                    )}
-                    </FileDropZone>
-                  </div>
-
-                  {/* Reference Image */}
-                  <div className="space-y-2.5 pt-2 border-t border-border/50">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium text-muted-foreground">
-                        Reference Image <span className="text-xs font-normal">(optional)</span>
-                      </Label>
-                      {referenceImageUrl && (
-                        <button
-                          onClick={() => {
-                            setReferenceImageUrl(null);
-                            setReferenceImagePreview(null);
-                            setReferenceImageName(null);
-                          }}
-                          className="text-xs text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground -mt-1">
-                      Upload a product photo or image — AI will use it as the exact visual in the design
-                    </p>
-
-                    <FileDropZone
-                      onFileDrop={uploadReferenceFile}
-                      accept="image/png,image/jpeg,image/webp"
-                      maxSize={5 * 1024 * 1024}
-                      disabled={isUploadingReference}
-                      dragLabel="Drop reference image"
-                    >
-                    {referenceImagePreview ? (
-                      <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border">
-                        <img
-                          src={referenceImagePreview}
-                          alt="Reference"
-                          className="w-16 h-16 rounded-lg object-cover border"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{referenceImageName || "Reference image"}</p>
-                          <p className="text-xs text-muted-foreground">Will be used as main visual</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] text-muted-foreground">AI recreates this style with your content</p>
+                          <input
+                            ref={styleRefInputRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            className="hidden"
+                            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadStyleRefFile(f); }}
+                          />
+                          <div className="flex gap-1.5">
+                            <Button variant="outline" size="sm" onClick={() => styleRefInputRef.current?.click()} disabled={isUploadingStyleRef} className="flex-1 h-8 text-xs">
+                              {isUploadingStyleRef ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />}
+                              Upload
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => setShowStyleRefMediaLibrary(true)} disabled={isUploadingStyleRef} className="flex-1 h-8 text-xs">
+                              <FolderOpen className="w-3.5 h-3.5 mr-1" />
+                              Library
+                            </Button>
+                          </div>
                         </div>
-                        <button
-                          onClick={() => {
-                            setReferenceImageUrl(null);
-                            setReferenceImagePreview(null);
-                            setReferenceImageName(null);
-                          }}
-                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                      )}
+                      </FileDropZone>
+                    </div>
+
+                    {/* Exact Image */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-medium text-muted-foreground">Exact Image</Label>
+                        {referenceImageUrl && (
+                          <button
+                            onClick={() => { setReferenceImageUrl(null); setReferenceImagePreview(null); setReferenceImageName(null); }}
+                            className="text-[10px] text-muted-foreground hover:text-destructive transition-colors"
+                          >
+                            Remove
+                          </button>
+                        )}
                       </div>
-                    ) : (
-                      <div className="flex gap-2">
-                        <input
-                          ref={referenceInputRef}
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp"
-                          className="hidden"
-                          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadReferenceFile(f); }}
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => referenceInputRef.current?.click()}
-                          disabled={isUploadingReference}
-                          className="flex-1"
-                        >
-                          {isUploadingReference ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <Upload className="w-4 h-4 mr-2" />
-                          )}
-                          Upload Image
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowRefMediaLibrary(true)}
-                          disabled={isUploadingReference}
-                          className="flex-1"
-                        >
-                          <FolderOpen className="w-4 h-4 mr-2" />
-                          Browse Library
-                        </Button>
-                      </div>
-                    )}
-                    </FileDropZone>
+
+                      <FileDropZone
+                        onFileDrop={uploadReferenceFile}
+                        accept="image/png,image/jpeg,image/webp"
+                        maxSize={5 * 1024 * 1024}
+                        disabled={isUploadingReference}
+                        dragLabel="Drop exact image"
+                      >
+                      {referenceImagePreview ? (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border">
+                          <img src={referenceImagePreview} alt="Exact image" className="w-10 h-10 rounded object-cover border" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium truncate">{referenceImageName || "Exact image"}</p>
+                            <p className="text-[10px] text-muted-foreground">Used as-is in design</p>
+                          </div>
+                          <button
+                            onClick={() => { setReferenceImageUrl(null); setReferenceImagePreview(null); setReferenceImageName(null); }}
+                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] text-muted-foreground">AI uses your exact image in the design</p>
+                          <input
+                            ref={referenceInputRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            className="hidden"
+                            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadReferenceFile(f); }}
+                          />
+                          <div className="flex gap-1.5">
+                            <Button variant="outline" size="sm" onClick={() => referenceInputRef.current?.click()} disabled={isUploadingReference} className="flex-1 h-8 text-xs">
+                              {isUploadingReference ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />}
+                              Upload
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => setShowRefMediaLibrary(true)} disabled={isUploadingReference} className="flex-1 h-8 text-xs">
+                              <FolderOpen className="w-3.5 h-3.5 mr-1" />
+                              Library
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      </FileDropZone>
+                    </div>
                   </div>
                 </div>
               </CollapsibleSection>
@@ -1908,7 +1859,7 @@ export default function VisualDesignStudioPage() {
           setReferenceImageName("Library image");
           setShowRefMediaLibrary(false);
         }}
-        title="Select Reference Image"
+        title="Select Exact Image"
         filterTypes={["image"]}
       />
       {/* Style Reference Media Library Picker */}
