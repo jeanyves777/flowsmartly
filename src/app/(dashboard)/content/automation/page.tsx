@@ -1487,25 +1487,6 @@ export default function PostAutomationPage() {
               {/* End Date */}
               <div className="space-y-2">
                 <Label>Automation End Date</Label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {DURATION_PRESETS.map((preset) => {
-                    const today = new Date().toISOString().split("T")[0];
-                    const matches = matchesDurationPreset(today, wizardEndDate, preset);
-                    return (
-                      <button
-                        key={preset.label}
-                        onClick={() => setWizardEndDate(applyDurationPreset(today, preset))}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                          matches
-                            ? "border-orange-500 bg-orange-500/10 text-orange-600"
-                            : "border-border/60 hover:border-orange-500/40"
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    );
-                  })}
-                </div>
                 <Input
                   type="date"
                   value={wizardEndDate}
@@ -1566,11 +1547,28 @@ export default function PostAutomationPage() {
                 </Button>
                 <Button
                   onClick={() => setWizardStep(5)}
-                  className="bg-gradient-to-r from-amber-500 to-orange-600 text-white"
+                  disabled={wizardEstimate ? !wizardEstimate.hasEnoughCredits : false}
+                  className="bg-gradient-to-r from-amber-500 to-orange-600 text-white disabled:opacity-50"
                 >
                   Review & Launch <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
+              {wizardEstimate && !wizardEstimate.hasEnoughCredits && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 mt-2">
+                  <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-600">Insufficient credits to launch</p>
+                    <p className="text-xs text-red-500/80 mt-0.5">
+                      You need {(wizardEstimate.totalCredits - wizardEstimate.userCredits).toLocaleString()} more credits.
+                    </p>
+                  </div>
+                  <Link href="/settings/upgrade">
+                    <Button size="sm" variant="outline" className="border-red-500/30 text-red-600 hover:bg-red-500/10">
+                      Buy Credits
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -1661,14 +1659,32 @@ export default function PostAutomationPage() {
                 </div>
               </div>
 
+              {wizardEstimate && !wizardEstimate.hasEnoughCredits && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-600">Insufficient credits</p>
+                    <p className="text-xs text-red-500/80 mt-0.5">
+                      You need {(wizardEstimate.totalCredits - wizardEstimate.userCredits).toLocaleString()} more credits to launch this automation.
+                      Subscribe to a plan or purchase credits to continue.
+                    </p>
+                  </div>
+                  <Link href="/settings/upgrade">
+                    <Button size="sm" className="bg-gradient-to-r from-amber-500 to-orange-600 text-white">
+                      Upgrade
+                    </Button>
+                  </Link>
+                </div>
+              )}
+
               <div className="flex justify-between pt-4">
                 <Button variant="outline" onClick={() => setWizardStep(4)}>
                   <ChevronLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
                 <Button
                   onClick={launchStrategyAutomation}
-                  disabled={wizardLaunching || enabledCount === 0}
-                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+                  disabled={wizardLaunching || enabledCount === 0 || (wizardEstimate ? !wizardEstimate.hasEnoughCredits : false)}
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white disabled:opacity-50"
                 >
                   {wizardLaunching ? (
                     <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Launching...</>
