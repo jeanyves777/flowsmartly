@@ -28,6 +28,7 @@ import {
   FolderOpen,
   X,
   ImageIcon,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -171,8 +172,8 @@ export default function VideoStudioPage() {
   const [selectedVoiceAccent, setSelectedVoiceAccent] = useState<string>("american");
   const [selectedProvider, setSelectedProvider] = useState<"veo3" | "slideshow">("veo3");
 
-  // Reference image state
-  const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
+  // Media (images/videos) state — supports multiple
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -195,12 +196,15 @@ export default function VideoStudioPage() {
 
   const { toast } = useToast();
 
-  // Credit cost based on provider and duration (extended = multiplied)
-  const baseCost = 500;
+  // Dynamic pricing from DB (fetched on load)
+  const [veoCostPerClip, setVeoCostPerClip] = useState(60);
+  const [slideshowCost, setSlideshowCost] = useState(25);
+
+  // Credit cost based on provider and duration
   const extCount = selectedProvider === "veo3" ? getExtensionCount(selectedDuration.seconds) : 0;
   const creditCost =
-    selectedProvider === "slideshow" ? Math.round(baseCost * 2) :
-    Math.round(baseCost * (1 + extCount));
+    selectedProvider === "slideshow" ? slideshowCost :
+    Math.round(veoCostPerClip * (1 + extCount));
 
   // Auto-lock resolution to 720p for extended Veo videos
   useEffect(() => {
@@ -214,10 +218,11 @@ export default function VideoStudioPage() {
   const fetchData = useCallback(async () => {
     try {
       setIsLoadingGallery(true);
-      const [studioRes, designsRes, brandRes] = await Promise.all([
+      const [studioRes, designsRes, brandRes, costsRes] = await Promise.all([
         fetch("/api/ai/studio"),
         fetch("/api/designs?limit=12"),
         fetch("/api/brand"),
+        fetch("/api/credits/costs?keys=AI_VIDEO_STUDIO,AI_VIDEO_SLIDESHOW"),
       ]);
 
       if (studioRes.ok) {
@@ -251,6 +256,13 @@ export default function VideoStudioPage() {
         if (brandData.success && brandData.data?.brandKit?.logo) {
           setBrandLogo(brandData.data.brandKit.logo);
         }
+      }
+
+      if (costsRes.ok) {
+        const costsData = await costsRes.json();
+        const costs = costsData.data?.costs;
+        if (costs?.AI_VIDEO_STUDIO) setVeoCostPerClip(costs.AI_VIDEO_STUDIO);
+        if (costs?.AI_VIDEO_SLIDESHOW) setSlideshowCost(costs.AI_VIDEO_SLIDESHOW);
       }
     } catch {
       // silently fail
@@ -304,16 +316,16 @@ export default function VideoStudioPage() {
     }
   };
 
-  // ─── Reference image upload handler ───
+  // ─── Media upload handler (supports multiple files) ───
 
   const uploadVideoStudioFile = useCallback(async (file: File) => {
-    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "video/mp4", "video/webm"];
     if (!allowed.includes(file.type)) {
-      toast({ title: "Invalid file type", description: "Only PNG, JPEG, and WebP images are supported.", variant: "destructive" });
+      toast({ title: "Invalid file type", description: "Supported: PNG, JPEG, WebP, MP4, WebM", variant: "destructive" });
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Image must be under 10MB.", variant: "destructive" });
+    if (file.size > 20 * 1024 * 1024) {
+      toast({ title: "File too large", description: "File must be under 20MB.", variant: "destructive" });
       return;
     }
 
@@ -327,8 +339,8 @@ export default function VideoStudioPage() {
       const data = await response.json();
 
       if (data.success) {
-        setReferenceImageUrl(data.data.url);
-        toast({ title: "Image uploaded!" });
+        setMediaUrls((prev) => [...prev, data.data.url]);
+        toast({ title: "Media uploaded!" });
       } else {
         throw new Error(data.error?.message || "Upload failed");
       }
@@ -341,9 +353,11 @@ export default function VideoStudioPage() {
   }, [toast]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    uploadVideoStudioFile(file);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    for (const file of Array.from(files)) {
+      await uploadVideoStudioFile(file);
+    }
   };
 
   // ─── Generate handler with SSE ───
@@ -377,7 +391,8 @@ export default function VideoStudioPage() {
           duration: selectedProvider === "slideshow" ? 45 : selectedDuration.seconds,
           style: selectedStyle,
           resolution: selectedResolution,
-          referenceImageUrl: referenceImageUrl || null,
+          referenceImageUrl: mediaUrls[0] || null,
+          mediaUrls: mediaUrls.length > 0 ? mediaUrls : null,
           brandLogo: brandLogo || null,
           voiceOver: selectedProvider === "slideshow"
             ? (selectedVoice === "none" ? false : selectedVoice)
@@ -572,10 +587,10 @@ export default function VideoStudioPage() {
                           <Badge variant="outline" className="text-xs capitalize">
                             {selectedStyle}
                           </Badge>
-                          {referenceImageUrl && (
+                          {mediaUrls.length > 0 && (
                             <Badge className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/20 gap-1">
                               <ImageIcon className="w-3 h-3" />
-                              Product Image
+                              {mediaUrls.length} Media
                             </Badge>
                           )}
                         </div>
@@ -620,7 +635,7 @@ export default function VideoStudioPage() {
                       <p className="text-xs text-muted-foreground">Google &middot; Up to 8s &middot; Native voice &amp; audio</p>
                     </div>
                     {selectedProvider === "veo3" && (
-                      <Badge className="absolute top-2 right-2 text-[10px] bg-brand-500 text-white">{baseCost}</Badge>
+                      <Badge className="absolute top-2 right-2 text-[10px] bg-brand-500 text-white">{veoCostPerClip} cr</Badge>
                     )}
                   </button>
                   <button
@@ -641,7 +656,7 @@ export default function VideoStudioPage() {
                       <p className="text-xs text-muted-foreground">AI Images &middot; Up to 45s &middot; Narrated</p>
                     </div>
                     {selectedProvider === "slideshow" && (
-                      <Badge className="absolute top-2 right-2 text-[10px] bg-emerald-500 text-white">{Math.round(baseCost * 2)}</Badge>
+                      <Badge className="absolute top-2 right-2 text-[10px] bg-emerald-500 text-white">{slideshowCost} cr</Badge>
                     )}
                   </button>
                 </div>
@@ -726,58 +741,62 @@ export default function VideoStudioPage() {
                   </CardContent>
                 </Card>
 
-                {/* Product / Reference Image */}
+                {/* Media (images/videos) — supports multiple */}
                 <Card className="rounded-2xl border-border bg-card/50">
                   <CardContent className="p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <ImageIcon className="w-5 h-5 text-muted-foreground" />
-                      <Label className="text-base font-semibold">Product Image</Label>
-                      <span className="text-xs text-muted-foreground">(optional)</span>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                        <Label className="text-base font-semibold">Media</Label>
+                        <span className="text-xs text-muted-foreground">(optional, multiple)</span>
+                      </div>
+                      {mediaUrls.length > 0 && (
+                        <button
+                          onClick={() => setMediaUrls([])}
+                          className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          Clear all
+                        </button>
+                      )}
                     </div>
 
-                    <FileDropZone onFileDrop={uploadVideoStudioFile} accept="image/png,image/jpeg,image/jpg,image/webp" dragLabel="Drop image here">
-                    {referenceImageUrl ? (
-                      <div className="flex items-center gap-4">
-                        <div className="relative w-24 h-24 rounded-xl overflow-hidden border bg-muted shrink-0">
-                          <Image
-                            src={referenceImageUrl}
-                            alt="Product reference"
-                            fill
-                            className="object-cover"
-                            unoptimized
-                          />
+                    <FileDropZone onFileDrop={uploadVideoStudioFile} accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm" dragLabel="Drop media here">
+                    {mediaUrls.length > 0 ? (
+                      <div className="space-y-3">
+                        {/* Thumbnail grid */}
+                        <div className="flex flex-wrap gap-2">
+                          {mediaUrls.map((url, i) => (
+                            <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border bg-muted shrink-0 group">
+                              {url.match(/\.(mp4|webm)$/i) ? (
+                                <video src={url} className="w-full h-full object-cover" muted />
+                              ) : (
+                                <Image src={url} alt={`Media ${i + 1}`} fill className="object-cover" unoptimized />
+                              )}
+                              <button
+                                onClick={() => setMediaUrls((prev) => prev.filter((_, j) => j !== i))}
+                                className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                              >
+                                <X className="w-4 h-4 text-white" />
+                              </button>
+                            </div>
+                          ))}
+                          {/* Add more button */}
+                          <button
+                            onClick={() => imageInputRef.current?.click()}
+                            className="w-16 h-16 rounded-lg border-2 border-dashed border-muted-foreground/20 hover:border-brand-500/30 flex items-center justify-center transition-colors"
+                          >
+                            <Plus className="w-5 h-5 text-muted-foreground" />
+                          </button>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-muted-foreground mb-2">
-                            Your product image will be animated into the video.
-                          </p>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => imageInputRef.current?.click()}
-                            >
-                              <Upload className="w-3.5 h-3.5 mr-1.5" />
-                              Replace
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowMediaLibrary(true)}
-                            >
-                              <FolderOpen className="w-3.5 h-3.5 mr-1.5" />
-                              Library
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setReferenceImageUrl(null)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <X className="w-3.5 h-3.5 mr-1.5" />
-                              Remove
-                            </Button>
-                          </div>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => imageInputRef.current?.click()}>
+                            <Upload className="w-3.5 h-3.5 mr-1.5" />
+                            Add More
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => setShowMediaLibrary(true)}>
+                            <FolderOpen className="w-3.5 h-3.5 mr-1.5" />
+                            From Library
+                          </Button>
                         </div>
                       </div>
                     ) : (
@@ -792,7 +811,7 @@ export default function VideoStudioPage() {
                             <Upload className="w-5 h-5 text-muted-foreground" />
                           )}
                           <span className="text-sm text-muted-foreground">
-                            {isUploadingImage ? "Uploading..." : "Upload product image"}
+                            {isUploadingImage ? "Uploading..." : "Upload images or videos"}
                           </span>
                         </div>
                         <span className="text-xs text-muted-foreground">or</span>
@@ -808,12 +827,13 @@ export default function VideoStudioPage() {
                       </div>
                     )}
 
-                    {/* Hidden file input */}
+                    {/* Hidden file input — multiple */}
                     <input
                       ref={imageInputRef}
                       type="file"
-                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm"
                       className="hidden"
+                      multiple
                       onChange={handleImageUpload}
                     />
                     </FileDropZone>
@@ -825,12 +845,11 @@ export default function VideoStudioPage() {
                   open={showMediaLibrary}
                   onClose={() => setShowMediaLibrary(false)}
                   onSelect={(url) => {
-                    setReferenceImageUrl(url);
-                    setShowMediaLibrary(false);
-                    toast({ title: "Image selected from library" });
+                    setMediaUrls((prev) => prev.includes(url) ? prev : [...prev, url]);
+                    toast({ title: "Media added from library" });
                   }}
-                  title="Select Product Image"
-                  filterTypes={["image"]}
+                  title="Select Media"
+                  filterTypes={["image", "video"]}
                 />
 
                 {/* Section 1: Video Type & Format */}

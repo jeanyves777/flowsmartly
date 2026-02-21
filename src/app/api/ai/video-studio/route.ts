@@ -66,13 +66,15 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: "Slideshow requires XAI_API_KEY for image generation" }), { status: 503 });
     }
 
-    const baseCost = await getDynamicCreditCost("AI_VIDEO_STUDIO" as const);
-    // Credit multiplier: Slideshow 2x, Veo extended = baseCost * number of API calls
-    const extensionCount = provider === "veo3" && duration > 8 ? Math.ceil((duration - 8) / 7) : 0;
-    const veoCallCount = 1 + extensionCount;
-    const creditCost =
-      provider === "slideshow" ? Math.round(baseCost * 2) :
-      Math.round(baseCost * veoCallCount);
+    // Credit cost: slideshow uses its own (cheaper) rate, Veo scales with extensions
+    const creditCost = await (async () => {
+      if (provider === "slideshow") {
+        return await getDynamicCreditCost("AI_VIDEO_SLIDESHOW" as const);
+      }
+      const veoCost = await getDynamicCreditCost("AI_VIDEO_STUDIO" as const);
+      const extensionCount = duration > 8 ? Math.ceil((duration - 8) / 7) : 0;
+      return Math.round(veoCost * (1 + extensionCount));
+    })();
 
     // Check credits
     const user = await prisma.user.findUnique({

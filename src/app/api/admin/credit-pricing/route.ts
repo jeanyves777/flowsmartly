@@ -11,175 +11,38 @@ const DEFAULT_PRICING: {
   credits: number;
   category: string;
 }[] = [
-  // AI Text Generation (Micro)
-  {
-    key: "AI_POST",
-    name: "AI Post Generation",
-    description: "Generate social media posts using AI",
-    credits: 1,
-    category: "ai_text",
-  },
-  {
-    key: "AI_CAPTION",
-    name: "AI Caption Generation",
-    description: "Generate captions for images and videos",
-    credits: 1,
-    category: "ai_text",
-  },
-  {
-    key: "AI_HASHTAGS",
-    name: "AI Hashtag Generation",
-    description: "Generate relevant hashtags for posts",
-    credits: 1,
-    category: "ai_text",
-  },
-  {
-    key: "AI_IDEAS",
-    name: "AI Idea Generation",
-    description: "Generate content ideas and suggestions",
-    credits: 1,
-    category: "ai_text",
-  },
-  {
-    key: "AI_AUTO",
-    name: "AI Auto-Generate",
-    description: "Automatically generate content based on context",
-    credits: 1,
-    category: "ai_text",
-  },
-  {
-    key: "AI_AUDIENCE",
-    name: "AI Audience Targeting",
-    description: "AI-powered audience targeting suggestions",
-    credits: 1,
-    category: "ai_text",
-  },
-  {
-    key: "AI_CAMPAIGN_NAME",
-    name: "AI Campaign Name",
-    description: "Generate campaign name suggestions",
-    credits: 1,
-    category: "ai_text",
-  },
-  // AI Branding (Small)
-  {
-    key: "AI_BRAND_KIT",
-    name: "AI Brand Kit Generation",
-    description: "Generate complete brand kit with colors, fonts, and guidelines",
-    credits: 2,
-    category: "ai_branding",
-  },
-  // AI Image Generation (Medium/Large)
-  {
-    key: "AI_LOGO_CONCEPTS",
-    name: "AI Logo Concepts (Legacy)",
-    description: "Generate SVG logo concepts (legacy feature)",
-    credits: 5,
-    category: "ai_image",
-  },
-  {
-    key: "AI_LOGO_FINALIZE",
-    name: "AI Logo Finalization (Legacy)",
-    description: "Finalize a single logo image (legacy feature)",
-    credits: 10,
-    category: "ai_image",
-  },
-  {
-    key: "AI_LOGO_GENERATION",
-    name: "AI Logo Generation",
-    description: "Generate 3 professional logo concepts with transparent backgrounds",
-    credits: 30,
-    category: "ai_image",
-  },
-  {
-    key: "AI_VISUAL_DESIGN",
-    name: "AI Visual Design",
-    description: "Generate visual designs and graphics",
-    credits: 25,
-    category: "ai_image",
-  },
-  {
-    key: "AI_MARKETING_IMAGE",
-    name: "AI Marketing Image",
-    description: "Generate a single image for MMS/email campaigns (Flow AI or DALL-E 3)",
-    credits: 10,
-    category: "ai_image",
-  },
-  // AI Video Generation (Premium)
-  {
-    key: "AI_CARTOON_VIDEO",
-    name: "AI Cartoon Video",
-    description: "Generate animated cartoon videos with narration (30-90 seconds)",
-    credits: 60,
-    category: "ai_video",
-  },
-  {
-    key: "AI_CARTOON_CHARACTER_REGEN",
-    name: "AI Character Regeneration",
-    description: "Regenerate a single character preview image",
-    credits: 5,
-    category: "ai_video",
-  },
-  // AI Landing Page
-  {
-    key: "AI_LANDING_PAGE",
-    name: "AI Landing Page",
-    description: "Generate a full landing page via AI",
-    credits: 10,
-    category: "ai_text",
-  },
-  // AI Chat Assistant
-  {
-    key: "AI_CHAT_MESSAGE",
-    name: "FlowAI Chat Message",
-    description: "Send a text message to FlowAI assistant",
-    credits: 1,
-    category: "ai_chat",
-  },
-  {
-    key: "AI_CHAT_IMAGE",
-    name: "FlowAI Image Generation",
-    description: "Generate an image via FlowAI chat assistant",
-    credits: 25,
-    category: "ai_chat",
-  },
-  {
-    key: "AI_CHAT_VIDEO",
-    name: "FlowAI Video Generation",
-    description: "Generate a video via FlowAI chat assistant",
-    credits: 40,
-    category: "ai_chat",
-  },
+  // AI Text Generation — GPT-4o-mini ~$0.01-0.03 per call
+  { key: "AI_POST", name: "AI Post Generation", description: "Generate social media posts using AI", credits: 3, category: "ai_text" },
+  { key: "AI_CAPTION", name: "AI Caption Generation", description: "Generate captions for images and videos", credits: 3, category: "ai_text" },
+  { key: "AI_HASHTAGS", name: "AI Hashtag Generation", description: "Generate relevant hashtags for posts", credits: 2, category: "ai_text" },
+  { key: "AI_IDEAS", name: "AI Idea Generation", description: "Generate content ideas and suggestions", credits: 3, category: "ai_text" },
+  { key: "AI_AUTO", name: "AI Auto-Generate", description: "Automatically generate content based on context", credits: 3, category: "ai_text" },
+  { key: "AI_AUDIENCE", name: "AI Audience Targeting", description: "AI-powered audience targeting suggestions", credits: 3, category: "ai_text" },
+  { key: "AI_CAMPAIGN_NAME", name: "AI Campaign Name", description: "Generate campaign name suggestions", credits: 2, category: "ai_text" },
+  // AI Branding — text generation + structured output
+  { key: "AI_BRAND_KIT", name: "AI Brand Kit Generation", description: "Generate complete brand kit with colors, fonts, and guidelines", credits: 8, category: "ai_branding" },
+  // AI Image Generation — OpenAI/xAI/Gemini ~$0.03-0.08 per image
+  { key: "AI_LOGO_CONCEPTS", name: "AI Logo Concepts (Legacy)", description: "Generate SVG logo concepts", credits: 10, category: "ai_image" },
+  { key: "AI_LOGO_FINALIZE", name: "AI Logo Finalization (Legacy)", description: "Finalize a single logo image", credits: 15, category: "ai_image" },
+  { key: "AI_LOGO_GENERATION", name: "AI Logo Generation", description: "Generate 3 professional logo concepts with transparent backgrounds (~$0.24)", credits: 40, category: "ai_image" },
+  { key: "AI_VISUAL_DESIGN", name: "AI Visual Design", description: "Generate a single visual design/graphic (~$0.08)", credits: 15, category: "ai_image" },
+  { key: "AI_MARKETING_IMAGE", name: "AI Marketing Image", description: "Single image for MMS/email campaigns (~$0.06)", credits: 12, category: "ai_image" },
+  // AI Video Generation
+  { key: "AI_CARTOON_VIDEO", name: "AI Cartoon Video", description: "6-8 scene images + TTS audio + video composition (~$0.50)", credits: 80, category: "ai_video" },
+  { key: "AI_CARTOON_CHARACTER_REGEN", name: "AI Character Regeneration", description: "Regenerate a single character preview image", credits: 10, category: "ai_video" },
   // AI Video Studio
-  {
-    key: "AI_VIDEO_STUDIO",
-    name: "AI Video Studio",
-    description: "Generate video content (up to 15 seconds)",
-    credits: 40,
-    category: "ai_video",
-  },
+  { key: "AI_VIDEO_STUDIO", name: "AI Video Studio (Veo 3)", description: "Veo 3 AI video per 8s clip (~$0.35 Google cost)", credits: 60, category: "ai_video" },
+  { key: "AI_VIDEO_SLIDESHOW", name: "AI Slideshow Video", description: "Slideshow: AI images + voiceover + our FFmpeg compositing (~$0.15)", credits: 25, category: "ai_video" },
+  // AI Landing Page — Claude text generation
+  { key: "AI_LANDING_PAGE", name: "AI Landing Page", description: "Generate a full landing page via AI (~$0.10)", credits: 20, category: "ai_text" },
+  // AI Chat Assistant
+  { key: "AI_CHAT_MESSAGE", name: "FlowAI Chat Message", description: "Send a text message to FlowAI assistant", credits: 2, category: "ai_chat" },
+  { key: "AI_CHAT_IMAGE", name: "FlowAI Image Generation", description: "Generate an image via FlowAI chat (~$0.08)", credits: 15, category: "ai_chat" },
+  { key: "AI_CHAT_VIDEO", name: "FlowAI Video Generation", description: "Generate a video via FlowAI chat (~$0.35)", credits: 60, category: "ai_chat" },
   // Messaging
-  {
-    key: "EMAIL_SEND",
-    name: "Email Send",
-    description: "Send a single marketing email",
-    credits: 1,
-    category: "marketing",
-  },
-  {
-    key: "SMS_SEND",
-    name: "SMS Send",
-    description: "Send a single SMS message",
-    credits: 5,
-    category: "marketing",
-  },
-  {
-    key: "MMS_SEND",
-    name: "MMS Send",
-    description: "Send a single MMS message (with image)",
-    credits: 10,
-    category: "marketing",
-  },
+  { key: "EMAIL_SEND", name: "Email Send", description: "Send a single marketing email (~$0.001)", credits: 1, category: "marketing" },
+  { key: "SMS_SEND", name: "SMS Send", description: "Send a single SMS message (~$0.008)", credits: 3, category: "marketing" },
+  { key: "MMS_SEND", name: "MMS Send", description: "Send a single MMS message with image (~$0.02)", credits: 5, category: "marketing" },
 ];
 
 // GET /api/admin/credit-pricing - List all credit pricing

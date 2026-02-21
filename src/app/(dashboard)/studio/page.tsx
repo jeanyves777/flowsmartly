@@ -308,7 +308,7 @@ export default function VisualDesignStudioPage() {
   const [isLoadingDesigns, setIsLoadingDesigns] = useState(true);
   const [creditsRemaining, setCreditsRemaining] = useState<number>(0);
   const [brandIdentity, setBrandIdentity] = useState<BrandIdentity | null>(null);
-  const [designCreditCost, setDesignCreditCost] = useState<number>(125);
+  const [designCreditCost, setDesignCreditCost] = useState<number>(15);
 
   // Active view
   const [activeView, setActiveView] = useState<"create" | "templates" | "gallery">("create");

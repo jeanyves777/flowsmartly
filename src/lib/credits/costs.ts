@@ -4,12 +4,12 @@
  * Dynamic pricing from database with fallback to defaults.
  * Based on credit value: $0.01 per credit (100 credits = $1.00)
  *
- * Pricing tiers:
- * - Email (1 credit):      Email send (1 credit per email)
- * - Micro (5 credits):     Text-only AI tasks (post, caption, hashtags, ideas)
- * - Small (10-25 credits): Multi-step AI tasks (brand kit, logo concepts)
- * - Medium (50-125 credits): Image generation tasks (logo finalize, visual design)
- * - Large (150+ credits):  Premium generation (logo gen, cartoon video)
+ * Pricing tiers — based on actual provider costs + ~30-50% margin:
+ * - Email (1 credit):      Email send via Resend (~$0.001)
+ * - Micro (2-5 credits):   Text-only AI tasks (GPT-4o-mini ~$0.01-0.03)
+ * - Small (5-10 credits):  Multi-step AI tasks (brand kit, logo concepts)
+ * - Medium (10-20 credits): Single image generation (OpenAI/xAI/Gemini ~$0.03-0.08)
+ * - Large (30-80 credits): Multi-image or video generation
  * - Ad boosts:             User-driven budget (user decides how many credits to spend)
  */
 
@@ -57,45 +57,46 @@ export function calculateAdRevenueSplit(cpvCents: number): {
  */
 export const DEFAULT_CREDIT_COSTS = {
   // --- Messaging (credits per message) ---
-  EMAIL_SEND: 1,
-  SMS_SEND: 5,   // SMS message send
-  MMS_SEND: 10,  // MMS message send (with image)
+  EMAIL_SEND: 1,          // Resend: ~$0.001/email
+  SMS_SEND: 3,            // Twilio: ~$0.0079/SMS
+  MMS_SEND: 5,            // Twilio: ~$0.02/MMS
 
-  // --- AI Text Generation (Micro) ---
-  AI_POST: 5,
-  AI_CAPTION: 5,
-  AI_HASHTAGS: 5,
-  AI_IDEAS: 5,
-  AI_AUTO: 5,
-  AI_AUDIENCE: 5,
-  AI_CAMPAIGN_NAME: 5,
+  // --- AI Text Generation (Micro) — GPT-4o-mini ~$0.01-0.03 ---
+  AI_POST: 3,
+  AI_CAPTION: 3,
+  AI_HASHTAGS: 2,
+  AI_IDEAS: 3,
+  AI_AUTO: 3,
+  AI_AUDIENCE: 3,
+  AI_CAMPAIGN_NAME: 2,
 
   // --- AI Branding (Small) ---
-  AI_BRAND_KIT: 10,
+  AI_BRAND_KIT: 8,        // Text generation + structured output
 
-  // --- AI Image Generation (Medium/Large) ---
-  AI_LOGO_CONCEPTS: 25, // Legacy: SVG concepts only
-  AI_LOGO_FINALIZE: 50, // Legacy: single image finalize
-  AI_LOGO_GENERATION: 150, // 3x gpt-image-1 transparent PNGs
-  AI_VISUAL_DESIGN: 125,
+  // --- AI Image Generation — OpenAI/xAI/Gemini ~$0.03-0.08/image ---
+  AI_LOGO_CONCEPTS: 10,   // Legacy: SVG concepts only
+  AI_LOGO_FINALIZE: 15,   // Legacy: single image finalize
+  AI_LOGO_GENERATION: 40, // 3x gpt-image-1 transparent PNGs (~$0.24 total)
+  AI_VISUAL_DESIGN: 15,   // Single image gen (~$0.08 + margin)
 
-  // --- AI Video Generation (Premium) ---
-  AI_CARTOON_VIDEO: 300, // 6-8 scene images + TTS audio + video composition
-  AI_CARTOON_CHARACTER_REGEN: 25, // Regenerate single character preview image
+  // --- AI Video Generation ---
+  AI_CARTOON_VIDEO: 80,   // 6-8 scene images + TTS audio + FFmpeg (~$0.50 total)
+  AI_CARTOON_CHARACTER_REGEN: 10, // Single image regen
 
-  // --- AI Landing Page (Medium) ---
-  AI_LANDING_PAGE: 50, // Full landing page generation via Claude
+  // --- AI Landing Page ---
+  AI_LANDING_PAGE: 20,    // Claude text generation (~$0.10)
 
   // --- AI Chat Assistant ---
-  AI_CHAT_MESSAGE: 2, // FlowAI text chat message
-  AI_CHAT_IMAGE: 125, // FlowAI image generation
-  AI_CHAT_VIDEO: 200, // FlowAI video generation
+  AI_CHAT_MESSAGE: 2,     // GPT-4o-mini text (~$0.01)
+  AI_CHAT_IMAGE: 15,      // Single image gen (~$0.08)
+  AI_CHAT_VIDEO: 60,      // Veo 3 single clip (~$0.35)
 
   // --- AI Video Studio ---
-  AI_VIDEO_STUDIO: 500, // Video generation per Veo API call (~$3-4 Google cost each)
+  AI_VIDEO_STUDIO: 60,    // Veo 3 per 8s clip (~$0.35 Google cost)
+  AI_VIDEO_SLIDESHOW: 25, // Slideshow: our FFmpeg + 6-8 xAI images + TTS (~$0.15 total)
 
   // --- AI Marketing Image ---
-  AI_MARKETING_IMAGE: 50, // Single image for MMS/email campaigns (Flow AI or DALL-E 3 fallback)
+  AI_MARKETING_IMAGE: 12, // Single image for MMS/email campaigns (~$0.06)
 } as const;
 
 /**
@@ -132,6 +133,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_CHAT_IMAGE: "FlowAI image generation",
   AI_CHAT_VIDEO: "FlowAI video generation",
   AI_VIDEO_STUDIO: "AI video studio generation",
+  AI_VIDEO_SLIDESHOW: "AI slideshow video generation",
   AI_MARKETING_IMAGE: "AI marketing image generation",
 };
 
