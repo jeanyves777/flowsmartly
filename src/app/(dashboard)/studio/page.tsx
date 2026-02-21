@@ -43,6 +43,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -186,7 +187,7 @@ export default function VisualDesignStudioPage() {
   // Generation state
   const [selectedCategory, setSelectedCategory] = useState<DesignCategory>("social_post");
   const [selectedSize, setSelectedSize] = useState<SizePreset | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>("openai");
+  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>("xai");
   const [selectedStyle, setSelectedStyle] = useState("modern");
   const [heroType, setHeroType] = useState<"people" | "product" | "text-only">("people");
   const [prompt, setPrompt] = useState("");
@@ -998,39 +999,6 @@ export default function VisualDesignStudioPage() {
                     </div>
                   </div>
 
-                  {/* AI Provider */}
-                  <div className="space-y-2.5">
-                    <Label className="text-sm font-medium text-muted-foreground">AI Provider</Label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {([
-                        { id: "openai" as ImageProvider, label: "OpenAI", sub: "GPT Image" },
-                        { id: "xai" as ImageProvider, label: "xAI", sub: "Grok" },
-                        { id: "gemini" as ImageProvider, label: "Google", sub: "Imagen 4" },
-                      ]).map((prov) => {
-                        const compatible = selectedSize
-                          ? getProvidersForPreset(selectedSize.width, selectedSize.height).includes(prov.id)
-                          : true;
-                        return (
-                          <button
-                            key={prov.id}
-                            onClick={() => setSelectedProvider(prov.id)}
-                            className={`flex flex-col items-center gap-0.5 p-3 rounded-xl border-2 transition-all ${
-                              selectedProvider === prov.id
-                                ? "border-brand-500 bg-brand-500/5"
-                                : compatible
-                                  ? "border-transparent bg-muted/50 hover:bg-muted"
-                                  : "border-transparent bg-muted/30 opacity-50 cursor-not-allowed"
-                            }`}
-                            disabled={!compatible}
-                          >
-                            <span className="text-sm font-medium">{prov.label}</span>
-                            <span className="text-[10px] text-muted-foreground">{prov.sub}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
                   {/* Size */}
                   <div className="space-y-2.5">
                     <Label className="text-sm font-medium text-muted-foreground">Size Preset</Label>
@@ -1526,31 +1494,54 @@ export default function VisualDesignStudioPage() {
                 </CollapsibleSection>
               )}
 
-              {/* ═══ Generate Button ═══ */}
-              <div className="flex items-center gap-4">
-                <Button
-                  onClick={handleGenerate}
-                  disabled={isGenerating || !prompt.trim()}
-                  className="flex-1 bg-brand-500 hover:bg-brand-600 h-12 rounded-2xl text-base font-semibold"
-                  size="lg"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Generating Design...
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="w-5 h-5 mr-2" />
-                      Generate Design
-                      <Badge variant="secondary" className="ml-2 bg-white/20 text-white border-0 text-xs">
-                        {designCreditCost} credits
-                      </Badge>
-                    </>
-                  )}
-                </Button>
+              {/* ═══ Generate Button + Provider ═══ */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Select value={selectedProvider} onValueChange={(v) => setSelectedProvider(v as ImageProvider)}>
+                    <SelectTrigger className="w-[140px] h-12 rounded-2xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {([
+                        { id: "xai" as ImageProvider, label: "Grok (xAI)" },
+                        { id: "openai" as ImageProvider, label: "OpenAI (GPT)" },
+                        { id: "gemini" as ImageProvider, label: "Gemini (Google)" },
+                      ]).map((prov) => {
+                        const compatible = selectedSize
+                          ? getProvidersForPreset(selectedSize.width, selectedSize.height).includes(prov.id)
+                          : true;
+                        return (
+                          <SelectItem key={prov.id} value={prov.id} disabled={!compatible}>
+                            {prov.label}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={handleGenerate}
+                    disabled={isGenerating || !prompt.trim()}
+                    className="flex-1 bg-brand-500 hover:bg-brand-600 h-12 rounded-2xl text-base font-semibold"
+                    size="lg"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="w-5 h-5 mr-2" />
+                        Generate Design
+                        <Badge variant="secondary" className="ml-2 bg-white/20 text-white border-0 text-xs">
+                          {designCreditCost} credits
+                        </Badge>
+                      </>
+                    )}
+                  </Button>
+                </div>
                 {brandIdentity && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Palette className="w-4 h-4 text-brand-500" />
                     <span>
                       Using <strong>{brandIdentity.name}</strong>
