@@ -2,10 +2,11 @@
  * Team Delegation System
  *
  * Allows team members to use features on behalf of the team owner,
- * subject to per-feature permission limits and credit allowances.
+ * subject to per-feature permission limits.
  *
- * Credit flow: member uses feature → deducted from OWNER's balance,
+ * Credit flow: member uses feature → deducted from OWNER's aiCredits balance,
  * tracked against the member's ProjectMember.creditsUsed and MemberPermission.usedCount.
+ * Credit allowance is based on the owner's available credits, not a separate per-member number.
  */
 
 import { prisma } from "@/lib/db/client";
@@ -28,7 +29,7 @@ export interface DelegationCheckResult {
  * - expiresAt hasn't passed (or is null)
  * - MemberPermission for the featureKey exists
  * - Usage hasn't exceeded maxUsage
- * - Credit allowance hasn't been exceeded
+ * - Owner has enough credits (aiCredits >= creditCost)
  *
  * Returns the first matching delegation.
  */
@@ -76,13 +77,18 @@ export async function checkDelegatedAccess(
       continue;
     }
 
-    // Check credit allowance
-    if (membership.creditAllowance > 0 && membership.creditsUsed + creditCost > membership.creditAllowance) {
+    const ownerId = membership.project?.team?.ownerId;
+    if (!ownerId) {
       continue;
     }
 
-    const ownerId = membership.project?.team?.ownerId;
-    if (!ownerId) {
+    // Check owner's actual credit balance
+    const owner = await prisma.user.findUnique({
+      where: { id: ownerId },
+      select: { aiCredits: true },
+    });
+
+    if (!owner || owner.aiCredits < creditCost) {
       continue;
     }
 
@@ -145,21 +151,36 @@ export async function getUserDelegations(userId: string) {
     },
   });
 
+  // Collect unique owner IDs to fetch their names and credit balances
+  const ownerIds = [...new Set(memberships.map((m) => m.project.team?.ownerId).filter(Boolean))] as string[];
+  const owners = await prisma.user.findMany({
+    where: { id: { in: ownerIds } },
+    select: { id: true, name: true, avatarUrl: true, aiCredits: true },
+  });
+  const ownerMap = new Map(owners.map((o) => [o.id, o]));
+
   return memberships
     .filter((m) => !m.expiresAt || m.expiresAt > new Date())
-    .map((m) => ({
-      projectMemberId: m.id,
-      projectId: m.projectId,
-      projectName: m.project.name,
-      teamId: m.project.team?.id,
-      teamName: m.project.team?.name,
-      creditAllowance: m.creditAllowance,
-      creditsUsed: m.creditsUsed,
-      expiresAt: m.expiresAt?.toISOString() || null,
-      permissions: m.permissions.map((p) => ({
-        featureKey: p.featureKey,
-        maxUsage: p.maxUsage,
-        usedCount: p.usedCount,
-      })),
-    }));
+    .map((m) => {
+      const ownerId = m.project.team?.ownerId || "";
+      const owner = ownerMap.get(ownerId);
+      return {
+        projectMemberId: m.id,
+        projectId: m.projectId,
+        projectName: m.project.name,
+        teamId: m.project.team?.id,
+        teamName: m.project.team?.name,
+        ownerId,
+        ownerName: owner?.name || "Unknown",
+        ownerAvatarUrl: owner?.avatarUrl || null,
+        ownerAvailableCredits: owner?.aiCredits ?? 0,
+        creditsUsed: m.creditsUsed,
+        expiresAt: m.expiresAt?.toISOString() || null,
+        permissions: m.permissions.map((p) => ({
+          featureKey: p.featureKey,
+          maxUsage: p.maxUsage,
+          usedCount: p.usedCount,
+        })),
+      };
+    });
 }

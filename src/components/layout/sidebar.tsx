@@ -39,6 +39,7 @@ import {
   MessageCircle,
   UsersRound,
   Scissors,
+  FolderKanban,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -49,11 +50,21 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+interface DelegationMode {
+  active: boolean;
+  projectName: string;
+  ownerName: string;
+  ownerAvatarUrl: string | null;
+  allowedRoutes: string[];
+}
+
 interface SidebarProps {
   isCollapsed: boolean;
   onToggle: () => void;
   userPlan?: string;
   isAgent?: boolean;
+  delegationMode?: DelegationMode | null;
+  onExitDelegation?: () => void;
 }
 
 // Plans that have access to marketing features
@@ -111,9 +122,18 @@ const secondaryNavigation = [
   { name: "Help", href: "/help", icon: HelpCircle },
 ];
 
-export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = false }: SidebarProps) {
+export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = false, delegationMode, onExitDelegation }: SidebarProps) {
   const pathname = usePathname();
   const hasMarketingAccess = MARKETING_PLANS.includes(userPlan.toUpperCase());
+  const isDelegating = delegationMode?.active === true;
+
+  // In delegation mode, filter navigation items to only show allowed routes
+  const filterByAllowed = (items: { name: string; href: string; icon: React.ElementType; premium?: boolean }[]) => {
+    if (!isDelegating || !delegationMode?.allowedRoutes) return items;
+    return items.filter((item) =>
+      delegationMode.allowedRoutes.some((r) => item.href === r || item.href.startsWith(r + "/") || r.startsWith(item.href + "/") || r === item.href)
+    );
+  };
   const [contentOpen, setContentOpen] = useState(true);
   const [aiCreativesOpen, setAiCreativesOpen] = useState(true);
   const [marketingOpen, setMarketingOpen] = useState(true);
@@ -280,92 +300,146 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
 
       {/* Main Navigation */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-        {/* Dashboard + Feed (always visible) */}
-        {topNavigation.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-          return renderNavItem(item, isActive);
-        })}
-
-        {/* Content Section */}
-        {renderCollapsibleSection("Content", PenSquare, contentOpen, setContentOpen, pathname.startsWith("/content"), contentNavigation)}
-
-        {/* AI Creatives Section */}
-        {renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/logo-generator", "/flow-ai"].some(p => pathname.startsWith(p)), aiCreativesNavigation)}
-
-        {/* Marketing Section */}
-        {renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), marketingNavigation, true)}
-
-        {/* Tools & Insights Section */}
-        {renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics", "/media"].some(p => pathname.startsWith(p)), toolsNavigation)}
-
-        {/* Money Section */}
-        {renderCollapsibleSection("Money", DollarSign, moneyOpen, setMoneyOpen, ["/earnings", "/referrals"].some(p => pathname.startsWith(p)), moneyNavigation)}
-
-        {/* Teams Section — paid users only */}
-        {hasMarketingAccess && (
-          <div className="pt-3">
+        {/* Delegation mode: only show allowed sections */}
+        {isDelegating ? (
+          <>
+            {/* Delegation banner in sidebar */}
             {!isCollapsed && (
-              <div className="px-3 pb-2">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Teams
-                </span>
+              <div className="mb-3 p-3 rounded-lg bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800">
+                <p className="text-xs font-medium text-violet-700 dark:text-violet-300">
+                  Working for {delegationMode.ownerName}
+                </p>
+                <p className="text-[10px] text-violet-600/70 dark:text-violet-400/70 mt-0.5">
+                  {delegationMode.projectName}
+                </p>
+                <button
+                  onClick={onExitDelegation}
+                  className="text-[10px] text-violet-600 hover:text-violet-800 dark:text-violet-400 dark:hover:text-violet-200 underline mt-1"
+                >
+                  Exit delegation mode
+                </button>
               </div>
             )}
-            {isCollapsed && (
-              <div className="flex justify-center py-2">
-                <UsersRound className={cn("h-4 w-4", pathname.startsWith("/teams") ? "text-brand-500" : "text-muted-foreground")} />
-              </div>
-            )}
-            {renderNavItem(
-              { name: "My Teams", href: "/teams", icon: UsersRound },
-              pathname.startsWith("/teams")
-            )}
-          </div>
-        )}
 
-        {/* Agent / Marketplace Section */}
-        {isAgent ? (
-          <div className="pt-3">
-            {!isCollapsed && (
-              <div className="px-3 pb-2">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Agent
-                </span>
-              </div>
-            )}
-            {isCollapsed && (
-              <div className="flex justify-center py-2">
-                <Briefcase className={cn("h-4 w-4", pathname.startsWith("/agent") ? "text-brand-500" : "text-muted-foreground")} />
-              </div>
-            )}
+            {/* My Projects always visible */}
             {renderNavItem(
-              { name: "My Profile", href: "/agent/profile", icon: Users },
-              pathname === "/agent/profile"
+              { name: "My Projects", href: "/projects", icon: FolderKanban },
+              pathname === "/projects"
             )}
-            {renderNavItem(
-              { name: "My Clients", href: "/agent/clients", icon: Briefcase },
-              pathname.startsWith("/agent/clients")
-            )}
-            {renderNavItem(
-              { name: "Messages", href: "/messages", icon: MessageCircle },
-              pathname.startsWith("/messages")
-            )}
-            {renderNavItem(
-              { name: "Marketplace", href: "/hire-agent", icon: Store },
-              pathname.startsWith("/hire-agent")
-            )}
-          </div>
+
+            {/* Filtered Content Section */}
+            {filterByAllowed(contentNavigation).length > 0 &&
+              renderCollapsibleSection("Content", PenSquare, contentOpen, setContentOpen, pathname.startsWith("/content"), filterByAllowed(contentNavigation))}
+
+            {/* Filtered AI Creatives */}
+            {filterByAllowed(aiCreativesNavigation).length > 0 &&
+              renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/logo-generator", "/flow-ai"].some(p => pathname.startsWith(p)), filterByAllowed(aiCreativesNavigation))}
+
+            {/* Filtered Marketing */}
+            {filterByAllowed(marketingNavigation).length > 0 &&
+              renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), filterByAllowed(marketingNavigation))}
+
+            {/* Filtered Tools */}
+            {filterByAllowed(toolsNavigation).length > 0 &&
+              renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics", "/media"].some(p => pathname.startsWith(p)), filterByAllowed(toolsNavigation))}
+          </>
         ) : (
-          <div className="pt-3">
+          <>
+            {/* Normal mode: full navigation */}
+            {/* Dashboard + Feed (always visible) */}
+            {topNavigation.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              return renderNavItem(item, isActive);
+            })}
+
+            {/* My Projects — always visible for users with delegations */}
             {renderNavItem(
-              { name: "Messages", href: "/messages", icon: MessageCircle },
-              pathname.startsWith("/messages")
+              { name: "My Projects", href: "/projects", icon: FolderKanban },
+              pathname === "/projects"
             )}
-            {renderNavItem(
-              { name: "Hire Agent", href: "/hire-agent", icon: Store },
-              pathname.startsWith("/hire-agent")
+
+            {/* Content Section */}
+            {renderCollapsibleSection("Content", PenSquare, contentOpen, setContentOpen, pathname.startsWith("/content"), contentNavigation)}
+
+            {/* AI Creatives Section */}
+            {renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/logo-generator", "/flow-ai"].some(p => pathname.startsWith(p)), aiCreativesNavigation)}
+
+            {/* Marketing Section */}
+            {renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), marketingNavigation, true)}
+
+            {/* Tools & Insights Section */}
+            {renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics", "/media"].some(p => pathname.startsWith(p)), toolsNavigation)}
+
+            {/* Money Section */}
+            {renderCollapsibleSection("Money", DollarSign, moneyOpen, setMoneyOpen, ["/earnings", "/referrals"].some(p => pathname.startsWith(p)), moneyNavigation)}
+
+            {/* Teams Section — paid users only */}
+            {hasMarketingAccess && (
+              <div className="pt-3">
+                {!isCollapsed && (
+                  <div className="px-3 pb-2">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Teams
+                    </span>
+                  </div>
+                )}
+                {isCollapsed && (
+                  <div className="flex justify-center py-2">
+                    <UsersRound className={cn("h-4 w-4", pathname.startsWith("/teams") ? "text-brand-500" : "text-muted-foreground")} />
+                  </div>
+                )}
+                {renderNavItem(
+                  { name: "My Teams", href: "/teams", icon: UsersRound },
+                  pathname.startsWith("/teams")
+                )}
+              </div>
             )}
-          </div>
+
+            {/* Agent / Marketplace Section */}
+            {isAgent ? (
+              <div className="pt-3">
+                {!isCollapsed && (
+                  <div className="px-3 pb-2">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Agent
+                    </span>
+                  </div>
+                )}
+                {isCollapsed && (
+                  <div className="flex justify-center py-2">
+                    <Briefcase className={cn("h-4 w-4", pathname.startsWith("/agent") ? "text-brand-500" : "text-muted-foreground")} />
+                  </div>
+                )}
+                {renderNavItem(
+                  { name: "My Profile", href: "/agent/profile", icon: Users },
+                  pathname === "/agent/profile"
+                )}
+                {renderNavItem(
+                  { name: "My Clients", href: "/agent/clients", icon: Briefcase },
+                  pathname.startsWith("/agent/clients")
+                )}
+                {renderNavItem(
+                  { name: "Messages", href: "/messages", icon: MessageCircle },
+                  pathname.startsWith("/messages")
+                )}
+                {renderNavItem(
+                  { name: "Marketplace", href: "/hire-agent", icon: Store },
+                  pathname.startsWith("/hire-agent")
+                )}
+              </div>
+            ) : (
+              <div className="pt-3">
+                {renderNavItem(
+                  { name: "Messages", href: "/messages", icon: MessageCircle },
+                  pathname.startsWith("/messages")
+                )}
+                {renderNavItem(
+                  { name: "Hire Agent", href: "/hire-agent", icon: Store },
+                  pathname.startsWith("/hire-agent")
+                )}
+              </div>
+            )}
+          </>
         )}
       </nav>
 

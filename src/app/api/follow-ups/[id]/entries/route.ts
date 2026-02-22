@@ -18,17 +18,37 @@ export async function GET(
 
     const { id } = await params;
 
-    // Verify ownership
+    // Check ownership first
     const followUp = await prisma.followUp.findFirst({
       where: { id, userId: session.userId },
-      select: { id: true },
+      select: { id: true, settings: true },
     });
 
+    // If not the owner, check if user is an assignee on any entry in this follow-up
+    let isOwner = !!followUp;
+    let restrictToAssigned = false;
+
     if (!followUp) {
-      return NextResponse.json(
-        { success: false, error: { message: "Follow-up not found" } },
-        { status: 404 }
-      );
+      const hasAssignment = await prisma.followUpEntry.findFirst({
+        where: { followUpId: id, assigneeId: session.userId },
+        select: { id: true },
+      });
+      if (!hasAssignment) {
+        return NextResponse.json(
+          { success: false, error: { message: "Follow-up not found" } },
+          { status: 404 }
+        );
+      }
+      // Get settings from the follow-up
+      const fu = await prisma.followUp.findUnique({
+        where: { id },
+        select: { settings: true },
+      });
+      const settings = JSON.parse(fu?.settings || "{}");
+      restrictToAssigned = settings.restrictToAssigned === true;
+    } else {
+      const settings = JSON.parse(followUp.settings || "{}");
+      restrictToAssigned = settings.restrictToAssigned === true;
     }
 
     const { searchParams } = new URL(request.url);
@@ -38,6 +58,11 @@ export async function GET(
     const search = searchParams.get("search") || "";
 
     const where: Record<string, unknown> = { followUpId: id };
+
+    // If not the owner and restrictToAssigned is on, only show assigned entries
+    if (!isOwner && restrictToAssigned) {
+      where.assigneeId = session.userId;
+    }
 
     if (status) where.status = status;
     if (search) {
@@ -81,12 +106,20 @@ export async function GET(
       prisma.followUpEntry.count({ where }),
     ]);
 
+    // Sort: entries assigned to the current user come first
+    const sorted = entries.sort((a, b) => {
+      const aAssigned = a.assigneeId === session.userId ? 0 : 1;
+      const bAssigned = b.assigneeId === session.userId ? 0 : 1;
+      return aAssigned - bAssigned;
+    });
+
     return NextResponse.json({
       success: true,
-      data: entries.map((e) => ({
+      data: sorted.map((e) => ({
         ...e,
         customData: JSON.parse(e.customData || "{}"),
       })),
+      meta: { isOwner, currentUserId: session.userId },
       pagination: {
         page,
         limit,

@@ -19,15 +19,30 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const search = searchParams.get("search") || "";
 
+    // Find follow-ups owned by user OR where user is assigned to entries
+    const assignedFollowUpIds = await prisma.followUpEntry.findMany({
+      where: { assigneeId: session.userId },
+      select: { followUpId: true },
+      distinct: ["followUpId"],
+    });
+    const assignedIds = assignedFollowUpIds.map((e) => e.followUpId);
+
     const where: Record<string, unknown> = {
-      userId: session.userId,
+      OR: [
+        { userId: session.userId },
+        ...(assignedIds.length > 0 ? [{ id: { in: assignedIds } }] : []),
+      ],
     };
 
     if (status) where.status = status;
     if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { description: { contains: search } },
+      where.AND = [
+        {
+          OR: [
+            { name: { contains: search } },
+            { description: { contains: search } },
+          ],
+        },
       ];
     }
 
@@ -40,6 +55,7 @@ export async function GET(request: NextRequest) {
         include: {
           contactList: { select: { id: true, name: true } },
           _count: { select: { entries: true } },
+          user: { select: { id: true, name: true } },
         },
       }),
       prisma.followUp.count({ where }),
@@ -51,6 +67,8 @@ export async function GET(request: NextRequest) {
         ...f,
         settings: JSON.parse(f.settings || "{}"),
         contactListName: f.contactList?.name || null,
+        isOwner: f.userId === session.userId,
+        ownerName: f.user?.name || null,
       })),
       pagination: {
         page,

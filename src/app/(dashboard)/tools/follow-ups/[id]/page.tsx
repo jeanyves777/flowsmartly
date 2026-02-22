@@ -86,6 +86,7 @@ interface FollowUpDetail {
   settings: Record<string, unknown>;
   statusBreakdown: Record<string, number>;
   createdAt: string;
+  isOwner: boolean;
 }
 
 interface ContactList {
@@ -145,6 +146,9 @@ export default function FollowUpDetailPage() {
   interface TeamMemberOption { id: string; name: string; avatarUrl: string | null; }
   const [teamMembers, setTeamMembers] = useState<TeamMemberOption[]>([]);
 
+  // Current user ID (from entries API meta)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
   // Fetch follow-up details
   const fetchFollowUp = useCallback(async () => {
     try {
@@ -172,6 +176,7 @@ export default function FollowUpDetailPage() {
       if (!json.success) throw new Error(json.error?.message);
       setEntries(json.data);
       setEntryTotal(json.pagination?.total || 0);
+      if (json.meta?.currentUserId) setCurrentUserId(json.meta.currentUserId);
     } catch (err) {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
     } finally {
@@ -621,6 +626,27 @@ export default function FollowUpDetailPage() {
             </Select>
           </div>
 
+          {/* Owner visibility control: restrict team members to only see their assigned entries */}
+          {followUp.isOwner && teamMembers.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/50 border text-sm">
+              <Switch
+                checked={followUp.settings?.restrictToAssigned === true}
+                onCheckedChange={async (checked) => {
+                  const newSettings = { ...followUp.settings, restrictToAssigned: checked };
+                  setFollowUp((prev) => prev ? { ...prev, settings: newSettings } : prev);
+                  try {
+                    await fetch(`/api/follow-ups/${id}`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ settings: newSettings }),
+                    });
+                  } catch { /* silent */ }
+                }}
+              />
+              <span className="text-muted-foreground">Members only see assigned entries</span>
+            </div>
+          )}
+
           {/* Entry List */}
           {entriesLoading ? (
             <div className="space-y-2">
@@ -663,6 +689,11 @@ export default function FollowUpDetailPage() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <p className="font-medium text-sm truncate">{displayName}</p>
+                                {currentUserId && entry.assigneeId === currentUserId && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+                                    Assigned to you
+                                  </Badge>
+                                )}
                                 {entry.attempts > 0 && (
                                   <span className="text-[10px] text-muted-foreground">({entry.attempts} attempts)</span>
                                 )}

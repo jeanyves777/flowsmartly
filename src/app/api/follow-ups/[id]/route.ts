@@ -18,13 +18,33 @@ export async function GET(
 
     const { id } = await params;
 
-    const followUp = await prisma.followUp.findFirst({
+    // Try to find as owner first
+    let followUp = await prisma.followUp.findFirst({
       where: { id, userId: session.userId },
       include: {
         contactList: { select: { id: true, name: true } },
         _count: { select: { entries: true } },
       },
     });
+
+    let isOwner = !!followUp;
+
+    // If not the owner, check if user is assigned to any entry in this follow-up
+    if (!followUp) {
+      const hasAssignment = await prisma.followUpEntry.findFirst({
+        where: { followUpId: id, assigneeId: session.userId },
+        select: { id: true },
+      });
+      if (hasAssignment) {
+        followUp = await prisma.followUp.findUnique({
+          where: { id },
+          include: {
+            contactList: { select: { id: true, name: true } },
+            _count: { select: { entries: true } },
+          },
+        });
+      }
+    }
 
     if (!followUp) {
       return NextResponse.json(
@@ -52,6 +72,7 @@ export async function GET(
         settings: JSON.parse(followUp.settings || "{}"),
         contactListName: followUp.contactList?.name || null,
         statusBreakdown,
+        isOwner,
       },
     });
   } catch (error) {

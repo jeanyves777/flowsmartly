@@ -10,7 +10,7 @@ import { OnboardingBanner } from "@/components/layout/onboarding-banner";
 import { cn } from "@/lib/utils/cn";
 import { ChatWidget } from "@/components/ai-assistant/chat-widget";
 import { EarnWidget } from "@/components/earn/earn-widget";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, FolderKanban } from "lucide-react";
 import { onCreditsUpdate } from "@/lib/utils/credits-event";
 import { onPlanUpdate } from "@/lib/utils/plan-event";
 
@@ -49,6 +49,13 @@ export default function DashboardLayout({
   const [hasAgentProfile, setHasAgentProfile] = useState(false);
   const [agentInfo, setAgentInfo] = useState<{ agentName: string; agentId: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [delegationMode, setDelegationMode] = useState<{
+    active: boolean;
+    projectName: string;
+    ownerName: string;
+    ownerAvatarUrl: string | null;
+    allowedRoutes: string[];
+  } | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -143,6 +150,37 @@ export default function DashboardLayout({
     });
   }, []);
 
+  // Read delegation mode from sessionStorage
+  const loadDelegationMode = useCallback(() => {
+    try {
+      const stored = sessionStorage.getItem("delegation_mode");
+      if (stored) {
+        const data = JSON.parse(stored);
+        if (data.active) {
+          setDelegationMode(data);
+          return;
+        }
+      }
+      setDelegationMode(null);
+    } catch {
+      setDelegationMode(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDelegationMode();
+    const handler = () => loadDelegationMode();
+    window.addEventListener("delegation-mode-change", handler);
+    return () => window.removeEventListener("delegation-mode-change", handler);
+  }, [loadDelegationMode]);
+
+  const exitDelegationMode = useCallback(() => {
+    sessionStorage.removeItem("delegation_mode");
+    setDelegationMode(null);
+    window.dispatchEvent(new Event("delegation-mode-change"));
+    window.location.href = "/projects";
+  }, []);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -208,7 +246,21 @@ export default function DashboardLayout({
         </div>
       )}
 
-      <div className={isAdmin || isAgentImpersonating ? "pt-10" : ""}>
+      {/* Delegation Mode Banner */}
+      {delegationMode?.active && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-center py-2 text-sm font-medium">
+          <FolderKanban className="inline w-4 h-4 mr-1 -mt-0.5" />
+          <span>Delegation Mode — Working for {delegationMode.ownerName}</span>
+          <span className="mx-2">|</span>
+          <span className="opacity-80">{delegationMode.projectName}</span>
+          <span className="mx-2">|</span>
+          <button onClick={exitDelegationMode} className="underline hover:no-underline">
+            Exit Delegation
+          </button>
+        </div>
+      )}
+
+      <div className={isAdmin || isAgentImpersonating || delegationMode?.active ? "pt-10" : ""}>
         {/* Desktop Sidebar */}
         <div className="hidden md:block">
           <Sidebar
@@ -216,6 +268,8 @@ export default function DashboardLayout({
             onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
             userPlan={user.plan}
             isAgent={hasAgentProfile}
+            delegationMode={delegationMode}
+            onExitDelegation={exitDelegationMode}
           />
         </div>
 

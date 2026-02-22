@@ -25,6 +25,15 @@ export async function GET(request: NextRequest, { params }: Params) {
       return NextResponse.json({ success: false, error: { message: "Not a team member" } }, { status: 403 });
     }
 
+    // Get the team owner's credit balance (permissions are based on owner's credits)
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      select: { ownerId: true },
+    });
+    const ownerCredits = team
+      ? (await prisma.user.findUnique({ where: { id: team.ownerId }, select: { aiCredits: true } }))?.aiCredits ?? 0
+      : 0;
+
     // If specific user requested, return their permissions
     if (userId) {
       const pm = await prisma.projectMember.findUnique({
@@ -45,7 +54,7 @@ export async function GET(request: NextRequest, { params }: Params) {
           id: pm.id,
           userId: pm.userId,
           user: pm.user,
-          creditAllowance: pm.creditAllowance,
+          ownerAvailableCredits: ownerCredits,
           creditsUsed: pm.creditsUsed,
           canActOnBehalf: pm.canActOnBehalf,
           expiresAt: pm.expiresAt?.toISOString() || null,
@@ -77,7 +86,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         id: pm.id,
         userId: pm.userId,
         user: pm.user,
-        creditAllowance: pm.creditAllowance,
+        ownerAvailableCredits: ownerCredits,
         creditsUsed: pm.creditsUsed,
         canActOnBehalf: pm.canActOnBehalf,
         expiresAt: pm.expiresAt?.toISOString() || null,
@@ -115,7 +124,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     }
 
     const body = await request.json();
-    const { userId, creditAllowance, canActOnBehalf, expiresAt, permissions } = body;
+    const { userId, canActOnBehalf, expiresAt, permissions } = body;
 
     if (!userId) {
       return NextResponse.json({ success: false, error: { message: "userId is required" } }, { status: 400 });
@@ -131,11 +140,10 @@ export async function PUT(request: NextRequest, { params }: Params) {
       return NextResponse.json({ success: false, error: { message: "Member not found in project" } }, { status: 404 });
     }
 
-    // Update ProjectMember fields
+    // Update ProjectMember fields (credit allowance is based on owner's balance, not set per-member)
     await prisma.projectMember.update({
       where: { id: pm.id },
       data: {
-        ...(creditAllowance !== undefined ? { creditAllowance } : {}),
         ...(canActOnBehalf !== undefined ? { canActOnBehalf } : {}),
         ...(expiresAt !== undefined ? { expiresAt: expiresAt ? new Date(expiresAt) : null } : {}),
         // Restore if previously revoked and being updated

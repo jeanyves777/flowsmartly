@@ -216,7 +216,7 @@ interface MemberPermissions {
   id: string;
   userId: string;
   user: TaskMember & { email: string };
-  creditAllowance: number;
+  ownerAvailableCredits: number;
   creditsUsed: number;
   canActOnBehalf: boolean;
   expiresAt: string | null;
@@ -276,7 +276,6 @@ export default function ProjectDetailPage({
   const [permMember, setPermMember] = useState<MemberPermissions | null>(null);
   const [permLoading, setPermLoading] = useState(false);
   const [permSaving, setPermSaving] = useState(false);
-  const [permCreditAllowance, setPermCreditAllowance] = useState(0);
   const [permCanAct, setPermCanAct] = useState(false);
   const [permExpiry, setPermExpiry] = useState("");
   const [permFeatures, setPermFeatures] = useState<Record<string, { enabled: boolean; maxUsage: number }>>({});
@@ -478,7 +477,6 @@ export default function ProjectDetailPage({
       if (json.success) {
         const data = json.data as MemberPermissions;
         setPermMember(data);
-        setPermCreditAllowance(data.creditAllowance);
         setPermCanAct(data.canActOnBehalf);
         setPermExpiry(data.expiresAt ? data.expiresAt.split("T")[0] : "");
         // Build feature state from existing permissions
@@ -514,7 +512,6 @@ export default function ProjectDetailPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: permMember.userId,
-          creditAllowance: permCreditAllowance,
           canActOnBehalf: permCanAct,
           expiresAt: permExpiry || null,
           permissions,
@@ -1128,31 +1125,35 @@ export default function ProjectDetailPage({
               {/* General Settings */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">General</h3>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Credit Allowance</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={permCreditAllowance}
-                      onChange={(e) => setPermCreditAllowance(parseInt(e.target.value) || 0)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Used: {permMember.creditsUsed} / {permCreditAllowance || 0}
-                    </p>
+
+                {/* Owner's credit balance (read-only) */}
+                <div className="p-3 rounded-lg bg-accent/50 border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Owner&apos;s Available Credits</p>
+                      <p className="text-xs text-muted-foreground">Delegated features use the owner&apos;s credit balance</p>
+                    </div>
+                    <span className="text-lg font-bold text-orange-600">{permMember.ownerAvailableCredits.toLocaleString()}</span>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Expires At</Label>
-                    <Input
-                      type="date"
-                      value={permExpiry}
-                      onChange={(e) => setPermExpiry(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {permExpiry ? `Expires ${new Date(permExpiry).toLocaleDateString()}` : "No expiry"}
+                  {permMember.creditsUsed > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      This member has used {permMember.creditsUsed.toLocaleString()} credits so far
                     </p>
-                  </div>
+                  )}
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Expires At</Label>
+                  <Input
+                    type="date"
+                    value={permExpiry}
+                    onChange={(e) => setPermExpiry(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {permExpiry ? `Expires ${new Date(permExpiry).toLocaleDateString()}` : "No expiry"}
+                  </p>
+                </div>
+
                 <div className="flex items-center justify-between p-3 rounded-lg border">
                   <div>
                     <Label>Act on Behalf of Owner</Label>
