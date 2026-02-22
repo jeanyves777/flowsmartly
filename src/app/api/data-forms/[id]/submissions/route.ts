@@ -9,7 +9,7 @@ export async function GET(
   try {
     const session = await getSession();
     if (!session?.userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
     }
 
     const { id } = await params;
@@ -21,11 +21,11 @@ export async function GET(
     });
 
     if (!form) {
-      return NextResponse.json({ error: "Form not found" }, { status: 404 });
+      return NextResponse.json({ success: false, error: { message: "Form not found" } }, { status: 404 });
     }
 
     if (form.userId !== session.userId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ success: false, error: { message: "Forbidden" } }, { status: 403 });
     }
 
     // Query params
@@ -63,16 +63,19 @@ export async function GET(
     }));
 
     return NextResponse.json({
-      submissions: parsedSubmissions,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      success: true,
+      data: parsedSubmissions,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     console.error("Error fetching submissions:", error);
     return NextResponse.json(
-      { error: "Failed to fetch submissions" },
+      { success: false, error: { message: "Failed to fetch submissions" } },
       { status: 500 }
     );
   }
@@ -85,7 +88,7 @@ export async function DELETE(
   try {
     const session = await getSession();
     if (!session?.userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
     }
 
     const { id } = await params;
@@ -97,11 +100,11 @@ export async function DELETE(
     });
 
     if (!form) {
-      return NextResponse.json({ error: "Form not found" }, { status: 404 });
+      return NextResponse.json({ success: false, error: { message: "Form not found" } }, { status: 404 });
     }
 
     if (form.userId !== session.userId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ success: false, error: { message: "Forbidden" } }, { status: 403 });
     }
 
     const body = await request.json();
@@ -109,7 +112,7 @@ export async function DELETE(
 
     if (!Array.isArray(ids) || ids.length === 0) {
       return NextResponse.json(
-        { error: "Invalid submission IDs" },
+        { success: false, error: { message: "Invalid submission IDs" } },
         { status: 400 }
       );
     }
@@ -130,11 +133,11 @@ export async function DELETE(
       });
     }
 
-    return NextResponse.json({ deleted: result.count });
+    return NextResponse.json({ success: true, data: { deleted: result.count } });
   } catch (error) {
     console.error("Error deleting submissions:", error);
     return NextResponse.json(
-      { error: "Failed to delete submissions" },
+      { success: false, error: { message: "Failed to delete submissions" } },
       { status: 500 }
     );
   }
