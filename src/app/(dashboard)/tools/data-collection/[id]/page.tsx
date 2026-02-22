@@ -6,7 +6,8 @@ import Link from "next/link";
 import {
   ArrowLeft, Save, Plus, Trash2, GripVertical, ChevronDown, ChevronUp,
   Copy, Check, ExternalLink, Download, Eye, Settings as SettingsIcon,
-  FileText, Send, Users, Search, MoreVertical, RefreshCw,
+  FileText, Send, Users, Search, MoreVertical, RefreshCw, Mail, MessageSquare,
+  Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,7 @@ export default function DataFormDetailPage() {
 
   const [form, setForm] = useState<DataFormData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"builder" | "submissions" | "share" | "settings">("builder");
+  const [activeTab, setActiveTab] = useState<"builder" | "submissions" | "share" | "send" | "settings">("builder");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
 
@@ -50,6 +51,12 @@ export default function DataFormDetailPage() {
     website: string | null;
     address: string | null;
   } | null>(null);
+
+  // Send state
+  const [contactLists, setContactLists] = useState<{id: string; name: string; totalCount: number}[]>([]);
+  const [sendListId, setSendListId] = useState("");
+  const [sendChannel, setSendChannel] = useState<"email" | "sms">("email");
+  const [isSending, setIsSending] = useState(false);
 
   // Fetch brand
   useEffect(() => {
@@ -113,6 +120,45 @@ export default function DataFormDetailPage() {
   useEffect(() => {
     if (activeTab === "submissions") fetchSubmissions();
   }, [activeTab, fetchSubmissions]);
+
+  // Fetch contact lists when send tab is active
+  useEffect(() => {
+    if (activeTab === "send") {
+      fetch("/api/contact-lists?limit=100")
+        .then(r => r.json())
+        .then(json => {
+          if (json.success) setContactLists(json.data || []);
+        })
+        .catch(() => {});
+    }
+  }, [activeTab]);
+
+  // Send form handler
+  const handleSendForm = async () => {
+    if (!sendListId) {
+      showToast("Please select a contact list");
+      return;
+    }
+    setIsSending(true);
+    try {
+      const res = await fetch(`/api/data-forms/${id}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel: sendChannel, contactListId: sendListId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast(json.data.message);
+        fetchForm();
+      } else {
+        showToast(json.error?.message || "Failed to send form");
+      }
+    } catch {
+      showToast("Failed to send form");
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   // Save form (builder)
   const handleSave = async () => {
@@ -246,7 +292,8 @@ export default function DataFormDetailPage() {
   const tabs = [
     { key: "builder" as const, label: "Builder", icon: FileText },
     { key: "submissions" as const, label: `Submissions (${form?.responseCount || 0})`, icon: Users },
-    { key: "share" as const, label: "Share", icon: Send },
+    { key: "share" as const, label: "Share", icon: Share2 },
+    { key: "send" as const, label: "Send", icon: Send },
     { key: "settings" as const, label: "Settings", icon: SettingsIcon },
   ];
 
@@ -699,6 +746,132 @@ export default function DataFormDetailPage() {
                 onClick={e => (e.target as HTMLTextAreaElement).select()}
               />
             </div>
+          </div>
+        )}
+
+        {/* Send Tab */}
+        {activeTab === "send" && form && (
+          <div className="max-w-lg mx-auto space-y-6">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold mb-2">Send Your Form</h3>
+              <p className="text-sm text-gray-500">Send this form to a contact list via email or SMS</p>
+            </div>
+
+            {form.status !== "ACTIVE" && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-sm">
+                <p className="font-medium text-amber-800 dark:text-amber-200">Form is not active</p>
+                <p className="text-amber-700 dark:text-amber-300 mt-1">
+                  Change the form status to <span className="font-medium">Active</span> in the Settings tab before sending.
+                </p>
+              </div>
+            )}
+
+            {/* Send Stats */}
+            <div className="flex gap-4">
+              <div className="flex-1 bg-gray-50 dark:bg-gray-800 rounded-lg p-4 text-center">
+                <p className="text-2xl font-bold">{form.sendCount || 0}</p>
+                <p className="text-xs text-gray-500">Times Sent</p>
+              </div>
+              <div className="flex-1 bg-gray-50 dark:bg-gray-800 rounded-lg p-4 text-center">
+                <p className="text-sm font-medium">
+                  {form.lastSentAt
+                    ? new Date(form.lastSentAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })
+                    : "Never"}
+                </p>
+                <p className="text-xs text-gray-500">Last Sent</p>
+              </div>
+            </div>
+
+            {/* Form Link */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Form Link</label>
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={`${typeof window !== "undefined" ? window.location.origin : ""}/form/${form.slug}`}
+                  className="flex-1 bg-gray-50 dark:bg-gray-800 text-sm"
+                  onClick={e => (e.target as HTMLInputElement).select()}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/form/${form.slug}`);
+                    showToast("Link copied!");
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Channel Selector */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Send via</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setSendChannel("email")}
+                  className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-colors ${
+                    sendChannel === "email"
+                      ? "border-blue-600 bg-blue-50 dark:bg-blue-900/20"
+                      : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                  }`}
+                >
+                  <Mail className={`h-5 w-5 ${sendChannel === "email" ? "text-blue-600" : "text-gray-400"}`} />
+                  <div className="text-left">
+                    <p className={`text-sm font-medium ${sendChannel === "email" ? "text-blue-600" : ""}`}>Email</p>
+                    <p className="text-xs text-gray-500">Send via email</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setSendChannel("sms")}
+                  className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-colors ${
+                    sendChannel === "sms"
+                      ? "border-blue-600 bg-blue-50 dark:bg-blue-900/20"
+                      : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                  }`}
+                >
+                  <MessageSquare className={`h-5 w-5 ${sendChannel === "sms" ? "text-blue-600" : "text-gray-400"}`} />
+                  <div className="text-left">
+                    <p className={`text-sm font-medium ${sendChannel === "sms" ? "text-blue-600" : ""}`}>SMS</p>
+                    <p className="text-xs text-gray-500">Send via text</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Contact List Selector */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Contact List</label>
+              <select
+                value={sendListId}
+                onChange={e => setSendListId(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select a contact list...</option>
+                {contactLists.map(cl => (
+                  <option key={cl.id} value={cl.id}>
+                    {cl.name} ({cl.totalCount} contacts)
+                  </option>
+                ))}
+              </select>
+              {contactLists.length === 0 && (
+                <p className="text-xs text-gray-500">
+                  No contact lists found.{" "}
+                  <a href="/contacts" className="text-blue-600 hover:underline">Create one</a> first.
+                </p>
+              )}
+            </div>
+
+            {/* Send Button */}
+            <Button
+              onClick={handleSendForm}
+              disabled={isSending || !sendListId || form.status !== "ACTIVE"}
+              className="w-full"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              {isSending ? "Sending..." : `Send Form via ${sendChannel === "email" ? "Email" : "SMS"}`}
+            </Button>
           </div>
         )}
 

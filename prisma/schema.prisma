@@ -571,6 +571,7 @@ model ContactList {
   automations Automation[]
   followUps   FollowUp[]
   surveys     Survey[]
+  dataForms   DataForm[]
 
   @@index([userId])
 }
@@ -2687,7 +2688,12 @@ model DataForm {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  contactListId   String?
+  sendCount       Int       @default(0)
+  lastSentAt      DateTime?
+
   user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contactList     ContactList?      @relation(fields: [contactListId], references: [id], onDelete: SetNull)
   submissions     DataFormSubmission[]
 
   @@index([userId])

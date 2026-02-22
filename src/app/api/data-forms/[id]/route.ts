@@ -15,6 +15,7 @@ export async function GET(
 
     const dataForm = await prisma.dataForm.findFirst({
       where: { id, userId: session.userId },
+      include: { contactList: { select: { id: true, name: true } } },
     });
 
     if (!dataForm) {
@@ -27,6 +28,7 @@ export async function GET(
         ...dataForm,
         fields: JSON.parse(dataForm.fields || "[]"),
         settings: JSON.parse(dataForm.settings || "{}"),
+        contactListName: dataForm.contactList?.name || null,
       },
     });
   } catch (error) {
@@ -56,7 +58,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { title, description, fields, status, thankYouMessage, settings } = body;
+    const { title, description, fields, status, thankYouMessage, settings, contactListId } = body;
 
     const data: Record<string, unknown> = {};
     if (title !== undefined) data.title = title.trim();
@@ -64,6 +66,7 @@ export async function PUT(
     if (fields !== undefined) data.fields = JSON.stringify(fields);
     if (thankYouMessage !== undefined) data.thankYouMessage = thankYouMessage.trim();
     if (settings !== undefined) data.settings = JSON.stringify(settings);
+    if (contactListId !== undefined) data.contactListId = contactListId || null;
     if (status !== undefined) {
       if (!["DRAFT", "ACTIVE", "CLOSED"].includes(status)) {
         return NextResponse.json({ success: false, error: { message: "Invalid status" } }, { status: 400 });

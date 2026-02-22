@@ -57,6 +57,10 @@ export interface DataFormData {
   thankYouMessage: string;
   responseCount: number;
   settings: Record<string, unknown>;
+  contactListId: string | null;
+  contactListName?: string | null;
+  sendCount: number;
+  lastSentAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

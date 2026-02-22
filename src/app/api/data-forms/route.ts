@@ -39,12 +39,24 @@ export async function GET(request: NextRequest) {
       prisma.dataForm.count({ where }),
     ]);
 
+    // Resolve contact list names
+    const listIds = [...new Set(dataForms.map((f) => f.contactListId).filter(Boolean) as string[])];
+    const listsMap = new Map<string, string>();
+    if (listIds.length > 0) {
+      const lists = await prisma.contactList.findMany({
+        where: { id: { in: listIds } },
+        select: { id: true, name: true },
+      });
+      for (const l of lists) listsMap.set(l.id, l.name);
+    }
+
     return NextResponse.json({
       success: true,
       data: dataForms.map((form) => ({
         ...form,
         fields: JSON.parse(form.fields || "[]"),
         settings: JSON.parse(form.settings || "{}"),
+        contactListName: form.contactListId ? listsMap.get(form.contactListId) || null : null,
       })),
       pagination: { page, limit, total, pages: Math.ceil(total / limit) },
     });

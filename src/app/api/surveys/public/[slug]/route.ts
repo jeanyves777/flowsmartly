@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { getUserBrand } from "@/lib/brand/get-brand";
 
 // GET /api/surveys/public/[slug] — Public: Get survey by slug (no auth required)
 export async function GET(
@@ -13,6 +14,7 @@ export async function GET(
       where: { slug },
       select: {
         id: true,
+        userId: true,
         title: true,
         description: true,
         questions: true,
@@ -35,6 +37,9 @@ export async function GET(
       );
     }
 
+    // Fetch brand kit
+    const brand = await getUserBrand(survey.userId);
+
     return NextResponse.json({
       success: true,
       data: {
@@ -42,6 +47,7 @@ export async function GET(
         description: survey.description,
         questions: JSON.parse(survey.questions || "[]"),
         thankYouMessage: survey.thankYouMessage,
+        brand,
       },
     });
   } catch (error) {
@@ -105,7 +111,7 @@ export async function POST(
       }
     }
 
-    // Rate limiting: max 5 submissions per IP per survey per hour
+    // Rate limiting: max 20 submissions per IP per survey per hour
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
                request.headers.get("x-real-ip") ||
                "unknown";
@@ -118,7 +124,7 @@ export async function POST(
       },
     });
 
-    if (recentCount >= 5) {
+    if (recentCount >= 20) {
       return NextResponse.json(
         { success: false, error: { message: "Too many submissions. Please try again later." } },
         { status: 429 }

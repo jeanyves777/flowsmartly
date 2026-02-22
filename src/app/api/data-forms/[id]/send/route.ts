@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import {
-  sendMarketingEmail,
-  validateEmailConfig,
-} from "@/lib/email/marketing-sender";
+import { getUserBrand } from "@/lib/brand/get-brand";
+import { buildEmailHtml, EmailBrandInfo } from "@/lib/marketing/templates/email-html";
+import { sendMarketingEmail, validateEmailConfig } from "@/lib/email/marketing-sender";
 import { sendSMS, formatPhoneNumber } from "@/lib/twilio";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
-import { buildEmailHtml, EmailBrandInfo } from "@/lib/marketing/templates/email-html";
-import { getUserBrand } from "@/lib/brand/get-brand";
 
 const BATCH_SIZE = 50;
 const BATCH_DELAY_MS = 1000;
@@ -18,7 +15,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// POST /api/surveys/[id]/send — Send survey via email or SMS
+// POST /api/data-forms/[id]/send — Send data form via email or SMS
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -29,17 +26,17 @@ export async function POST(
 
     const { id } = await params;
 
-    const survey = await prisma.survey.findFirst({
+    const dataForm = await prisma.dataForm.findFirst({
       where: { id, userId: session.userId },
       include: { contactList: { select: { id: true, name: true } } },
     });
 
-    if (!survey) {
-      return NextResponse.json({ success: false, error: { message: "Survey not found" } }, { status: 404 });
+    if (!dataForm) {
+      return NextResponse.json({ success: false, error: { message: "Form not found" } }, { status: 404 });
     }
 
-    if (survey.status === "CLOSED") {
-      return NextResponse.json({ success: false, error: { message: "Cannot send a closed survey" } }, { status: 400 });
+    if (dataForm.status !== "ACTIVE") {
+      return NextResponse.json({ success: false, error: { message: "Form must be active to send. Change the status to Active first." } }, { status: 400 });
     }
 
     const body = await request.json();
@@ -49,9 +46,9 @@ export async function POST(
       return NextResponse.json({ success: false, error: { message: "Channel must be 'email' or 'sms'" } }, { status: 400 });
     }
 
-    const targetListId = contactListId || survey.contactListId;
+    const targetListId = contactListId || dataForm.contactListId;
     if (!targetListId) {
-      return NextResponse.json({ success: false, error: { message: "No contact list specified. Link a contact list to this survey or provide one." } }, { status: 400 });
+      return NextResponse.json({ success: false, error: { message: "No contact list specified. Link a contact list to this form or provide one." } }, { status: 400 });
     }
 
     const list = await prisma.contactList.findFirst({
@@ -86,7 +83,7 @@ export async function POST(
       return NextResponse.json({ success: false, error: { message: `No valid contacts with ${channel === "email" ? "email opt-in" : "SMS opt-in"} found in this list` } }, { status: 400 });
     }
 
-    const surveyUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com"}/survey/${survey.slug}`;
+    const formUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com"}/form/${dataForm.slug}`;
 
     // Fetch brand kit for branded emails/SMS
     const brand = await getUserBrand(session.userId);
@@ -154,7 +151,7 @@ export async function POST(
         : undefined;
 
       const userId = session.userId;
-      const surveyId = id;
+      const formId = id;
       (async () => {
         let sent = 0;
         for (let i = 0; i < validContacts.length; i += BATCH_SIZE) {
@@ -164,12 +161,12 @@ export async function POST(
               const name = [m.contact.firstName, m.contact.lastName].filter(Boolean).join(" ") || "there";
               const html = buildEmailHtml(
                 [
-                  { type: "heading", content: survey.title },
-                  ...(survey.description ? [{ type: "text" as const, content: survey.description }] : []),
+                  { type: "heading", content: dataForm.title },
+                  ...(dataForm.description ? [{ type: "text" as const, content: dataForm.description }] : []),
                   { type: "text", content: `Hi ${name},` },
-                  { type: "text", content: "We\u2019d love to hear your feedback! Please take a moment to fill out our survey." },
-                  { type: "button", content: "Take Survey", href: surveyUrl },
-                  { type: "text", content: `<span style="color: #999; font-size: 12px;">If the button doesn\u2019t work, copy this link: ${surveyUrl}</span>` },
+                  { type: "text", content: "Please take a moment to fill out this form." },
+                  { type: "button", content: "Fill Out Form", href: formUrl },
+                  { type: "text", content: `<span style="color: #999; font-size: 12px;">If the button doesn\u2019t work, copy this link: ${formUrl}</span>` },
                 ],
                 {
                   brandColor: primaryColor,
@@ -182,7 +179,7 @@ export async function POST(
                 emailConfig,
                 from: fromAddress,
                 to: m.contact.email!,
-                subject: survey.title,
+                subject: dataForm.title,
                 html,
                 replyTo: marketingConfig!.defaultReplyTo || undefined,
               });
@@ -193,9 +190,9 @@ export async function POST(
                   userId,
                   type: TRANSACTION_TYPES.USAGE,
                   amount: emailCreditCost,
-                  description: `Survey email: ${survey.title}`,
-                  referenceType: "survey",
-                  referenceId: surveyId,
+                  description: `Form email: ${dataForm.title}`,
+                  referenceType: "data-form",
+                  referenceId: formId,
                 });
               }
             })
@@ -203,9 +200,9 @@ export async function POST(
           if (i + BATCH_SIZE < validContacts.length) await sleep(BATCH_DELAY_MS);
         }
 
-        await prisma.survey.update({
-          where: { id: surveyId },
-          data: { sendCount: { increment: sent }, lastSentAt: new Date(), status: "ACTIVE", isActive: true },
+        await prisma.dataForm.update({
+          where: { id: formId },
+          data: { sendCount: { increment: sent }, lastSentAt: new Date() },
         });
         await prisma.marketingConfig.update({
           where: { id: marketingConfig!.id },
@@ -215,7 +212,7 @@ export async function POST(
 
       return NextResponse.json({
         success: true,
-        data: { message: `Sending survey to ${validContacts.length} contacts via email`, channel: "email", recipients: validContacts.length },
+        data: { message: `Sending form to ${validContacts.length} contacts via email`, channel: "email", recipients: validContacts.length },
       });
     }
 
@@ -242,7 +239,7 @@ export async function POST(
       }
 
       const userId = session.userId;
-      const surveyId = id;
+      const formId = id;
       const fromNumber = smsConfig.smsPhoneNumber!;
       (async () => {
         let sent = 0;
@@ -253,7 +250,7 @@ export async function POST(
               const result = await sendSMS({
                 from: fromNumber,
                 to: formatPhoneNumber(m.contact.phone!),
-                body: `[${businessName}] ${survey.title}\n\nWe\u2019d love your feedback! Take our quick survey: ${surveyUrl}\n\nReply STOP to opt out`,
+                body: `[${businessName}] ${dataForm.title}\n\nPlease fill out this form: ${formUrl}\n\nReply STOP to opt out`,
               });
 
               if (result.success) {
@@ -262,9 +259,9 @@ export async function POST(
                   userId,
                   type: TRANSACTION_TYPES.USAGE,
                   amount: smsCreditCost,
-                  description: `Survey SMS: ${survey.title}`,
-                  referenceType: "survey",
-                  referenceId: surveyId,
+                  description: `Form SMS: ${dataForm.title}`,
+                  referenceType: "data-form",
+                  referenceId: formId,
                 });
               }
             })
@@ -272,21 +269,21 @@ export async function POST(
           if (i + BATCH_SIZE < validContacts.length) await sleep(BATCH_DELAY_MS);
         }
 
-        await prisma.survey.update({
-          where: { id: surveyId },
-          data: { sendCount: { increment: sent }, lastSentAt: new Date(), status: "ACTIVE", isActive: true },
+        await prisma.dataForm.update({
+          where: { id: formId },
+          data: { sendCount: { increment: sent }, lastSentAt: new Date() },
         });
       })();
 
       return NextResponse.json({
         success: true,
-        data: { message: `Sending survey to ${validContacts.length} contacts via SMS`, channel: "sms", recipients: validContacts.length },
+        data: { message: `Sending form to ${validContacts.length} contacts via SMS`, channel: "sms", recipients: validContacts.length },
       });
     }
 
     return NextResponse.json({ success: false, error: { message: "Invalid channel" } }, { status: 400 });
   } catch (error) {
-    console.error("Send survey error:", error);
-    return NextResponse.json({ success: false, error: { message: "Failed to send survey" } }, { status: 500 });
+    console.error("Send data form error:", error);
+    return NextResponse.json({ success: false, error: { message: "Failed to send form" } }, { status: 500 });
   }
 }
