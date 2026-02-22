@@ -141,6 +141,10 @@ export default function FollowUpDetailPage() {
   // Delete dialog
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Team members for assignee
+  interface TeamMemberOption { id: string; name: string; avatarUrl: string | null; }
+  const [teamMembers, setTeamMembers] = useState<TeamMemberOption[]>([]);
+
   // Fetch follow-up details
   const fetchFollowUp = useCallback(async () => {
     try {
@@ -177,6 +181,33 @@ export default function FollowUpDetailPage() {
 
   useEffect(() => { fetchFollowUp(); }, [fetchFollowUp]);
   useEffect(() => { if (followUp) fetchEntries(); }, [fetchEntries, followUp]);
+
+  // Fetch team members for assignee dropdown
+  useEffect(() => {
+    fetch("/api/teams")
+      .then((r) => r.json())
+      .then(async (json) => {
+        if (!json.success || !json.data?.length) return;
+        const allMembers: TeamMemberOption[] = [];
+        const seen = new Set<string>();
+        for (const team of json.data) {
+          try {
+            const res = await fetch(`/api/teams/${team.id}`);
+            const tj = await res.json();
+            if (tj.success) {
+              for (const m of tj.data.members || []) {
+                if (!seen.has(m.user.id)) {
+                  seen.add(m.user.id);
+                  allMembers.push({ id: m.user.id, name: m.user.name, avatarUrl: m.user.avatarUrl });
+                }
+              }
+            }
+          } catch { /* silent */ }
+        }
+        setTeamMembers(allMembers);
+      })
+      .catch(() => {});
+  }, []);
 
   // Fetch contact lists for import/export
   useEffect(() => {
@@ -264,6 +295,10 @@ export default function FollowUpDetailPage() {
   };
 
   const handleQuickStatusChange = async (entryId: string, newStatus: string) => {
+    // Optimistically update locally to prevent list re-render/shaking
+    setEntries((prev) =>
+      prev.map((e) => (e.id === entryId ? { ...e, status: newStatus as EntryData["status"] } : e))
+    );
     try {
       const res = await fetch(`/api/follow-ups/${id}/entries/${entryId}`, {
         method: "PUT",
@@ -271,9 +306,38 @@ export default function FollowUpDetailPage() {
         body: JSON.stringify({ status: newStatus }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error?.message);
-      fetchEntries();
+      if (!json.success) {
+        // Revert on failure
+        fetchEntries();
+        throw new Error(json.error?.message);
+      }
+      // Only refresh the header stats, not the entry list
       fetchFollowUp();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    }
+  };
+
+  const handleQuickAssigneeChange = async (entryId: string, assigneeId: string | null) => {
+    const assignee = assigneeId ? teamMembers.find((m) => m.id === assigneeId) : null;
+    setEntries((prev) =>
+      prev.map((e) => (e.id === entryId ? {
+        ...e,
+        assigneeId,
+        assignee: assignee ? { id: assignee.id, name: assignee.name, avatarUrl: assignee.avatarUrl } : null,
+      } : e))
+    );
+    try {
+      const res = await fetch(`/api/follow-ups/${id}/entries/${entryId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assigneeId: assigneeId || null }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        fetchEntries();
+        throw new Error(json.error?.message);
+      }
     } catch (err) {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
     }
@@ -590,8 +654,7 @@ export default function FollowUpDetailPage() {
                   return (
                     <motion.div
                       key={entry.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
+                      layout
                     >
                       <Card className="hover:shadow-sm transition-shadow">
                         <CardContent className="p-3 sm:p-4">
@@ -688,6 +751,48 @@ export default function FollowUpDetailPage() {
                                 </button>
                               )}
                             </div>
+
+                            {/* Assignee */}
+                            {teamMembers.length > 0 && (
+                              <Select
+                                value={entry.assigneeId || "none"}
+                                onValueChange={(v) => handleQuickAssigneeChange(entry.id, v === "none" ? null : v)}
+                              >
+                                <SelectTrigger className="w-[120px] h-8 text-xs">
+                                  {entry.assignee ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <div className="h-5 w-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[9px] font-medium shrink-0">
+                                        {entry.assignee.avatarUrl ? (
+                                          <img src={entry.assignee.avatarUrl} alt={entry.assignee.name} className="h-5 w-5 rounded-full object-cover" />
+                                        ) : (
+                                          entry.assignee.name.charAt(0).toUpperCase()
+                                        )}
+                                      </div>
+                                      <span className="truncate">{entry.assignee.name.split(" ")[0]}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground">Assign</span>
+                                  )}
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">Unassigned</SelectItem>
+                                  {teamMembers.map((tm) => (
+                                    <SelectItem key={tm.id} value={tm.id}>
+                                      <span className="flex items-center gap-1.5">
+                                        <span className="h-4 w-4 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[8px] font-medium shrink-0">
+                                          {tm.avatarUrl ? (
+                                            <img src={tm.avatarUrl} alt={tm.name} className="h-4 w-4 rounded-full object-cover" />
+                                          ) : (
+                                            tm.name.charAt(0).toUpperCase()
+                                          )}
+                                        </span>
+                                        {tm.name}
+                                      </span>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
 
                             {/* Status Dropdown */}
                             <Select

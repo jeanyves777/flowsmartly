@@ -39,6 +39,7 @@ export interface EntryData {
   id: string;
   followUpId: string;
   contactId: string | null;
+  assigneeId: string | null;
   name: string | null;
   phone: string | null;
   email: string | null;
@@ -57,6 +58,11 @@ export interface EntryData {
     email: string | null;
     phone: string | null;
     imageUrl: string | null;
+  } | null;
+  assignee?: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
   } | null;
   createdAt: string;
   updatedAt: string;
