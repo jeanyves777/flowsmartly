@@ -90,7 +90,7 @@ const aiCreativesNavigation = [
   { name: "Image Studio", href: "/studio", icon: Palette },
   { name: "Video Studio", href: "/video-studio", icon: Video },
   { name: "Logo Generator", href: "/logo-generator", icon: Crown },
-  { name: "FlowAI", href: "/flow-ai", icon: Sparkles },
+  { name: "Media Library", href: "/media", icon: FolderOpen },
 ];
 
 // Marketing features
@@ -110,7 +110,6 @@ const toolsNavigation = [
   { name: "Surveys", href: "/tools/surveys", icon: FileQuestion },
   { name: "BG Remover", href: "/tools/background-remover", icon: Scissors },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
-  { name: "Media Library", href: "/media", icon: FolderOpen },
 ];
 
 // Money
@@ -333,9 +332,16 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             {filterByAllowed(contentNavigation).length > 0 &&
               renderCollapsibleSection("Content", PenSquare, contentOpen, setContentOpen, pathname.startsWith("/content"), filterByAllowed(contentNavigation))}
 
+            {/* FlowAI */}
+            {filterByAllowed([{ name: "FlowAI", href: "/flow-ai", icon: Sparkles }]).length > 0 &&
+              renderNavItem(
+                { name: "FlowAI", href: "/flow-ai", icon: Sparkles },
+                pathname.startsWith("/flow-ai")
+              )}
+
             {/* Filtered AI Creatives */}
             {filterByAllowed(aiCreativesNavigation).length > 0 &&
-              renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/logo-generator", "/flow-ai"].some(p => pathname.startsWith(p)), filterByAllowed(aiCreativesNavigation))}
+              renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/logo-generator", "/media"].some(p => pathname.startsWith(p)), filterByAllowed(aiCreativesNavigation))}
 
             {/* Filtered Marketing */}
             {filterByAllowed(marketingNavigation).length > 0 &&
@@ -343,7 +349,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
 
             {/* Filtered Tools */}
             {filterByAllowed(toolsNavigation).length > 0 &&
-              renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics", "/media"].some(p => pathname.startsWith(p)), filterByAllowed(toolsNavigation))}
+              renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics"].some(p => pathname.startsWith(p)), filterByAllowed(toolsNavigation))}
           </>
         ) : (
           <>
@@ -363,14 +369,20 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             {/* Content Section */}
             {renderCollapsibleSection("Content", PenSquare, contentOpen, setContentOpen, pathname.startsWith("/content"), contentNavigation)}
 
+            {/* FlowAI — below My Projects */}
+            {renderNavItem(
+              { name: "FlowAI", href: "/flow-ai", icon: Sparkles },
+              pathname.startsWith("/flow-ai")
+            )}
+
             {/* AI Creatives Section */}
-            {renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/logo-generator", "/flow-ai"].some(p => pathname.startsWith(p)), aiCreativesNavigation)}
+            {renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/logo-generator", "/media"].some(p => pathname.startsWith(p)), aiCreativesNavigation)}
 
             {/* Marketing Section */}
             {renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), marketingNavigation, true)}
 
             {/* Tools & Insights Section */}
-            {renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics", "/media"].some(p => pathname.startsWith(p)), toolsNavigation)}
+            {renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics"].some(p => pathname.startsWith(p)), toolsNavigation)}
 
             {/* Money Section */}
             {renderCollapsibleSection("Money", DollarSign, moneyOpen, setMoneyOpen, ["/earnings", "/referrals"].some(p => pathname.startsWith(p)), moneyNavigation)}

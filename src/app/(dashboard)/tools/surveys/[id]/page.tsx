@@ -69,6 +69,11 @@ export default function SurveyDetailPage() {
   const [sendChannel, setSendChannel] = useState<"email" | "sms">("email");
   const [isSending, setIsSending] = useState(false);
 
+  // Marketing config state (for Send tab)
+  const [emailReady, setEmailReady] = useState(false);
+  const [smsReady, setSmsReady] = useState(false);
+  const [configLoading, setConfigLoading] = useState(false);
+
   // Fetch brand
   useEffect(() => {
     fetch("/api/brand")
@@ -123,9 +128,9 @@ export default function SurveyDetailPage() {
       if (resSearch) p.set("search", resSearch);
       const res = await fetch(`/api/surveys/${id}/responses?${p}`);
       const json = await res.json();
-      if (json.submissions) {
-        setResponses(json.submissions);
-        setResPagination({ total: json.total || 0, pages: json.totalPages || 0 });
+      if (json.success && json.data) {
+        setResponses(json.data);
+        setResPagination(json.pagination || { total: 0, pages: 0 });
       }
     } finally {
       setResLoading(false);
@@ -147,6 +152,33 @@ export default function SurveyDetailPage() {
         .catch(() => {});
     }
   }, [activeTab, contactLists.length]);
+
+  // Fetch marketing config when Send tab becomes active
+  useEffect(() => {
+    if (activeTab === "send" && !configLoading) {
+      setConfigLoading(true);
+      fetch("/api/marketing-config")
+        .then((r) => r.json())
+        .then((json) => {
+          if (json.success && json.data?.config) {
+            const c = json.data.config;
+            setEmailReady(!!(c.emailEnabled || c.emailVerified) && c.emailProvider !== "NONE");
+            setSmsReady(!!(c.smsEnabled && c.smsPhoneNumber));
+          }
+        })
+        .catch(() => {})
+        .finally(() => setConfigLoading(false));
+    }
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-switch channel when selected channel is not ready
+  useEffect(() => {
+    if (sendChannel === "email" && !emailReady && smsReady) {
+      setSendChannel("sms");
+    } else if (sendChannel === "sms" && !smsReady && emailReady) {
+      setSendChannel("email");
+    }
+  }, [emailReady, smsReady, sendChannel]);
 
   // Save survey (builder)
   const handleSave = async () => {
@@ -597,83 +629,152 @@ export default function SurveyDetailPage() {
               </div>
             ) : (
               <>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {responses.map((resp) => {
                     const answers =
                       typeof resp.answers === "string"
                         ? JSON.parse(resp.answers as string)
                         : resp.answers;
+                    const initials = resp.respondentName
+                      ? resp.respondentName
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()
+                          .slice(0, 2)
+                      : "?";
                     return (
                       <div
                         key={resp.id}
-                        className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
+                        className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden"
                       >
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedRes.has(resp.id)}
-                            onChange={(e) => {
-                              const newSet = new Set(selectedRes);
-                              if (e.target.checked) {
-                                newSet.add(resp.id);
-                              } else {
-                                newSet.delete(resp.id);
-                              }
-                              setSelectedRes(newSet);
-                            }}
-                            className="rounded mt-1"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2 text-sm">
-                                {resp.respondentName && (
-                                  <span className="font-medium">{resp.respondentName}</span>
-                                )}
-                                {resp.respondentEmail && (
-                                  <span className="text-gray-500">{resp.respondentEmail}</span>
-                                )}
-                                {resp.respondentPhone && (
-                                  <span className="text-gray-500">{resp.respondentPhone}</span>
-                                )}
-                                {!resp.respondentName && !resp.respondentEmail && !resp.respondentPhone && (
-                                  <span className="text-gray-400 italic">Anonymous</span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {resp.rating != null && resp.rating > 0 && (
-                                  <div className="flex items-center gap-0.5">
-                                    {[...Array(5)].map((_, si) => (
-                                      <Star
-                                        key={si}
-                                        className={`h-3 w-3 ${
-                                          si < resp.rating!
-                                            ? "fill-amber-400 text-amber-400"
-                                            : "text-gray-300"
-                                        }`}
-                                      />
-                                    ))}
-                                  </div>
-                                )}
-                                <span className="text-xs text-gray-500">
-                                  {new Date(resp.createdAt).toLocaleDateString()}
-                                </span>
-                              </div>
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-5 pb-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 font-semibold text-sm flex-shrink-0">
+                              {initials}
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                              {Object.entries(answers as Record<string, unknown>).map(([qId, answer]) => {
-                                const question = questions.find((q) => q.id === qId);
-                                return (
-                                  <div key={qId} className="text-xs">
-                                    <span className="text-gray-500">
-                                      {question?.label || qId}:
-                                    </span>{" "}
-                                    <span className="font-medium">{String(answer)}</span>
-                                  </div>
-                                );
-                              })}
+                            <div className="min-w-0">
+                              <p className="font-semibold text-sm truncate">
+                                {resp.respondentName || (
+                                  <span className="text-gray-400 italic font-normal">Anonymous</span>
+                                )}
+                              </p>
+                              {resp.respondentEmail && (
+                                <p className="text-xs text-gray-500 truncate">{resp.respondentEmail}</p>
+                              )}
                             </div>
                           </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            {resp.rating != null && resp.rating > 0 && (
+                              <div className="flex items-center gap-0.5">
+                                {[...Array(5)].map((_, si) => (
+                                  <Star
+                                    key={si}
+                                    className={`h-3.5 w-3.5 ${
+                                      si < resp.rating!
+                                        ? "fill-amber-400 text-amber-400"
+                                        : "text-gray-300 dark:text-gray-600"
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                            <span className="text-xs text-gray-500">
+                              {new Date(resp.createdAt).toLocaleDateString(undefined, {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })}
+                            </span>
+                          </div>
                         </div>
+
+                        {/* Divider */}
+                        <div className="border-t border-gray-100 dark:border-gray-700" />
+
+                        {/* Body: Answers Grid */}
+                        <div className="p-5 pt-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                            {Object.entries(answers as Record<string, unknown>).map(([qId, answer]) => {
+                              const question = questions.find((q) => q.id === qId);
+                              const qType = question?.type;
+                              const answerStr = String(answer);
+
+                              return (
+                                <div key={qId}>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                                    {question?.label || qId}
+                                  </p>
+                                  {qType === "rating" ? (
+                                    <div className="flex items-center gap-0.5">
+                                      {[...Array(5)].map((_, si) => (
+                                        <Star
+                                          key={si}
+                                          className={`h-4 w-4 ${
+                                            si < Number(answer)
+                                              ? "fill-amber-400 text-amber-400"
+                                              : "text-gray-300 dark:text-gray-600"
+                                          }`}
+                                        />
+                                      ))}
+                                    </div>
+                                  ) : qType === "yes_no" ? (
+                                    <span
+                                      className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                                        answerStr.toLowerCase() === "yes"
+                                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                      }`}
+                                    >
+                                      {answerStr.toLowerCase() === "yes" ? "Yes" : "No"}
+                                    </span>
+                                  ) : qType === "multiple_choice" ? (
+                                    <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                      {answerStr}
+                                    </span>
+                                  ) : (
+                                    <p className="text-sm">{answerStr}</p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Footer */}
+                        {(resp.respondentPhone || true) && (
+                          <>
+                            <div className="border-t border-gray-100 dark:border-gray-700" />
+                            <div className="flex items-center justify-between px-5 py-3">
+                              <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                {resp.respondentPhone && (
+                                  <>
+                                    <Phone className="h-3.5 w-3.5" />
+                                    <span>{resp.respondentPhone}</span>
+                                  </>
+                                )}
+                              </div>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedRes.has(resp.id)}
+                                  onChange={(e) => {
+                                    const newSet = new Set(selectedRes);
+                                    if (e.target.checked) {
+                                      newSet.add(resp.id);
+                                    } else {
+                                      newSet.delete(resp.id);
+                                    }
+                                    setSelectedRes(newSet);
+                                  }}
+                                  className="rounded"
+                                />
+                                <span className="text-xs text-gray-500">Select</span>
+                              </label>
+                            </div>
+                          </>
+                        )}
                       </div>
                     );
                   })}
@@ -836,38 +937,68 @@ export default function SurveyDetailPage() {
                 <div>
                   <label className="block text-sm font-medium mb-2">Channel</label>
                   <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setSendChannel("email")}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
-                        sendChannel === "email"
-                          ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20"
-                          : "border-gray-200 dark:border-gray-700 hover:border-blue-200"
-                      }`}
-                    >
-                      <Mail
-                        className={`h-6 w-6 ${
-                          sendChannel === "email" ? "text-blue-500" : "text-gray-400"
+                    <div>
+                      <button
+                        onClick={() => {
+                          if (emailReady) setSendChannel("email");
+                        }}
+                        className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all w-full ${
+                          !emailReady
+                            ? "opacity-50 cursor-not-allowed border-gray-200 dark:border-gray-700"
+                            : sendChannel === "email"
+                              ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20"
+                              : "border-gray-200 dark:border-gray-700 hover:border-blue-200"
                         }`}
-                      />
-                      <span className="text-sm font-medium">Email</span>
-                      <span className="text-xs text-gray-500">Send via email marketing</span>
-                    </button>
-                    <button
-                      onClick={() => setSendChannel("sms")}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
-                        sendChannel === "sms"
-                          ? "border-green-500 bg-green-50 dark:bg-green-950/20"
-                          : "border-gray-200 dark:border-gray-700 hover:border-green-200"
-                      }`}
-                    >
-                      <Phone
-                        className={`h-6 w-6 ${
-                          sendChannel === "sms" ? "text-green-500" : "text-gray-400"
+                      >
+                        <Mail
+                          className={`h-6 w-6 ${
+                            sendChannel === "email" && emailReady ? "text-blue-500" : "text-gray-400"
+                          }`}
+                        />
+                        <span className="text-sm font-medium">Email</span>
+                        <span className="text-xs text-gray-500">Send via email marketing</span>
+                      </button>
+                      {!emailReady && !configLoading && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
+                          Email not configured.{" "}
+                          <Link href="/settings/marketing" className="underline font-medium hover:text-amber-700 dark:hover:text-amber-300">
+                            Go to Settings &gt; Marketing
+                          </Link>{" "}
+                          to set up.
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <button
+                        onClick={() => {
+                          if (smsReady) setSendChannel("sms");
+                        }}
+                        className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all w-full ${
+                          !smsReady
+                            ? "opacity-50 cursor-not-allowed border-gray-200 dark:border-gray-700"
+                            : sendChannel === "sms"
+                              ? "border-green-500 bg-green-50 dark:bg-green-950/20"
+                              : "border-gray-200 dark:border-gray-700 hover:border-green-200"
                         }`}
-                      />
-                      <span className="text-sm font-medium">SMS</span>
-                      <span className="text-xs text-gray-500">Send via text message</span>
-                    </button>
+                      >
+                        <Phone
+                          className={`h-6 w-6 ${
+                            sendChannel === "sms" && smsReady ? "text-green-500" : "text-gray-400"
+                          }`}
+                        />
+                        <span className="text-sm font-medium">SMS</span>
+                        <span className="text-xs text-gray-500">Send via text message</span>
+                      </button>
+                      {!smsReady && !configLoading && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
+                          SMS not configured.{" "}
+                          <Link href="/settings" className="underline font-medium hover:text-amber-700 dark:hover:text-amber-300">
+                            Go to Settings &gt; SMS
+                          </Link>{" "}
+                          to set up.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -892,7 +1023,12 @@ export default function SurveyDetailPage() {
                 {/* Send Button */}
                 <Button
                   onClick={handleSend}
-                  disabled={isSending || !sendListId}
+                  disabled={
+                    isSending ||
+                    !sendListId ||
+                    (sendChannel === "email" && !emailReady) ||
+                    (sendChannel === "sms" && !smsReady)
+                  }
                   className="w-full"
                 >
                   {isSending ? (

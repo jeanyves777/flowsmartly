@@ -7,7 +7,7 @@ import {
   ArrowLeft, Save, Plus, Trash2, GripVertical, ChevronDown, ChevronUp,
   Copy, Check, ExternalLink, Download, Eye, Settings as SettingsIcon,
   FileText, Send, Users, Search, MoreVertical, RefreshCw, Mail, MessageSquare,
-  Share2,
+  Share2, Phone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +57,11 @@ export default function DataFormDetailPage() {
   const [sendListId, setSendListId] = useState("");
   const [sendChannel, setSendChannel] = useState<"email" | "sms">("email");
   const [isSending, setIsSending] = useState(false);
+
+  // Marketing config state
+  const [emailReady, setEmailReady] = useState(false);
+  const [smsReady, setSmsReady] = useState(false);
+  const [configLoading, setConfigLoading] = useState(false);
 
   // Fetch brand
   useEffect(() => {
@@ -121,15 +126,31 @@ export default function DataFormDetailPage() {
     if (activeTab === "submissions") fetchSubmissions();
   }, [activeTab, fetchSubmissions]);
 
-  // Fetch contact lists when send tab is active
+  // Fetch contact lists and marketing config when send tab is active
   useEffect(() => {
     if (activeTab === "send") {
+      // Fetch contact lists
       fetch("/api/contact-lists?limit=100")
         .then(r => r.json())
         .then(json => {
-          if (json.success) setContactLists(json.data || []);
+          if (json.success) setContactLists(json.data?.lists || json.data || []);
         })
         .catch(() => {});
+      // Fetch marketing config
+      if (!configLoading) {
+        setConfigLoading(true);
+        fetch("/api/marketing-config")
+          .then(r => r.json())
+          .then(json => {
+            if (json.success && json.data?.config) {
+              const c = json.data.config;
+              setEmailReady(!!(c.emailEnabled || c.emailVerified) && c.emailProvider !== "NONE");
+              setSmsReady(!!(c.smsEnabled && c.smsPhoneNumber));
+            }
+          })
+          .catch(() => {})
+          .finally(() => setConfigLoading(false));
+      }
     }
   }, [activeTab]);
 
@@ -586,36 +607,52 @@ export default function DataFormDetailPage() {
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                      <tr>
-                        <th className="px-4 py-3 text-left">
-                          <input
-                            type="checkbox"
-                            checked={submissions.length > 0 && selectedSubs.size === submissions.length}
-                            onChange={e => {
-                              if (e.target.checked) {
-                                setSelectedSubs(new Set(submissions.map(s => s.id)));
-                              } else {
-                                setSelectedSubs(new Set());
-                              }
-                            }}
-                            className="rounded"
-                          />
-                        </th>
-                        <th className="px-4 py-3 text-left font-medium">Name</th>
-                        <th className="px-4 py-3 text-left font-medium">Email</th>
-                        {fields.slice(0, 4).map(field => (
-                          <th key={field.id} className="px-4 py-3 text-left font-medium">{field.label}</th>
-                        ))}
-                        <th className="px-4 py-3 text-left font-medium">Submitted</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {submissions.map(sub => (
-                        <tr key={sub.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                          <td className="px-4 py-3">
+                {/* Select All Bar */}
+                <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+                  <input
+                    type="checkbox"
+                    checked={submissions.length > 0 && selectedSubs.size === submissions.length}
+                    onChange={e => {
+                      if (e.target.checked) {
+                        setSelectedSubs(new Set(submissions.map(s => s.id)));
+                      } else {
+                        setSelectedSubs(new Set());
+                      }
+                    }}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {selectedSubs.size > 0
+                      ? `${selectedSubs.size} of ${submissions.length} selected`
+                      : `Select all ${submissions.length} submissions`}
+                  </span>
+                </div>
+
+                {/* Submission Cards */}
+                <div className="space-y-4">
+                  {submissions.map(sub => {
+                    const initials = sub.respondentName
+                      ? sub.respondentName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)
+                      : "?";
+                    return (
+                      <div key={sub.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
+                        {/* Card Header */}
+                        <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-violet-600 font-semibold text-sm">
+                              {initials}
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold">{sub.respondentName || "Anonymous"}</p>
+                              {sub.respondentEmail && (
+                                <p className="text-xs text-gray-500">{sub.respondentEmail}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-gray-500">
+                              {new Date(sub.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                            </span>
                             <input
                               type="checkbox"
                               checked={selectedSubs.has(sub.id)}
@@ -630,21 +667,57 @@ export default function DataFormDetailPage() {
                               }}
                               className="rounded"
                             />
-                          </td>
-                          <td className="px-4 py-3">{sub.respondentName || "-"}</td>
-                          <td className="px-4 py-3">{sub.respondentEmail || "-"}</td>
-                          {fields.slice(0, 4).map(field => (
-                            <td key={field.id} className="px-4 py-3 max-w-xs truncate">
-                              {String(sub.data[field.id] ?? "-")}
-                            </td>
-                          ))}
-                          <td className="px-4 py-3 text-gray-500">
-                            {new Date(sub.createdAt).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                        </div>
+
+                        {/* Card Body */}
+                        <div className="p-5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {fields.map(field => {
+                              const value = sub.data[field.id];
+                              if (value === undefined || value === null || value === "") return null;
+                              const strValue = String(value);
+                              return (
+                                <div key={field.id}>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">{field.label}</p>
+                                  {field.type === "email" ? (
+                                    <a href={`mailto:${strValue}`} className="text-sm text-blue-600 hover:underline">{strValue}</a>
+                                  ) : field.type === "url" ? (
+                                    <a href={strValue} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">{strValue}</a>
+                                  ) : field.type === "phone" ? (
+                                    <p className="text-sm flex items-center gap-1">
+                                      <Phone className="h-3.5 w-3.5 text-gray-400" />
+                                      {strValue}
+                                    </p>
+                                  ) : field.type === "checkbox" ? (
+                                    <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${
+                                      value === true || strValue === "true" || strValue === "yes"
+                                        ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+                                        : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                                    }`}>
+                                      {value === true || strValue === "true" || strValue === "yes" ? "Yes" : "No"}
+                                    </span>
+                                  ) : (
+                                    <p className="text-sm">{strValue}</p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Card Footer (phone) */}
+                        {sub.respondentPhone && (
+                          <div className="px-5 pb-4">
+                            <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                              <Phone className="h-3.5 w-3.5" />
+                              {sub.respondentPhone}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Pagination */}
@@ -809,34 +882,54 @@ export default function DataFormDetailPage() {
             <div className="space-y-2">
               <label className="text-sm font-medium">Send via</label>
               <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setSendChannel("email")}
-                  className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-colors ${
-                    sendChannel === "email"
-                      ? "border-blue-600 bg-blue-50 dark:bg-blue-900/20"
-                      : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-                  }`}
-                >
-                  <Mail className={`h-5 w-5 ${sendChannel === "email" ? "text-blue-600" : "text-gray-400"}`} />
-                  <div className="text-left">
-                    <p className={`text-sm font-medium ${sendChannel === "email" ? "text-blue-600" : ""}`}>Email</p>
-                    <p className="text-xs text-gray-500">Send via email</p>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setSendChannel("sms")}
-                  className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-colors ${
-                    sendChannel === "sms"
-                      ? "border-blue-600 bg-blue-50 dark:bg-blue-900/20"
-                      : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-                  }`}
-                >
-                  <MessageSquare className={`h-5 w-5 ${sendChannel === "sms" ? "text-blue-600" : "text-gray-400"}`} />
-                  <div className="text-left">
-                    <p className={`text-sm font-medium ${sendChannel === "sms" ? "text-blue-600" : ""}`}>SMS</p>
-                    <p className="text-xs text-gray-500">Send via text</p>
-                  </div>
-                </button>
+                <div>
+                  <button
+                    onClick={() => { if (emailReady) setSendChannel("email"); }}
+                    className={`w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-colors ${
+                      !emailReady ? "opacity-50 cursor-not-allowed" : ""
+                    } ${
+                      sendChannel === "email" && emailReady
+                        ? "border-blue-600 bg-blue-50 dark:bg-blue-900/20"
+                        : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                    }`}
+                  >
+                    <Mail className={`h-5 w-5 ${sendChannel === "email" && emailReady ? "text-blue-600" : "text-gray-400"}`} />
+                    <div className="text-left">
+                      <p className={`text-sm font-medium ${sendChannel === "email" && emailReady ? "text-blue-600" : ""}`}>Email</p>
+                      <p className="text-xs text-gray-500">Send via email</p>
+                    </div>
+                  </button>
+                  {!emailReady && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
+                      Email not configured.{" "}
+                      <Link href="/settings/marketing" className="text-blue-600 hover:underline">Set up in Settings</Link>
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <button
+                    onClick={() => { if (smsReady) setSendChannel("sms"); }}
+                    className={`w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-colors ${
+                      !smsReady ? "opacity-50 cursor-not-allowed" : ""
+                    } ${
+                      sendChannel === "sms" && smsReady
+                        ? "border-blue-600 bg-blue-50 dark:bg-blue-900/20"
+                        : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                    }`}
+                  >
+                    <MessageSquare className={`h-5 w-5 ${sendChannel === "sms" && smsReady ? "text-blue-600" : "text-gray-400"}`} />
+                    <div className="text-left">
+                      <p className={`text-sm font-medium ${sendChannel === "sms" && smsReady ? "text-blue-600" : ""}`}>SMS</p>
+                      <p className="text-xs text-gray-500">Send via text</p>
+                    </div>
+                  </button>
+                  {!smsReady && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
+                      SMS not configured.{" "}
+                      <Link href="/settings" className="text-blue-600 hover:underline">Set up in Settings</Link>
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -866,7 +959,7 @@ export default function DataFormDetailPage() {
             {/* Send Button */}
             <Button
               onClick={handleSendForm}
-              disabled={isSending || !sendListId || form.status !== "ACTIVE"}
+              disabled={isSending || !sendListId || form.status !== "ACTIVE" || (sendChannel === "email" && !emailReady) || (sendChannel === "sms" && !smsReady)}
               className="w-full"
             >
               <Send className="h-4 w-4 mr-2" />

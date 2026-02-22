@@ -36,6 +36,9 @@ import {
   FileQuestion,
   MessageCircle,
   UsersRound,
+  Scissors,
+  FolderKanban,
+  FormInput,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -58,28 +61,13 @@ interface MobileSidebarProps {
 // Plans that have access to marketing features
 const MARKETING_PLANS = ["PRO", "BUSINESS", "ENTERPRISE", "ADMIN", "AGENT"];
 
-const navigation = [
+// Top-level (always visible)
+const topNavigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-];
-
-// AI Creatives
-const aiCreativesNavigation = [
-  { name: "Image Studio", href: "/studio", icon: Palette },
-  { name: "Video Studio", href: "/video-studio", icon: Video },
-  { name: "Logo Generator", href: "/logo-generator", icon: Crown },
-];
-
-const generalNavigation = [
-  { name: "Media Library", href: "/media", icon: FolderOpen },
-  { name: "Landing Pages", href: "/landing-pages", icon: Globe },
   { name: "Feed", href: "/feed", icon: Rss },
-  { name: "Ads", href: "/ads", icon: Megaphone },
-  { name: "Analytics", href: "/analytics", icon: BarChart3 },
-  { name: "Earnings", href: "/earnings", icon: DollarSign },
-  { name: "Referrals", href: "/referrals", icon: Gift },
 ];
 
-// Content management features
+// Content management
 const contentNavigation = [
   { name: "Posts", href: "/content/posts", icon: PenSquare },
   { name: "Schedule", href: "/content/schedule", icon: CalendarDays },
@@ -87,10 +75,12 @@ const contentNavigation = [
   { name: "Strategy", href: "/content/strategy", icon: Target },
 ];
 
-// Tools
-const toolsNavigation = [
-  { name: "Follow-Ups", href: "/tools/follow-ups", icon: ClipboardList },
-  { name: "Surveys", href: "/tools/surveys", icon: FileQuestion },
+// AI Creatives
+const aiCreativesNavigation = [
+  { name: "Image Studio", href: "/studio", icon: Palette },
+  { name: "Video Studio", href: "/video-studio", icon: Video },
+  { name: "Logo Generator", href: "/logo-generator", icon: Crown },
+  { name: "Media Library", href: "/media", icon: FolderOpen },
 ];
 
 // Marketing features
@@ -99,6 +89,23 @@ const marketingNavigation = [
   { name: "Campaigns", href: "/campaigns", icon: Megaphone },
   { name: "Email Marketing", href: "/email-marketing", icon: Mail },
   { name: "SMS Marketing", href: "/sms-marketing", icon: MessageSquare, premium: true },
+  { name: "Ads", href: "/ads", icon: Megaphone },
+  { name: "Landing Pages", href: "/landing-pages", icon: Globe },
+];
+
+// Tools & Insights
+const toolsNavigation = [
+  { name: "Follow-Ups", href: "/tools/follow-ups", icon: ClipboardList },
+  { name: "Data Collection", href: "/tools/data-collection", icon: FormInput },
+  { name: "Surveys", href: "/tools/surveys", icon: FileQuestion },
+  { name: "BG Remover", href: "/tools/background-remover", icon: Scissors },
+  { name: "Analytics", href: "/analytics", icon: BarChart3 },
+];
+
+// Money
+const moneyNavigation = [
+  { name: "Earnings", href: "/earnings", icon: DollarSign },
+  { name: "Referrals", href: "/referrals", icon: Gift },
 ];
 
 const secondaryNavigation = [
@@ -260,13 +267,25 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
 
             {/* Main Navigation */}
             <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-              {/* Dashboard */}
-              {navigation.map((item) => {
+              {/* Dashboard + Feed */}
+              {topNavigation.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                 return renderNavItem(item, isActive);
               })}
 
-              {/* Content Section — right below Dashboard */}
+              {/* My Projects */}
+              {renderNavItem(
+                { name: "My Projects", href: "/projects", icon: FolderKanban },
+                pathname === "/projects"
+              )}
+
+              {/* FlowAI — below My Projects */}
+              {renderNavItem(
+                { name: "FlowAI", href: "/flow-ai", icon: Sparkles },
+                pathname.startsWith("/flow-ai")
+              )}
+
+              {/* Content Section */}
               <div className="pt-4">
                 <div className="px-4 pb-2 flex items-center gap-2">
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -292,12 +311,6 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
                 })}
               </div>
 
-              {/* General items */}
-              {generalNavigation.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                return renderNavItem(item, isActive);
-              })}
-
               {/* Marketing Section */}
               <div className="pt-4">
                 <div className="px-4 pb-2 flex items-center gap-2">
@@ -312,14 +325,27 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
                 })}
               </div>
 
-              {/* Tools Section */}
+              {/* Tools & Insights Section */}
               <div className="pt-4">
                 <div className="px-4 pb-2 flex items-center gap-2">
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Tools
+                    Tools & Insights
                   </span>
                 </div>
                 {toolsNavigation.map((item) => {
+                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return renderNavItem(item, isActive);
+                })}
+              </div>
+
+              {/* Money Section */}
+              <div className="pt-4">
+                <div className="px-4 pb-2 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Money
+                  </span>
+                </div>
+                {moneyNavigation.map((item) => {
                   const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                   return renderNavItem(item, isActive);
                 })}
