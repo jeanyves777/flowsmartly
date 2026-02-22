@@ -373,27 +373,25 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             {/* Money Section */}
             {renderCollapsibleSection("Money", DollarSign, moneyOpen, setMoneyOpen, ["/earnings", "/referrals"].some(p => pathname.startsWith(p)), moneyNavigation)}
 
-            {/* Teams Section — paid users only */}
-            {hasMarketingAccess && (
-              <div className="pt-3">
-                {!isCollapsed && (
-                  <div className="px-3 pb-2">
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Teams
-                    </span>
-                  </div>
-                )}
-                {isCollapsed && (
-                  <div className="flex justify-center py-2">
-                    <UsersRound className={cn("h-4 w-4", pathname.startsWith("/teams") ? "text-brand-500" : "text-muted-foreground")} />
-                  </div>
-                )}
-                {renderNavItem(
-                  { name: "My Teams", href: "/teams", icon: UsersRound },
-                  pathname.startsWith("/teams")
-                )}
-              </div>
-            )}
+            {/* Teams Section */}
+            <div className="pt-3">
+              {!isCollapsed && (
+                <div className="px-3 pb-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Teams
+                  </span>
+                </div>
+              )}
+              {isCollapsed && (
+                <div className="flex justify-center py-2">
+                  <UsersRound className={cn("h-4 w-4", pathname.startsWith("/teams") ? "text-brand-500" : "text-muted-foreground")} />
+                </div>
+              )}
+              {renderNavItem(
+                { name: "My Teams", href: "/teams", icon: UsersRound },
+                pathname.startsWith("/teams")
+              )}
+            </div>
 
             {/* Agent / Marketplace Section */}
             {isAgent ? (

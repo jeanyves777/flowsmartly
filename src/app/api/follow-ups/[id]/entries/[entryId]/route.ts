@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { createNotification } from "@/lib/notifications";
 
 // PUT /api/follow-ups/[id]/entries/[entryId] — Update entry
 export async function PUT(
@@ -103,8 +104,34 @@ export async function PUT(
             imageUrl: true,
           },
         },
+        assignee: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+          },
+        },
       },
     });
+
+    // Notify the new assignee when assignment changes
+    if (assigneeId !== undefined && assigneeId && assigneeId !== entry.assigneeId) {
+      const [followUpInfo, assignerInfo] = await Promise.all([
+        prisma.followUp.findUnique({ where: { id }, select: { name: true } }),
+        prisma.user.findUnique({ where: { id: session.userId }, select: { name: true } }),
+      ]);
+      const contactName = updated.name ||
+        (updated.contact ? `${updated.contact.firstName || ""} ${updated.contact.lastName || ""}`.trim() : null) ||
+        "a contact";
+
+      createNotification({
+        userId: assigneeId,
+        type: "TASK_ASSIGNED",
+        title: "Follow-Up Assignment",
+        message: `${assignerInfo?.name || "Someone"} assigned you to ${contactName} in "${followUpInfo?.name || "a follow-up"}"`,
+        actionUrl: `/tools/follow-ups/${id}`,
+      }).catch((err) => console.error("Assignment notification error:", err));
+    }
 
     return NextResponse.json({
       success: true,

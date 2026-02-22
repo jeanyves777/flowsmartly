@@ -57,65 +57,109 @@ export async function GET(
     const status = searchParams.get("status");
     const search = searchParams.get("search") || "";
 
-    const where: Record<string, unknown> = { followUpId: id };
+    const alreadyFilteredToAssigned = !isOwner && restrictToAssigned;
 
-    // If not the owner and restrictToAssigned is on, only show assigned entries
-    if (!isOwner && restrictToAssigned) {
-      where.assigneeId = session.userId;
+    // Build base filter conditions as an array (avoids OR key conflicts)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const baseConditions: any[] = [{ followUpId: id }];
+    if (alreadyFilteredToAssigned) {
+      baseConditions.push({ assigneeId: session.userId });
     }
-
-    if (status) where.status = status;
+    if (status) baseConditions.push({ status });
     if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { email: { contains: search } },
-        { phone: { contains: search } },
-        { notes: { contains: search } },
-      ];
+      baseConditions.push({
+        OR: [
+          { name: { contains: search } },
+          { email: { contains: search } },
+          { phone: { contains: search } },
+          { notes: { contains: search } },
+        ],
+      });
     }
 
-    const [entries, total] = await Promise.all([
-      prisma.followUpEntry.findMany({
-        where,
-        orderBy: [
-          { nextFollowUp: "asc" },
-          { createdAt: "desc" },
-        ],
-        skip: (page - 1) * limit,
-        take: limit,
-        include: {
-          contact: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              phone: true,
-              imageUrl: true,
-            },
-          },
-          assignee: {
-            select: {
-              id: true,
-              name: true,
-              avatarUrl: true,
-            },
-          },
+    const orderBy = [
+      { nextFollowUp: "asc" as const },
+      { createdAt: "desc" as const },
+    ];
+    const include = {
+      contact: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          imageUrl: true,
         },
-      }),
-      prisma.followUpEntry.count({ where }),
-    ]);
+      },
+      assignee: {
+        select: {
+          id: true,
+          name: true,
+          avatarUrl: true,
+        },
+      },
+    };
+    const skip = (page - 1) * limit;
 
-    // Sort: entries assigned to the current user come first
-    const sorted = entries.sort((a, b) => {
-      const aAssigned = a.assigneeId === session.userId ? 0 : 1;
-      const bAssigned = b.assigneeId === session.userId ? 0 : 1;
-      return aAssigned - bAssigned;
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let entries: any[] = [];
+    let total = 0;
+
+    if (alreadyFilteredToAssigned) {
+      // All visible entries are assigned to user — simple query
+      const where = baseConditions.length === 1 ? baseConditions[0] : { AND: baseConditions };
+      const [data, count] = await Promise.all([
+        prisma.followUpEntry.findMany({ where, orderBy, skip, take: limit, include }),
+        prisma.followUpEntry.count({ where }),
+      ]);
+      entries = data;
+      total = count;
+    } else {
+      // Two-pass: user's assigned entries first, then others (with proper pagination)
+      const assignedWhere = { AND: [...baseConditions, { assigneeId: session.userId }] };
+      const otherWhere = {
+        AND: [
+          ...baseConditions,
+          { OR: [{ assigneeId: null }, { assigneeId: { not: session.userId } }] },
+        ],
+      };
+
+      const [assignedTotal, otherTotal] = await Promise.all([
+        prisma.followUpEntry.count({ where: assignedWhere }),
+        prisma.followUpEntry.count({ where: otherWhere }),
+      ]);
+
+      total = assignedTotal + otherTotal;
+
+      if (skip < assignedTotal) {
+        // Page still has some assigned entries
+        const assignedTake = Math.min(limit, assignedTotal - skip);
+        const otherTake = limit - assignedTake;
+
+        const [assigned, others] = await Promise.all([
+          prisma.followUpEntry.findMany({
+            where: assignedWhere, orderBy, skip, take: assignedTake, include,
+          }),
+          otherTake > 0
+            ? prisma.followUpEntry.findMany({
+                where: otherWhere, orderBy, skip: 0, take: otherTake, include,
+              })
+            : Promise.resolve([]),
+        ]);
+        entries = [...assigned, ...others];
+      } else {
+        // All assigned entries shown on previous pages
+        const otherSkip = skip - assignedTotal;
+        entries = await prisma.followUpEntry.findMany({
+          where: otherWhere, orderBy, skip: otherSkip, take: limit, include,
+        });
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      data: sorted.map((e) => ({
+      data: entries.map((e) => ({
         ...e,
         customData: JSON.parse(e.customData || "{}"),
       })),

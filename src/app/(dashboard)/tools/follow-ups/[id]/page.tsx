@@ -684,43 +684,43 @@ export default function FollowUpDetailPage() {
                     >
                       <Card className="hover:shadow-sm transition-shadow">
                         <CardContent className="p-3 sm:p-4">
-                          <div className="flex items-center gap-3">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                             {/* Name & Contact */}
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <p className="font-medium text-sm truncate">{displayName}</p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-bold text-sm sm:text-base truncate max-w-[220px] sm:max-w-none">{displayName}</p>
                                 {currentUserId && entry.assigneeId === currentUserId && (
-                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 shrink-0">
                                     Assigned to you
                                   </Badge>
                                 )}
                                 {entry.attempts > 0 && (
-                                  <span className="text-[10px] text-muted-foreground">({entry.attempts} attempts)</span>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">({entry.attempts} attempts)</span>
                                 )}
                               </div>
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground mt-0.5">
                                 {(entry.phone || entry.contact?.phone) && (
                                   <span className="flex items-center gap-1">
-                                    <Phone className="h-3 w-3" />
-                                    {entry.phone || entry.contact?.phone}
+                                    <Phone className="h-3 w-3 shrink-0" />
+                                    <span className="truncate">{entry.phone || entry.contact?.phone}</span>
                                   </span>
                                 )}
                                 {(entry.email || entry.contact?.email) && (
                                   <span className="flex items-center gap-1">
-                                    <Mail className="h-3 w-3" />
-                                    {entry.email || entry.contact?.email}
+                                    <Mail className="h-3 w-3 shrink-0" />
+                                    <span className="truncate max-w-[180px] sm:max-w-none">{entry.email || entry.contact?.email}</span>
                                   </span>
                                 )}
                                 {entry.address && (
                                   <span className="flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" />
-                                    {entry.address}
+                                    <MapPin className="h-3 w-3 shrink-0" />
+                                    <span className="truncate">{entry.address}</span>
                                   </span>
                                 )}
                                 {entry.referralSource && (
                                   <span className="flex items-center gap-1">
-                                    <Link2 className="h-3 w-3" />
-                                    {entry.referralSource}
+                                    <Link2 className="h-3 w-3 shrink-0" />
+                                    <span className="truncate">{entry.referralSource}</span>
                                   </span>
                                 )}
                               </div>
@@ -783,87 +783,90 @@ export default function FollowUpDetailPage() {
                               )}
                             </div>
 
-                            {/* Assignee */}
-                            {teamMembers.length > 0 && (
-                              <Select
-                                value={entry.assigneeId || "none"}
-                                onValueChange={(v) => handleQuickAssigneeChange(entry.id, v === "none" ? null : v)}
-                              >
-                                <SelectTrigger className="w-[120px] h-8 text-xs">
-                                  {entry.assignee ? (
-                                    <div className="flex items-center gap-1.5">
-                                      <div className="h-5 w-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[9px] font-medium shrink-0">
-                                        {entry.assignee.avatarUrl ? (
-                                          <img src={entry.assignee.avatarUrl} alt={entry.assignee.name} className="h-5 w-5 rounded-full object-cover" />
-                                        ) : (
-                                          entry.assignee.name.charAt(0).toUpperCase()
-                                        )}
+                            {/* Controls: stack horizontally, wrap on mobile */}
+                            <div className="flex items-center gap-2 pt-1 sm:pt-0 border-t sm:border-0 mt-1 sm:mt-0 flex-wrap sm:flex-nowrap">
+                              {/* Assignee */}
+                              {teamMembers.length > 0 && (
+                                <Select
+                                  value={entry.assigneeId || "none"}
+                                  onValueChange={(v) => handleQuickAssigneeChange(entry.id, v === "none" ? null : v)}
+                                >
+                                  <SelectTrigger className="w-[120px] h-8 text-xs">
+                                    {entry.assignee ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <div className="h-5 w-5 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[9px] font-medium shrink-0">
+                                          {entry.assignee.avatarUrl ? (
+                                            <img src={entry.assignee.avatarUrl} alt={entry.assignee.name} className="h-5 w-5 rounded-full object-cover" />
+                                          ) : (
+                                            entry.assignee.name.charAt(0).toUpperCase()
+                                          )}
+                                        </div>
+                                        <span className="truncate">{entry.assignee.name.split(" ")[0]}</span>
                                       </div>
-                                      <span className="truncate">{entry.assignee.name.split(" ")[0]}</span>
-                                    </div>
-                                  ) : (
-                                    <span className="text-muted-foreground">Assign</span>
-                                  )}
+                                    ) : (
+                                      <span className="text-muted-foreground">Assign</span>
+                                    )}
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">Unassigned</SelectItem>
+                                    {teamMembers.map((tm) => (
+                                      <SelectItem key={tm.id} value={tm.id}>
+                                        <span className="flex items-center gap-1.5">
+                                          <span className="h-4 w-4 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[8px] font-medium shrink-0">
+                                            {tm.avatarUrl ? (
+                                              <img src={tm.avatarUrl} alt={tm.name} className="h-4 w-4 rounded-full object-cover" />
+                                            ) : (
+                                              tm.name.charAt(0).toUpperCase()
+                                            )}
+                                          </span>
+                                          {tm.name}
+                                        </span>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+
+                              {/* Status Dropdown */}
+                              <Select
+                                value={entry.status}
+                                onValueChange={(v) => handleQuickStatusChange(entry.id, v)}
+                              >
+                                <SelectTrigger className="w-[130px] h-8 text-xs">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className={`w-2 h-2 rounded-full ${statusConfig.color.split(" ")[0]}`} />
+                                    <SelectValue />
+                                  </div>
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="none">Unassigned</SelectItem>
-                                  {teamMembers.map((tm) => (
-                                    <SelectItem key={tm.id} value={tm.id}>
+                                  {Object.entries(ENTRY_STATUS_CONFIG).map(([key, cfg]) => (
+                                    <SelectItem key={key} value={key}>
                                       <span className="flex items-center gap-1.5">
-                                        <span className="h-4 w-4 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[8px] font-medium shrink-0">
-                                          {tm.avatarUrl ? (
-                                            <img src={tm.avatarUrl} alt={tm.name} className="h-4 w-4 rounded-full object-cover" />
-                                          ) : (
-                                            tm.name.charAt(0).toUpperCase()
-                                          )}
-                                        </span>
-                                        {tm.name}
+                                        <span className={`w-2 h-2 rounded-full ${cfg.color.split(" ")[0]}`} />
+                                        {cfg.label}
                                       </span>
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                            )}
 
-                            {/* Status Dropdown */}
-                            <Select
-                              value={entry.status}
-                              onValueChange={(v) => handleQuickStatusChange(entry.id, v)}
-                            >
-                              <SelectTrigger className="w-[130px] h-8 text-xs">
-                                <div className="flex items-center gap-1.5">
-                                  <div className={`w-2 h-2 rounded-full ${statusConfig.color.split(" ")[0]}`} />
-                                  <SelectValue />
-                                </div>
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Object.entries(ENTRY_STATUS_CONFIG).map(([key, cfg]) => (
-                                  <SelectItem key={key} value={key}>
-                                    <span className="flex items-center gap-1.5">
-                                      <span className={`w-2 h-2 rounded-full ${cfg.color.split(" ")[0]}`} />
-                                      {cfg.label}
-                                    </span>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-
-                            {/* Actions */}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                                  <MoreVertical className="h-3.5 w-3.5" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => openEditEntry(entry)}>
-                                  <Edit className="h-4 w-4 mr-2" /> Edit
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(entry.id)}>
-                                  <Trash2 className="h-4 w-4 mr-2" /> Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                              {/* Actions */}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                    <MoreVertical className="h-3.5 w-3.5" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => openEditEntry(entry)}>
+                                    <Edit className="h-4 w-4 mr-2" /> Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(entry.id)}>
+                                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
