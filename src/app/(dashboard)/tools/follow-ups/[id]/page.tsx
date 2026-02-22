@@ -187,8 +187,12 @@ export default function FollowUpDetailPage() {
   useEffect(() => { fetchFollowUp(); }, [fetchFollowUp]);
   useEffect(() => { if (followUp) fetchEntries(); }, [fetchEntries, followUp]);
 
-  // Fetch team members for assignee dropdown
+  // Fetch team members for assignee dropdown — only for the follow-up owner
   useEffect(() => {
+    if (!followUp?.isOwner) {
+      setTeamMembers([]);
+      return;
+    }
     fetch("/api/teams")
       .then((r) => r.json())
       .then(async (json) => {
@@ -212,7 +216,7 @@ export default function FollowUpDetailPage() {
         setTeamMembers(allMembers);
       })
       .catch(() => {});
-  }, []);
+  }, [followUp?.isOwner]);
 
   // Fetch contact lists for import/export
   useEffect(() => {
