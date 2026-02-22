@@ -26,6 +26,10 @@ import {
   Settings,
   Ban,
   RotateCcw,
+  Pencil,
+  UserPlus,
+  UserMinus,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -138,6 +142,16 @@ const priorityColors: Record<string, string> = {
   LOW: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
 };
 
+const PROJECT_TABS = ["board", "members", "settings"] as const;
+type ProjectTab = (typeof PROJECT_TABS)[number];
+
+interface TeamMemberInfo {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+}
+
 // Feature categories for permissions editor
 const FEATURE_CATEGORIES: { label: string; features: { key: string; label: string; cost: number }[] }[] = [
   {
@@ -219,6 +233,23 @@ export default function ProjectDetailPage({
   const router = useRouter();
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<ProjectTab>("board");
+
+  // Project settings
+  const [editName, setEditName] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editDeadline, setEditDeadline] = useState("");
+  const [editStatus, setEditStatus] = useState("ACTIVE");
+  const [savingProject, setSavingProject] = useState(false);
+  const [showDeleteProject, setShowDeleteProject] = useState(false);
+  const [deletingProject, setDeletingProject] = useState(false);
+
+  // Members management
+  const [teamMembers, setTeamMembers] = useState<TeamMemberInfo[]>([]);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [addingMembers, setAddingMembers] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
   // Task creation
   const [showNewTask, setShowNewTask] = useState(false);
@@ -257,7 +288,13 @@ export default function ProjectDetailPage({
         `/api/teams/${teamId}/projects/${projectId}`
       );
       const json = await res.json();
-      if (json.success) setProject(json.data);
+      if (json.success) {
+        setProject(json.data);
+        setEditName(json.data.name);
+        setEditDesc(json.data.description || "");
+        setEditDeadline(json.data.deadline ? json.data.deadline.split("T")[0] : "");
+        setEditStatus(json.data.status);
+      }
     } catch {
       /* silent */
     } finally {
@@ -265,9 +302,24 @@ export default function ProjectDetailPage({
     }
   }, [teamId, projectId]);
 
+  const fetchTeamMembers = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/teams/${teamId}`);
+      const json = await res.json();
+      if (json.success) {
+        setTeamMembers(
+          json.data.members.map((m: { user: TeamMemberInfo }) => m.user)
+        );
+      }
+    } catch {
+      /* silent */
+    }
+  }, [teamId]);
+
   useEffect(() => {
     fetchProject();
-  }, [fetchProject]);
+    fetchTeamMembers();
+  }, [fetchProject, fetchTeamMembers]);
 
   const fetchComments = useCallback(
     async (taskId: string) => {
@@ -502,6 +554,81 @@ export default function ProjectDetailPage({
     }
   }
 
+  async function handleUpdateProject() {
+    setSavingProject(true);
+    try {
+      const res = await fetch(`/api/teams/${teamId}/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editName.trim(),
+          description: editDesc.trim() || null,
+          deadline: editDeadline || null,
+          status: editStatus,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) fetchProject();
+    } catch {
+      /* silent */
+    } finally {
+      setSavingProject(false);
+    }
+  }
+
+  async function handleDeleteProject() {
+    setDeletingProject(true);
+    try {
+      const res = await fetch(`/api/teams/${teamId}/projects/${projectId}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (json.success) router.push(`/teams/${teamId}`);
+    } catch {
+      /* silent */
+    } finally {
+      setDeletingProject(false);
+    }
+  }
+
+  async function handleAddMembers() {
+    if (selectedUserIds.length === 0) return;
+    setAddingMembers(true);
+    try {
+      const res = await fetch(`/api/teams/${teamId}/projects/${projectId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userIds: selectedUserIds }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setShowAddMember(false);
+        setSelectedUserIds([]);
+        fetchProject();
+      }
+    } catch {
+      /* silent */
+    } finally {
+      setAddingMembers(false);
+    }
+  }
+
+  async function handleRemoveMember(userId: string) {
+    setRemovingMemberId(userId);
+    try {
+      await fetch(`/api/teams/${teamId}/projects/${projectId}/members`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      fetchProject();
+    } catch {
+      /* silent */
+    } finally {
+      setRemovingMemberId(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -616,110 +743,251 @@ export default function ProjectDetailPage({
         </div>
       </div>
 
-      {/* Kanban Board */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {COLUMNS.map((column) => {
-          const columnTasks = tasks.filter((t) => t.status === column.id);
-          return (
-            <div key={column.id} className="space-y-3">
-              {/* Column Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <column.icon className={`h-4 w-4 ${column.color}`} />
-                  <h3 className="font-semibold text-sm">{column.label}</h3>
-                  <Badge variant="secondary" className="text-xs h-5 px-1.5">
-                    {columnTasks.length}
-                  </Badge>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => {
-                    setNewTaskColumn(column.id);
-                    setShowNewTask(true);
-                  }}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
+      {/* Tabs */}
+      <div className="flex gap-1 border-b">
+        {PROJECT_TABS.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2.5 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
+              tab === t
+                ? "border-orange-500 text-orange-600"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
 
-              {/* Task Cards */}
-              <div className="space-y-2 min-h-[100px]">
-                {columnTasks.map((task) => (
-                  <Card
-                    key={task.id}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => openTaskDetail(task)}
+      {/* Board Tab */}
+      {tab === "board" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          {COLUMNS.map((column) => {
+            const columnTasks = tasks.filter((t) => t.status === column.id);
+            return (
+              <div key={column.id} className="space-y-3">
+                {/* Column Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <column.icon className={`h-4 w-4 ${column.color}`} />
+                    <h3 className="font-semibold text-sm">{column.label}</h3>
+                    <Badge variant="secondary" className="text-xs h-5 px-1.5">
+                      {columnTasks.length}
+                    </Badge>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => {
+                      setNewTaskColumn(column.id);
+                      setShowNewTask(true);
+                    }}
                   >
-                    <CardContent className="p-3 space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <h4 className="text-sm font-medium leading-tight">
-                          {task.title}
-                        </h4>
-                        <Badge
-                          variant="secondary"
-                          className={`text-[10px] px-1.5 py-0 shrink-0 ${
-                            priorityColors[task.priority] || ""
-                          }`}
-                        >
-                          {task.priority}
-                        </Badge>
-                      </div>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
 
-                      {task.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-2">
-                          {task.description}
-                        </p>
-                      )}
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          {task.dueDate && (
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {new Date(task.dueDate).toLocaleDateString(
-                                undefined,
-                                { month: "short", day: "numeric" }
-                              )}
-                            </span>
-                          )}
-                          {(task._count?.comments ?? 0) > 0 && (
-                            <span className="flex items-center gap-1">
-                              <MessageSquare className="h-3 w-3" />
-                              {task._count?.comments}
-                            </span>
-                          )}
-                        </div>
-                        {task.assignee ? (
-                          <div
-                            className="h-6 w-6 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[10px] font-medium"
-                            title={task.assignee.name}
+                {/* Task Cards */}
+                <div className="space-y-2 min-h-[100px]">
+                  {columnTasks.map((task) => (
+                    <Card
+                      key={task.id}
+                      className="cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => openTaskDetail(task)}
+                    >
+                      <CardContent className="p-3 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="text-sm font-medium leading-tight">
+                            {task.title}
+                          </h4>
+                          <Badge
+                            variant="secondary"
+                            className={`text-[10px] px-1.5 py-0 shrink-0 ${
+                              priorityColors[task.priority] || ""
+                            }`}
                           >
-                            {task.assignee.avatarUrl ? (
-                              <img
-                                src={task.assignee.avatarUrl}
-                                alt={task.assignee.name}
-                                className="h-6 w-6 rounded-full object-cover"
-                              />
-                            ) : (
-                              task.assignee.name.charAt(0).toUpperCase()
+                            {task.priority}
+                          </Badge>
+                        </div>
+
+                        {task.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {task.description}
+                          </p>
+                        )}
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            {task.dueDate && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {new Date(task.dueDate).toLocaleDateString(
+                                  undefined,
+                                  { month: "short", day: "numeric" }
+                                )}
+                              </span>
+                            )}
+                            {(task._count?.comments ?? 0) > 0 && (
+                              <span className="flex items-center gap-1">
+                                <MessageSquare className="h-3 w-3" />
+                                {task._count?.comments}
+                              </span>
                             )}
                           </div>
-                        ) : (
-                          <div className="h-6 w-6 rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-600 flex items-center justify-center">
-                            <User className="h-3 w-3 text-muted-foreground" />
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                          {task.assignee ? (
+                            <div
+                              className="h-6 w-6 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[10px] font-medium"
+                              title={task.assignee.name}
+                            >
+                              {task.assignee.avatarUrl ? (
+                                <img
+                                  src={task.assignee.avatarUrl}
+                                  alt={task.assignee.name}
+                                  className="h-6 w-6 rounded-full object-cover"
+                                />
+                              ) : (
+                                task.assignee.name.charAt(0).toUpperCase()
+                              )}
+                            </div>
+                          ) : (
+                            <div className="h-6 w-6 rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-600 flex items-center justify-center">
+                              <User className="h-3 w-3 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Members Tab */}
+      {tab === "members" && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold">
+              Project Members ({project.members.length})
+            </h2>
+            <Button onClick={() => setShowAddMember(true)} size="sm" className="gap-2">
+              <UserPlus className="h-4 w-4" /> Add Member
+            </Button>
+          </div>
+
+          <Card>
+            <CardContent className="p-0 divide-y">
+              {project.members.map((member) => (
+                <div key={member.id} className="flex items-center gap-4 p-4">
+                  <div className="h-10 w-10 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-sm font-medium shrink-0">
+                    {member.user.avatarUrl ? (
+                      <img src={member.user.avatarUrl} alt={member.user.name} className="h-10 w-10 rounded-full object-cover" />
+                    ) : (
+                      member.user.name.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{member.user.name}</p>
+                    <p className="text-sm text-muted-foreground truncate">{member.user.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => openPermissionsEditor(member)}
+                    >
+                      <Shield className="h-3 w-3" /> Permissions
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-500 hover:text-red-600 gap-1"
+                      disabled={removingMemberId === member.userId}
+                      onClick={() => handleRemoveMember(member.userId)}
+                    >
+                      {removingMemberId === member.userId ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <UserMinus className="h-3 w-3" />
+                      )}
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {project.members.length === 0 && (
+                <div className="p-8 text-center">
+                  <Users className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                  <p className="text-muted-foreground text-sm">No members yet</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Settings Tab */}
+      {tab === "settings" && (
+        <div className="space-y-6 max-w-2xl">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Project Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Project Name</Label>
+                <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={3} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={editStatus} onValueChange={setEditStatus}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ACTIVE">Active</SelectItem>
+                      <SelectItem value="COMPLETED">Completed</SelectItem>
+                      <SelectItem value="ARCHIVED">Archived</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Deadline</Label>
+                  <Input type="date" value={editDeadline} onChange={(e) => setEditDeadline(e.target.value)} />
+                </div>
+              </div>
+              <Button onClick={handleUpdateProject} disabled={savingProject || !editName.trim()} className="gap-2">
+                {savingProject && <Loader2 className="h-4 w-4 animate-spin" />}
+                Save Changes
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-red-200 dark:border-red-900/50">
+            <CardHeader>
+              <CardTitle className="text-base text-red-600">Danger Zone</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Deleting this project will remove all tasks, comments, and member associations. This action cannot be undone.
+              </p>
+              <Button variant="destructive" onClick={() => setShowDeleteProject(true)} className="gap-2">
+                <Trash2 className="h-4 w-4" /> Delete Project
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* New Task Dialog */}
       <Dialog open={showNewTask} onOpenChange={setShowNewTask}>
@@ -1048,6 +1316,86 @@ export default function ProjectDetailPage({
               onClick={() => handleRevokeRestore(false)}
             >
               Revoke
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Add Member Dialog */}
+      <Dialog open={showAddMember} onOpenChange={setShowAddMember}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Members to Project</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-4 max-h-[400px] overflow-y-auto">
+            {(() => {
+              const existingIds = new Set(project.members.map((m) => m.userId));
+              const available = teamMembers.filter((tm) => !existingIds.has(tm.id));
+              if (available.length === 0) {
+                return (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    All team members are already in this project
+                  </p>
+                );
+              }
+              return available.map((tm) => (
+                <label key={tm.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="rounded border-zinc-300"
+                    checked={selectedUserIds.includes(tm.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedUserIds((prev) => [...prev, tm.id]);
+                      } else {
+                        setSelectedUserIds((prev) => prev.filter((id) => id !== tm.id));
+                      }
+                    }}
+                  />
+                  <div className="h-8 w-8 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium shrink-0">
+                    {tm.avatarUrl ? (
+                      <img src={tm.avatarUrl} alt={tm.name} className="h-8 w-8 rounded-full object-cover" />
+                    ) : (
+                      tm.name.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{tm.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{tm.email}</p>
+                  </div>
+                </label>
+              ));
+            })()}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowAddMember(false); setSelectedUserIds([]); }}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddMembers} disabled={addingMembers || selectedUserIds.length === 0} className="gap-2">
+              {addingMembers && <Loader2 className="h-4 w-4 animate-spin" />}
+              Add {selectedUserIds.length > 0 ? `(${selectedUserIds.length})` : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Project Confirmation */}
+      <AlertDialog open={showDeleteProject} onOpenChange={setShowDeleteProject}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete &quot;{project.name}&quot; and all its tasks, comments, and member data. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingProject}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleDeleteProject}
+              disabled={deletingProject}
+            >
+              {deletingProject ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete Project"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
