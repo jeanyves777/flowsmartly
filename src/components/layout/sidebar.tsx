@@ -40,6 +40,7 @@ import {
   UsersRound,
   Scissors,
   FolderKanban,
+  FormInput,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -105,6 +106,7 @@ const marketingNavigation = [
 // Tools & Insights
 const toolsNavigation = [
   { name: "Follow-Ups", href: "/tools/follow-ups", icon: ClipboardList },
+  { name: "Data Collection", href: "/tools/data-collection", icon: FormInput },
   { name: "Surveys", href: "/tools/surveys", icon: FileQuestion },
   { name: "BG Remover", href: "/tools/background-remover", icon: Scissors },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
