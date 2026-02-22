@@ -23,7 +23,7 @@ function checkRateLimit(ip: string, formId: string): boolean {
   const recentTimestamps = timestamps.filter((t) => t > oneHourAgo);
   formMap.set(formId, recentTimestamps);
 
-  if (recentTimestamps.length >= 5) {
+  if (recentTimestamps.length >= 20) {
     return false;
   }
 
