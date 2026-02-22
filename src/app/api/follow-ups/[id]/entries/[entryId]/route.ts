@@ -19,11 +19,27 @@ export async function PUT(
 
     const { id, entryId } = await params;
 
-    // Verify ownership
-    const followUp = await prisma.followUp.findFirst({
+    // Verify ownership or assignment
+    let followUp = await prisma.followUp.findFirst({
       where: { id, userId: session.userId },
-      select: { id: true },
+      select: { id: true, userId: true },
     });
+
+    let isOwner = !!followUp;
+
+    // If not owner, check if user is assigned to any entry in this follow-up
+    if (!followUp) {
+      const hasAssignment = await prisma.followUpEntry.findFirst({
+        where: { followUpId: id, assigneeId: session.userId },
+        select: { id: true },
+      });
+      if (hasAssignment) {
+        followUp = await prisma.followUp.findUnique({
+          where: { id },
+          select: { id: true, userId: true },
+        });
+      }
+    }
 
     if (!followUp) {
       return NextResponse.json(
@@ -43,11 +59,20 @@ export async function PUT(
       );
     }
 
+    // Non-owners can only update entries assigned to them
+    if (!isOwner && entry.assigneeId !== session.userId) {
+      return NextResponse.json(
+        { success: false, error: { message: "Not authorized to update this entry" } },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { assigneeId, name, phone, email, address, referralSource, notes, status, nextFollowUp, callDate } = body;
 
     const data: Record<string, unknown> = {};
-    if (assigneeId !== undefined) data.assigneeId = assigneeId || null;
+    // Only owners can reassign entries
+    if (assigneeId !== undefined && isOwner) data.assigneeId = assigneeId || null;
     if (name !== undefined) data.name = name?.trim() || null;
     if (phone !== undefined) data.phone = phone?.trim() || null;
     if (email !== undefined) data.email = email?.trim() || null;
