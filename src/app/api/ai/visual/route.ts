@@ -362,11 +362,11 @@ ${handlesList}
   }
   if (brandColors) {
     const colorParts = [];
-    if (brandColors.primary) colorParts.push(`primary: ${brandColors.primary}`);
-    if (brandColors.secondary) colorParts.push(`secondary: ${brandColors.secondary}`);
-    if (brandColors.accent) colorParts.push(`accent: ${brandColors.accent}`);
+    if (brandColors.primary) colorParts.push(`primary color is ${brandColors.primary}`);
+    if (brandColors.secondary) colorParts.push(`secondary color is ${brandColors.secondary}`);
+    if (brandColors.accent) colorParts.push(`accent color is ${brandColors.accent}`);
     if (colorParts.length > 0) {
-      designPrompt += `\n- Brand colors: ${colorParts.join(", ")} — use these for the CTA button, accents, and decorative elements`;
+      designPrompt += `\n- Brand colors: The ${colorParts.join(", ")}. Apply these colors visually to the CTA button, accents, and decorative elements. IMPORTANT: Do NOT write any hex color codes, color values, or color names as visible text anywhere on the design — just USE the colors visually.`;
     }
   }
 
@@ -414,7 +414,7 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
 
   const refPrompt = refBuffer
     ? params.referenceImageUrl
-      ? `ABSOLUTE REQUIREMENT — READ THIS FIRST:\nThe attached image is a REAL photograph/image provided by the user. You MUST use the EXACT subject/content from this image as the main hero visual in the design — preserve every detail of the subject (person, product, object, logo) exactly as it appears: same pose, same colors, same features, same proportions. Do NOT redraw, recreate, or generate a similar-looking version of the subject.\n\nHowever, you MUST naturally BLEND and INTEGRATE the subject into the design's background. Remove or replace the image's original background and seamlessly composite the subject into the new design environment. The subject should look like it naturally belongs in the scene — with proper lighting, shadows, color grading, and perspective that match the overall design. Do NOT simply paste the image on top with a visible rectangular boundary or its own separate background. The integration should be seamless and professional, as if the subject was photographed specifically for this design.\n\n${designPrompt}`
+      ? `ABSOLUTE REQUIREMENT — READ THIS FIRST:\nThe attached image is a REAL photograph/image provided by the user. You MUST use the EXACT subject/content from this image as the main hero visual in the design — preserve every detail of the subject (person, product, object, logo) exactly as it appears: same pose, same colors, same features, same proportions. Do NOT redraw, recreate, or generate a similar-looking version of the subject.\n\nHowever, you MUST naturally BLEND and INTEGRATE the subject into the design's background. Remove or replace the image's original background and seamlessly composite the subject into the new design environment. The subject should look like it naturally belongs in the scene — with proper lighting, shadows, color grading, and perspective that match the overall design. Do NOT simply paste the image on top with a visible rectangular boundary or its own separate background. The integration should be seamless and professional, as if the subject was photographed specifically for this design.\n\nPOSITIONING — VERY IMPORTANT:\n- If the subject is a PERSON: their feet MUST be anchored to the BOTTOM EDGE of the canvas. The person should stand firmly grounded with feet touching or nearly touching the bottom of the image. Head should have natural headroom above. Never float the person in the middle of the canvas.\n- If the subject is a PRODUCT: place it in the lower third or center-bottom area, resting on an implied surface or shadow, so it looks naturally grounded — not floating in mid-air.\n- If the subject is a LOGO or ICON: center it or place it according to the layout described below.\n- The subject should occupy a significant portion of the right half of the design (50-60% of the width), sized proportionally to fill the space without being cropped.\n\n${designPrompt}`
       : `IMPORTANT: Use the provided image as a DESIGN TEMPLATE REFERENCE. Recreate a very similar design following the same layout, composition, visual style, color scheme, and arrangement of elements — but customize it with the specific content, branding, and details described below.\n\n${designPrompt}`
     : null;
 
@@ -588,19 +588,10 @@ RULES:
 
   if (!base64) throw new Error("Edit returned no image");
 
-  // Composite logo if present
-  let finalBase64 = base64;
-  if (params.brandLogo) {
-    try {
-      const meta = await sharp(Buffer.from(base64, "base64")).metadata();
-      const finalW = meta.width || width;
-      const finalH = meta.height || height;
-      console.log(`[Visual/Edit] Compositing logo on ${finalW}x${finalH}...`);
-      finalBase64 = await compositeLogo(finalBase64, params.brandLogo, `${finalW}x${finalH}`, params.logoSizePercent || undefined);
-    } catch (logoErr) {
-      console.error("[Visual/Edit] Logo compositing failed:", logoErr);
-    }
-  }
+  // Skip logo compositing on edits — the logo was already composited on the original
+  // image, so the AI edit preserves it. Re-compositing would create a double logo.
+  const finalBase64 = base64;
+  console.log("[Visual/Edit] Skipping logo compositing (already present from original generation)");
 
   return {
     imageUrl: `data:image/png;base64,${finalBase64}`,

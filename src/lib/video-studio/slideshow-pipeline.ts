@@ -101,10 +101,11 @@ Target duration: ~${targetDuration} seconds
 
 For EACH scene, provide:
 1. "narration": The voiceover text (~${wordsPerScene} words). Compelling ad copy.
-2. "imagePrompt": Detailed visual description for AI image generation. Describe colors, composition, lighting, objects. Style: ${style}. NO text/words in the image.
-3. "caption": Short punchy on-screen text (3-8 words max). Like an ad headline or key point.
+2. "imagePrompt": Detailed visual description for AI image generation. Describe colors, composition, lighting, objects. Style: ${style}. IMPORTANT: The image must contain absolutely NO text, NO words, NO letters, NO numbers, NO brand names — only pure visual imagery. Think of it as cinematic B-roll footage.
+3. "caption": Very short punchy on-screen text (2-5 words max). Only essential keywords or short phrases — NOT full sentences. Examples: "Pure Comfort", "Feel The Difference", "Start Today". Leave captions EMPTY ("") for purely visual scenes where the imagery speaks for itself. At least half the scenes should have empty captions for a cleaner look.
 
 Scene flow: Hook → Problem/Need → Solution → Benefits → Social Proof → Call to Action
+Think of this as a premium TV commercial — clean, cinematic, visual-first.
 
 Return ONLY valid JSON:
 {
@@ -317,28 +318,32 @@ export async function compositeSlideshowVideo(
     const xExpr = motion.x.replace(/N/g, String(totalFrames));
     const yExpr = motion.y.replace(/N/g, String(totalFrames));
 
-    // Caption text
-    const captionText = escapeDrawtext(scene.caption);
+    // Caption text — skip drawtext for empty captions (clean visual scenes)
+    const captionText = scene.caption?.trim() ? escapeDrawtext(scene.caption.trim()) : "";
+    const hasCaption = captionText.length > 0;
 
-    // Build filter: scale 2x → zoompan → drawtext caption
-    // Caption: bold white text centered at bottom with black shadow
+    // Build filter: scale 2x → zoompan → optional drawtext caption
     const captionY = Math.round(height * 0.82);
     const captionSize = Math.max(24, Math.round(height * 0.045));
     const shadowSize = Math.max(2, Math.round(captionSize * 0.08));
 
-    const filterComplex = [
+    let filterComplex =
       // Scale image to 2x for zoom headroom
       `[0:v]scale=${width * 2}:${height * 2},` +
       // Ken Burns zoompan
       `zoompan=z='${zExpr}':x='${xExpr}':y='${yExpr}':d=${totalFrames}:s=${width}x${height}:fps=${fps},` +
       // Ensure pixel format
-      `format=yuv420p,` +
-      // Caption: shadow layer
-      `drawtext=fontfile='${fontPath}':text='${captionText}':fontsize=${captionSize}:fontcolor=black@0.6:x=(w-text_w)/2+${shadowSize}:y=${captionY}+${shadowSize}:enable='between(t,0.3,${(dur - 0.3).toFixed(1)})',` +
-      // Caption: main white text
-      `drawtext=fontfile='${fontPath}':text='${captionText}':fontsize=${captionSize}:fontcolor=white:x=(w-text_w)/2:y=${captionY}:enable='between(t,0.3,${(dur - 0.3).toFixed(1)})'` +
-      `[v]`,
-    ].join("");
+      `format=yuv420p`;
+
+    if (hasCaption) {
+      filterComplex +=
+        // Caption: shadow layer
+        `,drawtext=fontfile='${fontPath}':text='${captionText}':fontsize=${captionSize}:fontcolor=black@0.6:x=(w-text_w)/2+${shadowSize}:y=${captionY}+${shadowSize}:enable='between(t,0.3,${(dur - 0.3).toFixed(1)})'` +
+        // Caption: main white text
+        `,drawtext=fontfile='${fontPath}':text='${captionText}':fontsize=${captionSize}:fontcolor=white:x=(w-text_w)/2:y=${captionY}:enable='between(t,0.3,${(dur - 0.3).toFixed(1)})'`;
+    }
+
+    filterComplex += `[v]`;
 
     const args = [
       "-loop", "1",
@@ -454,7 +459,7 @@ export async function compositeSlideshowVideo(
   console.log("[Slideshow] Clips concatenated with xfade transitions");
 
   // Mix voiceover audio — let the voice finish naturally (no -shortest, no hard cut)
-  const outputPath = path.join(tmpDir, "final.mp4");
+  const audioMixPath = path.join(tmpDir, "with-audio.mp4");
   await execFileAsync(ffmpegPath, [
     "-i", concatVideoPath,
     "-i", audioPath,
@@ -465,10 +470,53 @@ export async function compositeSlideshowVideo(
     "-b:a", "192k",
     "-movflags", "+faststart",
     "-y",
-    outputPath,
+    audioMixPath,
   ], { timeout: 60000 });
 
-  console.log("[Slideshow] Final video with audio created");
+  console.log("[Slideshow] Audio mixed");
+
+  // Overlay brand logo throughout the video (top-left watermark)
+  const outputPath = path.join(tmpDir, "final.mp4");
+  let didLogoOverlay = false;
+  if (brandLogo) {
+    try {
+      const logoBuf = await downloadLogo(brandLogo);
+      if (logoBuf) {
+        const logoOverlayPath = path.join(tmpDir, "logo-overlay.png");
+        fs.writeFileSync(logoOverlayPath, logoBuf);
+        const logoSize = Math.max(60, Math.min(Math.round(Math.min(width, height) * 0.18), 200));
+        const marginX = Math.round(height * 0.02);
+        const marginY = Math.round(height * 0.015);
+
+        await execFileAsync(ffmpegPath, [
+          "-i", audioMixPath,
+          "-i", logoOverlayPath,
+          "-filter_complex",
+          `[1:v]scale=${logoSize}:-1,format=rgba[logo];[0:v][logo]overlay=${marginX}:${marginY}:eof_action=repeat[v]`,
+          "-map", "[v]",
+          "-map", "0:a",
+          "-c:v", "libx264",
+          "-preset", "fast",
+          "-crf", "23",
+          "-c:a", "copy",
+          "-movflags", "+faststart",
+          "-y",
+          outputPath,
+        ], { timeout: 120000 });
+
+        didLogoOverlay = true;
+        console.log("[Slideshow] Logo overlay composited on final video");
+      }
+    } catch (logoOverlayErr) {
+      console.warn("[Slideshow] Logo overlay failed, continuing without:", logoOverlayErr);
+    }
+  }
+
+  if (!didLogoOverlay) {
+    fs.copyFileSync(audioMixPath, outputPath);
+  }
+
+  console.log("[Slideshow] Final video created");
 
   const outputBuffer = fs.readFileSync(outputPath);
 
@@ -501,8 +549,15 @@ export async function compositeSlideshowVideo(
  */
 async function downloadLogo(logoUrl: string): Promise<Buffer | null> {
   try {
+    // Handle data URIs (base64-encoded)
+    if (logoUrl.startsWith("data:")) {
+      const b64 = logoUrl.replace(/^data:image\/[^;]+;base64,/, "");
+      if (!b64) return null;
+      return Buffer.from(b64, "base64");
+    }
+
     // Handle local paths (/uploads/..., /characters/...)
-    if (logoUrl.startsWith("/uploads/") || logoUrl.startsWith("/characters/")) {
+    if (logoUrl.startsWith("/uploads/") || logoUrl.startsWith("/characters/") || logoUrl.startsWith("/")) {
       const localPath = path.join(process.cwd(), "public", logoUrl);
       if (fs.existsSync(localPath)) {
         return fs.readFileSync(localPath);
@@ -512,7 +567,10 @@ async function downloadLogo(logoUrl: string): Promise<Buffer | null> {
     // Handle HTTP(S) URLs (S3 or external)
     if (logoUrl.startsWith("http://") || logoUrl.startsWith("https://")) {
       const response = await fetch(logoUrl);
-      if (!response.ok) return null;
+      if (!response.ok) {
+        console.warn(`[Slideshow] Logo fetch returned ${response.status}`);
+        return null;
+      }
       const arrayBuffer = await response.arrayBuffer();
       return Buffer.from(arrayBuffer);
     }

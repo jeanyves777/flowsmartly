@@ -216,7 +216,10 @@ export async function POST(req: NextRequest) {
                   message: `Extending video (${extNum}/${extensionsNeeded})... ~${estimatedTotal}s total`,
                 });
 
-                const extResult = await veoClient.extendVideo(currentVideoUri, veoPrompt, {
+                // Use a continuation prompt (not the same generation prompt) so each
+                // segment naturally advances the story instead of repeating
+                const continuationPrompt = buildExtensionPrompt(prompt.trim(), category, style, i, extensionsNeeded);
+                const extResult = await veoClient.extendVideo(currentVideoUri, continuationPrompt, {
                   aspectRatio: veoAspectRatio,
                 });
 
@@ -439,7 +442,7 @@ function buildVideoPrompt(userPrompt: string, category: string, style: string): 
     explainer:
       "Animated explainer video with objects appearing, moving, transforming, camera panning and zooming smoothly to follow the action, with continuous visual motion and transitions.",
     brand_intro:
-      "Cinematic brand introduction with sweeping camera movements, logo elements assembling with motion, smooth dolly shots, particles and elements animating in, and dynamic reveal sequences.",
+      "Cinematic brand introduction with sweeping camera movements, smooth dolly shots, particles and elements animating in, and dynamic reveal sequences.",
     testimonial:
       "Professional testimonial-style video with subtle camera drift, background elements gently moving, soft focus shifts, and smooth cinematic camera motion throughout.",
   };
@@ -459,7 +462,44 @@ function buildVideoPrompt(userPrompt: string, category: string, style: string): 
   // Core directive: force the model to generate actual animated video, not a still image
   const motionDirective = "Create a fully animated video with continuous real motion, moving objects, camera movement (panning, zooming, tracking, orbiting), and dynamic action throughout the entire duration. This must NOT be a static image — everything should be visually moving and alive.";
 
-  return `${motionDirective} ${catHint} ${styleHint} ${userPrompt}`.trim();
+  // Clean video directive: no text/branding burned into the video
+  const cleanDirective = "CRITICAL — CLEAN VIDEO RULES: Do NOT render any text, brand names, logos, watermarks, titles, subtitles, captions, or any written words anywhere in the video. The video must be purely visual — clean, cinematic footage with NO overlaid text at all. Think of this as raw B-roll footage for a professional TV advertisement. If text absolutely must appear (like on a product label or storefront sign that naturally exists in the scene), keep it minimal, natural, and part of the environment — never as an overlay or graphic element.";
+
+  return `${motionDirective} ${catHint} ${styleHint} ${cleanDirective} ${userPrompt}`.trim();
+}
+
+/**
+ * Build a continuation prompt for Veo 3 video extensions.
+ * Instead of repeating the original prompt (which causes the AI to restart the same scene),
+ * this instructs the model to naturally continue from where the previous segment ended.
+ */
+function buildExtensionPrompt(userPrompt: string, category: string, style: string, extensionNumber: number, totalExtensions: number): string {
+  const styleHints: Record<string, string> = {
+    cinematic: "cinematic look with dramatic lighting and film-grade color grading",
+    modern: "clean modern aesthetic with smooth transitions",
+    minimal: "minimalist approach with elegant camera movements",
+    energetic: "high-energy visuals with dynamic motion",
+    elegant: "sophisticated premium look with graceful movement",
+    retro: "retro/vintage aesthetic with warm tones",
+  };
+  const styleHint = styleHints[style] || "professional visual style";
+
+  const isLastSegment = extensionNumber === totalExtensions;
+  const progressHint = isLastSegment
+    ? "This is the FINAL segment — build toward a satisfying conclusion and memorable ending moment. End with a strong visual that leaves an impression."
+    : `This is segment ${extensionNumber + 1} of ${totalExtensions + 1} — smoothly advance the story with new visuals, a different camera angle or perspective, and fresh visual content.`;
+
+  return `CONTINUE this video seamlessly from exactly where it left off. This is a CONTINUATION, not a restart — do NOT repeat or recreate what was already shown. ${progressHint}
+
+CONTINUATION RULES:
+- Maintain visual continuity: same color grading, lighting style, and ${styleHint}
+- Show NEW content: different angle, new detail, next moment in the sequence — advance the visual story
+- Use a smooth, natural transition as if this were one continuous shot or a professional TV-style cut
+- Keep the same mood and energy level but evolve the scene naturally
+- Do NOT render any text, brand names, titles, or written words in the video — keep it purely visual
+- Think of this as the next shot in a professional TV commercial — each cut shows something new while maintaining the flow
+
+Original concept: ${userPrompt}`.trim();
 }
 
 /**
@@ -525,12 +565,19 @@ async function compositeLogoOnVideo(
 }
 
 /**
- * Download a logo from URL or resolve from local path.
+ * Download a logo from URL, data URI, or local path.
  */
 async function downloadLogoFile(logoUrl: string): Promise<Buffer | null> {
   try {
+    // Handle data URIs (base64-encoded)
+    if (logoUrl.startsWith("data:")) {
+      const b64 = logoUrl.replace(/^data:image\/[^;]+;base64,/, "");
+      if (!b64) return null;
+      return Buffer.from(b64, "base64");
+    }
+
     // Handle local paths (/uploads/..., /characters/...)
-    if (logoUrl.startsWith("/uploads/") || logoUrl.startsWith("/characters/")) {
+    if (logoUrl.startsWith("/uploads/") || logoUrl.startsWith("/characters/") || logoUrl.startsWith("/")) {
       const localPath = path.join(process.cwd(), "public", logoUrl);
       if (fs.existsSync(localPath)) {
         return fs.readFileSync(localPath);
@@ -540,7 +587,10 @@ async function downloadLogoFile(logoUrl: string): Promise<Buffer | null> {
     // Handle HTTP(S) URLs (S3 or external)
     if (logoUrl.startsWith("http://") || logoUrl.startsWith("https://")) {
       const response = await fetch(logoUrl);
-      if (!response.ok) return null;
+      if (!response.ok) {
+        console.warn(`[VideoStudio] Logo fetch returned ${response.status} for ${logoUrl.substring(0, 80)}`);
+        return null;
+      }
       const arrayBuffer = await response.arrayBuffer();
       return Buffer.from(arrayBuffer);
     }
@@ -550,6 +600,7 @@ async function downloadLogoFile(logoUrl: string): Promise<Buffer | null> {
       return fs.readFileSync(logoUrl);
     }
 
+    console.warn(`[VideoStudio] Unknown logo format: ${logoUrl.substring(0, 60)}`);
     return null;
   } catch (error) {
     console.error("[VideoStudio] Failed to download logo:", error);
