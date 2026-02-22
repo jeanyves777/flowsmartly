@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { presignAllUrls } from "@/lib/utils/s3-client";
 
 // Rate limiting map: IP -> formId -> timestamps
 const rateLimitMap = new Map<string, Map<string, number[]>>();
@@ -51,12 +52,15 @@ export async function GET(
     });
 
     if (!form) {
-      return NextResponse.json({ error: "Form not found" }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: { message: "Form not found" } },
+        { status: 404 }
+      );
     }
 
     if (form.status !== "ACTIVE") {
       return NextResponse.json(
-        { error: "This form is no longer accepting submissions" },
+        { success: false, error: { message: "This form is no longer accepting submissions" } },
         { status: 410 }
       );
     }
@@ -76,7 +80,7 @@ export async function GET(
       });
     }
 
-    const brand = brandKit
+    let brand = brandKit
       ? {
           name: brandKit.name,
           logo: brandKit.logo,
@@ -90,17 +94,25 @@ export async function GET(
         }
       : null;
 
+    // Presign S3 URLs for brand logos
+    if (brand) {
+      brand = await presignAllUrls(brand);
+    }
+
     return NextResponse.json({
-      title: form.title,
-      description: form.description,
-      fields: form.fields ? JSON.parse(form.fields) : [],
-      thankYouMessage: form.thankYouMessage,
-      brand,
+      success: true,
+      data: {
+        title: form.title,
+        description: form.description,
+        fields: form.fields ? JSON.parse(form.fields) : [],
+        thankYouMessage: form.thankYouMessage,
+        brand,
+      },
     });
   } catch (error) {
     console.error("Error fetching public form:", error);
     return NextResponse.json(
-      { error: "Failed to fetch form" },
+      { success: false, error: { message: "Failed to fetch form" } },
       { status: 500 }
     );
   }
@@ -118,12 +130,15 @@ export async function POST(
     });
 
     if (!form) {
-      return NextResponse.json({ error: "Form not found" }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: { message: "Form not found" } },
+        { status: 404 }
+      );
     }
 
     if (form.status !== "ACTIVE") {
       return NextResponse.json(
-        { error: "This form is no longer accepting submissions" },
+        { success: false, error: { message: "This form is no longer accepting submissions" } },
         { status: 410 }
       );
     }
@@ -136,7 +151,7 @@ export async function POST(
 
     if (!checkRateLimit(ip, form.id)) {
       return NextResponse.json(
-        { error: "Too many submissions. Please try again later." },
+        { success: false, error: { message: "Too many submissions. Please try again later." } },
         { status: 429 }
       );
     }
@@ -146,7 +161,7 @@ export async function POST(
 
     if (!data || typeof data !== "object") {
       return NextResponse.json(
-        { error: "Invalid submission data" },
+        { success: false, error: { message: "Invalid submission data" } },
         { status: 400 }
       );
     }
@@ -158,7 +173,7 @@ export async function POST(
         const value = data[field.id];
         if (value === undefined || value === null || value === "") {
           return NextResponse.json(
-            { error: `Field "${field.label}" is required` },
+            { success: false, error: { message: `Field "${field.label}" is required` } },
             { status: 400 }
           );
         }
@@ -204,11 +219,11 @@ export async function POST(
       data: { responseCount: { increment: 1 } },
     });
 
-    return NextResponse.json({ id: submission.id });
+    return NextResponse.json({ success: true, data: { id: submission.id } });
   } catch (error) {
     console.error("Error submitting form:", error);
     return NextResponse.json(
-      { error: "Failed to submit form" },
+      { success: false, error: { message: "Failed to submit form" } },
       { status: 500 }
     );
   }

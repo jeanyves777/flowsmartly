@@ -40,6 +40,38 @@ export default function DataFormDetailPage() {
   const [subSearch, setSubSearch] = useState("");
   const [selectedSubs, setSelectedSubs] = useState<Set<string>>(new Set());
 
+  // Brand state
+  const [brand, setBrand] = useState<{
+    name: string;
+    logo: string | null;
+    iconLogo: string | null;
+    email: string | null;
+    phone: string | null;
+    website: string | null;
+    address: string | null;
+  } | null>(null);
+
+  // Fetch brand
+  useEffect(() => {
+    fetch("/api/brand")
+      .then(r => r.json())
+      .then(json => {
+        if (json.success && json.data?.brandKit) {
+          const bk = json.data.brandKit;
+          setBrand({
+            name: bk.name,
+            logo: bk.logo,
+            iconLogo: bk.iconLogo,
+            email: bk.email,
+            phone: bk.phone,
+            website: bk.website,
+            address: bk.address,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Fetch form
   const fetchForm = useCallback(async () => {
     try {
@@ -604,19 +636,66 @@ export default function DataFormDetailPage() {
 
         {/* Share Tab */}
         {activeTab === "share" && form && (
-          <div className="max-w-lg mx-auto space-y-6">
+          <div className="max-w-lg mx-auto space-y-8">
             <div className="text-center">
               <h3 className="text-lg font-semibold mb-2">Share Your Form</h3>
               <p className="text-sm text-gray-500">Share this link or QR code to collect responses</p>
             </div>
+
+            {/* Brand Preview */}
+            <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+              <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Public Page Preview</span>
+              </div>
+              <div className="p-6 space-y-4">
+                {/* Header: Logo + Business Name */}
+                <div className="text-center space-y-2">
+                  {brand?.logo ? (
+                    <img src={brand.logo} alt={brand.name} className="h-10 mx-auto object-contain" />
+                  ) : brand?.iconLogo ? (
+                    <img src={brand.iconLogo} alt={brand.name} className="h-10 w-10 mx-auto rounded-lg object-cover" />
+                  ) : (
+                    <div className="h-10 w-10 mx-auto rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-400">Logo</div>
+                  )}
+                  <p className="text-sm font-medium text-gray-500">{brand?.name || "Your Business Name"}</p>
+                </div>
+                <div className="text-center">
+                  <p className="font-semibold">{form.title}</p>
+                  {form.description && <p className="text-sm text-gray-400">{form.description}</p>}
+                </div>
+                {/* Footer: Contact Info */}
+                <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+                  <div className="flex flex-wrap gap-3 justify-center text-xs text-gray-400">
+                    {brand?.email && <span>{brand.email}</span>}
+                    {brand?.phone && <span>{brand.phone}</span>}
+                    {brand?.website && <span>{brand.website}</span>}
+                    {brand?.address && <span>{brand.address}</span>}
+                    {!brand?.email && !brand?.phone && !brand?.website && !brand?.address && (
+                      <span className="italic">No contact info — set up your Brand Kit in Settings</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {!brand && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-sm">
+                <p className="font-medium text-amber-800 dark:text-amber-200">No Brand Kit found</p>
+                <p className="text-amber-700 dark:text-amber-300 mt-1">
+                  Set up your <a href="/settings" className="underline font-medium">Brand Kit</a> to display your logo, business name, and contact info on the public form page.
+                </p>
+              </div>
+            )}
+
             <QRCodeDisplay url={`${typeof window !== "undefined" ? window.location.origin : ""}/form/${form.slug}`} />
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Embed Code</label>
               <textarea
                 readOnly
                 rows={3}
                 className="w-full text-xs font-mono bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3"
-                value={`<iframe src="${typeof window !== 'undefined' ? window.location.origin : ''}/form/${form.slug}" width="100%" height="600" frameborder="0"></iframe>`}
+                value={`<iframe src="${typeof window !== "undefined" ? window.location.origin : ""}/form/${form.slug}" width="100%" height="600" frameborder="0"></iframe>`}
                 onClick={e => (e.target as HTMLTextAreaElement).select()}
               />
             </div>
