@@ -43,9 +43,10 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, phone, email, address, referralSource, notes, status, nextFollowUp, callDate } = body;
+    const { assigneeId, name, phone, email, address, referralSource, notes, status, nextFollowUp, callDate } = body;
 
     const data: Record<string, unknown> = {};
+    if (assigneeId !== undefined) data.assigneeId = assigneeId || null;
     if (name !== undefined) data.name = name?.trim() || null;
     if (phone !== undefined) data.phone = phone?.trim() || null;
     if (email !== undefined) data.email = email?.trim() || null;

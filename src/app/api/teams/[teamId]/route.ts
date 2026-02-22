@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { presignAllUrls } from "@/lib/utils/s3-client";
 
 // GET /api/teams/[teamId] - Get team details with members
 export async function GET(
@@ -69,26 +70,28 @@ export async function GET(
       );
     }
 
+    const responseData = {
+      id: team.id,
+      name: team.name,
+      slug: team.slug,
+      description: team.description,
+      avatarUrl: team.avatarUrl,
+      ownerId: team.ownerId,
+      owner: team.owner,
+      memberCount: team._count.members,
+      members: team.members.map((m: typeof team.members[number]) => ({
+        id: m.id,
+        role: m.role,
+        joinedAt: m.joinedAt.toISOString(),
+        user: m.user,
+      })),
+      createdAt: team.createdAt.toISOString(),
+      updatedAt: team.updatedAt.toISOString(),
+    };
+
     return NextResponse.json({
       success: true,
-      data: {
-        id: team.id,
-        name: team.name,
-        slug: team.slug,
-        description: team.description,
-        avatarUrl: team.avatarUrl,
-        ownerId: team.ownerId,
-        owner: team.owner,
-        memberCount: team._count.members,
-        members: team.members.map((m: typeof team.members[number]) => ({
-          id: m.id,
-          role: m.role,
-          joinedAt: m.joinedAt.toISOString(),
-          user: m.user,
-        })),
-        createdAt: team.createdAt.toISOString(),
-        updatedAt: team.updatedAt.toISOString(),
-      },
+      data: await presignAllUrls(responseData),
     });
   } catch (error) {
     console.error("Get team error:", error);

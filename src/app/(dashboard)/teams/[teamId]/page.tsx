@@ -19,6 +19,7 @@ import {
   Clock,
   CalendarDays,
   MoreVertical,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -158,6 +159,9 @@ export default function TeamDetailPage({
 
   // Remove member
   const [removeMember, setRemoveMember] = useState<{ userId: string; name: string } | null>(null);
+
+  // Resend invite
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   const fetchTeam = useCallback(async () => {
     try {
@@ -347,6 +351,25 @@ export default function TeamDetailPage({
       fetchInvitations();
     } catch {
       /* silent */
+    }
+  }
+
+  async function handleResendInvitation(invitationId: string) {
+    setResendingId(invitationId);
+    try {
+      const res = await fetch(`/api/teams/${teamId}/invitations`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invitationId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        fetchInvitations();
+      }
+    } catch {
+      /* silent */
+    } finally {
+      setResendingId(null);
     }
   }
 
@@ -716,6 +739,20 @@ export default function TeamDetailPage({
                         </p>
                       </div>
                       <Badge variant="secondary">{inv.role}</Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1"
+                        disabled={resendingId === inv.id}
+                        onClick={() => handleResendInvitation(inv.id)}
+                      >
+                        {resendingId === inv.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        Resend
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"

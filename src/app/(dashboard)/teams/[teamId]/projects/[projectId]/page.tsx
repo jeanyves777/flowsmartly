@@ -22,6 +22,10 @@ import {
   Circle,
   Timer,
   Eye,
+  Shield,
+  Settings,
+  Ban,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +59,17 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface TaskMember {
   id: string;
@@ -123,6 +138,78 @@ const priorityColors: Record<string, string> = {
   LOW: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
 };
 
+// Feature categories for permissions editor
+const FEATURE_CATEGORIES: { label: string; features: { key: string; label: string; cost: number }[] }[] = [
+  {
+    label: "Messaging",
+    features: [
+      { key: "EMAIL_SEND", label: "Email Send", cost: 1 },
+      { key: "SMS_SEND", label: "SMS Send", cost: 3 },
+      { key: "MMS_SEND", label: "MMS Send", cost: 5 },
+    ],
+  },
+  {
+    label: "AI Text",
+    features: [
+      { key: "AI_POST", label: "AI Post", cost: 3 },
+      { key: "AI_CAPTION", label: "AI Caption", cost: 3 },
+      { key: "AI_HASHTAGS", label: "AI Hashtags", cost: 2 },
+      { key: "AI_IDEAS", label: "AI Ideas", cost: 3 },
+      { key: "AI_AUTO", label: "AI Auto-Generate", cost: 3 },
+      { key: "AI_BRAND_KIT", label: "AI Brand Kit", cost: 8 },
+    ],
+  },
+  {
+    label: "AI Image",
+    features: [
+      { key: "AI_VISUAL_DESIGN", label: "AI Visual Design", cost: 15 },
+      { key: "AI_MARKETING_IMAGE", label: "Marketing Image", cost: 12 },
+      { key: "AI_LOGO_GENERATION", label: "Logo Generation", cost: 40 },
+      { key: "AI_BG_REMOVE", label: "Background Removal", cost: 1 },
+    ],
+  },
+  {
+    label: "AI Video",
+    features: [
+      { key: "AI_CARTOON_VIDEO", label: "Cartoon Video", cost: 80 },
+      { key: "AI_VIDEO_STUDIO", label: "Video Studio", cost: 60 },
+      { key: "AI_VIDEO_SLIDESHOW", label: "Slideshow Video", cost: 25 },
+    ],
+  },
+  {
+    label: "AI Chat",
+    features: [
+      { key: "AI_CHAT_MESSAGE", label: "Chat Message", cost: 2 },
+      { key: "AI_CHAT_IMAGE", label: "Chat Image", cost: 15 },
+      { key: "AI_CHAT_VIDEO", label: "Chat Video", cost: 60 },
+    ],
+  },
+  {
+    label: "Other",
+    features: [
+      { key: "AI_LANDING_PAGE", label: "Landing Page", cost: 20 },
+    ],
+  },
+];
+
+interface MemberPermissionData {
+  featureKey: string;
+  maxUsage: number;
+  usedCount: number;
+}
+
+interface MemberPermissions {
+  id: string;
+  userId: string;
+  user: TaskMember & { email: string };
+  creditAllowance: number;
+  creditsUsed: number;
+  canActOnBehalf: boolean;
+  expiresAt: string | null;
+  isRevoked: boolean;
+  permissions: MemberPermissionData[];
+}
+
 export default function ProjectDetailPage({
   params,
 }: {
@@ -152,6 +239,17 @@ export default function ProjectDetailPage({
   const [loadingComments, setLoadingComments] = useState(false);
   const [sendingComment, setSendingComment] = useState(false);
   const [updatingTask, setUpdatingTask] = useState(false);
+
+  // Permissions editor
+  const [showPermissions, setShowPermissions] = useState(false);
+  const [permMember, setPermMember] = useState<MemberPermissions | null>(null);
+  const [permLoading, setPermLoading] = useState(false);
+  const [permSaving, setPermSaving] = useState(false);
+  const [permCreditAllowance, setPermCreditAllowance] = useState(0);
+  const [permCanAct, setPermCanAct] = useState(false);
+  const [permExpiry, setPermExpiry] = useState("");
+  const [permFeatures, setPermFeatures] = useState<Record<string, { enabled: boolean; maxUsage: number }>>({});
+  const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
 
   const fetchProject = useCallback(async () => {
     try {
@@ -317,6 +415,93 @@ export default function ProjectDetailPage({
     }
   }
 
+  async function openPermissionsEditor(member: ProjectMember) {
+    setShowPermissions(true);
+    setPermLoading(true);
+    try {
+      const res = await fetch(
+        `/api/teams/${teamId}/projects/${projectId}/permissions?userId=${member.userId}`
+      );
+      const json = await res.json();
+      if (json.success) {
+        const data = json.data as MemberPermissions;
+        setPermMember(data);
+        setPermCreditAllowance(data.creditAllowance);
+        setPermCanAct(data.canActOnBehalf);
+        setPermExpiry(data.expiresAt ? data.expiresAt.split("T")[0] : "");
+        // Build feature state from existing permissions
+        const featureState: Record<string, { enabled: boolean; maxUsage: number }> = {};
+        for (const cat of FEATURE_CATEGORIES) {
+          for (const f of cat.features) {
+            const existing = data.permissions.find((p) => p.featureKey === f.key);
+            featureState[f.key] = {
+              enabled: !!existing,
+              maxUsage: existing?.maxUsage ?? -1,
+            };
+          }
+        }
+        setPermFeatures(featureState);
+      }
+    } catch {
+      /* silent */
+    } finally {
+      setPermLoading(false);
+    }
+  }
+
+  async function handleSavePermissions() {
+    if (!permMember) return;
+    setPermSaving(true);
+    try {
+      const permissions = Object.entries(permFeatures)
+        .filter(([, val]) => val.enabled)
+        .map(([key, val]) => ({ featureKey: key, maxUsage: val.maxUsage }));
+
+      await fetch(`/api/teams/${teamId}/projects/${projectId}/permissions`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: permMember.userId,
+          creditAllowance: permCreditAllowance,
+          canActOnBehalf: permCanAct,
+          expiresAt: permExpiry || null,
+          permissions,
+        }),
+      });
+      setShowPermissions(false);
+      setPermMember(null);
+    } catch {
+      /* silent */
+    } finally {
+      setPermSaving(false);
+    }
+  }
+
+  async function handleRevokeRestore(restore: boolean) {
+    if (!permMember) return;
+    setPermSaving(true);
+    try {
+      await fetch(`/api/teams/${teamId}/projects/${projectId}/permissions`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: permMember.userId, restore }),
+      });
+      // Refresh the permissions data
+      const res = await fetch(
+        `/api/teams/${teamId}/projects/${projectId}/permissions?userId=${permMember.userId}`
+      );
+      const json = await res.json();
+      if (json.success) {
+        setPermMember(json.data);
+      }
+    } catch {
+      /* silent */
+    } finally {
+      setPermSaving(false);
+      setShowRevokeConfirm(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -406,10 +591,11 @@ export default function ProjectDetailPage({
         {/* Member avatars */}
         <div className="flex -space-x-2">
           {project.members.slice(0, 5).map((m) => (
-            <div
+            <button
               key={m.id}
-              className="h-8 w-8 rounded-full border-2 border-background bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium"
-              title={m.user.name}
+              className="h-8 w-8 rounded-full border-2 border-background bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium hover:ring-2 hover:ring-orange-400 transition-all"
+              title={`${m.user.name} - Click to manage permissions`}
+              onClick={() => openPermissionsEditor(m)}
             >
               {m.user.avatarUrl ? (
                 <img
@@ -420,7 +606,7 @@ export default function ProjectDetailPage({
               ) : (
                 m.user.name.charAt(0).toUpperCase()
               )}
-            </div>
+            </button>
           ))}
           {project.members.length > 5 && (
             <div className="h-8 w-8 rounded-full border-2 border-background bg-zinc-300 dark:bg-zinc-600 flex items-center justify-center text-xs">
@@ -636,6 +822,236 @@ export default function ProjectDetailPage({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Permissions Editor Dialog */}
+      <Dialog open={showPermissions} onOpenChange={(open) => { if (!open) { setShowPermissions(false); setPermMember(null); } }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Member Permissions
+            </DialogTitle>
+          </DialogHeader>
+
+          {permLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+            </div>
+          ) : permMember ? (
+            <div className="space-y-6 py-2">
+              {/* Member Info */}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50">
+                <div className="h-10 w-10 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-sm font-medium shrink-0">
+                  {permMember.user.avatarUrl ? (
+                    <img src={permMember.user.avatarUrl} alt={permMember.user.name} className="h-10 w-10 rounded-full object-cover" />
+                  ) : (
+                    permMember.user.name.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{permMember.user.name}</p>
+                  <p className="text-sm text-muted-foreground truncate">{permMember.user.email}</p>
+                </div>
+                {permMember.isRevoked && (
+                  <Badge variant="destructive">Revoked</Badge>
+                )}
+              </div>
+
+              {/* General Settings */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">General</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Credit Allowance</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={permCreditAllowance}
+                      onChange={(e) => setPermCreditAllowance(parseInt(e.target.value) || 0)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Used: {permMember.creditsUsed} / {permCreditAllowance || 0}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Expires At</Label>
+                    <Input
+                      type="date"
+                      value={permExpiry}
+                      onChange={(e) => setPermExpiry(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {permExpiry ? `Expires ${new Date(permExpiry).toLocaleDateString()}` : "No expiry"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg border">
+                  <div>
+                    <Label>Act on Behalf of Owner</Label>
+                    <p className="text-xs text-muted-foreground">Allow this member to use features with owner&apos;s credits</p>
+                  </div>
+                  <Switch checked={permCanAct} onCheckedChange={setPermCanAct} />
+                </div>
+              </div>
+
+              {/* Feature Permissions */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Feature Permissions</h3>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const all: Record<string, { enabled: boolean; maxUsage: number }> = {};
+                        for (const cat of FEATURE_CATEGORIES) {
+                          for (const f of cat.features) {
+                            all[f.key] = { enabled: true, maxUsage: permFeatures[f.key]?.maxUsage ?? -1 };
+                          }
+                        }
+                        setPermFeatures(all);
+                      }}
+                    >
+                      Enable All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const none: Record<string, { enabled: boolean; maxUsage: number }> = {};
+                        for (const cat of FEATURE_CATEGORIES) {
+                          for (const f of cat.features) {
+                            none[f.key] = { enabled: false, maxUsage: -1 };
+                          }
+                        }
+                        setPermFeatures(none);
+                      }}
+                    >
+                      Disable All
+                    </Button>
+                  </div>
+                </div>
+
+                {FEATURE_CATEGORIES.map((cat) => (
+                  <div key={cat.label} className="space-y-2">
+                    <h4 className="text-xs font-medium text-muted-foreground">{cat.label}</h4>
+                    <div className="space-y-1">
+                      {cat.features.map((f) => {
+                        const state = permFeatures[f.key] || { enabled: false, maxUsage: -1 };
+                        const existingPerm = permMember.permissions.find((p) => p.featureKey === f.key);
+                        return (
+                          <div key={f.key} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors">
+                            <Switch
+                              checked={state.enabled}
+                              onCheckedChange={(checked) =>
+                                setPermFeatures((prev) => ({
+                                  ...prev,
+                                  [f.key]: { ...prev[f.key], enabled: checked, maxUsage: prev[f.key]?.maxUsage ?? -1 },
+                                }))
+                              }
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium">{f.label}</p>
+                              <p className="text-xs text-muted-foreground">{f.cost} credits/use</p>
+                            </div>
+                            {state.enabled && (
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs text-muted-foreground whitespace-nowrap">Max uses:</Label>
+                                <Input
+                                  type="number"
+                                  min={-1}
+                                  className="w-20 h-8 text-sm"
+                                  value={state.maxUsage}
+                                  onChange={(e) =>
+                                    setPermFeatures((prev) => ({
+                                      ...prev,
+                                      [f.key]: { ...prev[f.key], maxUsage: parseInt(e.target.value) || -1 },
+                                    }))
+                                  }
+                                  title="-1 = unlimited"
+                                />
+                                {existingPerm && (
+                                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                    ({existingPerm.usedCount} used)
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-4 border-t">
+                <div>
+                  {permMember.isRevoked ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => handleRevokeRestore(true)}
+                      disabled={permSaving}
+                    >
+                      <RotateCcw className="h-3 w-3" /> Restore Access
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => setShowRevokeConfirm(true)}
+                      disabled={permSaving}
+                    >
+                      <Ban className="h-3 w-3" /> Revoke Access
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => { setShowPermissions(false); setPermMember(null); }}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSavePermissions}
+                    disabled={permSaving}
+                    className="gap-2"
+                  >
+                    {permSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Save Permissions
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8">Member not found in project</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Revoke Access Confirmation */}
+      <AlertDialog open={showRevokeConfirm} onOpenChange={setShowRevokeConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke Access</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will immediately revoke {permMember?.user.name}&apos;s ability to act on behalf of the team owner.
+              They will no longer be able to use delegated features. You can restore access later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => handleRevokeRestore(false)}
+            >
+              Revoke
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Task Detail Sheet */}
       <Sheet

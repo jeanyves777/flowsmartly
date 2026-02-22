@@ -98,9 +98,10 @@ model User {
   referralsGiven      UserReferral[]    @relation("ReferrerUser")
   referralReceived    UserReferral?     @relation("ReferredUser")
   referralCommissions ReferralCommission[]
-  followUps           FollowUp[]
-  surveys             Survey[]
-  projectMemberships  ProjectMember[]
+  followUps              FollowUp[]
+  followUpAssignments    FollowUpEntry[]   @relation("FollowUpAssignee")
+  surveys                Survey[]
+  projectMemberships     ProjectMember[]
 
   @@index([email])
   @@index([username])
@@ -1963,17 +1964,39 @@ model Project {
 }
 
 model ProjectMember {
-  id        String   @id @default(cuid())
-  projectId String
-  userId    String
-  addedAt   DateTime @default(now())
+  id              String    @id @default(cuid())
+  projectId       String
+  userId          String
+  addedAt         DateTime  @default(now())
+  creditAllowance Int       @default(0)
+  creditsUsed     Int       @default(0)
+  canActOnBehalf  Boolean   @default(false)
+  expiresAt       DateTime?
+  isRevoked       Boolean   @default(false)
+  revokedAt       DateTime?
 
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions     MemberPermission[]
 
   @@unique([projectId, userId])
   @@index([projectId])
   @@index([userId])
+}
+
+model MemberPermission {
+  id              String        @id @default(cuid())
+  projectMemberId String
+  featureKey      String
+  maxUsage        Int           @default(-1)
+  usedCount       Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  projectMember   ProjectMember @relation(fields: [projectMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([projectMemberId, featureKey])
+  @@index([projectMemberId])
 }
 
 model ProjectTask {
@@ -2565,6 +2588,7 @@ model FollowUpEntry {
   id             String    @id @default(cuid())
   followUpId     String
   contactId      String?
+  assigneeId     String?
   name           String?
   phone          String?
   email          String?
@@ -2581,9 +2605,11 @@ model FollowUpEntry {
 
   followUp       FollowUp  @relation(fields: [followUpId], references: [id], onDelete: Cascade)
   contact        Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  assignee       User?     @relation("FollowUpAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
 
   @@index([followUpId])
   @@index([contactId])
+  @@index([assigneeId])
   @@index([status])
   @@index([nextFollowUp])
 }

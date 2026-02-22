@@ -69,6 +69,13 @@ export async function GET(
               imageUrl: true,
             },
           },
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              avatarUrl: true,
+            },
+          },
         },
       }),
       prisma.followUpEntry.count({ where }),
@@ -125,7 +132,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { contactId, name, phone, email, address, referralSource, notes, status, nextFollowUp } = body;
+    const { contactId, assigneeId, name, phone, email, address, referralSource, notes, status, nextFollowUp } = body;
 
     // Need at least a name, email, or phone
     if (!contactId && !name && !email && !phone) {
@@ -152,6 +159,7 @@ export async function POST(
       data: {
         followUpId: id,
         contactId: contactId || null,
+        assigneeId: assigneeId || null,
         name: name?.trim() || null,
         phone: phone?.trim() || null,
         email: email?.trim() || null,
