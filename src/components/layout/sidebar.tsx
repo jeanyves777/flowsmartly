@@ -575,17 +575,25 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
           <Link
             href="/ecommerce"
             className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors relative",
               pathname.startsWith("/ecommerce")
                 ? "bg-accent text-foreground"
                 : "text-muted-foreground hover:bg-accent hover:text-foreground"
             )}
           >
-            <Rocket className="h-5 w-5 shrink-0" />
+            <Rocket className="h-5 w-5 shrink-0 text-violet-500" />
             {!isCollapsed && (
-              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                Start Store
-              </motion.span>
+              <>
+                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1">
+                  Start Store
+                </motion.span>
+                <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-violet-500 to-indigo-500 text-white rounded-full leading-none animate-pulse">
+                  New
+                </span>
+              </>
+            )}
+            {isCollapsed && (
+              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-violet-500 animate-pulse" />
             )}
           </Link>
         )}
