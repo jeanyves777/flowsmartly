@@ -71,17 +71,23 @@ export function SubscriptionCheckoutModal({
   const [activating, setActivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load payment methods when modal opens
+  // Reset and configure when modal opens/closes
   useEffect(() => {
     if (!open) {
-      setStep(initialPlan ? "terms" : "plan");
-      setSelectedPlan(initialPlan || "pro");
       setAgreedTerms(false);
       setSelectedPmId(null);
       setAddingCard(false);
       setSetupSecret(null);
       setError(null);
       return;
+    }
+    // Opening: set plan and step based on initialPlan
+    if (initialPlan) {
+      setSelectedPlan(initialPlan);
+      setStep("terms");
+    } else {
+      setSelectedPlan("pro");
+      setStep("plan");
     }
     loadPaymentMethods();
   }, [open, initialPlan]);
