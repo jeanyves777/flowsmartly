@@ -141,7 +141,7 @@ export default function OnboardingPage() {
 
       const s = storeJson.data.store as StoreData;
 
-      if (s.ecomSubscriptionStatus !== "active") {
+      if (!["active", "trialing", "free_trial"].includes(s.ecomSubscriptionStatus)) {
         router.replace("/ecommerce");
         return;
       }
