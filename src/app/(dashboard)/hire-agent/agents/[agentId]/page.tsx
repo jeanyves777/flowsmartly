@@ -59,6 +59,7 @@ interface ShowcaseProject {
   description: string;
   highlights?: string[];
   mediaType?: "image" | "video";
+  additionalImages?: string[];
 }
 
 interface AgentReview {
@@ -202,6 +203,12 @@ export default function AgentDetailPage() {
   const [isAboutExpanded, setIsAboutExpanded] = useState(false);
   const [selectedShowcase, setSelectedShowcase] = useState<ShowcaseProject | null>(null);
   const [currentProjectIndex, setCurrentProjectIndex] = useState(0);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  // Reset active image when switching projects
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [currentProjectIndex]);
 
   // Hire dialog state
   const [showHireDialog, setShowHireDialog] = useState(false);
@@ -831,39 +838,77 @@ export default function AgentDetailPage() {
                       <h3 className="text-xl font-bold tracking-tight mb-3">{project.title}</h3>
                     )}
 
+                    {(() => {
+                      const allImages = [project.url, ...(project.additionalImages || [])];
+                      const activeImg = allImages[activeImageIndex] || project.url;
+                      const activeIsVideo = /\.(mp4|webm|mov)(\?|$)/i.test(activeImg);
+                      const hasMultipleImages = allImages.length > 1;
+
+                      return (
                     <div className={`flex flex-col ${hasDetails ? "md:flex-row md:items-stretch" : ""} gap-6`}>
                       {/* Media */}
-                      <div
-                        className={`${hasDetails ? "md:w-[55%]" : "w-full"} cursor-pointer group shrink-0`}
-                        onClick={() => setSelectedShowcase(project)}
-                      >
-                        <div className="h-full min-h-[240px] rounded-2xl overflow-hidden bg-muted relative shadow-sm">
-                          {isVideo ? (
-                            <video
-                              src={project.url}
-                              className="w-full h-full object-cover"
-                              muted
-                              playsInline
-                              onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
-                              onMouseLeave={(e) => { const v = e.target as HTMLVideoElement; v.pause(); v.currentTime = 0; }}
-                            />
-                          ) : (
-                            <img
-                              src={project.url}
-                              alt={project.title}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            />
-                          )}
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
-                            <div className="h-11 w-11 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 scale-75 group-hover:scale-100">
-                              {isVideo ? (
-                                <Video className="h-5 w-5 text-white" />
-                              ) : (
-                                <ZoomIn className="h-5 w-5 text-white" />
-                              )}
+                      <div className={`${hasDetails ? "md:w-[55%]" : "w-full"} shrink-0`}>
+                        <div
+                          className="cursor-pointer group"
+                          onClick={() => setSelectedShowcase({ ...project, url: activeImg })}
+                        >
+                          <div className="min-h-[240px] rounded-2xl overflow-hidden bg-muted relative shadow-sm">
+                            {activeIsVideo ? (
+                              <video
+                                src={activeImg}
+                                className="w-full h-full object-cover"
+                                muted
+                                playsInline
+                                onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                                onMouseLeave={(e) => { const v = e.target as HTMLVideoElement; v.pause(); v.currentTime = 0; }}
+                              />
+                            ) : (
+                              <img
+                                src={activeImg}
+                                alt={project.title}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              />
+                            )}
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
+                              <div className="h-11 w-11 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 scale-75 group-hover:scale-100">
+                                {activeIsVideo ? (
+                                  <Video className="h-5 w-5 text-white" />
+                                ) : (
+                                  <ZoomIn className="h-5 w-5 text-white" />
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
+
+                        {/* Per-project image thumbnails */}
+                        {hasMultipleImages && (
+                          <div className="flex gap-1.5 mt-3 overflow-x-auto pb-1">
+                            {allImages.map((imgUrl, imgIdx) => {
+                              const imgIsVideo = /\.(mp4|webm|mov)(\?|$)/i.test(imgUrl);
+                              return (
+                                <button
+                                  key={imgIdx}
+                                  onClick={() => setActiveImageIndex(imgIdx)}
+                                  className={`shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all duration-200 ${
+                                    imgIdx === activeImageIndex
+                                      ? "border-violet-500 ring-1 ring-violet-500/20 opacity-100"
+                                      : "border-transparent opacity-50 hover:opacity-90"
+                                  }`}
+                                >
+                                  {imgIsVideo ? (
+                                    <div className="w-full h-full bg-muted flex items-center justify-center relative">
+                                      <video src={imgUrl} className="w-full h-full object-cover" muted preload="metadata" />
+                                      <Video className="h-3.5 w-3.5 text-white absolute drop-shadow-md" />
+                                    </div>
+                                  ) : (
+                                    <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
 
                       {/* Details */}
@@ -889,6 +934,8 @@ export default function AgentDetailPage() {
                         </div>
                       )}
                     </div>
+                      );
+                    })()}
 
                     {/* Thumbnail strip — clickable project previews */}
                     {total > 1 && (

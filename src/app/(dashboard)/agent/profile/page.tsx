@@ -71,6 +71,7 @@ interface ShowcaseProject {
   description: string;
   highlights?: string[];
   mediaType?: "image" | "video";
+  additionalImages?: string[];
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -629,7 +630,7 @@ export default function AgentProfilePage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setDraftShowcase(showcaseImages.map(p => ({ ...p, highlights: p.highlights || [], mediaType: p.mediaType || "image" }))); setIsEditingShowcase(true); }}
+                  onClick={() => { setDraftShowcase(showcaseImages.map(p => ({ ...p, highlights: p.highlights || [], mediaType: p.mediaType || "image", additionalImages: p.additionalImages || [] }))); setIsEditingShowcase(true); }}
                 >
                   <Pencil className="h-3.5 w-3.5 mr-1" />Manage
                 </Button>
@@ -882,6 +883,55 @@ export default function AgentProfilePage() {
                             </button>
                           )}
                         </div>
+                      </div>
+
+                      {/* Additional Images */}
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">Additional Images</Label>
+                        {(project.additionalImages || []).length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {(project.additionalImages || []).map((imgUrl, imgIdx) => (
+                              <div key={imgIdx} className="relative w-20 h-20 rounded-lg overflow-hidden bg-muted group/thumb">
+                                {/\.(mp4|webm|mov)(\?|$)/i.test(imgUrl) ? (
+                                  <video src={imgUrl} className="w-full h-full object-cover" muted preload="metadata" />
+                                ) : (
+                                  <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+                                )}
+                                <button
+                                  className="absolute top-0.5 right-0.5 h-5 w-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity"
+                                  onClick={() =>
+                                    setDraftShowcase((d) =>
+                                      d.map((item, j) =>
+                                        j === i
+                                          ? { ...item, additionalImages: (item.additionalImages || []).filter((_, k) => k !== imgIdx) }
+                                          : item
+                                      )
+                                    )
+                                  }
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <MediaUploader
+                          value={project.additionalImages || []}
+                          onChange={(urls) =>
+                            setDraftShowcase((d) =>
+                              d.map((item, j) => j === i ? { ...item, additionalImages: urls } : item)
+                            )
+                          }
+                          multiple
+                          maxFiles={8}
+                          accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm"
+                          maxSize={100 * 1024 * 1024}
+                          filterTypes={["image", "video"]}
+                          variant="small"
+                          placeholder="Add images"
+                          libraryTitle="Select Project Images"
+                          showButtons={true}
+                        />
                       </div>
                     </div>
                   ))}
