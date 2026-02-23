@@ -15,6 +15,7 @@ export async function GET() {
     const profile = await prisma.agentProfile.findUnique({
       where: { userId: session.userId },
       include: {
+        user: { select: { avatarUrl: true } },
         _count: { select: { clients: true, warnings: true } },
       },
     });
@@ -175,10 +176,19 @@ export async function PATCH(request: Request) {
     if (body.landingPageSlug !== undefined) updates.landingPageSlug = body.landingPageSlug;
     if (body.landingPageData !== undefined) updates.landingPageData = JSON.stringify(body.landingPageData);
 
+    // Handle profile photo (stored on User, not AgentProfile)
+    if (body.avatarUrl !== undefined) {
+      await prisma.user.update({
+        where: { id: session.userId },
+        data: { avatarUrl: body.avatarUrl },
+      });
+    }
+
     const updated = await prisma.agentProfile.update({
       where: { userId: session.userId },
       data: updates,
       include: {
+        user: { select: { avatarUrl: true } },
         _count: { select: { clients: true, warnings: true } },
       },
     });

@@ -889,6 +889,35 @@ export default function AgentDetailPage() {
                         </div>
                       )}
                     </div>
+
+                    {/* Thumbnail strip — clickable project previews */}
+                    {total > 1 && (
+                      <div className="flex gap-2 mt-4 overflow-x-auto pb-1">
+                        {agent.showcaseImages.map((p, i) => {
+                          const thumbIsVideo = p.mediaType === "video" || /\.(mp4|webm|mov)$/i.test(p.url);
+                          return (
+                            <button
+                              key={`thumb-${i}`}
+                              onClick={() => setCurrentProjectIndex(i)}
+                              className={`shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all duration-200 ${
+                                i === currentProjectIndex
+                                  ? "border-violet-500 ring-2 ring-violet-500/20 opacity-100"
+                                  : "border-transparent opacity-50 hover:opacity-90 hover:border-muted-foreground/30"
+                              }`}
+                            >
+                              {thumbIsVideo ? (
+                                <div className="w-full h-full bg-muted flex items-center justify-center relative">
+                                  <video src={p.url} className="w-full h-full object-cover" muted preload="metadata" />
+                                  <Video className="h-4 w-4 text-white absolute drop-shadow-md" />
+                                </div>
+                              ) : (
+                                <img src={p.url} alt={p.title || `Project ${i + 1}`} className="w-full h-full object-cover" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </motion.div>
                 </AnimatePresence>
               </CardContent>

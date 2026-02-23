@@ -31,6 +31,8 @@ import {
   Sparkles,
   CheckCircle,
   Video,
+  Camera,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,6 +61,7 @@ interface AgentProfile {
   status: string;
   landingPageSlug: string | null;
   approvedAt: string | null;
+  user?: { avatarUrl: string | null };
   _count: { clients: number; warnings: number };
 }
 
@@ -101,6 +104,9 @@ export default function AgentProfilePage() {
 
   // AI generation
   const [generatingAIIndex, setGeneratingAIIndex] = useState<number | null>(null);
+
+  // Showcase image replacement
+  const [replacingIndex, setReplacingIndex] = useState<number | null>(null);
 
   // Lightbox
   const [selectedShowcase, setSelectedShowcase] = useState<ShowcaseProject | null>(null);
@@ -356,6 +362,46 @@ export default function AgentProfilePage() {
           placeholder="Upload cover"
           libraryTitle="Select Cover Image"
         />
+      </motion.div>
+
+      {/* Profile Photo */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.13 }}
+      >
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <div className="h-20 w-20 rounded-full overflow-hidden bg-muted border-2 border-border shrink-0">
+                {profile.user?.avatarUrl ? (
+                  <img src={profile.user.avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-violet-500/10">
+                    <User className="h-8 w-8 text-violet-500" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <Camera className="h-4 w-4 text-muted-foreground" />
+                  <p className="font-medium text-sm">Profile Photo</p>
+                </div>
+                <p className="text-xs text-muted-foreground mb-2">Shown on your marketplace listing and reviews</p>
+                <MediaUploader
+                  value={profile.user?.avatarUrl ? [profile.user.avatarUrl] : []}
+                  onChange={(urls) => patchProfile({ avatarUrl: urls[0] || null })}
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  maxSize={5 * 1024 * 1024}
+                  filterTypes={["image"]}
+                  variant="small"
+                  placeholder="Upload photo"
+                  libraryTitle="Select Profile Photo"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </motion.div>
 
       {/* Stats Grid */}
@@ -672,22 +718,68 @@ export default function AgentProfilePage() {
                 <div className="space-y-6">
                   {draftShowcase.map((project, i) => (
                     <div key={`${project.url}-${i}`} className="border rounded-xl p-4 space-y-3 relative">
-                      {/* Delete button */}
-                      <button
-                        className="absolute top-3 right-3 h-7 w-7 rounded-full bg-destructive/10 hover:bg-destructive/20 text-destructive flex items-center justify-center transition-colors"
-                        onClick={() => setDraftShowcase((d) => d.filter((_, j) => j !== i))}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                      {/* Action buttons */}
+                      <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                        <button
+                          className="h-7 w-7 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 flex items-center justify-center transition-colors"
+                          title="Replace image"
+                          onClick={() => setReplacingIndex(replacingIndex === i ? null : i)}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          className="h-7 w-7 rounded-full bg-destructive/10 hover:bg-destructive/20 text-destructive flex items-center justify-center transition-colors"
+                          title="Remove project"
+                          onClick={() => { setDraftShowcase((d) => d.filter((_, j) => j !== i)); if (replacingIndex === i) setReplacingIndex(null); }}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
 
                       {/* Media preview */}
-                      <div className="aspect-video rounded-lg overflow-hidden bg-muted max-w-xs">
+                      <div className="aspect-video rounded-lg overflow-hidden bg-muted max-w-xs relative group">
                         {project.mediaType === "video" ? (
                           <video src={project.url} className="w-full h-full object-cover" muted playsInline />
                         ) : (
                           <img src={project.url} alt={project.title} className="w-full h-full object-cover" />
                         )}
+                        {/* Click to replace overlay */}
+                        <button
+                          className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center"
+                          onClick={() => setReplacingIndex(replacingIndex === i ? null : i)}
+                        >
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 text-xs font-medium text-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+                            <RefreshCw className="h-3 w-3" />
+                            Replace
+                          </div>
+                        </button>
                       </div>
+
+                      {/* Replace image uploader */}
+                      {replacingIndex === i && (
+                        <div className="border border-blue-200 rounded-lg p-3 bg-blue-50/50 dark:bg-blue-900/10">
+                          <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mb-2">Select a new image to replace this one:</p>
+                          <MediaUploader
+                            value={[]}
+                            onChange={(urls) => {
+                              if (urls.length > 0) {
+                                const newUrl = urls[urls.length - 1];
+                                const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(newUrl);
+                                setDraftShowcase((d) =>
+                                  d.map((item, j) => j === i ? { ...item, url: newUrl, mediaType: isVideo ? "video" : "image" } : item)
+                                );
+                                setReplacingIndex(null);
+                              }
+                            }}
+                            accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm"
+                            maxSize={100 * 1024 * 1024}
+                            filterTypes={["image", "video"]}
+                            variant="small"
+                            placeholder="Upload replacement"
+                            libraryTitle="Select Replacement Media"
+                          />
+                        </div>
+                      )}
 
                       {/* Title */}
                       <div>
