@@ -3,6 +3,7 @@ import Image from "next/image";
 
 const productLinks = [
   { href: "/#features", label: "Features" },
+  { href: "/flowshop", label: "FlowShop" },
   { href: "/marketplace", label: "Agent Marketplace" },
   { href: "/view-to-earn", label: "Earn Credits" },
   { href: "/pricing", label: "Pricing" },
@@ -13,6 +14,7 @@ const legalLinks = [
   { href: "/privacy", label: "Privacy Policy" },
   { href: "/terms", label: "Terms of Service" },
   { href: "/sms-terms", label: "SMS Terms" },
+  { href: "/ecommerce-terms", label: "E-Commerce Terms" },
   { href: "/marketing-compliance", label: "Marketing Compliance" },
 ];
 

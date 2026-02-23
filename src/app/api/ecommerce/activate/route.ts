@@ -2,16 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getOrCreateStripeCustomer } from "@/lib/stripe";
-import {
-  createEcommerceCheckoutSession,
-  createEcommerceSubscription,
-} from "@/lib/stripe/ecommerce";
+import { createEcommerceSubscription } from "@/lib/stripe/ecommerce";
 
 /**
  * POST /api/ecommerce/activate
- * Activate the FlowShop e-commerce add-on ($5/month).
- * If user has a saved payment method: creates inline subscription.
- * Otherwise: creates a Stripe Checkout session for redirect.
+ * Activate the FlowShop e-commerce add-on with 14-day free trial.
+ * Requires a paymentMethodId (card on file) — no Stripe Checkout redirect.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -29,7 +25,7 @@ export async function POST(request: NextRequest) {
       select: { id: true, ecomSubscriptionStatus: true },
     });
 
-    if (existingStore && existingStore.ecomSubscriptionStatus === "active") {
+    if (existingStore && (existingStore.ecomSubscriptionStatus === "active" || existingStore.ecomSubscriptionStatus === "trialing")) {
       return NextResponse.json(
         { success: false, error: { code: "ALREADY_ACTIVE", message: "FlowShop is already active" } },
         { status: 409 }
@@ -51,80 +47,65 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const paymentMethodId = body.paymentMethodId as string | undefined;
 
+    if (!paymentMethodId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "CARD_REQUIRED",
+            message: "A payment method is required. Please add a card before activating.",
+          },
+        },
+        { status: 400 }
+      );
+    }
+
     // Get or create Stripe customer
     const customerId = await getOrCreateStripeCustomer(session.userId);
 
-    if (paymentMethodId) {
-      // Inline subscription flow (user has a saved payment method)
-      const result = await createEcommerceSubscription({
-        userId: session.userId,
-        customerId,
-        paymentMethodId,
-      });
+    // Create subscription with 14-day trial (card captured but not charged)
+    const result = await createEcommerceSubscription({
+      userId: session.userId,
+      customerId,
+      paymentMethodId,
+    });
 
-      // Create store record (inactive until webhook confirms)
-      if (!existingStore) {
-        await prisma.store.create({
-          data: {
-            userId: session.userId,
-            name: user.name || "My Store",
-            slug: `store-${session.userId.slice(0, 8)}`,
-            region: user.region,
-            country: user.country,
-            ecomSubscriptionId: result.subscriptionId,
-            ecomSubscriptionStatus: result.status === "active" ? "active" : "inactive",
-            isActive: result.status === "active",
-          },
-        });
-      } else {
-        await prisma.store.update({
-          where: { userId: session.userId },
-          data: {
-            ecomSubscriptionId: result.subscriptionId,
-            ecomSubscriptionStatus: result.status === "active" ? "active" : "inactive",
-            isActive: result.status === "active",
-          },
-        });
-      }
+    // Store is active immediately (trial counts as active)
+    const isActive = result.status === "active" || result.status === "trialing";
+    const subStatus = result.status === "trialing" ? "trialing" : result.status === "active" ? "active" : "inactive";
 
-      return NextResponse.json({
-        success: true,
+    if (!existingStore) {
+      await prisma.store.create({
         data: {
-          subscriptionId: result.subscriptionId,
-          clientSecret: result.clientSecret,
-          status: result.status,
-          flow: "inline",
+          userId: session.userId,
+          name: user.name || "My Store",
+          slug: `store-${session.userId.slice(0, 8)}`,
+          region: user.region,
+          country: user.country,
+          ecomSubscriptionId: result.subscriptionId,
+          ecomSubscriptionStatus: subStatus,
+          isActive,
         },
       });
     } else {
-      // Checkout redirect flow (no saved payment method)
-      const result = await createEcommerceCheckoutSession({
-        userId: session.userId,
-        userEmail: user.email,
-        customerId,
-      });
-
-      // Create store record (inactive until webhook confirms)
-      if (!existingStore) {
-        await prisma.store.create({
-          data: {
-            userId: session.userId,
-            name: user.name || "My Store",
-            slug: `store-${session.userId.slice(0, 8)}`,
-            region: user.region,
-            country: user.country,
-          },
-        });
-      }
-
-      return NextResponse.json({
-        success: true,
+      await prisma.store.update({
+        where: { userId: session.userId },
         data: {
-          url: result.url,
-          flow: "checkout",
+          ecomSubscriptionId: result.subscriptionId,
+          ecomSubscriptionStatus: subStatus,
+          isActive,
         },
       });
     }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        subscriptionId: result.subscriptionId,
+        status: result.status,
+        trialEnds: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+    });
   } catch (error) {
     console.error("E-commerce activation error:", error);
     return NextResponse.json(

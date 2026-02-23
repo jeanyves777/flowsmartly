@@ -324,6 +324,21 @@ async function processWebhookEvent(event: Stripe.Event) {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       const piMetadata = paymentIntent.metadata ?? {};
 
+      // Handle store order payments
+      if (piMetadata.type === "store_order" && piMetadata.orderId) {
+        await prisma.order.updateMany({
+          where: { id: piMetadata.orderId },
+          data: {
+            paymentStatus: "paid",
+            status: "CONFIRMED",
+          },
+        });
+        console.log(
+          `[Stripe Webhook] Store order ${piMetadata.orderId} payment confirmed (${piMetadata.storeSlug})`
+        );
+        break;
+      }
+
       if (piMetadata.type !== "credit_purchase" || !piMetadata.userId) {
         break;
       }
@@ -482,6 +497,38 @@ async function processWebhookEvent(event: Stripe.Event) {
       console.log(
         `[Stripe Webhook] Subscription invoice paid: ${subPlanId} plan for user ${subMetadata.userId} (+${subMonthlyCredits} credits)`
       );
+      break;
+    }
+
+    case "customer.subscription.updated": {
+      // Handle trial-to-active conversion for FlowShop
+      const updatedSub = event.data.object as Stripe.Subscription;
+      const updatedSubType = updatedSub.metadata?.type;
+
+      if (updatedSubType === "ecommerce_subscription") {
+        const ecomUserId = updatedSub.metadata?.userId;
+        if (ecomUserId) {
+          const newStatus = updatedSub.status === "active"
+            ? "active"
+            : updatedSub.status === "trialing"
+              ? "trialing"
+              : updatedSub.status === "past_due"
+                ? "past_due"
+                : "inactive";
+          const isStoreActive = updatedSub.status === "active" || updatedSub.status === "trialing";
+
+          await prisma.store.updateMany({
+            where: { userId: ecomUserId },
+            data: {
+              ecomSubscriptionStatus: newStatus,
+              isActive: isStoreActive,
+            },
+          });
+          console.log(
+            `[Stripe Webhook] FlowShop subscription updated: ${newStatus} for user ${ecomUserId}`
+          );
+        }
+      }
       break;
     }
 

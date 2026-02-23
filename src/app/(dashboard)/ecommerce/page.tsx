@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { StripeProvider } from "@/components/providers/stripe-provider";
+import { SubscriptionCheckoutModal } from "@/components/ecommerce/subscription-checkout-modal";
 
 interface StoreData {
   id: string;
@@ -84,8 +86,7 @@ export default function EcommercePage() {
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
-  const [activating, setActivating] = useState(false);
-  const [agreed, setAgreed] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [store, setStore] = useState<StoreData | null>(null);
 
   useEffect(() => {
@@ -101,11 +102,12 @@ export default function EcommercePage() {
         const s = json.data.store;
         setStore(s);
 
-        if (s.ecomSubscriptionStatus === "active" && s.setupComplete) {
+        const isSubscribed = s.ecomSubscriptionStatus === "active" || s.ecomSubscriptionStatus === "trialing";
+        if (isSubscribed && s.setupComplete) {
           router.replace("/ecommerce/dashboard");
           return;
         }
-        if (s.ecomSubscriptionStatus === "active" && !s.setupComplete) {
+        if (isSubscribed && !s.setupComplete) {
           router.replace("/ecommerce/onboarding");
           return;
         }
@@ -117,54 +119,13 @@ export default function EcommercePage() {
     }
   }
 
-  async function handleActivate() {
-    if (!agreed) {
-      toast({
-        title: "Agreement required",
-        description: "Please agree to the FlowShop Terms of Service to continue.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setActivating(true);
-    try {
-      const res = await fetch("/api/ecommerce/activate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-
-      const json = await res.json();
-
-      if (!json.success) {
-        toast({
-          title: "Activation failed",
-          description: json.error?.message || "Something went wrong",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (json.data.flow === "checkout" && json.data.url) {
-        window.location.href = json.data.url;
-      } else {
-        toast({
-          title: "FlowShop activated!",
-          description: "Let's set up your store.",
-        });
-        router.push("/ecommerce/onboarding");
-      }
-    } catch (error) {
-      console.error("Activation error:", error);
-      toast({
-        title: "Error",
-        description: "Failed to activate FlowShop. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setActivating(false);
-    }
+  function handleCheckoutSuccess() {
+    toast({
+      title: "FlowShop activated!",
+      description: "Your 14-day free trial has started. Let's set up your store.",
+    });
+    setCheckoutOpen(false);
+    router.push("/ecommerce/onboarding");
   }
 
   if (loading) {
@@ -422,17 +383,20 @@ export default function EcommercePage() {
           <div className="bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-600 px-8 py-6 text-center text-white">
             <ShoppingBag className="h-10 w-10 mx-auto mb-2" />
             <h2 className="text-2xl font-bold">Start Selling Today</h2>
-            <p className="text-white/80 text-sm mt-1">Set up in under 5 minutes</p>
+            <p className="text-white/80 text-sm mt-1">14-day free trial — no charge today</p>
           </div>
 
           <div className="p-8">
             {/* Price */}
             <div className="text-center mb-6">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-sm font-medium mb-3">
+                14-Day Free Trial
+              </div>
               <div className="inline-flex items-baseline gap-1">
                 <span className="text-4xl font-extrabold">$5</span>
                 <span className="text-muted-foreground text-lg">/month</span>
               </div>
-              <p className="text-sm text-muted-foreground mt-1">Cancel anytime. No hidden fees.</p>
+              <p className="text-sm text-muted-foreground mt-1">After trial ends. Cancel anytime.</p>
             </div>
 
             {/* What you get */}
@@ -455,46 +419,31 @@ export default function EcommercePage() {
               ))}
             </div>
 
-            {/* Agreement */}
-            <label className="flex items-start gap-3 mb-6 cursor-pointer group">
-              <div className="relative mt-0.5">
-                <input
-                  type="checkbox"
-                  checked={agreed}
-                  onChange={(e) => setAgreed(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="h-5 w-5 rounded border-2 border-muted-foreground/30 peer-checked:border-violet-500 peer-checked:bg-violet-500 transition-colors flex items-center justify-center">
-                  {agreed && <Check className="h-3 w-3 text-white" />}
-                </div>
-              </div>
-              <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
-                I agree to the FlowShop Terms of Service
-              </span>
-            </label>
-
-            {/* Activate Button */}
+            {/* Activate Button — opens the confirmation modal */}
             <Button
-              onClick={handleActivate}
-              disabled={!agreed || activating}
+              onClick={() => setCheckoutOpen(true)}
               className="w-full h-12 text-base bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 shadow-lg shadow-violet-500/25"
               size="lg"
             >
-              {activating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Activating...
-                </>
-              ) : (
-                <>
-                  Activate FlowShop — $5/month
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </>
-              )}
+              Start Free Trial
+              <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
+
+            <p className="text-xs text-center text-muted-foreground mt-3">
+              Card required. You will not be charged during the 14-day trial.
+            </p>
           </div>
         </div>
       </section>
+
+      {/* Subscription Checkout Modal */}
+      <StripeProvider>
+        <SubscriptionCheckoutModal
+          open={checkoutOpen}
+          onClose={() => setCheckoutOpen(false)}
+          onSuccess={handleCheckoutSuccess}
+        />
+      </StripeProvider>
 
       {/* ── Dashboard Preview SVG ── */}
       <section>

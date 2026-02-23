@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db/client";
 import { resolveTheme } from "@/lib/store/theme-utils";
 import { CheckoutForm } from "@/components/store/checkout-form";
+import { StripeProvider } from "@/components/providers/stripe-provider";
 
 interface CheckoutPageProps {
   params: Promise<{ slug: string }>;
@@ -56,14 +57,16 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
   }
 
   return (
-    <CheckoutForm
-      storeSlug={store.slug}
-      storeName={store.name}
-      currency={store.currency}
-      paymentMethods={paymentMethods}
-      shippingConfig={shippingConfig}
-      primaryColor={primaryColor}
-      cancelled={cancelled === "true"}
-    />
+    <StripeProvider>
+      <CheckoutForm
+        storeSlug={store.slug}
+        storeName={store.name}
+        currency={store.currency}
+        paymentMethods={paymentMethods}
+        shippingConfig={shippingConfig}
+        primaryColor={primaryColor}
+        cancelled={cancelled === "true"}
+      />
+    </StripeProvider>
   );
 }

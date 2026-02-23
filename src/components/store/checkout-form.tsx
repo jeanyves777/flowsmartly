@@ -13,7 +13,9 @@ import {
   Loader2,
   AlertCircle,
   ChevronLeft,
+  Shield,
 } from "lucide-react";
+import { CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { useCart } from "./cart-provider";
 import { calculateShipping, formatCents } from "@/lib/store/cart";
 
@@ -55,6 +57,8 @@ export function CheckoutForm({
   cancelled,
 }: CheckoutFormProps) {
   const router = useRouter();
+  const stripe = useStripe();
+  const elements = useElements();
   const { items, subtotalCents, clearCart } = useCart();
 
   // Form state
@@ -109,11 +113,9 @@ export function CheckoutForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customer: {
-            name: customerName,
-            email,
-            phone: phone || undefined,
-          },
+          customerName,
+          customerEmail: email,
+          customerPhone: phone || undefined,
           shippingAddress: {
             street,
             city,
@@ -134,21 +136,52 @@ export function CheckoutForm({
 
       const data = await res.json();
 
-      if (!res.ok) {
-        setError(data.error || "Something went wrong. Please try again.");
+      if (!data.success) {
+        setError(data.error?.message || "Something went wrong. Please try again.");
         return;
       }
 
-      // Stripe checkout: redirect to external checkout URL
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+      // Card payment: confirm payment inline with CardElement
+      if (data.data?.clientSecret) {
+        if (!stripe || !elements) {
+          setError("Payment system not ready. Please refresh and try again.");
+          return;
+        }
+
+        const cardElement = elements.getElement(CardElement);
+        if (!cardElement) {
+          setError("Card form not found. Please refresh and try again.");
+          return;
+        }
+
+        const { error: stripeError } = await stripe.confirmCardPayment(
+          data.data.clientSecret,
+          {
+            payment_method: {
+              card: cardElement,
+              billing_details: {
+                name: customerName,
+                email,
+              },
+            },
+          }
+        );
+
+        if (stripeError) {
+          setError(stripeError.message || "Payment failed. Please try again.");
+          return;
+        }
+
+        // Payment confirmed — redirect to confirmation
+        clearCart();
+        router.push(`/store/${storeSlug}/order-confirmation?orderId=${data.data.orderId}`);
         return;
       }
 
       // Non-card orders (COD, etc.): clear cart and redirect to confirmation
-      if (data.orderId) {
+      if (data.data?.orderId) {
         clearCart();
-        router.push(`/store/${storeSlug}/order-confirmation?orderId=${data.orderId}`);
+        router.push(`/store/${storeSlug}/order-confirmation?orderId=${data.data.orderId}`);
       }
     } catch {
       setError("Network error. Please check your connection and try again.");
@@ -405,6 +438,35 @@ export function CheckoutForm({
                       </label>
                     );
                   })}
+
+                  {/* Inline card form when card is selected */}
+                  {selectedPayment === "card" && (
+                    <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-gray-500" />
+                        Card Details
+                      </p>
+                      <div className="p-3 border rounded-lg bg-white">
+                        <CardElement
+                          options={{
+                            style: {
+                              base: {
+                                fontSize: "16px",
+                                color: "#1a1a1a",
+                                "::placeholder": { color: "#a3a3a3" },
+                                fontFamily: "system-ui, -apple-system, sans-serif",
+                              },
+                              invalid: { color: "#ef4444" },
+                            },
+                          }}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-400">
+                        <Shield className="w-3.5 h-3.5 text-green-500" />
+                        <span>Secured with 256-bit SSL encryption by Stripe</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </section>
             )}

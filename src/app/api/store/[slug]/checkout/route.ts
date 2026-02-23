@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { generateOrderNumber } from "@/lib/constants/ecommerce";
 import { calculateShipping, type ShippingConfig } from "@/lib/store/cart";
 import { validateInventory, deductInventory } from "@/lib/store/inventory";
-import { createStoreOrderCheckoutSession } from "@/lib/stripe/store-checkout";
+import { createStorePaymentIntent } from "@/lib/stripe/store-checkout";
 import {
   notifyOrderConfirmation,
   notifyNewOrder,
@@ -316,25 +316,29 @@ export async function POST(
     // ── Payment method handling ──
 
     if (paymentMethod === "card") {
-      const { url } = await createStoreOrderCheckoutSession({
+      const { clientSecret, paymentIntentId } = await createStorePaymentIntent({
         orderId: order.id,
         storeId: store.id,
         storeSlug: store.slug,
         storeName: store.name,
-        items: validatedItems.map((i) => ({
-          name: i.variantName ? `${i.name} - ${i.variantName}` : i.name,
-          priceCents: i.priceCents,
-          quantity: i.quantity,
-          imageUrl: i.imageUrl,
-        })),
-        shippingCents,
+        totalCents,
         currency: store.currency,
         customerEmail,
       });
 
+      // Update order with paymentIntentId for webhook matching
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { paymentId: paymentIntentId },
+      });
+
       return NextResponse.json({
         success: true,
-        data: { checkoutUrl: url },
+        data: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          clientSecret,
+        },
       });
     }
 

@@ -1,13 +1,14 @@
 /**
  * Stripe helpers for FlowShop e-commerce subscription ($5/month add-on).
+ * 14-day free trial — card on file required but not charged until trial ends.
  */
 
 import { stripe } from "./index";
 import { ECOM_SUBSCRIPTION_PRICE_CENTS } from "@/lib/constants/ecommerce";
 
 /**
- * Create a $5/month e-commerce subscription for a user.
- * Uses ad-hoc price_data (no pre-created Stripe Price needed).
+ * Create a $5/month e-commerce subscription with 14-day free trial.
+ * Card is captured but not charged until trial ends.
  */
 export async function createEcommerceSubscription(params: {
   userId: string;
@@ -26,7 +27,7 @@ export async function createEcommerceSubscription(params: {
   // Create product first (required for subscription price_data in v2026 API)
   const product = await stripe.products.create({
     name: "FlowShop E-Commerce Add-On",
-    description: "Monthly e-commerce store subscription",
+    description: "Monthly e-commerce store subscription — 14-day free trial",
   });
 
   const subscription = await stripe.subscriptions.create({
@@ -42,73 +43,21 @@ export async function createEcommerceSubscription(params: {
       },
     ],
     default_payment_method: params.paymentMethodId,
-    payment_behavior: "default_incomplete",
+    trial_period_days: 14,
     payment_settings: {
       save_default_payment_method: "on_subscription",
     },
-    expand: ["latest_invoice.confirmation_secret"],
     metadata: {
       userId: params.userId,
       type: "ecommerce_subscription",
     },
   });
 
-  const invoice = subscription.latest_invoice as import("stripe").default.Invoice;
-  const clientSecret = invoice?.confirmation_secret?.client_secret || null;
-
   return {
     subscriptionId: subscription.id,
-    clientSecret,
-    status: subscription.status,
+    clientSecret: null,
+    status: subscription.status, // will be "trialing"
   };
-}
-
-/**
- * Create a checkout session for e-commerce subscription (redirect flow).
- * Used when user has no saved payment method.
- */
-export async function createEcommerceCheckoutSession(params: {
-  userId: string;
-  userEmail: string;
-  customerId?: string | null;
-}): Promise<{ url: string | null }> {
-  if (!stripe) {
-    throw new Error("Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.");
-  }
-
-  const sessionParams: import("stripe").default.Checkout.SessionCreateParams = {
-    mode: "subscription",
-    payment_method_types: ["card"],
-    line_items: [
-      {
-        price_data: {
-          currency: "usd",
-          recurring: { interval: "month" },
-          unit_amount: ECOM_SUBSCRIPTION_PRICE_CENTS,
-          product_data: {
-            name: "FlowShop E-Commerce Add-On",
-            description: "Monthly e-commerce store — $5/month",
-          },
-        },
-        quantity: 1,
-      },
-    ],
-    metadata: {
-      userId: params.userId,
-      type: "ecommerce_subscription",
-    },
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/ecommerce/onboarding?activated=true`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/ecommerce?cancelled=true`,
-  };
-
-  if (params.customerId) {
-    sessionParams.customer = params.customerId;
-  } else {
-    sessionParams.customer_email = params.userEmail;
-  }
-
-  const session = await stripe.checkout.sessions.create(sessionParams);
-  return { url: session.url };
 }
 
 /**
