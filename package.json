@@ -51,6 +51,7 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^11.18.0",
     "google-ads-api": "^23.0.0",
+    "html2canvas": "^1.4.1",
     "ioredis": "^5.4.2",
     "jose": "^5.9.6",
     "jszip": "^3.10.1",

@@ -108,6 +108,7 @@ const toolsNavigation = [
   { name: "Follow-Ups", href: "/tools/follow-ups", icon: ClipboardList },
   { name: "Data Collection", href: "/tools/data-collection", icon: FormInput },
   { name: "Surveys", href: "/tools/surveys", icon: FileQuestion },
+  { name: "Events", href: "/tools/events", icon: CalendarDays },
   { name: "BG Remover", href: "/tools/background-remover", icon: Scissors },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
 ];

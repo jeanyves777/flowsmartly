@@ -8,6 +8,7 @@ import {
   FileQuestion,
   Scissors,
   BarChart3,
+  CalendarDays,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -28,6 +29,15 @@ const tools = [
     icon: FileQuestion,
     color: "from-violet-500 to-purple-600",
     bgLight: "bg-violet-50 dark:bg-violet-950/30",
+    available: true,
+  },
+  {
+    name: "Events",
+    description: "Create and manage events with registration, RSVP, ticket sales, and branded public pages.",
+    href: "/tools/events",
+    icon: CalendarDays,
+    color: "from-emerald-500 to-teal-600",
+    bgLight: "bg-emerald-50 dark:bg-emerald-950/30",
     available: true,
   },
   {

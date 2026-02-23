@@ -102,6 +102,7 @@ model User {
   followUpAssignments    FollowUpEntry[]   @relation("FollowUpAssignee")
   surveys                Survey[]
   dataForms              DataForm[]
+  events                 Event[]
   joinRequests           TeamJoinRequest[] @relation("JoinRequests")
   projectMemberships     ProjectMember[]
 
@@ -572,6 +573,7 @@ model ContactList {
   followUps   FollowUp[]
   surveys     Survey[]
   dataForms   DataForm[]
+  events      Event[]
 
   @@index([userId])
 }
@@ -2716,6 +2718,106 @@ model DataFormSubmission {
   form            DataForm  @relation(fields: [formId], references: [id], onDelete: Cascade)
 
   @@index([formId])
+  @@index([createdAt])
+}
+
+// ============================================
+// TOOLS — EVENTS
+// ============================================
+
+model Event {
+  id                  String    @id @default(cuid())
+  userId              String
+  title               String
+  description         String?
+  slug                String    @unique
+  eventDate           DateTime
+  endDate             DateTime?
+  timezone            String    @default("UTC")
+  venueName           String?
+  venueAddress        String?
+  isOnline            Boolean   @default(false)
+  onlineUrl           String?
+  coverImageUrl       String?
+  mediaUrls           String    @default("[]")  // JSON array of image/video URLs
+  registrationType    String    @default("rsvp") // rsvp | form | booking
+  registrationFields  String    @default("[]")  // JSON: DataFormField[] (for form type)
+  capacity            Int?
+  registrationCount   Int       @default(0)
+  ticketType          String    @default("free") // free | paid
+  ticketPrice         Int?      // Price in cents
+  ticketName          String?
+  platformFeePercent  Int       @default(10)
+  totalRevenueCents   Int       @default(0)
+  totalRefundedCents  Int       @default(0)
+  status              String    @default("DRAFT") // DRAFT | ACTIVE | CLOSED | CANCELLED
+  ticketStyle         String    @default("classic") // classic | modern | elegant
+  settings            String    @default("{}") // JSON: { thankYouMessage, requireApproval, showCapacity }
+  contactListId       String?
+  sendCount           Int       @default(0)
+  lastSentAt          DateTime?
+  landingPageId       String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contactList         ContactList?      @relation(fields: [contactListId], references: [id], onDelete: SetNull)
+  registrations       EventRegistration[]
+  ticketOrders        TicketOrder[]
+
+  @@index([userId])
+  @@index([slug])
+  @@index([status])
+  @@index([eventDate])
+  @@index([createdAt])
+}
+
+model EventRegistration {
+  id              String    @id @default(cuid())
+  eventId         String
+  contactId       String?
+  name            String?
+  email           String?
+  phone           String?
+  status          String    @default("registered") // registered | attended | cancelled | waitlisted
+  rsvpResponse    String?   // attending | not_attending | maybe
+  formData        String    @default("{}") // JSON: { fieldId: value }
+  ticketCode      String    @unique
+  ticketOrderId   String?
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime  @default(now())
+
+  event           Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([contactId])
+  @@index([ticketCode])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model TicketOrder {
+  id                    String    @id @default(cuid())
+  eventId               String
+  buyerName             String
+  buyerEmail            String
+  amountCents           Int
+  platformFeeCents      Int
+  organizerAmountCents  Int
+  stripeSessionId       String    @unique
+  stripePaymentIntentId String?
+  status                String    @default("PENDING") // PENDING | COMPLETED | REFUNDED | PARTIALLY_REFUNDED
+  refundedAmountCents   Int       @default(0)
+  refundedAt            DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  event                 Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([stripeSessionId])
+  @@index([status])
   @@index([createdAt])
 }
 

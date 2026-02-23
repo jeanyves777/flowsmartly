@@ -78,6 +78,117 @@ async function processWebhookEvent(event: Stripe.Event) {
         console.log(
           `[Stripe Webhook] Credit purchase completed: ${totalCredits} credits for user ${userId}`
         );
+      } else if (type === "event_ticket") {
+        // Handle event ticket purchase
+        const { eventId, ticketOrderId } = metadata;
+        if (!eventId || !ticketOrderId) {
+          console.error("[Stripe Webhook] Missing eventId or ticketOrderId in event_ticket metadata");
+          break;
+        }
+
+        // Idempotency: check if order already completed
+        const ticketOrder = await prisma.ticketOrder.findUnique({ where: { id: ticketOrderId } });
+        if (!ticketOrder || ticketOrder.status === "COMPLETED") {
+          console.log(`[Stripe Webhook] TicketOrder ${ticketOrderId} already processed or not found, skipping`);
+          break;
+        }
+
+        // Update TicketOrder to COMPLETED
+        await prisma.ticketOrder.update({
+          where: { id: ticketOrderId },
+          data: {
+            status: "COMPLETED",
+            stripePaymentIntentId: session.payment_intent as string || null,
+          },
+        });
+
+        // Generate unique ticket code
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let ticketCode = "";
+        for (let i = 0; i < 8; i++) ticketCode += chars[Math.floor(Math.random() * chars.length)];
+        // Ensure uniqueness
+        while (await prisma.eventRegistration.findUnique({ where: { ticketCode } })) {
+          ticketCode = "";
+          for (let i = 0; i < 8; i++) ticketCode += chars[Math.floor(Math.random() * chars.length)];
+        }
+
+        // Create EventRegistration
+        await prisma.eventRegistration.create({
+          data: {
+            eventId,
+            name: ticketOrder.buyerName,
+            email: ticketOrder.buyerEmail,
+            status: "registered",
+            ticketCode,
+            ticketOrderId,
+          },
+        });
+
+        // Update event counts and revenue
+        await prisma.event.update({
+          where: { id: eventId },
+          data: {
+            registrationCount: { increment: 1 },
+            totalRevenueCents: { increment: ticketOrder.amountCents },
+          },
+        });
+
+        // Find event owner for earnings
+        const ticketEvent = await prisma.event.findUnique({
+          where: { id: eventId },
+          select: { userId: true },
+        });
+
+        if (ticketEvent) {
+          // Create earning for organizer
+          await prisma.earning.create({
+            data: {
+              userId: ticketEvent.userId,
+              amountCents: ticketOrder.organizerAmountCents,
+              source: "TICKET_SALE",
+              sourceId: ticketOrderId,
+            },
+          });
+
+          // Add to organizer balance
+          await prisma.user.update({
+            where: { id: ticketEvent.userId },
+            data: { balanceCents: { increment: ticketOrder.organizerAmountCents } },
+          });
+
+          // Create platform fee earning (for FlowSmartly admin tracking)
+          await prisma.earning.create({
+            data: {
+              userId: ticketEvent.userId,
+              amountCents: ticketOrder.platformFeeCents,
+              source: "PLATFORM_FEE",
+              sourceId: ticketOrderId,
+            },
+          });
+        }
+
+        // Auto-create contact
+        if (ticketOrder.buyerEmail && ticketEvent) {
+          const existingContact = await prisma.contact.findFirst({
+            where: { userId: ticketEvent.userId, email: ticketOrder.buyerEmail },
+          });
+          if (!existingContact) {
+            await prisma.contact.create({
+              data: {
+                userId: ticketEvent.userId,
+                email: ticketOrder.buyerEmail,
+                firstName: ticketOrder.buyerName.split(" ")[0] || null,
+                lastName: ticketOrder.buyerName.split(" ").slice(1).join(" ") || null,
+                emailOptedIn: true,
+                emailOptedInAt: new Date(),
+              },
+            });
+          }
+        }
+
+        console.log(
+          `[Stripe Webhook] Event ticket purchased: ${ticketCode} for event ${eventId} ($${(ticketOrder.amountCents / 100).toFixed(2)})`
+        );
       } else if (type === "subscription") {
         // Fetch plan from database (dynamic credits, admin-configurable)
         const dbPlan = await prisma.plan.findUnique({
