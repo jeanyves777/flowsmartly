@@ -494,6 +494,26 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
               )}
             </div>
 
+            {/* E-Commerce Section */}
+            <div className="pt-3">
+              {!isCollapsed && (
+                <div className="px-3 pb-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    E-Commerce
+                  </span>
+                </div>
+              )}
+              {isCollapsed && (
+                <div className="flex justify-center py-2">
+                  <ShoppingBag className={cn("h-4 w-4", pathname.startsWith("/ecommerce") ? "text-brand-500" : "text-muted-foreground")} />
+                </div>
+              )}
+              {renderNavItem(
+                { name: hasEcommerce ? "My Store" : "Start Store", href: hasEcommerce ? "/ecommerce/dashboard" : "/ecommerce", icon: ShoppingBag },
+                pathname.startsWith("/ecommerce")
+              )}
+            </div>
+
             {/* Agent / Marketplace Section */}
             {isAgent ? (
               <div className="pt-3">
