@@ -100,6 +100,15 @@ export const DEFAULT_CREDIT_COSTS = {
 
   // --- AI Image Tools ---
   AI_BG_REMOVE: 1,        // Background removal (rembg, free server-side)
+
+  // --- AI E-Commerce ---
+  AI_PRODUCT_COPY: 5,     // Product copy generation (title, description, SEO, bullets)
+  AI_PRODUCT_IMAGE: 15,   // Product lifestyle image gen or photo enhancement
+  AI_STORE_CONTENT: 8,    // Store content generation (about, policies, FAQ, hero)
+
+  // --- AI Intelligence ---
+  AI_DYNAMIC_PRICING: 3,  // AI pricing suggestion (Claude text generation)
+  AI_SEO_OPTIMIZE: 3,     // AI SEO optimization per product (Claude text generation)
 } as const;
 
 /**
@@ -139,6 +148,11 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_VIDEO_SLIDESHOW: "AI slideshow video generation",
   AI_MARKETING_IMAGE: "AI marketing image generation",
   AI_BG_REMOVE: "AI background removal",
+  AI_PRODUCT_COPY: "AI product copy generation",
+  AI_PRODUCT_IMAGE: "AI product image generation",
+  AI_STORE_CONTENT: "AI store content generation",
+  AI_DYNAMIC_PRICING: "AI dynamic pricing suggestion",
+  AI_SEO_OPTIMIZE: "AI SEO optimization",
 };
 
 /**

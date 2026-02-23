@@ -56,6 +56,9 @@ export default function DashboardLayout({
     ownerAvatarUrl: string | null;
     allowedRoutes: string[];
   } | null>(null);
+  const [storeMode, setStoreMode] = useState(false);
+  const [hasEcommerce, setHasEcommerce] = useState(false);
+  const [storeRegion, setStoreRegion] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -76,6 +79,21 @@ export default function DashboardLayout({
             const agentData = await agentRes.json();
             if (agentData.success && agentData.data?.profile?.status === "APPROVED") {
               setHasAgentProfile(true);
+            }
+          } catch {}
+          // Check if user has an active ecommerce store
+          try {
+            const storeRes = await fetch("/api/ecommerce/store");
+            const storeData = await storeRes.json();
+            if (storeData.success && storeData.data?.hasStore && storeData.data.store?.isActive) {
+              setHasEcommerce(true);
+              setStoreRegion(storeData.data.store.region || null);
+            }
+          } catch {}
+          // Load storeMode from localStorage
+          try {
+            if (localStorage.getItem("flowsmartly_store_mode") === "true") {
+              setStoreMode(true);
             }
           } catch {}
           setIsLoading(false);
@@ -174,6 +192,16 @@ export default function DashboardLayout({
     return () => window.removeEventListener("delegation-mode-change", handler);
   }, [loadDelegationMode]);
 
+  const toggleStoreMode = useCallback(() => {
+    setStoreMode((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("flowsmartly_store_mode", String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
   const exitDelegationMode = useCallback(() => {
     sessionStorage.removeItem("delegation_mode");
     setDelegationMode(null);
@@ -270,6 +298,10 @@ export default function DashboardLayout({
             isAgent={hasAgentProfile}
             delegationMode={delegationMode}
             onExitDelegation={exitDelegationMode}
+            storeMode={storeMode}
+            onToggleStoreMode={toggleStoreMode}
+            hasEcommerce={hasEcommerce}
+            storeRegion={storeRegion}
           />
         </div>
 

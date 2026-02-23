@@ -24,6 +24,29 @@ You balance trending hashtags with niche-specific ones for optimal results.`,
   contentPlanner: `You are a content strategist specializing in social media marketing.
 You create diverse, engaging content ideas that align with brand values and audience interests.
 You understand content pillars and how to balance different types of content.`,
+
+  ecommerceWriter: `You are an expert e-commerce copywriter and product marketing specialist.
+You write compelling, SEO-optimized product copy that drives conversions.
+You understand search intent, benefit-driven writing, and persuasive product descriptions.
+Always match the brand's voice and tone. Be specific, avoid fluff, and highlight unique selling points.
+Return ONLY valid JSON as requested.`,
+
+  ecommerceContent: `You are an expert e-commerce content strategist and brand copywriter.
+You create professional store content including about pages, policies, FAQs, and marketing copy.
+You write in the brand's voice while maintaining clarity and professionalism.
+Content should build trust, reflect the brand identity, and be appropriate for an online store.
+Return ONLY valid JSON as requested.`,
+
+  pricingStrategist: `You are an expert e-commerce pricing strategist.
+You analyze market data, competitor prices, demand signals, and cost structures to recommend optimal pricing.
+You understand psychological pricing, competitive positioning, margin optimization, and demand elasticity.
+Your recommendations are data-driven, practical, and include clear reasoning.
+Return ONLY valid JSON as requested.`,
+
+  seoOptimizer: `You are an expert e-commerce SEO specialist.
+You write compelling, search-engine-optimized titles and meta descriptions that maximize click-through rates.
+You understand keyword placement, search intent, and character limits for search engine results pages.
+Return ONLY valid JSON as requested.`,
 };
 
 // Build brand context string
@@ -355,6 +378,112 @@ PILLAR: [educational/entertaining/inspiring/promotional]
     default:
       prompt += `\n\nWrite ONLY the ready-to-publish content. No explanations, no quotation marks, no labels.`;
   }
+
+  return prompt;
+}
+
+// ── E-Commerce Prompts ──────────────────────────────────────────────────────
+
+/**
+ * Build prompt for AI product copy generation
+ */
+export function buildProductCopyPrompt(params: {
+  productName: string;
+  category?: string;
+  keywords?: string[];
+  existingDescription?: string;
+  brandContext?: BrandContext;
+}): string {
+  const { productName, category, keywords, existingDescription, brandContext } = params;
+
+  let prompt = "";
+
+  if (brandContext) {
+    prompt += `${buildBrandContext(brandContext)}\n\n`;
+  }
+
+  prompt += `Generate complete e-commerce product copy for the following product:
+
+Product Name: ${productName}`;
+
+  if (category) prompt += `\nCategory: ${category}`;
+  if (keywords?.length) prompt += `\nKeywords: ${keywords.join(", ")}`;
+  if (existingDescription) prompt += `\nExisting Description (improve upon this): ${existingDescription}`;
+
+  prompt += `
+
+Generate a JSON object with the following fields:
+{
+  "title": "Optimized product title (max 80 chars, include key selling point)",
+  "description": "Rich product description (2-4 paragraphs, benefit-driven, engaging, include features and use cases)",
+  "shortDescription": "Concise summary (max 160 chars, for catalog/previews)",
+  "seoTitle": "SEO-optimized page title (max 60 chars, include primary keyword)",
+  "seoDescription": "SEO meta description (max 155 chars, include call-to-action)",
+  "bulletPoints": ["Array of 4-6 key selling points/features, each 1 sentence"],
+  "adCopy": "Short ad copy for social media promotion (max 280 chars, compelling with CTA)"
+}
+
+Requirements:
+- Write in the brand's voice and tone
+- Be specific and benefit-driven, not generic
+- Include relevant keywords naturally for SEO
+- The description should tell a story and address customer pain points
+- Bullet points should highlight unique features and benefits`;
+
+  return prompt;
+}
+
+/**
+ * Build prompt for AI store content generation
+ */
+export function buildStoreContentPrompt(params: {
+  contentTypes: string[];
+  storeName?: string;
+  industry?: string;
+  brandContext?: BrandContext;
+}): string {
+  const { contentTypes, storeName, industry, brandContext } = params;
+
+  let prompt = "";
+
+  if (brandContext) {
+    prompt += `${buildBrandContext(brandContext)}\n\n`;
+  }
+
+  prompt += `Generate professional e-commerce store content for "${storeName || "the store"}".`;
+  if (industry) prompt += ` Industry: ${industry}.`;
+
+  prompt += `\n\nGenerate a JSON object with ONLY the requested content types: ${contentTypes.join(", ")}
+
+{`;
+
+  if (contentTypes.includes("tagline")) {
+    prompt += `\n  "tagline": "Catchy store tagline (max 80 chars)",`;
+  }
+  if (contentTypes.includes("about")) {
+    prompt += `\n  "about": "About Us page content (2-3 paragraphs, tell the brand story, mission, values)",`;
+  }
+  if (contentTypes.includes("hero")) {
+    prompt += `\n  "hero": { "headline": "Hero section headline (max 60 chars, bold and compelling)", "subheadline": "Supporting text (max 120 chars)" },`;
+  }
+  if (contentTypes.includes("return_policy")) {
+    prompt += `\n  "returnPolicy": "Return & Refund policy (professional, customer-friendly, cover timeframe, conditions, process)",`;
+  }
+  if (contentTypes.includes("shipping_policy")) {
+    prompt += `\n  "shippingPolicy": "Shipping policy (cover methods, timeframes, costs, tracking, international if applicable)",`;
+  }
+  if (contentTypes.includes("faq")) {
+    prompt += `\n  "faq": [{"question": "Common question", "answer": "Helpful answer"}] (generate 5-8 relevant FAQs for this type of store),`;
+  }
+
+  prompt += `\n}
+
+Requirements:
+- Write in the brand's voice and tone
+- Be professional, trustworthy, and customer-focused
+- Policies should be clear and fair
+- About section should connect emotionally with the target audience
+- FAQs should address real customer concerns for this industry`;
 
   return prompt;
 }

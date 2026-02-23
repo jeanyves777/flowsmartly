@@ -110,6 +110,7 @@ model User {
   joinRequests           TeamJoinRequest[] @relation("JoinRequests")
   projectMemberships     ProjectMember[]
   contentFlags           ContentFlag[]  @relation("ContentFlagsReported")
+  store                  Store?
 
   @@index([email])
   @@index([username])
@@ -2908,4 +2909,362 @@ model ModerationLog {
   @@index([postId])
   @@index([commentId])
   @@index([createdAt])
+}
+
+// ============================================
+// E-COMMERCE (FLOWSHOP)
+// ============================================
+
+model Store {
+  id                     String    @id @default(cuid())
+  userId                 String    @unique
+  name                   String
+  slug                   String    @unique
+  description            String?
+  logoUrl                String?
+  bannerUrl              String?
+
+  // Business
+  industry               String?
+  currency               String    @default("USD")
+  region                 String?
+  country                String?
+
+  // Theme (JSON: {template, colors: {primary, secondary, accent, background, text}, fonts: {heading, body}, layout})
+  theme                  String    @default("{}")
+
+  // Settings (JSON: {shipping, notifications, policies, codMaxAmount, codFee, autoCancel})
+  settings               String    @default("{}")
+
+  // Subscription
+  ecomSubscriptionId     String?   // Stripe subscription ID for $5/month add-on
+  ecomSubscriptionStatus String    @default("inactive") // active, inactive, cancelled, past_due
+
+  // Status
+  isActive               Boolean   @default(false)
+  setupComplete          Boolean   @default(false)
+
+  // Denormalized stats
+  productCount           Int       @default(0)
+  orderCount             Int       @default(0)
+  totalRevenueCents      Int       @default(0)
+
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  deletedAt              DateTime?
+
+  // Relations
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products               Product[]
+  categories             ProductCategory[]
+  orders                 Order[]
+  drivers                DeliveryDriver[]
+  paymentMethods         StorePaymentMethod[]
+
+  @@index([slug])
+  @@index([userId])
+  @@index([isActive])
+}
+
+model Product {
+  id                  String    @id @default(cuid())
+  storeId             String
+  name                String
+  slug                String
+  description         String?
+  shortDescription    String?
+
+  // Categorization
+  category            String?
+  categoryId          String?
+  tags                String    @default("[]") // JSON array
+
+  // Pricing (cents)
+  priceCents          Int
+  comparePriceCents   Int?      // "was" price for discounts
+  costCents           Int?      // cost price for profit tracking
+  currency            String    @default("USD")
+
+  // Images (JSON array: [{url, alt, position}])
+  images              String    @default("[]")
+
+  // Inventory
+  trackInventory      Boolean   @default(false)
+  quantity            Int       @default(0)
+  lowStockThreshold   Int       @default(5)
+
+  // Status
+  status              String    @default("DRAFT") // DRAFT, ACTIVE, ARCHIVED
+
+  // SEO
+  seoTitle            String?
+  seoDescription      String?
+
+  // Denormalized stats
+  viewCount           Int       @default(0)
+  orderCount          Int       @default(0)
+  revenueCents        Int       @default(0)
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
+
+  // Relations
+  store               Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  productCategory     ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  variants            ProductVariant[]
+  competitorPrices    CompetitorPrice[]
+  priceHistory        PriceHistory[]
+  pricingRule         PricingRule?
+
+  @@unique([storeId, slug])
+  @@index([storeId])
+  @@index([storeId, status])
+  @@index([categoryId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ProductVariant {
+  id                  String    @id @default(cuid())
+  productId           String
+  name                String
+  sku                 String?
+
+  // Pricing
+  priceCents          Int
+  comparePriceCents   Int?
+
+  // Options (JSON: {size: "L", color: "Red"})
+  options             String    @default("{}")
+
+  // Inventory
+  quantity            Int       @default(0)
+  imageUrl            String?
+
+  isActive            Boolean   @default(true)
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  product             Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([sku])
+}
+
+model ProductCategory {
+  id                  String    @id @default(cuid())
+  storeId             String
+  name                String
+  slug                String
+  description         String?
+  imageUrl            String?
+  parentId            String?
+  sortOrder           Int       @default(0)
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  store               Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  parent              ProductCategory? @relation("CategoryChildren", fields: [parentId], references: [id])
+  children            ProductCategory[] @relation("CategoryChildren")
+  products            Product[]
+
+  @@unique([storeId, slug])
+  @@index([storeId])
+  @@index([parentId])
+}
+
+model Order {
+  id                  String    @id @default(cuid())
+  storeId             String
+  orderNumber         String    @unique // Format: ORD-2026-XXXX
+
+  // Customer info
+  customerName        String
+  customerEmail       String
+  customerPhone       String?
+  buyerUserId         String?   // If buyer is a FlowSmartly user
+
+  // Items (JSON: [{productId, variantId, name, quantity, priceCents, imageUrl}])
+  items               String    @default("[]")
+
+  // Totals (cents)
+  subtotalCents       Int
+  shippingCents       Int       @default(0)
+  taxCents            Int       @default(0)
+  totalCents          Int
+  currency            String    @default("USD")
+
+  // Status
+  status              String    @default("PENDING") // PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, REFUNDED
+
+  // Payment
+  paymentMethod       String?   // card, mobile_money, cod, bank_transfer
+  paymentStatus       String    @default("pending") // pending, paid, failed, refunded
+  paymentId           String?   // Stripe PI or mobile money ref
+
+  // Shipping
+  shippingAddress     String    @default("{}") // JSON: {name, line1, line2, city, state, zip, country}
+  shippingMethod      String?
+  trackingNumber      String?
+  estimatedDelivery   DateTime?
+
+  // Notes
+  notes               String?
+  cancelReason        String?
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  store               Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  deliveryAssignment  DeliveryAssignment?
+
+  @@index([storeId])
+  @@index([storeId, status])
+  @@index([orderNumber])
+  @@index([customerEmail])
+  @@index([buyerUserId])
+  @@index([createdAt])
+}
+
+model DeliveryDriver {
+  id                  String    @id @default(cuid())
+  storeId             String
+  name                String
+  phone               String
+  email               String?
+
+  vehicleType         String    @default("bike") // bike, car, truck
+  region              String?
+  isActive            Boolean   @default(true)
+
+  // Authentication token for driver location updates
+  accessToken         String?   @unique
+
+  // Current location
+  currentLatitude     Float?
+  currentLongitude    Float?
+  lastLocationUpdate  DateTime?
+
+  status              String    @default("available") // available, busy, offline
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  store               Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  assignments         DeliveryAssignment[]
+
+  @@index([storeId])
+  @@index([storeId, status])
+  @@index([isActive])
+  @@index([accessToken])
+}
+
+model DeliveryAssignment {
+  id                    String    @id @default(cuid())
+  orderId               String    @unique
+  driverId              String
+
+  status                String    @default("assigned") // assigned, picked_up, in_transit, delivered, failed
+
+  // Addresses (JSON)
+  pickupAddress         String    @default("{}")
+  deliveryAddress       String    @default("{}")
+
+  estimatedDeliveryTime DateTime?
+  actualDeliveryTime    DateTime?
+
+  // Proof of delivery (JSON: {photoUrl, signature, notes})
+  proofOfDelivery       String    @default("{}")
+  customerConfirmed     Boolean   @default(false)
+
+  // Location history (JSON: [{lat, lng, timestamp}])
+  locationHistory       String    @default("[]")
+
+  // COD
+  codAmountCents        Int?
+  codCollected          Boolean   @default(false)
+
+  notes                 String?
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  order                 Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driver                DeliveryDriver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([driverId])
+  @@index([status])
+}
+
+model StorePaymentMethod {
+  id                  String    @id @default(cuid())
+  storeId             String
+  methodType          String    // card, mobile_money, cod, bank_transfer, apple_pay, google_pay
+  provider            String?   // stripe, flutterwave, paystack, mpesa, orange_money, mtn_momo, wave
+  isActive            Boolean   @default(true)
+  config              String    @default("{}") // JSON: provider-specific settings
+  region              String?   // Restrict to specific region
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  store               Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, methodType, provider])
+  @@index([storeId])
+}
+
+// ── Intelligence Models ─────────────────────────────────────────────────────
+
+model CompetitorPrice {
+  id              String   @id @default(cuid())
+  productId       String
+  competitorName  String
+  competitorUrl   String?
+  priceCents      Int
+  currency        String   @default("USD")
+  inStock         Boolean  @default(true)
+  lastChecked     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model PriceHistory {
+  id         String   @id @default(cuid())
+  productId  String
+  priceCents Int
+  source     String   // "manual", "ai_suggestion", "competitor_match"
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, createdAt])
+}
+
+model PricingRule {
+  id          String    @id @default(cuid())
+  productId   String    @unique
+  strategy    String    // "beat_lowest", "match_average", "premium", "demand", "margin_target"
+  config      String    @default("{}") // JSON: {marginPercent, offsetCents, minPriceCents, maxPriceCents, roundTo}
+  isActive    Boolean   @default(true)
+  lastApplied DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 }

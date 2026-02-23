@@ -41,8 +41,14 @@ import {
   Scissors,
   FolderKanban,
   FormInput,
+  ShoppingBag,
+  Package,
+  Truck,
+  MapPin,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { COD_REGIONS } from "@/lib/constants/ecommerce";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -66,6 +72,10 @@ interface SidebarProps {
   isAgent?: boolean;
   delegationMode?: DelegationMode | null;
   onExitDelegation?: () => void;
+  storeMode?: boolean;
+  onToggleStoreMode?: () => void;
+  hasEcommerce?: boolean;
+  storeRegion?: string | null;
 }
 
 // Plans that have access to marketing features
@@ -124,7 +134,7 @@ const secondaryNavigation = [
   { name: "Help", href: "/help", icon: HelpCircle },
 ];
 
-export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = false, delegationMode, onExitDelegation }: SidebarProps) {
+export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = false, delegationMode, onExitDelegation, storeMode, onToggleStoreMode, hasEcommerce, storeRegion }: SidebarProps) {
   const pathname = usePathname();
   const hasMarketingAccess = MARKETING_PLANS.includes(userPlan.toUpperCase());
   const isDelegating = delegationMode?.active === true;
@@ -141,6 +151,25 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
   const [marketingOpen, setMarketingOpen] = useState(true);
   const [toolsOpen, setToolsOpen] = useState(true);
   const [moneyOpen, setMoneyOpen] = useState(true);
+
+  // Store mode navigation
+  const storeNavigation = [
+    { name: "Store Dashboard", href: "/ecommerce/dashboard", icon: LayoutDashboard },
+    { name: "Products", href: "/ecommerce/products", icon: Package },
+    { name: "Categories", href: "/ecommerce/categories", icon: FolderOpen },
+    { name: "Orders", href: "/ecommerce/orders", icon: ClipboardList },
+    { name: "Design", href: "/ecommerce/design", icon: Palette },
+    { name: "Analytics", href: "/ecommerce/analytics", icon: BarChart3 },
+    { name: "Intelligence", href: "/ecommerce/intelligence", icon: Brain },
+  ];
+  // Only show for COD regions
+  const codStoreNavigation = [
+    { name: "Drivers", href: "/ecommerce/drivers", icon: Truck },
+    { name: "Delivery", href: "/ecommerce/delivery", icon: MapPin },
+  ];
+  const storeSecondaryNavigation = [
+    { name: "Store Settings", href: "/ecommerce/settings", icon: Settings },
+  ];
 
   const renderNavItem = (
     item: { name: string; href: string; icon: React.ElementType; premium?: boolean },
@@ -300,10 +329,67 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
         </Button>
       </div>
 
+      {/* Social / Store Toggle */}
+      {hasEcommerce && !isCollapsed && (
+        <div className="mx-4 mb-2 flex rounded-lg bg-muted p-1">
+          <button
+            onClick={() => !storeMode && onToggleStoreMode?.()}
+            className={cn(
+              "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              !storeMode ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Social
+          </button>
+          <button
+            onClick={() => storeMode || onToggleStoreMode?.()}
+            className={cn(
+              "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors flex items-center justify-center gap-1.5",
+              storeMode ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <ShoppingBag className="h-3.5 w-3.5" />
+            Store
+          </button>
+        </div>
+      )}
+      {hasEcommerce && isCollapsed && (
+        <div className="flex justify-center mb-2">
+          <button
+            onClick={() => onToggleStoreMode?.()}
+            className={cn(
+              "p-2 rounded-lg transition-colors",
+              storeMode ? "bg-brand-500 text-white" : "text-muted-foreground hover:bg-accent"
+            )}
+          >
+            <ShoppingBag className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+
       {/* Main Navigation */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-        {/* Delegation mode: only show allowed sections */}
-        {isDelegating ? (
+        {/* Store mode, Delegation mode, or Normal mode */}
+        {storeMode ? (
+          <>
+            {/* Store Mode Navigation */}
+            {storeNavigation.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              return renderNavItem(item, isActive);
+            })}
+            {/* COD-specific navigation */}
+            {storeRegion && COD_REGIONS.includes(storeRegion) && codStoreNavigation.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              return renderNavItem(item, isActive);
+            })}
+            <div className="pt-4">
+              {storeSecondaryNavigation.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                return renderNavItem(item, isActive);
+              })}
+            </div>
+          </>
+        ) : isDelegating ? (
           <>
             {/* Delegation banner in sidebar */}
             {!isCollapsed && (

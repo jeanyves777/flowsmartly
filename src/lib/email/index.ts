@@ -36,7 +36,7 @@ function getTransporter() {
 
 // ── Base Email Template ──
 
-function baseTemplate(content: string, preheader?: string): string {
+export function baseTemplate(content: string, preheader?: string): string {
   return `
 <!DOCTYPE html>
 <html lang="en">

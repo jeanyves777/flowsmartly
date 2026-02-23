@@ -189,6 +189,67 @@ async function processWebhookEvent(event: Stripe.Event) {
         console.log(
           `[Stripe Webhook] Event ticket purchased: ${ticketCode} for event ${eventId} ($${(ticketOrder.amountCents / 100).toFixed(2)})`
         );
+      } else if (type === "store_order") {
+        // Handle store order payment
+        const { orderId, storeId, storeSlug } = metadata;
+        if (!orderId) {
+          console.error("[Stripe Webhook] Missing orderId in store_order metadata");
+          break;
+        }
+
+        // Idempotency: check if order already paid
+        const storeOrder = await prisma.order.findUnique({ where: { id: orderId } });
+        if (!storeOrder || storeOrder.paymentStatus === "paid") {
+          console.log(`[Stripe Webhook] Store order ${orderId} already paid or not found, skipping`);
+          break;
+        }
+
+        // Update order: mark paid and confirmed
+        await prisma.order.update({
+          where: { id: orderId },
+          data: {
+            paymentStatus: "paid",
+            paymentId: session.id,
+            status: "CONFIRMED",
+          },
+        });
+
+        // Increment store stats
+        if (storeId) {
+          await prisma.store.update({
+            where: { id: storeId },
+            data: {
+              orderCount: { increment: 1 },
+              totalRevenueCents: { increment: storeOrder.totalCents },
+            },
+          }).catch(() => {});
+        }
+
+        console.log(
+          `[Stripe Webhook] Store order ${orderId} payment confirmed (${storeSlug})`
+        );
+      } else if (type === "ecommerce_subscription") {
+        // E-commerce FlowShop subscription activated
+        await prisma.store.updateMany({
+          where: { userId },
+          data: {
+            ecomSubscriptionId: session.subscription as string || null,
+            ecomSubscriptionStatus: "active",
+            isActive: true,
+          },
+        });
+
+        // Update stripeCustomerId if not already set
+        if (session.customer) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: { stripeCustomerId: session.customer as string },
+          });
+        }
+
+        console.log(
+          `[Stripe Webhook] FlowShop e-commerce subscription activated for user ${userId}`
+        );
       } else if (type === "subscription") {
         // Fetch plan from database (dynamic credits, admin-configurable)
         const dbPlan = await prisma.plan.findUnique({
@@ -427,6 +488,25 @@ async function processWebhookEvent(event: Stripe.Event) {
     case "customer.subscription.deleted": {
       const subscription = event.data.object as Stripe.Subscription;
       const customerId = subscription.customer as string;
+      const subMetaType = subscription.metadata?.type;
+
+      // Check if this is an ecommerce subscription
+      if (subMetaType === "ecommerce_subscription") {
+        const ecomUserId = subscription.metadata?.userId;
+        if (ecomUserId) {
+          await prisma.store.updateMany({
+            where: { userId: ecomUserId },
+            data: {
+              ecomSubscriptionStatus: "cancelled",
+              isActive: false,
+            },
+          });
+          console.log(
+            `[Stripe Webhook] FlowShop e-commerce subscription cancelled for user ${ecomUserId}`
+          );
+        }
+        break;
+      }
 
       // Find user by stripeCustomerId and reset plan to STARTER
       const user = await prisma.user.findFirst({
