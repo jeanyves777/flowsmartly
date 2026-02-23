@@ -67,6 +67,7 @@ const navItems = [
   { href: "/admin/credits", icon: Coins, label: "Credits" },
   { href: "/admin/credit-pricing", icon: DollarSign, label: "Credit Pricing" },
   { href: "/admin/content", icon: FileText, label: "Content" },
+  { href: "/admin/moderation", icon: ShieldCheck, label: "Moderation" },
   { href: "/admin/media", icon: FolderOpen, label: "Media" },
   { href: "/admin/analytics", icon: BarChart3, label: "Analytics" },
   { href: "/admin/visitors", icon: MousePointerClick, label: "Visitors" },

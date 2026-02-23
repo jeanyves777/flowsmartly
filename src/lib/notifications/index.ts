@@ -34,6 +34,8 @@ import {
   sendAgentApprovedEmail,
   sendAgentRejectedEmail,
   sendTeamInvitationEmail,
+  sendContentRemovedEmail,
+  sendContentWarningEmail,
 } from "@/lib/email";
 
 // ── Notification Types ──
@@ -87,6 +89,11 @@ export const NOTIFICATION_TYPES = {
   // Agent
   AGENT_APPROVED: "AGENT_APPROVED",
   AGENT_REJECTED: "AGENT_REJECTED",
+
+  // Moderation
+  CONTENT_FLAGGED: "CONTENT_FLAGGED",
+  CONTENT_REMOVED: "CONTENT_REMOVED",
+  CONTENT_WARNING: "CONTENT_WARNING",
 
   // Content
   AI_GENERATION_COMPLETE: "AI_GENERATION_COMPLETE",
@@ -1612,4 +1619,56 @@ export async function notifyStrategyAutomationComplete(params: {
     },
     actionUrl: "/content/strategy/reports",
   });
+}
+
+// ── Content Moderation Notifications ──
+
+/**
+ * Notify user that their content has been removed
+ */
+export async function notifyContentRemoved(params: {
+  userId: string;
+  email: string;
+  name: string;
+  contentType: "post" | "comment";
+  reason: string;
+}) {
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.CONTENT_REMOVED,
+    title: `Your ${params.contentType} has been removed`,
+    message: `Reason: ${params.reason}. Please review our community guidelines.`,
+    actionUrl: "/feed",
+  });
+
+  sendContentRemovedEmail({
+    to: params.email,
+    name: params.name,
+    contentType: params.contentType,
+    reason: params.reason,
+  }).catch((err) => console.error("Failed to send content removed email:", err));
+}
+
+/**
+ * Notify user of a community guidelines warning
+ */
+export async function notifyContentWarning(params: {
+  userId: string;
+  email: string;
+  name: string;
+  reason: string;
+}) {
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.CONTENT_WARNING,
+    title: "Community Guidelines Warning",
+    message: `Your content has been reviewed: ${params.reason}. Repeated violations may result in account suspension.`,
+    actionUrl: "/feed",
+  });
+
+  sendContentWarningEmail({
+    to: params.email,
+    name: params.name,
+    reason: params.reason,
+  }).catch((err) => console.error("Failed to send content warning email:", err));
 }

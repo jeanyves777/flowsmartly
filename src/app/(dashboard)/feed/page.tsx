@@ -43,6 +43,7 @@ import {
   Upload,
   FolderOpen,
   Zap,
+  Flag,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -297,6 +298,12 @@ export default function FeedPage() {
 
   // Brand identity for user avatar
   const [brandLogo, setBrandLogo] = useState<string | null>(null);
+
+  // Report post state
+  const [reportingPostId, setReportingPostId] = useState<string | null>(null);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDescription, setReportDescription] = useState("");
+  const [isReporting, setIsReporting] = useState(false);
 
   const router = useRouter();
 
@@ -1846,15 +1853,25 @@ export default function FeedPage() {
                               </>
                             )}
                             {post.author.id !== currentUserId && (
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  navigator.clipboard.writeText(`${window.location.origin}/feed?post=${post.id}`);
-                                  toast({ title: "Link copied" });
-                                }}
-                              >
-                                <Link2 className="w-4 h-4 mr-2" />
-                                Copy link
-                              </DropdownMenuItem>
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(`${window.location.origin}/feed?post=${post.id}`);
+                                    toast({ title: "Link copied" });
+                                  }}
+                                >
+                                  <Link2 className="w-4 h-4 mr-2" />
+                                  Copy link
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => setReportingPostId(post.id)}
+                                >
+                                  <Flag className="w-4 h-4 mr-2" />
+                                  Report post
+                                </DropdownMenuItem>
+                              </>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -2883,6 +2900,83 @@ export default function FeedPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Report Post Dialog */}
+      {reportingPostId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-lg p-6 w-full max-w-md mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold mb-4">Report Post</h3>
+            <p className="text-sm text-muted-foreground mb-4">Why are you reporting this post?</p>
+            <div className="space-y-2 mb-4">
+              {[
+                { value: "spam", label: "Spam" },
+                { value: "harassment", label: "Harassment or bullying" },
+                { value: "hate_speech", label: "Hate speech" },
+                { value: "nudity", label: "Nudity or sexual content" },
+                { value: "violence", label: "Violence or threats" },
+                { value: "misinformation", label: "Misinformation" },
+                { value: "other", label: "Other" },
+              ].map(opt => (
+                <label key={opt.value} className="flex items-center gap-3 p-2 rounded-md hover:bg-muted cursor-pointer">
+                  <input
+                    type="radio"
+                    name="reportReason"
+                    value={opt.value}
+                    checked={reportReason === opt.value}
+                    onChange={() => setReportReason(opt.value)}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+            <textarea
+              placeholder="Additional details (optional)"
+              value={reportDescription}
+              onChange={(e) => setReportDescription(e.target.value)}
+              maxLength={500}
+              className="w-full p-3 border rounded-md text-sm resize-none h-20 mb-4"
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setReportingPostId(null); setReportReason(""); setReportDescription(""); }}
+                className="px-4 py-2 text-sm rounded-md border hover:bg-muted"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!reportReason || isReporting}
+                onClick={async () => {
+                  setIsReporting(true);
+                  try {
+                    const res = await fetch(`/api/posts/${reportingPostId}/report`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ reason: reportReason, description: reportDescription }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      toast({ title: "Report submitted. Thank you." });
+                    } else {
+                      toast({ title: data.error?.message || "Failed to report", variant: "destructive" });
+                    }
+                  } catch {
+                    toast({ title: "Failed to submit report", variant: "destructive" });
+                  } finally {
+                    setIsReporting(false);
+                    setReportingPostId(null);
+                    setReportReason("");
+                    setReportDescription("");
+                  }
+                }}
+                className="px-4 py-2 text-sm rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+              >
+                {isReporting ? "Submitting..." : "Submit Report"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </motion.div>
   );

@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = {
       status: "PUBLISHED",
       deletedAt: null,
+      moderationStatus: { not: "removed" },
     };
 
     // Filter by specific user if provided
@@ -155,9 +156,19 @@ export async function GET(request: NextRequest) {
     }> = [];
 
     try {
+      let viewerRegion: string | null = null;
+      if (session) {
+        const viewer = await prisma.user.findUnique({
+          where: { id: session.userId },
+          select: { region: true },
+        });
+        viewerRegion = viewer?.region || null;
+      }
+
       const { getActiveAdCampaigns } = await import("@/lib/ads/placement-engine");
       const activeCampaigns = await getActiveAdCampaigns({
         excludeUserId: session?.userId,
+        viewerRegion,
         limit: 3,
       });
       adCampaigns = activeCampaigns.map(c => ({
@@ -265,6 +276,24 @@ export async function POST(request: NextRequest) {
       triggerActivitySyncForUser(session.userId).catch((err) =>
         console.error("Activity sync hook (post create) failed:", err)
       );
+    }
+
+    // Screen content (fire-and-forget)
+    const caption = content?.trim();
+    if (caption) {
+      import("@/lib/moderation/content-screener").then(({ screenContent }) => {
+        screenContent(caption, { useAI: !!process.env.OPENAI_MODERATION_ENABLED }).then(async (result) => {
+          if (result.action !== "clean") {
+            await prisma.post.update({
+              where: { id: post.id },
+              data: {
+                moderationStatus: result.action === "remove" ? "removed" : "flagged",
+                moderationReason: result.reason,
+              },
+            });
+          }
+        }).catch(err => console.error("Content screening failed:", err));
+      }).catch(() => {});
     }
 
     return NextResponse.json({

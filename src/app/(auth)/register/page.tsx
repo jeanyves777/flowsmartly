@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { RegisterIllustration } from "@/components/illustrations/register-illustration";
+import { REGIONS } from "@/lib/constants/regions";
 
 function RegisterPageContent() {
   const router = useRouter();
@@ -29,6 +30,7 @@ function RegisterPageContent() {
     email: "",
     username: "",
     password: "",
+    country: "",
     referralCode: refCode || "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -67,6 +69,13 @@ function RegisterPageContent() {
     e.preventDefault();
     setIsLoading(true);
     setErrors({});
+
+    // Client-side validation
+    if (!formData.country) {
+      setErrors((prev) => ({ ...prev, country: "Please select your country" }));
+      setIsLoading(false);
+      return;
+    }
 
     try {
       // Only include referralCode if it has a value
@@ -296,6 +305,32 @@ function RegisterPageContent() {
               </div>
             </div>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="country">Country</Label>
+          <select
+            id="country"
+            name="country"
+            value={formData.country}
+            onChange={(e) => {
+              setFormData(prev => ({ ...prev, country: e.target.value }));
+              if (errors.country) setErrors(prev => ({ ...prev, country: "" }));
+            }}
+            disabled={isLoading}
+            required
+            className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          >
+            <option value="">Select your country</option>
+            {REGIONS.map(region => (
+              <optgroup key={region.id} label={region.name}>
+                {region.countries.map(c => (
+                  <option key={c.code} value={c.code}>{c.name}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          {errors.country && <p className="text-sm text-destructive">{errors.country}</p>}
         </div>
 
         {/* Referral code field */}

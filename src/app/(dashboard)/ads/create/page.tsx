@@ -57,6 +57,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { MediaUploader } from "@/components/shared/media-uploader";
+import { REGIONS } from "@/lib/constants/regions";
 
 // Platform SVG icons
 function InstagramIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
@@ -238,9 +239,8 @@ const DEFAULT_TAGS: AudienceTag[] = [
   { label: "Online shoppers", category: "behavior" },
   { label: "Engaged users", category: "behavior" },
   { label: "Frequent travelers", category: "behavior" },
-  { label: "United States", category: "location" },
-  { label: "Europe", category: "location" },
-  { label: "Worldwide", category: "location" },
+  { label: "Worldwide", category: "location" as TagCategory },
+  ...REGIONS.map(r => ({ label: r.name, category: "location" as TagCategory })),
   { label: "Mobile users", category: "device" },
   { label: "Female", category: "gender" },
   { label: "Male", category: "gender" },

@@ -6,6 +6,7 @@
 import { prisma } from "@/lib/db/client";
 import { isGoogleAdsConfigured } from "./google-ads-client";
 import { activateOnGoogleAds, pauseOnGoogleAds } from "./google-ads-handler";
+import { REGIONS } from "@/lib/constants/regions";
 
 export interface PlacementChannel {
   id: string;
@@ -35,6 +36,7 @@ export interface AdCandidate {
  */
 export async function getActiveAdCampaigns(options: {
   excludeUserId?: string;
+  viewerRegion?: string | null;
   limit?: number;
 }): Promise<AdCandidate[]> {
   const now = new Date();
@@ -65,8 +67,21 @@ export async function getActiveAdCampaigns(options: {
   });
 
   // Filter campaigns that still have budget remaining
+  // Then filter by location targeting if viewer region is known
   return campaigns
     .filter(c => c.spentCents < c.budgetCents)
+    .filter(c => {
+      if (!options.viewerRegion) return true;
+      const targeting: { tags?: Array<{ label: string; category: string }> } = (() => {
+        try { return JSON.parse((c as Record<string, unknown>).targeting as string || "{}"); } catch { return {}; }
+      })();
+      const locationTags = (targeting.tags || [])
+        .filter(t => t.category === "location")
+        .map(t => t.label);
+      if (locationTags.length === 0 || locationTags.includes("Worldwide")) return true;
+      const viewerRegionName = REGIONS.find(r => r.id === options.viewerRegion)?.name;
+      return viewerRegionName ? locationTags.includes(viewerRegionName) : true;
+    })
     .map(c => ({
       id: c.id,
       name: c.name,

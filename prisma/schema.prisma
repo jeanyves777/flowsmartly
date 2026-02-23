@@ -38,6 +38,10 @@ model User {
   // Referral Program
   referralCode      String?   @unique  // User's unique referral code (REF-XXXXXXXX)
 
+  // Location
+  country           String?
+  region            String?
+
   // Settings
   timezone          String    @default("UTC")
   language          String    @default("en")
@@ -105,6 +109,7 @@ model User {
   events                 Event[]
   joinRequests           TeamJoinRequest[] @relation("JoinRequests")
   projectMemberships     ProjectMember[]
+  contentFlags           ContentFlag[]  @relation("ContentFlagsReported")
 
   @@index([email])
   @@index([username])
@@ -218,6 +223,11 @@ model Post {
   updatedAt    DateTime   @updatedAt
   deletedAt    DateTime?
 
+  // Moderation
+  moderationStatus  String   @default("clean")
+  moderationReason  String?
+  flagCount         Int      @default(0)
+
   // Relations
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   adCampaign   AdCampaign? @relation(fields: [campaignId], references: [id])
@@ -227,6 +237,7 @@ model Post {
   shares       Share[]
   postViews    PostView[]
   contentVariants ContentVariant[]
+  contentFlags    ContentFlag[]
 
   @@index([userId])
   @@index([status, scheduledAt])
@@ -247,11 +258,17 @@ model Comment {
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
 
+  // Moderation
+  moderationStatus  String   @default("clean")
+  moderationReason  String?
+  flagCount         Int      @default(0)
+
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id])
   replies   Comment[] @relation("CommentReplies")
   commentLikes CommentLike[]
+  contentFlags    ContentFlag[]
 
   @@index([postId])
   @@index([userId])
@@ -2842,4 +2859,53 @@ model TeamJoinRequest {
   @@unique([teamId, userId])
   @@index([teamId])
   @@index([status])
+}
+
+// ============================================
+// CONTENT MODERATION
+// ============================================
+
+model ContentFlag {
+  id              String    @id @default(cuid())
+  reporterUserId  String
+
+  contentType     String    // "post" or "comment"
+  postId          String?
+  commentId       String?
+
+  reason          String    // spam, harassment, hate_speech, nudity, violence, misinformation, other
+  description     String?
+
+  status          String    @default("pending") // pending, reviewed, dismissed, actioned
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  resolution      String?   // approved, removed, warned, suspended
+
+  createdAt       DateTime  @default(now())
+
+  reporter        User      @relation("ContentFlagsReported", fields: [reporterUserId], references: [id], onDelete: Cascade)
+  post            Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment         Comment?  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([contentType, status])
+  @@index([postId])
+  @@index([commentId])
+  @@index([reporterUserId])
+}
+
+model ModerationLog {
+  id            String    @id @default(cuid())
+  adminId       String
+  contentType   String    // "post" or "comment"
+  postId        String?
+  commentId     String?
+  userId        String?   // Content owner affected
+  action        String    // approve, remove, warn, suspend
+  reason        String?
+  createdAt     DateTime  @default(now())
+
+  @@index([adminId])
+  @@index([postId])
+  @@index([commentId])
+  @@index([createdAt])
 }

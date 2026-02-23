@@ -1534,6 +1534,63 @@ export async function sendTeamInvitationEmail(params: {
   });
 }
 
+// Content Removed (Moderation)
+export async function sendContentRemovedEmail(params: {
+  to: string;
+  name: string;
+  contentType: string;
+  reason: string;
+}) {
+  const content = `
+    <h2>Content Removed</h2>
+    <p>Hi ${params.name},</p>
+    <p>Your ${params.contentType} has been removed for violating our community guidelines.</p>
+    <div class="warning">
+      <strong>Reason:</strong><br>
+      ${params.reason}
+    </div>
+    <p>Please review our guidelines to avoid future violations. Repeated violations may result in account restrictions.</p>
+    <p style="text-align: center;">
+      <a href="${APP_URL}/feed" class="button">View Community Guidelines</a>
+    </p>
+    <p style="color: #71717a; font-size: 14px;">If you believe this was a mistake, please contact support by replying to this email.</p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Content Removed - ${APP_NAME}`,
+    html: baseTemplate(content, "Your content has been removed"),
+  });
+}
+
+// Content Warning (Moderation)
+export async function sendContentWarningEmail(params: {
+  to: string;
+  name: string;
+  reason: string;
+}) {
+  const content = `
+    <h2>Community Guidelines Warning</h2>
+    <p>Hi ${params.name},</p>
+    <p>We've reviewed content on your account and found it may not align with our community guidelines.</p>
+    <div class="warning">
+      <strong>Reason:</strong><br>
+      ${params.reason}
+    </div>
+    <p>Please ensure your content follows our community guidelines. Repeated violations may result in account restrictions.</p>
+    <p style="text-align: center;">
+      <a href="${APP_URL}/feed" class="button">View Guidelines</a>
+    </p>
+    <p style="color: #71717a; font-size: 14px;">If you believe this was a mistake, please contact support by replying to this email.</p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Community Guidelines Warning - ${APP_NAME}`,
+    html: baseTemplate(content, "Please review our community guidelines"),
+  });
+}
+
 // Test Email Function (for admin/debugging)
 export async function sendTestEmail(to: string): Promise<{
   success: boolean;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { presignAllUrls } from "@/lib/utils/s3-client";
+import { getRegionForCountry } from "@/lib/constants/regions";
 
 // GET /api/users/profile - Get current user's profile, or public profile by ?username=
 export async function GET(request: NextRequest) {
@@ -88,6 +89,8 @@ export async function GET(request: NextRequest) {
         plan: true,
         aiCredits: true,
         balanceCents: true,
+        country: true,
+        region: true,
         timezone: true,
         language: true,
         theme: true,
@@ -127,6 +130,8 @@ export async function GET(request: NextRequest) {
           plan: user.plan,
           aiCredits: user.aiCredits,
           balance: user.balanceCents / 100,
+          country: user.country,
+          region: user.region,
           timezone: user.timezone,
           language: user.language,
           theme: user.theme,
@@ -168,6 +173,7 @@ export async function PATCH(request: NextRequest) {
       links,
       avatarUrl,
       coverImageUrl,
+      country,
       timezone,
       language,
       theme,
@@ -189,6 +195,10 @@ export async function PATCH(request: NextRequest) {
     }
     if (links !== undefined) {
       updateData.links = JSON.stringify(links);
+    }
+    if (country !== undefined) {
+      updateData.country = country;
+      updateData.region = getRegionForCountry(country) || "worldwide";
     }
 
     // Check username uniqueness (exclude current user by ID)
@@ -217,6 +227,8 @@ export async function PATCH(request: NextRequest) {
         links: true,
         avatarUrl: true,
         coverImageUrl: true,
+        country: true,
+        region: true,
         timezone: true,
         language: true,
         theme: true,

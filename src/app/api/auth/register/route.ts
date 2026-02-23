@@ -5,6 +5,7 @@ import { hashPassword, validatePasswordStrength, generateToken } from "@/lib/aut
 import { createSession, setSessionCookies } from "@/lib/auth/session";
 import { notifyWelcome } from "@/lib/notifications";
 import { processReferralSignup } from "@/lib/referrals";
+import { getRegionForCountry } from "@/lib/constants/regions";
 
 // Validation schema
 const registerSchema = z.object({
@@ -20,6 +21,7 @@ const registerSchema = z.object({
       "Username can only contain letters, numbers, and underscores"
     )
     .toLowerCase(),
+  country: z.string().min(1, "Country is required").max(20),
   referralCode: z.string().optional(),
 });
 
@@ -43,7 +45,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, password, name, username } = validation.data;
+    const { email, password, name, username, country } = validation.data;
+    const region = getRegionForCountry(country) || "worldwide";
 
     // Validate password strength
     const passwordCheck = validatePasswordStrength(password);
@@ -109,6 +112,8 @@ export async function POST(request: NextRequest) {
         passwordHash,
         name,
         username,
+        country,
+        region,
         aiCredits: 100,
         freeCredits: 100,
       },
@@ -117,6 +122,7 @@ export async function POST(request: NextRequest) {
         email: true,
         name: true,
         username: true,
+        country: true,
         plan: true,
       },
     });

@@ -52,6 +52,7 @@ import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { PLATFORM_META } from "@/components/shared/social-platform-icons";
 import { FileDropZone } from "@/components/shared/file-drop-zone";
 import { MediaUploader } from "@/components/shared/media-uploader";
+import { REGIONS } from "@/lib/constants/regions";
 import { StripeProvider } from "@/components/providers/stripe-provider";
 import { AddCardForm } from "@/components/payments/add-card-form";
 import { InlineUpgrade } from "@/components/payments/inline-upgrade";
@@ -76,6 +77,7 @@ interface UserProfile {
   avatarUrl: string | null;
   bio: string | null;
   website: string | null;
+  country: string | null;
   plan: string;
   aiCredits: number;
   balance: number;
@@ -182,6 +184,7 @@ export default function SettingsPage() {
     username: "",
     bio: "",
     website: "",
+    country: "",
     avatarUrl: "",
     coverImageUrl: "",
   });
@@ -273,6 +276,7 @@ export default function SettingsPage() {
         username: userData.username || "",
         bio: userData.bio || brandKit?.description || "",
         website: userData.website || brandKit?.website || "",
+        country: userData.country || "",
         avatarUrl: userData.avatarUrl || brandKit?.iconLogo || brandKit?.logo || "",
         coverImageUrl: userData.coverImageUrl || "",
       });
@@ -428,6 +432,7 @@ export default function SettingsPage() {
           username: profile.username,
           bio: profile.bio,
           website: profile.website,
+          country: profile.country,
           avatarUrl: profile.avatarUrl,
           coverImageUrl: profile.coverImageUrl,
           links: cleanLinks,
@@ -998,6 +1003,27 @@ export default function SettingsPage() {
                             />
                           </div>
                         </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="country">Country</Label>
+                        <select
+                          id="country"
+                          value={profile.country}
+                          onChange={(e) =>
+                            setProfile({ ...profile, country: e.target.value })
+                          }
+                          className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        >
+                          <option value="">Select your country</option>
+                          {REGIONS.map(region => (
+                            <optgroup key={region.id} label={region.name}>
+                              {region.countries.map(c => (
+                                <option key={c.code} value={c.code}>{c.name}</option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
                       </div>
 
                       <div className="space-y-2">
