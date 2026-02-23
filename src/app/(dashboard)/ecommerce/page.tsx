@@ -25,6 +25,13 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { StripeProvider } from "@/components/providers/stripe-provider";
 import { SubscriptionCheckoutModal } from "@/components/ecommerce/subscription-checkout-modal";
+import {
+  ECOM_PLAN_FEATURES,
+  ECOM_PLAN_NAMES,
+  ECOM_BASIC_PRICE_CENTS,
+  ECOM_PRO_PRICE_CENTS,
+  type EcomPlan,
+} from "@/lib/domains/pricing";
 
 interface StoreData {
   id: string;
@@ -87,6 +94,7 @@ export default function EcommercePage() {
 
   const [loading, setLoading] = useState(true);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<EcomPlan | undefined>(undefined);
   const [store, setStore] = useState<StoreData | null>(null);
 
   useEffect(() => {
@@ -376,73 +384,127 @@ export default function EcommercePage() {
         </div>
       </section>
 
-      {/* ── Activation Card ── */}
-      <section id="activate" className="max-w-lg mx-auto">
-        <div className="rounded-2xl border-2 border-violet-200 dark:border-violet-800 bg-card shadow-xl overflow-hidden">
-          {/* Card header gradient */}
-          <div className="bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-600 px-8 py-6 text-center text-white">
-            <ShoppingBag className="h-10 w-10 mx-auto mb-2" />
-            <h2 className="text-2xl font-bold">Start Selling Today</h2>
-            <p className="text-white/80 text-sm mt-1">14-day free trial — no charge today</p>
+      {/* ── Plan Cards ── */}
+      <section id="activate">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold">Choose Your Plan</h2>
+          <p className="text-muted-foreground mt-2">Both plans include a 14-day free trial. No charge today.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+          {/* Basic Plan */}
+          <div className="rounded-2xl border-2 border-border bg-card shadow-lg overflow-hidden hover:border-violet-300 transition-colors">
+            <div className="bg-gradient-to-r from-slate-600 to-slate-700 px-6 py-5 text-center text-white">
+              <ShoppingBag className="h-8 w-8 mx-auto mb-2" />
+              <h3 className="text-xl font-bold">{ECOM_PLAN_NAMES.basic}</h3>
+              <p className="text-white/70 text-xs mt-1">Everything you need to start selling</p>
+            </div>
+
+            <div className="p-6">
+              <div className="text-center mb-5">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-medium mb-3">
+                  14-Day Free Trial
+                </div>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-4xl font-extrabold">${(ECOM_BASIC_PRICE_CENTS / 100).toFixed(0)}</span>
+                  <span className="text-muted-foreground text-lg">/month</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">After trial ends. Cancel anytime.</p>
+              </div>
+
+              <div className="space-y-2.5 mb-6">
+                {ECOM_PLAN_FEATURES.basic.map((feature) => (
+                  <div key={feature} className="flex items-start gap-2.5">
+                    <div className="h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <span className="text-sm">{feature}</span>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                onClick={() => {
+                  setSelectedPlan("basic");
+                  setCheckoutOpen(true);
+                }}
+                variant="outline"
+                className="w-full h-11 text-base"
+                size="lg"
+              >
+                Start Free Trial
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
           </div>
 
-          <div className="p-8">
-            {/* Price */}
-            <div className="text-center mb-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-sm font-medium mb-3">
-                14-Day Free Trial
-              </div>
-              <div className="inline-flex items-baseline gap-1">
-                <span className="text-4xl font-extrabold">$5&ndash;$12</span>
-                <span className="text-muted-foreground text-lg">/month</span>
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">Choose Basic or Pro when you subscribe</p>
-              <p className="text-xs text-muted-foreground mt-0.5">After trial ends. Cancel anytime.</p>
+          {/* Pro Plan */}
+          <div className="relative rounded-2xl border-2 border-violet-400 dark:border-violet-600 bg-card shadow-xl overflow-hidden">
+            {/* Best value badge */}
+            <div className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 text-white text-xs font-semibold shadow-md">
+              <Star className="h-3 w-3" />
+              BEST VALUE
             </div>
 
-            {/* What you get */}
-            <div className="space-y-3 mb-6">
-              {[
-                "Unlimited products & categories",
-                "10 premium store themes",
-                "Stripe payments integration",
-                "AI product copy & image tools",
-                "Analytics & intelligence dashboard",
-                "Customer email notifications",
-                "Delivery tracking system",
-              ].map((item) => (
-                <div key={item} className="flex items-center gap-3">
-                  <div className="h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
-                    <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <span className="text-sm">{item}</span>
+            <div className="bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-600 px-6 py-5 text-center text-white">
+              <ShoppingBag className="h-8 w-8 mx-auto mb-2" />
+              <h3 className="text-xl font-bold">{ECOM_PLAN_NAMES.pro}</h3>
+              <p className="text-white/80 text-xs mt-1">Grow faster with premium features</p>
+            </div>
+
+            <div className="p-6">
+              <div className="text-center mb-5">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-medium mb-3">
+                  14-Day Free Trial
                 </div>
-              ))}
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-4xl font-extrabold">${(ECOM_PRO_PRICE_CENTS / 100).toFixed(0)}</span>
+                  <span className="text-muted-foreground text-lg">/month</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">After trial ends. Cancel anytime.</p>
+              </div>
+
+              <div className="space-y-2.5 mb-6">
+                {ECOM_PLAN_FEATURES.pro.map((feature) => (
+                  <div key={feature} className="flex items-start gap-2.5">
+                    <div className="h-5 w-5 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Check className="h-3 w-3 text-violet-600 dark:text-violet-400" />
+                    </div>
+                    <span className="text-sm">{feature}</span>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                onClick={() => {
+                  setSelectedPlan("pro");
+                  setCheckoutOpen(true);
+                }}
+                className="w-full h-11 text-base bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 shadow-lg shadow-violet-500/25"
+                size="lg"
+              >
+                Start Free Trial
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
             </div>
-
-            {/* Activate Button — opens the confirmation modal */}
-            <Button
-              onClick={() => setCheckoutOpen(true)}
-              className="w-full h-12 text-base bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 shadow-lg shadow-violet-500/25"
-              size="lg"
-            >
-              Start Free Trial
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </Button>
-
-            <p className="text-xs text-center text-muted-foreground mt-3">
-              Card required. You will not be charged during the 14-day trial.
-            </p>
           </div>
         </div>
+
+        <p className="text-xs text-center text-muted-foreground mt-4">
+          Card required. You will not be charged during the 14-day trial.
+        </p>
       </section>
 
       {/* Subscription Checkout Modal */}
       <StripeProvider>
         <SubscriptionCheckoutModal
           open={checkoutOpen}
-          onClose={() => setCheckoutOpen(false)}
+          onClose={() => {
+            setCheckoutOpen(false);
+            setSelectedPlan(undefined);
+          }}
           onSuccess={handleCheckoutSuccess}
+          initialPlan={selectedPlan}
         />
       </StripeProvider>
 

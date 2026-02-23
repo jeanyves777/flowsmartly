@@ -47,18 +47,20 @@ interface SubscriptionCheckoutModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  initialPlan?: EcomPlan;
 }
 
 export function SubscriptionCheckoutModal({
   open,
   onClose,
   onSuccess,
+  initialPlan,
 }: SubscriptionCheckoutModalProps) {
   const stripe = useStripe();
   const elements = useElements();
 
-  const [step, setStep] = useState<"plan" | "terms" | "payment">("plan");
-  const [selectedPlan, setSelectedPlan] = useState<EcomPlan>("pro");
+  const [step, setStep] = useState<"plan" | "terms" | "payment">(initialPlan ? "terms" : "plan");
+  const [selectedPlan, setSelectedPlan] = useState<EcomPlan>(initialPlan || "pro");
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedPmId, setSelectedPmId] = useState<string | null>(null);
@@ -72,8 +74,8 @@ export function SubscriptionCheckoutModal({
   // Load payment methods when modal opens
   useEffect(() => {
     if (!open) {
-      setStep("plan");
-      setSelectedPlan("pro");
+      setStep(initialPlan ? "terms" : "plan");
+      setSelectedPlan(initialPlan || "pro");
       setAgreedTerms(false);
       setSelectedPmId(null);
       setAddingCard(false);
@@ -82,7 +84,7 @@ export function SubscriptionCheckoutModal({
       return;
     }
     loadPaymentMethods();
-  }, [open]);
+  }, [open, initialPlan]);
 
   async function loadPaymentMethods() {
     setLoadingMethods(true);
