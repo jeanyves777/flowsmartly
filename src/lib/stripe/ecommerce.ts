@@ -1,6 +1,7 @@
 /**
  * Stripe helpers for FlowShop e-commerce subscriptions.
- * Two tiers: Basic ($5/month) and Pro ($12/month), both with 14-day free trial.
+ * Basic ($5/month): 30-day free trial, no card required.
+ * Pro ($12/month): 14-day free trial, card required.
  */
 
 import Stripe from "stripe";
@@ -9,11 +10,14 @@ import {
   ECOM_BASIC_PRICE_CENTS,
   ECOM_PRO_PRICE_CENTS,
   ECOM_PLAN_NAMES,
+  ECOM_BASIC_TRIAL_DAYS,
+  ECOM_PRO_TRIAL_DAYS,
   type EcomPlan,
 } from "@/lib/domains/pricing";
 
 /**
- * Create a FlowShop subscription with 14-day free trial.
+ * Create a FlowShop subscription with plan-specific trial period.
+ * Basic: 30-day trial. Pro: 14-day trial.
  * Card is captured but not charged until trial ends.
  */
 export async function createEcommerceSubscription(params: {
@@ -29,6 +33,7 @@ export async function createEcommerceSubscription(params: {
   const plan: EcomPlan = params.plan || "basic";
   const priceCents = plan === "pro" ? ECOM_PRO_PRICE_CENTS : ECOM_BASIC_PRICE_CENTS;
   const planName = ECOM_PLAN_NAMES[plan];
+  const trialDays = plan === "pro" ? ECOM_PRO_TRIAL_DAYS : ECOM_BASIC_TRIAL_DAYS;
 
   // Set default payment method on customer
   await stripe.customers.update(params.customerId, {
@@ -38,7 +43,7 @@ export async function createEcommerceSubscription(params: {
   // Create product (required for subscription price_data in v2026 API)
   const product = await stripe.products.create({
     name: planName,
-    description: `${planName} — Monthly e-commerce store subscription with 14-day free trial`,
+    description: `${planName} — Monthly e-commerce store subscription`,
   });
 
   const subscription = await stripe.subscriptions.create({
@@ -54,7 +59,7 @@ export async function createEcommerceSubscription(params: {
       },
     ],
     default_payment_method: params.paymentMethodId,
-    trial_period_days: 14,
+    trial_period_days: trialDays,
     payment_settings: {
       save_default_payment_method: "on_subscription",
     },
@@ -69,6 +74,58 @@ export async function createEcommerceSubscription(params: {
     subscriptionId: subscription.id,
     clientSecret: null,
     status: subscription.status, // will be "trialing"
+  };
+}
+
+/**
+ * Convert a free trial (no Stripe subscription) to a paid Basic subscription.
+ * Called when a user adds a card during or after the free trial.
+ * No further trial — billing starts immediately.
+ */
+export async function convertFreeTrialToSubscription(params: {
+  userId: string;
+  customerId: string;
+  paymentMethodId: string;
+}): Promise<{ subscriptionId: string; status: string }> {
+  if (!stripe) {
+    throw new Error("Stripe is not configured.");
+  }
+
+  await stripe.customers.update(params.customerId, {
+    invoice_settings: { default_payment_method: params.paymentMethodId },
+  });
+
+  const product = await stripe.products.create({
+    name: ECOM_PLAN_NAMES.basic,
+    description: `${ECOM_PLAN_NAMES.basic} — Monthly e-commerce store subscription`,
+  });
+
+  const subscription = await stripe.subscriptions.create({
+    customer: params.customerId,
+    items: [
+      {
+        price_data: {
+          currency: "usd",
+          product: product.id,
+          recurring: { interval: "month" },
+          unit_amount: ECOM_BASIC_PRICE_CENTS,
+        },
+      },
+    ],
+    default_payment_method: params.paymentMethodId,
+    payment_settings: {
+      save_default_payment_method: "on_subscription",
+    },
+    metadata: {
+      userId: params.userId,
+      type: "ecommerce_subscription",
+      plan: "basic",
+    },
+  });
+
+  return {
+    subscriptionId: subscription.id,
+    status: subscription.status,
   };
 }
 

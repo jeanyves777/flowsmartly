@@ -212,6 +212,28 @@ export function SubscriptionCheckoutModal({
     }
   }
 
+  async function handleActivateFreeTrial() {
+    setActivating(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/ecommerce/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: "basic" }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setError(data.error?.message || "Failed to start free trial");
+        return;
+      }
+      onSuccess();
+    } catch {
+      setError("Failed to start trial. Please try again.");
+    } finally {
+      setActivating(false);
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className={`max-h-[90vh] overflow-hidden flex flex-col ${step === "plan" ? "sm:max-w-2xl" : "sm:max-w-lg"}`}>
@@ -378,10 +400,12 @@ export function SubscriptionCheckoutModal({
               <Gift className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <div>
                 <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
-                  14-Day Free Trial
+                  {selectedPlan === "basic" ? "30-Day Free Trial" : "14-Day Free Trial"}
                 </p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                  Your card will not be charged for 14 days. Cancel anytime.
+                  {selectedPlan === "basic"
+                    ? "No credit card required. Start selling immediately."
+                    : "Your card will not be charged for 14 days. Cancel anytime."}
                 </p>
               </div>
             </div>
@@ -401,9 +425,15 @@ export function SubscriptionCheckoutModal({
                 </h4>
                 <ul className="list-disc pl-5 space-y-1">
                   <li>
-                    14-day free trial, then ${((selectedPlan === "pro" ? ECOM_PRO_PRICE_CENTS : ECOM_BASIC_PRICE_CENTS) / 100).toFixed(2)} USD/month ({ECOM_PLAN_NAMES[selectedPlan]}) billed automatically.
+                    {selectedPlan === "basic"
+                      ? `30-day free trial, no card required. After trial, $${(ECOM_BASIC_PRICE_CENTS / 100).toFixed(2)} USD/month if you add a payment method.`
+                      : `14-day free trial, then $${(ECOM_PRO_PRICE_CENTS / 100).toFixed(2)} USD/month (${ECOM_PLAN_NAMES.pro}) billed automatically.`}
                   </li>
-                  <li>A valid payment card is required but will not be charged during the trial.</li>
+                  <li>
+                    {selectedPlan === "basic"
+                      ? "No credit card is required to start. You can add one anytime during your trial."
+                      : "A valid payment card is required but will not be charged during the trial."}
+                  </li>
                   <li>Cancel anytime from your dashboard — no partial refunds for unused time.</li>
                   <li>
                     Stripe processing fees (2.9% + $0.30) apply to each customer payment.
@@ -523,19 +553,34 @@ export function SubscriptionCheckoutModal({
 
             {/* Continue button */}
             <div className="flex justify-between gap-3">
-              <Button variant="ghost" onClick={() => setStep("plan")}>
+              <Button variant="ghost" onClick={() => setStep("plan")} disabled={activating}>
                 Back
               </Button>
               <div className="flex gap-3">
-                <Button variant="outline" onClick={onClose}>
+                <Button variant="outline" onClick={onClose} disabled={activating}>
                   Cancel
                 </Button>
                 <Button
-                  disabled={!agreedTerms}
-                  onClick={() => setStep("payment")}
+                  disabled={!agreedTerms || activating}
+                  onClick={() => {
+                    if (selectedPlan === "basic") {
+                      handleActivateFreeTrial();
+                    } else {
+                      setStep("payment");
+                    }
+                  }}
                   className="bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700"
                 >
-                  Continue to Payment
+                  {activating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Starting Trial...
+                    </>
+                  ) : selectedPlan === "basic" ? (
+                    "Start Free Trial"
+                  ) : (
+                    "Continue to Payment"
+                  )}
                 </Button>
               </div>
             </div>
@@ -547,7 +592,7 @@ export function SubscriptionCheckoutModal({
               <Gift className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <div>
                 <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
-                  14-Day Free Trial &mdash; {ECOM_PLAN_NAMES[selectedPlan]} (${((selectedPlan === "pro" ? ECOM_PRO_PRICE_CENTS : ECOM_BASIC_PRICE_CENTS) / 100).toFixed(0)}/mo) after
+                  {selectedPlan === "pro" ? "14" : "30"}-Day Free Trial &mdash; {ECOM_PLAN_NAMES[selectedPlan]} (${((selectedPlan === "pro" ? ECOM_PRO_PRICE_CENTS : ECOM_BASIC_PRICE_CENTS) / 100).toFixed(0)}/mo after)
                 </p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400">
                   Your card will not be charged today. Cancel anytime during the trial.

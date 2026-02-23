@@ -3,11 +3,13 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getOrCreateStripeCustomer } from "@/lib/stripe";
 import { createEcommerceSubscription } from "@/lib/stripe/ecommerce";
+import { ECOM_BASIC_TRIAL_DAYS, ECOM_PRO_TRIAL_DAYS } from "@/lib/domains/pricing";
 
 /**
  * POST /api/ecommerce/activate
- * Activate the FlowShop e-commerce add-on with 14-day free trial.
- * Requires a paymentMethodId (card on file) — no Stripe Checkout redirect.
+ * Activate the FlowShop e-commerce add-on.
+ * - Basic plan: 30-day free trial, NO card required.
+ * - Pro plan: 14-day free trial, card required.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -25,7 +27,10 @@ export async function POST(request: NextRequest) {
       select: { id: true, ecomSubscriptionStatus: true },
     });
 
-    if (existingStore && (existingStore.ecomSubscriptionStatus === "active" || existingStore.ecomSubscriptionStatus === "trialing")) {
+    if (
+      existingStore &&
+      ["active", "trialing", "free_trial"].includes(existingStore.ecomSubscriptionStatus)
+    ) {
       return NextResponse.json(
         { success: false, error: { code: "ALREADY_ACTIVE", message: "FlowShop is already active" } },
         { status: 409 }
@@ -48,33 +53,78 @@ export async function POST(request: NextRequest) {
     const paymentMethodId = body.paymentMethodId as string | undefined;
     const plan = (body.plan === "pro" ? "pro" : "basic") as "basic" | "pro";
 
-    if (!paymentMethodId) {
+    // Pro plan always requires a card
+    if (plan === "pro" && !paymentMethodId) {
       return NextResponse.json(
         {
           success: false,
           error: {
             code: "CARD_REQUIRED",
-            message: "A payment method is required. Please add a card before activating.",
+            message: "Pro plan requires a payment method. Please add a card before activating.",
           },
         },
         { status: 400 }
       );
     }
 
-    // Get or create Stripe customer
+    // ── Basic plan without card: internal free trial (no Stripe subscription) ──
+    if (plan === "basic" && !paymentMethodId) {
+      const now = new Date();
+      const trialEnds = new Date(now.getTime() + ECOM_BASIC_TRIAL_DAYS * 24 * 60 * 60 * 1000);
+
+      const storeData = {
+        ecomSubscriptionId: null as string | null,
+        ecomSubscriptionStatus: "free_trial",
+        ecomPlan: "basic" as const,
+        isActive: true,
+        freeTrialStartedAt: now,
+        freeTrialEndsAt: trialEnds,
+        freeTrialRemindersSent: "[]",
+      };
+
+      if (!existingStore) {
+        await prisma.store.create({
+          data: {
+            userId: session.userId,
+            name: user.name || "My Store",
+            slug: `store-${session.userId.slice(0, 8)}`,
+            region: user.region,
+            country: user.country,
+            ...storeData,
+          },
+        });
+      } else {
+        await prisma.store.update({
+          where: { userId: session.userId },
+          data: storeData,
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          subscriptionId: null,
+          status: "free_trial",
+          plan: "basic",
+          trialEnds: trialEnds.toISOString(),
+          cardRequired: false,
+        },
+      });
+    }
+
+    // ── Stripe subscription path (Pro, or Basic with card) ──
     const customerId = await getOrCreateStripeCustomer(session.userId);
 
-    // Create subscription with 14-day trial (card captured but not charged)
     const result = await createEcommerceSubscription({
       userId: session.userId,
       customerId,
-      paymentMethodId,
+      paymentMethodId: paymentMethodId!,
       plan,
     });
 
-    // Store is active immediately (trial counts as active)
     const isActive = result.status === "active" || result.status === "trialing";
     const subStatus = result.status === "trialing" ? "trialing" : result.status === "active" ? "active" : "inactive";
+    const trialDays = plan === "pro" ? ECOM_PRO_TRIAL_DAYS : ECOM_BASIC_TRIAL_DAYS;
 
     if (!existingStore) {
       await prisma.store.create({
@@ -108,7 +158,7 @@ export async function POST(request: NextRequest) {
         subscriptionId: result.subscriptionId,
         status: result.status,
         plan,
-        trialEnds: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        trialEnds: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString(),
       },
     });
   } catch (error) {

@@ -1723,3 +1723,128 @@ export async function sendStrategyAutomationSummaryEmail(params: {
     html: baseTemplate(content, `Weekly automation summary for ${params.strategyName}`),
   });
 }
+
+// ── FlowShop E-Commerce Trial Emails ────────────────────────────────────────
+
+// FlowShop Trial Reminder
+export async function sendEcomTrialReminderEmail(params: {
+  to: string;
+  name: string;
+  daysRemaining: number;
+  storeName: string;
+}) {
+  const content = `
+    <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); padding: 32px 24px; text-align: center; border-radius: 8px 8px 0 0; margin: -32px -24px 24px -24px;">
+      <h2 style="color: #ffffff; margin: 0; font-size: 24px;">Your FlowShop Trial Ends in ${params.daysRemaining} Day${params.daysRemaining !== 1 ? "s" : ""}</h2>
+    </div>
+    <p>Hi ${params.name},</p>
+    <p>Your free trial for <strong>${params.storeName}</strong> on FlowShop is ending in <strong>${params.daysRemaining} day${params.daysRemaining !== 1 ? "s" : ""}</strong>.</p>
+    <div class="warning">
+      <strong>What happens when your trial ends?</strong><br>
+      Your store will be deactivated and customers won't be able to browse or purchase. Don't worry though &mdash; none of your products, orders, or data will be deleted.
+    </div>
+    <p>To keep your store running without interruption, add a payment method now:</p>
+    <p style="text-align: center;">
+      <a href="${APP_URL}/ecommerce/settings?tab=subscription" class="button" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">Add Payment Method</a>
+    </p>
+    <p style="color: #71717a; font-size: 14px;">If you have any questions about FlowShop plans, visit your subscription settings or reply to this email.</p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Your FlowShop trial ends in ${params.daysRemaining} days`,
+    html: baseTemplate(content, `Your FlowShop trial for ${params.storeName} is ending soon`),
+  });
+}
+
+// FlowShop Trial Expired
+export async function sendEcomTrialExpiredEmail(params: {
+  to: string;
+  name: string;
+  storeName: string;
+}) {
+  const content = `
+    <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); padding: 32px 24px; text-align: center; border-radius: 8px 8px 0 0; margin: -32px -24px 24px -24px;">
+      <h2 style="color: #ffffff; margin: 0; font-size: 24px;">Your FlowShop Free Trial Has Ended</h2>
+    </div>
+    <p>Hi ${params.name},</p>
+    <p>Your free trial for <strong>${params.storeName}</strong> on FlowShop has expired. Your store is now inactive and is no longer visible to customers.</p>
+    <div class="stats-box">
+      <div class="stats-row">
+        <span>Store</span>
+        <strong>${params.storeName}</strong>
+      </div>
+      <div class="stats-row">
+        <span>Status</span>
+        <strong style="color: #ef4444;">Inactive</strong>
+      </div>
+      <div class="stats-row">
+        <span>Data</span>
+        <strong style="color: #10b981;">Preserved</strong>
+      </div>
+    </div>
+    <div class="highlight">
+      <strong>Your data is safe!</strong><br>
+      All your products, orders, and store settings have been preserved. Subscribe to a plan to reactivate your store instantly.
+    </div>
+    <p style="text-align: center;">
+      <a href="${APP_URL}/ecommerce/settings?tab=subscription" class="button" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">Reactivate Your Store</a>
+    </p>
+    <p style="color: #71717a; font-size: 14px;">Need help choosing a plan? Reply to this email and we'll be happy to assist.</p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Your FlowShop free trial has ended`,
+    html: baseTemplate(content, `Your FlowShop trial for ${params.storeName} has expired`),
+  });
+}
+
+// FlowShop Trial Converted to Paid Subscription
+export async function sendEcomTrialConvertedEmail(params: {
+  to: string;
+  name: string;
+  storeName: string;
+  planName: string;
+  amountCents: number;
+}) {
+  const content = `
+    <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); padding: 32px 24px; text-align: center; border-radius: 8px 8px 0 0; margin: -32px -24px 24px -24px;">
+      <h2 style="color: #ffffff; margin: 0; font-size: 24px;">FlowShop Subscription Confirmed</h2>
+    </div>
+    <p>Hi ${params.name},</p>
+    <p>Your FlowShop subscription is now active! Your store <strong>${params.storeName}</strong> is live and ready for business.</p>
+    <div class="stats-box">
+      <div class="stats-row">
+        <span>Store</span>
+        <strong>${params.storeName}</strong>
+      </div>
+      <div class="stats-row">
+        <span>Plan</span>
+        <strong>${params.planName}</strong>
+      </div>
+      <div class="stats-row">
+        <span>Billing Amount</span>
+        <strong>$${(params.amountCents / 100).toFixed(2)}/month</strong>
+      </div>
+      <div class="stats-row">
+        <span>Status</span>
+        <strong style="color: #10b981;">Active</strong>
+      </div>
+    </div>
+    <div class="highlight">
+      <strong>You're all set!</strong><br>
+      Your store is fully active. Customers can browse your products and place orders.
+    </div>
+    <p style="text-align: center;">
+      <a href="${APP_URL}/ecommerce/dashboard" class="button" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">Go to Dashboard</a>
+    </p>
+    <p style="color: #71717a; font-size: 14px;">Thank you for choosing FlowShop. If you have any questions, reply to this email.</p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `FlowShop subscription confirmed`,
+    html: baseTemplate(content, `Your FlowShop subscription for ${params.storeName} is now active`),
+  });
+}

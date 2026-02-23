@@ -55,6 +55,8 @@ interface Store {
   ecomPlan: string;
   freeDomainClaimed: boolean;
   customDomain: string | null;
+  freeTrialStartedAt: string | null;
+  freeTrialEndsAt: string | null;
 }
 
 interface PaymentMethod {
@@ -1157,14 +1159,64 @@ export default function EcommerceSettingsPage() {
                 <div
                   className={cn(
                     "h-2.5 w-2.5 rounded-full",
-                    store.ecomSubscriptionStatus === "active" || store.ecomSubscriptionStatus === "trialing" ? "bg-green-500" : "bg-red-500"
+                    ["active", "trialing", "free_trial"].includes(store.ecomSubscriptionStatus) ? "bg-green-500" : "bg-red-500"
                   )}
                 />
                 <span className="text-sm font-medium capitalize">
-                  {store.ecomSubscriptionStatus}
+                  {store.ecomSubscriptionStatus === "free_trial" ? "Free Trial" : store.ecomSubscriptionStatus}
                 </span>
               </div>
             </div>
+
+            {/* Free Trial Banner */}
+            {store.ecomSubscriptionStatus === "free_trial" && store.freeTrialEndsAt && (
+              <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-amber-600" />
+                  <h3 className="font-medium text-amber-800 dark:text-amber-300">
+                    Free Trial &mdash; {Math.max(0, Math.ceil((new Date(store.freeTrialEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))} days remaining
+                  </h3>
+                </div>
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  Your trial ends on {new Date(store.freeTrialEndsAt).toLocaleDateString()}.
+                  Add a payment method to keep your store active after the trial.
+                </p>
+                <button
+                  onClick={() => {
+                    // Redirect to the payment methods page with convert context
+                    window.location.href = "/billing";
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  Add Payment Method
+                </button>
+              </div>
+            )}
+
+            {/* Expired Trial Banner */}
+            {store.ecomSubscriptionStatus === "expired" && (
+              <div className="p-4 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-red-600" />
+                  <h3 className="font-medium text-red-800 dark:text-red-300">
+                    Trial Expired &mdash; Store Inactive
+                  </h3>
+                </div>
+                <p className="text-sm text-red-700 dark:text-red-400">
+                  Your free trial has ended. Add a payment method to reactivate your store. No data has been lost.
+                </p>
+                <button
+                  onClick={() => {
+                    window.location.href = "/billing";
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  Add Payment Method & Reactivate
+                </button>
+              </div>
+            )}
 
             {/* Plan Features */}
             <div className="p-4 rounded-lg bg-muted/50">
@@ -1218,7 +1270,7 @@ export default function EcommerceSettingsPage() {
             )}
 
             {/* Cancel */}
-            {(store.ecomSubscriptionStatus === "active" || store.ecomSubscriptionStatus === "trialing") && (
+            {["active", "trialing", "free_trial"].includes(store.ecomSubscriptionStatus) && (
               <div className="pt-2 border-t">
                 {!cancelConfirm ? (
                   <button

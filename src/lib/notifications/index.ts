@@ -36,6 +36,9 @@ import {
   sendTeamInvitationEmail,
   sendContentRemovedEmail,
   sendContentWarningEmail,
+  sendEcomTrialReminderEmail,
+  sendEcomTrialExpiredEmail,
+  sendEcomTrialConvertedEmail,
 } from "@/lib/email";
 
 // ── Notification Types ──
@@ -134,6 +137,11 @@ export const NOTIFICATION_TYPES = {
 
   // Data Forms
   DATA_FORM_SUBMISSION: "DATA_FORM_SUBMISSION",
+
+  // E-Commerce (FlowShop)
+  ECOM_TRIAL_REMINDER: "ECOM_TRIAL_REMINDER",
+  ECOM_TRIAL_EXPIRED: "ECOM_TRIAL_EXPIRED",
+  ECOM_TRIAL_CONVERTED: "ECOM_TRIAL_CONVERTED",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -1671,4 +1679,93 @@ export async function notifyContentWarning(params: {
     name: params.name,
     reason: params.reason,
   }).catch((err) => console.error("Failed to send content warning email:", err));
+}
+
+// ── FlowShop E-Commerce Trial Notifications ──
+
+/**
+ * Notify user that their FlowShop trial is expiring soon
+ */
+export async function notifyEcomTrialReminder(params: {
+  userId: string;
+  email: string;
+  name: string;
+  daysRemaining: number;
+  storeName: string;
+}) {
+  // Create in-app notification
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.ECOM_TRIAL_REMINDER,
+    title: "FlowShop Trial Ending Soon",
+    message: `Your free trial for ${params.storeName} ends in ${params.daysRemaining} day${params.daysRemaining !== 1 ? "s" : ""}. Add a payment method to keep your store active.`,
+    data: { daysRemaining: params.daysRemaining, storeName: params.storeName },
+    actionUrl: "/ecommerce/settings?tab=subscription",
+  });
+
+  // Send reminder email
+  await sendEcomTrialReminderEmail({
+    to: params.email,
+    name: params.name,
+    daysRemaining: params.daysRemaining,
+    storeName: params.storeName,
+  });
+}
+
+/**
+ * Notify user that their FlowShop trial has expired
+ */
+export async function notifyEcomTrialExpired(params: {
+  userId: string;
+  email: string;
+  name: string;
+  storeName: string;
+}) {
+  // Create in-app notification
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.ECOM_TRIAL_EXPIRED,
+    title: "FlowShop Trial Expired",
+    message: `Your free trial for ${params.storeName} has ended. Your store is now inactive. Subscribe to reactivate it.`,
+    data: { storeName: params.storeName },
+    actionUrl: "/ecommerce/settings?tab=subscription",
+  });
+
+  // Send expiration email
+  await sendEcomTrialExpiredEmail({
+    to: params.email,
+    name: params.name,
+    storeName: params.storeName,
+  });
+}
+
+/**
+ * Notify user that their FlowShop trial has converted to a paid subscription
+ */
+export async function notifyEcomTrialConverted(params: {
+  userId: string;
+  email: string;
+  name: string;
+  storeName: string;
+  planName: string;
+  amountCents: number;
+}) {
+  // Create in-app notification
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.ECOM_TRIAL_CONVERTED,
+    title: "FlowShop Subscription Active",
+    message: `Your ${params.storeName} store is now on the ${params.planName} plan. Your store is fully active!`,
+    data: { storeName: params.storeName, planName: params.planName, amountCents: params.amountCents },
+    actionUrl: "/ecommerce/dashboard",
+  });
+
+  // Send confirmation email
+  await sendEcomTrialConvertedEmail({
+    to: params.email,
+    name: params.name,
+    storeName: params.storeName,
+    planName: params.planName,
+    amountCents: params.amountCents,
+  });
 }

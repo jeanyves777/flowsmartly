@@ -20,7 +20,7 @@ import {
 export const metadata: Metadata = {
   title: "FlowShop — AI-Powered Online Store",
   description:
-    "Launch a beautiful, fully-featured online store in minutes with AI-powered product copy, dynamic pricing, SEO optimization, and 10 professional themes. Start your 14-day free trial.",
+    "Launch a beautiful, fully-featured online store in minutes with AI-powered product copy, dynamic pricing, SEO optimization, and 10 professional themes. Start your free trial today.",
 };
 
 const features = [
@@ -518,14 +518,15 @@ export default function FlowShopPage() {
             {/* Basic Plan */}
             <div className="rounded-2xl border-2 border-violet-500/20 bg-card p-8 relative overflow-hidden">
               <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 text-white text-xs font-bold">
-                14-DAY FREE TRIAL
+                30-DAY FREE TRIAL
               </div>
 
               <p className="text-muted-foreground mb-2 font-medium">FlowShop Basic</p>
-              <div className="flex items-baseline gap-1 mb-6">
+              <div className="flex items-baseline gap-1 mb-4">
                 <span className="text-5xl font-bold">$5</span>
                 <span className="text-muted-foreground">/month</span>
               </div>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-6">No credit card required</p>
 
               <ul className="space-y-3 mb-8">
                 {basicFeatures.map((feature) => (
@@ -545,7 +546,7 @@ export default function FlowShopPage() {
                 Start Free Trial
               </Link>
               <p className="text-center text-xs text-muted-foreground mt-3">
-                No charge during trial. Cancel anytime.
+                No card required. Cancel anytime.
               </p>
             </div>
 
@@ -561,7 +562,7 @@ export default function FlowShopPage() {
                 14-DAY FREE TRIAL
               </div>
 
-              <p className="text-muted-foreground mb-2 font-medium mt-4">FlowShop Pro</p>
+              <p className="text-muted-foreground mb-2 font-medium mt-4 ">FlowShop Pro</p>
               <div className="flex items-baseline gap-1 mb-6">
                 <span className="text-5xl font-bold">$12</span>
                 <span className="text-muted-foreground">/month</span>

@@ -68,6 +68,23 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Passive trial expiration check
+    if (
+      store.ecomSubscriptionStatus === "free_trial" &&
+      store.freeTrialEndsAt &&
+      new Date(store.freeTrialEndsAt) <= new Date()
+    ) {
+      await prisma.store.update({
+        where: { id: store.id },
+        data: {
+          ecomSubscriptionStatus: "expired",
+          isActive: false,
+        },
+      });
+      store.ecomSubscriptionStatus = "expired";
+      store.isActive = false;
+    }
+
     return NextResponse.json({
       success: true,
       data: {

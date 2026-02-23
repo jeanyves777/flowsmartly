@@ -42,6 +42,15 @@ export const ECOM_PLAN_FEATURES: Record<EcomPlan, string[]> = {
   ],
 };
 
+// ── Trial Configuration ──
+
+export const ECOM_BASIC_TRIAL_DAYS = 30;
+export const ECOM_PRO_TRIAL_DAYS = 14;
+export const ECOM_TRIAL_REMINDER_SCHEDULE = [
+  { daysRemaining: 5, key: "day25" },
+  { daysRemaining: 2, key: "day28" },
+];
+
 // ── Domain Pricing ──
 
 export interface DomainPrice {

@@ -2946,6 +2946,11 @@ model Store {
   customDomain           String?                         // e.g. "mybrandstore.com"
   freeDomainClaimed      Boolean   @default(false)       // Pro plan: has user claimed their free domain?
 
+  // Free Trial (Basic plan, no card required)
+  freeTrialStartedAt     DateTime?
+  freeTrialEndsAt        DateTime?
+  freeTrialRemindersSent String    @default("[]")        // JSON: ["day25","day28"]
+
   // Status
   isActive               Boolean   @default(false)
   setupComplete          Boolean   @default(false)

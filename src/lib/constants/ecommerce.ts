@@ -227,7 +227,15 @@ export function getCurrencyForRegion(regionId: string | null | undefined): { cod
 
 // ── Subscription Pricing (re-exported from domains/pricing) ──
 
-export { ECOM_BASIC_PRICE_CENTS, ECOM_PRO_PRICE_CENTS, ECOM_PLAN_NAMES, ECOM_PLAN_FEATURES } from "@/lib/domains/pricing";
+export {
+  ECOM_BASIC_PRICE_CENTS,
+  ECOM_PRO_PRICE_CENTS,
+  ECOM_PLAN_NAMES,
+  ECOM_PLAN_FEATURES,
+  ECOM_BASIC_TRIAL_DAYS,
+  ECOM_PRO_TRIAL_DAYS,
+  ECOM_TRIAL_REMINDER_SCHEDULE,
+} from "@/lib/domains/pricing";
 export type { EcomPlan } from "@/lib/domains/pricing";
 
 /** @deprecated Use ECOM_BASIC_PRICE_CENTS instead */

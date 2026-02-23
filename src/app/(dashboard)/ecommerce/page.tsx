@@ -110,7 +110,7 @@ export default function EcommercePage() {
         const s = json.data.store;
         setStore(s);
 
-        const isSubscribed = s.ecomSubscriptionStatus === "active" || s.ecomSubscriptionStatus === "trialing";
+        const isSubscribed = ["active", "trialing", "free_trial"].includes(s.ecomSubscriptionStatus);
         if (isSubscribed && s.setupComplete) {
           router.replace("/ecommerce/dashboard");
           return;
@@ -130,7 +130,7 @@ export default function EcommercePage() {
   function handleCheckoutSuccess() {
     toast({
       title: "FlowShop activated!",
-      description: "Your 14-day free trial has started. Let's set up your store.",
+      description: "Your free trial has started. Let's set up your store!",
     });
     setCheckoutOpen(false);
     router.push("/ecommerce/onboarding");
@@ -388,7 +388,7 @@ export default function EcommercePage() {
       <section id="activate">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold">Choose Your Plan</h2>
-          <p className="text-muted-foreground mt-2">Both plans include a 14-day free trial. No charge today.</p>
+          <p className="text-muted-foreground mt-2">Start free. Choose the plan that fits your business.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
@@ -403,13 +403,14 @@ export default function EcommercePage() {
             <div className="p-6">
               <div className="text-center mb-5">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-medium mb-3">
-                  14-Day Free Trial
+                  30-Day Free Trial
                 </div>
                 <div className="flex items-baseline justify-center gap-1">
                   <span className="text-4xl font-extrabold">${(ECOM_BASIC_PRICE_CENTS / 100).toFixed(0)}</span>
                   <span className="text-muted-foreground text-lg">/month</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">After trial ends. Cancel anytime.</p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">No credit card required</p>
               </div>
 
               <div className="space-y-2.5 mb-6">
@@ -491,7 +492,7 @@ export default function EcommercePage() {
         </div>
 
         <p className="text-xs text-center text-muted-foreground mt-4">
-          Card required. You will not be charged during the 14-day trial.
+          Basic: 30-day trial, no card required. Pro: 14-day trial, card required.
         </p>
       </section>
 
