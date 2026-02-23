@@ -46,6 +46,7 @@ import {
   Truck,
   MapPin,
   Brain,
+  Rocket,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { COD_REGIONS } from "@/lib/constants/ecommerce";
@@ -494,26 +495,6 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
               )}
             </div>
 
-            {/* E-Commerce Section */}
-            <div className="pt-3">
-              {!isCollapsed && (
-                <div className="px-3 pb-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    E-Commerce
-                  </span>
-                </div>
-              )}
-              {isCollapsed && (
-                <div className="flex justify-center py-2">
-                  <ShoppingBag className={cn("h-4 w-4", pathname.startsWith("/ecommerce") ? "text-brand-500" : "text-muted-foreground")} />
-                </div>
-              )}
-              {renderNavItem(
-                { name: hasEcommerce ? "My Store" : "Start Store", href: hasEcommerce ? "/ecommerce/dashboard" : "/ecommerce", icon: ShoppingBag },
-                pathname.startsWith("/ecommerce")
-              )}
-            </div>
-
             {/* Agent / Marketplace Section */}
             {isAgent ? (
               <div className="pt-3">
@@ -589,6 +570,25 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             </Link>
           );
         })}
+
+        {!hasEcommerce && (
+          <Link
+            href="/ecommerce"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+              pathname.startsWith("/ecommerce")
+                ? "bg-accent text-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground"
+            )}
+          >
+            <Rocket className="h-5 w-5 shrink-0" />
+            {!isCollapsed && (
+              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                Start Store
+              </motion.span>
+            )}
+          </Link>
+        )}
 
         <button
           className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
