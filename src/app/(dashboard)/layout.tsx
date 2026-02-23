@@ -288,60 +288,69 @@ export default function DashboardLayout({
         </div>
       )}
 
-      <div className={isAdmin || isAgentImpersonating || delegationMode?.active ? "pt-10" : ""}>
-        {/* Desktop Sidebar */}
-        <div className="hidden md:block">
-          <Sidebar
-            isCollapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-            userPlan={user.plan}
-            isAgent={hasAgentProfile}
-            delegationMode={delegationMode}
-            onExitDelegation={exitDelegationMode}
-            storeMode={storeMode}
-            onToggleStoreMode={toggleStoreMode}
-            hasEcommerce={hasEcommerce}
-            storeRegion={storeRegion}
-          />
-        </div>
-
-        {/* Mobile Sidebar */}
-        <MobileSidebar
-          isOpen={mobileMenuOpen}
-          onClose={() => setMobileMenuOpen(false)}
-          userPlan={user.plan}
-          user={user}
-        />
-
-        {/* Header */}
-        <Header
-          user={user}
-          sidebarCollapsed={sidebarCollapsed}
-          onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
-        />
-
-        {/* Main Content */}
-        <main
-          className={cn(
-            "pt-16 min-h-screen transition-all duration-200",
-            // Desktop: respect sidebar state
-            "md:pl-20",
-            !sidebarCollapsed && "md:pl-[280px]"
-          )}
-        >
-          <div className="p-4 md:p-6">
-            {user && !user.emailVerified && <EmailVerificationBanner />}
-            {user && user.emailVerified && <OnboardingBanner />}
+      {/* Full-screen layout for onboarding wizard */}
+      {pathname === "/ecommerce/onboarding" ? (
+        <div>
+          <main className="min-h-screen">
             {children}
+          </main>
+        </div>
+      ) : (
+        <div className={isAdmin || isAgentImpersonating || delegationMode?.active ? "pt-10" : ""}>
+          {/* Desktop Sidebar */}
+          <div className="hidden md:block">
+            <Sidebar
+              isCollapsed={sidebarCollapsed}
+              onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+              userPlan={user.plan}
+              isAgent={hasAgentProfile}
+              delegationMode={delegationMode}
+              onExitDelegation={exitDelegationMode}
+              storeMode={storeMode}
+              onToggleStoreMode={toggleStoreMode}
+              hasEcommerce={hasEcommerce}
+              storeRegion={storeRegion}
+            />
           </div>
-        </main>
 
-        {/* FlowAI Chat Assistant */}
-        <ChatWidget />
+          {/* Mobile Sidebar */}
+          <MobileSidebar
+            isOpen={mobileMenuOpen}
+            onClose={() => setMobileMenuOpen(false)}
+            userPlan={user.plan}
+            user={user}
+          />
 
-        {/* Earning Opportunities Widget (hidden for agent impersonation) */}
-        {!isAgentImpersonating && <EarnWidget />}
-      </div>
+          {/* Header */}
+          <Header
+            user={user}
+            sidebarCollapsed={sidebarCollapsed}
+            onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
+          />
+
+          {/* Main Content */}
+          <main
+            className={cn(
+              "pt-16 min-h-screen transition-all duration-200",
+              // Desktop: respect sidebar state
+              "md:pl-20",
+              !sidebarCollapsed && "md:pl-[280px]"
+            )}
+          >
+            <div className="p-4 md:p-6">
+              {user && !user.emailVerified && <EmailVerificationBanner />}
+              {user && user.emailVerified && <OnboardingBanner />}
+              {children}
+            </div>
+          </main>
+
+          {/* FlowAI Chat Assistant */}
+          <ChatWidget />
+
+          {/* Earning Opportunities Widget (hidden for agent impersonation) */}
+          {!isAgentImpersonating && <EarnWidget />}
+        </div>
+      )}
     </div>
   );
 }
