@@ -23,8 +23,16 @@ import {
   ShoppingBag,
   Plus,
   Gift,
+  Crown,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  ECOM_PLAN_FEATURES,
+  ECOM_BASIC_PRICE_CENTS,
+  ECOM_PRO_PRICE_CENTS,
+  ECOM_PLAN_NAMES,
+  type EcomPlan,
+} from "@/lib/domains/pricing";
 
 interface PaymentMethod {
   id: string;
@@ -49,7 +57,8 @@ export function SubscriptionCheckoutModal({
   const stripe = useStripe();
   const elements = useElements();
 
-  const [step, setStep] = useState<"terms" | "payment">("terms");
+  const [step, setStep] = useState<"plan" | "terms" | "payment">("plan");
+  const [selectedPlan, setSelectedPlan] = useState<EcomPlan>("pro");
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedPmId, setSelectedPmId] = useState<string | null>(null);
@@ -63,7 +72,8 @@ export function SubscriptionCheckoutModal({
   // Load payment methods when modal opens
   useEffect(() => {
     if (!open) {
-      setStep("terms");
+      setStep("plan");
+      setSelectedPlan("pro");
       setAgreedTerms(false);
       setSelectedPmId(null);
       setAddingCard(false);
@@ -176,7 +186,7 @@ export function SubscriptionCheckoutModal({
       const res = await fetch("/api/ecommerce/activate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentMethodId: selectedPmId }),
+        body: JSON.stringify({ paymentMethodId: selectedPmId, plan: selectedPlan }),
       });
 
       const data = await res.json();
@@ -196,23 +206,165 @@ export function SubscriptionCheckoutModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className={`max-h-[90vh] overflow-hidden flex flex-col ${step === "plan" ? "sm:max-w-2xl" : "sm:max-w-lg"}`}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingBag className="w-5 h-5 text-violet-500" />
-            {step === "terms"
+            {step === "plan"
+              ? "Choose Your Plan"
+              : step === "terms"
               ? "FlowShop Terms & Agreement"
               : "Payment & Activation"}
           </DialogTitle>
           <DialogDescription>
-            {step === "terms"
+            {step === "plan"
+              ? "Select the plan that fits your business. Both include a 14-day free trial."
+              : step === "terms"
               ? "Please review and accept the terms to continue."
               : "Add a card to start your 14-day free trial."}
           </DialogDescription>
         </DialogHeader>
 
-        {step === "terms" ? (
+        {step === "plan" ? (
           <div className="flex flex-col flex-1 overflow-hidden">
+            {/* Plan cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              {/* Basic Plan */}
+              <div
+                className={`relative rounded-xl border-2 p-5 transition-all cursor-pointer ${
+                  selectedPlan === "basic"
+                    ? "border-violet-500 bg-violet-50/50 dark:bg-violet-950/20"
+                    : "border-border hover:border-violet-300"
+                }`}
+                onClick={() => setSelectedPlan("basic")}
+              >
+                {/* Trial badge */}
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs font-medium mb-3">
+                  <Gift className="w-3 h-3" />
+                  14-Day Free Trial
+                </div>
+
+                <h3 className="text-lg font-semibold mb-1">
+                  {ECOM_PLAN_NAMES.basic}
+                </h3>
+                <div className="flex items-baseline gap-1 mb-4">
+                  <span className="text-3xl font-bold">
+                    ${(ECOM_BASIC_PRICE_CENTS / 100).toFixed(0)}
+                  </span>
+                  <span className="text-sm text-muted-foreground">/month</span>
+                </div>
+
+                <ul className="space-y-2 mb-5">
+                  {ECOM_PLAN_FEATURES.basic.map((feature) => (
+                    <li
+                      key={feature}
+                      className="flex items-start gap-2 text-sm text-muted-foreground"
+                    >
+                      <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedPlan("basic");
+                    setStep("terms");
+                  }}
+                >
+                  Select Basic
+                </Button>
+              </div>
+
+              {/* Pro Plan */}
+              <div
+                className={`relative rounded-xl border-2 p-5 transition-all cursor-pointer ${
+                  selectedPlan === "pro"
+                    ? "border-violet-500 bg-violet-50/50 dark:bg-violet-950/20"
+                    : "border-violet-300 dark:border-violet-700 hover:border-violet-500"
+                }`}
+                onClick={() => setSelectedPlan("pro")}
+              >
+                {/* Best value badge */}
+                <div className="absolute -top-3 right-4 inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 text-white text-xs font-semibold shadow-sm">
+                  <Crown className="w-3 h-3" />
+                  BEST VALUE
+                </div>
+
+                {/* Trial badge */}
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs font-medium mb-3">
+                  <Gift className="w-3 h-3" />
+                  14-Day Free Trial
+                </div>
+
+                <h3 className="text-lg font-semibold mb-1">
+                  {ECOM_PLAN_NAMES.pro}
+                </h3>
+                <div className="flex items-baseline gap-1 mb-4">
+                  <span className="text-3xl font-bold">
+                    ${(ECOM_PRO_PRICE_CENTS / 100).toFixed(0)}
+                  </span>
+                  <span className="text-sm text-muted-foreground">/month</span>
+                </div>
+
+                <ul className="space-y-2 mb-5">
+                  {ECOM_PLAN_FEATURES.pro.map((feature) => (
+                    <li
+                      key={feature}
+                      className="flex items-start gap-2 text-sm text-muted-foreground"
+                    >
+                      <Check className="w-4 h-4 text-violet-500 shrink-0 mt-0.5" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+
+                <Button
+                  className="w-full bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedPlan("pro");
+                    setStep("terms");
+                  }}
+                >
+                  Select Pro
+                </Button>
+              </div>
+            </div>
+
+            {/* Cancel */}
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : step === "terms" ? (
+          <div className="flex flex-col flex-1 overflow-hidden">
+            {/* Selected plan banner */}
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 mb-2">
+              <ShoppingBag className="w-5 h-5 text-violet-600 dark:text-violet-400 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-violet-800 dark:text-violet-300">
+                  {ECOM_PLAN_NAMES[selectedPlan]} &mdash; ${((selectedPlan === "pro" ? ECOM_PRO_PRICE_CENTS : ECOM_BASIC_PRICE_CENTS) / 100).toFixed(0)}/month
+                </p>
+                {selectedPlan === "pro" && (
+                  <p className="text-xs text-violet-600 dark:text-violet-400">
+                    1 FREE domain included &mdash; claim after setup
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setStep("plan")}
+                className="ml-auto text-xs text-violet-600 hover:text-violet-800 dark:text-violet-400 dark:hover:text-violet-200 underline underline-offset-2"
+              >
+                Change
+              </button>
+            </div>
+
             {/* Trial banner */}
             <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 mb-4">
               <Gift className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -241,7 +393,7 @@ export function SubscriptionCheckoutModal({
                 </h4>
                 <ul className="list-disc pl-5 space-y-1">
                   <li>
-                    14-day free trial, then $5.00 USD/month billed automatically.
+                    14-day free trial, then ${((selectedPlan === "pro" ? ECOM_PRO_PRICE_CENTS : ECOM_BASIC_PRICE_CENTS) / 100).toFixed(2)} USD/month ({ECOM_PLAN_NAMES[selectedPlan]}) billed automatically.
                   </li>
                   <li>A valid payment card is required but will not be charged during the trial.</li>
                   <li>Cancel anytime from your dashboard — no partial refunds for unused time.</li>
@@ -362,17 +514,22 @@ export function SubscriptionCheckoutModal({
             </label>
 
             {/* Continue button */}
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={onClose}>
-                Cancel
+            <div className="flex justify-between gap-3">
+              <Button variant="ghost" onClick={() => setStep("plan")}>
+                Back
               </Button>
-              <Button
-                disabled={!agreedTerms}
-                onClick={() => setStep("payment")}
-                className="bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700"
-              >
-                Continue to Payment
-              </Button>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={!agreedTerms}
+                  onClick={() => setStep("payment")}
+                  className="bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700"
+                >
+                  Continue to Payment
+                </Button>
+              </div>
             </div>
           </div>
         ) : (
@@ -382,7 +539,7 @@ export function SubscriptionCheckoutModal({
               <Gift className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <div>
                 <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
-                  14-Day Free Trial — $5/month after
+                  14-Day Free Trial &mdash; {ECOM_PLAN_NAMES[selectedPlan]} (${((selectedPlan === "pro" ? ECOM_PRO_PRICE_CENTS : ECOM_BASIC_PRICE_CENTS) / 100).toFixed(0)}/mo) after
                 </p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400">
                   Your card will not be charged today. Cancel anytime during the trial.

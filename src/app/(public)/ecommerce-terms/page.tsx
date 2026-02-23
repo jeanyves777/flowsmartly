@@ -157,7 +157,7 @@ export default function EcommerceTermsPage() {
                 <ul className="list-disc pl-6 space-y-2 text-muted-foreground leading-relaxed mb-4">
                   <li><strong>Payment Processor:</strong> Stripe handles all payment card processing, ensuring PCI DSS compliance. FlowSmartly does not store, process, or transmit cardholder data directly.</li>
                   <li><strong>Merchant Payouts:</strong> Merchants receive payouts according to Stripe&apos;s standard payout schedule. Payout timing may vary by region and account history.</li>
-                  <li><strong>Subscription Fee:</strong> FlowShop charges a flat subscription fee of $5.00 USD per month for store access, billed monthly. A 14-day free trial is provided for new stores &mdash; a valid payment method (card on file) is required but will not be charged during the trial period.</li>
+                  <li><strong>Subscription Fee:</strong> FlowShop charges a monthly subscription fee of $5.00 USD (Basic) or $12.00 USD (Pro) for store access, billed monthly. A 14-day free trial is provided for new stores on both plans &mdash; a valid payment method (card on file) is required but will not be charged during the trial period.</li>
                   <li><strong>Processing Fees:</strong> Standard Stripe processing fees (currently 2.9% + $0.30 per transaction) apply to all customer payments. These fees are passed through at Stripe&apos;s published rates and are deducted from each transaction before payout.</li>
                   <li><strong>Refunds:</strong> Refunds are processed through the FlowShop platform and returned to the customer&apos;s original payment method. Stripe processing fees on refunded transactions are not returned by Stripe.</li>
                   <li><strong>Chargebacks:</strong> Merchants are responsible for any chargebacks and associated fees. Excessive chargebacks (exceeding 1% of transactions) may result in store suspension.</li>
@@ -257,8 +257,15 @@ export default function EcommerceTermsPage() {
                   9. Fees & Billing
                 </h2>
                 <ul className="list-disc pl-6 space-y-2 text-muted-foreground leading-relaxed mb-4">
-                  <li><strong>Subscription Fee:</strong> FlowShop is available for $5.00 USD per month, providing access to all store features, themes, and AI tools.</li>
-                  <li><strong>Free Trial:</strong> New stores receive a 14-day free trial. A valid payment method (credit or debit card) must be on file, but will not be charged until the trial period ends.</li>
+                  <li><strong>Subscription Plans:</strong> FlowShop offers two plans:
+                    <ul className="list-disc pl-6 space-y-1 mt-1">
+                      <li><strong>FlowShop Basic</strong> &mdash; $5.00 USD per month. Includes all core store features, themes, AI tools, and the ability to connect your own domain.</li>
+                      <li><strong>FlowShop Pro</strong> &mdash; $12.00 USD per month. Includes everything in Basic plus 1 free domain registration (.com, .store, or .shop), domain auto-configuration with SSL, WHOIS privacy, priority AI processing, advanced analytics, AI customer chatbot, and abandoned cart recovery.</li>
+                    </ul>
+                  </li>
+                  <li><strong>Free Trial:</strong> Both plans include a 14-day free trial. A valid payment method (credit or debit card) must be on file, but will not be charged until the trial period ends.</li>
+                  <li><strong>Domain Registration:</strong> Domain registration is available at marketplace pricing ($9.99&ndash;$16.99/year depending on TLD). The Pro plan includes 1 free domain (up to $14.99/year value) with free renewal for the duration of your subscription.</li>
+                  <li><strong>Domain on Cancellation:</strong> If you cancel FlowShop Pro, your free domain converts to paid renewal at $14.99/year. You may transfer your domain to another registrar for free at any time.</li>
                   <li><strong>Billing Cycle:</strong> Subscriptions are billed monthly on the anniversary of your activation date. Payment is automatically charged to your card on file.</li>
                   <li><strong>Cancellation:</strong> You may cancel your FlowShop subscription at any time. Your store will remain active through the end of your current billing period. No partial refunds are provided for unused portions of a billing cycle.</li>
                   <li><strong>Transaction Fees:</strong> Stripe payment processing fees (currently 2.9% + $0.30 per transaction) are deducted by Stripe from each customer payment before payout to the Merchant.</li>

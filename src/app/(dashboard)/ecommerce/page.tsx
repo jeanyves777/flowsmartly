@@ -393,10 +393,11 @@ export default function EcommercePage() {
                 14-Day Free Trial
               </div>
               <div className="inline-flex items-baseline gap-1">
-                <span className="text-4xl font-extrabold">$5</span>
+                <span className="text-4xl font-extrabold">$5&ndash;$12</span>
                 <span className="text-muted-foreground text-lg">/month</span>
               </div>
-              <p className="text-sm text-muted-foreground mt-1">After trial ends. Cancel anytime.</p>
+              <p className="text-sm text-muted-foreground mt-1">Choose Basic or Pro when you subscribe</p>
+              <p className="text-xs text-muted-foreground mt-0.5">After trial ends. Cancel anytime.</p>
             </div>
 
             {/* What you get */}

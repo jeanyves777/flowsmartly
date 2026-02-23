@@ -17,6 +17,8 @@ import {
   ChevronLeft,
   Sparkles,
   Lock,
+  Star,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +38,8 @@ import { getRegionName, getCountryName } from "@/lib/constants/regions";
 
 // ── Types ──
 
+type DomainPreference = "subdomain" | "buy" | "byod";
+
 interface StoreData {
   id: string;
   name: string;
@@ -47,9 +51,12 @@ interface StoreData {
   region: string | null;
   country: string | null;
   ecomSubscriptionStatus: string;
+  ecomPlan: string;
+  freeDomainClaimed: boolean;
   setupComplete: boolean;
   isActive: boolean;
   theme: Record<string, unknown>;
+  settings: Record<string, unknown>;
 }
 
 interface BrandSyncResult {
@@ -108,6 +115,8 @@ export default function OnboardingPage() {
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [slugChecking, setSlugChecking] = useState(false);
   const slugTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [domainPreference, setDomainPreference] = useState<DomainPreference>("subdomain");
+  const [preferredDomain, setPreferredDomain] = useState("");
 
   // Step 6: Launching
   const [launching, setLaunching] = useState(false);
@@ -290,6 +299,14 @@ export default function OnboardingPage() {
           }
         : {};
 
+      // Build domain preference settings
+      const domainSettings: Record<string, unknown> = {
+        domainPreference,
+      };
+      if (preferredDomain && domainPreference !== "subdomain") {
+        domainSettings.preferredDomain = preferredDomain;
+      }
+
       const settingsRes = await fetch("/api/ecommerce/store/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -298,6 +315,7 @@ export default function OnboardingPage() {
           currency,
           industry: storeIndustry || undefined,
           theme: themeData,
+          settings: domainSettings,
         }),
       });
 

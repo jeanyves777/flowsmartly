@@ -8,20 +8,35 @@ import {
   Palette,
   ReceiptText,
   Truck,
+  Globe,
+  Crown,
+  ArrowUpRight,
   AlertCircle,
   Check,
   Loader2,
   X,
+  Link2,
+  Shield,
+  Trash2,
+  Star,
+  Search,
 } from "lucide-react";
 import {
   PRODUCT_CATEGORIES,
   PAYMENT_METHODS_BY_REGION,
   ECOM_SUBSCRIPTION_PRICE_CENTS,
 } from "@/lib/constants/ecommerce";
+import {
+  ECOM_PLAN_NAMES,
+  ECOM_PLAN_FEATURES,
+  ECOM_BASIC_PRICE_CENTS,
+  ECOM_PRO_PRICE_CENTS,
+  type EcomPlan,
+} from "@/lib/domains/pricing";
 import { STORE_TEMPLATES_FULL, type StoreTemplateConfig } from "@/lib/constants/store-templates";
 import { cn } from "@/lib/utils/cn";
 
-type TabId = "general" | "payments" | "shipping" | "branding" | "subscription";
+type TabId = "general" | "payments" | "shipping" | "branding" | "domain" | "subscription";
 
 interface Store {
   id: string;
@@ -37,6 +52,9 @@ interface Store {
   settings: Record<string, unknown>;
   isActive: boolean;
   ecomSubscriptionStatus: string;
+  ecomPlan: string;
+  freeDomainClaimed: boolean;
+  customDomain: string | null;
 }
 
 interface PaymentMethod {
@@ -51,6 +69,7 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: "payments", label: "Payments", icon: CreditCard },
   { id: "shipping", label: "Shipping", icon: Truck },
   { id: "branding", label: "Branding", icon: Palette },
+  { id: "domain", label: "Domain", icon: Globe },
   { id: "subscription", label: "Subscription", icon: ReceiptText },
 ];
 
@@ -86,6 +105,25 @@ export default function EcommerceSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [cancelConfirm, setCancelConfirm] = useState(false);
+
+  // Domain tab state
+  const [domains, setDomains] = useState<Array<{
+    id: string; domainName: string; tld: string; isPrimary: boolean;
+    registrarStatus: string; sslStatus: string; isFree: boolean;
+    isConnected: boolean; expiresAt: string | null;
+  }>>([]);
+  const [domainsLoading, setDomainsLoading] = useState(false);
+  const [domainSearch, setDomainSearch] = useState("");
+  const [domainResults, setDomainResults] = useState<Array<{
+    domain: string; tld: string; available: boolean; retailCents: number; isFreeEligible: boolean;
+  }>>([]);
+  const [searchingDomains, setSearchingDomains] = useState(false);
+  const [byodDomain, setByodDomain] = useState("");
+  const [connectingDomain, setConnectingDomain] = useState(false);
+  const [dnsInstructions, setDnsInstructions] = useState<{ nameservers: string[] } | null>(null);
+
+  // Upgrade state
+  const [upgrading, setUpgrading] = useState(false);
 
   // General tab fields
   const [name, setName] = useState("");
@@ -149,6 +187,128 @@ export default function EcommerceSettingsPage() {
     }
   }, []);
 
+  const loadDomains = useCallback(async () => {
+    setDomainsLoading(true);
+    try {
+      const res = await fetch("/api/domains");
+      const data = await res.json();
+      if (data.success) setDomains(data.data?.domains || []);
+    } catch { /* silent */ }
+    finally { setDomainsLoading(false); }
+  }, []);
+
+  async function handleSearchDomains() {
+    if (!domainSearch.trim()) return;
+    setSearchingDomains(true);
+    setDomainResults([]);
+    try {
+      const res = await fetch("/api/domains/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: domainSearch.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) setDomainResults(data.data?.results || []);
+    } catch { /* silent */ }
+    finally { setSearchingDomains(false); }
+  }
+
+  async function handlePurchaseDomain(domain: string, tld: string, isFree: boolean) {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/domains/purchase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain, tld, isFree }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMessage(`Domain ${domain}.${tld} ${isFree ? "claimed" : "purchased"} successfully!`);
+        setDomainResults([]);
+        setDomainSearch("");
+        loadDomains();
+        loadStore();
+      } else {
+        setError(data.error?.message || "Failed to register domain");
+      }
+    } catch {
+      setError("Failed to process domain");
+    } finally { setSaving(false); }
+  }
+
+  async function handleConnectDomain() {
+    if (!byodDomain.trim()) return;
+    setConnectingDomain(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/domains/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: byodDomain.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDnsInstructions({ nameservers: data.data?.nameservers || [] });
+        setSuccessMessage("Domain connected! Update your nameservers to complete setup.");
+        loadDomains();
+      } else {
+        setError(data.error?.message || "Failed to connect domain");
+      }
+    } catch {
+      setError("Failed to connect domain");
+    } finally { setConnectingDomain(false); }
+  }
+
+  async function handleSetPrimary(domainId: string) {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/domains/${domainId}/set-primary`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMessage("Primary domain updated!");
+        loadDomains();
+        loadStore();
+      }
+    } catch { /* silent */ }
+    finally { setSaving(false); }
+  }
+
+  async function handleDisconnectDomain(domainId: string) {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/domains/${domainId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMessage("Domain disconnected.");
+        loadDomains();
+        loadStore();
+      }
+    } catch { /* silent */ }
+    finally { setSaving(false); }
+  }
+
+  async function handleUpgrade(newPlan: EcomPlan) {
+    setUpgrading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/ecommerce/upgrade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: newPlan }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMessage(`Plan ${newPlan === "pro" ? "upgraded" : "downgraded"} to ${ECOM_PLAN_NAMES[newPlan]}!`);
+        loadStore();
+      } else {
+        setError(data.error?.message || "Failed to change plan");
+      }
+    } catch {
+      setError("Failed to change plan");
+    } finally { setUpgrading(false); }
+  }
+
   const loadPaymentMethods = useCallback(async () => {
     try {
       const res = await fetch("/api/ecommerce/store");
@@ -164,7 +324,8 @@ export default function EcommerceSettingsPage() {
   useEffect(() => {
     loadStore();
     loadPaymentMethods();
-  }, [loadStore, loadPaymentMethods]);
+    loadDomains();
+  }, [loadStore, loadPaymentMethods, loadDomains]);
 
   // Auto-dismiss success message
   useEffect(() => {
@@ -731,21 +892,272 @@ export default function EcommerceSettingsPage() {
           </div>
         )}
 
+        {/* DOMAIN TAB */}
+        {activeTab === "domain" && (
+          <div className="space-y-6">
+            {/* Current Domain Status */}
+            <div className="p-4 rounded-lg border space-y-2">
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-violet-500" />
+                <span className="text-sm font-medium">Subdomain:</span>
+                <span className="text-sm text-muted-foreground">
+                  {store.slug}.flowsmartly.com
+                </span>
+                <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400">
+                  Active
+                </span>
+              </div>
+              {store.customDomain && (
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-indigo-500" />
+                  <span className="text-sm font-medium">Primary:</span>
+                  <span className="text-sm text-muted-foreground">
+                    {store.customDomain}
+                  </span>
+                  <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400">
+                    Active
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Search & Register Domain */}
+            <div className="p-4 rounded-lg border space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  {store.ecomPlan === "pro" && !store.freeDomainClaimed ? (
+                    <>
+                      <Star className="h-4 w-4 text-amber-500" />
+                      Claim Your FREE Domain
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4 text-violet-500" />
+                      Buy a Domain
+                    </>
+                  )}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {store.ecomPlan === "pro" && !store.freeDomainClaimed
+                    ? "You have 1 free domain included with your Pro plan (.com, .store, .shop, .online, .co)"
+                    : "Search and register a domain starting at $9.99/year"}
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={domainSearch}
+                  onChange={(e) => setDomainSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearchDomains()}
+                  placeholder="Enter a domain name (e.g. mybrand)"
+                  className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+                <button
+                  onClick={handleSearchDomains}
+                  disabled={searchingDomains || !domainSearch.trim()}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
+                >
+                  {searchingDomains ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  Search
+                </button>
+              </div>
+
+              {/* Search Results */}
+              {domainResults.length > 0 && (
+                <div className="space-y-2">
+                  {domainResults.map((r) => {
+                    const isPro = store.ecomPlan === "pro";
+                    const canClaimFree = isPro && !store.freeDomainClaimed && r.isFreeEligible && r.available;
+                    return (
+                      <div
+                        key={`${r.domain}.${r.tld}`}
+                        className={cn(
+                          "flex items-center gap-3 p-3 rounded-lg border",
+                          r.available ? "border-border" : "border-border opacity-50"
+                        )}
+                      >
+                        <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm font-medium">{r.domain}.{r.tld}</span>
+                        {r.available ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400">
+                            Available
+                          </span>
+                        ) : (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400">
+                            Taken
+                          </span>
+                        )}
+                        <span className="ml-auto text-sm font-semibold">
+                          {canClaimFree ? (
+                            <span className="text-emerald-600">FREE</span>
+                          ) : (
+                            `$${(r.retailCents / 100).toFixed(2)}/yr`
+                          )}
+                        </span>
+                        {r.available && (
+                          <button
+                            onClick={() => handlePurchaseDomain(r.domain, r.tld, canClaimFree)}
+                            disabled={saving}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 disabled:opacity-50"
+                          >
+                            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                            {canClaimFree ? "Claim Free" : "Purchase"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Upgrade nudge for Basic users */}
+              {store.ecomPlan === "basic" && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-950/20 dark:to-indigo-950/20 border border-violet-200 dark:border-violet-800">
+                  <Crown className="h-5 w-5 text-violet-500 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-violet-800 dark:text-violet-300">
+                      Get a FREE domain with FlowShop Pro
+                    </p>
+                    <p className="text-xs text-violet-600 dark:text-violet-400">
+                      Upgrade to Pro ($12/mo) and get 1 free domain included
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab("subscription")}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700"
+                  >
+                    Upgrade <ArrowUpRight className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Connect Own Domain (BYOD) */}
+            <div className="p-4 rounded-lg border space-y-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Link2 className="h-4 w-4 text-blue-500" />
+                Connect My Own Domain
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Already have a domain? Connect it here and update your DNS settings.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={byodDomain}
+                  onChange={(e) => setByodDomain(e.target.value)}
+                  placeholder="e.g. mybrandstore.com"
+                  className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={handleConnectDomain}
+                  disabled={connectingDomain || !byodDomain.trim()}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {connectingDomain ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+                  Connect
+                </button>
+              </div>
+              {dnsInstructions && (
+                <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 text-sm space-y-2">
+                  <p className="font-medium text-blue-800 dark:text-blue-300">
+                    Update your domain nameservers to:
+                  </p>
+                  {dnsInstructions.nameservers.map((ns) => (
+                    <code key={ns} className="block text-xs bg-blue-100 dark:bg-blue-900/40 px-2 py-1 rounded">
+                      {ns}
+                    </code>
+                  ))}
+                  <p className="text-xs text-blue-600 dark:text-blue-400">
+                    DNS changes can take up to 24-48 hours to propagate.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Existing Domains */}
+            {domains.length > 0 && (
+              <div className="p-4 rounded-lg border space-y-3">
+                <h3 className="text-sm font-semibold">Your Domains</h3>
+                <div className="space-y-2">
+                  {domains.map((d) => (
+                    <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border">
+                      <Globe className="h-4 w-4 text-violet-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{d.domainName}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          {d.isPrimary && (
+                            <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400 font-medium">
+                              Primary
+                            </span>
+                          )}
+                          {d.isFree && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                              Free with Pro
+                            </span>
+                          )}
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded",
+                            d.sslStatus === "active"
+                              ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400"
+                              : "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400"
+                          )}>
+                            SSL: {d.sslStatus}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {!d.isPrimary && (
+                          <button
+                            onClick={() => handleSetPrimary(d.id)}
+                            disabled={saving}
+                            className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-violet-600 transition-colors"
+                            title="Set as primary"
+                          >
+                            <Star className="h-4 w-4" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDisconnectDomain(d.id)}
+                          disabled={saving}
+                          className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-red-600 transition-colors"
+                          title="Disconnect"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* SUBSCRIPTION TAB */}
         {activeTab === "subscription" && (
           <div className="space-y-6">
+            {/* Current Plan */}
             <div className="flex items-center justify-between p-4 rounded-lg border">
               <div>
-                <p className="font-medium">FlowShop Subscription</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium">{ECOM_PLAN_NAMES[(store.ecomPlan || "basic") as EcomPlan] || "FlowShop Basic"}</p>
+                  {store.ecomPlan === "pro" && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 text-white text-xs font-semibold">
+                      <Crown className="h-3 w-3" /> PRO
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground mt-0.5">
-                  ${(ECOM_SUBSCRIPTION_PRICE_CENTS / 100).toFixed(2)}/month
+                  ${((store.ecomPlan === "pro" ? ECOM_PRO_PRICE_CENTS : ECOM_BASIC_PRICE_CENTS) / 100).toFixed(2)}/month
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <div
                   className={cn(
                     "h-2.5 w-2.5 rounded-full",
-                    store.ecomSubscriptionStatus === "active" ? "bg-green-500" : "bg-red-500"
+                    store.ecomSubscriptionStatus === "active" || store.ecomSubscriptionStatus === "trialing" ? "bg-green-500" : "bg-red-500"
                   )}
                 />
                 <span className="text-sm font-medium capitalize">
@@ -754,34 +1166,60 @@ export default function EcommerceSettingsPage() {
               </div>
             </div>
 
+            {/* Plan Features */}
             <div className="p-4 rounded-lg bg-muted/50">
-              <h3 className="text-sm font-medium mb-2">What is included:</h3>
+              <h3 className="text-sm font-medium mb-2">Your plan includes:</h3>
               <ul className="space-y-1.5 text-sm text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-green-500" />
-                  Unlimited products
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-green-500" />
-                  Custom storefront with your branding
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-green-500" />
-                  Order management
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-green-500" />
-                  Multiple payment methods
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-green-500" />
-                  Delivery tracking (COD regions)
-                </li>
+                {ECOM_PLAN_FEATURES[(store.ecomPlan || "basic") as EcomPlan]?.map((feature) => (
+                  <li key={feature} className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-green-500 shrink-0" />
+                    {feature}
+                  </li>
+                ))}
               </ul>
             </div>
 
-            {store.ecomSubscriptionStatus === "active" && (
+            {/* Upgrade/Downgrade */}
+            {store.ecomPlan === "basic" ? (
+              <div className="p-4 rounded-lg bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-950/20 dark:to-indigo-950/20 border border-violet-200 dark:border-violet-800 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Crown className="h-5 w-5 text-violet-500" />
+                  <h3 className="text-sm font-semibold text-violet-800 dark:text-violet-300">
+                    Upgrade to FlowShop Pro — $12/month
+                  </h3>
+                </div>
+                <p className="text-sm text-violet-600 dark:text-violet-400">
+                  Get 1 FREE domain, priority AI processing, advanced analytics, AI chatbot, and abandoned cart recovery.
+                </p>
+                <button
+                  onClick={() => handleUpgrade("pro")}
+                  disabled={upgrading}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-500 to-indigo-600 text-white text-sm font-medium hover:from-violet-600 hover:to-indigo-700 disabled:opacity-50"
+                >
+                  {upgrading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpRight className="h-4 w-4" />}
+                  Upgrade to Pro
+                </button>
+              </div>
+            ) : (
               <div>
+                <button
+                  onClick={() => {
+                    if (store.freeDomainClaimed) {
+                      if (!confirm("Warning: Your free domain will convert to paid renewal ($14.99/year). Continue?")) return;
+                    }
+                    handleUpgrade("basic");
+                  }}
+                  disabled={upgrading}
+                  className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  {upgrading ? "Changing plan..." : "Downgrade to Basic ($5/month)"}
+                </button>
+              </div>
+            )}
+
+            {/* Cancel */}
+            {(store.ecomSubscriptionStatus === "active" || store.ecomSubscriptionStatus === "trialing") && (
+              <div className="pt-2 border-t">
                 {!cancelConfirm ? (
                   <button
                     onClick={() => setCancelConfirm(true)}
@@ -796,6 +1234,7 @@ export default function EcommerceSettingsPage() {
                     </p>
                     <p className="text-xs text-red-600/70 dark:text-red-400/70 mt-1">
                       Your store will remain active until the end of the current billing period.
+                      {store.freeDomainClaimed && " Your free domain will convert to paid renewal."}
                     </p>
                     <div className="flex gap-2 mt-3">
                       <button

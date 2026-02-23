@@ -115,19 +115,29 @@ const aiFeatures = [
   },
 ];
 
-const pricingFeatures = [
-  "10 professional store themes",
-  "Unlimited products & orders",
-  "AI product copy generator",
-  "AI image enhancer",
-  "Dynamic pricing engine",
-  "SEO optimizer",
-  "Google Trends integration",
-  "Analytics dashboard",
-  "Stripe payment processing",
-  "Delivery tracking system",
-  "Custom branding & colors",
-  "Mobile-optimized storefront",
+const basicFeatures = [
+  "Full AI store",
+  "Product management with AI",
+  "Google Trends & discovery",
+  "Competitor pricing",
+  "Ad feed integration",
+  "Mobile-first storefront",
+  "AI recommendations",
+  "Region-aware payments",
+  "Free subdomain",
+  "Connect your own domain",
+];
+
+const proFeatures = [
+  "Everything in Basic, plus:",
+  "1 FREE domain (.com, .store, .shop)",
+  "Domain auto-config + SSL",
+  "WHOIS privacy",
+  "Priority AI processing",
+  "Advanced analytics",
+  "AI customer chatbot",
+  "Abandoned cart recovery",
+  "Free domain renewal while subscribed",
 ];
 
 export default function FlowShopPage() {
@@ -492,50 +502,92 @@ export default function FlowShopPage() {
         </div>
       </section>
 
-      {/* Pricing Card */}
+      {/* Pricing Cards */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-lg mx-auto">
+        <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
               Simple, Transparent Pricing
             </h2>
             <p className="text-lg text-muted-foreground">
-              One plan, everything included. No hidden fees.
+              Two plans to fit your needs. No hidden fees.
             </p>
           </div>
 
-          <div className="rounded-2xl border-2 border-violet-500/20 bg-card p-8 relative overflow-hidden">
-            {/* Badge */}
-            <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 text-white text-xs font-bold">
-              14-DAY FREE TRIAL
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Basic Plan */}
+            <div className="rounded-2xl border-2 border-violet-500/20 bg-card p-8 relative overflow-hidden">
+              <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 text-white text-xs font-bold">
+                14-DAY FREE TRIAL
+              </div>
+
+              <p className="text-muted-foreground mb-2 font-medium">FlowShop Basic</p>
+              <div className="flex items-baseline gap-1 mb-6">
+                <span className="text-5xl font-bold">$5</span>
+                <span className="text-muted-foreground">/month</span>
+              </div>
+
+              <ul className="space-y-3 mb-8">
+                {basicFeatures.map((feature) => (
+                  <li key={feature} className="flex items-center gap-3">
+                    <div className="w-5 h-5 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
+                      <Check className="w-3 h-3 text-violet-600 dark:text-violet-400" />
+                    </div>
+                    <span className="text-sm text-foreground">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <Link
+                href="/login?redirect=/ecommerce"
+                className="block w-full text-center px-6 py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-violet-500/20"
+              >
+                Start Free Trial
+              </Link>
+              <p className="text-center text-xs text-muted-foreground mt-3">
+                No charge during trial. Cancel anytime.
+              </p>
             </div>
 
-            <p className="text-muted-foreground mb-2 font-medium">FlowShop Store</p>
-            <div className="flex items-baseline gap-1 mb-6">
-              <span className="text-5xl font-bold">$5</span>
-              <span className="text-muted-foreground">/month</span>
+            {/* Pro Plan — highlighted */}
+            <div className="rounded-2xl border-2 border-violet-500 bg-card p-8 relative overflow-hidden shadow-lg shadow-violet-500/10 ring-1 ring-violet-500/20">
+              {/* Glow effect */}
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 via-transparent to-purple-500/5 pointer-events-none" />
+
+              <div className="absolute top-4 left-4 px-3 py-1 rounded-full bg-violet-600 text-white text-xs font-bold">
+                BEST VALUE
+              </div>
+              <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 text-white text-xs font-bold">
+                14-DAY FREE TRIAL
+              </div>
+
+              <p className="text-muted-foreground mb-2 font-medium mt-4">FlowShop Pro</p>
+              <div className="flex items-baseline gap-1 mb-6">
+                <span className="text-5xl font-bold">$12</span>
+                <span className="text-muted-foreground">/month</span>
+              </div>
+
+              <ul className="space-y-3 mb-8">
+                {proFeatures.map((feature, i) => (
+                  <li key={feature} className="flex items-center gap-3">
+                    <div className="w-5 h-5 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
+                      <Check className="w-3 h-3 text-violet-600 dark:text-violet-400" />
+                    </div>
+                    <span className={`text-sm text-foreground ${i === 0 ? "font-semibold" : ""}`}>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <Link
+                href="/login?redirect=/ecommerce"
+                className="block w-full text-center px-6 py-3.5 rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 text-white font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-violet-500/25"
+              >
+                Start Free Trial
+              </Link>
+              <p className="text-center text-xs text-muted-foreground mt-3">
+                No charge during trial. Cancel anytime.
+              </p>
             </div>
-
-            <ul className="space-y-3 mb-8">
-              {pricingFeatures.map((feature) => (
-                <li key={feature} className="flex items-center gap-3">
-                  <div className="w-5 h-5 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-violet-600 dark:text-violet-400" />
-                  </div>
-                  <span className="text-sm text-foreground">{feature}</span>
-                </li>
-              ))}
-            </ul>
-
-            <Link
-              href="/login?redirect=/ecommerce"
-              className="block w-full text-center px-6 py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-violet-500/20"
-            >
-              Start Free Trial
-            </Link>
-            <p className="text-center text-xs text-muted-foreground mt-3">
-              No charge during trial. Cancel anytime.
-            </p>
           </div>
         </div>
       </section>

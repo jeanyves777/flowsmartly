@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}));
     const paymentMethodId = body.paymentMethodId as string | undefined;
+    const plan = (body.plan === "pro" ? "pro" : "basic") as "basic" | "pro";
 
     if (!paymentMethodId) {
       return NextResponse.json(
@@ -68,6 +69,7 @@ export async function POST(request: NextRequest) {
       userId: session.userId,
       customerId,
       paymentMethodId,
+      plan,
     });
 
     // Store is active immediately (trial counts as active)
@@ -84,6 +86,7 @@ export async function POST(request: NextRequest) {
           country: user.country,
           ecomSubscriptionId: result.subscriptionId,
           ecomSubscriptionStatus: subStatus,
+          ecomPlan: plan,
           isActive,
         },
       });
@@ -93,6 +96,7 @@ export async function POST(request: NextRequest) {
         data: {
           ecomSubscriptionId: result.subscriptionId,
           ecomSubscriptionStatus: subStatus,
+          ecomPlan: plan,
           isActive,
         },
       });
@@ -103,6 +107,7 @@ export async function POST(request: NextRequest) {
       data: {
         subscriptionId: result.subscriptionId,
         status: result.status,
+        plan,
         trialEnds: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
       },
     });

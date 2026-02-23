@@ -111,6 +111,7 @@ model User {
   projectMemberships     ProjectMember[]
   contentFlags           ContentFlag[]  @relation("ContentFlagsReported")
   store                  Store?
+  storeDomains           StoreDomain[]
 
   @@index([email])
   @@index([username])
@@ -2937,8 +2938,13 @@ model Store {
   settings               String    @default("{}")
 
   // Subscription
-  ecomSubscriptionId     String?   // Stripe subscription ID for $5/month add-on
-  ecomSubscriptionStatus String    @default("inactive") // active, inactive, cancelled, past_due
+  ecomSubscriptionId     String?   // Stripe subscription ID
+  ecomSubscriptionStatus String    @default("inactive") // active, inactive, cancelled, past_due, trialing
+  ecomPlan               String    @default("basic")    // "basic" ($5/mo) or "pro" ($12/mo)
+
+  // Custom Domain
+  customDomain           String?                         // e.g. "mybrandstore.com"
+  freeDomainClaimed      Boolean   @default(false)       // Pro plan: has user claimed their free domain?
 
   // Status
   isActive               Boolean   @default(false)
@@ -2960,6 +2966,7 @@ model Store {
   orders                 Order[]
   drivers                DeliveryDriver[]
   paymentMethods         StorePaymentMethod[]
+  domains                StoreDomain[]
 
   @@index([slug])
   @@index([userId])
@@ -3267,4 +3274,51 @@ model PricingRule {
   updatedAt   DateTime  @updatedAt
 
   product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// STORE DOMAINS
+// ============================================
+
+model StoreDomain {
+  id                String    @id @default(cuid())
+  storeId           String
+  userId            String
+  domainName        String    @unique  // "mybrandstore.com"
+  tld               String             // "com", "store", "shop", etc.
+
+  // OpenSRS
+  registrarOrderId  String?            // OpenSRS order ID
+  registrarStatus   String    @default("pending") // pending, active, expired, transferred
+
+  // Cloudflare
+  cloudflareZoneId  String?            // Cloudflare zone ID
+  sslStatus         String    @default("pending") // pending, active, failed
+
+  // Billing
+  isFree            Boolean   @default(false)  // True if claimed via Pro plan
+  purchasePriceCents Int      @default(0)      // What user paid
+  renewalPriceCents  Int      @default(0)      // Annual renewal cost to user
+  costCents          Int      @default(0)      // Our cost from OpenSRS
+
+  // Config
+  whoisPrivacy      Boolean   @default(true)
+  autoRenew         Boolean   @default(true)
+  nameservers       String    @default("[]")   // JSON array
+  dnsRecords        String    @default("[]")   // JSON of configured records
+
+  // Status
+  isPrimary         Boolean   @default(false)  // Primary domain for this store
+  isConnected       Boolean   @default(false)  // BYOD: user brought their own domain
+  expiresAt         DateTime?
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  store             Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([userId])
+  @@index([domainName])
 }

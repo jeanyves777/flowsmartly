@@ -225,9 +225,13 @@ export function getCurrencyForRegion(regionId: string | null | undefined): { cod
   return CURRENCIES_BY_REGION[regionId] || { code: "USD", symbol: "$", name: "US Dollar" };
 }
 
-// ── Subscription Pricing ──
+// ── Subscription Pricing (re-exported from domains/pricing) ──
 
-export const ECOM_SUBSCRIPTION_PRICE_CENTS = 500; // $5/month
+export { ECOM_BASIC_PRICE_CENTS, ECOM_PRO_PRICE_CENTS, ECOM_PLAN_NAMES, ECOM_PLAN_FEATURES } from "@/lib/domains/pricing";
+export type { EcomPlan } from "@/lib/domains/pricing";
+
+/** @deprecated Use ECOM_BASIC_PRICE_CENTS instead */
+export const ECOM_SUBSCRIPTION_PRICE_CENTS = 500; // $5/month — kept for backward compatibility
 
 // ── Slug Generation ──
 

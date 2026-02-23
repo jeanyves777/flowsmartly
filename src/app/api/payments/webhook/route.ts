@@ -339,6 +339,18 @@ async function processWebhookEvent(event: Stripe.Event) {
         break;
       }
 
+      // Handle domain purchase payments
+      if (piMetadata.type === "domain_purchase" && piMetadata.domainName) {
+        await prisma.storeDomain.updateMany({
+          where: { domainName: piMetadata.domainName },
+          data: { registrarStatus: "active" },
+        });
+        console.log(
+          `[Stripe Webhook] Domain ${piMetadata.domainName} payment confirmed`
+        );
+        break;
+      }
+
       if (piMetadata.type !== "credit_purchase" || !piMetadata.userId) {
         break;
       }
@@ -517,15 +529,22 @@ async function processWebhookEvent(event: Stripe.Event) {
                 : "inactive";
           const isStoreActive = updatedSub.status === "active" || updatedSub.status === "trialing";
 
+          const updateData: Record<string, unknown> = {
+            ecomSubscriptionStatus: newStatus,
+            isActive: isStoreActive,
+          };
+          // Track plan changes from metadata
+          const subPlan = updatedSub.metadata?.plan;
+          if (subPlan === "basic" || subPlan === "pro") {
+            updateData.ecomPlan = subPlan;
+          }
+
           await prisma.store.updateMany({
             where: { userId: ecomUserId },
-            data: {
-              ecomSubscriptionStatus: newStatus,
-              isActive: isStoreActive,
-            },
+            data: updateData,
           });
           console.log(
-            `[Stripe Webhook] FlowShop subscription updated: ${newStatus} for user ${ecomUserId}`
+            `[Stripe Webhook] FlowShop subscription updated: ${newStatus} (plan: ${subPlan || "unknown"}) for user ${ecomUserId}`
           );
         }
       }
