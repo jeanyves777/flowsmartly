@@ -12,6 +12,8 @@ import {
   Settings,
   AlertCircle,
   TrendingUp,
+  Rocket,
+  ArrowRight,
 } from "lucide-react";
 import { ORDER_STATUSES } from "@/lib/constants/ecommerce";
 
@@ -20,6 +22,7 @@ interface Store {
   name: string;
   slug: string;
   isActive: boolean;
+  setupComplete: boolean;
   productCount: number;
   orderCount: number;
   totalRevenueCents: number;
@@ -159,6 +162,32 @@ export default function EcommerceDashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Onboarding Incomplete Banner */}
+      {!store.setupComplete && (
+        <div className="rounded-xl border-2 border-amber-300 dark:border-amber-600 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 p-5">
+          <div className="flex items-start gap-4">
+            <div className="h-10 w-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center flex-shrink-0">
+              <Rocket className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-amber-900 dark:text-amber-200">
+                Complete your store setup
+              </h3>
+              <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">
+                Finish setting up your store to start selling — configure your region, payments, brand, and domain.
+              </p>
+            </div>
+            <Link
+              href="/ecommerce/onboarding"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium transition-colors flex-shrink-0"
+            >
+              Continue Setup
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

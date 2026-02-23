@@ -334,7 +334,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
       {hasEcommerce && !isCollapsed && (
         <div className="mx-4 mb-2 flex rounded-lg bg-muted p-1">
           <button
-            onClick={() => !storeMode && onToggleStoreMode?.()}
+            onClick={() => storeMode && onToggleStoreMode?.()}
             className={cn(
               "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
               !storeMode ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
@@ -343,7 +343,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             Social
           </button>
           <button
-            onClick={() => storeMode || onToggleStoreMode?.()}
+            onClick={() => !storeMode && onToggleStoreMode?.()}
             className={cn(
               "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors flex items-center justify-center gap-1.5",
               storeMode ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
