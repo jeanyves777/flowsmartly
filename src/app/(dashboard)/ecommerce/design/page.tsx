@@ -144,6 +144,7 @@ interface StoreContent {
   returnPolicy: string;
   shippingPolicy: string;
   faq: FaqItem[];
+  showBrandName: boolean;
 }
 
 interface Store {
@@ -243,6 +244,7 @@ function getDefaultStoreContent(): StoreContent {
     returnPolicy: "",
     shippingPolicy: "",
     faq: [],
+    showBrandName: true,
   };
 }
 
@@ -328,6 +330,7 @@ export default function EcommerceDesignPage() {
             returnPolicy: settings.storeContent.returnPolicy || "",
             shippingPolicy: settings.storeContent.shippingPolicy || "",
             faq: Array.isArray(settings.storeContent.faq) ? settings.storeContent.faq : [],
+            showBrandName: settings.storeContent.showBrandName !== false,
           });
         }
       } else {
@@ -1083,6 +1086,32 @@ export default function EcommerceDesignPage() {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* ── Show Brand Name Toggle ───────────────────────────────── */}
+                <div className="flex items-center justify-between p-3 rounded-lg border">
+                  <div>
+                    <p className="text-sm font-medium">Show Brand Name</p>
+                    <p className="text-xs text-muted-foreground">Turn off if your logo already includes the name.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStoreContent((prev) => ({ ...prev, showBrandName: !prev.showBrandName }));
+                      debouncedSaveAndReload();
+                    }}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                      storeContent.showBrandName ? "bg-brand-500" : "bg-muted"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "inline-block h-4 w-4 rounded-full bg-white transition-transform",
+                        storeContent.showBrandName ? "translate-x-6" : "translate-x-1"
+                      )}
+                    />
+                  </button>
                 </div>
 
                 {/* ── Hero Style ───────────────────────────────────────────── */}

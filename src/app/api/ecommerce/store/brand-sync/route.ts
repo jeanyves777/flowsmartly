@@ -8,7 +8,7 @@ import { presignAllUrls } from "@/lib/utils/s3-client";
  * Read user's default BrandKit and sync relevant fields to the Store.
  * Extracts: name, description, logoUrl, industry, colors, fonts -> theme JSON.
  */
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const session = await getSession();
     if (!session) {
@@ -78,6 +78,22 @@ export async function POST() {
       },
     };
 
+    // Parse optional body for logo choice
+    let logoChoice: "full" | "icon" | undefined;
+    try {
+      const body = await request.json();
+      if (body.logoChoice === "icon" || body.logoChoice === "full") {
+        logoChoice = body.logoChoice;
+      }
+    } catch {
+      // No body or invalid JSON — use default (full logo)
+    }
+
+    // Choose which logo to use
+    const selectedLogo = logoChoice === "icon"
+      ? (brandKit.iconLogo || brandKit.logo || null)
+      : (brandKit.logo || brandKit.iconLogo || null);
+
     // Extract description from tagline or description
     const description = brandKit.tagline || brandKit.description || null;
 
@@ -87,7 +103,7 @@ export async function POST() {
       data: {
         name: brandKit.name,
         description,
-        logoUrl: brandKit.logo || null,
+        logoUrl: selectedLogo,
         industry: brandKit.industry || null,
         theme: JSON.stringify(theme),
       },
@@ -106,6 +122,7 @@ export async function POST() {
           tagline: brandKit.tagline,
           description: brandKit.description,
           logo: brandKit.logo,
+          iconLogo: brandKit.iconLogo,
           industry: brandKit.industry,
           colors,
           fonts,

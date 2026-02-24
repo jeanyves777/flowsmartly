@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Loader2, Sparkles, Check } from "lucide-react";
+import { useState } from "react";
+import Image from "next/image";
+import { Loader2, Sparkles, Check, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { REGIONS, getRegionForCountry } from "@/lib/constants/regions";
 import {
@@ -9,6 +10,7 @@ import {
   PAYMENT_METHODS_BY_REGION,
   type PaymentMethodConfig,
 } from "@/lib/constants/ecommerce";
+import { cn } from "@/lib/utils/cn";
 
 interface StoreInfoStepProps {
   storeName: string;
@@ -35,12 +37,16 @@ export function StoreInfoStep({
 }: StoreInfoStepProps) {
   const [brandSyncing, setBrandSyncing] = useState(false);
   const [brandSynced, setBrandSynced] = useState(false);
+  const [brandLogos, setBrandLogos] = useState<{ full: string | null; icon: string | null }>({ full: null, icon: null });
+  const [logoChoice, setLogoChoice] = useState<"full" | "icon">("full");
 
-  async function handleBrandSync() {
+  async function handleBrandSync(choice?: "full" | "icon") {
     setBrandSyncing(true);
     try {
       const res = await fetch("/api/ecommerce/store/brand-sync", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ logoChoice: choice || logoChoice }),
       });
       const json = await res.json();
       if (json.success) {
@@ -48,9 +54,17 @@ export function StoreInfoStep({
         setBrandSynced(true);
         if (bk.name) onFieldChange("storeName", bk.name);
         if (bk.industry) onFieldChange("industry", bk.industry);
+        // Store both logo URLs for the picker
+        setBrandLogos({ full: bk.logo || null, icon: bk.iconLogo || null });
       }
     } catch {}
     setBrandSyncing(false);
+  }
+
+  function handleLogoChoiceChange(choice: "full" | "icon") {
+    setLogoChoice(choice);
+    // Re-sync with the new logo choice
+    handleBrandSync(choice);
   }
 
   function handleRegionChange(newRegion: string) {
@@ -81,7 +95,7 @@ export function StoreInfoStep({
 
       {/* Brand Sync */}
       <Button
-        onClick={handleBrandSync}
+        onClick={() => handleBrandSync()}
         disabled={brandSyncing}
         variant={brandSynced ? "outline" : "default"}
         size="sm"
@@ -104,6 +118,76 @@ export function StoreInfoStep({
           </>
         )}
       </Button>
+
+      {/* Logo Picker — shown after brand sync if both logos exist */}
+      {brandSynced && (brandLogos.full || brandLogos.icon) && (
+        <div className="rounded-lg border p-4 space-y-3">
+          <label className="text-sm font-medium">Store Logo</label>
+          <p className="text-xs text-muted-foreground">
+            Choose which logo to display on your store.
+          </p>
+          <div className="flex gap-3">
+            {brandLogos.full && (
+              <button
+                type="button"
+                onClick={() => handleLogoChoiceChange("full")}
+                className={cn(
+                  "relative flex flex-col items-center gap-2 rounded-lg border-2 p-3 transition-all",
+                  logoChoice === "full"
+                    ? "border-primary ring-2 ring-primary/20"
+                    : "border-muted hover:border-muted-foreground/30"
+                )}
+              >
+                <Image
+                  src={brandLogos.full}
+                  alt="Full logo"
+                  width={120}
+                  height={48}
+                  className="h-12 w-auto object-contain"
+                />
+                <span className="text-xs font-medium">Full Logo</span>
+                {logoChoice === "full" && (
+                  <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                    <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                  </div>
+                )}
+              </button>
+            )}
+            {brandLogos.icon && (
+              <button
+                type="button"
+                onClick={() => handleLogoChoiceChange("icon")}
+                className={cn(
+                  "relative flex flex-col items-center gap-2 rounded-lg border-2 p-3 transition-all",
+                  logoChoice === "icon"
+                    ? "border-primary ring-2 ring-primary/20"
+                    : "border-muted hover:border-muted-foreground/30"
+                )}
+              >
+                <Image
+                  src={brandLogos.icon}
+                  alt="Icon logo"
+                  width={48}
+                  height={48}
+                  className="h-12 w-12 object-contain"
+                />
+                <span className="text-xs font-medium">Icon Logo</span>
+                {logoChoice === "icon" && (
+                  <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                    <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                  </div>
+                )}
+              </button>
+            )}
+            {!brandLogos.full && !brandLogos.icon && (
+              <div className="flex items-center gap-2 p-3 text-muted-foreground">
+                <ImageIcon className="h-5 w-5" />
+                <span className="text-xs">No logos found in your brand kit.</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Store Name */}

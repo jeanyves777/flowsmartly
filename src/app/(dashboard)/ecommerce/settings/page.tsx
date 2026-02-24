@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import {
   Settings,
   Save,
@@ -20,6 +21,8 @@ import {
   Trash2,
   Star,
   Search,
+  Sparkles,
+  ImageIcon,
 } from "lucide-react";
 import {
   PRODUCT_CATEGORIES,
@@ -133,6 +136,11 @@ export default function EcommerceSettingsPage() {
   const [logoUrl, setLogoUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
   const [industry, setIndustry] = useState("");
+  const [showBrandName, setShowBrandName] = useState(true);
+
+  // Brand sync state
+  const [brandSyncing, setBrandSyncing] = useState(false);
+  const [brandLogos, setBrandLogos] = useState<{ full: string | null; icon: string | null }>({ full: null, icon: null });
 
   // Shipping tab fields
   const [flatRateCents, setFlatRateCents] = useState(0);
@@ -167,6 +175,9 @@ export default function EcommerceSettingsPage() {
         setFlatRateCents(typeof shipping.flatRateCents === "number" ? shipping.flatRateCents : 0);
         setFreeShippingThresholdCents(typeof shipping.freeShippingThresholdCents === "number" ? shipping.freeShippingThresholdCents : 0);
         setLocalPickup(!!shipping.localPickup);
+        // Parse showBrandName from storeContent
+        const storeContentSettings = (settings.storeContent || {}) as Record<string, unknown>;
+        setShowBrandName(storeContentSettings.showBrandName !== false);
         // Parse theme
         const theme = s.theme || {};
         setSelectedTemplate((theme.template as string) || "minimal");
@@ -351,6 +362,13 @@ export default function EcommerceSettingsPage() {
           logoUrl: logoUrl || null,
           bannerUrl: bannerUrl || null,
           industry: industry || null,
+          settings: {
+            ...store.settings,
+            storeContent: {
+              ...((store.settings as Record<string, unknown>).storeContent as Record<string, unknown> || {}),
+              showBrandName,
+            },
+          },
         }),
       });
       const data = await res.json();
@@ -584,16 +602,151 @@ export default function EcommerceSettingsPage() {
                 placeholder="Tell customers about your store..."
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Logo URL</label>
-              <input
-                type="text"
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                placeholder="https://example.com/logo.png"
-              />
+            {/* Logo Section */}
+            <div className="space-y-3">
+              <label className="block text-sm font-medium">Store Logo</label>
+
+              {/* Current logo preview */}
+              {logoUrl && (
+                <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                  <Image src={logoUrl} alt="Current logo" width={48} height={48} className="h-12 w-12 rounded-lg object-contain border" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground truncate">{logoUrl}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setLogoUrl("")}
+                    className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Sync from Brand Kit */}
+              <button
+                type="button"
+                onClick={async () => {
+                  setBrandSyncing(true);
+                  try {
+                    const res = await fetch("/api/ecommerce/store/brand-sync", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ logoChoice: "full" }),
+                    });
+                    const json = await res.json();
+                    if (json.success) {
+                      const bk = json.data.brandKit;
+                      setBrandLogos({ full: bk.logo || null, icon: bk.iconLogo || null });
+                      if (bk.logo) setLogoUrl(json.data.store.logoUrl || bk.logo);
+                    }
+                  } catch {}
+                  setBrandSyncing(false);
+                }}
+                disabled={brandSyncing}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                {brandSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                Sync Logo from Brand Kit
+              </button>
+
+              {/* Logo choice picker — shown after brand sync if both logos exist */}
+              {(brandLogos.full || brandLogos.icon) && (
+                <div className="flex gap-3">
+                  {brandLogos.full && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setBrandSyncing(true);
+                        try {
+                          const res = await fetch("/api/ecommerce/store/brand-sync", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ logoChoice: "full" }),
+                          });
+                          const json = await res.json();
+                          if (json.success) setLogoUrl(json.data.store.logoUrl || "");
+                        } catch {}
+                        setBrandSyncing(false);
+                      }}
+                      className={cn(
+                        "relative flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 transition-all",
+                        logoUrl === brandLogos.full || (!brandLogos.icon && logoUrl)
+                          ? "border-brand-500 ring-1 ring-brand-500/20"
+                          : "border-border hover:border-brand-500/30"
+                      )}
+                    >
+                      <Image src={brandLogos.full} alt="Full logo" width={100} height={40} className="h-10 w-auto object-contain" />
+                      <span className="text-[10px] font-medium">Full Logo</span>
+                    </button>
+                  )}
+                  {brandLogos.icon && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setBrandSyncing(true);
+                        try {
+                          const res = await fetch("/api/ecommerce/store/brand-sync", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ logoChoice: "icon" }),
+                          });
+                          const json = await res.json();
+                          if (json.success) setLogoUrl(json.data.store.logoUrl || "");
+                        } catch {}
+                        setBrandSyncing(false);
+                      }}
+                      className={cn(
+                        "relative flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 transition-all",
+                        logoUrl === brandLogos.icon
+                          ? "border-brand-500 ring-1 ring-brand-500/20"
+                          : "border-border hover:border-brand-500/30"
+                      )}
+                    >
+                      <Image src={brandLogos.icon} alt="Icon logo" width={40} height={40} className="h-10 w-10 object-contain" />
+                      <span className="text-[10px] font-medium">Icon Logo</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Manual URL fallback */}
+              {!logoUrl && (
+                <input
+                  type="text"
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="Or paste a logo URL..."
+                />
+              )}
             </div>
+
+            {/* Show Brand Name Toggle */}
+            <div className="flex items-center justify-between p-4 rounded-lg border">
+              <div>
+                <p className="text-sm font-medium">Show Brand Name</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Display your store name next to the logo. Turn off if your logo already includes the name.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBrandName(!showBrandName)}
+                className={cn(
+                  "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                  showBrandName ? "bg-brand-500" : "bg-muted"
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block h-4 w-4 rounded-full bg-white transition-transform",
+                    showBrandName ? "translate-x-6" : "translate-x-1"
+                  )}
+                />
+              </button>
+            </div>
+
             <div>
               <label className="block text-sm font-medium mb-1.5">Banner URL</label>
               <input

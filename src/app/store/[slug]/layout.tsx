@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import Image from "next/image";
 import { prisma } from "@/lib/db/client";
+import { getPresignedUrl } from "@/lib/utils/s3-client";
 import { ShoppingBag } from "lucide-react";
 import { resolveTheme, getGoogleFontsUrl, getThemeCSSVars } from "@/lib/store/theme-utils";
 import { generateStoreJsonLd } from "@/lib/store/seo-utils";
@@ -53,7 +54,8 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
   let storeSettings: Record<string, unknown> = {};
   try { storeSettings = JSON.parse(store.settings as string || "{}"); } catch {}
   const shippingConfig = storeSettings.shipping as { freeShippingThresholdCents?: number } | undefined;
-  const storeContent = storeSettings.storeContent as { returnPolicy?: string; shippingPolicy?: string } | undefined;
+  const storeContent = storeSettings.storeContent as { returnPolicy?: string; shippingPolicy?: string; showBrandName?: boolean } | undefined;
+  const showBrandName = storeContent?.showBrandName !== false; // default true
 
   // Preview mode: allow store owner to view inactive store
   const headersList = await headers();
@@ -82,6 +84,12 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
   if (!store.isActive && !isPreview) {
     notFound();
   }
+
+  // Presign S3 logo URL so the image actually loads
+  const STORAGE_URL = process.env.NEXT_PUBLIC_STORAGE_URL || "";
+  const logoUrl = store.logoUrl && STORAGE_URL && store.logoUrl.startsWith(STORAGE_URL)
+    ? await getPresignedUrl(store.logoUrl)
+    : store.logoUrl;
 
   const theme = resolveTheme(store.theme);
   const fontsUrl = getGoogleFontsUrl(theme);
@@ -130,9 +138,9 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
             <div className="flex flex-col items-center gap-3">
               <div className="flex items-center justify-between w-full md:justify-center">
                 <Link href={`/store/${store.slug}`} className="flex items-center gap-3">
-                  {store.logoUrl ? (
+                  {logoUrl ? (
                     <Image
-                      src={store.logoUrl}
+                      src={logoUrl}
                       alt={store.name}
                       width={48}
                       height={48}
@@ -146,12 +154,14 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                       <ShoppingBag className="h-6 w-6" />
                     </div>
                   )}
-                  <span
-                    className="text-xl font-bold"
-                    style={{ fontFamily: 'var(--store-font-heading), sans-serif' }}
-                  >
-                    {store.name}
-                  </span>
+                  {showBrandName && (
+                    <span
+                      className="text-xl font-bold"
+                      style={{ fontFamily: 'var(--store-font-heading), sans-serif' }}
+                    >
+                      {store.name}
+                    </span>
+                  )}
                 </Link>
                 <div className="flex items-center gap-1">
                   <CartButton />
@@ -198,9 +208,9 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div className="flex items-center justify-between h-20">
               <Link href={`/store/${store.slug}`} className="flex items-center gap-3">
-                {store.logoUrl ? (
+                {logoUrl ? (
                   <Image
-                    src={store.logoUrl}
+                    src={logoUrl}
                     alt={store.name}
                     width={44}
                     height={44}
@@ -211,12 +221,14 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                     <ShoppingBag className="h-6 w-6 text-white" />
                   </div>
                 )}
-                <span
-                  className="text-2xl font-extrabold text-white"
-                  style={{ fontFamily: 'var(--store-font-heading), sans-serif' }}
-                >
-                  {store.name}
-                </span>
+                {showBrandName && (
+                  <span
+                    className="text-2xl font-extrabold text-white"
+                    style={{ fontFamily: 'var(--store-font-heading), sans-serif' }}
+                  >
+                    {store.name}
+                  </span>
+                )}
               </Link>
               <nav className="hidden md:flex items-center gap-6">
                 <Link
@@ -259,9 +271,9 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div className="flex items-center justify-between h-16">
               <Link href={`/store/${store.slug}`} className="flex items-center gap-3">
-                {store.logoUrl ? (
+                {logoUrl ? (
                   <Image
-                    src={store.logoUrl}
+                    src={logoUrl}
                     alt={store.name}
                     width={40}
                     height={40}
@@ -275,12 +287,14 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                     <ShoppingBag className="h-5 w-5" />
                   </div>
                 )}
-                <span
-                  className="text-lg font-semibold"
-                  style={{ fontFamily: 'var(--store-font-heading), sans-serif' }}
-                >
-                  {store.name}
-                </span>
+                {showBrandName && (
+                  <span
+                    className="text-lg font-semibold"
+                    style={{ fontFamily: 'var(--store-font-heading), sans-serif' }}
+                  >
+                    {store.name}
+                  </span>
+                )}
               </Link>
               <nav className="hidden md:flex items-center gap-6">
                 <Link
@@ -363,14 +377,14 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
             {/* Col 1: Store Info */}
             <div>
               <div className="flex items-center gap-2 mb-3">
-                {store.logoUrl ? (
-                  <Image src={store.logoUrl} alt={store.name} width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
+                {logoUrl ? (
+                  <Image src={logoUrl} alt={store.name} width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
                 ) : (
                   <div className="h-8 w-8 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: 'var(--store-primary)' }}>
                     <ShoppingBag className="h-4 w-4" />
                   </div>
                 )}
-                <span className="font-semibold" style={{ fontFamily: 'var(--store-font-heading), sans-serif' }}>{store.name}</span>
+                {showBrandName && <span className="font-semibold" style={{ fontFamily: 'var(--store-font-heading), sans-serif' }}>{store.name}</span>}
               </div>
               {store.description && <p className="text-sm opacity-60 leading-relaxed">{store.description}</p>}
             </div>
