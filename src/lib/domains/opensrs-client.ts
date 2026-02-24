@@ -390,23 +390,39 @@ export async function searchDomain(
   // Safety: strip any TLD that might already be in the sld
   const cleanSld = sld.replace(/[^a-z0-9-]/gi, "").toLowerCase();
 
-  const lookups = tlds.map(async (tld): Promise<DomainSearchResult> => {
+  // Do a single probe first to detect auth failures early
+  const probeDomain = `${cleanSld}.${tlds[0]}`;
+  const probeResult = await sendRequest("LOOKUP", "DOMAIN", { domain: probeDomain });
+
+  // Auth failure: response code 400 with AUTHENTICATE object
+  if (
+    probeResult.responseCode === 400 ||
+    probeResult.responseText.toLowerCase().includes("could not get credentials")
+  ) {
+    throw new Error(`OpenSRS auth failed: ${probeResult.responseText}`);
+  }
+
+  // First result from probe
+  const firstResult: DomainSearchResult = {
+    domain: probeDomain,
+    tld: tlds[0],
+    available: probeResult.responseCode === 210,
+  };
+
+  // Look up remaining TLDs in parallel
+  const remainingLookups = tlds.slice(1).map(async (tld): Promise<DomainSearchResult> => {
     const domain = `${cleanSld}.${tld}`;
     try {
       const result = await sendRequest("LOOKUP", "DOMAIN", { domain });
-
-      // Response code 210 = available, 211 = not available
-      const available = result.responseCode === 210;
-
-      return { domain, tld, available };
+      return { domain, tld, available: result.responseCode === 210 };
     } catch (err) {
-      // Log the error so credential/endpoint issues aren't silently hidden
       console.error(`[OpenSRS] Lookup failed for ${domain}:`, err instanceof Error ? err.message : err);
       return { domain, tld, available: false };
     }
   });
 
-  return Promise.all(lookups);
+  const remainingResults = await Promise.all(remainingLookups);
+  return [firstResult, ...remainingResults];
 }
 
 /**

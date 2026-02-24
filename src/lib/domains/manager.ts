@@ -3,6 +3,7 @@
  */
 import { prisma } from "@/lib/db/client";
 import { searchDomain, registerDomain, getDomainInfo, isAvailable as isOpenSrsAvailable } from "./opensrs-client";
+import { searchDomainsRdap } from "./rdap-client";
 import { createZone, configureStoreDns, getZone, getSslStatus, deleteZone } from "./cloudflare-client";
 import { DOMAIN_PRICING, SUPPORTED_TLDS, FREE_DOMAIN_TLDS, isFreeDomainEligible } from "./pricing";
 
@@ -105,26 +106,9 @@ export async function searchDomains(
 
   const searchTlds = tlds ?? SUPPORTED_TLDS;
 
-  // If OpenSRS is not configured, return all as available (optimistic fallback)
-  if (!isOpenSrsAvailable()) {
-    console.warn("[domains] OpenSRS not configured — returning optimistic results");
-    return searchTlds.map((tld) => {
-      const pricing = DOMAIN_PRICING[tld] ?? { costCents: 0, retailCents: 0 };
-      return {
-        domain: `${sld}.${tld}`,
-        tld,
-        available: true, // Optimistic — actual availability checked on purchase
-        retailCents: pricing.retailCents,
-        costCents: pricing.costCents,
-        isFreeEligible: isFreeDomainEligible(tld),
-      };
-    });
-  }
-
-  try {
-    const results = await searchDomain(sld, searchTlds);
-
-    return results.map((r) => {
+  // Helper to enrich results with pricing
+  const enrichResults = (results: Array<{ domain: string; tld: string; available: boolean }>) =>
+    results.map((r) => {
       const pricing = DOMAIN_PRICING[r.tld] ?? { costCents: 0, retailCents: 0 };
       return {
         domain: r.domain,
@@ -135,8 +119,26 @@ export async function searchDomains(
         isFreeEligible: isFreeDomainEligible(r.tld),
       };
     });
+
+  // Try OpenSRS first if configured
+  if (isOpenSrsAvailable()) {
+    try {
+      const results = await searchDomain(sld, searchTlds);
+      return enrichResults(results);
+    } catch (error) {
+      console.error("[domains] OpenSRS lookup failed, falling back to RDAP:", error instanceof Error ? error.message : error);
+      // Fall through to RDAP
+    }
+  } else {
+    console.warn("[domains] OpenSRS not configured — using RDAP fallback");
+  }
+
+  // Fallback: RDAP (free, no credentials)
+  try {
+    const rdapResults = await searchDomainsRdap(sld, searchTlds);
+    return enrichResults(rdapResults);
   } catch (error) {
-    console.error("Domain search failed:", error);
+    console.error("[domains] RDAP fallback also failed:", error);
     throw new Error(
       `Domain search failed: ${error instanceof Error ? error.message : String(error)}`
     );
