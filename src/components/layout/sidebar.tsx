@@ -122,6 +122,7 @@ const toolsNavigation = [
   { name: "Events", href: "/tools/events", icon: CalendarDays },
   { name: "BG Remover", href: "/tools/background-remover", icon: Scissors },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
+  { name: "Domains", href: "/domains", icon: Globe },
 ];
 
 // Money
@@ -162,6 +163,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
     { name: "Design", href: "/ecommerce/design", icon: Palette },
     { name: "Analytics", href: "/ecommerce/analytics", icon: BarChart3 },
     { name: "Intelligence", href: "/ecommerce/intelligence", icon: Brain },
+    { name: "Domains", href: "/ecommerce/domains", icon: Globe },
   ];
   // Only show for COD regions
   const codStoreNavigation = [

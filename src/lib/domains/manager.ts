@@ -2,7 +2,7 @@
  * Domain Manager — orchestrates OpenSRS, Cloudflare, and Prisma for domain operations.
  */
 import { prisma } from "@/lib/db/client";
-import { searchDomain, registerDomain, getDomainInfo } from "./opensrs-client";
+import { searchDomain, registerDomain, getDomainInfo, isAvailable as isOpenSrsAvailable } from "./opensrs-client";
 import { createZone, configureStoreDns, getZone, getSslStatus, deleteZone } from "./cloudflare-client";
 import { DOMAIN_PRICING, SUPPORTED_TLDS, FREE_DOMAIN_TLDS, isFreeDomainEligible } from "./pricing";
 
@@ -104,6 +104,22 @@ export async function searchDomains(
   }
 
   const searchTlds = tlds ?? SUPPORTED_TLDS;
+
+  // If OpenSRS is not configured, return all as available (optimistic fallback)
+  if (!isOpenSrsAvailable()) {
+    console.warn("[domains] OpenSRS not configured — returning optimistic results");
+    return searchTlds.map((tld) => {
+      const pricing = DOMAIN_PRICING[tld] ?? { costCents: 0, retailCents: 0 };
+      return {
+        domain: `${sld}.${tld}`,
+        tld,
+        available: true, // Optimistic — actual availability checked on purchase
+        retailCents: pricing.retailCents,
+        costCents: pricing.costCents,
+        isFreeEligible: isFreeDomainEligible(tld),
+      };
+    });
+  }
 
   try {
     const results = await searchDomain(sld, searchTlds);

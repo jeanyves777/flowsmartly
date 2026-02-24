@@ -80,11 +80,11 @@ export function DomainSearch({
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error || `Search failed (${res.status})`);
+        throw new Error(data?.error?.message || data?.error || `Search failed (${res.status})`);
       }
 
       const data = await res.json();
-      setResults(data.results || []);
+      setResults(data.data?.results || data.results || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Domain search failed. Please try again.");
     } finally {

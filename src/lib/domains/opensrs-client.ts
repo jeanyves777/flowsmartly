@@ -377,8 +377,11 @@ export async function searchDomain(
   sld: string,
   tlds: string[] = ["com", "net", "org", "io", "co", "app", "dev"]
 ): Promise<DomainSearchResult[]> {
+  // Safety: strip any TLD that might already be in the sld
+  const cleanSld = sld.replace(/[^a-z0-9-]/gi, "").toLowerCase();
+
   const lookups = tlds.map(async (tld): Promise<DomainSearchResult> => {
-    const domain = `${sld}.${tld}`;
+    const domain = `${cleanSld}.${tld}`;
     try {
       const result = await sendRequest("LOOKUP", "DOMAIN", { domain });
 
