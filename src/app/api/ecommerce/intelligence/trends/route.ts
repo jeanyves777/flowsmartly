@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
 
       case "store_trending": {
         const result = await getTrendingProducts(store.id);
-        return NextResponse.json({ success: true, data: { type, ...result } });
+        return NextResponse.json({ success: true, data: { type, products: result } });
       }
 
       case "industry": {

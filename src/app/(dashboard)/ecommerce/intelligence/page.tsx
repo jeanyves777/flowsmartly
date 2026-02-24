@@ -92,7 +92,7 @@ interface TrendQuery {
 
 interface TrendResult {
   keyword: string;
-  interestOverTime: TrendDataPoint[];
+  timelineData: TrendDataPoint[];
   relatedQueries: {
     top: TrendQuery[];
     rising: TrendQuery[];
@@ -103,18 +103,18 @@ interface StoreTrendingProduct {
   id: string;
   name: string;
   imageUrl: string | null;
-  orders: number;
-  views: number;
+  orderCount: number;
+  viewCount: number;
   priceCents: number;
 }
 
 interface SEOProduct {
   productId: string;
-  productName: string;
-  seoScore: number;
-  hasTitle: boolean;
-  hasDescription: boolean;
-  issues: string[];
+  name: string;
+  score: number;
+  issueCount: number;
+  hasSeoTitle: boolean;
+  hasSeoDescription: boolean;
 }
 
 interface RecommendationProduct {
@@ -127,7 +127,7 @@ interface RecommendationProduct {
 
 interface RecommendationResult {
   similar: RecommendationProduct[];
-  frequentlyBoughtTogether: RecommendationProduct[];
+  boughtTogether: RecommendationProduct[];
 }
 
 // ── Helpers ──
@@ -497,14 +497,23 @@ export default function IntelligencePage() {
     setLoadingTrends(true);
     setTrendResults(null);
     try {
-      const res = await fetch(
-        `/api/ecommerce/intelligence/trends?type=search&keyword=${encodeURIComponent(trendKeyword.trim())}`
-      );
-      const data = await res.json();
-      if (data.success && data.data) {
-        setTrendResults(data.data);
+      const encoded = encodeURIComponent(trendKeyword.trim());
+      const [searchRes, relatedRes] = await Promise.all([
+        fetch(`/api/ecommerce/intelligence/trends?type=search&keyword=${encoded}`),
+        fetch(`/api/ecommerce/intelligence/trends?type=related&keyword=${encoded}`),
+      ]);
+      const [searchData, relatedData] = await Promise.all([searchRes.json(), relatedRes.json()]);
+      if (searchData.success && searchData.data) {
+        const relatedQueries = relatedData.success && relatedData.data
+          ? { top: relatedData.data.top || [], rising: relatedData.data.rising || [] }
+          : { top: [], rising: [] };
+        setTrendResults({
+          keyword: searchData.data.keyword,
+          timelineData: searchData.data.timelineData || [],
+          relatedQueries,
+        });
       } else {
-        toast({ title: data.error?.message || "Failed to fetch trends", variant: "destructive" });
+        toast({ title: searchData.error?.message || "Failed to fetch trends", variant: "destructive" });
       }
     } catch {
       toast({ title: "Failed to fetch trends", variant: "destructive" });
@@ -556,10 +565,13 @@ export default function IntelligencePage() {
         body: JSON.stringify({ action: "optimize", productId }),
       });
       const data = await res.json();
-      if (data.success && data.data?.product) {
+      if (data.success && data.data?.result) {
+        // Re-analyze after optimization to get updated scores
         setSeoProducts((prev) =>
           prev.map((p) =>
-            p.productId === productId ? { ...p, ...data.data.product } : p
+            p.productId === productId
+              ? { ...p, score: data.data.result.score || p.score, hasSeoTitle: true, hasSeoDescription: true, issueCount: 0 }
+              : p
           )
         );
         toast({ title: "Product SEO optimized" });
@@ -574,7 +586,7 @@ export default function IntelligencePage() {
   };
 
   const handleBulkOptimize = async () => {
-    const lowScoreProducts = seoProducts.filter((p) => p.seoScore < 80);
+    const lowScoreProducts = seoProducts.filter((p) => p.score < 80);
     if (lowScoreProducts.length === 0) {
       toast({ title: "All products already have good SEO scores" });
       return;
@@ -1314,7 +1326,7 @@ export default function IntelligencePage() {
           {trendResults && !loadingTrends && (
             <>
               {/* Interest Over Time Chart */}
-              {trendResults.interestOverTime.length > 0 && (
+              {trendResults.timelineData.length > 0 && (
                 <div className="rounded-xl border bg-card p-5">
                   <h2 className="text-lg font-semibold mb-4">
                     Interest Over Time: <span className="text-blue-600">{trendResults.keyword}</span>
@@ -1322,7 +1334,7 @@ export default function IntelligencePage() {
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart
-                        data={trendResults.interestOverTime.map((d) => ({
+                        data={trendResults.timelineData.map((d) => ({
                           date: formatDate(d.date),
                           value: d.value,
                         }))}
@@ -1434,11 +1446,11 @@ export default function IntelligencePage() {
                     <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                       <span className="inline-flex items-center gap-1">
                         <ShoppingBag className="h-3 w-3" />
-                        {product.orders} orders
+                        {product.orderCount} orders
                       </span>
                       <span className="inline-flex items-center gap-1">
                         <Eye className="h-3 w-3" />
-                        {product.views} views
+                        {product.viewCount} views
                       </span>
                     </div>
                   </div>
@@ -1470,7 +1482,7 @@ export default function IntelligencePage() {
                   <p className="text-2xl font-bold mt-1">
                     {seoProducts.length > 0
                       ? Math.round(
-                          seoProducts.reduce((acc, p) => acc + p.seoScore, 0) /
+                          seoProducts.reduce((acc, p) => acc + p.score, 0) /
                             seoProducts.length
                         )
                       : 0}
@@ -1479,21 +1491,21 @@ export default function IntelligencePage() {
                 <div className="rounded-xl border bg-card p-5">
                   <p className="text-sm font-medium text-muted-foreground">Products with Issues</p>
                   <p className="text-2xl font-bold mt-1">
-                    {seoProducts.filter((p) => p.seoScore < 80).length}
+                    {seoProducts.filter((p) => p.score < 80).length}
                   </p>
                 </div>
               </div>
 
               {/* Bulk Optimize */}
-              {seoProducts.filter((p) => p.seoScore < 80).length > 0 && (
+              {seoProducts.filter((p) => p.score < 80).length > 0 && (
                 <div className="rounded-xl border bg-card p-5">
                   <div className="flex items-center justify-between">
                     <div>
                       <h2 className="text-base font-semibold">Bulk Optimize</h2>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {seoProducts.filter((p) => p.seoScore < 80).length} products x 3 credits ={" "}
+                        {seoProducts.filter((p) => p.score < 80).length} products x 3 credits ={" "}
                         <span className="font-medium">
-                          {seoProducts.filter((p) => p.seoScore < 80).length * 3} credits
+                          {seoProducts.filter((p) => p.score < 80).length * 3} credits
                         </span>
                       </p>
                     </div>
@@ -1507,7 +1519,7 @@ export default function IntelligencePage() {
                       ) : (
                         <Sparkles className="h-4 w-4" />
                       )}
-                      Optimize All ({seoProducts.filter((p) => p.seoScore < 80).length})
+                      Optimize All ({seoProducts.filter((p) => p.score < 80).length})
                     </button>
                   </div>
                 </div>
@@ -1536,30 +1548,30 @@ export default function IntelligencePage() {
                         {seoProducts.map((product) => (
                           <tr key={product.productId} className="border-b last:border-0 hover:bg-muted/20">
                             <td className="p-3">
-                              <p className="font-medium">{product.productName}</p>
-                              {product.issues.length > 0 && (
+                              <p className="font-medium">{product.name}</p>
+                              {product.issueCount > 0 && (
                                 <p className="text-xs text-red-500 mt-0.5 flex items-center gap-1">
                                   <AlertCircle className="h-3 w-3" />
-                                  {product.issues.length} issue{product.issues.length !== 1 ? "s" : ""}
+                                  {product.issueCount} issue{product.issueCount !== 1 ? "s" : ""}
                                 </p>
                               )}
                             </td>
                             <td className="p-3">
                               <span
-                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${seoScoreColor(product.seoScore)}`}
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${seoScoreColor(product.score)}`}
                               >
-                                {product.seoScore}
+                                {product.score}
                               </span>
                             </td>
                             <td className="p-3">
-                              {product.hasTitle ? (
+                              {product.hasSeoTitle ? (
                                 <Check className="h-4 w-4 text-green-600" />
                               ) : (
                                 <X className="h-4 w-4 text-red-500" />
                               )}
                             </td>
                             <td className="p-3">
-                              {product.hasDescription ? (
+                              {product.hasSeoDescription ? (
                                 <Check className="h-4 w-4 text-green-600" />
                               ) : (
                                 <X className="h-4 w-4 text-red-500" />
@@ -1627,8 +1639,8 @@ export default function IntelligencePage() {
                     </div>
                     <p className="text-sm font-medium truncate">{product.name}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                      <span>{product.orders} orders</span>
-                      <span>{product.views} views</span>
+                      <span>{product.orderCount} orders</span>
+                      <span>{product.viewCount} views</span>
                     </div>
                   </div>
                 ))}
@@ -1709,11 +1721,11 @@ export default function IntelligencePage() {
                 {/* Frequently Bought Together */}
                 <div>
                   <h3 className="text-base font-semibold mb-3">Frequently Bought Together</h3>
-                  {previewRecommendations.frequentlyBoughtTogether.length === 0 ? (
+                  {previewRecommendations.boughtTogether.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No frequently bought together products yet.</p>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {previewRecommendations.frequentlyBoughtTogether.map((product) => (
+                      {previewRecommendations.boughtTogether.map((product) => (
                         <div
                           key={product.id}
                           className="rounded-lg border p-3 hover:bg-muted/20 transition-colors"
