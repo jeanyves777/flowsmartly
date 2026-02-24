@@ -93,6 +93,7 @@ export default function OnboardingPage() {
   const [region, setRegion] = useState("");
   const [country, setCountry] = useState("");
   const [currency, setCurrency] = useState("USD");
+  const [showBrandName, setShowBrandName] = useState(true);
 
   // Step 2: AI build
   const [aiBuildComplete, setAiBuildComplete] = useState(false);
@@ -352,6 +353,9 @@ export default function OnboardingPage() {
                 content: aiBlueprintData?.blueprint?.content?.about || { title: "About Us", body: "" },
               },
             ],
+            storeContent: {
+              showBrandName,
+            },
           },
         }),
       });
@@ -568,8 +572,10 @@ export default function OnboardingPage() {
               region={region}
               country={country}
               currency={currency}
+              showBrandName={showBrandName}
               onFieldChange={handleStoreInfoFieldChange}
               onRegionChange={handleRegionChange}
+              onShowBrandNameChange={setShowBrandName}
             />
           )}
 
@@ -800,7 +806,7 @@ export default function OnboardingPage() {
       </Card>
 
       {/* Navigation Buttons */}
-      {currentStep !== 1 && currentStep < 5 && (
+      {currentStep < 5 && (
         <div className="flex justify-between mt-6">
           <Button
             variant="outline"
@@ -810,10 +816,15 @@ export default function OnboardingPage() {
             <ChevronLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
-          <Button onClick={goNext} disabled={!canGoNext()}>
-            Next
-            <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
+          {/* Hide Next on AI Build step — it auto-advances on completion */}
+          {currentStep !== 1 ? (
+            <Button onClick={goNext} disabled={!canGoNext()}>
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          ) : (
+            <div />
+          )}
         </div>
       )}
 

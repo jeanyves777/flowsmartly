@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Loader2, Sparkles, Check, ImageIcon } from "lucide-react";
+import { Loader2, Sparkles, Check, ImageIcon, Type } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { REGIONS, getRegionForCountry } from "@/lib/constants/regions";
 import {
@@ -20,8 +20,10 @@ interface StoreInfoStepProps {
   region: string;
   country: string;
   currency: string;
+  showBrandName: boolean;
   onFieldChange: (field: string, value: string) => void;
   onRegionChange: (region: string, country: string, currency: string) => void;
+  onShowBrandNameChange: (value: boolean) => void;
 }
 
 export function StoreInfoStep({
@@ -32,8 +34,10 @@ export function StoreInfoStep({
   region,
   country,
   currency,
+  showBrandName,
   onFieldChange,
   onRegionChange,
+  onShowBrandNameChange,
 }: StoreInfoStepProps) {
   const [brandSyncing, setBrandSyncing] = useState(false);
   const [brandSynced, setBrandSynced] = useState(false);
@@ -119,72 +123,96 @@ export function StoreInfoStep({
         )}
       </Button>
 
-      {/* Logo Picker — shown after brand sync if both logos exist */}
+      {/* Logo Picker + Brand Name Toggle — shown after brand sync */}
       {brandSynced && (brandLogos.full || brandLogos.icon) && (
-        <div className="rounded-lg border p-4 space-y-3">
-          <label className="text-sm font-medium">Store Logo</label>
-          <p className="text-xs text-muted-foreground">
-            Choose which logo to display on your store.
-          </p>
-          <div className="flex gap-3">
-            {brandLogos.full && (
-              <button
-                type="button"
-                onClick={() => handleLogoChoiceChange("full")}
-                className={cn(
-                  "relative flex flex-col items-center gap-2 rounded-lg border-2 p-3 transition-all",
-                  logoChoice === "full"
-                    ? "border-primary ring-2 ring-primary/20"
-                    : "border-muted hover:border-muted-foreground/30"
-                )}
-              >
-                <Image
-                  src={brandLogos.full}
-                  alt="Full logo"
-                  width={120}
-                  height={48}
-                  className="h-12 w-auto object-contain"
-                />
-                <span className="text-xs font-medium">Full Logo</span>
-                {logoChoice === "full" && (
-                  <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
-                    <Check className="h-2.5 w-2.5 text-primary-foreground" />
-                  </div>
-                )}
-              </button>
-            )}
-            {brandLogos.icon && (
-              <button
-                type="button"
-                onClick={() => handleLogoChoiceChange("icon")}
-                className={cn(
-                  "relative flex flex-col items-center gap-2 rounded-lg border-2 p-3 transition-all",
-                  logoChoice === "icon"
-                    ? "border-primary ring-2 ring-primary/20"
-                    : "border-muted hover:border-muted-foreground/30"
-                )}
-              >
-                <Image
-                  src={brandLogos.icon}
-                  alt="Icon logo"
-                  width={48}
-                  height={48}
-                  className="h-12 w-12 object-contain"
-                />
-                <span className="text-xs font-medium">Icon Logo</span>
-                {logoChoice === "icon" && (
-                  <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
-                    <Check className="h-2.5 w-2.5 text-primary-foreground" />
-                  </div>
-                )}
-              </button>
-            )}
-            {!brandLogos.full && !brandLogos.icon && (
-              <div className="flex items-center gap-2 p-3 text-muted-foreground">
-                <ImageIcon className="h-5 w-5" />
-                <span className="text-xs">No logos found in your brand kit.</span>
+        <div className="rounded-lg border p-4 space-y-4">
+          <div className="space-y-3">
+            <label className="text-sm font-medium">Store Logo</label>
+            <p className="text-xs text-muted-foreground">
+              Choose which logo to display on your store.
+            </p>
+            <div className="flex gap-3">
+              {brandLogos.full && (
+                <button
+                  type="button"
+                  onClick={() => handleLogoChoiceChange("full")}
+                  className={cn(
+                    "relative flex flex-col items-center gap-2 rounded-lg border-2 p-3 transition-all",
+                    logoChoice === "full"
+                      ? "border-primary ring-2 ring-primary/20"
+                      : "border-muted hover:border-muted-foreground/30"
+                  )}
+                >
+                  <Image
+                    src={brandLogos.full}
+                    alt="Full logo"
+                    width={120}
+                    height={48}
+                    className="h-12 w-auto object-contain"
+                  />
+                  <span className="text-xs font-medium">Full Logo</span>
+                  {logoChoice === "full" && (
+                    <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                      <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                    </div>
+                  )}
+                </button>
+              )}
+              {brandLogos.icon && (
+                <button
+                  type="button"
+                  onClick={() => handleLogoChoiceChange("icon")}
+                  className={cn(
+                    "relative flex flex-col items-center gap-2 rounded-lg border-2 p-3 transition-all",
+                    logoChoice === "icon"
+                      ? "border-primary ring-2 ring-primary/20"
+                      : "border-muted hover:border-muted-foreground/30"
+                  )}
+                >
+                  <Image
+                    src={brandLogos.icon}
+                    alt="Icon logo"
+                    width={48}
+                    height={48}
+                    className="h-12 w-12 object-contain"
+                  />
+                  <span className="text-xs font-medium">Icon Logo</span>
+                  {logoChoice === "icon" && (
+                    <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                      <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                    </div>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Show Brand Name Toggle */}
+          <div className="flex items-center justify-between pt-3 border-t">
+            <div className="flex items-center gap-2">
+              <Type className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Show Brand Name</p>
+                <p className="text-xs text-muted-foreground">
+                  Turn off if your logo already includes the name.
+                </p>
               </div>
-            )}
+            </div>
+            <button
+              type="button"
+              onClick={() => onShowBrandNameChange(!showBrandName)}
+              className={cn(
+                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0",
+                showBrandName ? "bg-primary" : "bg-muted"
+              )}
+            >
+              <span
+                className={cn(
+                  "inline-block h-4 w-4 rounded-full bg-white transition-transform",
+                  showBrandName ? "translate-x-6" : "translate-x-1"
+                )}
+              />
+            </button>
           </div>
         </div>
       )}
