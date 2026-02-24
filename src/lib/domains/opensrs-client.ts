@@ -2,13 +2,23 @@ import { createHash } from "crypto";
 
 // ── Configuration ──
 
+// Use OPENSRS_ENV to control which endpoint to use, independent of NODE_ENV.
+// "live" = production OpenSRS, anything else = test/sandbox (horizon).
+const OPENSRS_ENV = process.env.OPENSRS_ENV || "test";
 const OPENSRS_URL =
-  process.env.NODE_ENV === "production"
+  OPENSRS_ENV === "live"
     ? "https://rr-n1-tor.opensrs.net:55443"
     : "https://horizon.opensrs.net:55443";
 
 const OPENSRS_USERNAME = process.env.OPENSRS_USERNAME || "";
 const OPENSRS_API_KEY = process.env.OPENSRS_API_KEY || "";
+
+// Log config at module load (redact key)
+if (OPENSRS_USERNAME) {
+  console.log(`[OpenSRS] env=${OPENSRS_ENV} url=${OPENSRS_URL} user=${OPENSRS_USERNAME}`);
+} else {
+  console.warn("[OpenSRS] No credentials configured — domain lookups will use optimistic fallback");
+}
 
 const MAX_RETRIES = 2;
 const BASE_DELAY_MS = 1000;
@@ -389,8 +399,9 @@ export async function searchDomain(
       const available = result.responseCode === 210;
 
       return { domain, tld, available };
-    } catch {
-      // On error, mark as unavailable rather than crashing the whole search
+    } catch (err) {
+      // Log the error so credential/endpoint issues aren't silently hidden
+      console.error(`[OpenSRS] Lookup failed for ${domain}:`, err instanceof Error ? err.message : err);
       return { domain, tld, available: false };
     }
   });
