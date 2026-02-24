@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { Metadata } from "next";
 import { prisma } from "@/lib/db/client";
 import { resolveTheme } from "@/lib/store/theme-utils";
+import { ProductCard, type ProductCardData } from "@/components/store/product-card";
 
 interface ProductsPageProps {
   params: Promise<{ slug: string }>;
@@ -31,6 +31,14 @@ export async function generateMetadata({ params }: ProductsPageProps): Promise<M
 }
 
 const ITEMS_PER_PAGE = 12;
+
+const sortOptions = [
+  { value: "newest", label: "Newest" },
+  { value: "price_asc", label: "Price: Low" },
+  { value: "price_desc", label: "Price: High" },
+  { value: "best_selling", label: "Best Selling" },
+  { value: "trending", label: "Trending" },
+];
 
 export default async function ProductsPage({ params, searchParams }: ProductsPageProps) {
   const { slug } = await params;
@@ -81,6 +89,8 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
   let orderBy: Record<string, string> = { createdAt: "desc" };
   if (sort === "price_asc") orderBy = { priceCents: "asc" };
   else if (sort === "price_desc") orderBy = { priceCents: "desc" };
+  else if (sort === "best_selling") orderBy = { orderCount: "desc" };
+  else if (sort === "trending") orderBy = { viewCount: "desc" };
 
   // Fetch products and categories in parallel
   const [products, totalCount, categories] = await Promise.all([
@@ -98,6 +108,11 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
         currency: true,
         images: true,
         shortDescription: true,
+        createdAt: true,
+        orderCount: true,
+        trackInventory: true,
+        quantity: true,
+        lowStockThreshold: true,
       },
     }),
     prisma.product.count({ where }),
@@ -109,6 +124,10 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
   ]);
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+  const selectedCategory = categoryFilter
+    ? categories.find(c => c.id === categoryFilter)
+    : undefined;
 
   function formatPrice(cents: number, currency: string) {
     return new Intl.NumberFormat("en-US", {
@@ -140,44 +159,27 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
         ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
         : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
 
-  // Card style classes
-  function getCardClasses(): string {
-    switch (theme.layout.cardStyle) {
-      case "rounded":
-        return "rounded-xl p-2 bg-white/50";
-      case "sharp":
-        return "rounded-none";
-      case "shadow":
-        return "rounded-lg shadow-md hover:shadow-lg transition-shadow";
-      case "bordered":
-        return "rounded-lg border";
-      case "minimal":
-      default:
-        return "";
-    }
-  }
-
-  function getImageClasses(): string {
-    switch (theme.layout.cardStyle) {
-      case "rounded":
-        return "rounded-xl";
-      case "sharp":
-        return "rounded-none";
-      case "shadow":
-        return "rounded-lg";
-      case "bordered":
-        return "rounded-lg";
-      case "minimal":
-      default:
-        return "rounded-xl";
-    }
-  }
-
-  const cardClasses = getCardClasses();
-  const imageClasses = getImageClasses();
-
   return (
     <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${spacingPy}`}>
+      {/* Breadcrumbs */}
+      <nav className="flex items-center gap-2 text-sm mb-6">
+        <Link href={`/store/${store.slug}`} className="opacity-60 hover:opacity-100 transition-opacity">
+          Home
+        </Link>
+        <span className="opacity-30">/</span>
+        {categoryFilter && selectedCategory ? (
+          <>
+            <Link href={`/store/${store.slug}/products`} className="opacity-60 hover:opacity-100 transition-opacity">
+              Products
+            </Link>
+            <span className="opacity-30">/</span>
+            <span className="font-medium">{selectedCategory.name}</span>
+          </>
+        ) : (
+          <span className="font-medium">Products</span>
+        )}
+      </nav>
+
       <h1
         className="text-2xl font-bold mb-6"
         style={{ fontFamily: `var(--store-font-heading), sans-serif` }}
@@ -250,11 +252,7 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
         <div className="flex items-center gap-2">
           <label className="text-xs opacity-50 whitespace-nowrap">Sort by:</label>
           <div className="flex gap-1">
-            {[
-              { value: "newest", label: "Newest" },
-              { value: "price_asc", label: "Price: Low" },
-              { value: "price_desc", label: "Price: High" },
-            ].map((opt) => (
+            {sortOptions.map((opt) => (
               <Link
                 key={opt.value}
                 href={buildUrl({ sort: opt.value, page: "1" })}
@@ -283,48 +281,16 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
         </div>
       ) : (
         <div className={`grid ${gridCols} ${spacingGap}`}>
-          {products.map((product) => {
-            const images = JSON.parse(product.images || "[]") as { url: string; alt?: string }[];
-            const mainImage = images[0];
-            return (
-              <Link
-                key={product.id}
-                href={`/store/${store.slug}/products/${product.slug}`}
-                className={`group ${cardClasses}`}
-              >
-                <div className={`aspect-square overflow-hidden bg-gray-100 mb-3 ${imageClasses}`}>
-                  {mainImage ? (
-                    <Image
-                      src={mainImage.url}
-                      alt={mainImage.alt || product.name}
-                      width={400}
-                      height={400}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                <h3 className="text-sm font-medium group-hover:underline line-clamp-2">
-                  {product.name}
-                </h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <p className="text-sm font-semibold" style={{ color: primaryColor }}>
-                    {formatPrice(product.priceCents, product.currency)}
-                  </p>
-                  {product.comparePriceCents && product.comparePriceCents > product.priceCents && (
-                    <p className="text-xs line-through opacity-40">
-                      {formatPrice(product.comparePriceCents, product.currency)}
-                    </p>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
+          {products.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product as ProductCardData}
+              storeSlug={store.slug}
+              primaryColor={primaryColor}
+              cardStyle={theme.layout.cardStyle}
+              formatPrice={formatPrice}
+            />
+          ))}
         </div>
       )}
 

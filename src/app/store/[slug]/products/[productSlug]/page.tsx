@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 import { Metadata } from "next";
 import { prisma } from "@/lib/db/client";
-import { Mail, ChevronLeft } from "lucide-react";
+import { Mail } from "lucide-react";
 import { AddToCartButton } from "@/components/store/add-to-cart-button";
 import { ProductRecommendations } from "@/components/store/product-recommendations";
+import { ImageGallery } from "@/components/store/image-gallery";
+import { deriveProductBadges } from "@/lib/store/product-badges";
 import { resolveTheme } from "@/lib/store/theme-utils";
 import { generateProductJsonLd, generateBreadcrumbJsonLd } from "@/lib/store/seo-utils";
 
@@ -91,6 +92,14 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     notFound();
   }
 
+  // Fetch category for breadcrumbs
+  const category = product.categoryId
+    ? await prisma.productCategory.findUnique({
+        where: { id: product.categoryId },
+        select: { id: true, name: true, slug: true },
+      })
+    : null;
+
   // Fire-and-forget: increment view count
   prisma.product.update({
     where: { id: product.id },
@@ -114,6 +123,17 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     ...v,
     options: JSON.parse(v.options || "{}") as Record<string, string>,
   }));
+
+  // Derive product badges
+  const badges = deriveProductBadges({
+    createdAt: product.createdAt,
+    priceCents: product.priceCents,
+    comparePriceCents: product.comparePriceCents,
+    orderCount: product.orderCount,
+    trackInventory: product.trackInventory,
+    quantity: product.quantity,
+    lowStockThreshold: product.lowStockThreshold,
+  });
 
   // Spacing classes
   const spacingPy = theme.layout.spacing === "compact" ? "py-6" : theme.layout.spacing === "spacious" ? "py-12" : "py-8";
@@ -158,6 +178,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   const breadcrumbJsonLd = generateBreadcrumbJsonLd([
     { name: store.name, url: storeUrl },
     { name: "Products", url: `${storeUrl}/products` },
+    ...(category ? [{ name: category.name, url: `${storeUrl}/products?category=${category.id}` }] : []),
     { name: product.name, url: productUrl },
   ]);
 
@@ -173,59 +194,28 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
-      {/* Back Link */}
-      <Link
-        href={`/store/${store.slug}/products`}
-        className="inline-flex items-center gap-1 text-sm opacity-60 hover:opacity-100 transition-opacity mb-6"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        Back to Products
-      </Link>
+      {/* Breadcrumbs */}
+      <nav className="flex items-center gap-2 text-sm mb-6 flex-wrap">
+        <Link href={`/store/${store.slug}`} className="opacity-60 hover:opacity-100 transition-opacity">Home</Link>
+        <span className="opacity-30">/</span>
+        <Link href={`/store/${store.slug}/products`} className="opacity-60 hover:opacity-100 transition-opacity">Products</Link>
+        {category && (
+          <>
+            <span className="opacity-30">/</span>
+            <Link href={`/store/${store.slug}/products?category=${category.id}`} className="opacity-60 hover:opacity-100 transition-opacity">{category.name}</Link>
+          </>
+        )}
+        <span className="opacity-30">/</span>
+        <span className="font-medium line-clamp-1">{product.name}</span>
+      </nav>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
         {/* Image Gallery */}
-        <div>
-          {images.length > 0 ? (
-            <div>
-              <div className={`aspect-square overflow-hidden bg-gray-100 mb-4 ${imageRadius}`}>
-                <Image
-                  src={images[0].url}
-                  alt={images[0].alt || product.name}
-                  width={800}
-                  height={800}
-                  className="w-full h-full object-cover"
-                  priority
-                />
-              </div>
-              {images.length > 1 && (
-                <div className="grid grid-cols-4 gap-2">
-                  {images.slice(1).map((img, idx) => (
-                    <div
-                      key={idx}
-                      className={`aspect-square overflow-hidden bg-gray-100 ${
-                        theme.layout.cardStyle === "sharp" ? "rounded-none" : "rounded-lg"
-                      }`}
-                    >
-                      <Image
-                        src={img.url}
-                        alt={img.alt || `${product.name} - Image ${idx + 2}`}
-                        width={200}
-                        height={200}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className={`aspect-square bg-gray-100 flex items-center justify-center ${imageRadius}`}>
-              <svg className="w-20 h-20 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-          )}
-        </div>
+        <ImageGallery
+          images={images}
+          productName={product.name}
+          imageRadius={imageRadius}
+        />
 
         {/* Product Info */}
         <div>
@@ -236,14 +226,61 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
             {product.name}
           </h1>
 
+          {/* Product Badges */}
+          {badges.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {badges.map((badge) => (
+                <span
+                  key={badge.type}
+                  className="px-2 py-0.5 rounded text-xs font-bold"
+                  style={{ color: badge.color, backgroundColor: badge.bgColor }}
+                >
+                  {badge.label}
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* Price */}
           <div className="flex items-center gap-3 mt-4">
             <span className="text-2xl font-bold" style={{ color: primaryColor }}>
               {formatPrice(product.priceCents, product.currency)}
             </span>
             {product.comparePriceCents && product.comparePriceCents > product.priceCents && (
-              <span className="text-lg line-through opacity-40">
-                {formatPrice(product.comparePriceCents, product.currency)}
+              <>
+                <span className="text-lg line-through opacity-40">
+                  {formatPrice(product.comparePriceCents, product.currency)}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 text-xs font-bold">
+                  Save {Math.round((1 - product.priceCents / product.comparePriceCents) * 100)}%
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Stock Status */}
+          <div className="mt-3">
+            {product.trackInventory ? (
+              product.quantity <= 0 ? (
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-red-600">
+                  <span className="h-2 w-2 rounded-full bg-red-500" />
+                  Out of Stock
+                </span>
+              ) : product.quantity <= product.lowStockThreshold ? (
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-600">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  Low Stock — Only {product.quantity} left
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-600">
+                  <span className="h-2 w-2 rounded-full bg-green-500" />
+                  In Stock
+                </span>
+              )
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-600">
+                <span className="h-2 w-2 rounded-full bg-green-500" />
+                In Stock
               </span>
             )}
           </div>

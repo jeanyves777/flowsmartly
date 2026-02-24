@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Metadata } from "next";
 import { prisma } from "@/lib/db/client";
 import { resolveTheme, type ResolvedTheme } from "@/lib/store/theme-utils";
+import { ProductCard, type ProductCardData } from "@/components/store/product-card";
 
 interface StorePageProps {
   params: Promise<{ slug: string }>;
@@ -44,6 +45,24 @@ export async function generateMetadata({ params }: StorePageProps): Promise<Meta
   };
 }
 
+// ─── Product select fields (shared by all queries) ──────────────────────────
+
+const productSelect = {
+  id: true,
+  name: true,
+  slug: true,
+  priceCents: true,
+  comparePriceCents: true,
+  currency: true,
+  images: true,
+  shortDescription: true,
+  createdAt: true,
+  orderCount: true,
+  trackInventory: true,
+  quantity: true,
+  lowStockThreshold: true,
+} as const;
+
 // ─── Section Types ──────────────────────────────────────────────────────────
 
 interface SectionConfig {
@@ -53,16 +72,26 @@ interface SectionConfig {
   content: Record<string, unknown>;
 }
 
+interface CategoryData {
+  id: string;
+  name: string;
+  slug: string;
+  imageUrl: string | null;
+  _count: { products: number };
+}
+
 // ─── Section Renderers ──────────────────────────────────────────────────────
 
 function HeroSection({
   content,
   theme,
   storeSlug,
+  compact = false,
 }: {
   content: Record<string, unknown>;
   theme: ResolvedTheme;
   storeSlug: string;
+  compact?: boolean;
 }) {
   const headline = (content.headline as string) || "";
   const subheadline = (content.subheadline as string) || "";
@@ -70,16 +99,18 @@ function HeroSection({
   const ctaLink = (content.ctaLink as string) || "";
   const imageUrl = content.imageUrl as string | undefined;
 
+  const heightClasses = compact ? "h-36 sm:h-44" : "h-48 sm:h-56";
+
   return (
     <section className="relative">
       {imageUrl ? (
-        <div className="h-72 sm:h-[28rem] w-full relative">
+        <div className={`${heightClasses} w-full relative`}>
           <Image src={imageUrl} alt={headline || "Hero"} fill className="object-cover" priority />
           <div className="absolute inset-0 bg-black/40" />
         </div>
       ) : (
         <div
-          className="h-72 sm:h-[28rem] w-full"
+          className={`${heightClasses} w-full`}
           style={{
             background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primary}88)`,
           }}
@@ -89,19 +120,21 @@ function HeroSection({
         <div className="text-center text-white px-4 max-w-3xl mx-auto">
           {headline && (
             <h1
-              className="text-3xl sm:text-5xl font-bold drop-shadow-lg"
+              className={`${compact ? "text-2xl sm:text-3xl" : "text-2xl sm:text-4xl"} font-bold drop-shadow-lg`}
               style={{ fontFamily: `var(--store-font-heading), sans-serif` }}
             >
               {headline}
             </h1>
           )}
           {subheadline && (
-            <p className="mt-3 text-lg sm:text-xl drop-shadow-md opacity-90">{subheadline}</p>
+            <p className={`mt-2 ${compact ? "text-sm sm:text-base" : "text-base sm:text-lg"} drop-shadow-md opacity-90`}>
+              {subheadline}
+            </p>
           )}
           {ctaText && (
             <Link
               href={ctaLink || `/store/${storeSlug}/products`}
-              className="inline-block mt-6 px-8 py-3 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-opacity"
+              className="inline-block mt-4 px-6 py-2.5 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-opacity"
               style={{ backgroundColor: theme.colors.primary }}
             >
               {ctaText}
@@ -119,38 +152,27 @@ function FeaturedProductsSection({
   theme,
   storeSlug,
   formatPrice,
-  cardClasses,
-  imageClasses,
   gridCols,
   spacingGap,
 }: {
   content: Record<string, unknown>;
-  products: Array<{
-    id: string;
-    name: string;
-    slug: string;
-    priceCents: number;
-    currency: string;
-    images: string | null;
-    shortDescription: string | null;
-  }>;
+  products: ProductCardData[];
   theme: ResolvedTheme;
   storeSlug: string;
   formatPrice: (cents: number, currency: string) => string;
-  cardClasses: string;
-  imageClasses: string;
   gridCols: string;
   spacingGap: string;
 }) {
   const title = (content.title as string) || "Featured Products";
   const count = Number(content.count) || 8;
   const displayProducts = products.slice(0, count);
+  const primaryColor = theme.colors.primary;
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="flex items-center justify-between mb-8">
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex items-center justify-between mb-6">
         <h2
-          className="text-2xl font-bold"
+          className="text-xl sm:text-2xl font-bold"
           style={{ fontFamily: `var(--store-font-heading), sans-serif` }}
         >
           {title}
@@ -158,7 +180,7 @@ function FeaturedProductsSection({
         <Link
           href={`/store/${storeSlug}/products`}
           className="text-sm font-medium hover:underline"
-          style={{ color: theme.colors.primary }}
+          style={{ color: primaryColor }}
         >
           View all
         </Link>
@@ -170,41 +192,16 @@ function FeaturedProductsSection({
         </div>
       ) : (
         <div className={`grid ${gridCols} ${spacingGap}`}>
-          {displayProducts.map((product) => {
-            const images = JSON.parse(product.images || "[]") as { url: string; alt?: string }[];
-            const mainImage = images[0];
-            return (
-              <Link
-                key={product.id}
-                href={`/store/${storeSlug}/products/${product.slug}`}
-                className={`group ${cardClasses}`}
-              >
-                <div className={`aspect-square overflow-hidden bg-gray-100 mb-3 ${imageClasses}`}>
-                  {mainImage ? (
-                    <Image
-                      src={mainImage.url}
-                      alt={mainImage.alt || product.name}
-                      width={400}
-                      height={400}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                <h3 className="text-sm font-medium group-hover:underline line-clamp-2">
-                  {product.name}
-                </h3>
-                <p className="text-sm font-semibold mt-1" style={{ color: theme.colors.primary }}>
-                  {formatPrice(product.priceCents, product.currency)}
-                </p>
-              </Link>
-            );
-          })}
+          {displayProducts.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              storeSlug={storeSlug}
+              primaryColor={primaryColor}
+              cardStyle={theme.layout.cardStyle}
+              formatPrice={formatPrice}
+            />
+          ))}
         </div>
       )}
     </section>
@@ -436,6 +433,150 @@ function ContactSection({
   );
 }
 
+// ─── New Section Renderers ──────────────────────────────────────────────────
+
+function CategoryShowcaseSection({
+  categories,
+  storeSlug,
+  theme,
+}: {
+  categories: CategoryData[];
+  storeSlug: string;
+  theme: ResolvedTheme;
+}) {
+  if (categories.length === 0) return null;
+
+  const primaryColor = theme.colors.primary;
+
+  return (
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <h2
+        className="text-xl sm:text-2xl font-bold mb-4"
+        style={{ fontFamily: `var(--store-font-heading), sans-serif` }}
+      >
+        Shop by Category
+      </h2>
+      {/* Horizontal scroll on mobile, grid on desktop */}
+      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide sm:grid sm:grid-cols-4 lg:grid-cols-8 sm:overflow-visible">
+        {categories.map((cat) => (
+          <Link
+            key={cat.id}
+            href={`/store/${storeSlug}/products?category=${cat.id}`}
+            className="flex-shrink-0 w-28 sm:w-auto group"
+          >
+            <div
+              className="aspect-square rounded-xl overflow-hidden mb-2 border transition-all group-hover:shadow-md group-hover:border-transparent"
+              style={{ borderColor: `${theme.colors.text}12` }}
+            >
+              {cat.imageUrl ? (
+                <Image
+                  src={cat.imageUrl}
+                  alt={cat.name}
+                  width={200}
+                  height={200}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+              ) : (
+                <div
+                  className="w-full h-full flex items-center justify-center"
+                  style={{
+                    background: `linear-gradient(135deg, ${primaryColor}15, ${primaryColor}08)`,
+                  }}
+                >
+                  <svg
+                    className="w-8 h-8 opacity-30"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"
+                    />
+                  </svg>
+                </div>
+              )}
+            </div>
+            <p className="text-xs sm:text-sm font-medium text-center line-clamp-1 group-hover:underline">
+              {cat.name}
+            </p>
+            <p className="text-[10px] sm:text-xs text-center opacity-50">
+              {cat._count.products} {cat._count.products === 1 ? "item" : "items"}
+            </p>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ProductGridSection({
+  title,
+  products,
+  storeSlug,
+  theme,
+  formatPrice,
+  gridCols,
+  spacingGap,
+  viewAllHref,
+  emptyMessage,
+}: {
+  title: string;
+  products: ProductCardData[];
+  storeSlug: string;
+  theme: ResolvedTheme;
+  formatPrice: (cents: number, currency: string) => string;
+  gridCols: string;
+  spacingGap: string;
+  viewAllHref: string;
+  emptyMessage?: string;
+}) {
+  if (products.length === 0 && !emptyMessage) return null;
+
+  const primaryColor = theme.colors.primary;
+
+  return (
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex items-center justify-between mb-6">
+        <h2
+          className="text-xl sm:text-2xl font-bold"
+          style={{ fontFamily: `var(--store-font-heading), sans-serif` }}
+        >
+          {title}
+        </h2>
+        <Link
+          href={viewAllHref}
+          className="text-sm font-medium hover:underline"
+          style={{ color: primaryColor }}
+        >
+          View all
+        </Link>
+      </div>
+
+      {products.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="opacity-60">{emptyMessage}</p>
+        </div>
+      ) : (
+        <div className={`grid ${gridCols} ${spacingGap}`}>
+          {products.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              storeSlug={storeSlug}
+              primaryColor={primaryColor}
+              cardStyle={theme.layout.cardStyle}
+              formatPrice={formatPrice}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export default async function StorePage({ params, searchParams }: StorePageProps) {
@@ -480,25 +621,63 @@ export default async function StorePage({ params, searchParams }: StorePageProps
     // Invalid settings JSON — fall back to default layout
   }
 
-  // Fetch featured products (include DRAFT in preview mode)
-  const products = await prisma.product.findMany({
-    where: {
-      storeId: store.id,
-      status: isPreview ? { in: ["ACTIVE", "DRAFT"] } : "ACTIVE",
-      deletedAt: null,
-    },
-    orderBy: { createdAt: "desc" },
-    take: 12,
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      priceCents: true,
-      currency: true,
-      images: true,
-      shortDescription: true,
-    },
-  });
+  // Product status filter
+  const baseProductWhere: Record<string, unknown> = {
+    storeId: store.id,
+    status: isPreview ? { in: ["ACTIVE", "DRAFT"] } : "ACTIVE",
+    deletedAt: null,
+  };
+
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+  // Parallel data fetching for all homepage sections
+  const [featuredProducts, newArrivals, dealProducts, categories] = await Promise.all([
+    // Featured: top 8 by order count
+    prisma.product.findMany({
+      where: baseProductWhere,
+      orderBy: { orderCount: "desc" },
+      take: 8,
+      select: productSelect,
+    }),
+    // New arrivals: created within 14 days
+    prisma.product.findMany({
+      where: {
+        ...baseProductWhere,
+        createdAt: { gte: fourteenDaysAgo },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      select: productSelect,
+    }),
+    // Deals: products with a compare price that is higher than current price
+    prisma.product.findMany({
+      where: {
+        ...baseProductWhere,
+        comparePriceCents: { not: null },
+      },
+      orderBy: { orderCount: "desc" },
+      take: 16, // Fetch more, then filter in code since Prisma can't do column comparison
+      select: productSelect,
+    }),
+    // Categories: top-level only
+    prisma.productCategory.findMany({
+      where: { storeId: store.id, parentId: null },
+      orderBy: { sortOrder: "asc" },
+      take: 8,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        imageUrl: true,
+        _count: { select: { products: { where: { status: "ACTIVE", deletedAt: null } } } },
+      },
+    }),
+  ]);
+
+  // Filter deals in code: comparePriceCents > priceCents
+  const deals = dealProducts
+    .filter((p) => p.comparePriceCents !== null && p.comparePriceCents > p.priceCents)
+    .slice(0, 8);
 
   function formatPrice(cents: number, currency: string) {
     return new Intl.NumberFormat("en-US", {
@@ -520,41 +699,10 @@ export default async function StorePage({ params, searchParams }: StorePageProps
         ? "grid-cols-2 md:grid-cols-3"
         : "grid-cols-2 md:grid-cols-4";
 
-  // Card style classes
-  function getCardClasses(): string {
-    switch (theme.layout.cardStyle) {
-      case "rounded":
-        return "rounded-xl p-2 bg-white/50";
-      case "sharp":
-        return "rounded-none";
-      case "shadow":
-        return "rounded-lg shadow-md hover:shadow-lg transition-shadow";
-      case "bordered":
-        return "rounded-lg border";
-      case "minimal":
-      default:
-        return "";
-    }
-  }
-
-  function getImageClasses(): string {
-    switch (theme.layout.cardStyle) {
-      case "rounded":
-        return "rounded-xl";
-      case "sharp":
-        return "rounded-none";
-      case "shadow":
-        return "rounded-lg";
-      case "bordered":
-        return "rounded-lg";
-      case "minimal":
-      default:
-        return "rounded-xl";
-    }
-  }
-
-  const cardClasses = getCardClasses();
-  const imageClasses = getImageClasses();
+  // Cast products for type safety
+  const featuredData = featuredProducts as ProductCardData[];
+  const newArrivalsData = newArrivals as ProductCardData[];
+  const dealsData = deals as ProductCardData[];
 
   // ─── Sections-based layout ──────────────────────────────────────────────
 
@@ -577,14 +725,49 @@ export default async function StorePage({ params, searchParams }: StorePageProps
                 <FeaturedProductsSection
                   key="featured_products"
                   content={section.content}
-                  products={products}
+                  products={featuredData}
                   theme={theme}
                   storeSlug={store.slug}
                   formatPrice={formatPrice}
-                  cardClasses={cardClasses}
-                  imageClasses={imageClasses}
                   gridCols={gridCols}
                   spacingGap={spacingGap}
+                />
+              );
+            case "category_showcase":
+              return (
+                <CategoryShowcaseSection
+                  key="category_showcase"
+                  categories={categories}
+                  storeSlug={store.slug}
+                  theme={theme}
+                />
+              );
+            case "new_arrivals":
+              return (
+                <ProductGridSection
+                  key="new_arrivals"
+                  title={(section.content.title as string) || "New Arrivals"}
+                  products={newArrivalsData}
+                  storeSlug={store.slug}
+                  theme={theme}
+                  formatPrice={formatPrice}
+                  gridCols={gridCols}
+                  spacingGap={spacingGap}
+                  viewAllHref={`/store/${store.slug}/products?sort=newest`}
+                />
+              );
+            case "deals":
+              return (
+                <ProductGridSection
+                  key="deals"
+                  title={(section.content.title as string) || "Deals & Offers"}
+                  products={dealsData}
+                  storeSlug={store.slug}
+                  theme={theme}
+                  formatPrice={formatPrice}
+                  gridCols={gridCols}
+                  spacingGap={spacingGap}
+                  viewAllHref={`/store/${store.slug}/products?sort=deals`}
                 />
               );
             case "about":
@@ -627,144 +810,56 @@ export default async function StorePage({ params, searchParams }: StorePageProps
     );
   }
 
-  // ─── Fallback: original Group C theme-aware layout ────────────────────
+  // ─── Product-first fallback layout (Amazon/Shopify style) ────────────────
+
+  // Find hero section config if it exists in settings (even if hasSections is false)
+  let heroContent: Record<string, unknown> | null = null;
+  try {
+    const settings = store.settings ? JSON.parse(store.settings as string) : {};
+    if (settings.sections && Array.isArray(settings.sections)) {
+      const heroSection = (settings.sections as SectionConfig[]).find(
+        (s) => s.id === "hero" && s.enabled
+      );
+      if (heroSection) heroContent = heroSection.content;
+    }
+  } catch {
+    // ignore
+  }
+
+  // Find about and newsletter sections for fallback rendering
+  let aboutContent: Record<string, unknown> | null = null;
+  let newsletterContent: Record<string, unknown> | null = null;
+  try {
+    const settings = store.settings ? JSON.parse(store.settings as string) : {};
+    if (settings.sections && Array.isArray(settings.sections)) {
+      const aboutSection = (settings.sections as SectionConfig[]).find(
+        (s) => s.id === "about" && s.enabled
+      );
+      if (aboutSection) aboutContent = aboutSection.content;
+
+      const nlSection = (settings.sections as SectionConfig[]).find(
+        (s) => s.id === "newsletter" && s.enabled
+      );
+      if (nlSection) newsletterContent = nlSection.content;
+    }
+  } catch {
+    // ignore
+  }
 
   return (
     <div>
-      {/* Hero Section — varies by heroStyle */}
-      {theme.layout.heroStyle === "full-bleed" ? (
-        /* FULL-BLEED: full-width banner image with text overlay centered */
-        <div className="relative">
-          {store.bannerUrl ? (
-            <div className="h-72 sm:h-96 w-full relative">
-              <Image
-                src={store.bannerUrl}
-                alt={store.name}
-                fill
-                className="object-cover"
-                priority
-              />
-            </div>
-          ) : (
-            <div
-              className="h-72 sm:h-96 w-full"
-              style={{
-                background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}88)`,
-              }}
-            />
-          )}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center text-white">
-              <h1
-                className="text-3xl sm:text-5xl font-bold drop-shadow-lg"
-                style={{ fontFamily: `var(--store-font-heading), sans-serif` }}
-              >
-                {store.name}
-              </h1>
-              {store.description && (
-                <p className="mt-3 text-lg sm:text-xl max-w-2xl mx-auto drop-shadow-md opacity-90 px-4">
-                  {store.description}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : theme.layout.heroStyle === "split" ? (
-        /* SPLIT: left text + right image, 50/50 */
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className={`grid grid-cols-1 md:grid-cols-2 gap-8 items-center ${spacingPy}`}>
-            <div>
-              <h1
-                className="text-3xl sm:text-5xl font-bold"
-                style={{ fontFamily: `var(--store-font-heading), sans-serif` }}
-              >
-                {store.name}
-              </h1>
-              {store.description && (
-                <p className="mt-4 text-lg opacity-70 max-w-md">{store.description}</p>
-              )}
-              <Link
-                href={`/store/${store.slug}/products`}
-                className="inline-block mt-6 px-6 py-3 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-opacity"
-                style={{ backgroundColor: primaryColor }}
-              >
-                Browse Products
-              </Link>
-            </div>
-            <div className="aspect-[4/3] rounded-xl overflow-hidden bg-gray-100">
-              {store.bannerUrl ? (
-                <Image
-                  src={store.bannerUrl}
-                  alt={store.name}
-                  width={800}
-                  height={600}
-                  className="w-full h-full object-cover"
-                  priority
-                />
-              ) : (
-                <div
-                  className="w-full h-full"
-                  style={{
-                    background: `linear-gradient(135deg, ${primaryColor}44, ${primaryColor}22)`,
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      ) : theme.layout.heroStyle === "overlay" ? (
-        /* OVERLAY: dark gradient overlay on banner with white text */
-        <div className="relative">
-          {store.bannerUrl ? (
-            <div className="h-72 sm:h-96 w-full relative">
-              <Image
-                src={store.bannerUrl}
-                alt={store.name}
-                fill
-                className="object-cover"
-                priority
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-transparent" />
-            </div>
-          ) : (
-            <div
-              className="h-72 sm:h-96 w-full relative"
-              style={{ backgroundColor: "#0f172a" }}
-            >
-              <div
-                className="absolute inset-0 opacity-20"
-                style={{
-                  background: `radial-gradient(ellipse at center, ${primaryColor}, transparent 70%)`,
-                }}
-              />
-            </div>
-          )}
-          <div className="absolute inset-0 flex items-center">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-              <h1
-                className="text-3xl sm:text-5xl font-bold text-white drop-shadow-lg max-w-xl"
-                style={{ fontFamily: `var(--store-font-heading), sans-serif` }}
-              >
-                {store.name}
-              </h1>
-              {store.description && (
-                <p className="mt-3 text-lg text-white/80 max-w-lg">{store.description}</p>
-              )}
-              <Link
-                href={`/store/${store.slug}/products`}
-                className="inline-block mt-6 px-6 py-3 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-opacity"
-                style={{ backgroundColor: primaryColor }}
-              >
-                Shop Now
-              </Link>
-            </div>
-          </div>
-        </div>
+      {/* 1. Compact Promo Banner */}
+      {heroContent ? (
+        <HeroSection
+          content={heroContent}
+          theme={theme}
+          storeSlug={store.slug}
+          compact
+        />
       ) : (
-        /* BANNER (default): simple colored banner with text */
-        <div className="relative">
+        <section className="relative">
           {store.bannerUrl ? (
-            <div className="h-64 sm:h-80 w-full relative">
+            <div className="h-32 sm:h-44 w-full relative">
               <Image
                 src={store.bannerUrl}
                 alt={store.name}
@@ -772,96 +867,106 @@ export default async function StorePage({ params, searchParams }: StorePageProps
                 className="object-cover"
                 priority
               />
-              <div className="absolute inset-0 bg-black/30" />
+              <div className="absolute inset-0 bg-black/40" />
             </div>
           ) : (
             <div
-              className="h-64 sm:h-80 w-full"
+              className="h-32 sm:h-44 w-full"
               style={{
-                background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}88)`,
+                background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}cc, ${primaryColor}88)`,
               }}
             />
           )}
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center text-white">
+            <div className="text-center text-white px-4">
               <h1
-                className="text-3xl sm:text-5xl font-bold drop-shadow-lg"
+                className="text-2xl sm:text-3xl font-bold drop-shadow-lg"
                 style={{ fontFamily: `var(--store-font-heading), sans-serif` }}
               >
                 {store.name}
               </h1>
               {store.description && (
-                <p className="mt-3 text-lg sm:text-xl max-w-2xl mx-auto drop-shadow-md opacity-90 px-4">
+                <p className="mt-1.5 text-sm sm:text-base drop-shadow-md opacity-90 max-w-xl mx-auto line-clamp-1">
                   {store.description}
                 </p>
               )}
+              <Link
+                href={`/store/${store.slug}/products`}
+                className="inline-block mt-3 px-5 py-2 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: `${primaryColor}dd` }}
+              >
+                Shop All Products
+              </Link>
             </div>
           </div>
+        </section>
+      )}
+
+      {/* 2. Category Showcase */}
+      <CategoryShowcaseSection
+        categories={categories}
+        storeSlug={store.slug}
+        theme={theme}
+      />
+
+      {/* 3. Featured Products (top sellers) */}
+      <ProductGridSection
+        title="Featured Products"
+        products={featuredData}
+        storeSlug={store.slug}
+        theme={theme}
+        formatPrice={formatPrice}
+        gridCols={gridCols}
+        spacingGap={spacingGap}
+        viewAllHref={`/store/${store.slug}/products`}
+        emptyMessage="No products available yet. Check back soon!"
+      />
+
+      {/* 4. New Arrivals */}
+      {newArrivalsData.length > 0 && (
+        <div style={{ backgroundColor: `${theme.colors.primary}04` }}>
+          <ProductGridSection
+            title="New Arrivals"
+            products={newArrivalsData}
+            storeSlug={store.slug}
+            theme={theme}
+            formatPrice={formatPrice}
+            gridCols={gridCols}
+            spacingGap={spacingGap}
+            viewAllHref={`/store/${store.slug}/products?sort=newest`}
+          />
         </div>
       )}
 
-      {/* Featured Products */}
-      <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${spacingPy}`}>
-        <div className="flex items-center justify-between mb-8">
-          <h2
-            className="text-2xl font-bold"
-            style={{ fontFamily: `var(--store-font-heading), sans-serif` }}
-          >
-            Featured Products
-          </h2>
-          <Link
-            href={`/store/${store.slug}/products`}
-            className="text-sm font-medium hover:underline"
-            style={{ color: primaryColor }}
-          >
-            View all
-          </Link>
-        </div>
+      {/* 5. Deals & Offers */}
+      {dealsData.length > 0 && (
+        <ProductGridSection
+          title="Deals & Offers"
+          products={dealsData}
+          storeSlug={store.slug}
+          theme={theme}
+          formatPrice={formatPrice}
+          gridCols={gridCols}
+          spacingGap={spacingGap}
+          viewAllHref={`/store/${store.slug}/products?sort=deals`}
+        />
+      )}
 
-        {products.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="opacity-60">No products available yet. Check back soon!</p>
-          </div>
-        ) : (
-          <div className={`grid ${gridCols} ${spacingGap}`}>
-            {products.slice(0, 8).map((product) => {
-              const images = JSON.parse(product.images || "[]") as { url: string; alt?: string }[];
-              const mainImage = images[0];
-              return (
-                <Link
-                  key={product.id}
-                  href={`/store/${store.slug}/products/${product.slug}`}
-                  className={`group ${cardClasses}`}
-                >
-                  <div className={`aspect-square overflow-hidden bg-gray-100 mb-3 ${imageClasses}`}>
-                    {mainImage ? (
-                      <Image
-                        src={mainImage.url}
-                        alt={mainImage.alt || product.name}
-                        width={400}
-                        height={400}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400">
-                        <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                  <h3 className="text-sm font-medium group-hover:underline line-clamp-2">
-                    {product.name}
-                  </h3>
-                  <p className="text-sm font-semibold mt-1" style={{ color: primaryColor }}>
-                    {formatPrice(product.priceCents, product.currency)}
-                  </p>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {/* 6. About (only if configured) */}
+      {aboutContent && (
+        <AboutSection
+          content={aboutContent}
+          theme={theme}
+        />
+      )}
+
+      {/* 7. Newsletter (only if configured) */}
+      {newsletterContent && (
+        <NewsletterSection
+          content={newsletterContent}
+          theme={theme}
+        />
+      )}
     </div>
   );
 }

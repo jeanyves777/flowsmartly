@@ -11,6 +11,7 @@ import { MobileNav } from "@/components/store/mobile-nav";
 import { CartProvider } from "@/components/store/cart-provider";
 import { CartButton } from "@/components/store/cart-button";
 import { CartDrawer } from "@/components/store/cart-drawer";
+import { PreviewListener } from "@/components/store/preview-listener";
 
 interface StoreLayoutProps {
   children: React.ReactNode;
@@ -32,12 +33,27 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
       theme: true,
       currency: true,
       userId: true,
+      settings: true,
     },
   });
 
   if (!store) {
     notFound();
   }
+
+  // Fetch categories in parallel
+  const categories = await prisma.productCategory.findMany({
+    where: { storeId: store.id, parentId: null },
+    orderBy: { sortOrder: "asc" },
+    take: 8,
+    select: { id: true, name: true, slug: true },
+  });
+
+  // Parse store settings
+  let storeSettings: Record<string, unknown> = {};
+  try { storeSettings = JSON.parse(store.settings as string || "{}"); } catch {}
+  const shippingConfig = storeSettings.shipping as { freeShippingThresholdCents?: number } | undefined;
+  const storeContent = storeSettings.storeContent as { returnPolicy?: string; shippingPolicy?: string } | undefined;
 
   // Preview mode: allow store owner to view inactive store
   const headersList = await headers();
@@ -161,6 +177,20 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                 </Link>
                 <CartButton textColor={theme.colors.text} />
               </nav>
+              {/* Search bar below logo - full width */}
+              <form method="GET" action={`/store/${store.slug}/products`} className="flex items-center w-full max-w-md">
+                <input
+                  type="text"
+                  name="search"
+                  placeholder="Search products..."
+                  className="w-full rounded-lg border px-3 py-1.5 text-sm focus:outline-none focus:ring-2"
+                  style={{
+                    borderColor: `${theme.colors.text}20`,
+                    backgroundColor: theme.colors.background,
+                    '--tw-ring-color': theme.colors.primary,
+                  } as React.CSSProperties}
+                />
+              </form>
             </div>
           </div>
         </header>
@@ -203,6 +233,15 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                 >
                   Products
                 </Link>
+                {/* Search bar - bold header style */}
+                <form method="GET" action={`/store/${store.slug}/products`} className="flex items-center">
+                  <input
+                    type="text"
+                    name="search"
+                    placeholder="Search products..."
+                    className="w-40 lg:w-56 rounded-lg px-3 py-1.5 text-sm focus:outline-none bg-white/15 text-white placeholder-white/60 border border-white/20 focus:bg-white/25"
+                  />
+                </form>
                 <CartButton textColor="#ffffff" />
               </nav>
               <div className="flex items-center gap-1 md:hidden">
@@ -258,6 +297,20 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                 >
                   Products
                 </Link>
+                {/* Search bar - minimal header */}
+                <form method="GET" action={`/store/${store.slug}/products`} className="flex items-center">
+                  <input
+                    type="text"
+                    name="search"
+                    placeholder="Search products..."
+                    className="w-40 lg:w-56 rounded-lg border px-3 py-1.5 text-sm focus:outline-none focus:ring-2"
+                    style={{
+                      borderColor: `${theme.colors.text}20`,
+                      backgroundColor: theme.colors.background,
+                      '--tw-ring-color': theme.colors.primary,
+                    } as React.CSSProperties}
+                  />
+                </form>
                 <CartButton textColor={theme.colors.text} />
               </nav>
               <div className="flex items-center gap-1 md:hidden">
@@ -273,27 +326,126 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
         </header>
       )}
 
+      {/* Category Navigation Bar */}
+      {categories.length >= 2 && (
+        <nav className="border-b overflow-x-auto scrollbar-hide" style={{ backgroundColor: theme.colors.background }}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-1 py-2 -mx-1">
+              <Link
+                href={`/store/${store.slug}/products`}
+                className="shrink-0 px-3 py-1 rounded-md text-xs font-medium transition-colors hover:opacity-100 opacity-70"
+              >
+                All Products
+              </Link>
+              {categories.map((cat) => (
+                <Link
+                  key={cat.id}
+                  href={`/store/${store.slug}/products?category=${cat.id}`}
+                  className="shrink-0 px-3 py-1 rounded-md text-xs font-medium transition-colors hover:opacity-100 opacity-70"
+                >
+                  {cat.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </nav>
+      )}
+
       {/* Cart Drawer */}
       <CartDrawer />
+
+      {/* Preview Listener */}
+      {isPreview && <PreviewListener />}
 
       {/* Main Content */}
       <main className="flex-1">{children}</main>
 
       {/* Footer */}
-      <footer className="border-t" style={{ backgroundColor: theme.colors.background, opacity: 0.9 }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-sm opacity-60">{store.name}</p>
-            <p className="text-xs opacity-40">
-              Powered by{" "}
-              <a
-                href="https://flowsmartly.com"
-                className="hover:underline"
-                style={{ color: theme.colors.primary }}
-              >
-                FlowSmartly
-              </a>
-            </p>
+      <footer className="border-t" style={{ backgroundColor: theme.colors.background }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            {/* Col 1: Store Info */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                {store.logoUrl ? (
+                  <Image src={store.logoUrl} alt={store.name} width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
+                ) : (
+                  <div className="h-8 w-8 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: theme.colors.primary }}>
+                    <ShoppingBag className="h-4 w-4" />
+                  </div>
+                )}
+                <span className="font-semibold" style={{ fontFamily: `${theme.fonts.heading}, sans-serif` }}>{store.name}</span>
+              </div>
+              {store.description && <p className="text-sm opacity-60 leading-relaxed">{store.description}</p>}
+            </div>
+
+            {/* Col 2: Quick Links */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3 opacity-80">Shop</h4>
+              <ul className="space-y-2">
+                <li><Link href={`/store/${store.slug}`} className="text-sm opacity-60 hover:opacity-100 transition-opacity">Home</Link></li>
+                <li><Link href={`/store/${store.slug}/products`} className="text-sm opacity-60 hover:opacity-100 transition-opacity">All Products</Link></li>
+                {categories.slice(0, 4).map(cat => (
+                  <li key={cat.id}><Link href={`/store/${store.slug}/products?category=${cat.id}`} className="text-sm opacity-60 hover:opacity-100 transition-opacity">{cat.name}</Link></li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Col 3: Policies (only if configured) */}
+            {(storeContent?.shippingPolicy || storeContent?.returnPolicy) && (
+              <div>
+                <h4 className="text-sm font-semibold mb-3 opacity-80">Policies</h4>
+                <ul className="space-y-2">
+                  {storeContent.shippingPolicy && <li className="text-sm opacity-60">Shipping Policy</li>}
+                  {storeContent.returnPolicy && <li className="text-sm opacity-60">Return Policy</li>}
+                </ul>
+              </div>
+            )}
+
+            {/* Col 4: Trust Badges */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3 opacity-80">Why Shop With Us</h4>
+              <ul className="space-y-2.5">
+                <li className="flex items-center gap-2 text-sm opacity-60">
+                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>
+                  Secure Checkout
+                </li>
+                {shippingConfig?.freeShippingThresholdCents && (
+                  <li className="flex items-center gap-2 text-sm opacity-60">
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" /></svg>
+                    Free Shipping over {new Intl.NumberFormat("en-US", { style: "currency", currency: store.currency || "USD" }).format(shippingConfig.freeShippingThresholdCents / 100)}
+                  </li>
+                )}
+                {storeContent?.returnPolicy && (
+                  <li className="flex items-center gap-2 text-sm opacity-60">
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg>
+                    Easy Returns
+                  </li>
+                )}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom bar */}
+        <div className="border-t">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-xs opacity-40">&copy; {new Date().getFullYear()} {store.name}. All rights reserved.</p>
+            <div className="flex items-center gap-3">
+              {/* Payment icons */}
+              <div className="flex items-center gap-1.5 opacity-30">
+                <span className="text-[10px] font-bold px-1.5 py-0.5 border rounded">VISA</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 border rounded">MC</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 border rounded">AMEX</span>
+              </div>
+              <span className="text-xs opacity-30">|</span>
+              <p className="text-xs opacity-40">
+                Powered by{" "}
+                <a href="https://flowsmartly.com" className="hover:underline" style={{ color: theme.colors.primary }}>
+                  FlowSmartly
+                </a>
+              </p>
+            </div>
           </div>
         </div>
       </footer>

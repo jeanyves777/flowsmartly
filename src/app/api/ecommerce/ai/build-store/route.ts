@@ -73,6 +73,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Fetch user's brand kit for brand-aware generation
+    let brandColors: { primary?: string; secondary?: string; accent?: string } | undefined;
+    let brandFonts: { heading?: string; body?: string } | undefined;
+    let brandLogo: string | undefined;
+
+    try {
+      const brandKit = await prisma.brandKit.findFirst({
+        where: { userId: session.userId, isDefault: true },
+      }) || await prisma.brandKit.findFirst({
+        where: { userId: session.userId },
+      });
+
+      if (brandKit) {
+        try {
+          const colors = JSON.parse(brandKit.colors || "{}");
+          if (colors.primary) brandColors = colors;
+        } catch {}
+        try {
+          const fonts = JSON.parse(brandKit.fonts || "{}");
+          if (fonts.heading) brandFonts = fonts;
+        } catch {}
+        if (brandKit.logo) brandLogo = brandKit.logo;
+      }
+    } catch {}
+
     // Generate AI blueprint
     const blueprint = await generateStoreBlueprint({
       storeName,
@@ -81,6 +106,9 @@ export async function POST(request: NextRequest) {
       targetAudience,
       region: region || store.region || undefined,
       currency: currency || store.currency || "USD",
+      brandColors,
+      brandFonts,
+      brandLogo,
     });
 
     if (!blueprint) {
@@ -90,19 +118,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Resolve template config
+    // Resolve template config, then overlay brand colors/fonts if available
     const templateConfig = getTemplateById(blueprint.templateId);
-    const themeJSON = templateConfig
-      ? JSON.stringify({
-          template: templateConfig.id,
-          colors: templateConfig.colors,
-          fonts: templateConfig.fonts,
-          layout: templateConfig.layout,
-        })
-      : JSON.stringify({ template: blueprint.templateId });
+    const themeColors: Record<string, string> = templateConfig ? { ...templateConfig.colors } : {};
+    const themeFonts: Record<string, string> = templateConfig ? { ...templateConfig.fonts } : {};
+    const themeLayout: Record<string, string> = templateConfig ? { ...templateConfig.layout } : {};
+
+    // Brand colors take priority over template defaults
+    if (brandColors?.primary) themeColors.primary = brandColors.primary;
+    if (brandColors?.secondary) themeColors.secondary = brandColors.secondary;
+    if (brandColors?.accent) themeColors.accent = brandColors.accent;
+    if (brandFonts?.heading) themeFonts.heading = brandFonts.heading;
+    if (brandFonts?.body) themeFonts.body = brandFonts.body;
+
+    const themeJSON = JSON.stringify({
+      template: templateConfig?.id || blueprint.templateId,
+      colors: themeColors,
+      fonts: themeFonts,
+      layout: themeLayout,
+    });
 
     // Build settings JSON from blueprint content
     // Sections format must match the store page renderer: { id, enabled, order, content }
+    // Product-first layout: hero (compact) -> categories -> featured -> new arrivals -> deals -> about
     const settingsJSON = JSON.stringify({
       sections: [
         {
@@ -117,41 +155,70 @@ export async function POST(request: NextRequest) {
           },
         },
         {
-          id: "featured_products",
+          id: "category_showcase",
           enabled: true,
           order: 1,
-          content: {
-            title: "Featured Products",
-            count: 8,
-          },
+          content: { title: "Shop by Category" },
+        },
+        {
+          id: "featured_products",
+          enabled: true,
+          order: 2,
+          content: { title: "Featured Products", count: 8 },
+        },
+        {
+          id: "new_arrivals",
+          enabled: true,
+          order: 3,
+          content: { title: "New Arrivals", count: 8 },
+        },
+        {
+          id: "deals",
+          enabled: true,
+          order: 4,
+          content: { title: "Deals & Offers", count: 8 },
         },
         {
           id: "about",
           enabled: true,
-          order: 2,
+          order: 5,
           content: {
             title: blueprint.content.about.title,
             body: blueprint.content.about.body,
           },
         },
+        {
+          id: "newsletter",
+          enabled: true,
+          order: 6,
+          content: { title: "Stay Updated", subtitle: `Get the latest from ${storeName}` },
+        },
       ],
-      returnPolicy: blueprint.content.returnPolicy,
-      shippingPolicy: blueprint.content.shippingPolicy,
-      faq: blueprint.content.faq,
+      storeContent: {
+        tagline: blueprint.content.tagline,
+        aboutUs: blueprint.content.about.body,
+        returnPolicy: blueprint.content.returnPolicy,
+        shippingPolicy: blueprint.content.shippingPolicy,
+        faq: blueprint.content.faq,
+      },
     });
 
     // Persist everything in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // 1. Update store with theme, settings, and SEO description
+      const storeUpdateData: Record<string, unknown> = {
+        name: storeName,
+        theme: themeJSON,
+        settings: settingsJSON,
+        description: blueprint.seo.description,
+        industry,
+      };
+      // Apply brand logo if available and store doesn't have one
+      if (brandLogo) storeUpdateData.logoUrl = brandLogo;
+
       await tx.store.update({
         where: { id: store.id },
-        data: {
-          name: storeName,
-          theme: themeJSON,
-          settings: settingsJSON,
-          description: blueprint.seo.description,
-          industry,
-        },
+        data: storeUpdateData,
       });
 
       // 2. Delete existing draft products for cleanup (in case of regeneration)

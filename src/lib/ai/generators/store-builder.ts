@@ -47,6 +47,9 @@ export interface StoreBlueprintParams {
   targetAudience?: string;
   region?: string;
   currency?: string;
+  brandColors?: { primary?: string; secondary?: string; accent?: string };
+  brandFonts?: { heading?: string; body?: string };
+  brandLogo?: string;
 }
 
 // ── Generator ──
@@ -58,7 +61,7 @@ export interface StoreBlueprintParams {
 export async function generateStoreBlueprint(
   params: StoreBlueprintParams
 ): Promise<AIStoreBlueprint | null> {
-  const { storeName, industry, niche, targetAudience, region, currency } = params;
+  const { storeName, industry, niche, targetAudience, region, currency, brandColors, brandFonts } = params;
 
   // Build template listing for AI to choose from
   const templateListing = STORE_TEMPLATES_FULL.map((t) => ({
@@ -67,6 +70,15 @@ export async function generateStoreBlueprint(
     description: t.description,
     category: t.category,
   }));
+
+  // Brand context for AI
+  const hasBrand = brandColors?.primary || brandFonts?.heading;
+  const brandContext = hasBrand
+    ? `\nBRAND IDENTITY (respect these when choosing template):
+- Brand Colors: ${brandColors?.primary ? `Primary: ${brandColors.primary}` : ""}${brandColors?.secondary ? `, Secondary: ${brandColors.secondary}` : ""}${brandColors?.accent ? `, Accent: ${brandColors.accent}` : ""}
+${brandFonts?.heading ? `- Brand Fonts: Heading: ${brandFonts.heading}${brandFonts?.body ? `, Body: ${brandFonts.body}` : ""}` : ""}
+Pick a template whose style complements these brand colors. The store should feel cohesive with the brand identity.`
+    : "";
 
   const currencyCode = currency || "USD";
   const regionName = region || "north_america";
@@ -80,6 +92,7 @@ ${niche ? `- Niche: ${niche}` : ""}
 ${targetAudience ? `- Target Audience: ${targetAudience}` : ""}
 - Region: ${regionName}
 - Currency: ${currencyCode}
+${brandContext}
 
 AVAILABLE TEMPLATES (pick the best match for this store):
 ${JSON.stringify(templateListing, null, 2)}
