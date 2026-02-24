@@ -336,10 +336,19 @@ Return ONLY a valid JSON array of product objects.`;
         creditsUsed: actualCost,
       },
     }, { status: 201 });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("AI generate products error:", error);
+
+    const status = (error as { status?: number }).status;
+    if (status === 429 || status === 529) {
+      return NextResponse.json(
+        { success: false, error: { code: "AI_OVERLOADED", message: "Our AI is experiencing high demand. Please wait a moment and try again." } },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
-      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to generate products" } },
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to generate products. Please try again." } },
       { status: 500 }
     );
   }

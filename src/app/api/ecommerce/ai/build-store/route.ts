@@ -327,10 +327,20 @@ export async function POST(request: NextRequest) {
         categoryIds: result.categoryIds,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("AI store build error:", error);
+
+    // Provide user-friendly messages for known transient errors
+    const status = (error as { status?: number }).status;
+    if (status === 429 || status === 529) {
+      return NextResponse.json(
+        { success: false, error: { code: "AI_OVERLOADED", message: "Our AI is experiencing high demand. Please wait a moment and try again." } },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
-      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to build store" } },
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to build store. Please try again." } },
       { status: 500 }
     );
   }

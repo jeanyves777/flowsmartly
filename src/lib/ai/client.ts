@@ -35,7 +35,7 @@ class ClaudeAI {
   }
 
   /**
-   * Generate content using Claude
+   * Generate content using Claude (with automatic retry on transient errors)
    */
   async generate(
     prompt: string,
@@ -47,17 +47,33 @@ class ClaudeAI {
       systemPrompt = "You are a helpful marketing and content creation assistant. Be concise, creative, and professional.",
     } = options;
 
-    const response = await this.client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: maxTokens,
-      temperature,
-      system: systemPrompt,
-      messages: [{ role: "user", content: prompt }],
-    });
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await this.client.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: maxTokens,
+          temperature,
+          system: systemPrompt,
+          messages: [{ role: "user", content: prompt }],
+        });
 
-    // Extract text from response
-    const textBlock = response.content.find((block) => block.type === "text");
-    return textBlock?.type === "text" ? textBlock.text : "";
+        const textBlock = response.content.find((block) => block.type === "text");
+        return textBlock?.type === "text" ? textBlock.text : "";
+      } catch (error: unknown) {
+        const status = (error as { status?: number }).status;
+        const isRetryable = status === 429 || status === 529 || status === 500 || status === 503;
+        if (isRetryable && attempt < maxRetries - 1) {
+          const delay = Math.min(1000 * 2 ** attempt, 8000);
+          console.warn(`AI request failed (${status}), retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`);
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    return ""; // unreachable but satisfies TS
   }
 
   /**
