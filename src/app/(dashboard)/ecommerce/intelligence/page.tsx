@@ -55,11 +55,12 @@ interface Competitor {
 }
 
 interface PriceAnalysis {
-  yourPrice: number;
-  marketAverage: number;
-  marketMin: number;
-  marketMax: number;
+  myPrice: number;
+  averageCompetitorPrice: number;
+  lowestCompetitorPrice: number;
+  highestCompetitorPrice: number;
   position: string;
+  priceAdvantagePercent: number;
   competitorCount: number;
 }
 
@@ -489,12 +490,13 @@ export default function IntelligencePage() {
 
   // ── Trends Tab Functions ──
 
-  const handleSearchTrends = async () => {
-    if (!trendKeyword.trim()) return;
+  const handleSearchTrends = async (overrideKeyword?: string) => {
+    const keyword = overrideKeyword || trendKeyword;
+    if (!keyword.trim()) return;
     setLoadingTrends(true);
     setTrendResults(null);
     try {
-      const encoded = encodeURIComponent(trendKeyword.trim());
+      const encoded = encodeURIComponent(keyword.trim());
       const [searchRes, relatedRes] = await Promise.all([
         fetch(`/api/ecommerce/intelligence/trends?type=search&keyword=${encoded}`),
         fetch(`/api/ecommerce/intelligence/trends?type=related&keyword=${encoded}`),
@@ -630,13 +632,15 @@ export default function IntelligencePage() {
   useEffect(() => {
     if (activeTab === "trends") {
       // Auto-search industry trends on first visit
-      if (storeIndustry && !trendKeyword) {
+      if (storeIndustry && !trendKeyword && !trendResults && !loadingTrends) {
         setTrendKeyword(storeIndustry);
+        handleSearchTrends(storeIndustry);
       }
     } else if (activeTab === "seo") {
       loadSEOData();
     }
-  }, [activeTab, loadSEOData, storeIndustry, trendKeyword]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, loadSEOData, storeIndustry]);
 
   async function handleRunResearch() {
     setResearchRunning(true);
@@ -891,13 +895,13 @@ export default function IntelligencePage() {
                     <div className="rounded-lg bg-blue-50 p-4 text-center">
                       <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">Your Price</p>
                       <p className="text-2xl font-bold text-blue-700 mt-1">
-                        {formatCurrency(priceAnalysis.yourPrice, storeCurrency)}
+                        {formatCurrency(priceAnalysis.myPrice, storeCurrency)}
                       </p>
                     </div>
                     <div className="rounded-lg bg-gray-50 p-4 text-center">
                       <p className="text-xs font-medium text-gray-600 uppercase tracking-wider">Market Avg</p>
                       <p className="text-2xl font-bold text-gray-700 mt-1">
-                        {formatCurrency(priceAnalysis.marketAverage, storeCurrency)}
+                        {formatCurrency(priceAnalysis.averageCompetitorPrice, storeCurrency)}
                       </p>
                     </div>
                     <div className="rounded-lg bg-gray-50 p-4 text-center">
@@ -910,8 +914,8 @@ export default function IntelligencePage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
-                    <span>Min: {formatCurrency(priceAnalysis.marketMin, storeCurrency)}</span>
-                    <span>Max: {formatCurrency(priceAnalysis.marketMax, storeCurrency)}</span>
+                    <span>Min: {formatCurrency(priceAnalysis.lowestCompetitorPrice, storeCurrency)}</span>
+                    <span>Max: {formatCurrency(priceAnalysis.highestCompetitorPrice, storeCurrency)}</span>
                     <span>{priceAnalysis.competitorCount} competitor{priceAnalysis.competitorCount !== 1 ? "s" : ""}</span>
                   </div>
                 </div>
@@ -1320,7 +1324,7 @@ export default function IntelligencePage() {
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
               <button
-                onClick={handleSearchTrends}
+                onClick={() => handleSearchTrends()}
                 disabled={loadingTrends || !trendKeyword.trim()}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors"
               >
