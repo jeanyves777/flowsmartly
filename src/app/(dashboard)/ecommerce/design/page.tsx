@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Layout,
   FileText,
@@ -16,6 +16,10 @@ import {
   Check,
   X,
   GripVertical,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
@@ -95,6 +99,7 @@ interface StoreContent {
 interface Store {
   id: string;
   name: string;
+  slug: string;
   settings: Record<string, unknown>;
 }
 
@@ -180,6 +185,9 @@ export default function EcommerceDesignPage() {
   const [generatingSection, setGeneratingSection] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(true);
+  const [previewKey, setPreviewKey] = useState(0);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // ── Load store data ──────────────────────────────────────────────────────
 
@@ -254,6 +262,8 @@ export default function EcommerceDesignPage() {
       if (data.success) {
         setStore(data.data.store);
         setSuccessMessage("Design settings saved.");
+        // Refresh the preview iframe
+        setPreviewKey((k) => k + 1);
       } else {
         setError(data.error?.message || "Failed to save.");
       }
@@ -467,62 +477,93 @@ export default function EcommerceDesignPage() {
   }
 
   const sortedSections = [...sections].sort((a, b) => a.order - b.order);
+  const previewUrl = store.slug
+    ? `/store/${store.slug}?preview=true&_t=${previewKey}`
+    : null;
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex items-center justify-between flex-wrap gap-3 px-1 pb-4 shrink-0">
         <div>
           <h1 className="text-2xl font-bold">Store Design</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage your homepage sections and store content.
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Edit sections and see changes live.
           </p>
         </div>
-        <button
-          onClick={handleGenerateAll}
-          disabled={generating}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-medium hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 transition-all"
-        >
-          {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          Generate All with AI
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowPreview((p) => !p)}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
+              showPreview
+                ? "bg-brand-50 border-brand-200 text-brand-700 dark:bg-brand-950/30 dark:border-brand-800 dark:text-brand-300"
+                : "hover:bg-muted"
+            )}
+            title={showPreview ? "Hide preview" : "Show preview"}
+          >
+            {showPreview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            <span className="hidden sm:inline">{showPreview ? "Hide" : "Preview"}</span>
+          </button>
+          <button
+            onClick={handleGenerateAll}
+            disabled={generating}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-medium hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 transition-all"
+          >
+            {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            <span className="hidden sm:inline">Generate All with AI</span>
+            <span className="sm:hidden">AI</span>
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
-      {successMessage && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300 text-sm">
-          <Check className="h-4 w-4" />
-          {successMessage}
-        </div>
-      )}
-      {error && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300 text-sm">
-          <AlertCircle className="h-4 w-4" />
-          {error}
-          <button onClick={() => setError(null)} className="ml-auto">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-lg bg-muted">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-              activeTab === tab.id
-                ? "bg-background shadow-sm text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <tab.icon className="h-4 w-4" />
-            <span className="hidden sm:inline">{tab.label}</span>
-          </button>
-        ))}
+      <div className="px-1 shrink-0">
+        {successMessage && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300 text-sm mb-3">
+            <Check className="h-4 w-4" />
+            {successMessage}
+          </div>
+        )}
+        {error && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300 text-sm mb-3">
+            <AlertCircle className="h-4 w-4" />
+            {error}
+            <button onClick={() => setError(null)} className="ml-auto">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Split Panel */}
+      <div className="flex gap-4 flex-1 min-h-0">
+        {/* ── Left: Editor Panel ──────────────────────────────────────────── */}
+        <div className={cn(
+          "flex flex-col min-h-0 shrink-0",
+          showPreview ? "w-[420px]" : "w-full"
+        )}>
+          {/* Tabs */}
+          <div className="flex gap-1 p-1 rounded-lg bg-muted mb-3 shrink-0">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                  activeTab === tab.id
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <tab.icon className="h-4 w-4" />
+                <span className="hidden sm:inline">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Scrollable editor content */}
+          <div className="flex-1 overflow-y-auto pr-1 space-y-3 pb-4">
 
       {/* ── Sections Tab ──────────────────────────────────────────────────── */}
       {activeTab === "sections" && (
@@ -1016,16 +1057,64 @@ export default function EcommerceDesignPage() {
         </div>
       )}
 
-      {/* ── Save Button ───────────────────────────────────────────────────── */}
-      <div className="flex justify-end pb-6">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 disabled:opacity-50 transition-colors"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Save Changes
-        </button>
+            {/* ── Save Button ───────────────────────────────────────────── */}
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 disabled:opacity-50 transition-colors"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save & Refresh
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Right: Live Preview ────────────────────────────────────────── */}
+        {showPreview && previewUrl && (
+          <div className="flex-1 min-w-0 flex flex-col rounded-xl border bg-card overflow-hidden">
+            {/* Browser chrome */}
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/50 shrink-0">
+              <div className="flex gap-1.5">
+                <div className="h-3 w-3 rounded-full bg-red-400" />
+                <div className="h-3 w-3 rounded-full bg-yellow-400" />
+                <div className="h-3 w-3 rounded-full bg-green-400" />
+              </div>
+              <div className="flex-1 mx-2 px-3 py-1 rounded-md bg-background border text-xs text-muted-foreground truncate font-mono">
+                /store/{store.slug}
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPreviewKey((k) => k + 1)}
+                  className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                  title="Refresh preview"
+                >
+                  <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+                <a
+                  href={`/store/${store.slug}?preview=true`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                  title="Open in new tab"
+                >
+                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                </a>
+              </div>
+            </div>
+            {/* Iframe */}
+            <div className="flex-1 bg-white">
+              <iframe
+                ref={iframeRef}
+                key={previewKey}
+                src={previewUrl}
+                className="w-full h-full border-0"
+                title="Store preview"
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
