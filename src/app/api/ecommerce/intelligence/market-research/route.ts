@@ -32,6 +32,94 @@ export interface MarketResearchResult {
   industryOverview: string;
 }
 
+// ── GET: Fetch market research history ──
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: { code: "UNAUTHORIZED", message: "Not authenticated" } },
+        { status: 401 }
+      );
+    }
+
+    const store = await prisma.store.findUnique({
+      where: { userId: session.userId },
+      select: { id: true },
+    });
+
+    if (!store) {
+      return NextResponse.json(
+        { success: false, error: { code: "NO_STORE", message: "No store found." } },
+        { status: 404 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const reportId = searchParams.get("id");
+
+    // Get a specific report by ID
+    if (reportId) {
+      const report = await prisma.marketResearchReport.findFirst({
+        where: { id: reportId, storeId: store.id },
+      });
+      if (!report) {
+        return NextResponse.json(
+          { success: false, error: { code: "NOT_FOUND", message: "Report not found." } },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        data: {
+          report: { ...report, data: JSON.parse(report.data) },
+        },
+      });
+    }
+
+    // Get all reports for this store, newest first
+    const reports = await prisma.marketResearchReport.findMany({
+      where: { storeId: store.id },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: {
+        id: true,
+        creditsUsed: true,
+        createdAt: true,
+      },
+    });
+
+    // Get the latest full report if any
+    let latestReport = null;
+    if (reports.length > 0) {
+      const full = await prisma.marketResearchReport.findUnique({
+        where: { id: reports[0].id },
+      });
+      if (full) {
+        latestReport = {
+          ...full,
+          data: JSON.parse(full.data),
+        };
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        reports,
+        latestReport,
+      },
+    });
+  } catch (error) {
+    console.error("Market research GET error:", error);
+    return NextResponse.json(
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to fetch market research." } },
+      { status: 500 }
+    );
+  }
+}
+
 // ── POST: Run AI market research ──
 
 export async function POST(request: NextRequest) {
@@ -161,9 +249,18 @@ CRITICAL RULES:
       referenceId: store.id,
     });
 
+    // Save the report to history
+    const report = await prisma.marketResearchReport.create({
+      data: {
+        storeId: store.id,
+        data: JSON.stringify(result),
+        creditsUsed: cost,
+      },
+    });
+
     return NextResponse.json({
       success: true,
-      data: { result, creditsUsed: cost },
+      data: { result, creditsUsed: cost, reportId: report.id },
     });
   } catch (error: unknown) {
     console.error("Market research API error:", error);

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     const store = await prisma.store.findUnique({
       where: { userId: session.userId },
-      select: { id: true, industry: true },
+      select: { id: true, industry: true, country: true },
     });
     if (!store) {
       return NextResponse.json(
@@ -71,6 +71,46 @@ export async function GET(request: NextRequest) {
       case "industry": {
         const result = await getTrendingForIndustry(store.industry || "retail", geo);
         return NextResponse.json({ success: true, data: { type, ...result } });
+      }
+
+      case "overview": {
+        // Fetch daily trends, industry trends, and product categories in parallel
+        const storeGeo = store.country || geo;
+
+        // Get product categories for preset chips
+        const storeProducts = await prisma.product.findMany({
+          where: {
+            storeId: store.id,
+            status: "ACTIVE",
+            deletedAt: null
+          },
+          select: { name: true, category: true },
+          take: 50,
+        });
+
+        const categories = [...new Set(storeProducts.map(p => p.category).filter(Boolean))] as string[];
+        const topProductNames = storeProducts.slice(0, 5).map(p => p.name);
+
+        const [dailyTrends, industryTrends] = await Promise.all([
+          getDailyTrends(storeGeo),
+          getTrendingForIndustry(store.industry || "retail", storeGeo),
+        ]);
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            type: "overview",
+            geo: storeGeo,
+            industry: store.industry || "General Retail",
+            dailyTrends: dailyTrends.slice(0, 15),
+            industryTrends,
+            presetKeywords: [
+              ...(store.industry ? [store.industry] : []),
+              ...categories.slice(0, 4),
+              ...topProductNames.slice(0, 3),
+            ],
+          },
+        });
       }
 
       default:

@@ -214,6 +214,13 @@ export default function IntelligencePage() {
   const [trendResults, setTrendResults] = useState<TrendResult | null>(null);
   const [loadingTrends, setLoadingTrends] = useState(false);
 
+  // ── Enhanced Trends State ──
+  const [dailyTrends, setDailyTrends] = useState<{ title: string; traffic: string }[]>([]);
+  const [industryTrends, setIndustryTrends] = useState<{ top: TrendQuery[]; rising: TrendQuery[] }>({ top: [], rising: [] });
+  const [presetKeywords, setPresetKeywords] = useState<string[]>([]);
+  const [loadingOverview, setLoadingOverview] = useState(false);
+  const [storeGeo, setStoreGeo] = useState("US");
+
   // ── SEO Tab State ──
   const [seoProducts, setSeoProducts] = useState<SEOProduct[]>([]);
   const [loadingSEO, setLoadingSEO] = useState(false);
@@ -223,6 +230,11 @@ export default function IntelligencePage() {
   // ── Market Research State ──
   const [marketResearch, setMarketResearch] = useState<MarketResearchResult | null>(null);
   const [loadingMarketResearch, setLoadingMarketResearch] = useState(false);
+
+  // ── Market Research History ──
+  const [researchHistory, setResearchHistory] = useState<{ id: string; creditsUsed: number; createdAt: string }[]>([]);
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [loadingReport, setLoadingReport] = useState(false);
 
   // ── Initial Data Loading ──
 
@@ -521,6 +533,24 @@ export default function IntelligencePage() {
     }
   };
 
+  const loadTrendsOverview = async () => {
+    setLoadingOverview(true);
+    try {
+      const res = await fetch("/api/ecommerce/intelligence/trends?type=overview");
+      const data = await res.json();
+      if (data.success && data.data) {
+        setDailyTrends(data.data.dailyTrends || []);
+        setIndustryTrends(data.data.industryTrends || { top: [], rising: [] });
+        setPresetKeywords(data.data.presetKeywords || []);
+        setStoreGeo(data.data.geo || "US");
+      }
+    } catch {
+      // Non-critical
+    } finally {
+      setLoadingOverview(false);
+    }
+  };
+
   // ── SEO Tab Functions ──
 
   const loadSEOData = useCallback(async () => {
@@ -617,6 +647,15 @@ export default function IntelligencePage() {
       if (data.success && data.data?.result) {
         setMarketResearch(data.data.result);
         toast({ title: "Market research complete" });
+        if (data.data.reportId) {
+          setSelectedReportId(data.data.reportId);
+          // Refresh history list
+          try {
+            const histRes = await fetch("/api/ecommerce/intelligence/market-research");
+            const histData = await histRes.json();
+            if (histData.success) setResearchHistory(histData.data.reports || []);
+          } catch { /* ignore */ }
+        }
       } else {
         toast({ title: data.error?.message || "Market research failed", variant: "destructive" });
       }
@@ -627,10 +666,48 @@ export default function IntelligencePage() {
     }
   };
 
+  const loadResearchHistory = async () => {
+    try {
+      const res = await fetch("/api/ecommerce/intelligence/market-research");
+      const data = await res.json();
+      if (data.success && data.data) {
+        setResearchHistory(data.data.reports || []);
+        if (data.data.latestReport) {
+          setMarketResearch(data.data.latestReport.data);
+          setSelectedReportId(data.data.latestReport.id);
+        }
+      }
+    } catch {
+      // Non-critical
+    }
+  };
+
+  const loadSpecificReport = async (reportId: string) => {
+    setLoadingReport(true);
+    setSelectedReportId(reportId);
+    try {
+      const res = await fetch(`/api/ecommerce/intelligence/market-research?id=${reportId}`);
+      const data = await res.json();
+      if (data.success && data.data?.report) {
+        setMarketResearch(data.data.report.data);
+      } else {
+        toast({ title: "Failed to load report", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to load report", variant: "destructive" });
+    } finally {
+      setLoadingReport(false);
+    }
+  };
+
   // ── Tab-based data loading ──
 
   useEffect(() => {
     if (activeTab === "trends") {
+      // Load overview data (daily trends, industry trends, presets) on first visit
+      if (!dailyTrends.length && !loadingOverview) {
+        loadTrendsOverview();
+      }
       // Auto-search industry trends on first visit
       if (storeIndustry && !trendKeyword && !trendResults && !loadingTrends) {
         setTrendKeyword(storeIndustry);
@@ -638,6 +715,10 @@ export default function IntelligencePage() {
       }
     } else if (activeTab === "seo") {
       loadSEOData();
+    } else if (activeTab === "recommendations") {
+      if (!marketResearch && researchHistory.length === 0) {
+        loadResearchHistory();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, loadSEOData, storeIndustry]);
@@ -1348,6 +1429,34 @@ export default function IntelligencePage() {
           transition={{ duration: 0.3 }}
           className="space-y-6"
         >
+          {/* Preset Keyword Chips */}
+          {presetKeywords.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="rounded-xl border bg-card p-4"
+            >
+              <p className="text-xs font-medium text-muted-foreground mb-2">Quick Search — based on your store</p>
+              <div className="flex flex-wrap gap-2">
+                {presetKeywords.map((kw, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setTrendKeyword(kw); handleSearchTrends(kw); }}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
+                      trendKeyword === kw
+                        ? "bg-brand-500 text-white border-brand-500"
+                        : "bg-muted/50 hover:bg-brand-50 hover:border-brand-300 dark:hover:bg-brand-950/20"
+                    )}
+                  >
+                    {kw}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
           {/* Search Box */}
           <div className="rounded-xl border bg-card p-5">
             <h2 className="text-lg font-semibold mb-1">Google Market Trends</h2>
@@ -1376,7 +1485,7 @@ export default function IntelligencePage() {
             </div>
           </div>
 
-          {/* Trend Results */}
+          {/* Trend Search Results */}
           {loadingTrends && (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1388,7 +1497,11 @@ export default function IntelligencePage() {
             <>
               {/* Interest Over Time Chart */}
               {trendResults.timelineData.length > 0 && (
-                <div className="rounded-xl border bg-card p-5">
+                <motion.div
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-xl border bg-card p-5"
+                >
                   <h2 className="text-lg font-semibold mb-4">
                     Consumer Search Interest: <span className="text-brand-600">&ldquo;{trendResults.keyword}&rdquo;</span>
                   </h2>
@@ -1415,15 +1528,14 @@ export default function IntelligencePage() {
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
-                </div>
+                </motion.div>
               )}
 
-              {/* Related Queries — What consumers search for */}
+              {/* Related Queries */}
               {(trendResults.relatedQueries.top.length > 0 ||
                 trendResults.relatedQueries.rising.length > 0) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Top Search Queries */}
-                  <div className="rounded-xl border bg-card p-5">
+                  <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="rounded-xl border bg-card p-5">
                     <h3 className="text-base font-semibold mb-1">Top Consumer Searches</h3>
                     <p className="text-xs text-muted-foreground mb-3">Most popular related searches on Google</p>
                     {trendResults.relatedQueries.top.length === 0 ? (
@@ -1431,11 +1543,13 @@ export default function IntelligencePage() {
                     ) : (
                       <div className="space-y-2">
                         {trendResults.relatedQueries.top.map((q, i) => (
-                          <div
-                            key={i}
-                            className="flex items-center justify-between py-2 border-b last:border-0"
-                          >
-                            <span className="text-sm">{q.query}</span>
+                          <div key={i} className="flex items-center justify-between py-2 border-b last:border-0">
+                            <button
+                              onClick={() => { setTrendKeyword(q.query); handleSearchTrends(q.query); }}
+                              className="text-sm text-left hover:text-brand-600 transition-colors"
+                            >
+                              {q.query}
+                            </button>
                             <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
                               {q.value}
                             </span>
@@ -1443,10 +1557,9 @@ export default function IntelligencePage() {
                         ))}
                       </div>
                     )}
-                  </div>
+                  </motion.div>
 
-                  {/* Rising Search Queries */}
-                  <div className="rounded-xl border bg-card p-5">
+                  <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="rounded-xl border bg-card p-5">
                     <h3 className="text-base font-semibold mb-1">Fastest Growing Searches</h3>
                     <p className="text-xs text-muted-foreground mb-3">Rapidly increasing demand — act on these</p>
                     {trendResults.relatedQueries.rising.length === 0 ? (
@@ -1454,11 +1567,13 @@ export default function IntelligencePage() {
                     ) : (
                       <div className="space-y-2">
                         {trendResults.relatedQueries.rising.map((q, i) => (
-                          <div
-                            key={i}
-                            className="flex items-center justify-between py-2 border-b last:border-0"
-                          >
-                            <span className="text-sm">{q.query}</span>
+                          <div key={i} className="flex items-center justify-between py-2 border-b last:border-0">
+                            <button
+                              onClick={() => { setTrendKeyword(q.query); handleSearchTrends(q.query); }}
+                              className="text-sm text-left hover:text-brand-600 transition-colors"
+                            >
+                              {q.query}
+                            </button>
                             <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded">
                               {q.value}
                             </span>
@@ -1466,17 +1581,117 @@ export default function IntelligencePage() {
                         ))}
                       </div>
                     )}
-                  </div>
+                  </motion.div>
                 </div>
               )}
             </>
           )}
 
-          {!trendResults && !loadingTrends && (
+          {/* Daily Trending Section */}
+          {dailyTrends.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="rounded-xl border bg-card p-5"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <TrendingUp className="h-5 w-5 text-brand-500" />
+                <h2 className="text-lg font-semibold">Trending Today</h2>
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 dark:bg-brand-950/30 dark:text-brand-400">
+                  {storeGeo}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">What people are searching for right now in your region</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {dailyTrends.map((trend, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setTrendKeyword(trend.title); handleSearchTrends(trend.title); }}
+                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/30 hover:border-brand-300 transition-all text-left group"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-bold text-muted-foreground w-5">{i + 1}</span>
+                      <span className="text-sm font-medium truncate group-hover:text-brand-600 transition-colors">{trend.title}</span>
+                    </div>
+                    <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex-shrink-0 ml-2">
+                      {trend.traffic}+
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Industry Hot Products */}
+          {(industryTrends.top.length > 0 || industryTrends.rising.length > 0) && (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <Globe className="h-5 w-5 text-brand-500" />
+                <h2 className="text-lg font-semibold">Hot in Your Industry</h2>
+                {storeIndustry && (
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400">
+                    {storeIndustry}
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {industryTrends.top.length > 0 && (
+                  <div className="rounded-xl border bg-card p-5">
+                    <h3 className="text-base font-semibold mb-1">Most Searched Products</h3>
+                    <p className="text-xs text-muted-foreground mb-3">Top searches consumers make in your industry</p>
+                    <div className="space-y-2">
+                      {industryTrends.top.slice(0, 10).map((q, i) => (
+                        <div key={i} className="flex items-center justify-between py-2 border-b last:border-0">
+                          <button
+                            onClick={() => { setTrendKeyword(q.query); handleSearchTrends(q.query); }}
+                            className="text-sm text-left hover:text-brand-600 transition-colors"
+                          >
+                            {q.query}
+                          </button>
+                          <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                            {q.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {industryTrends.rising.length > 0 && (
+                  <div className="rounded-xl border bg-card p-5">
+                    <h3 className="text-base font-semibold mb-1">Fastest Growing Products</h3>
+                    <p className="text-xs text-muted-foreground mb-3">Exploding demand — seasonal and emerging trends</p>
+                    <div className="space-y-2">
+                      {industryTrends.rising.slice(0, 10).map((q, i) => (
+                        <div key={i} className="flex items-center justify-between py-2 border-b last:border-0">
+                          <button
+                            onClick={() => { setTrendKeyword(q.query); handleSearchTrends(q.query); }}
+                            className="text-sm text-left hover:text-brand-600 transition-colors"
+                          >
+                            {q.query}
+                          </button>
+                          <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded">
+                            {q.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Seasonal Context */}
+          {!loadingTrends && !loadingOverview && !trendResults && dailyTrends.length === 0 && (
             <div className="rounded-xl border bg-card p-12 text-center text-muted-foreground">
               <TrendingUp className="h-12 w-12 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">Search for a keyword above to see real Google Trends data.</p>
-              <p className="text-xs mt-1">Try your industry name or a product type to see consumer demand.</p>
+              <p className="text-sm">Loading market trends for your industry...</p>
             </div>
           )}
         </motion.div>
@@ -1641,8 +1856,8 @@ export default function IntelligencePage() {
           transition={{ duration: 0.3 }}
           className="space-y-6"
         >
-          {/* Market Research Header */}
-          {!marketResearch && !loadingMarketResearch && (
+          {/* No research yet - hero card */}
+          {!marketResearch && !loadingMarketResearch && !loadingReport && researchHistory.length === 0 && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1689,6 +1904,14 @@ export default function IntelligencePage() {
             </motion.div>
           )}
 
+          {/* Loading specific report */}
+          {loadingReport && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
+              <span className="ml-2 text-sm text-muted-foreground">Loading report...</span>
+            </div>
+          )}
+
           {/* Loading */}
           {loadingMarketResearch && (
             <div className="flex flex-col items-center justify-center py-16">
@@ -1701,21 +1924,50 @@ export default function IntelligencePage() {
           {/* Market Research Results */}
           {marketResearch && !loadingMarketResearch && (
             <>
-              {/* Run Again Button */}
+              {/* Research Header with History */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.1 }}
-                className="flex justify-end"
+                className="flex items-center justify-between flex-wrap gap-3"
               >
+                <div className="flex items-center gap-3">
+                  {researchHistory.length > 1 && (
+                    <select
+                      value={selectedReportId || ""}
+                      onChange={(e) => loadSpecificReport(e.target.value)}
+                      className="rounded-lg border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      {researchHistory.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {new Date(r.createdAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {researchHistory.length === 1 && selectedReportId && (
+                    <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+                      Researched: {new Date(researchHistory[0].createdAt).toLocaleDateString("en-US", {
+                        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                      })}
+                    </span>
+                  )}
+                </div>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={handleRunMarketResearch}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 transition-colors"
+                  disabled={loadingMarketResearch}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors"
                 >
-                  <RefreshCw className="h-4 w-4" />
-                  Run Again (15 credits)
+                  {loadingMarketResearch ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  New Research (15 credits)
                 </motion.button>
               </motion.div>
 

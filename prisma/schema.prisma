@@ -2973,6 +2973,7 @@ model Store {
   paymentMethods         StorePaymentMethod[]
   domains                StoreDomain[]
   intelligenceReports    IntelligenceReport[]
+  marketResearchReports  MarketResearchReport[]
 
   @@index([slug])
   @@index([userId])
@@ -3304,6 +3305,18 @@ model IntelligenceReport {
   updatedAt          DateTime  @updatedAt
 
   store              Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, createdAt])
+}
+
+model MarketResearchReport {
+  id          String   @id @default(cuid())
+  storeId     String
+  data        String   // JSON: MarketResearchResult
+  creditsUsed Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId, createdAt])
 }
