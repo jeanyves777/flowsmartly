@@ -18,6 +18,17 @@ const requestSchema = z.object({
   region: z.string().max(50).optional(),
   currency: z.string().max(10).optional(),
   showBrandName: z.boolean().optional(),
+  includeVariants: z.boolean().optional(),
+  scrapedSiteData: z.object({
+    brandName: z.string().optional(),
+    industry: z.string().optional(),
+    brandInsights: z.string().optional(),
+    products: z.array(z.object({
+      name: z.string(),
+      description: z.string().optional(),
+      price: z.string().optional(),
+    })).optional(),
+  }).optional(),
 });
 
 // ── POST /api/ecommerce/ai/build-store ──
@@ -59,7 +70,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { storeName, industry, niche, targetAudience, region, currency, showBrandName } = parsed.data;
+    const { storeName, industry, niche, targetAudience, region, currency, showBrandName, includeVariants, scrapedSiteData } = parsed.data;
 
     // Get user's store
     const store = await prisma.store.findUnique({
@@ -110,6 +121,8 @@ export async function POST(request: NextRequest) {
       brandColors,
       brandFonts,
       brandLogo,
+      includeVariants,
+      scrapedSiteData,
     });
 
     if (!blueprint) {

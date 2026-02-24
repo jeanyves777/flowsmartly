@@ -88,12 +88,16 @@ export default function DashboardLayout({
             if (storeData.success && storeData.data?.hasStore && storeData.data.store?.isActive) {
               setHasEcommerce(true);
               setStoreRegion(storeData.data.store.region || null);
-            }
-          } catch {}
-          // Load storeMode from localStorage
-          try {
-            if (localStorage.getItem("flowsmartly_store_mode") === "true") {
-              setStoreMode(true);
+              // Restore storeMode from localStorage only if store is active
+              try {
+                if (localStorage.getItem("flowsmartly_store_mode") === "true") {
+                  setStoreMode(true);
+                }
+              } catch {}
+            } else {
+              // Store inactive or not found — clear stale storeMode
+              setStoreMode(false);
+              try { localStorage.removeItem("flowsmartly_store_mode"); } catch {}
             }
           } catch {}
           setIsLoading(false);

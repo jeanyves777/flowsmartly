@@ -94,6 +94,9 @@ export default function OnboardingPage() {
   const [country, setCountry] = useState("");
   const [currency, setCurrency] = useState("USD");
   const [showBrandName, setShowBrandName] = useState(true);
+  const [existingSiteUrl, setExistingSiteUrl] = useState("");
+  const [generateImages, setGenerateImages] = useState(false);
+  const [includeVariants, setIncludeVariants] = useState(true);
 
   // Step 2: AI build
   const [aiBuildComplete, setAiBuildComplete] = useState(false);
@@ -256,6 +259,7 @@ export default function OnboardingPage() {
       case "industry": setIndustry(value); break;
       case "niche": setNiche(value); break;
       case "targetAudience": setTargetAudience(value); break;
+      case "existingSiteUrl": setExistingSiteUrl(value); break;
       case "country": setCountry(value); break;
       case "currency": setCurrency(value); break;
     }
@@ -282,11 +286,49 @@ export default function OnboardingPage() {
       setHeroCta(d.blueprint.content.hero.ctaText || "");
     }
 
+    // Generate product images if enabled
+    if (generateImages && d?.productIds?.length) {
+      generateProductImagesForBuild(d.productIds);
+    }
+
     // Fetch products created by AI
     fetchPreviewProducts();
 
     // Auto-advance to preview
     setCurrentStep(2);
+  }
+
+  async function generateProductImagesForBuild(productIds: string[]) {
+    try {
+      const res = await fetch("/api/ecommerce/products?status=DRAFT&limit=50");
+      const json = await res.json();
+      if (!json.success) return;
+
+      for (const product of json.data.products) {
+        if (!productIds.includes(product.id)) continue;
+        try {
+          const imgRes = await fetch("/api/ecommerce/ai/product-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              productName: product.name,
+              description: product.shortDescription || product.description?.slice(0, 200),
+              style: "studio",
+            }),
+          });
+          const imgJson = await imgRes.json();
+          if (imgJson.success && imgJson.data?.imageUrl) {
+            await fetch(`/api/ecommerce/products/${product.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                images: JSON.stringify([{ url: imgJson.data.imageUrl, alt: product.name, position: 0 }]),
+              }),
+            });
+          }
+        } catch { /* continue with next product */ }
+      }
+    } catch { /* non-critical */ }
   }
 
   async function fetchPreviewProducts() {
@@ -572,6 +614,7 @@ export default function OnboardingPage() {
               region={region}
               country={country}
               currency={currency}
+              existingSiteUrl={existingSiteUrl}
               showBrandName={showBrandName}
               onFieldChange={handleStoreInfoFieldChange}
               onRegionChange={handleRegionChange}
@@ -589,6 +632,11 @@ export default function OnboardingPage() {
               region={region}
               currency={currency}
               showBrandName={showBrandName}
+              existingSiteUrl={existingSiteUrl}
+              generateImages={generateImages}
+              onToggleGenerateImages={() => setGenerateImages((p) => !p)}
+              includeVariants={includeVariants}
+              onToggleVariants={() => setIncludeVariants((p) => !p)}
               onComplete={handleAIBuildComplete}
               onError={(err) => {
                 toast({

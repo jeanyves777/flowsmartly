@@ -13,6 +13,11 @@ interface AIBuildStepProps {
   region: string;
   currency: string;
   showBrandName?: boolean;
+  existingSiteUrl?: string;
+  generateImages?: boolean;
+  onToggleGenerateImages?: () => void;
+  includeVariants?: boolean;
+  onToggleVariants?: () => void;
   onComplete: (blueprint: unknown) => void;
   onError: (error: string) => void;
 }
@@ -41,6 +46,11 @@ export function AIBuildStep({
   region,
   currency,
   showBrandName,
+  existingSiteUrl,
+  generateImages,
+  onToggleGenerateImages,
+  includeVariants,
+  onToggleVariants,
   onComplete,
   onError,
 }: AIBuildStepProps) {
@@ -76,6 +86,24 @@ export function AIBuildStep({
       });
     }, 4000);
 
+    // Scrape existing site if URL provided
+    let scrapedSiteData: unknown = undefined;
+    if (existingSiteUrl) {
+      try {
+        const scrapeRes = await fetch("/api/ecommerce/ai/scrape-site", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: existingSiteUrl }),
+        });
+        const scrapeJson = await scrapeRes.json();
+        if (scrapeJson.success) {
+          scrapedSiteData = scrapeJson.data;
+        }
+      } catch {
+        // Non-critical — continue without scraped data
+      }
+    }
+
     try {
       const res = await fetch("/api/ecommerce/ai/build-store", {
         method: "POST",
@@ -88,6 +116,8 @@ export function AIBuildStep({
           region: region || undefined,
           currency: currency || undefined,
           showBrandName: showBrandName !== undefined ? showBrandName : undefined,
+          includeVariants: includeVariants !== undefined ? includeVariants : undefined,
+          scrapedSiteData: scrapedSiteData || undefined,
         }),
       });
 
@@ -153,6 +183,51 @@ export function AIBuildStep({
               <span className="text-sm">{item.label}</span>
             </div>
           ))}
+        </div>
+
+        {/* Build Options */}
+        <div className="w-full max-w-sm space-y-2 mb-4">
+          {/* AI Product Images Toggle */}
+          <div className="flex items-center justify-between p-3 rounded-lg border">
+            <div className="flex-1 mr-3">
+              <p className="text-sm font-medium">AI Product Images</p>
+              <p className="text-xs text-muted-foreground">Generate professional photos (15 credits each)</p>
+            </div>
+            <button
+              type="button"
+              onClick={onToggleGenerateImages}
+              className={cn(
+                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0",
+                generateImages ? "bg-violet-500" : "bg-muted"
+              )}
+            >
+              <span className={cn(
+                "inline-block h-4 w-4 rounded-full bg-white transition-transform",
+                generateImages ? "translate-x-6" : "translate-x-1"
+              )} />
+            </button>
+          </div>
+
+          {/* Product Variants Toggle */}
+          <div className="flex items-center justify-between p-3 rounded-lg border">
+            <div className="flex-1 mr-3">
+              <p className="text-sm font-medium">Product Variants</p>
+              <p className="text-xs text-muted-foreground">Include sizes, colors, and options</p>
+            </div>
+            <button
+              type="button"
+              onClick={onToggleVariants}
+              className={cn(
+                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0",
+                includeVariants ? "bg-violet-500" : "bg-muted"
+              )}
+            >
+              <span className={cn(
+                "inline-block h-4 w-4 rounded-full bg-white transition-transform",
+                includeVariants ? "translate-x-6" : "translate-x-1"
+              )} />
+            </button>
+          </div>
         </div>
 
         {/* Credits notice */}

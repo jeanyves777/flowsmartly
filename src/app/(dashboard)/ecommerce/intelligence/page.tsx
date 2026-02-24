@@ -161,6 +161,7 @@ export default function IntelligencePage() {
   const [activeTab, setActiveTab] = useState<TabId>("pricing");
   const [storeSlug, setStoreSlug] = useState<string | null>(null);
   const [storeCurrency, setStoreCurrency] = useState("USD");
+  const [storeIndustry, setStoreIndustry] = useState<string | null>(null);
 
   // ── Pricing Tab State ──
   const [products, setProducts] = useState<Product[]>([]);
@@ -222,6 +223,7 @@ export default function IntelligencePage() {
         if (data.success && data.data?.store) {
           setStoreSlug(data.data.store.slug);
           setStoreCurrency(data.data.store.currency || "USD");
+          setStoreIndustry(data.data.store.industry || null);
         }
       } catch {
         // Non-critical
@@ -248,6 +250,21 @@ export default function IntelligencePage() {
     }
     loadProducts();
   }, [toast]);
+
+  // Auto-select first product when loaded
+  useEffect(() => {
+    if (products.length > 0 && !selectedProductId) {
+      setSelectedProductId(products[0].id);
+    }
+  }, [products, selectedProductId]);
+
+  // Auto-load pricing data when product is selected
+  useEffect(() => {
+    if (selectedProductId && products.length > 0) {
+      loadPricingData(selectedProductId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProductId]);
 
   // ── Pricing Tab Functions ──
 
@@ -607,12 +624,16 @@ export default function IntelligencePage() {
   useEffect(() => {
     if (activeTab === "trends") {
       loadStoreTrending();
+      // Auto-search industry trends if no store trending data
+      if (storeIndustry && !trendKeyword) {
+        setTrendKeyword(storeIndustry);
+      }
     } else if (activeTab === "seo") {
       loadSEOData();
     } else if (activeTab === "recommendations") {
       loadTrendingForRecs();
     }
-  }, [activeTab, loadStoreTrending, loadSEOData, loadTrendingForRecs]);
+  }, [activeTab, loadStoreTrending, loadSEOData, loadTrendingForRecs, storeIndustry, trendKeyword]);
 
   // ── Helper: get selected product ──
   const selectedProduct = products.find((p) => p.id === selectedProductId);

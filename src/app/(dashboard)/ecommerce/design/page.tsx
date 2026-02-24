@@ -271,7 +271,6 @@ export default function EcommerceDesignPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [generating, setGenerating] = useState(false);
   const [generatingSection, setGeneratingSection] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -279,11 +278,12 @@ export default function EcommerceDesignPage() {
   const [previewKey, setPreviewKey] = useState(0);
   const [brandTemplate, setBrandTemplate] = useState<StoreTemplateConfig | null>(null);
 
-  // AI Store Builder modal state
-  const [showAIBuilderModal, setShowAIBuilderModal] = useState(false);
-  const [aiBuilderStoreName, setAIBuilderStoreName] = useState("");
-  const [aiBuilderIndustry, setAIBuilderIndustry] = useState("");
-  const [aiBuilding, setAIBuilding] = useState(false);
+  // AI Enhance modal state
+  const [showAIEnhanceModal, setShowAIEnhanceModal] = useState(false);
+  const [aiEnhancePrompt, setAIEnhancePrompt] = useState("");
+  const [aiEnhanceUrl, setAIEnhanceUrl] = useState("");
+  const [aiEnhanceScope, setAIEnhanceScope] = useState<"theme" | "content" | "products" | "all">("all");
+  const [aiEnhancing, setAIEnhancing] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -427,17 +427,15 @@ export default function EcommerceDesignPage() {
   // ── Theme Handlers ─────────────────────────────────────────────────────────
 
   function handleTemplateSelect(template: StoreTemplateConfig) {
-    const newTheme: ThemeState = {
+    setThemeState((prev) => ({
       template: template.id,
       colors: { ...template.colors },
       fonts: { ...template.fonts },
-      layout: { ...template.layout },
-    };
-    setThemeState(newTheme);
+      layout: { ...prev.layout },
+    }));
     sendPreviewUpdate({
       colors: template.colors,
       fonts: template.fonts,
-      layout: template.layout,
       template: template.id,
     });
   }
@@ -526,32 +524,7 @@ export default function EcommerceDesignPage() {
     }
   }
 
-  // ── AI Generate ────────────────────────────────────────────────────────────
-
-  async function handleGenerateAll() {
-    setGenerating(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/ecommerce/ai/store-content", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contentTypes: ["tagline", "about", "hero", "return_policy", "shipping_policy", "faq"],
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        applyAiResult(data.data);
-        setSuccessMessage(`Content generated! (${data.data.creditsUsed} credits used)`);
-      } else {
-        setError(data.error?.message || "Generation failed.");
-      }
-    } catch {
-      setError("Failed to generate content.");
-    } finally {
-      setGenerating(false);
-    }
-  }
+  // ── AI Generate Section ────────────────────────────────────────────────────
 
   async function handleGenerateSection(contentType: string) {
     setGeneratingSection(contentType);
@@ -617,40 +590,57 @@ export default function EcommerceDesignPage() {
     }
   }
 
-  // ── AI Store Builder ───────────────────────────────────────────────────────
+  // ── AI Enhance ─────────────────────────────────────────────────────────────
 
-  function openAIBuilderModal() {
-    setAIBuilderStoreName(store?.name || "");
-    setAIBuilderIndustry(store?.industry || "");
-    setShowAIBuilderModal(true);
-  }
-
-  async function handleAIBuildStore() {
-    if (!aiBuilderStoreName.trim() || !aiBuilderIndustry.trim()) return;
-    setAIBuilding(true);
+  async function handleAIEnhance() {
+    if (!aiEnhancePrompt.trim()) return;
+    setAIEnhancing(true);
     setError(null);
     try {
-      const res = await fetch("/api/ecommerce/ai/build-store", {
+      const res = await fetch("/api/ecommerce/ai/enhance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          storeName: aiBuilderStoreName.trim(),
-          industry: aiBuilderIndustry.trim(),
+          prompt: aiEnhancePrompt.trim(),
+          referenceUrl: aiEnhanceUrl.trim() || undefined,
+          scope: aiEnhanceScope,
         }),
       });
       const data = await res.json();
       if (data.success) {
-        setShowAIBuilderModal(false);
-        setSuccessMessage("Store rebuilt with AI! Refreshing...");
-        await loadStore();
+        const result = data.data;
+        // Apply theme changes
+        if (result.theme) {
+          setThemeState((prev) => ({
+            ...prev,
+            colors: { ...prev.colors, ...(result.theme.colors || {}) },
+            fonts: { ...prev.fonts, ...(result.theme.fonts || {}) },
+          }));
+          sendPreviewUpdate({
+            colors: { ...themeState.colors, ...(result.theme.colors || {}) },
+            fonts: { ...themeState.fonts, ...(result.theme.fonts || {}) },
+          });
+        }
+        // Apply content changes
+        if (result.content) {
+          applyAiResult(result.content);
+        }
+        setShowAIEnhanceModal(false);
+        setAIEnhancePrompt("");
+        setAIEnhanceUrl("");
+        const parts: string[] = [];
+        if (result.theme) parts.push("theme");
+        if (result.content) parts.push("content");
+        if (result.newProductIds?.length) parts.push(`${result.newProductIds.length} products`);
+        setSuccessMessage(`AI enhanced your store${parts.length ? `: ${parts.join(", ")}` : ""}! Save to keep changes.`);
         setPreviewKey((k) => k + 1);
       } else {
-        setError(data.error?.message || "AI build failed.");
+        setError(data.error?.message || "AI enhance failed.");
       }
     } catch {
-      setError("Failed to build store with AI.");
+      setError("Failed to enhance store with AI.");
     } finally {
-      setAIBuilding(false);
+      setAIEnhancing(false);
     }
   }
 
@@ -828,20 +818,11 @@ export default function EcommerceDesignPage() {
             <span className="hidden sm:inline">{showPreview ? "Hide" : "Preview"}</span>
           </button>
           <button
-            onClick={openAIBuilderModal}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500 text-white text-sm font-medium hover:from-violet-600 hover:via-purple-600 hover:to-indigo-600 transition-all shadow-sm"
+            onClick={() => setShowAIEnhanceModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors"
           >
             <Sparkles className="h-4 w-4" />
-            <span className="hidden sm:inline">AI Store Builder</span>
-            <span className="sm:hidden">AI Build</span>
-          </button>
-          <button
-            onClick={handleGenerateAll}
-            disabled={generating}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-medium hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 transition-all"
-          >
-            {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            <span className="hidden sm:inline">Generate AI</span>
+            <span className="hidden sm:inline">AI Enhance</span>
             <span className="sm:hidden">AI</span>
           </button>
           <button
@@ -2201,76 +2182,100 @@ export default function EcommerceDesignPage() {
         )}
       </div>
 
-      {/* ── AI Store Builder Modal ──────────────────────────────────────────── */}
-      <Dialog open={showAIBuilderModal} onOpenChange={setShowAIBuilderModal}>
-        <DialogContent className="sm:max-w-md">
+      {/* ── AI Enhance Modal ─────────────────────────────────────────────── */}
+      <Dialog open={showAIEnhanceModal} onOpenChange={setShowAIEnhanceModal}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-purple-500" />
-              AI Store Builder
+              <Sparkles className="h-5 w-5 text-brand-500" />
+              AI Enhance
             </DialogTitle>
             <DialogDescription>
-              Regenerate your entire store with AI. This will create a new theme, content, and products.
+              Tell AI what you&apos;d like to change about your store.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
+            {/* Prompt */}
             <div>
-              <label className="block text-sm font-medium mb-1.5">Store Name</label>
-              <input
-                type="text"
-                value={aiBuilderStoreName}
-                onChange={(e) => setAIBuilderStoreName(e.target.value)}
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                placeholder="My Store"
+              <label className="block text-sm font-medium mb-1.5">What would you like to change?</label>
+              <textarea
+                value={aiEnhancePrompt}
+                onChange={(e) => setAIEnhancePrompt(e.target.value)}
+                rows={3}
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+                placeholder="e.g. Make my store look more premium, add winter collection products, change to a dark elegant theme..."
               />
             </div>
+
+            {/* Reference URL */}
             <div>
-              <label className="block text-sm font-medium mb-1.5">Industry</label>
+              <label className="block text-sm font-medium mb-1.5">Reference URL <span className="text-muted-foreground font-normal">(optional)</span></label>
               <input
-                type="text"
-                value={aiBuilderIndustry}
-                onChange={(e) => setAIBuilderIndustry(e.target.value)}
+                type="url"
+                value={aiEnhanceUrl}
+                onChange={(e) => setAIEnhanceUrl(e.target.value)}
                 className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                placeholder="e.g. Fashion, Electronics, Food & Beverage"
+                placeholder="https://example.com — for brand or product inspiration"
               />
+            </div>
+
+            {/* Scope */}
+            <div>
+              <label className="block text-sm font-medium mb-2">What to update</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    { value: "all", label: "Everything" },
+                    { value: "theme", label: "Theme only" },
+                    { value: "content", label: "Content only" },
+                    { value: "products", label: "Products only" },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setAIEnhanceScope(opt.value)}
+                    className={cn(
+                      "px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
+                      aiEnhanceScope === opt.value
+                        ? "bg-brand-50 border-brand-300 text-brand-700 dark:bg-brand-950/30 dark:border-brand-700 dark:text-brand-300"
+                        : "hover:bg-muted"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Your brand colors and fonts will be applied automatically if a brand kit is configured.
+              Uses 10 AI credits. Changes are previewed before saving.
             </p>
-
-            {/* Warning */}
-            <div className="flex gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-amber-800 dark:text-amber-200">
-                This will regenerate your store theme, content, and products. Existing draft products will be replaced.
-              </p>
-            </div>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
             <button
-              onClick={() => setShowAIBuilderModal(false)}
-              disabled={aiBuilding}
+              onClick={() => setShowAIEnhanceModal(false)}
+              disabled={aiEnhancing}
               className="inline-flex items-center justify-center px-4 py-2 rounded-lg border text-sm font-medium hover:bg-muted disabled:opacity-50 transition-colors"
             >
               Cancel
             </button>
             <button
-              onClick={handleAIBuildStore}
-              disabled={aiBuilding || !aiBuilderStoreName.trim() || !aiBuilderIndustry.trim()}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-600 text-white text-sm font-medium hover:from-violet-600 hover:via-purple-600 hover:to-indigo-700 disabled:opacity-50 transition-all"
+              onClick={handleAIEnhance}
+              disabled={aiEnhancing || !aiEnhancePrompt.trim()}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 disabled:opacity-50 transition-colors"
             >
-              {aiBuilding ? (
+              {aiEnhancing ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Building...
+                  Enhancing...
                 </>
               ) : (
                 <>
                   <Sparkles className="h-4 w-4" />
-                  Generate
+                  Enhance
                 </>
               )}
             </button>

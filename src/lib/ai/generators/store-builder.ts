@@ -52,6 +52,13 @@ export interface StoreBlueprintParams {
   brandColors?: { primary?: string; secondary?: string; accent?: string };
   brandFonts?: { heading?: string; body?: string };
   brandLogo?: string;
+  includeVariants?: boolean;
+  scrapedSiteData?: {
+    brandName?: string;
+    industry?: string;
+    brandInsights?: string;
+    products?: Array<{ name: string; description?: string; price?: string }>;
+  };
 }
 
 // ── Generator ──
@@ -82,6 +89,17 @@ ${brandFonts?.heading ? `- Brand Fonts: Heading: ${brandFonts.heading}${brandFon
 Pick a template whose style complements these brand colors. The store should feel cohesive with the brand identity.`
     : "";
 
+  const scrapedContext = params.scrapedSiteData
+    ? `\nEXISTING SITE DATA (use as reference and inspiration):
+${params.scrapedSiteData.brandInsights ? `- Brand Insights: ${params.scrapedSiteData.brandInsights}` : ""}
+${params.scrapedSiteData.products?.length ? `- Products found: ${params.scrapedSiteData.products.map(p => `${p.name}${p.price ? ` (${p.price})` : ""}`).join(", ")}` : ""}
+Use this data to create products inspired by the existing site but with improved descriptions, professional copy, and appropriate pricing for ${currency || "USD"}.`
+    : "";
+
+  const variantInstruction = params.includeVariants !== false
+    ? "   - Include 2-3 variants for products that naturally have variants (e.g. sizes, colors)"
+    : "   - Do NOT include variants for any products";
+
   const currencyCode = currency || "USD";
   const regionName = region || "north_america";
 
@@ -95,6 +113,7 @@ ${targetAudience ? `- Target Audience: ${targetAudience}` : ""}
 - Region: ${regionName}
 - Currency: ${currencyCode}
 ${brandContext}
+${scrapedContext}
 
 AVAILABLE TEMPLATES (pick the best match for this store):
 ${JSON.stringify(templateListing, null, 2)}
@@ -115,7 +134,7 @@ INSTRUCTIONS:
 5. Generate 6-10 products:
    - Each product must have: name, description (2-3 paragraphs), shortDescription (max 160 chars), category (must match one of your categories), priceCents (integer, in ${currencyCode}), seoTitle, seoDescription, tags (3-5 tags)
    - Optionally include comparePriceCents for products on "sale"
-   - Optionally include 2-3 variants for products that naturally have variants (e.g. sizes, colors)
+${variantInstruction}
    - Prices should be realistic for the ${currencyCode} currency and ${regionName} region
    - For USD: typical products $10-$200 range. For XOF: 1000-50000 range. For EUR: 10-200 range. Adjust for the currency.
    - Products should be diverse across the categories you created

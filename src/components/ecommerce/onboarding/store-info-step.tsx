@@ -20,6 +20,7 @@ interface StoreInfoStepProps {
   region: string;
   country: string;
   currency: string;
+  existingSiteUrl: string;
   showBrandName: boolean;
   onFieldChange: (field: string, value: string) => void;
   onRegionChange: (region: string, country: string, currency: string) => void;
@@ -34,6 +35,7 @@ export function StoreInfoStep({
   region,
   country,
   currency,
+  existingSiteUrl,
   showBrandName,
   onFieldChange,
   onRegionChange,
@@ -263,6 +265,23 @@ export function StoreInfoStep({
             onChange={(e) => onFieldChange("targetAudience", e.target.value)}
             placeholder="e.g. Women 25-45, Tech enthusiasts"
             className="mt-1 w-full px-3 py-2.5 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+        </div>
+
+        {/* Existing Website */}
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium mb-1">
+            Existing Website <span className="text-muted-foreground font-normal">(optional)</span>
+          </label>
+          <p className="text-xs text-muted-foreground mb-2">
+            Provide your current site URL to import product and brand insights
+          </p>
+          <input
+            type="url"
+            value={existingSiteUrl}
+            onChange={(e) => onFieldChange("existingSiteUrl", e.target.value)}
+            placeholder="https://your-existing-store.com"
+            className="w-full px-3 py-2.5 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
 

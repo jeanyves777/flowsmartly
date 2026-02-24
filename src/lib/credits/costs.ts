@@ -106,6 +106,8 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_PRODUCT_IMAGE: 15,   // Product lifestyle image gen or photo enhancement
   AI_STORE_CONTENT: 8,    // Store content generation (about, policies, FAQ, hero)
   AI_STORE_BUILD: 20,     // Full store generation (template + content + products)
+  AI_STORE_ENHANCE: 10,   // AI-powered store enhancement from prompt
+  AI_SITE_SCRAPE: 5,      // Scrape existing site for product/brand data
   AI_BULK_PRODUCTS: 3,    // Per product in bulk generation
 
   // --- AI Intelligence ---
@@ -154,6 +156,8 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_PRODUCT_IMAGE: "AI product image generation",
   AI_STORE_CONTENT: "AI store content generation",
   AI_STORE_BUILD: "AI store builder - full store generation",
+  AI_STORE_ENHANCE: "AI store enhancement",
+  AI_SITE_SCRAPE: "AI site analysis and scraping",
   AI_BULK_PRODUCTS: "AI bulk product generation",
   AI_DYNAMIC_PRICING: "AI dynamic pricing suggestion",
   AI_SEO_OPTIMIZE: "AI SEO optimization",
