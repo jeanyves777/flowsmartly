@@ -16,7 +16,6 @@ import {
   ChevronRight,
   ChevronLeft,
   Sparkles,
-  Lock,
   Star,
   ExternalLink,
 } from "lucide-react";
@@ -34,7 +33,7 @@ import {
   CURRENCIES_BY_REGION,
   type PaymentMethodConfig,
 } from "@/lib/constants/ecommerce";
-import { getRegionName, getCountryName } from "@/lib/constants/regions";
+import { REGIONS, getRegionForCountry, getRegionName, getCountryName } from "@/lib/constants/regions";
 
 // ── Types ──
 
@@ -159,26 +158,44 @@ export default function OnboardingPage() {
       const profileRes = await fetch("/api/users/profile");
       const profileJson = await profileRes.json();
 
+      let userRegion = "";
+      let userCountry = "";
+
       if (profileJson.success) {
         const user = profileJson.data.user;
-        const userRegion = s.region || user.region || "";
-        const userCountry = s.country || user.country || "";
-        setRegion(userRegion);
-        setCountry(userCountry);
+        userRegion = s.region || user.region || "";
+        userCountry = s.country || user.country || "";
+      }
 
-        // Set currency from region
-        const regionCurrency = CURRENCIES_BY_REGION[userRegion];
-        setCurrency(regionCurrency?.code || s.currency || "USD");
-
-        // Initialize payment methods for region
-        if (userRegion) {
-          initPaymentMethods(userRegion);
+      // IP-based geo detection fallback if no country/region set
+      if (!userCountry || !userRegion) {
+        try {
+          const geoRes = await fetch("https://ipapi.co/json/");
+          const geo = await geoRes.json();
+          if (geo.country_code) {
+            if (!userCountry) userCountry = geo.country_code;
+            if (!userRegion) userRegion = getRegionForCountry(geo.country_code) || "";
+          }
+        } catch {
+          // Geo detection failed, user will select manually
         }
+      }
 
-        // Set default slug from store
-        if (s.slug) {
-          setSlug(s.slug);
-        }
+      setRegion(userRegion);
+      setCountry(userCountry);
+
+      // Set currency from region
+      const regionCurrency = CURRENCIES_BY_REGION[userRegion];
+      setCurrency(regionCurrency?.code || s.currency || "USD");
+
+      // Initialize payment methods for region
+      if (userRegion) {
+        initPaymentMethods(userRegion);
+      }
+
+      // Set default slug from store
+      if (s.slug) {
+        setSlug(s.slug);
       }
     } catch (error) {
       console.error("Failed to initialize onboarding:", error);
@@ -470,19 +487,57 @@ export default function OnboardingPage() {
                 </CardDescription>
               </div>
 
-              {/* Country & Region (read-only) */}
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Country</label>
-                  <div className="mt-1 px-3 py-2.5 rounded-lg border bg-muted/50 text-sm">
-                    {countryName}
-                  </div>
+                  <label className="text-sm font-medium">Region</label>
+                  <select
+                    value={region}
+                    onChange={(e) => {
+                      const newRegion = e.target.value;
+                      setRegion(newRegion);
+                      // Reset country when region changes
+                      const regionObj = REGIONS.find((r) => r.id === newRegion);
+                      if (regionObj && regionObj.countries.length > 0) {
+                        setCountry(regionObj.countries[0].code);
+                      } else {
+                        setCountry("");
+                      }
+                      // Update currency and payment methods
+                      const regionCurrency = CURRENCIES_BY_REGION[newRegion];
+                      if (regionCurrency) setCurrency(regionCurrency.code);
+                      initPaymentMethods(newRegion);
+                    }}
+                    className="mt-1 w-full px-3 py-2.5 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  >
+                    <option value="">Select a region</option>
+                    {REGIONS.map((r) => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Region</label>
-                  <div className="mt-1 px-3 py-2.5 rounded-lg border bg-muted/50 text-sm">
-                    {regionName}
-                  </div>
+                  <label className="text-sm font-medium">Country</label>
+                  <select
+                    value={country}
+                    onChange={(e) => {
+                      const newCountry = e.target.value;
+                      setCountry(newCountry);
+                      // Auto-set region if not already matching
+                      const detectedRegion = getRegionForCountry(newCountry);
+                      if (detectedRegion && detectedRegion !== region) {
+                        setRegion(detectedRegion);
+                        const regionCurrency = CURRENCIES_BY_REGION[detectedRegion];
+                        if (regionCurrency) setCurrency(regionCurrency.code);
+                        initPaymentMethods(detectedRegion);
+                      }
+                    }}
+                    className="mt-1 w-full px-3 py-2.5 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  >
+                    <option value="">Select a country</option>
+                    {(REGIONS.find((r) => r.id === region)?.countries || REGIONS.flatMap((r) => r.countries)).map((c) => (
+                      <option key={c.code} value={c.code}>{c.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Currency dropdown */}
@@ -725,28 +780,6 @@ export default function OnboardingPage() {
                   </div>
                 </button>
 
-                {/* AI Product Discovery (Coming Soon) */}
-                <div
-                  className="text-left p-4 rounded-lg border-2 border-muted opacity-60 cursor-not-allowed relative"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-muted text-muted-foreground flex items-center justify-center flex-shrink-0">
-                      <Sparkles className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-medium">AI Product Discovery</h3>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                          <Lock className="h-2.5 w-2.5" />
-                          Coming Soon
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        AI-powered product recommendations and dropshipping integration.
-                      </p>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           )}
