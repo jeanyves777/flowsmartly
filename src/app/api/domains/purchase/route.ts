@@ -21,9 +21,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const domain = body.domain as string | undefined;
+    let domain = body.domain as string | undefined;
     const tld = body.tld as string | undefined;
     const isFree = body.isFree === true;
+
+    // If domain already includes the TLD (e.g. "example.com"), extract just the SLD
+    if (domain && tld && domain.endsWith(`.${tld}`)) {
+      domain = domain.slice(0, -(tld.length + 1));
+    }
 
     if (!domain || typeof domain !== "string" || !domain.trim()) {
       return NextResponse.json(

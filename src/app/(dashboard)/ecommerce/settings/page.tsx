@@ -237,7 +237,7 @@ export default function EcommerceSettingsPage() {
       });
       const data = await res.json();
       if (data.success) {
-        setSuccessMessage(`Domain ${domain}.${tld} ${isFree ? "claimed" : "purchased"} successfully!`);
+        setSuccessMessage(`Domain ${domain} ${isFree ? "claimed" : "purchased"} successfully!`);
         setDomainResults([]);
         setDomainSearch("");
         loadDomains();
@@ -1126,14 +1126,14 @@ export default function EcommerceSettingsPage() {
                     const canClaimFree = isPro && !store.freeDomainClaimed && r.isFreeEligible && r.available;
                     return (
                       <div
-                        key={`${r.domain}.${r.tld}`}
+                        key={r.domain}
                         className={cn(
                           "flex items-center gap-3 p-3 rounded-lg border",
                           r.available ? "border-border" : "border-border opacity-50"
                         )}
                       >
                         <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="text-sm font-medium">{r.domain}.{r.tld}</span>
+                        <span className="text-sm font-medium">{r.domain}</span>
                         {r.available ? (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400">
                             Available
