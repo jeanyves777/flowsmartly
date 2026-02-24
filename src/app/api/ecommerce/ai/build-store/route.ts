@@ -17,6 +17,7 @@ const requestSchema = z.object({
   targetAudience: z.string().max(500).optional(),
   region: z.string().max(50).optional(),
   currency: z.string().max(10).optional(),
+  showBrandName: z.boolean().optional(),
 });
 
 // ── POST /api/ecommerce/ai/build-store ──
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { storeName, industry, niche, targetAudience, region, currency } = parsed.data;
+    const { storeName, industry, niche, targetAudience, region, currency, showBrandName } = parsed.data;
 
     // Get user's store
     const store = await prisma.store.findUnique({
@@ -201,6 +202,7 @@ export async function POST(request: NextRequest) {
       ],
       storeContent: {
         ...existingStoreContent,
+        ...(showBrandName !== undefined ? { showBrandName } : {}),
         tagline: blueprint.content.tagline,
         aboutUs: blueprint.content.about.body,
         returnPolicy: blueprint.content.returnPolicy,

@@ -12,6 +12,7 @@ interface AIBuildStepProps {
   targetAudience: string;
   region: string;
   currency: string;
+  showBrandName?: boolean;
   onComplete: (blueprint: unknown) => void;
   onError: (error: string) => void;
 }
@@ -39,6 +40,7 @@ export function AIBuildStep({
   targetAudience,
   region,
   currency,
+  showBrandName,
   onComplete,
   onError,
 }: AIBuildStepProps) {
@@ -85,6 +87,7 @@ export function AIBuildStep({
           targetAudience: targetAudience || undefined,
           region: region || undefined,
           currency: currency || undefined,
+          showBrandName: showBrandName !== undefined ? showBrandName : undefined,
         }),
       });
 

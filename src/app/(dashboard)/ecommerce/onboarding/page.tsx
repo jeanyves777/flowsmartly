@@ -588,6 +588,7 @@ export default function OnboardingPage() {
               targetAudience={targetAudience}
               region={region}
               currency={currency}
+              showBrandName={showBrandName}
               onComplete={handleAIBuildComplete}
               onError={(err) => {
                 toast({
