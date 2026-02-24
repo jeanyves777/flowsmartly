@@ -472,6 +472,12 @@ export function buildStoreContentPrompt(params: {
   if (contentTypes.includes("shipping_policy")) {
     prompt += `\n  "shippingPolicy": "Shipping policy (cover methods, timeframes, costs, tracking, international if applicable)",`;
   }
+  if (contentTypes.includes("terms_of_service")) {
+    prompt += `\n  "termsOfService": "Terms of Service (comprehensive: acceptance of terms, user accounts, payment terms, intellectual property, limitation of liability, governing law. 400-600 words)",`;
+  }
+  if (contentTypes.includes("privacy_policy")) {
+    prompt += `\n  "privacyPolicy": "Privacy Policy (data collection, use, sharing, cookies, security measures, customer rights, data retention, contact info. 400-600 words)",`;
+  }
   if (contentTypes.includes("faq")) {
     prompt += `\n  "faq": [{"question": "Common question", "answer": "Helpful answer"}] (generate 5-8 relevant FAQs for this type of store),`;
   }

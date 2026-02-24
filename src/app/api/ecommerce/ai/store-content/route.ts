@@ -9,7 +9,7 @@ import type { BrandContext } from "@/lib/ai/types";
 
 const requestSchema = z.object({
   contentTypes: z
-    .array(z.enum(["tagline", "about", "hero", "return_policy", "shipping_policy", "faq"]))
+    .array(z.enum(["tagline", "about", "hero", "return_policy", "shipping_policy", "terms_of_service", "privacy_policy", "faq"]))
     .min(1),
 });
 

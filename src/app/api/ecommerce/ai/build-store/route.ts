@@ -207,6 +207,8 @@ export async function POST(request: NextRequest) {
         aboutUs: blueprint.content.about.body,
         returnPolicy: blueprint.content.returnPolicy,
         shippingPolicy: blueprint.content.shippingPolicy,
+        termsOfService: blueprint.content.termsOfService,
+        privacyPolicy: blueprint.content.privacyPolicy,
         faq: blueprint.content.faq,
       },
     });

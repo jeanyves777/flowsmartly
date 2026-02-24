@@ -54,7 +54,7 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
   let storeSettings: Record<string, unknown> = {};
   try { storeSettings = JSON.parse(store.settings as string || "{}"); } catch {}
   const shippingConfig = storeSettings.shipping as { freeShippingThresholdCents?: number } | undefined;
-  const storeContent = storeSettings.storeContent as { returnPolicy?: string; shippingPolicy?: string; showBrandName?: boolean } | undefined;
+  const storeContent = storeSettings.storeContent as { returnPolicy?: string; shippingPolicy?: string; termsOfService?: string; privacyPolicy?: string; showBrandName?: boolean } | undefined;
   const showBrandName = storeContent?.showBrandName !== false; // default true
 
   // Preview mode: allow store owner to view inactive store
@@ -402,12 +402,14 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
             </div>
 
             {/* Col 3: Policies (only if configured) */}
-            {(storeContent?.shippingPolicy || storeContent?.returnPolicy) && (
+            {(storeContent?.shippingPolicy || storeContent?.returnPolicy || storeContent?.termsOfService || storeContent?.privacyPolicy) && (
               <div>
                 <h4 className="text-sm font-semibold mb-3 opacity-80">Policies</h4>
                 <ul className="space-y-2">
-                  {storeContent.shippingPolicy && <li className="text-sm opacity-60">Shipping Policy</li>}
-                  {storeContent.returnPolicy && <li className="text-sm opacity-60">Return Policy</li>}
+                  {storeContent.shippingPolicy && <li><Link href={`/store/${store.slug}/policies/shipping`} className="text-sm opacity-60 hover:opacity-100 transition-opacity">Shipping Policy</Link></li>}
+                  {storeContent.returnPolicy && <li><Link href={`/store/${store.slug}/policies/returns`} className="text-sm opacity-60 hover:opacity-100 transition-opacity">Return Policy</Link></li>}
+                  {storeContent.termsOfService && <li><Link href={`/store/${store.slug}/policies/terms`} className="text-sm opacity-60 hover:opacity-100 transition-opacity">Terms of Service</Link></li>}
+                  {storeContent.privacyPolicy && <li><Link href={`/store/${store.slug}/policies/privacy`} className="text-sm opacity-60 hover:opacity-100 transition-opacity">Privacy Policy</Link></li>}
                 </ul>
               </div>
             )}

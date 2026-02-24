@@ -20,6 +20,8 @@ export interface StoreContentResult {
   hero?: { headline: string; subheadline: string };
   returnPolicy?: string;
   shippingPolicy?: string;
+  termsOfService?: string;
+  privacyPolicy?: string;
   faq?: Array<{ question: string; answer: string }>;
 }
 

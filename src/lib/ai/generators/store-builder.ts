@@ -18,6 +18,8 @@ export interface AIStoreBlueprint {
     about: { title: string; body: string };
     returnPolicy: string;
     shippingPolicy: string;
+    termsOfService: string;
+    privacyPolicy: string;
     faq: Array<{ question: string; answer: string }>;
   };
   seo: { title: string; description: string };
@@ -105,6 +107,8 @@ INSTRUCTIONS:
    - About section: title and body (2-3 paragraphs, tell the brand story)
    - Return policy (professional, customer-friendly, include timeframe and conditions)
    - Shipping policy (cover methods, timeframes, costs — appropriate for ${regionName})
+   - Terms of Service (comprehensive: acceptance of terms, user accounts, payment terms, intellectual property, limitation of liability, governing law. 400-600 words)
+   - Privacy Policy (data collection, use, sharing, cookies, security measures, customer rights, data retention. 400-600 words)
    - FAQ: 5-8 frequently asked questions relevant to this type of store
 3. SEO: Generate a store SEO title (max 60 chars) and meta description (max 155 chars).
 4. Generate 2-4 product categories with names, descriptions, and sortOrder.
@@ -126,6 +130,8 @@ Return a JSON object with this exact structure:
     "about": { "title": "...", "body": "..." },
     "returnPolicy": "...",
     "shippingPolicy": "...",
+    "termsOfService": "...",
+    "privacyPolicy": "...",
     "faq": [{ "question": "...", "answer": "..." }]
   },
   "seo": { "title": "...", "description": "..." },

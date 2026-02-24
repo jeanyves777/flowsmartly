@@ -70,6 +70,7 @@ interface SectionConfig {
   enabled: boolean;
   order: number;
   content: Record<string, unknown>;
+  style?: { backgroundColor?: string };
 }
 
 interface CategoryData {
@@ -87,11 +88,13 @@ function HeroSection({
   theme,
   storeSlug,
   compact = false,
+  backgroundColor,
 }: {
   content: Record<string, unknown>;
   theme: ResolvedTheme;
   storeSlug: string;
   compact?: boolean;
+  backgroundColor?: string;
 }) {
   const headline = (content.headline as string) || "";
   const subheadline = (content.subheadline as string) || "";
@@ -112,7 +115,9 @@ function HeroSection({
         <div
           className={`${heightClasses} w-full`}
           style={{
-            background: `linear-gradient(135deg, var(--store-primary), color-mix(in srgb, var(--store-primary) 53%, transparent))`,
+            background: backgroundColor
+              ? `linear-gradient(135deg, ${backgroundColor}, color-mix(in srgb, ${backgroundColor} 53%, transparent))`
+              : `linear-gradient(135deg, var(--store-primary), color-mix(in srgb, var(--store-primary) 53%, transparent))`,
           }}
         />
       )}
@@ -702,18 +707,25 @@ export default async function StorePage({ params, searchParams }: StorePageProps
     return (
       <div>
         {sections.map((section) => {
+          const bgStyle = section.style?.backgroundColor
+            ? { backgroundColor: section.style.backgroundColor }
+            : undefined;
+
+          let sectionEl: React.ReactNode = null;
           switch (section.id) {
             case "hero":
-              return (
+              sectionEl = (
                 <HeroSection
                   key="hero"
                   content={section.content}
                   theme={theme}
                   storeSlug={store.slug}
+                  backgroundColor={section.style?.backgroundColor}
                 />
               );
+              break;
             case "featured_products":
-              return (
+              sectionEl = (
                 <FeaturedProductsSection
                   key="featured_products"
                   content={section.content}
@@ -725,8 +737,9 @@ export default async function StorePage({ params, searchParams }: StorePageProps
                   spacingGap={spacingGap}
                 />
               );
+              break;
             case "category_showcase":
-              return (
+              sectionEl = (
                 <CategoryShowcaseSection
                   key="category_showcase"
                   categories={categories}
@@ -734,8 +747,9 @@ export default async function StorePage({ params, searchParams }: StorePageProps
                   theme={theme}
                 />
               );
+              break;
             case "new_arrivals":
-              return (
+              sectionEl = (
                 <ProductGridSection
                   key="new_arrivals"
                   title={(section.content.title as string) || "New Arrivals"}
@@ -748,8 +762,9 @@ export default async function StorePage({ params, searchParams }: StorePageProps
                   viewAllHref={`/store/${store.slug}/products?sort=newest`}
                 />
               );
+              break;
             case "deals":
-              return (
+              sectionEl = (
                 <ProductGridSection
                   key="deals"
                   title={(section.content.title as string) || "Deals & Offers"}
@@ -762,41 +777,57 @@ export default async function StorePage({ params, searchParams }: StorePageProps
                   viewAllHref={`/store/${store.slug}/products?sort=deals`}
                 />
               );
+              break;
             case "about":
-              return (
+              sectionEl = (
                 <AboutSection
                   key="about"
                   content={section.content}
                   theme={theme}
                 />
               );
+              break;
             case "testimonials":
-              return (
+              sectionEl = (
                 <TestimonialsSection
                   key="testimonials"
                   content={section.content}
                   theme={theme}
                 />
               );
+              break;
             case "newsletter":
-              return (
+              sectionEl = (
                 <NewsletterSection
                   key="newsletter"
                   content={section.content}
                   theme={theme}
                 />
               );
+              break;
             case "contact":
-              return (
+              sectionEl = (
                 <ContactSection
                   key="contact"
                   content={section.content}
                   theme={theme}
                 />
               );
+              break;
             default:
               return null;
           }
+
+          // Hero handles its own background color, so don't wrap it
+          if (section.id === "hero" || !bgStyle) {
+            return sectionEl;
+          }
+
+          return (
+            <div key={section.id} style={bgStyle}>
+              {sectionEl}
+            </div>
+          );
         })}
       </div>
     );
@@ -806,13 +837,17 @@ export default async function StorePage({ params, searchParams }: StorePageProps
 
   // Find hero section config if it exists in settings (even if hasSections is false)
   let heroContent: Record<string, unknown> | null = null;
+  let heroBackgroundColor: string | undefined;
   try {
     const settings = store.settings ? JSON.parse(store.settings as string) : {};
     if (settings.sections && Array.isArray(settings.sections)) {
       const heroSection = (settings.sections as SectionConfig[]).find(
         (s) => s.id === "hero" && s.enabled
       );
-      if (heroSection) heroContent = heroSection.content;
+      if (heroSection) {
+        heroContent = heroSection.content;
+        heroBackgroundColor = heroSection.style?.backgroundColor;
+      }
     }
   } catch {
     // ignore
@@ -820,19 +855,27 @@ export default async function StorePage({ params, searchParams }: StorePageProps
 
   // Find about and newsletter sections for fallback rendering
   let aboutContent: Record<string, unknown> | null = null;
+  let aboutBackgroundColor: string | undefined;
   let newsletterContent: Record<string, unknown> | null = null;
+  let newsletterBackgroundColor: string | undefined;
   try {
     const settings = store.settings ? JSON.parse(store.settings as string) : {};
     if (settings.sections && Array.isArray(settings.sections)) {
       const aboutSection = (settings.sections as SectionConfig[]).find(
         (s) => s.id === "about" && s.enabled
       );
-      if (aboutSection) aboutContent = aboutSection.content;
+      if (aboutSection) {
+        aboutContent = aboutSection.content;
+        aboutBackgroundColor = aboutSection.style?.backgroundColor;
+      }
 
       const nlSection = (settings.sections as SectionConfig[]).find(
         (s) => s.id === "newsletter" && s.enabled
       );
-      if (nlSection) newsletterContent = nlSection.content;
+      if (nlSection) {
+        newsletterContent = nlSection.content;
+        newsletterBackgroundColor = nlSection.style?.backgroundColor;
+      }
     }
   } catch {
     // ignore
@@ -847,6 +890,7 @@ export default async function StorePage({ params, searchParams }: StorePageProps
           theme={theme}
           storeSlug={store.slug}
           compact
+          backgroundColor={heroBackgroundColor}
         />
       ) : (
         <section className="relative">
@@ -946,18 +990,22 @@ export default async function StorePage({ params, searchParams }: StorePageProps
 
       {/* 6. About (only if configured) */}
       {aboutContent && (
-        <AboutSection
-          content={aboutContent}
-          theme={theme}
-        />
+        <div style={aboutBackgroundColor ? { backgroundColor: aboutBackgroundColor } : undefined}>
+          <AboutSection
+            content={aboutContent}
+            theme={theme}
+          />
+        </div>
       )}
 
       {/* 7. Newsletter (only if configured) */}
       {newsletterContent && (
-        <NewsletterSection
-          content={newsletterContent}
-          theme={theme}
-        />
+        <div style={newsletterBackgroundColor ? { backgroundColor: newsletterBackgroundColor } : undefined}>
+          <NewsletterSection
+            content={newsletterContent}
+            theme={theme}
+          />
+        </div>
       )}
     </div>
   );

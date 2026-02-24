@@ -126,11 +126,16 @@ type SectionContent =
   | ContactContent
   | GenericSectionContent;
 
+interface SectionStyle {
+  backgroundColor?: string;
+}
+
 interface Section {
   id: string;
   enabled: boolean;
   order: number;
   content: SectionContent;
+  style?: SectionStyle;
 }
 
 interface FaqItem {
@@ -143,6 +148,8 @@ interface StoreContent {
   about: string;
   returnPolicy: string;
   shippingPolicy: string;
+  termsOfService: string;
+  privacyPolicy: string;
   faq: FaqItem[];
   showBrandName: boolean;
 }
@@ -243,6 +250,8 @@ function getDefaultStoreContent(): StoreContent {
     about: "",
     returnPolicy: "",
     shippingPolicy: "",
+    termsOfService: "",
+    privacyPolicy: "",
     faq: [],
     showBrandName: true,
   };
@@ -320,6 +329,7 @@ export default function EcommerceDesignPage() {
             settings.sections.map((sec: Section, i: number) => ({
               ...sec,
               order: sec.order ?? i,
+              style: sec.style || undefined,
             }))
           );
         }
@@ -329,6 +339,8 @@ export default function EcommerceDesignPage() {
             about: settings.storeContent.about || "",
             returnPolicy: settings.storeContent.returnPolicy || "",
             shippingPolicy: settings.storeContent.shippingPolicy || "",
+            termsOfService: settings.storeContent.termsOfService || "",
+            privacyPolicy: settings.storeContent.privacyPolicy || "",
             faq: Array.isArray(settings.storeContent.faq) ? settings.storeContent.faq : [],
             showBrandName: settings.storeContent.showBrandName !== false,
           });
@@ -594,6 +606,12 @@ export default function EcommerceDesignPage() {
     if (result.shippingPolicy) {
       setStoreContent((prev) => ({ ...prev, shippingPolicy: result.shippingPolicy as string }));
     }
+    if (result.termsOfService) {
+      setStoreContent((prev) => ({ ...prev, termsOfService: result.termsOfService as string }));
+    }
+    if (result.privacyPolicy) {
+      setStoreContent((prev) => ({ ...prev, privacyPolicy: result.privacyPolicy as string }));
+    }
     if (result.faq) {
       setStoreContent((prev) => ({ ...prev, faq: result.faq as FaqItem[] }));
     }
@@ -672,6 +690,15 @@ export default function EcommerceDesignPage() {
         s.id === id ? { ...s, content: { ...s.content, ...patch } } : s
       )
     );
+  }
+
+  function updateSectionStyle(id: string, patch: Partial<SectionStyle>) {
+    setSections((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, style: { ...(s.style || {}), ...patch } } : s
+      )
+    );
+    debouncedSaveAndReload();
   }
 
   // ── Content Tab Sync Helpers ───────────────────────────────────────────────
@@ -1325,6 +1352,47 @@ export default function EcommerceDesignPage() {
                     {/* Section Content (Expanded) */}
                     {expandedSection === section.id && (
                       <div className="border-t px-4 py-4 space-y-4">
+                        {/* Background Color */}
+                        <div>
+                          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                            Background Color
+                            <span className="ml-1 font-normal opacity-60">
+                              {section.id === "hero" ? "(overrides hero gradient)" : "(leave empty to inherit)"}
+                            </span>
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={section.style?.backgroundColor || "#ffffff"}
+                              onChange={(e) => updateSectionStyle(section.id, { backgroundColor: e.target.value })}
+                              className="h-8 w-8 rounded border cursor-pointer bg-transparent"
+                            />
+                            <input
+                              type="text"
+                              value={section.style?.backgroundColor || ""}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (v === "") {
+                                  updateSectionStyle(section.id, { backgroundColor: undefined });
+                                } else {
+                                  updateSectionStyle(section.id, { backgroundColor: v });
+                                }
+                              }}
+                              placeholder="Inherit from theme"
+                              className="flex-1 rounded-lg border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono"
+                            />
+                            {section.style?.backgroundColor && (
+                              <button
+                                onClick={() => updateSectionStyle(section.id, { backgroundColor: undefined })}
+                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+                                title="Reset to inherit"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
                         {/* Hero */}
                         {section.id === "hero" && (
                           <>
@@ -1923,6 +1991,50 @@ export default function EcommerceDesignPage() {
                     rows={8}
                     className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
                     placeholder="Describe shipping methods, timeframes, and costs..."
+                  />
+                </div>
+
+                {/* Terms of Service */}
+                <div className="rounded-xl border bg-card p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <label className="text-sm font-medium">Terms of Service</label>
+                    <button
+                      onClick={() => handleGenerateSection("terms_of_service")}
+                      disabled={generatingSection === "terms_of_service"}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-300 text-xs font-medium hover:bg-purple-100 dark:hover:bg-purple-950/50 disabled:opacity-50 transition-colors"
+                    >
+                      {generatingSection === "terms_of_service" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                      AI Generate
+                    </button>
+                  </div>
+                  <textarea
+                    value={storeContent.termsOfService}
+                    onChange={(e) => setStoreContent((prev) => ({ ...prev, termsOfService: e.target.value }))}
+                    rows={8}
+                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+                    placeholder="Terms and conditions for using your store..."
+                  />
+                </div>
+
+                {/* Privacy Policy */}
+                <div className="rounded-xl border bg-card p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <label className="text-sm font-medium">Privacy Policy</label>
+                    <button
+                      onClick={() => handleGenerateSection("privacy_policy")}
+                      disabled={generatingSection === "privacy_policy"}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-300 text-xs font-medium hover:bg-purple-100 dark:hover:bg-purple-950/50 disabled:opacity-50 transition-colors"
+                    >
+                      {generatingSection === "privacy_policy" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                      AI Generate
+                    </button>
+                  </div>
+                  <textarea
+                    value={storeContent.privacyPolicy}
+                    onChange={(e) => setStoreContent((prev) => ({ ...prev, privacyPolicy: e.target.value }))}
+                    rows={8}
+                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+                    placeholder="How you collect, use, and protect customer data..."
                   />
                 </div>
 
