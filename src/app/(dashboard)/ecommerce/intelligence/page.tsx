@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   DollarSign,
   TrendingUp,
@@ -13,9 +14,9 @@ import {
   Check,
   X,
   AlertCircle,
-  ShoppingBag,
-  Eye,
   BarChart3,
+  Globe,
+  RefreshCw,
 } from "lucide-react";
 import {
   LineChart,
@@ -27,6 +28,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils/cn";
 import { PageLoader } from "@/components/shared/page-loader";
 
 // ── Types ──
@@ -99,15 +101,6 @@ interface TrendResult {
   };
 }
 
-interface StoreTrendingProduct {
-  id: string;
-  name: string;
-  imageUrl: string | null;
-  orderCount: number;
-  viewCount: number;
-  priceCents: number;
-}
-
 interface SEOProduct {
   productId: string;
   name: string;
@@ -117,17 +110,28 @@ interface SEOProduct {
   hasSeoDescription: boolean;
 }
 
-interface RecommendationProduct {
-  id: string;
-  name: string;
-  priceCents: number;
-  imageUrl: string | null;
-  slug: string;
-}
-
-interface RecommendationResult {
-  similar: RecommendationProduct[];
-  boughtTogether: RecommendationProduct[];
+interface MarketResearchResult {
+  trendingProducts: {
+    name: string;
+    category: string;
+    demandLevel: "high" | "medium" | "low";
+    estimatedPriceRange: string;
+    reason: string;
+    youHaveIt: boolean;
+  }[];
+  marketGaps: {
+    category: string;
+    opportunity: string;
+    competitionLevel: "low" | "medium" | "high";
+    estimatedDemand: "high" | "medium" | "low";
+  }[];
+  categoryInsights: {
+    category: string;
+    trend: "growing" | "stable" | "declining";
+    recommendation: string;
+  }[];
+  actionItems: string[];
+  industryOverview: string;
 }
 
 // ── Helpers ──
@@ -207,9 +211,7 @@ export default function IntelligencePage() {
   // ── Trends Tab State ──
   const [trendKeyword, setTrendKeyword] = useState("");
   const [trendResults, setTrendResults] = useState<TrendResult | null>(null);
-  const [storeTrending, setStoreTrending] = useState<StoreTrendingProduct[]>([]);
   const [loadingTrends, setLoadingTrends] = useState(false);
-  const [loadingStoreTrending, setLoadingStoreTrending] = useState(false);
 
   // ── SEO Tab State ──
   const [seoProducts, setSeoProducts] = useState<SEOProduct[]>([]);
@@ -217,12 +219,9 @@ export default function IntelligencePage() {
   const [optimizingId, setOptimizingId] = useState<string | null>(null);
   const [bulkOptimizing, setBulkOptimizing] = useState(false);
 
-  // ── Recommendations Tab State ──
-  const [trendingForRecs, setTrendingForRecs] = useState<StoreTrendingProduct[]>([]);
-  const [loadingTrendingRecs, setLoadingTrendingRecs] = useState(false);
-  const [selectedPreviewProductId, setSelectedPreviewProductId] = useState<string>("");
-  const [previewRecommendations, setPreviewRecommendations] = useState<RecommendationResult | null>(null);
-  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  // ── Market Research State ──
+  const [marketResearch, setMarketResearch] = useState<MarketResearchResult | null>(null);
+  const [loadingMarketResearch, setLoadingMarketResearch] = useState(false);
 
   // ── Initial Data Loading ──
 
@@ -312,8 +311,8 @@ export default function IntelligencePage() {
       try {
         const [compRes, analysisRes, ruleRes, historyRes] = await Promise.all([
           fetch(`/api/ecommerce/intelligence/competitors?productId=${productId}`),
-          fetch(`/api/ecommerce/intelligence/pricing?productId=${productId}&action=analyze`),
-          fetch(`/api/ecommerce/intelligence/pricing?productId=${productId}&action=get_rule`),
+          fetch(`/api/ecommerce/intelligence/pricing?productId=${productId}&action=analysis`),
+          fetch(`/api/ecommerce/intelligence/pricing?productId=${productId}&action=rule`),
           fetch(`/api/ecommerce/intelligence/pricing?productId=${productId}&action=history`),
         ]);
 
@@ -407,11 +406,9 @@ export default function IntelligencePage() {
     setLoadingAI(true);
     setAiSuggestion(null);
     try {
-      const res = await fetch("/api/ecommerce/intelligence/pricing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: selectedProductId, action: "suggest" }),
-      });
+      const res = await fetch(
+        `/api/ecommerce/intelligence/pricing?action=suggest&productId=${selectedProductId}`
+      );
       const data = await res.json();
       if (data.success && data.data?.suggestion) {
         setAiSuggestion(data.data.suggestion);
@@ -522,21 +519,6 @@ export default function IntelligencePage() {
     }
   };
 
-  const loadStoreTrending = useCallback(async () => {
-    setLoadingStoreTrending(true);
-    try {
-      const res = await fetch("/api/ecommerce/intelligence/trends?type=store_trending");
-      const data = await res.json();
-      if (data.success && data.data?.products) {
-        setStoreTrending(data.data.products);
-      }
-    } catch {
-      // Non-critical
-    } finally {
-      setLoadingStoreTrending(false);
-    }
-  }, []);
-
   // ── SEO Tab Functions ──
 
   const loadSEOData = useCallback(async () => {
@@ -621,62 +603,40 @@ export default function IntelligencePage() {
     }
   };
 
-  // ── Recommendations Tab Functions ──
+  // ── Market Research Functions ──
 
-  const loadTrendingForRecs = useCallback(async () => {
-    setLoadingTrendingRecs(true);
+  const handleRunMarketResearch = async () => {
+    setLoadingMarketResearch(true);
     try {
-      const res = await fetch("/api/ecommerce/intelligence/trends?type=store_trending");
+      const res = await fetch("/api/ecommerce/intelligence/market-research", {
+        method: "POST",
+      });
       const data = await res.json();
-      if (data.success && data.data?.products) {
-        setTrendingForRecs(data.data.products);
+      if (data.success && data.data?.result) {
+        setMarketResearch(data.data.result);
+        toast({ title: "Market research complete" });
+      } else {
+        toast({ title: data.error?.message || "Market research failed", variant: "destructive" });
       }
     } catch {
-      // Non-critical
+      toast({ title: "Failed to run market research", variant: "destructive" });
     } finally {
-      setLoadingTrendingRecs(false);
+      setLoadingMarketResearch(false);
     }
-  }, []);
-
-  const loadRecommendations = useCallback(
-    async (productId: string) => {
-      if (!storeSlug || !productId) return;
-      setLoadingRecommendations(true);
-      setPreviewRecommendations(null);
-      try {
-        const res = await fetch(
-          `/api/store/${storeSlug}/recommendations?productId=${productId}`
-        );
-        const data = await res.json();
-        if (data.success && data.data) {
-          setPreviewRecommendations(data.data);
-        } else {
-          toast({ title: data.error?.message || "Failed to load recommendations", variant: "destructive" });
-        }
-      } catch {
-        toast({ title: "Failed to load recommendations", variant: "destructive" });
-      } finally {
-        setLoadingRecommendations(false);
-      }
-    },
-    [storeSlug, toast]
-  );
+  };
 
   // ── Tab-based data loading ──
 
   useEffect(() => {
     if (activeTab === "trends") {
-      loadStoreTrending();
-      // Auto-search industry trends if no store trending data
+      // Auto-search industry trends on first visit
       if (storeIndustry && !trendKeyword) {
         setTrendKeyword(storeIndustry);
       }
     } else if (activeTab === "seo") {
       loadSEOData();
-    } else if (activeTab === "recommendations") {
-      loadTrendingForRecs();
     }
-  }, [activeTab, loadStoreTrending, loadSEOData, loadTrendingForRecs, storeIndustry, trendKeyword]);
+  }, [activeTab, loadSEOData, storeIndustry, trendKeyword]);
 
   async function handleRunResearch() {
     setResearchRunning(true);
@@ -693,8 +653,6 @@ export default function IntelligencePage() {
         // Reload tab data
         if (selectedProductId) loadPricingData(selectedProductId);
         loadSEOData();
-        loadStoreTrending();
-        loadTrendingForRecs();
       } else {
         toast({ title: data.error?.message || "Research failed", variant: "destructive" });
       }
@@ -761,33 +719,65 @@ export default function IntelligencePage() {
   if (!hasResearched) {
     return (
       <div className="space-y-6">
-        <div>
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <h1 className="text-2xl font-bold">Intelligence</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Pricing analysis, market trends, SEO optimization, and product recommendations.
           </p>
-        </div>
+        </motion.div>
 
-        <div className="rounded-2xl border-2 border-dashed border-brand-200 dark:border-brand-800/30 bg-brand-50/50 dark:bg-brand-950/10 p-8 md:p-12 text-center">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center mb-6">
-            <Sparkles className="h-8 w-8 text-brand-600 dark:text-brand-400" />
-          </div>
-          <h2 className="text-xl font-bold mb-2">Start AI Research</h2>
-          <p className="text-muted-foreground max-w-md mx-auto mb-6">
-            Let AI analyze your competitors, market trends, SEO health, and product recommendations.
-            After your first research, this runs automatically every week.
-          </p>
-          <button
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          className="rounded-2xl border-2 border-dashed border-brand-200 dark:border-brand-800/30 bg-gradient-to-br from-brand-50/80 via-white to-indigo-50/50 dark:from-brand-950/20 dark:via-background dark:to-indigo-950/10 p-8 md:p-12 text-center"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.3 }}
+            className="mx-auto w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center mb-6 shadow-lg shadow-brand-500/25"
+          >
+            <Sparkles className="h-10 w-10 text-white" />
+          </motion.div>
+          <motion.h2
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.4 }}
+            className="text-2xl font-bold mb-2"
+          >
+            Start AI Research
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.5 }}
+            className="text-muted-foreground max-w-md mx-auto mb-6"
+          >
+            Our AI will research the internet to discover competitors, analyze market trends, audit your SEO, and recommend products.
+            After your first run, it automatically updates every week.
+          </motion.p>
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.6 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={handleRunResearch}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-brand-500 text-white text-sm font-semibold rounded-lg hover:bg-brand-600 transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-brand-500 to-indigo-600 text-white text-sm font-semibold rounded-xl hover:from-brand-600 hover:to-indigo-700 transition-all shadow-lg shadow-brand-500/25"
           >
             <Sparkles className="h-5 w-5" />
             Start AI Research (15 credits)
-          </button>
-          <p className="text-xs text-muted-foreground mt-3">
-            Analyzes all active products, discovers competitors, checks SEO scores, and identifies trends.
-          </p>
-        </div>
+          </motion.button>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.7 }}
+            className="text-xs text-muted-foreground mt-4"
+          >
+            Discovers competitors, checks pricing, analyzes Google Trends, audits SEO, and identifies market gaps.
+          </motion.p>
+        </motion.div>
       </div>
     );
   }
@@ -795,11 +785,16 @@ export default function IntelligencePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="flex items-center justify-between"
+      >
         <div>
           <h1 className="text-2xl font-bold">Intelligence</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Pricing analysis, market trends, SEO optimization, and product recommendations.
+            Pricing analysis, market trends, SEO optimization, and market research.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -810,38 +805,54 @@ export default function IntelligencePage() {
               })}
             </span>
           )}
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={handleRunResearch}
             disabled={researchRunning}
             className="inline-flex items-center gap-2 px-3 py-1.5 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors"
           >
             {researchRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             Run Research
-          </button>
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Tab Bar */}
-      <div className="flex gap-1">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+        className="flex gap-1 p-1 rounded-xl bg-muted/50"
+      >
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2 ${
+            className={cn(
+              "relative px-4 py-2 rounded-lg text-sm font-medium transition-all inline-flex items-center gap-2",
               activeTab === tab.id
-                ? "bg-brand-600 text-white"
-                : "bg-muted hover:bg-muted/80"
-            }`}
+                ? "bg-brand-600 text-white shadow-sm"
+                : "hover:bg-muted text-muted-foreground hover:text-foreground"
+            )}
           >
             <tab.icon className="h-4 w-4" />
             {tab.label}
           </button>
         ))}
-      </div>
+      </motion.div>
 
       {/* ═══════════════════════ PRICING TAB ═══════════════════════ */}
+      <AnimatePresence mode="wait">
       {activeTab === "pricing" && (
-        <div className="space-y-6">
+        <motion.div
+          key="pricing"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-6"
+        >
           {/* Product Selector */}
           <div className="rounded-xl border bg-card p-5">
             <label className="block text-sm font-medium mb-2">Select Product</label>
@@ -1282,35 +1293,43 @@ export default function IntelligencePage() {
               <p className="text-sm">Select a product above to view pricing intelligence.</p>
             </div>
           )}
-        </div>
+        </motion.div>
       )}
 
       {/* ═══════════════════════ TRENDS TAB ═══════════════════════ */}
       {activeTab === "trends" && (
-        <div className="space-y-6">
+        <motion.div
+          key="trends"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-6"
+        >
           {/* Search Box */}
           <div className="rounded-xl border bg-card p-5">
-            <h2 className="text-lg font-semibold mb-3">Search Trends</h2>
+            <h2 className="text-lg font-semibold mb-1">Google Market Trends</h2>
+            <p className="text-xs text-muted-foreground mb-3">Real-time search interest data from Google. See what consumers are searching for.</p>
             <div className="flex gap-3">
               <input
                 type="text"
                 value={trendKeyword}
                 onChange={(e) => setTrendKeyword(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearchTrends()}
-                placeholder="Enter a keyword (e.g. wireless earbuds)..."
-                className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter a keyword (e.g. wireless earbuds, yoga pants)..."
+                className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
               <button
                 onClick={handleSearchTrends}
                 disabled={loadingTrends || !trendKeyword.trim()}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors"
               >
                 {loadingTrends ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Search className="h-4 w-4" />
                 )}
-                Search Trends
+                Search
               </button>
             </div>
           </div>
@@ -1319,7 +1338,7 @@ export default function IntelligencePage() {
           {loadingTrends && (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-muted-foreground text-sm">Fetching trend data...</span>
+              <span className="ml-2 text-muted-foreground text-sm">Fetching Google Trends data...</span>
             </div>
           )}
 
@@ -1329,8 +1348,9 @@ export default function IntelligencePage() {
               {trendResults.timelineData.length > 0 && (
                 <div className="rounded-xl border bg-card p-5">
                   <h2 className="text-lg font-semibold mb-4">
-                    Interest Over Time: <span className="text-blue-600">{trendResults.keyword}</span>
+                    Consumer Search Interest: <span className="text-brand-600">&ldquo;{trendResults.keyword}&rdquo;</span>
                   </h2>
+                  <p className="text-xs text-muted-foreground mb-4">Google search volume over the last 90 days (0-100 scale)</p>
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart
@@ -1346,9 +1366,9 @@ export default function IntelligencePage() {
                         <Line
                           type="monotone"
                           dataKey="value"
-                          stroke="#2563eb"
+                          stroke="var(--brand-500, #6366f1)"
                           strokeWidth={2}
-                          dot={{ fill: "#2563eb", r: 3 }}
+                          dot={{ fill: "var(--brand-500, #6366f1)", r: 3 }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1356,13 +1376,14 @@ export default function IntelligencePage() {
                 </div>
               )}
 
-              {/* Related Queries */}
+              {/* Related Queries — What consumers search for */}
               {(trendResults.relatedQueries.top.length > 0 ||
                 trendResults.relatedQueries.rising.length > 0) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Top Queries */}
+                  {/* Top Search Queries */}
                   <div className="rounded-xl border bg-card p-5">
-                    <h3 className="text-base font-semibold mb-3">Top Queries</h3>
+                    <h3 className="text-base font-semibold mb-1">Top Consumer Searches</h3>
+                    <p className="text-xs text-muted-foreground mb-3">Most popular related searches on Google</p>
                     {trendResults.relatedQueries.top.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No top queries found.</p>
                     ) : (
@@ -1382,9 +1403,10 @@ export default function IntelligencePage() {
                     )}
                   </div>
 
-                  {/* Rising Queries */}
+                  {/* Rising Search Queries */}
                   <div className="rounded-xl border bg-card p-5">
-                    <h3 className="text-base font-semibold mb-3">Rising Queries</h3>
+                    <h3 className="text-base font-semibold mb-1">Fastest Growing Searches</h3>
+                    <p className="text-xs text-muted-foreground mb-3">Rapidly increasing demand — act on these</p>
                     {trendResults.relatedQueries.rising.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No rising queries found.</p>
                     ) : (
@@ -1408,62 +1430,26 @@ export default function IntelligencePage() {
             </>
           )}
 
-          {/* Store Trending Products */}
-          <div className="rounded-xl border bg-card p-5">
-            <h2 className="text-lg font-semibold mb-4">Store Trending Products</h2>
-            {loadingStoreTrending ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-muted-foreground text-sm">Loading trending products...</span>
-              </div>
-            ) : storeTrending.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <TrendingUp className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">No trending data yet. Products will appear here as they gain traction.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {storeTrending.map((product) => (
-                  <div
-                    key={product.id}
-                    className="rounded-lg border p-4 hover:bg-muted/20 transition-colors"
-                  >
-                    <div className="w-full h-32 bg-muted rounded-lg mb-3 flex items-center justify-center overflow-hidden">
-                      {product.imageUrl ? (
-                        <img
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="w-full h-full object-cover rounded-lg"
-                        />
-                      ) : (
-                        <ShoppingBag className="h-8 w-8 text-muted-foreground opacity-40" />
-                      )}
-                    </div>
-                    <p className="text-sm font-medium truncate">{product.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {formatCurrency(product.priceCents, storeCurrency)}
-                    </p>
-                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1">
-                        <ShoppingBag className="h-3 w-3" />
-                        {product.orderCount} orders
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Eye className="h-3 w-3" />
-                        {product.viewCount} views
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+          {!trendResults && !loadingTrends && (
+            <div className="rounded-xl border bg-card p-12 text-center text-muted-foreground">
+              <TrendingUp className="h-12 w-12 mx-auto mb-3 opacity-40" />
+              <p className="text-sm">Search for a keyword above to see real Google Trends data.</p>
+              <p className="text-xs mt-1">Try your industry name or a product type to see consumer demand.</p>
+            </div>
+          )}
+        </motion.div>
       )}
 
       {/* ═══════════════════════ SEO TAB ═══════════════════════ */}
       {activeTab === "seo" && (
-        <div className="space-y-6">
+        <motion.div
+          key="seo"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-6"
+        >
           {loadingSEO ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1600,168 +1586,239 @@ export default function IntelligencePage() {
               </div>
             </>
           )}
-        </div>
+        </motion.div>
       )}
 
       {/* ═══════════════════════ RECOMMENDATIONS TAB ═══════════════════════ */}
       {activeTab === "recommendations" && (
-        <div className="space-y-6">
-          {/* Trending Products Grid */}
-          <div className="rounded-xl border bg-card p-5">
-            <h2 className="text-lg font-semibold mb-4">Trending Now</h2>
-            {loadingTrendingRecs ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-muted-foreground text-sm">Loading trending products...</span>
-              </div>
-            ) : trendingForRecs.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <TrendingUp className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">No trending products yet.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {trendingForRecs.map((product) => (
-                  <div
-                    key={product.id}
-                    className="rounded-lg border p-4 hover:bg-muted/20 transition-colors"
-                  >
-                    <div className="w-full h-28 bg-muted rounded-lg mb-3 flex items-center justify-center overflow-hidden">
-                      {product.imageUrl ? (
-                        <img
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="w-full h-full object-cover rounded-lg"
-                        />
-                      ) : (
-                        <ShoppingBag className="h-8 w-8 text-muted-foreground opacity-40" />
-                      )}
-                    </div>
-                    <p className="text-sm font-medium truncate">{product.name}</p>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                      <span>{product.orderCount} orders</span>
-                      <span>{product.viewCount} views</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Product Recommendation Preview */}
-          <div className="rounded-xl border bg-card p-5">
-            <h2 className="text-lg font-semibold mb-2">Product Recommendation Preview</h2>
-            <p className="text-xs text-muted-foreground mb-4">
-              This is what customers see on the product page.
-            </p>
-
-            {/* Product Selector */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-1.5">Select a product to preview</label>
-              <select
-                value={selectedPreviewProductId}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  setSelectedPreviewProductId(id);
-                  if (id) loadRecommendations(id);
-                }}
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <motion.div
+          key="recommendations"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-6"
+        >
+          {/* Market Research Header */}
+          {!marketResearch && !loadingMarketResearch && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
+              className="rounded-2xl border bg-gradient-to-br from-card via-card to-brand-50/30 dark:to-brand-950/10 p-8 md:p-12 text-center"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.2 }}
+                className="h-20 w-20 rounded-2xl bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-brand-500/25"
               >
-                <option value="">Choose a product...</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+                <Globe className="h-10 w-10 text-white" />
+              </motion.div>
+              <motion.h2
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="text-2xl font-bold mb-2"
+              >
+                AI Market Research
+              </motion.h2>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+                className="text-sm text-muted-foreground mb-6 max-w-md mx-auto"
+              >
+                Our AI will research the internet to find what&apos;s trending in your industry, identify products you should be selling,
+                and discover market opportunities you&apos;re missing.
+              </motion.p>
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleRunMarketResearch}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-brand-500 to-indigo-600 text-white font-medium rounded-xl hover:from-brand-600 hover:to-indigo-700 transition-all shadow-lg shadow-brand-500/25"
+              >
+                <Sparkles className="h-5 w-5" />
+                Run AI Market Research (15 credits)
+              </motion.button>
+            </motion.div>
+          )}
+
+          {/* Loading */}
+          {loadingMarketResearch && (
+            <div className="flex flex-col items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-brand-500 mb-3" />
+              <p className="text-sm font-medium">Researching market trends and opportunities...</p>
+              <p className="text-xs text-muted-foreground mt-1">Analyzing Google Trends, consumer demand, and your catalog gaps</p>
             </div>
+          )}
 
-            {loadingRecommendations && (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-muted-foreground text-sm">Loading recommendations...</span>
-              </div>
-            )}
+          {/* Market Research Results */}
+          {marketResearch && !loadingMarketResearch && (
+            <>
+              {/* Run Again Button */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.1 }}
+                className="flex justify-end"
+              >
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleRunMarketResearch}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 transition-colors"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Run Again (15 credits)
+                </motion.button>
+              </motion.div>
 
-            {previewRecommendations && !loadingRecommendations && (
-              <div className="space-y-6">
-                {/* Similar Products */}
-                <div>
-                  <h3 className="text-base font-semibold mb-3">Similar Products</h3>
-                  {previewRecommendations.similar.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No similar products found.</p>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {previewRecommendations.similar.map((product) => (
-                        <div
-                          key={product.id}
-                          className="rounded-lg border p-3 hover:bg-muted/20 transition-colors"
-                        >
-                          <div className="w-full h-24 bg-muted rounded-lg mb-2 flex items-center justify-center overflow-hidden">
-                            {product.imageUrl ? (
-                              <img
-                                src={product.imageUrl}
-                                alt={product.name}
-                                className="w-full h-full object-cover rounded-lg"
-                              />
-                            ) : (
-                              <ShoppingBag className="h-6 w-6 text-muted-foreground opacity-40" />
-                            )}
-                          </div>
-                          <p className="text-xs font-medium truncate">{product.name}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {formatCurrency(product.priceCents, storeCurrency)}
-                          </p>
+              {/* Industry Overview */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="rounded-xl border bg-gradient-to-r from-card to-brand-50/20 dark:to-brand-950/10 p-5"
+              >
+                <h2 className="text-lg font-semibold mb-2">Industry Overview</h2>
+                <p className="text-sm text-muted-foreground">{marketResearch.industryOverview}</p>
+              </motion.div>
+
+              {/* Trending Products to Sell */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 }}
+                className="rounded-xl border bg-card p-5"
+              >
+                <h2 className="text-lg font-semibold mb-1">Trending Products You Should Sell</h2>
+                <p className="text-xs text-muted-foreground mb-4">Products with high consumer demand in your industry</p>
+                <div className="space-y-3">
+                  {marketResearch.trendingProducts.map((product, i) => (
+                    <div key={i} className="flex items-start gap-4 p-3 rounded-lg border hover:bg-muted/20 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-sm">{product.name}</p>
+                          {product.youHaveIt ? (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-100 text-green-700">You sell this</span>
+                          ) : (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Missing from catalog</span>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Frequently Bought Together */}
-                <div>
-                  <h3 className="text-base font-semibold mb-3">Frequently Bought Together</h3>
-                  {previewRecommendations.boughtTogether.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No frequently bought together products yet.</p>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {previewRecommendations.boughtTogether.map((product) => (
-                        <div
-                          key={product.id}
-                          className="rounded-lg border p-3 hover:bg-muted/20 transition-colors"
-                        >
-                          <div className="w-full h-24 bg-muted rounded-lg mb-2 flex items-center justify-center overflow-hidden">
-                            {product.imageUrl ? (
-                              <img
-                                src={product.imageUrl}
-                                alt={product.name}
-                                className="w-full h-full object-cover rounded-lg"
-                              />
-                            ) : (
-                              <ShoppingBag className="h-6 w-6 text-muted-foreground opacity-40" />
-                            )}
-                          </div>
-                          <p className="text-xs font-medium truncate">{product.name}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {formatCurrency(product.priceCents, storeCurrency)}
-                          </p>
+                        <p className="text-xs text-muted-foreground mt-1">{product.reason}</p>
+                        <div className="flex items-center gap-3 mt-2 text-xs">
+                          <span className="text-muted-foreground">Category: {product.category}</span>
+                          <span className="text-muted-foreground">Price range: {product.estimatedPriceRange}</span>
+                          <span className={cn(
+                            "font-medium px-1.5 py-0.5 rounded",
+                            product.demandLevel === "high" ? "bg-green-100 text-green-700" :
+                            product.demandLevel === "medium" ? "bg-yellow-100 text-yellow-700" :
+                            "bg-gray-100 text-gray-600"
+                          )}>
+                            {product.demandLevel} demand
+                          </span>
                         </div>
-                      ))}
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
-              </div>
-            )}
+              </motion.div>
 
-            {!selectedPreviewProductId && !loadingRecommendations && (
-              <div className="text-center py-8 text-muted-foreground">
-                <Sparkles className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">Select a product above to preview its recommendations.</p>
-              </div>
-            )}
-          </div>
-        </div>
+              {/* Market Gaps */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.35 }}
+                className="rounded-xl border bg-card p-5"
+              >
+                <h2 className="text-lg font-semibold mb-1">Market Gaps &amp; Opportunities</h2>
+                <p className="text-xs text-muted-foreground mb-4">Product categories in demand that you don&apos;t currently carry</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {marketResearch.marketGaps.map((gap, i) => (
+                    <div key={i} className="p-4 rounded-lg border">
+                      <h3 className="font-medium text-sm mb-1">{gap.category}</h3>
+                      <p className="text-xs text-muted-foreground mb-2">{gap.opportunity}</p>
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className={cn(
+                          "font-medium px-1.5 py-0.5 rounded",
+                          gap.estimatedDemand === "high" ? "bg-green-100 text-green-700" :
+                          gap.estimatedDemand === "medium" ? "bg-yellow-100 text-yellow-700" :
+                          "bg-gray-100 text-gray-600"
+                        )}>
+                          {gap.estimatedDemand} demand
+                        </span>
+                        <span className={cn(
+                          "font-medium px-1.5 py-0.5 rounded",
+                          gap.competitionLevel === "low" ? "bg-green-100 text-green-700" :
+                          gap.competitionLevel === "medium" ? "bg-yellow-100 text-yellow-700" :
+                          "bg-red-100 text-red-700"
+                        )}>
+                          {gap.competitionLevel} competition
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+
+              {/* Category Insights */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.45 }}
+                className="rounded-xl border bg-card p-5"
+              >
+                <h2 className="text-lg font-semibold mb-1">Category Trends</h2>
+                <p className="text-xs text-muted-foreground mb-4">Which product categories are growing, stable, or declining</p>
+                <div className="space-y-3">
+                  {marketResearch.categoryInsights.map((cat, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-lg border">
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{cat.category}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{cat.recommendation}</p>
+                      </div>
+                      <span className={cn(
+                        "text-xs font-medium px-2 py-1 rounded-full",
+                        cat.trend === "growing" ? "bg-green-100 text-green-700" :
+                        cat.trend === "stable" ? "bg-blue-100 text-blue-700" :
+                        "bg-red-100 text-red-700"
+                      )}>
+                        {cat.trend === "growing" ? "↗ Growing" : cat.trend === "stable" ? "→ Stable" : "↘ Declining"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+
+              {/* Action Items */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.55 }}
+                className="rounded-xl border bg-card p-5"
+              >
+                <h2 className="text-lg font-semibold mb-3">Recommended Actions</h2>
+                <div className="space-y-2">
+                  {marketResearch.actionItems.map((action, i) => (
+                    <div key={i} className="flex items-start gap-3 p-3 rounded-lg border">
+                      <div className="h-6 w-6 rounded-full bg-brand-100 dark:bg-brand-950/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-xs font-bold text-brand-600">{i + 1}</span>
+                      </div>
+                      <p className="text-sm">{action}</p>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            </>
+          )}
+        </motion.div>
       )}
+      </AnimatePresence>
+
     </div>
   );
 }

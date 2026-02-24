@@ -84,9 +84,9 @@ export async function GET(request: NextRequest) {
 
         // Check credits
         const creditCheck = await checkCreditsForFeature(session.userId, "AI_DYNAMIC_PRICING");
-        if (!creditCheck) {
+        if (creditCheck) {
           return NextResponse.json(
-            { success: false, error: { code: "INSUFFICIENT_CREDITS", message: "Not enough credits for AI pricing suggestion" } },
+            { success: false, error: { code: creditCheck.code, message: creditCheck.message } },
             { status: 402 }
           );
         }
