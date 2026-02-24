@@ -877,7 +877,7 @@ export async function notifyAgentApproved(params: {
     title: "Agent Application Approved!",
     message: `Congratulations! Your agent application as ${params.displayName} has been approved. You now have full agent access.`,
     data: { displayName: params.displayName },
-    actionUrl: "/agent/dashboard",
+    actionUrl: "/agent",
   });
 
   await sendAgentApprovedEmail({

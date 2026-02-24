@@ -1449,7 +1449,7 @@ export async function sendAgentApprovedEmail(params: {
       <li>Access all premium features at no cost</li>
     </ul>
     <p style="text-align: center;">
-      <a href="${APP_URL}/agent/dashboard" class="button">Go to Agent Dashboard</a>
+      <a href="${APP_URL}/agent" class="button">Go to Agent Dashboard</a>
     </p>
     <p>Welcome to the team! We're excited to have you.</p>
   `;
