@@ -6,8 +6,8 @@ import {
   ShoppingBag,
   Globe,
   CreditCard,
-  Palette,
-  Package,
+  Sparkles,
+  Eye,
   Link2,
   Rocket,
   Loader2,
@@ -15,17 +15,11 @@ import {
   X,
   ChevronRight,
   ChevronLeft,
-  Sparkles,
-  Star,
   ExternalLink,
+  Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -33,11 +27,13 @@ import {
   CURRENCIES_BY_REGION,
   type PaymentMethodConfig,
 } from "@/lib/constants/ecommerce";
-import { REGIONS, getRegionForCountry, getRegionName, getCountryName } from "@/lib/constants/regions";
+import { REGIONS, getRegionForCountry, getRegionName } from "@/lib/constants/regions";
+
+import { StoreInfoStep } from "@/components/ecommerce/onboarding/store-info-step";
+import { AIBuildStep } from "@/components/ecommerce/onboarding/ai-build-step";
+import { PreviewStep } from "@/components/ecommerce/onboarding/preview-step";
 
 // ── Types ──
-
-type DomainPreference = "subdomain" | "buy" | "byod";
 
 interface StoreData {
   id: string;
@@ -58,14 +54,11 @@ interface StoreData {
   settings: Record<string, unknown>;
 }
 
-interface BrandSyncResult {
+interface PreviewProduct {
+  id: string;
   name: string;
-  tagline: string | null;
-  description: string | null;
-  logo: string | null;
-  industry: string | null;
-  colors: Record<string, string>;
-  fonts: Record<string, string>;
+  priceCents: number;
+  status: string;
 }
 
 interface PaymentMethodSelection extends PaymentMethodConfig {
@@ -73,10 +66,10 @@ interface PaymentMethodSelection extends PaymentMethodConfig {
 }
 
 const STEP_CONFIG = [
-  { label: "Region", icon: Globe },
+  { label: "Store Info", icon: Globe },
+  { label: "AI Build", icon: Sparkles },
+  { label: "Preview", icon: Eye },
   { label: "Payments", icon: CreditCard },
-  { label: "Brand", icon: Palette },
-  { label: "Products", icon: Package },
   { label: "Domain", icon: Link2 },
   { label: "Launch", icon: Rocket },
 ];
@@ -91,36 +84,43 @@ export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [store, setStore] = useState<StoreData | null>(null);
 
-  // Step 1: Region & Currency
-  const [region, setRegion] = useState<string>("");
-  const [country, setCountry] = useState<string>("");
-  const [currency, setCurrency] = useState<string>("USD");
+  // Step 1: Store info
+  const [storeName, setStoreName] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [niche, setNiche] = useState("");
+  const [targetAudience, setTargetAudience] = useState("");
+  const [region, setRegion] = useState("");
+  const [country, setCountry] = useState("");
+  const [currency, setCurrency] = useState("USD");
 
-  // Step 2: Payment Methods
+  // Step 2: AI build
+  const [aiBuildComplete, setAiBuildComplete] = useState(false);
+  const [aiBlueprintData, setAiBlueprintData] = useState<{
+    blueprint: { templateId: string; content: { hero: { headline: string; subheadline: string; ctaText: string }; about: { title: string; body: string } } };
+    productIds: string[];
+    categoryIds: string[];
+  } | null>(null);
+
+  // Step 3: Preview
+  const [templateId, setTemplateId] = useState("fresh");
+  const [heroHeadline, setHeroHeadline] = useState("");
+  const [heroSubheadline, setHeroSubheadline] = useState("");
+  const [heroCta, setHeroCta] = useState("");
+  const [previewProducts, setPreviewProducts] = useState<PreviewProduct[]>([]);
+
+  // Step 4: Payment Methods
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodSelection[]>([]);
 
-  // Step 3: Brand Sync
-  const [brandSyncing, setBrandSyncing] = useState(false);
-  const [brandSynced, setBrandSynced] = useState(false);
-  const [brandData, setBrandData] = useState<BrandSyncResult | null>(null);
-  const [storeName, setStoreName] = useState("");
-  const [storeIndustry, setStoreIndustry] = useState("");
-
-  // Step 4: Product Strategy
-  const [productStrategy, setProductStrategy] = useState<"own" | "ai">("own");
-
-  // Step 5: Store Domain
+  // Step 5: Domain
   const [slug, setSlug] = useState("");
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [slugChecking, setSlugChecking] = useState(false);
   const slugTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [domainPreference, setDomainPreference] = useState<DomainPreference>("subdomain");
-  const [preferredDomain, setPreferredDomain] = useState("");
 
   // Step 6: Launching
   const [launching, setLaunching] = useState(false);
 
-  // ── Init: Fetch store + user profile ──
+  // ── Init: Fetch store + detect region ──
 
   useEffect(() => {
     initializeOnboarding();
@@ -128,12 +128,10 @@ export default function OnboardingPage() {
 
   async function initializeOnboarding() {
     try {
-      // Fetch store
       const storeRes = await fetch("/api/ecommerce/store");
       const storeJson = await storeRes.json();
 
       if (!storeJson.success || !storeJson.data.hasStore) {
-        // No store, redirect back to activation
         router.replace("/ecommerce");
         return;
       }
@@ -152,9 +150,10 @@ export default function OnboardingPage() {
 
       setStore(s);
       setStoreName(s.name || "");
-      setStoreIndustry(s.industry || "");
+      setIndustry(s.industry || "");
+      setSlug(s.slug || "");
 
-      // Fetch user profile for region/country
+      // Detect region
       const profileRes = await fetch("/api/users/profile");
       const profileJson = await profileRes.json();
 
@@ -167,7 +166,7 @@ export default function OnboardingPage() {
         userCountry = s.country || user.country || "";
       }
 
-      // IP-based geo detection fallback if no country/region set
+      // IP geolocation fallback
       if (!userCountry || !userRegion) {
         try {
           const geoRes = await fetch("https://ipapi.co/json/");
@@ -176,26 +175,17 @@ export default function OnboardingPage() {
             if (!userCountry) userCountry = geo.country_code;
             if (!userRegion) userRegion = getRegionForCountry(geo.country_code) || "";
           }
-        } catch {
-          // Geo detection failed, user will select manually
-        }
+        } catch {}
       }
 
       setRegion(userRegion);
       setCountry(userCountry);
 
-      // Set currency from region
       const regionCurrency = CURRENCIES_BY_REGION[userRegion];
       setCurrency(regionCurrency?.code || s.currency || "USD");
 
-      // Initialize payment methods for region
       if (userRegion) {
         initPaymentMethods(userRegion);
-      }
-
-      // Set default slug from store
-      if (s.slug) {
-        setSlug(s.slug);
       }
     } catch (error) {
       console.error("Failed to initialize onboarding:", error);
@@ -211,12 +201,126 @@ export default function OnboardingPage() {
 
   function initPaymentMethods(regionId: string) {
     const methods = PAYMENT_METHODS_BY_REGION[regionId] || [];
-    setPaymentMethods(
-      methods.map((m) => ({ ...m, enabled: true }))
-    );
+    setPaymentMethods(methods.map((m) => ({ ...m, enabled: true })));
   }
 
-  // ── Step 2: Toggle payment method ──
+  // ── Step 1 callbacks ──
+
+  function handleStoreInfoFieldChange(field: string, value: string) {
+    switch (field) {
+      case "storeName": setStoreName(value); break;
+      case "industry": setIndustry(value); break;
+      case "niche": setNiche(value); break;
+      case "targetAudience": setTargetAudience(value); break;
+      case "country": setCountry(value); break;
+      case "currency": setCurrency(value); break;
+    }
+  }
+
+  function handleRegionChange(newRegion: string, newCountry: string, newCurrency: string) {
+    setRegion(newRegion);
+    setCountry(newCountry);
+    setCurrency(newCurrency);
+    initPaymentMethods(newRegion);
+  }
+
+  // ── Step 2 callbacks ──
+
+  function handleAIBuildComplete(data: unknown) {
+    const d = data as typeof aiBlueprintData;
+    setAiBuildComplete(true);
+    setAiBlueprintData(d);
+
+    if (d?.blueprint) {
+      setTemplateId(d.blueprint.templateId || "fresh");
+      setHeroHeadline(d.blueprint.content.hero.headline || "");
+      setHeroSubheadline(d.blueprint.content.hero.subheadline || "");
+      setHeroCta(d.blueprint.content.hero.ctaText || "");
+    }
+
+    // Fetch products created by AI
+    fetchPreviewProducts();
+
+    // Auto-advance to preview
+    setCurrentStep(2);
+  }
+
+  async function fetchPreviewProducts() {
+    try {
+      const res = await fetch("/api/ecommerce/products?status=DRAFT&limit=50");
+      const json = await res.json();
+      if (json.success && json.data?.products) {
+        setPreviewProducts(
+          json.data.products.map((p: { id: string; name: string; priceCents: number; status: string }) => ({
+            id: p.id,
+            name: p.name,
+            priceCents: p.priceCents,
+            status: p.status,
+          }))
+        );
+      }
+    } catch {}
+  }
+
+  // ── Step 3 callbacks ──
+
+  function handleTemplateChange(newTemplateId: string) {
+    setTemplateId(newTemplateId);
+  }
+
+  function handleHeroChange(field: "headline" | "subheadline" | "cta", value: string) {
+    switch (field) {
+      case "headline": setHeroHeadline(value); break;
+      case "subheadline": setHeroSubheadline(value); break;
+      case "cta": setHeroCta(value); break;
+    }
+  }
+
+  async function handleSavePreviewSettings() {
+    try {
+      await fetch("/api/ecommerce/store/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          theme: { template: templateId },
+          settings: {
+            sections: [
+              {
+                id: "hero",
+                enabled: true,
+                order: 0,
+                content: {
+                  headline: heroHeadline,
+                  subheadline: heroSubheadline,
+                  ctaText: heroCta,
+                  ctaLink: "/products",
+                },
+              },
+              {
+                id: "featured_products",
+                enabled: true,
+                order: 1,
+                content: { title: "Featured Products", count: 8 },
+              },
+              {
+                id: "about",
+                enabled: true,
+                order: 2,
+                content: aiBlueprintData?.blueprint?.content?.about || { title: "About Us", body: "" },
+              },
+            ],
+          },
+        }),
+      });
+    } catch {}
+  }
+
+  function handleRemoveProduct(productId: string) {
+    setPreviewProducts((prev) => prev.filter((p) => p.id !== productId));
+    fetch(`/api/ecommerce/products/${productId}`, { method: "DELETE" }).catch(() => {});
+  }
+
+  // ── Step 4: Payment toggle ──
 
   function togglePaymentMethod(index: number) {
     setPaymentMethods((prev) =>
@@ -224,81 +328,27 @@ export default function OnboardingPage() {
     );
   }
 
-  // ── Step 3: Brand Sync ──
-
-  async function handleBrandSync() {
-    setBrandSyncing(true);
-    try {
-      const res = await fetch("/api/ecommerce/store/brand-sync", {
-        method: "POST",
-      });
-      const json = await res.json();
-
-      if (json.success) {
-        const bk = json.data.brandKit as BrandSyncResult;
-        setBrandData(bk);
-        setBrandSynced(true);
-        setStoreName(bk.name || storeName);
-        setStoreIndustry(bk.industry || storeIndustry);
-
-        toast({ title: "Brand synced", description: "Your brand kit data has been applied." });
-      } else {
-        toast({
-          title: "Sync failed",
-          description: json.error?.message || "Could not sync brand kit.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("Brand sync error:", error);
-      toast({ title: "Error", description: "Failed to sync brand.", variant: "destructive" });
-    } finally {
-      setBrandSyncing(false);
-    }
-  }
-
   // ── Step 5: Slug validation ──
 
-  const checkSlugAvailability = useCallback(
-    (value: string) => {
-      if (slugTimeoutRef.current) {
-        clearTimeout(slugTimeoutRef.current);
-      }
+  const checkSlugAvailability = useCallback((value: string) => {
+    if (slugTimeoutRef.current) clearTimeout(slugTimeoutRef.current);
+    if (!value || value.length < 2) { setSlugAvailable(null); return; }
 
-      if (!value || value.length < 2) {
-        setSlugAvailable(null);
-        return;
-      }
+    setSlugChecking(true);
+    setSlugAvailable(null);
 
-      setSlugChecking(true);
-      setSlugAvailable(null);
-
-      slugTimeoutRef.current = setTimeout(async () => {
-        try {
-          const res = await fetch(
-            `/api/ecommerce/store?checkSlug=true&slug=${encodeURIComponent(value)}`
-          );
-          const json = await res.json();
-          if (json.success) {
-            setSlugAvailable(json.data.available);
-          }
-        } catch {
-          setSlugAvailable(null);
-        } finally {
-          setSlugChecking(false);
-        }
-      }, 500);
-    },
-    []
-  );
+    slugTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/ecommerce/store?checkSlug=true&slug=${encodeURIComponent(value)}`);
+        const json = await res.json();
+        if (json.success) setSlugAvailable(json.data.available);
+      } catch { setSlugAvailable(null); }
+      finally { setSlugChecking(false); }
+    }, 500);
+  }, []);
 
   function handleSlugChange(value: string) {
-    // Sanitize slug
-    const sanitized = value
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "");
+    const sanitized = value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
     setSlug(sanitized);
     checkSlugAvailability(sanitized);
   }
@@ -308,52 +358,10 @@ export default function OnboardingPage() {
   async function handleLaunch() {
     setLaunching(true);
     try {
-      // 1. Update store settings (name, slug, currency, theme)
-      const themeData = brandData
-        ? {
-            colors: brandData.colors || {},
-            fonts: brandData.fonts || {},
-          }
-        : {};
+      // 1. Bulk activate DRAFT products
+      await fetch("/api/ecommerce/products/bulk-activate", { method: "POST" });
 
-      // Build domain preference settings
-      const domainSettings: Record<string, unknown> = {
-        domainPreference,
-      };
-      if (preferredDomain && domainPreference !== "subdomain") {
-        domainSettings.preferredDomain = preferredDomain;
-      }
-
-      const settingsRes = await fetch("/api/ecommerce/store/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: storeName,
-          currency,
-          industry: storeIndustry || undefined,
-          theme: themeData,
-          settings: domainSettings,
-        }),
-      });
-
-      const settingsJson = await settingsRes.json();
-      if (!settingsJson.success) {
-        throw new Error(settingsJson.error?.message || "Failed to save store settings");
-      }
-
-      // Update slug separately if changed (slug is on the store, not settings)
-      if (slug && slug !== store?.slug) {
-        // Check availability one more time
-        const slugCheckRes = await fetch(
-          `/api/ecommerce/store?checkSlug=true&slug=${encodeURIComponent(slug)}`
-        );
-        const slugCheckJson = await slugCheckRes.json();
-        if (!slugCheckJson.success || !slugCheckJson.data.available) {
-          throw new Error("Domain slug is no longer available");
-        }
-      }
-
-      // 2. Complete onboarding with payment methods
+      // 2. Save final settings
       const activePaymentMethods = paymentMethods
         .filter((pm) => pm.enabled)
         .map((pm) => ({
@@ -362,6 +370,23 @@ export default function OnboardingPage() {
           isActive: true,
         }));
 
+      const settingsRes = await fetch("/api/ecommerce/store/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: storeName,
+          currency,
+          industry: industry || undefined,
+          slug: slug || undefined,
+        }),
+      });
+
+      const settingsJson = await settingsRes.json();
+      if (!settingsJson.success) {
+        throw new Error(settingsJson.error?.message || "Failed to save settings");
+      }
+
+      // 3. Complete onboarding
       const onboardRes = await fetch("/api/ecommerce/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -378,7 +403,7 @@ export default function OnboardingPage() {
 
       toast({
         title: "Store launched!",
-        description: "Your FlowShop store is ready. Let's add some products!",
+        description: "Your AI-powered store is live. Welcome to FlowShop!",
       });
 
       router.push("/ecommerce/dashboard");
@@ -386,8 +411,7 @@ export default function OnboardingPage() {
       console.error("Launch error:", error);
       toast({
         title: "Launch failed",
-        description:
-          error instanceof Error ? error.message : "Something went wrong. Please try again.",
+        description: error instanceof Error ? error.message : "Something went wrong.",
         variant: "destructive",
       });
     } finally {
@@ -397,15 +421,33 @@ export default function OnboardingPage() {
 
   // ── Navigation ──
 
+  function canGoNext(): boolean {
+    switch (currentStep) {
+      case 0: return !!storeName && !!industry;
+      case 1: return aiBuildComplete;
+      case 2: return true;
+      case 3: return true;
+      case 4: return true;
+      default: return false;
+    }
+  }
+
   function goNext() {
-    if (currentStep < 5) setCurrentStep((s) => s + 1);
+    if (currentStep < 5 && canGoNext()) setCurrentStep((s) => s + 1);
   }
 
   function goBack() {
-    if (currentStep > 0) setCurrentStep((s) => s - 1);
+    if (currentStep > 0) {
+      // Skip back over AI build step if already complete
+      if (currentStep === 2 && aiBuildComplete) {
+        setCurrentStep(0);
+      } else {
+        setCurrentStep((s) => s - 1);
+      }
+    }
   }
 
-  // ── Loading State ──
+  // ── Loading ──
 
   if (loading) {
     return (
@@ -418,12 +460,10 @@ export default function OnboardingPage() {
     );
   }
 
-  // ── Derived state ──
+  // ── Derived ──
 
-  const regionName = region ? getRegionName(region) : "Unknown";
-  const countryName = country ? getCountryName(country) : "Unknown";
-  const currencyConfig = CURRENCIES_BY_REGION[region] || { code: "USD", symbol: "$", name: "US Dollar" };
   const enabledPaymentCount = paymentMethods.filter((pm) => pm.enabled).length;
+  const regionName = region ? getRegionName(region) : "Not set";
 
   return (
     <div className="w-full px-2 py-8">
@@ -435,7 +475,7 @@ export default function OnboardingPage() {
         <div>
           <h1 className="text-xl font-bold">Set Up FlowShop</h1>
           <p className="text-sm text-muted-foreground">
-            Step {currentStep + 1} of 6
+            Step {currentStep + 1} of 6 — {STEP_CONFIG[currentStep].label}
           </p>
         </div>
       </div>
@@ -448,9 +488,7 @@ export default function OnboardingPage() {
               <div
                 className={cn(
                   "h-2 w-full rounded-full transition-colors",
-                  i <= currentStep
-                    ? "bg-primary"
-                    : "bg-muted"
+                  i <= currentStep ? "bg-primary" : "bg-muted"
                 )}
               />
               <div className="flex items-center gap-1">
@@ -477,106 +515,81 @@ export default function OnboardingPage() {
       {/* Step Content */}
       <Card>
         <CardContent className="pt-6 pb-6">
-          {/* Step 1: Region & Currency */}
+          {/* Step 1: Store Info (combined region + brand + details) */}
           {currentStep === 0 && (
-            <div className="space-y-6">
-              <div>
-                <CardTitle className="text-lg mb-1">Region & Currency</CardTitle>
-                <CardDescription>
-                  Confirm your region and choose your store currency.
-                </CardDescription>
-              </div>
+            <StoreInfoStep
+              storeName={storeName}
+              industry={industry}
+              niche={niche}
+              targetAudience={targetAudience}
+              region={region}
+              country={country}
+              currency={currency}
+              onFieldChange={handleStoreInfoFieldChange}
+              onRegionChange={handleRegionChange}
+            />
+          )}
 
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Region</label>
-                  <select
-                    value={region}
-                    onChange={(e) => {
-                      const newRegion = e.target.value;
-                      setRegion(newRegion);
-                      // Reset country when region changes
-                      const regionObj = REGIONS.find((r) => r.id === newRegion);
-                      if (regionObj && regionObj.countries.length > 0) {
-                        setCountry(regionObj.countries[0].code);
-                      } else {
-                        setCountry("");
-                      }
-                      // Update currency and payment methods
-                      const regionCurrency = CURRENCIES_BY_REGION[newRegion];
-                      if (regionCurrency) setCurrency(regionCurrency.code);
-                      initPaymentMethods(newRegion);
-                    }}
-                    className="mt-1 w-full px-3 py-2.5 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  >
-                    <option value="">Select a region</option>
-                    {REGIONS.map((r) => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Country</label>
-                  <select
-                    value={country}
-                    onChange={(e) => {
-                      const newCountry = e.target.value;
-                      setCountry(newCountry);
-                      // Auto-set region if not already matching
-                      const detectedRegion = getRegionForCountry(newCountry);
-                      if (detectedRegion && detectedRegion !== region) {
-                        setRegion(detectedRegion);
-                        const regionCurrency = CURRENCIES_BY_REGION[detectedRegion];
-                        if (regionCurrency) setCurrency(regionCurrency.code);
-                        initPaymentMethods(detectedRegion);
-                      }
-                    }}
-                    className="mt-1 w-full px-3 py-2.5 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  >
-                    <option value="">Select a country</option>
-                    {(REGIONS.find((r) => r.id === region)?.countries || REGIONS.flatMap((r) => r.countries)).map((c) => (
-                      <option key={c.code} value={c.code}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
+          {/* Step 2: AI Building Your Store */}
+          {currentStep === 1 && (
+            <AIBuildStep
+              storeName={storeName}
+              industry={industry}
+              niche={niche}
+              targetAudience={targetAudience}
+              region={region}
+              currency={currency}
+              onComplete={handleAIBuildComplete}
+              onError={(err) => {
+                toast({
+                  title: "AI Build Failed",
+                  description: err,
+                  variant: "destructive",
+                });
+              }}
+            />
+          )}
 
-                {/* Currency dropdown */}
-                <div>
-                  <label className="text-sm font-medium">Currency</label>
-                  <select
-                    value={currency}
-                    onChange={(e) => setCurrency(e.target.value)}
-                    className="mt-1 w-full px-3 py-2.5 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  >
-                    {Object.entries(CURRENCIES_BY_REGION).map(([rId, c]) => (
-                      <option key={rId} value={c.code}>
-                        {c.code} — {c.symbol} ({c.name})
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Default for {regionName}: {currencyConfig.code} ({currencyConfig.symbol})
-                  </p>
-                </div>
+          {/* Step 3: Preview & Customize */}
+          {currentStep === 2 && store && (
+            <div>
+              <div className="mb-4">
+                <h2 className="text-lg font-bold mb-1">Preview & Customize</h2>
+                <p className="text-sm text-muted-foreground">
+                  Your AI-built store is ready. Customize the theme, hero text, and products below.
+                </p>
               </div>
+              <PreviewStep
+                storeSlug={store.slug}
+                templateId={templateId}
+                heroHeadline={heroHeadline}
+                heroSubheadline={heroSubheadline}
+                heroCta={heroCta}
+                products={previewProducts}
+                currency={currency}
+                onTemplateChange={handleTemplateChange}
+                onHeroChange={handleHeroChange}
+                onSaveSettings={handleSavePreviewSettings}
+                onRemoveProduct={handleRemoveProduct}
+              />
             </div>
           )}
 
-          {/* Step 2: Payment Methods */}
-          {currentStep === 1 && (
+          {/* Step 4: Payment Methods */}
+          {currentStep === 3 && (
             <div className="space-y-6">
               <div>
-                <CardTitle className="text-lg mb-1">Payment Methods</CardTitle>
-                <CardDescription>
+                <h2 className="text-lg font-bold mb-1">Payment Methods</h2>
+                <p className="text-sm text-muted-foreground">
                   Choose which payment methods to accept in your store.
-                </CardDescription>
+                </p>
               </div>
 
               {paymentMethods.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <CreditCard className="h-8 w-8 mx-auto mb-2 opacity-40" />
                   <p className="text-sm">No payment methods available for your region.</p>
-                  <p className="text-xs mt-1">Update your region in the previous step.</p>
+                  <p className="text-xs mt-1">Go back and update your region.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -585,26 +598,20 @@ export default function OnboardingPage() {
                       key={`${method.methodType}-${method.provider}-${index}`}
                       className={cn(
                         "flex items-center justify-between p-3 rounded-lg border transition-colors",
-                        method.enabled
-                          ? "border-primary/30 bg-primary/5"
-                          : "border-muted"
+                        method.enabled ? "border-primary/30 bg-primary/5" : "border-muted"
                       )}
                     >
                       <div className="flex items-center gap-3">
                         <div
                           className={cn(
                             "h-8 w-8 rounded-lg flex items-center justify-center",
-                            method.enabled
-                              ? "bg-primary/10 text-primary"
-                              : "bg-muted text-muted-foreground"
+                            method.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
                           )}
                         >
                           <CreditCard className="h-4 w-4" />
                         </div>
                         <span className="text-sm font-medium">{method.label}</span>
                       </div>
-
-                      {/* Toggle */}
                       <button
                         type="button"
                         onClick={() => togglePaymentMethod(index)}
@@ -631,167 +638,14 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 3: Brand Sync */}
-          {currentStep === 2 && (
-            <div className="space-y-6">
-              <div>
-                <CardTitle className="text-lg mb-1">Brand Identity</CardTitle>
-                <CardDescription>
-                  Sync your brand kit or customize your store identity manually.
-                </CardDescription>
-              </div>
-
-              {/* Sync Button */}
-              <Button
-                onClick={handleBrandSync}
-                disabled={brandSyncing}
-                variant={brandSynced ? "outline" : "default"}
-                className="w-full"
-              >
-                {brandSyncing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Syncing...
-                  </>
-                ) : brandSynced ? (
-                  <>
-                    <Check className="h-4 w-4 mr-2" />
-                    Re-sync from Brand Kit
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Sync from Brand Kit
-                  </>
-                )}
-              </Button>
-
-              {/* Preview */}
-              {brandSynced && brandData && (
-                <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Synced from Brand Kit
-                  </p>
-                  {brandData.logo && (
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={brandData.logo}
-                        alt="Brand logo"
-                        className="h-10 w-10 rounded-lg object-cover"
-                      />
-                      <span className="text-sm text-muted-foreground">Logo synced</span>
-                    </div>
-                  )}
-                  {brandData.colors && Object.keys(brandData.colors).length > 0 && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1.5">Colors</p>
-                      <div className="flex gap-2">
-                        {Object.entries(brandData.colors).map(([key, color]) =>
-                          color ? (
-                            <div key={key} className="flex items-center gap-1.5">
-                              <div
-                                className="h-6 w-6 rounded-md border"
-                                style={{ backgroundColor: color }}
-                              />
-                              <span className="text-xs text-muted-foreground capitalize">
-                                {key}
-                              </span>
-                            </div>
-                          ) : null
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Manual Override */}
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Store Name</label>
-                  <input
-                    type="text"
-                    value={storeName}
-                    onChange={(e) => setStoreName(e.target.value)}
-                    placeholder="My Awesome Store"
-                    className="mt-1 w-full px-3 py-2.5 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Industry</label>
-                  <input
-                    type="text"
-                    value={storeIndustry}
-                    onChange={(e) => setStoreIndustry(e.target.value)}
-                    placeholder="e.g. Fashion, Electronics, Food"
-                    className="mt-1 w-full px-3 py-2.5 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 4: Product Strategy */}
-          {currentStep === 3 && (
-            <div className="space-y-6">
-              <div>
-                <CardTitle className="text-lg mb-1">Product Strategy</CardTitle>
-                <CardDescription>
-                  How will you source products for your store?
-                </CardDescription>
-              </div>
-
-              <div className="grid gap-4">
-                {/* Own Products */}
-                <button
-                  type="button"
-                  onClick={() => setProductStrategy("own")}
-                  className={cn(
-                    "text-left p-4 rounded-lg border-2 transition-colors",
-                    productStrategy === "own"
-                      ? "border-primary bg-primary/5"
-                      : "border-muted hover:border-muted-foreground/30"
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={cn(
-                        "h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0",
-                        productStrategy === "own"
-                          ? "bg-primary/10 text-primary"
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      <Package className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-medium">My Own Products</h3>
-                        {productStrategy === "own" && (
-                          <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                            <Check className="h-3 w-3 text-primary-foreground" />
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Add and manage your own products, set prices, track inventory.
-                      </p>
-                    </div>
-                  </div>
-                </button>
-
-              </div>
-            </div>
-          )}
-
           {/* Step 5: Store Domain */}
           {currentStep === 4 && (
             <div className="space-y-6">
               <div>
-                <CardTitle className="text-lg mb-1">Store Domain</CardTitle>
-                <CardDescription>
+                <h2 className="text-lg font-bold mb-1">Store Domain</h2>
+                <p className="text-sm text-muted-foreground">
                   Choose a custom subdomain for your storefront.
-                </CardDescription>
+                </p>
               </div>
 
               <div>
@@ -809,7 +663,6 @@ export default function OnboardingPage() {
                   </div>
                 </div>
 
-                {/* Availability indicator */}
                 <div className="mt-2 h-5">
                   {slugChecking && (
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -845,73 +698,38 @@ export default function OnboardingPage() {
           {currentStep === 5 && (
             <div className="space-y-6">
               <div>
-                <CardTitle className="text-lg mb-1">Review & Launch</CardTitle>
-                <CardDescription>
-                  Everything looks good? Launch your store!
-                </CardDescription>
+                <h2 className="text-lg font-bold mb-1">Review & Launch</h2>
+                <p className="text-sm text-muted-foreground">
+                  Everything looks good? Launch your AI-powered store!
+                </p>
               </div>
 
               <div className="space-y-3">
-                {/* Region */}
-                <div className="flex items-center justify-between p-3 rounded-lg border">
-                  <div className="flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">Region</span>
-                  </div>
-                  <span className="text-sm font-medium">{regionName}</span>
-                </div>
-
-                {/* Currency */}
-                <div className="flex items-center justify-between p-3 rounded-lg border">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">Currency</span>
-                  </div>
-                  <span className="text-sm font-medium">{currency}</span>
-                </div>
-
-                {/* Payment Methods */}
-                <div className="flex items-center justify-between p-3 rounded-lg border">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">Payment Methods</span>
-                  </div>
-                  <span className="text-sm font-medium">
-                    {enabledPaymentCount} enabled
-                  </span>
-                </div>
-
-                {/* Brand */}
-                <div className="flex items-center justify-between p-3 rounded-lg border">
-                  <div className="flex items-center gap-2">
-                    <Palette className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">Store Name</span>
-                  </div>
-                  <span className="text-sm font-medium">{storeName || "—"}</span>
-                </div>
-
-                {/* Industry */}
-                {storeIndustry && (
-                  <div className="flex items-center justify-between p-3 rounded-lg border">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">Industry</span>
-                    </div>
-                    <span className="text-sm font-medium">{storeIndustry}</span>
-                  </div>
-                )}
-
-                {/* Domain */}
-                <div className="flex items-center justify-between p-3 rounded-lg border">
-                  <div className="flex items-center gap-2">
-                    <Link2 className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">Domain</span>
-                  </div>
-                  <span className="text-sm font-medium">
-                    {slug || store?.slug || "—"}.flowsmartly.com
-                  </span>
-                </div>
+                <SummaryRow icon={Globe} label="Region" value={regionName} />
+                <SummaryRow icon={CreditCard} label="Currency" value={currency} />
+                <SummaryRow icon={CreditCard} label="Payment Methods" value={`${enabledPaymentCount} enabled`} />
+                <SummaryRow icon={ShoppingBag} label="Store Name" value={storeName || "—"} />
+                {industry && <SummaryRow icon={Package} label="Industry" value={industry} />}
+                <SummaryRow icon={Sparkles} label="Products" value={`${previewProducts.length} AI-generated`} />
+                <SummaryRow icon={Link2} label="Domain" value={`${slug || store?.slug || "—"}.flowsmartly.com`} />
               </div>
+
+              {/* Preview thumbnail */}
+              {store && (
+                <a
+                  href={`/store/${store.slug}?preview=true`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-lg border overflow-hidden hover:ring-2 hover:ring-primary/50 transition-all"
+                >
+                  <div className="h-32 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                    <div className="text-center">
+                      <ExternalLink className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Preview your store</span>
+                    </div>
+                  </div>
+                </a>
+              )}
 
               {/* Launch Button */}
               <Button
@@ -928,7 +746,7 @@ export default function OnboardingPage() {
                 ) : (
                   <>
                     <Rocket className="h-4 w-4 mr-2" />
-                    Launch Store
+                    Publish Store
                   </>
                 )}
               </Button>
@@ -938,7 +756,7 @@ export default function OnboardingPage() {
       </Card>
 
       {/* Navigation Buttons */}
-      {currentStep < 5 && (
+      {currentStep !== 1 && currentStep < 5 && (
         <div className="flex justify-between mt-6">
           <Button
             variant="outline"
@@ -948,7 +766,7 @@ export default function OnboardingPage() {
             <ChevronLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
-          <Button onClick={goNext}>
+          <Button onClick={goNext} disabled={!canGoNext()}>
             Next
             <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
@@ -963,6 +781,28 @@ export default function OnboardingPage() {
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Helper Components ──
+
+function SummaryRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center justify-between p-3 rounded-lg border">
+      <div className="flex items-center gap-2">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm">{label}</span>
+      </div>
+      <span className="text-sm font-medium">{value}</span>
     </div>
   );
 }

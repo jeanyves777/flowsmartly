@@ -15,7 +15,9 @@ import {
   ChevronRight,
   Loader2,
   AlertTriangle,
+  Sparkles,
 } from "lucide-react";
+import { AIProductGeneratorModal } from "@/components/ecommerce/ai-product-generator-modal";
 import { useToast } from "@/hooks/use-toast";
 
 // ── Types ──
@@ -91,6 +93,9 @@ export default function ProductsListPage() {
   // Delete confirmation
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // AI Product Generator
+  const [showAIGenerator, setShowAIGenerator] = useState(false);
 
   // Fetch stats
   const fetchStats = useCallback(async () => {
@@ -217,13 +222,22 @@ export default function ProductsListPage() {
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
           <p className="text-sm text-gray-500 mt-1">Manage your store products</p>
         </div>
-        <button
-          onClick={() => router.push("/ecommerce/products/new")}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          New Product
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAIGenerator(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-700 hover:to-indigo-700 transition-all"
+          >
+            <Sparkles className="h-4 w-4" />
+            AI Generate Products
+          </button>
+          <button
+            onClick={() => router.push("/ecommerce/products/new")}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            New Product
+          </button>
+        </div>
       </div>
 
       {/* Stats Row */}
@@ -491,6 +505,18 @@ export default function ProductsListPage() {
           </div>
         </div>
       )}
+
+      {/* AI Product Generator Modal */}
+      <AIProductGeneratorModal
+        isOpen={showAIGenerator}
+        onClose={() => setShowAIGenerator(false)}
+        onComplete={() => {
+          setShowAIGenerator(false);
+          fetchProducts();
+          fetchStats();
+        }}
+        storeCurrency="USD"
+      />
     </div>
   );
 }

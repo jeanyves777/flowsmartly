@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import Image from "next/image";
 import { prisma } from "@/lib/db/client";
@@ -29,10 +31,39 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
       isActive: true,
       theme: true,
       currency: true,
+      userId: true,
     },
   });
 
-  if (!store || !store.isActive) {
+  if (!store) {
+    notFound();
+  }
+
+  // Preview mode: allow store owner to view inactive store
+  const headersList = await headers();
+  const referer = headersList.get("referer") || "";
+  const url = headersList.get("x-url") || referer;
+  const isPreviewParam = url.includes("preview=true");
+
+  let isPreview = false;
+  if (!store.isActive && isPreviewParam) {
+    // Verify the user owns this store via session cookie
+    try {
+      const cookieStore = await cookies();
+      const sessionToken = cookieStore.get("session_token")?.value;
+      if (sessionToken) {
+        const session = await prisma.session.findUnique({
+          where: { token: sessionToken },
+          select: { userId: true },
+        });
+        if (session && session.userId === store.userId) {
+          isPreview = true;
+        }
+      }
+    } catch {}
+  }
+
+  if (!store.isActive && !isPreview) {
     notFound();
   }
 

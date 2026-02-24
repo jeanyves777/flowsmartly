@@ -7,6 +7,7 @@ import { resolveTheme, type ResolvedTheme } from "@/lib/store/theme-utils";
 
 interface StorePageProps {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ preview?: string }>;
 }
 
 export async function generateMetadata({ params }: StorePageProps): Promise<Metadata> {
@@ -437,8 +438,10 @@ function ContactSection({
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
-export default async function StorePage({ params }: StorePageProps) {
+export default async function StorePage({ params, searchParams }: StorePageProps) {
   const { slug } = await params;
+  const { preview } = await searchParams;
+  const isPreview = preview === "true";
 
   const store = await prisma.store.findUnique({
     where: { slug },
@@ -477,11 +480,11 @@ export default async function StorePage({ params }: StorePageProps) {
     // Invalid settings JSON — fall back to default layout
   }
 
-  // Fetch featured products
+  // Fetch featured products (include DRAFT in preview mode)
   const products = await prisma.product.findMany({
     where: {
       storeId: store.id,
-      status: "ACTIVE",
+      status: isPreview ? { in: ["ACTIVE", "DRAFT"] } : "ACTIVE",
       deletedAt: null,
     },
     orderBy: { createdAt: "desc" },
