@@ -887,6 +887,44 @@ export default function IntelligencePage() {
 
           {selectedProductId && !loadingPricingData && (
             <>
+              {/* AI Pricing CTA Banner */}
+              {priceAnalysis && competitors.length > 0 && !aiSuggestion && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4 }}
+                  className="rounded-xl border border-brand-200 dark:border-brand-800/30 bg-gradient-to-r from-brand-50/80 via-white to-indigo-50/50 dark:from-brand-950/20 dark:via-background dark:to-indigo-950/10 p-4 flex items-center gap-4"
+                >
+                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-brand-500/20">
+                    <Sparkles className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold">
+                      {priceAnalysis.position === "highest" || priceAnalysis.position === "above_average"
+                        ? "Your price is above market average"
+                        : priceAnalysis.position === "lowest" || priceAnalysis.position === "below_average"
+                        ? "Your price is below market average"
+                        : "Your price matches the market average"}
+                      {" \u2014 "}
+                      <span className="text-brand-600 dark:text-brand-400">let AI find the optimal price</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Based on {priceAnalysis.competitorCount} competitor{priceAnalysis.competitorCount !== 1 ? "s" : ""}, AI will analyze demand, margins, and market position to suggest the best price.
+                    </p>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleGetAISuggestion}
+                    disabled={loadingAI}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-500 to-indigo-600 text-white text-sm font-semibold rounded-lg hover:from-brand-600 hover:to-indigo-700 disabled:opacity-50 transition-all shadow-md shadow-brand-500/20 flex-shrink-0"
+                  >
+                    {loadingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    Get AI Suggestion
+                  </motion.button>
+                </motion.div>
+              )}
+
               {/* Price Position Card */}
               {priceAnalysis && (
                 <div className="rounded-xl border bg-card p-5">
