@@ -60,7 +60,6 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
   }
 
   const theme = resolveTheme(store.theme);
-  const primaryColor = theme.colors.primary;
 
   const page = Math.max(1, parseInt(sp.page || "1"));
   const categoryFilter = sp.category || undefined;
@@ -199,9 +198,9 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
             className="w-full rounded-lg border px-4 py-2.5 text-sm focus:outline-none focus:ring-2"
             style={
               {
-                backgroundColor: theme.colors.background,
-                borderColor: `${theme.colors.text}20`,
-                "--tw-ring-color": primaryColor,
+                backgroundColor: 'var(--store-background)',
+                borderColor: `color-mix(in srgb, var(--store-text) 12%, transparent)`,
+                "--tw-ring-color": 'var(--store-primary)',
               } as React.CSSProperties
             }
           />
@@ -221,8 +220,8 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
               }`}
               style={
                 !categoryFilter
-                  ? { backgroundColor: primaryColor }
-                  : { backgroundColor: `${theme.colors.text}10` }
+                  ? { backgroundColor: 'var(--store-primary)' }
+                  : { backgroundColor: `color-mix(in srgb, var(--store-text) 6%, transparent)` }
               }
             >
               All
@@ -238,8 +237,8 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
                 }`}
                 style={
                   categoryFilter === cat.id
-                    ? { backgroundColor: primaryColor }
-                    : { backgroundColor: `${theme.colors.text}10` }
+                    ? { backgroundColor: 'var(--store-primary)' }
+                    : { backgroundColor: `color-mix(in srgb, var(--store-text) 6%, transparent)` }
                 }
               >
                 {cat.name}
@@ -261,8 +260,8 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
                 }`}
                 style={
                   sort === opt.value
-                    ? { backgroundColor: theme.colors.text }
-                    : { backgroundColor: `${theme.colors.text}10` }
+                    ? { backgroundColor: 'var(--store-text)' }
+                    : { backgroundColor: `color-mix(in srgb, var(--store-text) 6%, transparent)` }
                 }
               >
                 {opt.label}
@@ -286,7 +285,6 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
               key={product.id}
               product={product as ProductCardData}
               storeSlug={store.slug}
-              primaryColor={primaryColor}
               cardStyle={theme.layout.cardStyle}
               formatPrice={formatPrice}
             />
@@ -319,7 +317,7 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
                       className={`w-9 h-9 flex items-center justify-center rounded-lg text-sm font-medium ${
                         p === page ? "text-white" : "hover:opacity-80"
                       }`}
-                      style={p === page ? { backgroundColor: primaryColor } : undefined}
+                      style={p === page ? { backgroundColor: 'var(--store-primary)' } : undefined}
                     >
                       {p}
                     </Link>

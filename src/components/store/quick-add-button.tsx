@@ -43,7 +43,7 @@ export function QuickAddButton({
     <button
       onClick={handleAdd}
       className="absolute bottom-2 right-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 hover:scale-105 active:scale-95"
-      style={{ backgroundColor: added ? "#16a34a" : (primaryColor || "#111827") }}
+      style={{ backgroundColor: added ? "#16a34a" : 'var(--store-primary, #111827)' }}
       aria-label={added ? "Added to cart" : `Add ${productName} to cart`}
     >
       {added ? (

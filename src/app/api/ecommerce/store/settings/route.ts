@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { presignAllUrls } from "@/lib/utils/s3-client";
 
 const updateSettingsSchema = z.object({
   name: z.string().min(2).max(100).optional(),
@@ -77,13 +78,13 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: {
+      data: await presignAllUrls({
         store: {
           ...updatedStore,
           theme: JSON.parse(updatedStore.theme || "{}"),
           settings: JSON.parse(updatedStore.settings || "{}"),
         },
-      },
+      }),
     });
   } catch (error) {
     console.error("Update store settings error:", error);

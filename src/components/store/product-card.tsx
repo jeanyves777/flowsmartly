@@ -22,7 +22,7 @@ export interface ProductCardData {
 interface ProductCardProps {
   product: ProductCardData;
   storeSlug: string;
-  primaryColor: string;
+  primaryColor?: string;
   cardStyle?: string;
   formatPrice: (cents: number, currency: string) => string;
 }
@@ -128,7 +128,6 @@ export function ProductCard({
           priceCents={product.priceCents}
           currency={product.currency}
           imageUrl={mainImage?.url}
-          primaryColor={primaryColor}
         />
       </div>
 
@@ -139,7 +138,7 @@ export function ProductCard({
 
       {/* Pricing */}
       <div className="flex items-center gap-2 mt-1.5">
-        <span className="text-sm font-bold" style={{ color: primaryColor }}>
+        <span className="text-sm font-bold" style={{ color: 'var(--store-primary)' }}>
           {formatPrice(product.priceCents, product.currency)}
         </span>
         {product.comparePriceCents &&

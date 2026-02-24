@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Sparkles, Check, Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { Sparkles, Check, Loader2, AlertCircle, RefreshCw, Palette, PenLine, FolderOpen, Package, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 
@@ -24,6 +24,14 @@ const BUILD_STEPS = [
   { key: "seo", label: "Optimizing for search engines", icon: "search" },
 ];
 
+const BUILD_SUMMARY_ITEMS = [
+  { icon: Palette, label: "A custom theme tailored to your brand" },
+  { icon: PenLine, label: "Store copy, tagline, and about page" },
+  { icon: FolderOpen, label: "Product categories for your industry" },
+  { icon: Package, label: "6-10 starter products with descriptions" },
+  { icon: Search, label: "SEO-optimized content and metadata" },
+];
+
 export function AIBuildStep({
   storeName,
   industry,
@@ -34,22 +42,24 @@ export function AIBuildStep({
   onComplete,
   onError,
 }: AIBuildStepProps) {
+  const [started, setStarted] = useState(false);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isBuilding, setIsBuilding] = useState(false);
-  const hasStarted = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Cleanup timer on unmount
   useEffect(() => {
-    if (hasStarted.current) return;
-    hasStarted.current = true;
-    startBuild();
-
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
+
+  function handleStartBuild() {
+    setStarted(true);
+    startBuild();
+  }
 
   async function startBuild() {
     setIsBuilding(true);
@@ -104,14 +114,61 @@ export function AIBuildStep({
   }
 
   function handleRetry() {
-    hasStarted.current = false;
     setActiveStepIndex(0);
     setIsComplete(false);
     setError(null);
-    hasStarted.current = true;
     startBuild();
   }
 
+  // ── Confirmation screen (before build starts) ──────────────────────────────
+  if (!started) {
+    return (
+      <div className="flex flex-col items-center py-8">
+        {/* Header Icon */}
+        <div className="relative mb-8">
+          <div className="h-20 w-20 rounded-2xl flex items-center justify-center shadow-lg bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-600">
+            <Sparkles className="h-10 w-10 text-white" />
+          </div>
+        </div>
+
+        <h2 className="text-xl font-bold mb-1">Ready to build your store</h2>
+        <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
+          AI will generate a theme, store copy, product categories, and 6-10 products for your{" "}
+          <span className="font-medium text-foreground">{industry}</span> store.
+        </p>
+
+        {/* Summary Card */}
+        <div className="w-full max-w-sm rounded-xl border bg-card p-5 mb-6 space-y-3">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            What AI will create
+          </h3>
+          {BUILD_SUMMARY_ITEMS.map((item) => (
+            <div key={item.label} className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-violet-50 dark:bg-violet-950/30 flex items-center justify-center flex-shrink-0">
+                <item.icon className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+              </div>
+              <span className="text-sm">{item.label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Credits notice */}
+        <p className="text-xs text-muted-foreground mb-6">This will use AI credits</p>
+
+        {/* Start Button */}
+        <Button
+          onClick={handleStartBuild}
+          size="lg"
+          className="gap-2 bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-600 hover:from-violet-600 hover:via-purple-600 hover:to-indigo-700 text-white shadow-lg"
+        >
+          <Sparkles className="h-5 w-5" />
+          Start AI Build
+        </Button>
+      </div>
+    );
+  }
+
+  // ── Build progress screen ─────────────────────────────────────────────────
   return (
     <div className="flex flex-col items-center py-8">
       {/* Header */}

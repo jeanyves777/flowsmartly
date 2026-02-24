@@ -103,9 +103,9 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
     <CartProvider storeSlug={store.slug} currency={store.currency}>
     <div
       style={{
-        fontFamily: `${theme.fonts.body}, sans-serif`,
-        color: theme.colors.text,
-        backgroundColor: theme.colors.background,
+        fontFamily: 'var(--store-font-body), sans-serif',
+        color: 'var(--store-text)',
+        backgroundColor: 'var(--store-background)',
         ...cssVars,
       } as React.CSSProperties}
       className="min-h-screen flex flex-col"
@@ -125,7 +125,7 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
       {/* Store Header */}
       {headerStyle === "centered" ? (
         /* CENTERED: logo centered above, nav centered below */
-        <header className="border-b sticky top-0 z-50" style={{ backgroundColor: theme.colors.background }}>
+        <header className="border-b sticky top-0 z-50" style={{ backgroundColor: 'var(--store-background)' }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 relative">
             <div className="flex flex-col items-center gap-3">
               <div className="flex items-center justify-between w-full md:justify-center">
@@ -141,24 +141,22 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                   ) : (
                     <div
                       className="h-12 w-12 rounded-lg flex items-center justify-center text-white"
-                      style={{ backgroundColor: theme.colors.primary }}
+                      style={{ backgroundColor: 'var(--store-primary)' }}
                     >
                       <ShoppingBag className="h-6 w-6" />
                     </div>
                   )}
                   <span
                     className="text-xl font-bold"
-                    style={{ fontFamily: `${theme.fonts.heading}, sans-serif` }}
+                    style={{ fontFamily: 'var(--store-font-heading), sans-serif' }}
                   >
                     {store.name}
                   </span>
                 </Link>
                 <div className="flex items-center gap-1">
-                  <CartButton textColor={theme.colors.text} />
+                  <CartButton />
                   <MobileNav
                     storeSlug={store.slug}
-                    textColor={theme.colors.text}
-                    bgColor={theme.colors.background}
                   />
                 </div>
               </div>
@@ -175,7 +173,7 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                 >
                   Products
                 </Link>
-                <CartButton textColor={theme.colors.text} />
+                <CartButton />
               </nav>
               {/* Search bar below logo - full width */}
               <form method="GET" action={`/store/${store.slug}/products`} className="flex items-center w-full max-w-md">
@@ -185,9 +183,9 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                   placeholder="Search products..."
                   className="w-full rounded-lg border px-3 py-1.5 text-sm focus:outline-none focus:ring-2"
                   style={{
-                    borderColor: `${theme.colors.text}20`,
-                    backgroundColor: theme.colors.background,
-                    '--tw-ring-color': theme.colors.primary,
+                    borderColor: `color-mix(in srgb, var(--store-text) 12%, transparent)`,
+                    backgroundColor: 'var(--store-background)',
+                    '--tw-ring-color': 'var(--store-primary)',
                   } as React.CSSProperties}
                 />
               </form>
@@ -196,7 +194,7 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
         </header>
       ) : headerStyle === "bold" ? (
         /* BOLD: logo left, large font, colored background header */
-        <header className="sticky top-0 z-50" style={{ backgroundColor: theme.colors.primary }}>
+        <header className="sticky top-0 z-50" style={{ backgroundColor: 'var(--store-primary)' }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div className="flex items-center justify-between h-20">
               <Link href={`/store/${store.slug}`} className="flex items-center gap-3">
@@ -215,7 +213,7 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                 )}
                 <span
                   className="text-2xl font-extrabold text-white"
-                  style={{ fontFamily: `${theme.fonts.heading}, sans-serif` }}
+                  style={{ fontFamily: 'var(--store-font-heading), sans-serif' }}
                 >
                   {store.name}
                 </span>
@@ -249,7 +247,7 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                 <MobileNav
                   storeSlug={store.slug}
                   textColor="#ffffff"
-                  bgColor={theme.colors.primary}
+                  bgColor="var(--store-primary)"
                 />
               </div>
             </div>
@@ -257,7 +255,7 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
         </header>
       ) : (
         /* MINIMAL (default): logo left, nav right */
-        <header className="border-b sticky top-0 z-50" style={{ backgroundColor: theme.colors.background }}>
+        <header className="border-b sticky top-0 z-50" style={{ backgroundColor: 'var(--store-background)' }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div className="flex items-center justify-between h-16">
               <Link href={`/store/${store.slug}`} className="flex items-center gap-3">
@@ -272,14 +270,14 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                 ) : (
                   <div
                     className="h-10 w-10 rounded-lg flex items-center justify-center text-white"
-                    style={{ backgroundColor: theme.colors.primary }}
+                    style={{ backgroundColor: 'var(--store-primary)' }}
                   >
                     <ShoppingBag className="h-5 w-5" />
                   </div>
                 )}
                 <span
                   className="text-lg font-semibold"
-                  style={{ fontFamily: `${theme.fonts.heading}, sans-serif` }}
+                  style={{ fontFamily: 'var(--store-font-heading), sans-serif' }}
                 >
                   {store.name}
                 </span>
@@ -305,20 +303,18 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                     placeholder="Search products..."
                     className="w-40 lg:w-56 rounded-lg border px-3 py-1.5 text-sm focus:outline-none focus:ring-2"
                     style={{
-                      borderColor: `${theme.colors.text}20`,
-                      backgroundColor: theme.colors.background,
-                      '--tw-ring-color': theme.colors.primary,
+                      borderColor: `color-mix(in srgb, var(--store-text) 12%, transparent)`,
+                      backgroundColor: 'var(--store-background)',
+                      '--tw-ring-color': 'var(--store-primary)',
                     } as React.CSSProperties}
                   />
                 </form>
-                <CartButton textColor={theme.colors.text} />
+                <CartButton />
               </nav>
               <div className="flex items-center gap-1 md:hidden">
-                <CartButton textColor={theme.colors.text} />
+                <CartButton />
                 <MobileNav
                   storeSlug={store.slug}
-                  textColor={theme.colors.text}
-                  bgColor={theme.colors.background}
                 />
               </div>
             </div>
@@ -328,7 +324,7 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
 
       {/* Category Navigation Bar */}
       {categories.length >= 2 && (
-        <nav className="border-b overflow-x-auto scrollbar-hide" style={{ backgroundColor: theme.colors.background }}>
+        <nav className="border-b overflow-x-auto scrollbar-hide" style={{ backgroundColor: 'var(--store-background)' }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-1 py-2 -mx-1">
               <Link
@@ -361,7 +357,7 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
       <main className="flex-1">{children}</main>
 
       {/* Footer */}
-      <footer className="border-t" style={{ backgroundColor: theme.colors.background }}>
+      <footer className="border-t" style={{ backgroundColor: 'var(--store-background)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {/* Col 1: Store Info */}
@@ -370,11 +366,11 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                 {store.logoUrl ? (
                   <Image src={store.logoUrl} alt={store.name} width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
                 ) : (
-                  <div className="h-8 w-8 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: theme.colors.primary }}>
+                  <div className="h-8 w-8 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: 'var(--store-primary)' }}>
                     <ShoppingBag className="h-4 w-4" />
                   </div>
                 )}
-                <span className="font-semibold" style={{ fontFamily: `${theme.fonts.heading}, sans-serif` }}>{store.name}</span>
+                <span className="font-semibold" style={{ fontFamily: 'var(--store-font-heading), sans-serif' }}>{store.name}</span>
               </div>
               {store.description && <p className="text-sm opacity-60 leading-relaxed">{store.description}</p>}
             </div>
@@ -441,7 +437,7 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
               <span className="text-xs opacity-30">|</span>
               <p className="text-xs opacity-40">
                 Powered by{" "}
-                <a href="https://flowsmartly.com" className="hover:underline" style={{ color: theme.colors.primary }}>
+                <a href="https://flowsmartly.com" className="hover:underline" style={{ color: 'var(--store-primary)' }}>
                   FlowSmartly
                 </a>
               </p>

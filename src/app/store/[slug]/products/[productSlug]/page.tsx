@@ -107,7 +107,6 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   }).catch(() => {});
 
   const theme = resolveTheme(store.theme);
-  const primaryColor = theme.colors.primary;
 
   const images = JSON.parse(product.images || "[]") as { url: string; alt?: string }[];
 
@@ -144,9 +143,9 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
       case "shadow":
         return { boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
       case "bordered":
-        return { border: `1px solid ${theme.colors.text}15` };
+        return { border: `1px solid color-mix(in srgb, var(--store-text) 8%, transparent)` };
       default:
-        return { border: `1px solid ${theme.colors.text}15` };
+        return { border: `1px solid color-mix(in srgb, var(--store-text) 8%, transparent)` };
     }
   }
 
@@ -243,7 +242,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
 
           {/* Price */}
           <div className="flex items-center gap-3 mt-4">
-            <span className="text-2xl font-bold" style={{ color: primaryColor }}>
+            <span className="text-2xl font-bold" style={{ color: 'var(--store-primary)' }}>
               {formatPrice(product.priceCents, product.currency)}
             </span>
             {product.comparePriceCents && product.comparePriceCents > product.priceCents && (
@@ -301,7 +300,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
               trackInventory={product.trackInventory}
               quantity={product.quantity}
               variants={variants}
-              primaryColor={primaryColor}
+              primaryColor="var(--store-primary)"
             />
           </div>
 
@@ -318,7 +317,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
 
           {/* Full Description */}
           {product.description && (
-            <div className="mt-8 pt-8" style={{ borderTop: `1px solid ${theme.colors.text}15` }}>
+            <div className="mt-8 pt-8" style={{ borderTop: `1px solid color-mix(in srgb, var(--store-text) 8%, transparent)` }}>
               <h3
                 className="text-lg font-semibold mb-3"
                 style={{ fontFamily: `var(--store-font-heading), sans-serif` }}
@@ -334,11 +333,11 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
       </div>
 
       {/* Product Recommendations */}
-      <div className="mt-12 pt-8" style={{ borderTop: `1px solid ${theme.colors.text}15` }}>
+      <div className="mt-12 pt-8" style={{ borderTop: `1px solid color-mix(in srgb, var(--store-text) 8%, transparent)` }}>
         <ProductRecommendations
           storeSlug={store.slug}
           productId={product.id}
-          primaryColor={primaryColor}
+          primaryColor="var(--store-primary)"
           cardStyle={theme.layout.cardStyle as "shadow" | "bordered" | "sharp" | "rounded" | "minimal"}
         />
       </div>

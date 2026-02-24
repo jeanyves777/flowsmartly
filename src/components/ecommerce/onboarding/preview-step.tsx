@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 import { ThemePicker } from "./theme-picker";
+import { type StoreTemplateConfig } from "@/lib/constants/store-templates";
 
 interface PreviewProduct {
   id: string;
@@ -34,6 +35,7 @@ interface PreviewStepProps {
   onHeroChange: (field: "headline" | "subheadline" | "cta", value: string) => void;
   onSaveSettings: () => Promise<void>;
   onRemoveProduct: (productId: string) => void;
+  brandTemplate?: StoreTemplateConfig | null;
 }
 
 export function PreviewStep({
@@ -48,6 +50,7 @@ export function PreviewStep({
   onHeroChange,
   onSaveSettings,
   onRemoveProduct,
+  brandTemplate,
 }: PreviewStepProps) {
   const [iframeSrc, setIframeSrc] = useState(
     `/store/${storeSlug}?preview=true&t=${Date.now()}`
@@ -99,6 +102,7 @@ export function PreviewStep({
           <ThemePicker
             selectedTemplateId={templateId}
             onSelect={handleTemplateChange}
+            brandTemplate={brandTemplate}
           />
         </CollapsibleSection>
 

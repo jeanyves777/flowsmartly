@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { generateSlug } from "@/lib/constants/ecommerce";
+import { presignAllUrls } from "@/lib/utils/s3-client";
 
 const createStoreSchema = z.object({
   name: z.string().min(2, "Store name must be at least 2 characters").max(100),
@@ -87,14 +88,14 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: {
+      data: await presignAllUrls({
         store: {
           ...store,
           theme: JSON.parse(store.theme || "{}"),
           settings: JSON.parse(store.settings || "{}"),
         },
         hasStore: true,
-      },
+      }),
     });
   } catch (error) {
     console.error("Get store error:", error);
@@ -190,13 +191,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: {
+      data: await presignAllUrls({
         store: {
           ...store,
           theme: JSON.parse(store.theme || "{}"),
           settings: JSON.parse(store.settings || "{}"),
         },
-      },
+      }),
     });
   } catch (error) {
     console.error("Create store error:", error);

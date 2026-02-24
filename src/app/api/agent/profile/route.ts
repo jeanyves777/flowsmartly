@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { presignAllUrls } from "@/lib/utils/s3-client";
 
 export async function GET() {
   try {
@@ -27,7 +28,7 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ success: true, data: { profile } });
+    return NextResponse.json({ success: true, data: await presignAllUrls({ profile }) });
   } catch (error) {
     console.error("Get agent profile error:", error);
     return NextResponse.json(
@@ -122,7 +123,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ success: true, data: { profile } }, { status: 201 });
+    return NextResponse.json({ success: true, data: await presignAllUrls({ profile }) }, { status: 201 });
   } catch (error) {
     console.error("Create agent profile error:", error);
     return NextResponse.json(
@@ -193,7 +194,7 @@ export async function PATCH(request: Request) {
       },
     });
 
-    return NextResponse.json({ success: true, data: { profile: updated } });
+    return NextResponse.json({ success: true, data: await presignAllUrls({ profile: updated }) });
   } catch (error) {
     console.error("Update agent profile error:", error);
     return NextResponse.json(

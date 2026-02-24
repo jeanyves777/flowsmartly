@@ -112,7 +112,7 @@ function HeroSection({
         <div
           className={`${heightClasses} w-full`}
           style={{
-            background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primary}88)`,
+            background: `linear-gradient(135deg, var(--store-primary), color-mix(in srgb, var(--store-primary) 53%, transparent))`,
           }}
         />
       )}
@@ -135,7 +135,7 @@ function HeroSection({
             <Link
               href={ctaLink || `/store/${storeSlug}/products`}
               className="inline-block mt-4 px-6 py-2.5 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: theme.colors.primary }}
+              style={{ backgroundColor: 'var(--store-primary)' }}
             >
               {ctaText}
             </Link>
@@ -166,7 +166,6 @@ function FeaturedProductsSection({
   const title = (content.title as string) || "Featured Products";
   const count = Number(content.count) || 8;
   const displayProducts = products.slice(0, count);
-  const primaryColor = theme.colors.primary;
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -180,7 +179,7 @@ function FeaturedProductsSection({
         <Link
           href={`/store/${storeSlug}/products`}
           className="text-sm font-medium hover:underline"
-          style={{ color: primaryColor }}
+          style={{ color: 'var(--store-primary)' }}
         >
           View all
         </Link>
@@ -197,7 +196,6 @@ function FeaturedProductsSection({
               key={product.id}
               product={product}
               storeSlug={storeSlug}
-              primaryColor={primaryColor}
               cardStyle={theme.layout.cardStyle}
               formatPrice={formatPrice}
             />
@@ -266,7 +264,7 @@ function TestimonialsSection({
   return (
     <section
       className="py-12"
-      style={{ backgroundColor: `${theme.colors.primary}08` }}
+      style={{ backgroundColor: `color-mix(in srgb, var(--store-primary) 3%, transparent)` }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2
@@ -281,8 +279,8 @@ function TestimonialsSection({
               key={idx}
               className="rounded-xl p-6"
               style={{
-                backgroundColor: theme.colors.background,
-                border: `1px solid ${theme.colors.text}10`,
+                backgroundColor: 'var(--store-background)',
+                border: `1px solid color-mix(in srgb, var(--store-text) 6%, transparent)`,
               }}
             >
               {item.rating && item.rating > 0 && (
@@ -291,7 +289,7 @@ function TestimonialsSection({
                     <svg
                       key={i}
                       className="w-4 h-4"
-                      fill={i < item.rating! ? theme.colors.primary : `${theme.colors.text}20`}
+                      fill={i < item.rating! ? 'var(--store-primary)' : `color-mix(in srgb, var(--store-text) 12%, transparent)`}
                       viewBox="0 0 20 20"
                     >
                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -337,14 +335,14 @@ function NewsletterSection({
             placeholder="Enter your email"
             className="flex-1 rounded-lg border px-4 py-2.5 text-sm focus:outline-none"
             style={{
-              backgroundColor: theme.colors.background,
-              borderColor: `${theme.colors.text}20`,
+              backgroundColor: 'var(--store-background)',
+              borderColor: `color-mix(in srgb, var(--store-text) 12%, transparent)`,
             }}
             readOnly
           />
           <span
             className="px-5 py-2.5 rounded-lg text-white font-medium text-sm cursor-default"
-            style={{ backgroundColor: theme.colors.primary }}
+            style={{ backgroundColor: 'var(--store-primary)' }}
           >
             Subscribe
           </span>
@@ -380,8 +378,8 @@ function ContactSection({
       <div
         className="max-w-lg mx-auto rounded-xl p-6"
         style={{
-          backgroundColor: `${theme.colors.primary}06`,
-          border: `1px solid ${theme.colors.text}10`,
+          backgroundColor: `color-mix(in srgb, var(--store-primary) 2%, transparent)`,
+          border: `1px solid color-mix(in srgb, var(--store-text) 6%, transparent)`,
         }}
       >
         <div className="space-y-4">
@@ -395,7 +393,7 @@ function ContactSection({
                 <a
                   href={`mailto:${email}`}
                   className="text-sm hover:underline"
-                  style={{ color: theme.colors.primary }}
+                  style={{ color: 'var(--store-primary)' }}
                 >
                   {email}
                 </a>
@@ -409,7 +407,7 @@ function ContactSection({
               </svg>
               <div>
                 <p className="text-xs font-medium opacity-50 mb-0.5">Phone</p>
-                <a href={`tel:${phone}`} className="text-sm hover:underline" style={{ color: theme.colors.primary }}>
+                <a href={`tel:${phone}`} className="text-sm hover:underline" style={{ color: 'var(--store-primary)' }}>
                   {phone}
                 </a>
               </div>
@@ -446,8 +444,6 @@ function CategoryShowcaseSection({
 }) {
   if (categories.length === 0) return null;
 
-  const primaryColor = theme.colors.primary;
-
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <h2
@@ -466,7 +462,7 @@ function CategoryShowcaseSection({
           >
             <div
               className="aspect-square rounded-xl overflow-hidden mb-2 border transition-all group-hover:shadow-md group-hover:border-transparent"
-              style={{ borderColor: `${theme.colors.text}12` }}
+              style={{ borderColor: `color-mix(in srgb, var(--store-text) 7%, transparent)` }}
             >
               {cat.imageUrl ? (
                 <Image
@@ -480,7 +476,7 @@ function CategoryShowcaseSection({
                 <div
                   className="w-full h-full flex items-center justify-center"
                   style={{
-                    background: `linear-gradient(135deg, ${primaryColor}15, ${primaryColor}08)`,
+                    background: `linear-gradient(135deg, color-mix(in srgb, var(--store-primary) 8%, transparent), color-mix(in srgb, var(--store-primary) 3%, transparent))`,
                   }}
                 >
                   <svg
@@ -535,8 +531,6 @@ function ProductGridSection({
 }) {
   if (products.length === 0 && !emptyMessage) return null;
 
-  const primaryColor = theme.colors.primary;
-
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center justify-between mb-6">
@@ -549,7 +543,7 @@ function ProductGridSection({
         <Link
           href={viewAllHref}
           className="text-sm font-medium hover:underline"
-          style={{ color: primaryColor }}
+          style={{ color: 'var(--store-primary)' }}
         >
           View all
         </Link>
@@ -566,7 +560,6 @@ function ProductGridSection({
               key={product.id}
               product={product}
               storeSlug={storeSlug}
-              primaryColor={primaryColor}
               cardStyle={theme.layout.cardStyle}
               formatPrice={formatPrice}
             />
@@ -603,7 +596,6 @@ export default async function StorePage({ params, searchParams }: StorePageProps
   }
 
   const theme = resolveTheme(store.theme);
-  const primaryColor = theme.colors.primary;
 
   // Parse store settings safely
   let sections: SectionConfig[] = [];
@@ -873,7 +865,7 @@ export default async function StorePage({ params, searchParams }: StorePageProps
             <div
               className="h-32 sm:h-44 w-full"
               style={{
-                background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}cc, ${primaryColor}88)`,
+                background: `linear-gradient(135deg, var(--store-primary), color-mix(in srgb, var(--store-primary) 80%, transparent), color-mix(in srgb, var(--store-primary) 53%, transparent))`,
               }}
             />
           )}
@@ -893,7 +885,7 @@ export default async function StorePage({ params, searchParams }: StorePageProps
               <Link
                 href={`/store/${store.slug}/products`}
                 className="inline-block mt-3 px-5 py-2 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-opacity"
-                style={{ backgroundColor: `${primaryColor}dd` }}
+                style={{ backgroundColor: `color-mix(in srgb, var(--store-primary) 87%, transparent)` }}
               >
                 Shop All Products
               </Link>
@@ -924,7 +916,7 @@ export default async function StorePage({ params, searchParams }: StorePageProps
 
       {/* 4. New Arrivals */}
       {newArrivalsData.length > 0 && (
-        <div style={{ backgroundColor: `${theme.colors.primary}04` }}>
+        <div style={{ backgroundColor: `color-mix(in srgb, var(--store-primary) 2%, transparent)` }}>
           <ProductGridSection
             title="New Arrivals"
             products={newArrivalsData}

@@ -32,6 +32,7 @@ import { REGIONS, getRegionForCountry, getRegionName } from "@/lib/constants/reg
 import { StoreInfoStep } from "@/components/ecommerce/onboarding/store-info-step";
 import { AIBuildStep } from "@/components/ecommerce/onboarding/ai-build-step";
 import { PreviewStep } from "@/components/ecommerce/onboarding/preview-step";
+import { type StoreTemplateConfig } from "@/lib/constants/store-templates";
 
 // ── Types ──
 
@@ -120,6 +121,9 @@ export default function OnboardingPage() {
   // Step 6: Launching
   const [launching, setLaunching] = useState(false);
 
+  // Brand template
+  const [brandTemplate, setBrandTemplate] = useState<StoreTemplateConfig | null>(null);
+
   // ── Init: Fetch store + detect region ──
 
   useEffect(() => {
@@ -186,6 +190,45 @@ export default function OnboardingPage() {
 
       if (userRegion) {
         initPaymentMethods(userRegion);
+      }
+
+      // Fetch brand kit for "My Brand" template
+      try {
+        const brandRes = await fetch("/api/brand");
+        const brandJson = await brandRes.json();
+        if (brandJson.success && brandJson.data.brandKit) {
+          const bk = brandJson.data.brandKit;
+          const bColors = typeof bk.colors === 'string' ? JSON.parse(bk.colors) : (bk.colors || {});
+          const bFonts = typeof bk.fonts === 'string' ? JSON.parse(bk.fonts) : (bk.fonts || {});
+          if (bColors.primary) {
+            setBrandTemplate({
+              id: "my-brand",
+              name: "My Brand",
+              description: bk.name || "Your brand identity",
+              category: "Brand Identity",
+              colors: {
+                primary: bColors.primary || "#4F46E5",
+                secondary: bColors.secondary || "#818CF8",
+                accent: bColors.accent || "#6366F1",
+                background: "#ffffff",
+                text: "#1a1a1a",
+              },
+              fonts: {
+                heading: bFonts?.heading || "Inter",
+                body: bFonts?.body || "Inter",
+              },
+              layout: {
+                productGrid: "3",
+                headerStyle: "minimal",
+                heroStyle: "banner",
+                cardStyle: "rounded",
+                spacing: "normal",
+              },
+            });
+          }
+        }
+      } catch {
+        // Brand kit fetch is optional
       }
     } catch (error) {
       console.error("Failed to initialize onboarding:", error);
@@ -571,6 +614,7 @@ export default function OnboardingPage() {
                 onHeroChange={handleHeroChange}
                 onSaveSettings={handleSavePreviewSettings}
                 onRemoveProduct={handleRemoveProduct}
+                brandTemplate={brandTemplate}
               />
             </div>
           )}

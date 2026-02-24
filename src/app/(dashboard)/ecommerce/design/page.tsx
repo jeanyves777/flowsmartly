@@ -29,6 +29,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { STORE_TEMPLATES_FULL, type StoreTemplateConfig } from "@/lib/constants/store-templates";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -142,6 +150,7 @@ interface Store {
   id: string;
   name: string;
   slug: string;
+  industry: string | null;
   theme: Record<string, unknown>;
   settings: Record<string, unknown>;
 }
@@ -257,6 +266,13 @@ export default function EcommerceDesignPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
   const [previewKey, setPreviewKey] = useState(0);
+  const [brandTemplate, setBrandTemplate] = useState<StoreTemplateConfig | null>(null);
+
+  // AI Store Builder modal state
+  const [showAIBuilderModal, setShowAIBuilderModal] = useState(false);
+  const [aiBuilderStoreName, setAIBuilderStoreName] = useState("");
+  const [aiBuilderIndustry, setAIBuilderIndustry] = useState("");
+  const [aiBuilding, setAIBuilding] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -316,6 +332,45 @@ export default function EcommerceDesignPage() {
         }
       } else {
         setError("No store found. Please create a store first.");
+      }
+
+      // After loading store, fetch brand kit
+      try {
+        const brandRes = await fetch("/api/brand");
+        const brandJson = await brandRes.json();
+        if (brandJson.success && brandJson.data.brandKit) {
+          const bk = brandJson.data.brandKit;
+          const colors = typeof bk.colors === 'string' ? JSON.parse(bk.colors) : bk.colors;
+          const fonts = typeof bk.fonts === 'string' ? JSON.parse(bk.fonts) : bk.fonts;
+          if (colors?.primary) {
+            setBrandTemplate({
+              id: "my-brand",
+              name: "My Brand",
+              description: bk.name || "Your brand identity",
+              category: "Brand Identity",
+              colors: {
+                primary: colors.primary || "#4F46E5",
+                secondary: colors.secondary || "#818CF8",
+                accent: colors.accent || "#6366F1",
+                background: "#ffffff",
+                text: "#1a1a1a",
+              },
+              fonts: {
+                heading: fonts?.heading || "Inter",
+                body: fonts?.body || "Inter",
+              },
+              layout: {
+                productGrid: "3",
+                headerStyle: "minimal",
+                heroStyle: "banner",
+                cardStyle: "rounded",
+                spacing: "normal",
+              },
+            });
+          }
+        }
+      } catch {
+        // Brand kit fetch is optional — ignore errors
       }
     } catch {
       setError("Failed to load store data.");
@@ -541,6 +596,43 @@ export default function EcommerceDesignPage() {
     }
   }
 
+  // ── AI Store Builder ───────────────────────────────────────────────────────
+
+  function openAIBuilderModal() {
+    setAIBuilderStoreName(store?.name || "");
+    setAIBuilderIndustry(store?.industry || "");
+    setShowAIBuilderModal(true);
+  }
+
+  async function handleAIBuildStore() {
+    if (!aiBuilderStoreName.trim() || !aiBuilderIndustry.trim()) return;
+    setAIBuilding(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/ecommerce/ai/build-store", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storeName: aiBuilderStoreName.trim(),
+          industry: aiBuilderIndustry.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowAIBuilderModal(false);
+        setSuccessMessage("Store rebuilt with AI! Refreshing...");
+        await loadStore();
+        setPreviewKey((k) => k + 1);
+      } else {
+        setError(data.error?.message || "AI build failed.");
+      }
+    } catch {
+      setError("Failed to build store with AI.");
+    } finally {
+      setAIBuilding(false);
+    }
+  }
+
   // ── Section Helpers ────────────────────────────────────────────────────────
 
   function toggleSection(id: string) {
@@ -706,6 +798,14 @@ export default function EcommerceDesignPage() {
             <span className="hidden sm:inline">{showPreview ? "Hide" : "Preview"}</span>
           </button>
           <button
+            onClick={openAIBuilderModal}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500 text-white text-sm font-medium hover:from-violet-600 hover:via-purple-600 hover:to-indigo-600 transition-all shadow-sm"
+          >
+            <Sparkles className="h-4 w-4" />
+            <span className="hidden sm:inline">AI Store Builder</span>
+            <span className="sm:hidden">AI Build</span>
+          </button>
+          <button
             onClick={handleGenerateAll}
             disabled={generating}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-medium hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 transition-all"
@@ -779,6 +879,37 @@ export default function EcommerceDesignPage() {
                 <div>
                   <h3 className="text-sm font-semibold mb-3">Templates</h3>
                   <div className="grid grid-cols-2 gap-3">
+                    {brandTemplate && (
+                      <button
+                        key="my-brand"
+                        onClick={() => handleTemplateSelect(brandTemplate)}
+                        className={cn(
+                          "relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md col-span-2",
+                          themeState.template === "my-brand"
+                            ? "border-brand-500 bg-brand-50/50 dark:bg-brand-950/20 shadow-sm"
+                            : "border-transparent bg-card hover:border-muted-foreground/20"
+                        )}
+                      >
+                        {themeState.template === "my-brand" && (
+                          <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-brand-500 flex items-center justify-center">
+                            <Check className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                        <div className="flex items-center gap-3">
+                          <div className="flex gap-1 flex-1">
+                            {[brandTemplate.colors.primary, brandTemplate.colors.secondary, brandTemplate.colors.accent, brandTemplate.colors.background].map(
+                              (color, i) => (
+                                <div key={i} className="h-5 flex-1 rounded-sm border border-black/5" style={{ backgroundColor: color }} />
+                              )
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">MY BRAND</span>
+                          <span className="text-sm font-medium">{brandTemplate.description}</span>
+                        </div>
+                      </button>
+                    )}
                     {STORE_TEMPLATES_FULL.map((tpl) => {
                       const isSelected = themeState.template === tpl.id;
                       return (
@@ -1928,6 +2059,83 @@ export default function EcommerceDesignPage() {
           </div>
         )}
       </div>
+
+      {/* ── AI Store Builder Modal ──────────────────────────────────────────── */}
+      <Dialog open={showAIBuilderModal} onOpenChange={setShowAIBuilderModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-500" />
+              AI Store Builder
+            </DialogTitle>
+            <DialogDescription>
+              Regenerate your entire store with AI. This will create a new theme, content, and products.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="block text-sm font-medium mb-1.5">Store Name</label>
+              <input
+                type="text"
+                value={aiBuilderStoreName}
+                onChange={(e) => setAIBuilderStoreName(e.target.value)}
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                placeholder="My Store"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1.5">Industry</label>
+              <input
+                type="text"
+                value={aiBuilderIndustry}
+                onChange={(e) => setAIBuilderIndustry(e.target.value)}
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                placeholder="e.g. Fashion, Electronics, Food & Beverage"
+              />
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Your brand colors and fonts will be applied automatically if a brand kit is configured.
+            </p>
+
+            {/* Warning */}
+            <div className="flex gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                This will regenerate your store theme, content, and products. Existing draft products will be replaced.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              onClick={() => setShowAIBuilderModal(false)}
+              disabled={aiBuilding}
+              className="inline-flex items-center justify-center px-4 py-2 rounded-lg border text-sm font-medium hover:bg-muted disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAIBuildStore}
+              disabled={aiBuilding || !aiBuilderStoreName.trim() || !aiBuilderIndustry.trim()}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-600 text-white text-sm font-medium hover:from-violet-600 hover:via-purple-600 hover:to-indigo-700 disabled:opacity-50 transition-all"
+            >
+              {aiBuilding ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Building...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Generate
+                </>
+              )}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

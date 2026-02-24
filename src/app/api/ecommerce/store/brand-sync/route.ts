@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { presignAllUrls } from "@/lib/utils/s3-client";
 
 /**
  * POST /api/ecommerce/store/brand-sync
@@ -94,7 +95,7 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      data: {
+      data: await presignAllUrls({
         store: {
           ...updatedStore,
           theme: JSON.parse(updatedStore.theme || "{}"),
@@ -109,7 +110,7 @@ export async function POST() {
           colors,
           fonts,
         },
-      },
+      }),
     });
   } catch (error) {
     console.error("Brand sync error:", error);

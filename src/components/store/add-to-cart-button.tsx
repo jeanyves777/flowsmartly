@@ -75,7 +75,7 @@ export function AddToCartButton({
     setTimeout(() => setAdded(false), 2000);
   }
 
-  const btnColor = primaryColor || "var(--store-color-primary, #0ea5e9)";
+  const btnColor = primaryColor || "var(--store-primary, #0ea5e9)";
 
   return (
     <div className="space-y-4">

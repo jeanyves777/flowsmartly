@@ -95,7 +95,7 @@ function ProductCard({
       href={`/store/${storeSlug}/products/${product.slug}`}
       className={`block overflow-hidden transition-all ${getCardClasses(cardStyle)}`}
       style={{
-        borderColor: isHovered ? primaryColor : undefined,
+        borderColor: isHovered ? 'var(--store-primary)' : undefined,
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -117,7 +117,7 @@ function ProductCard({
       </div>
       <div className="p-3">
         <p className="text-sm font-medium truncate">{product.name}</p>
-        <p className="text-sm font-semibold mt-1" style={{ color: primaryColor }}>
+        <p className="text-sm font-semibold mt-1" style={{ color: 'var(--store-primary)' }}>
           {formatPrice(product.priceCents, product.currency)}
         </p>
       </div>
