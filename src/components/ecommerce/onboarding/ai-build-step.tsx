@@ -18,6 +18,8 @@ interface AIBuildStepProps {
   onToggleGenerateImages?: () => void;
   includeVariants?: boolean;
   onToggleVariants?: () => void;
+  heroMediaType?: "none" | "images" | "video";
+  onChangeHeroMediaType?: (type: "none" | "images" | "video") => void;
   onComplete: (blueprint: unknown) => void;
   onError: (error: string) => void;
 }
@@ -51,6 +53,8 @@ export function AIBuildStep({
   onToggleGenerateImages,
   includeVariants,
   onToggleVariants,
+  heroMediaType,
+  onChangeHeroMediaType,
   onComplete,
   onError,
 }: AIBuildStepProps) {
@@ -159,7 +163,7 @@ export function AIBuildStep({
       <div className="flex flex-col items-center py-8">
         {/* Header Icon */}
         <div className="relative mb-8">
-          <div className="h-20 w-20 rounded-2xl flex items-center justify-center shadow-lg bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-600">
+          <div className="h-20 w-20 rounded-2xl flex items-center justify-center shadow-lg bg-brand-500">
             <Sparkles className="h-10 w-10 text-white" />
           </div>
         </div>
@@ -177,8 +181,8 @@ export function AIBuildStep({
           </h3>
           {BUILD_SUMMARY_ITEMS.map((item) => (
             <div key={item.label} className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-violet-50 dark:bg-violet-950/30 flex items-center justify-center flex-shrink-0">
-                <item.icon className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+              <div className="h-8 w-8 rounded-lg bg-brand-50 dark:bg-brand-950/30 flex items-center justify-center flex-shrink-0">
+                <item.icon className="h-4 w-4 text-brand-600 dark:text-brand-400" />
               </div>
               <span className="text-sm">{item.label}</span>
             </div>
@@ -198,7 +202,7 @@ export function AIBuildStep({
               onClick={onToggleGenerateImages}
               className={cn(
                 "relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0",
-                generateImages ? "bg-violet-500" : "bg-muted"
+                generateImages ? "bg-brand-500" : "bg-muted"
               )}
             >
               <span className={cn(
@@ -219,7 +223,7 @@ export function AIBuildStep({
               onClick={onToggleVariants}
               className={cn(
                 "relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0",
-                includeVariants ? "bg-violet-500" : "bg-muted"
+                includeVariants ? "bg-brand-500" : "bg-muted"
               )}
             >
               <span className={cn(
@@ -230,14 +234,77 @@ export function AIBuildStep({
           </div>
         </div>
 
-        {/* Credits notice */}
-        <p className="text-xs text-muted-foreground mb-6">This will use AI credits</p>
+        {/* Hero Media */}
+        <div className="w-full max-w-sm mb-4">
+          <p className="text-sm font-medium mb-2">Hero Section Media</p>
+          <div className="space-y-2">
+            {([
+              { value: "none" as const, label: "No Media", desc: "Gradient background only" },
+              { value: "images" as const, label: "AI Slideshow", desc: "3-4 hero images (15 credits each)" },
+              { value: "video" as const, label: "AI Video", desc: "8-second Sora video (60 credits)" },
+            ]).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => onChangeHeroMediaType?.(opt.value)}
+                className={cn(
+                  "w-full flex items-center justify-between p-3 rounded-lg border text-left transition-colors",
+                  heroMediaType === opt.value
+                    ? "border-brand-300 bg-brand-50 dark:border-brand-700 dark:bg-brand-950/30"
+                    : "hover:bg-muted"
+                )}
+              >
+                <div>
+                  <p className="text-sm font-medium">{opt.label}</p>
+                  <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                </div>
+                {heroMediaType === opt.value && (
+                  <div className="h-5 w-5 rounded-full bg-brand-500 flex items-center justify-center flex-shrink-0">
+                    <Check className="h-3 w-3 text-white" />
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Dynamic Cost Display */}
+        <div className="w-full max-w-sm mb-6 p-3 rounded-lg bg-muted/50 space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Store generation</span>
+            <span className="font-medium">20 credits</span>
+          </div>
+          {generateImages && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Product images (~8 products)</span>
+              <span className="font-medium">~120 credits</span>
+            </div>
+          )}
+          {heroMediaType === "images" && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Hero slideshow (4 images)</span>
+              <span className="font-medium">60 credits</span>
+            </div>
+          )}
+          {heroMediaType === "video" && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Hero video (8 seconds)</span>
+              <span className="font-medium">60 credits</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between text-sm pt-1 border-t mt-1">
+            <span className="font-medium">Estimated total</span>
+            <span className="font-bold text-brand-600">
+              ~{20 + (generateImages ? 120 : 0) + (heroMediaType === "images" ? 60 : 0) + (heroMediaType === "video" ? 60 : 0)} credits
+            </span>
+          </div>
+        </div>
 
         {/* Start Button */}
         <Button
           onClick={handleStartBuild}
           size="lg"
-          className="gap-2 bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-600 hover:from-violet-600 hover:via-purple-600 hover:to-indigo-700 text-white shadow-lg"
+          className="gap-2 bg-brand-500 hover:bg-brand-600 text-white shadow-lg"
         >
           <Sparkles className="h-5 w-5" />
           Start AI Build
@@ -298,7 +365,7 @@ export function AIBuildStep({
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300",
                 isDone && "bg-emerald-50 dark:bg-emerald-950/30",
-                isActive && "bg-violet-50 dark:bg-violet-950/30",
+                isActive && "bg-brand-50 dark:bg-brand-950/30",
                 !isDone && !isActive && "opacity-40"
               )}
             >
@@ -306,7 +373,7 @@ export function AIBuildStep({
                 className={cn(
                   "h-7 w-7 rounded-full flex items-center justify-center flex-shrink-0 transition-colors",
                   isDone && "bg-emerald-500 text-white",
-                  isActive && "bg-violet-500 text-white",
+                  isActive && "bg-brand-500 text-white",
                   !isDone && !isActive && "bg-muted text-muted-foreground"
                 )}
               >

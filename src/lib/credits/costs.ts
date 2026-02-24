@@ -113,6 +113,7 @@ export const DEFAULT_CREDIT_COSTS = {
   // --- AI Intelligence ---
   AI_DYNAMIC_PRICING: 3,  // AI pricing suggestion (Claude text generation)
   AI_SEO_OPTIMIZE: 3,     // AI SEO optimization per product (Claude text generation)
+  AI_INTELLIGENCE_RESEARCH: 15, // Full store intelligence research (competitors + trends + SEO + recommendations)
 } as const;
 
 /**
@@ -161,6 +162,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_BULK_PRODUCTS: "AI bulk product generation",
   AI_DYNAMIC_PRICING: "AI dynamic pricing suggestion",
   AI_SEO_OPTIMIZE: "AI SEO optimization",
+  AI_INTELLIGENCE_RESEARCH: "AI intelligence research",
 };
 
 /**

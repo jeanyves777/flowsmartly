@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { AIProductGeneratorModal } from "@/components/ecommerce/ai-product-generator-modal";
+import { PageLoader } from "@/components/shared/page-loader";
 import { useToast } from "@/hooks/use-toast";
 
 // ── Types ──
@@ -225,7 +226,7 @@ export default function ProductsListPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowAIGenerator(true)}
-            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-700 hover:to-indigo-700 transition-all"
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors"
           >
             <Sparkles className="h-4 w-4" />
             AI Generate Products
@@ -329,10 +330,7 @@ export default function ProductsListPage() {
       {/* Products Table */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-            <span className="ml-2 text-gray-500">Loading products...</span>
-          </div>
+          <PageLoader tips={["Loading products..."]} />
         ) : products.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4">
             <Package className="w-12 h-12 text-gray-300 mb-3" />

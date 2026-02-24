@@ -27,6 +27,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
+import { PageLoader } from "@/components/shared/page-loader";
 
 // ── Types ──
 
@@ -163,6 +164,17 @@ export default function IntelligencePage() {
   const [storeCurrency, setStoreCurrency] = useState("USD");
   const [storeIndustry, setStoreIndustry] = useState<string | null>(null);
 
+  // ── AI Research State ──
+  const [hasResearched, setHasResearched] = useState<boolean | null>(null);
+  const [latestReport, setLatestReport] = useState<{
+    id: string;
+    status: string;
+    summary: { competitorsFound: number; avgSeoScore: number; trendHighlights: string[]; topRecommendations: string[] } | null;
+    completedAt: string | null;
+    createdAt: string;
+  } | null>(null);
+  const [researchRunning, setResearchRunning] = useState(false);
+
   // ── Pricing Tab State ──
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
@@ -230,6 +242,25 @@ export default function IntelligencePage() {
       }
     }
     loadStore();
+  }, []);
+
+  // Check if research has been done
+  useEffect(() => {
+    async function checkResearch() {
+      try {
+        const res = await fetch("/api/ecommerce/intelligence/research");
+        const data = await res.json();
+        if (data.success) {
+          setHasResearched(data.data.hasResearched);
+          setLatestReport(data.data.latestReport);
+        } else {
+          setHasResearched(false);
+        }
+      } catch {
+        setHasResearched(false);
+      }
+    }
+    checkResearch();
   }, []);
 
   // Load products for pricing tab
@@ -635,6 +666,33 @@ export default function IntelligencePage() {
     }
   }, [activeTab, loadStoreTrending, loadSEOData, loadTrendingForRecs, storeIndustry, trendKeyword]);
 
+  async function handleRunResearch() {
+    setResearchRunning(true);
+    try {
+      const res = await fetch("/api/ecommerce/intelligence/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setHasResearched(true);
+        setLatestReport(data.data.report);
+        toast({ title: "AI Research completed! Your intelligence data has been updated." });
+        // Reload tab data
+        if (selectedProductId) loadPricingData(selectedProductId);
+        loadSEOData();
+        loadStoreTrending();
+        loadTrendingForRecs();
+      } else {
+        toast({ title: data.error?.message || "Research failed", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to run AI research", variant: "destructive" });
+    } finally {
+      setResearchRunning(false);
+    }
+  }
+
   // ── Helper: get selected product ──
   const selectedProduct = products.find((p) => p.id === selectedProductId);
 
@@ -662,14 +720,93 @@ export default function IntelligencePage() {
 
   // ── Render ──
 
+  // Loading state
+  if (hasResearched === null) {
+    return <PageLoader tips={["Loading Intelligence...", "Checking research data..."]} />;
+  }
+
+  // Research running state
+  if (researchRunning) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Intelligence</h1>
+        </div>
+        <PageLoader
+          tips={[
+            "Discovering competitors for your products...",
+            "Analyzing market trends in your industry...",
+            "Running SEO analysis on all products...",
+            "Generating product recommendations...",
+            "Compiling your intelligence report...",
+          ]}
+        />
+      </div>
+    );
+  }
+
+  // First visit - no research done yet
+  if (!hasResearched) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Intelligence</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Pricing analysis, market trends, SEO optimization, and product recommendations.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border-2 border-dashed border-brand-200 dark:border-brand-800/30 bg-brand-50/50 dark:bg-brand-950/10 p-8 md:p-12 text-center">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center mb-6">
+            <Sparkles className="h-8 w-8 text-brand-600 dark:text-brand-400" />
+          </div>
+          <h2 className="text-xl font-bold mb-2">Start AI Research</h2>
+          <p className="text-muted-foreground max-w-md mx-auto mb-6">
+            Let AI analyze your competitors, market trends, SEO health, and product recommendations.
+            After your first research, this runs automatically every week.
+          </p>
+          <button
+            onClick={handleRunResearch}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-brand-500 text-white text-sm font-semibold rounded-lg hover:bg-brand-600 transition-colors"
+          >
+            <Sparkles className="h-5 w-5" />
+            Start AI Research (15 credits)
+          </button>
+          <p className="text-xs text-muted-foreground mt-3">
+            Analyzes all active products, discovers competitors, checks SEO scores, and identifies trends.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Intelligence</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Pricing analysis, market trends, SEO optimization, and product recommendations.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Intelligence</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Pricing analysis, market trends, SEO optimization, and product recommendations.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {latestReport?.completedAt && (
+            <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+              Last: {new Date(latestReport.completedAt).toLocaleDateString("en-US", {
+                month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+              })}
+            </span>
+          )}
+          <button
+            onClick={handleRunResearch}
+            disabled={researchRunning}
+            className="inline-flex items-center gap-2 px-3 py-1.5 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors"
+          >
+            {researchRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            Run Research
+          </button>
+        </div>
       </div>
 
       {/* Tab Bar */}
@@ -680,7 +817,7 @@ export default function IntelligencePage() {
             onClick={() => setActiveTab(tab.id)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2 ${
               activeTab === tab.id
-                ? "bg-blue-600 text-white"
+                ? "bg-brand-600 text-white"
                 : "bg-muted hover:bg-muted/80"
             }`}
           >

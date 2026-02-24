@@ -76,6 +76,8 @@ interface HeroContent {
   ctaText: string;
   ctaLink: string;
   imageUrl?: string;
+  imageUrls?: string[];
+  videoUrl?: string;
 }
 
 interface FeaturedProductsContent {
@@ -1440,6 +1442,42 @@ export default function EcommerceDesignPage() {
                                 placeholder="https://example.com/hero.jpg"
                               />
                             </div>
+                            {/* Hero Media Type */}
+                            <div>
+                              <label className="block text-sm font-medium mb-1.5">Hero Media</label>
+                              <select
+                                value={
+                                  (section.content as HeroContent).videoUrl ? "video" :
+                                  ((section.content as HeroContent).imageUrls as string[] | undefined)?.length ? "slideshow" :
+                                  (section.content as HeroContent).imageUrl ? "image" : "none"
+                                }
+                                onChange={(e) => {
+                                  const type = e.target.value;
+                                  if (type === "none") {
+                                    updateSectionContent(section.id, { imageUrl: "", imageUrls: [], videoUrl: "" });
+                                  }
+                                }}
+                                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                              >
+                                <option value="none">Gradient only</option>
+                                <option value="image">Single image</option>
+                                <option value="slideshow">Image slideshow</option>
+                                <option value="video">Video</option>
+                              </select>
+                            </div>
+                            {/* Video URL */}
+                            {(section.content as HeroContent).videoUrl !== undefined && (
+                              <div>
+                                <label className="block text-sm font-medium mb-1.5">Video URL</label>
+                                <input
+                                  type="text"
+                                  value={(section.content as HeroContent).videoUrl || ""}
+                                  onChange={(e) => updateSectionContent(section.id, { videoUrl: e.target.value })}
+                                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                                  placeholder="https://example.com/hero.mp4"
+                                />
+                              </div>
+                            )}
                           </>
                         )}
 

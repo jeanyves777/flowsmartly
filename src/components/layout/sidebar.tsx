@@ -46,6 +46,7 @@ import {
   Truck,
   MapPin,
   Brain,
+  Rocket,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { COD_REGIONS } from "@/lib/constants/ecommerce";
@@ -570,7 +571,25 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
           );
         })}
 
-        {/* Store link removed — users discover FlowShop from the main ecommerce page */}
+        {/* Start Store — only visible when user has no active store */}
+        {!hasEcommerce && (
+          <Link
+            href="/ecommerce"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+              pathname === "/ecommerce"
+                ? "bg-brand-50 text-brand-700 dark:bg-brand-950/30 dark:text-brand-300"
+                : "text-muted-foreground hover:bg-muted"
+            )}
+          >
+            <Rocket className="h-5 w-5 shrink-0" />
+            {!isCollapsed && (
+              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                Start Store
+              </motion.span>
+            )}
+          </Link>
+        )}
 
         <button
           className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"

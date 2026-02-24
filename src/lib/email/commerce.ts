@@ -210,3 +210,88 @@ export async function sendDeliveryConfirmationEmail(params: {
     html,
   });
 }
+
+/**
+ * Send weekly intelligence report email to the store owner
+ */
+export async function sendIntelligenceWeeklyReport(params: {
+  to: string;
+  ownerName: string;
+  storeName: string;
+  summary: {
+    competitorsFound: number;
+    avgSeoScore: number;
+    trendHighlights: string[];
+    topRecommendations: string[];
+  };
+  competitorData: {
+    products: { productName: string; competitors: { name: string; priceCents: number }[] }[];
+  };
+  seoData: {
+    products: { name: string; score: number }[];
+    averageScore: number;
+  } | null;
+}) {
+  const { to, ownerName, storeName, summary, competitorData, seoData } = params;
+
+  const trendHighlightsHtml = summary.trendHighlights.length > 0
+    ? summary.trendHighlights.map(t => `<li style="padding:4px 0;color:#3f3f46;">${t}</li>`).join("")
+    : `<li style="color:#71717a;">No notable trends this week</li>`;
+
+  const topCompetitors = competitorData.products.slice(0, 5);
+  const competitorHtml = topCompetitors.length > 0
+    ? topCompetitors.map(p =>
+        `<tr><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;">${p.productName}</td><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right;">${p.competitors.length} found</td></tr>`
+      ).join("")
+    : `<tr><td colspan="2" style="padding:8px 0;color:#71717a;">No competitor data</td></tr>`;
+
+  const lowSeoProducts = (seoData?.products || []).filter(p => p.score < 70).slice(0, 5);
+  const seoHtml = lowSeoProducts.length > 0
+    ? lowSeoProducts.map(p =>
+        `<tr><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;">${p.name}</td><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right;">${p.score}/100</td></tr>`
+      ).join("")
+    : `<tr><td colspan="2" style="padding:8px 0;color:#10b981;">All products have good SEO scores!</td></tr>`;
+
+  const recommendationsHtml = summary.topRecommendations.length > 0
+    ? summary.topRecommendations.map(r => `<li style="padding:4px 0;color:#3f3f46;">${r}</li>`).join("")
+    : "";
+
+  const content = `
+    <h2>Weekly Intelligence Report</h2>
+    <p>Hi ${ownerName}, here's your weekly FlowShop intelligence summary for <strong>${storeName}</strong>.</p>
+
+    <div class="stats-box">
+      <table style="width:100%;">
+        <tr><td style="padding:6px 0;color:#71717a;">Competitors Tracked</td><td style="padding:6px 0;text-align:right;font-weight:600;">${summary.competitorsFound}</td></tr>
+        <tr><td style="padding:6px 0;color:#71717a;">Average SEO Score</td><td style="padding:6px 0;text-align:right;font-weight:600;">${summary.avgSeoScore}/100</td></tr>
+      </table>
+    </div>
+
+    <h3 style="margin-top:24px;">Trend Highlights</h3>
+    <ul style="padding-left:20px;">${trendHighlightsHtml}</ul>
+
+    <h3 style="margin-top:24px;">Competitor Overview</h3>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="border-bottom:2px solid #e4e4e7;"><th style="padding:8px 0;text-align:left;font-size:13px;color:#71717a;">Product</th><th style="padding:8px 0;text-align:right;font-size:13px;color:#71717a;">Competitors</th></tr></thead>
+      <tbody>${competitorHtml}</tbody>
+    </table>
+
+    <h3 style="margin-top:24px;">SEO Attention Needed</h3>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="border-bottom:2px solid #e4e4e7;"><th style="padding:8px 0;text-align:left;font-size:13px;color:#71717a;">Product</th><th style="padding:8px 0;text-align:right;font-size:13px;color:#71717a;">Score</th></tr></thead>
+      <tbody>${seoHtml}</tbody>
+    </table>
+
+    ${recommendationsHtml ? `<h3 style="margin-top:24px;">Recommendations</h3><ul style="padding-left:20px;">${recommendationsHtml}</ul>` : ""}
+
+    <div style="text-align:center;margin-top:32px;">
+      <a href="${APP_URL}/ecommerce/intelligence" style="display:inline-block;background:#3b82f6;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Full Report</a>
+    </div>
+  `;
+
+  return sendEmail({
+    to,
+    subject: `Weekly Intelligence Report | ${storeName}`,
+    html: baseTemplate(content, `Your weekly intelligence report for ${storeName} is ready`),
+  });
+}

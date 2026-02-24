@@ -14,6 +14,7 @@ import {
   Eye,
 } from "lucide-react";
 import { ORDER_STATUSES } from "@/lib/constants/ecommerce";
+import { PageLoader } from "@/components/shared/page-loader";
 
 interface Order {
   id: string;
@@ -253,10 +254,7 @@ export default function OrdersPage() {
       {/* Orders Table */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />
-            <p className="mt-3 text-sm text-gray-500">Loading orders...</p>
-          </div>
+          <PageLoader tips={["Loading orders..."]} />
         ) : orders.length === 0 ? (
           <div className="p-12 text-center">
             <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />

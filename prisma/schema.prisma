@@ -2972,6 +2972,7 @@ model Store {
   drivers                DeliveryDriver[]
   paymentMethods         StorePaymentMethod[]
   domains                StoreDomain[]
+  intelligenceReports    IntelligenceReport[]
 
   @@index([slug])
   @@index([userId])
@@ -3279,6 +3280,32 @@ model PricingRule {
   updatedAt   DateTime  @updatedAt
 
   product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// INTELLIGENCE REPORTS
+// ============================================
+
+model IntelligenceReport {
+  id                 String    @id @default(cuid())
+  storeId            String
+  triggeredBy        String    // "manual" | "cron"
+  status             String    @default("running") // "running" | "completed" | "failed"
+  competitorData     String?   // JSON
+  trendData          String?   // JSON
+  seoData            String?   // JSON
+  recommendationData String?   // JSON
+  summary            String?   // JSON: { competitorsFound, avgSeoScore, trendHighlights[], topRecommendations[] }
+  creditsUsed        Int       @default(0)
+  errorMessage       String?
+  startedAt          DateTime  @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  store              Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, createdAt])
 }
 
 // ============================================

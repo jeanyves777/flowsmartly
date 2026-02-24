@@ -9,7 +9,6 @@ import {
   Truck,
   CreditCard,
   BarChart3,
-  Loader2,
   Check,
   ArrowRight,
   Globe,
@@ -22,6 +21,7 @@ import {
   Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageLoader } from "@/components/shared/page-loader";
 import { useToast } from "@/hooks/use-toast";
 import { StripeProvider } from "@/components/providers/stripe-provider";
 import { SubscriptionCheckoutModal } from "@/components/ecommerce/subscription-checkout-modal";
@@ -137,14 +137,7 @@ export default function EcommercePage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Loading FlowShop...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader tips={["Loading FlowShop..."]} />;
   }
 
   return (

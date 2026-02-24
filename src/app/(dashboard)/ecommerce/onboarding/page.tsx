@@ -19,6 +19,7 @@ import {
   Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageLoader } from "@/components/shared/page-loader";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -97,6 +98,7 @@ export default function OnboardingPage() {
   const [existingSiteUrl, setExistingSiteUrl] = useState("");
   const [generateImages, setGenerateImages] = useState(false);
   const [includeVariants, setIncludeVariants] = useState(true);
+  const [heroMediaType, setHeroMediaType] = useState<"none" | "images" | "video">("none");
 
   // Step 2: AI build
   const [aiBuildComplete, setAiBuildComplete] = useState(false);
@@ -291,6 +293,13 @@ export default function OnboardingPage() {
       generateProductImagesForBuild(d.productIds);
     }
 
+    // Generate hero media if selected
+    if (heroMediaType === "images") {
+      generateHeroSlideshow();
+    } else if (heroMediaType === "video") {
+      generateHeroVideoForStore();
+    }
+
     // Fetch products created by AI
     fetchPreviewProducts();
 
@@ -327,6 +336,61 @@ export default function OnboardingPage() {
             });
           }
         } catch { /* continue with next product */ }
+      }
+    } catch { /* non-critical */ }
+  }
+
+  async function generateHeroSlideshow() {
+    try {
+      const prompts = [
+        `Wide cinematic hero banner for a ${industry} e-commerce store called "${storeName}". Professional, modern, lifestyle photography. 16:9 aspect ratio.`,
+        `Beautiful product showcase banner for ${industry} brand "${storeName}". Clean, premium feel, hero section. 16:9.`,
+        `Lifestyle hero image for ${industry} online store "${storeName}". Warm lighting, aspirational. 16:9.`,
+        `Brand banner for "${storeName}" ${industry} store. Modern design, clean composition, hero section. 16:9.`,
+      ];
+      const imageUrls: string[] = [];
+      for (const prompt of prompts) {
+        try {
+          const res = await fetch("/api/ecommerce/ai/product-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productName: prompt, style: "lifestyle" }),
+          });
+          const json = await res.json();
+          if (json.success && json.data?.imageUrl) {
+            imageUrls.push(json.data.imageUrl);
+          }
+        } catch { /* continue */ }
+      }
+      if (imageUrls.length > 0) {
+        // Save to store settings hero section
+        await fetch("/api/ecommerce/store/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            settings: { heroImageUrls: imageUrls },
+          }),
+        });
+      }
+    } catch { /* non-critical */ }
+  }
+
+  async function generateHeroVideoForStore() {
+    try {
+      const res = await fetch("/api/ecommerce/ai/hero-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storeName, industry }),
+      });
+      const json = await res.json();
+      if (json.success && json.data?.videoUrl) {
+        await fetch("/api/ecommerce/store/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            settings: { heroVideoUrl: json.data.videoUrl },
+          }),
+        });
       }
     } catch { /* non-critical */ }
   }
@@ -539,14 +603,7 @@ export default function OnboardingPage() {
   // ── Loading ──
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Preparing your store setup...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader tips={["Preparing your store setup..."]} />;
   }
 
   // ── Derived ──
@@ -637,6 +694,8 @@ export default function OnboardingPage() {
               onToggleGenerateImages={() => setGenerateImages((p) => !p)}
               includeVariants={includeVariants}
               onToggleVariants={() => setIncludeVariants((p) => !p)}
+              heroMediaType={heroMediaType}
+              onChangeHeroMediaType={setHeroMediaType}
               onComplete={handleAIBuildComplete}
               onError={(err) => {
                 toast({

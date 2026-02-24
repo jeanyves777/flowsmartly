@@ -5,6 +5,7 @@ import { Metadata } from "next";
 import { prisma } from "@/lib/db/client";
 import { resolveTheme, type ResolvedTheme } from "@/lib/store/theme-utils";
 import { ProductCard, type ProductCardData } from "@/components/store/product-card";
+import { HeroSlideshow, HeroVideo } from "@/components/store/hero-media";
 
 interface StorePageProps {
   params: Promise<{ slug: string }>;
@@ -101,14 +102,25 @@ function HeroSection({
   const ctaText = (content.ctaText as string) || "";
   const ctaLink = (content.ctaLink as string) || "";
   const imageUrl = content.imageUrl as string | undefined;
+  const imageUrls = (content.imageUrls as string[]) || [];
+  const videoUrl = content.videoUrl as string | undefined;
 
   const heightClasses = compact ? "h-36 sm:h-44" : "h-48 sm:h-56";
 
+  // Determine media type
+  const hasVideo = !!videoUrl;
+  const hasSlideshow = imageUrls.length > 1;
+  const hasSingleImage = !!imageUrl && !hasSlideshow;
+
   return (
     <section className="relative">
-      {imageUrl ? (
+      {hasVideo ? (
+        <HeroVideo videoUrl={videoUrl!} heightClasses={heightClasses} />
+      ) : hasSlideshow ? (
+        <HeroSlideshow imageUrls={imageUrls} headline={headline} heightClasses={heightClasses} />
+      ) : hasSingleImage ? (
         <div className={`${heightClasses} w-full relative`}>
-          <Image src={imageUrl} alt={headline || "Hero"} fill className="object-cover" priority />
+          <Image src={imageUrl!} alt={headline || "Hero"} fill className="object-cover" priority />
           <div className="absolute inset-0 bg-black/40" />
         </div>
       ) : (
