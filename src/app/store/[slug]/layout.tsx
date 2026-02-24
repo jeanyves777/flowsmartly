@@ -142,9 +142,9 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                     <Image
                       src={logoUrl}
                       alt={store.name}
-                      width={48}
+                      width={160}
                       height={48}
-                      className="h-12 w-12 rounded-lg object-cover"
+                      className="h-12 w-auto max-w-[160px] object-contain"
                     />
                   ) : (
                     <div
@@ -212,9 +212,9 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                   <Image
                     src={logoUrl}
                     alt={store.name}
-                    width={44}
+                    width={160}
                     height={44}
-                    className="h-11 w-11 rounded-lg object-cover"
+                    className="h-11 w-auto max-w-[160px] object-contain"
                   />
                 ) : (
                   <div className="h-11 w-11 rounded-lg flex items-center justify-center bg-white/20">
@@ -275,9 +275,9 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                   <Image
                     src={logoUrl}
                     alt={store.name}
-                    width={40}
+                    width={160}
                     height={40}
-                    className="h-10 w-10 rounded-lg object-cover"
+                    className="h-10 w-auto max-w-[160px] object-contain"
                   />
                 ) : (
                   <div
@@ -378,7 +378,7 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
             <div>
               <div className="flex items-center gap-2 mb-3">
                 {logoUrl ? (
-                  <Image src={logoUrl} alt={store.name} width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
+                  <Image src={logoUrl} alt={store.name} width={120} height={32} className="h-8 w-auto max-w-[120px] object-contain" />
                 ) : (
                   <div className="h-8 w-8 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: 'var(--store-primary)' }}>
                     <ShoppingBag className="h-4 w-4" />

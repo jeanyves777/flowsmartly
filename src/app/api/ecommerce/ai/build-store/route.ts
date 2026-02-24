@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     // Get user's store
     const store = await prisma.store.findUnique({
       where: { userId: session.userId },
-      select: { id: true, currency: true, region: true },
+      select: { id: true, currency: true, region: true, settings: true },
     });
 
     if (!store) {
@@ -138,6 +138,11 @@ export async function POST(request: NextRequest) {
       layout: themeLayout,
     });
 
+    // Parse existing settings to preserve user preferences (e.g. showBrandName)
+    let existingSettings: Record<string, unknown> = {};
+    try { existingSettings = JSON.parse((store.settings as string) || "{}"); } catch {}
+    const existingStoreContent = (existingSettings.storeContent || {}) as Record<string, unknown>;
+
     // Build settings JSON from blueprint content
     // Sections format must match the store page renderer: { id, enabled, order, content }
     // Product-first layout: hero (compact) -> categories -> featured -> new arrivals -> deals -> about
@@ -195,6 +200,7 @@ export async function POST(request: NextRequest) {
         },
       ],
       storeContent: {
+        ...existingStoreContent,
         tagline: blueprint.content.tagline,
         aboutUs: blueprint.content.about.body,
         returnPolicy: blueprint.content.returnPolicy,
