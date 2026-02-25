@@ -1,0 +1,406 @@
+# FLOWSMARTLY AI-POWERED E-COMMERCE PLATFORM — COMPLETE FEATURE PLAN
+
+Version 2.0 | February 2026 | General Computing Solutions
+
+---
+
+## 1. EXECUTIVE SUMMARY
+
+FlowSmartly E-Commerce (FlowShop) is a fully AI-powered, modular e-commerce engine embedded within the FlowSmartly ecosystem. It enables any FlowSmartly user to launch a fully branded, competitive online store with AI autopilot handling everything from store creation to product sourcing, pricing optimization, and advertising.
+
+The e-commerce module is activated as an add-on subscription ($5/month) on top of the user's existing FlowSmartly plan. Upon activation, the user's brand identity is indexed into the AI engine, and the left sidebar toggles to reveal a dedicated e-commerce management interface. Users can switch between Social Suite and E-Commerce Store modes at any time.
+
+**Key Differentiators:**
+
+- AI-First Architecture: Every feature is AI-powered from the ground up, not bolted on
+- FlowSmartly Ecosystem Integration: Unified social media + e-commerce + advertising in one platform
+- Brand Identity Indexing: Store automatically matches social media brand identity for consistent AI insights
+- Region-Aware Payments: Supports mobile money (M-Pesa, Orange Money, MTN MoMo, Wave), cash on delivery, cash at pickup, and traditional card payments based on the user's selected region
+- Zero-to-Store in Minutes: AI autopilot builds a complete store from just a brand profile
+- Google Trends Native: Product discovery powered by real search demand data
+- Competitor Pricing Intelligence: Real-time monitoring that most e-commerce platforms don't offer
+
+---
+
+## 2. ACTIVATION & SUBSCRIPTION MODEL
+
+### 2.1 Pricing Model
+
+The e-commerce feature is an additional subscription layered on top of the user's current FlowSmartly plan. There are no separate e-commerce pricing tiers.
+
+- E-Commerce Add-On: $5/month — Charged in addition to current plan (Starter, Pro, or Enterprise)
+- Payment Processing: Stripe standard fees — 2.9% + $0.30 per transaction (varies by region and payment method)
+- Custom Domain SSL: Included — Automatic via Cloudflare
+- AI Credits: Uses plan allocation — AI features consume credits from the user's existing plan
+- Cancellation: Anytime — Store deactivated, data retained 90 days
+
+### 2.2 Activation UX Flow
+
+1. User clicks "E-Commerce" link in the left sidebar (visible in Social Suite mode)
+2. Agreement Page displays: feature list, $5/month pricing, terms of service, and brand identity indexing consent
+3. User checks agreement box and clicks "Enable E-Commerce — $5/month"
+4. System charges the additional $5/month to the user's payment method on file
+5. User enters the 6-step onboarding wizard
+6. Upon completion, the left sidebar toggles to display the full E-Commerce menu
+7. A toggle switch (Social / Store) appears at the top of the sidebar for switching between modes
+
+### 2.3 Sidebar Toggle Behavior
+
+Once e-commerce is activated, the left sidebar displays a toggle at the top with two modes:
+
+- Social Mode: Shows the standard FlowSmartly social media management menu (Content Studio, Scheduler, Social Accounts, Ad Campaigns, Inbox, Analytics, etc.)
+- Store Mode: Shows the dedicated e-commerce menu (Store Dashboard, My Store, Products, Orders, Customers, Pricing Intel, Product Discovery, Ads & Feeds, Store Design, Payments, Analytics, AI Autopilot, Store Settings)
+
+A "Back to Social Suite" link is always visible at the bottom of the Store menu for quick navigation.
+
+---
+
+## 3. ONBOARDING & SETUP WIZARD
+
+The onboarding wizard consists of 6 sequential steps. Each step must be completed before proceeding to the next. The progress bar is visible throughout.
+
+### Step 1: Region & Location
+
+Purpose: Determine the user's operating region and country to unlock the correct payment methods, tax rules, shipping providers, and currency defaults for their market.
+
+This is the most critical step because it directly controls which payment methods are available. In many regions, particularly across Africa, the Middle East, and parts of Asia and the Caribbean, traditional credit card payments are not the primary method. Mobile money and cash on delivery are essential for reaching customers.
+
+**Supported Regions:**
+
+- North America (United States, Canada, Mexico): Cards, Apple Pay, Google Pay, PayPal, Buy Now Pay Later
+- Europe (UK, France, Germany, Spain, Italy, Netherlands, Other EU): Cards, SEPA, iDEAL, Klarna, Cash on Delivery
+- West Africa (Côte d'Ivoire, Nigeria, Ghana, Senegal, Cameroon, Mali, Burkina Faso, Togo, Benin, Guinea): Orange Money, MTN MoMo, Wave, Cash on Delivery, Cash at Pickup, Flutterwave, Paystack
+- East Africa (Kenya, Tanzania, Uganda, Rwanda, Ethiopia, DRC Congo): M-Pesa, Airtel Money, Tigo Pesa, Cash on Delivery, Cash at Pickup, Flutterwave
+- Southern Africa (South Africa, Zimbabwe, Mozambique, Botswana, Namibia): Cards, EFT, SnapScan, EcoCash, PayFast, Cash on Delivery
+- Middle East & North Africa (UAE, Saudi Arabia, Egypt, Morocco, Tunisia, Qatar, Kuwait): Cards, STC Pay, Fawry, Tabby BNPL, Cash on Delivery
+- Asia Pacific (India, Philippines, Indonesia, Thailand, Vietnam, Malaysia, Singapore, Japan, Australia): Cards, UPI, GCash, GrabPay, DANA/OVO/GoPay, Cash on Delivery
+- Caribbean & Latin America (Haiti, Jamaica, Trinidad, Dominican Republic, Brazil, Colombia, Other): Cards, PIX, MonCash, NatCash, Cash on Delivery, Cash at Pickup
+
+### Step 2: Payment Methods
+
+Based on the selected region, the system pre-selects the recommended payment methods. Users can toggle each method on or off. Payment methods are organized into three categories:
+
+**Online Payments:** Traditional digital payments processed entirely online. Includes credit/debit cards via Stripe, PayPal, SEPA bank transfers, iDEAL, PIX, and regional gateways like Flutterwave and Paystack. Funds are automatically captured and settled.
+
+**Mobile Money:** Mobile wallet-based payments common in Africa, Asia, and the Caribbean. Includes M-Pesa, Orange Money, MTN Mobile Money, Wave, Airtel Money, GCash, GrabPay, UPI, MonCash, NatCash, and others. These operate via USSD or mobile apps and are often the primary payment method for customers who don't have bank accounts or credit cards.
+
+**Cash & In-Person Payments:** Physical cash payments collected at the point of delivery or pickup. This includes:
+
+- Cash on Delivery (COD): The customer pays cash to the delivery rider or courier when the item arrives at their door. This is the dominant payment method in many African, Middle Eastern, and South Asian markets.
+- Cash at Pickup Point: The customer pays cash at a designated pickup location, collection point, or agent. Common in markets with limited last-mile delivery infrastructure.
+
+**Important:** When cash or in-person payment methods are enabled, the store owner must manually mark orders as "paid" once cash is collected. The system sends a notification for each cash order requiring payment confirmation. This is clearly communicated during onboarding and on the Store Dashboard.
+
+### Step 3: Brand Identity Sync
+
+The system automatically detects and extracts the user's brand identity from their existing FlowSmartly profile:
+
+- Visual Identity: Logo (primary + icon), brand colors (primary, secondary, accent, background, text), typography (heading font, body font, weights, sizes)
+- Brand Voice: Tone (professional, casual, luxury, playful, minimal, bold), personality traits, writing style preferences, emoji usage
+- Business Context: Industry, target audience demographics, competitors, unique selling points
+
+The user also provides their Store Name and selects their Industry from a dropdown. This data, combined with the extracted brand identity, is stored as the Brand Identity object and used by all AI modules throughout the platform.
+
+### Step 4: Product Strategy
+
+The user selects one of three approaches for populating their product catalog:
+
+1. AI Product Discovery: Let AI find trending products based on Google Trends, search volume data, competitor analysis, and market demand signals. Best for users who want to start selling quickly with data-driven product selection.
+2. My Own Products: Upload an existing product catalog via CSV, manual entry, or API integration. Best for users who already have products to sell.
+3. Hybrid Approach: Combine the user's own products with AI-recommended additions based on their niche, trends, and market gaps. Best for users who want to expand their catalog intelligently.
+
+### Step 5: Store Address
+
+The user chooses between two domain options:
+
+- FlowSmartly Subdomain (Free): storename.flowsmartly.com — Instant setup, automatic SSL, CDN included, zero configuration
+- Custom Domain: www.mybrandstore.com — DNS verification (CNAME or A record), automatic SSL provisioning via Cloudflare, full white-label with no FlowSmartly branding
+
+### Step 6: AI Indexing & Launch
+
+The final step runs the AI indexing pipeline that processes all collected data and configures the AI engine. The user sees a live progress indicator as each stage completes:
+
+1. Extracting brand colors & typography from profile
+2. Analyzing content voice & tone from social posts
+3. Mapping audience demographics from social data
+4. Configuring regional payment gateways based on selected methods
+5. Building product recommendation model based on niche and brand
+6. Indexing social performance data for ad optimization
+7. Generating store theme from brand DNA
+8. Setting up delivery & payment rules for the selected region
+
+Upon completion, the user is presented with a success screen confirming: brand indexed, payment methods configured, AI models active. They click "Go to My Store" and the sidebar toggles to Store mode.
+
+---
+
+## 4. REUSABLE AI MODULE SYSTEM
+
+Every AI capability is built as an independent, reusable module with a standard interface. This allows any module to be used across the FlowSmartly ecosystem (e-commerce, social media, advertising, email) without duplication.
+
+- Store Builder AI — Auto-generates entire store from brand identity — Reusable in: FlowShop
+- Product Discovery AI — Finds trending products via Google Trends + Search — Reusable in: FlowShop, Social Feed
+- Product Copy AI — Generates SEO-optimized titles, descriptions, bullets — Reusable in: FlowShop, Ads, Social
+- Product Image AI — Enhances, generates, removes backgrounds for product photos — Reusable in: FlowShop, Social Feed
+- Pricing Intelligence AI — Dynamic pricing based on competitors, demand, margins — Reusable in: FlowShop
+- Competitor Monitor AI — Scrapes and compares competitor prices in real-time — Reusable in: FlowShop
+- Recommendation Engine — Personalized product suggestions (collaborative + content filtering) — Reusable in: FlowShop, Ads, Email
+- SEO Optimizer AI — Meta tags, structured data, content optimization — Reusable in: FlowShop, Social
+- Ad Creative AI — Generates ad copy + visuals from product data — Reusable in: Ads System, FlowShop
+- Ad Targeting AI — Audience discovery and bid optimization — Reusable in: Ads System
+- Brand Identity AI — Extracts/generates brand colors, fonts, voice, style — Reusable in: All FlowSmartly
+- Inventory Forecast AI — Predicts demand and optimal stock levels — Reusable in: FlowShop
+- Customer Support AI — AI chatbot trained on store products and policies — Reusable in: FlowShop
+- Review Analysis AI — Sentiment analysis, fake review detection, summary — Reusable in: FlowShop
+- Commerce Email AI — Abandoned cart, upsell, win-back email sequences — Reusable in: FlowShop, Email
+
+Each module follows a standard interface: execute (single input), stream (real-time generation), executeBatch (bulk processing), recordFeedback (learning loop), and getVariant (A/B testing). All modules accept an AIContext object that includes the user's brand identity, locale, and preferences.
+
+---
+
+## 5. PRODUCT MANAGEMENT SYSTEM
+
+### 5.1 Product Data Model
+
+Each product contains the following data groups:
+
+- Core Info: Title, slug, rich description, short description (160 chars)
+- AI-Generated Content: SEO title, SEO description, bullet points, long description, social caption, ad copy variants, generation metadata
+- Media: Multiple images with alt text, videos, AI-enhanced versions
+- Pricing: Base price, compare-at price, cost price, currency, tax category, dynamic pricing config (enabled, min/max, strategy, current optimal), competitor prices array
+- Variants: Size, color, material options with independent pricing, SKU, and inventory
+- Inventory: Tracked/untracked, quantity, low stock threshold, backorder policy, SKU, barcode
+- Shipping: Weight, dimensions, requires shipping flag, shipping class
+- SEO: Meta title, meta description, canonical URL, JSON-LD structured data, Open Graph data
+- Analytics: Views, add-to-cart, purchases, conversion rate, average rating, review count, revenue
+- AI Recommendations: Related products, frequently bought together, upsell products, cross-sell products
+
+### 5.2 AI Product Discovery
+
+The Product Discovery AI integrates with Google Trends API and Google Search data to identify trending products with high demand and acceptable competition levels.
+
+For each trending product, the system provides: keyword, search volume, trend direction (rising/stable/declining), trend score (0-100), competition level, estimated margin, supplier suggestions, related keywords, and seasonality data.
+
+The AI also analyzes competitor catalogs by scraping their product pages to identify gaps and opportunities in the user's market.
+
+### 5.3 Recommendation Engine
+
+The recommendation engine uses a three-signal ensemble approach:
+
+- Collaborative Filtering: User-to-user and item-to-item similarity based on purchase history and browsing patterns
+- Content-Based Filtering: Product attribute matching, description NLP vectors, image similarity
+- Contextual Signals: Time of day, device type, location, weather, season, current cart items
+
+These three signals are combined by an ML ensemble ranker that applies weighted scoring, diversity filtering, and business rules to produce personalized feeds: For You, Trending, Recently Viewed, Frequently Bought Together, and Similar Items.
+
+---
+
+## 6. PRICING INTELLIGENCE & COMPETITOR MONITORING
+
+### 6.1 Competitor Price Scraping
+
+Store owners can add competitors to monitor. The system scrapes competitor product pages on a configurable schedule (hourly, daily, or weekly) and matches products by SKU, title, barcode, or image similarity.
+
+For each matched product, the system tracks: competitor name, current price, URL, stock status, last check time, and full price history.
+
+### 6.2 Dynamic Pricing Strategies
+
+- Beat Lowest: Automatically price below the lowest competitor by a fixed amount or percentage. Best for commodity products, price-sensitive markets.
+- Match Average: Price at the market average to avoid being too cheap or too expensive. Best for established brands, trust-based products.
+- Premium Positioning: Price above competitors to signal higher quality. Best for luxury, handmade, or unique products.
+- Dynamic Demand: Adjust price based on demand elasticity and conversion data. Best for seasonal products, high-volume items.
+- Margin Target: Maintain a specific profit margin regardless of competitor moves. Best for cost-sensitive businesses, thin-margin products.
+
+All strategies enforce constraints: minimum price, maximum price, never-below-cost protection, and price rounding rules (to .99, .95, or .00).
+
+### 6.3 Pricing Dashboard
+
+The dashboard displays: overall pricing health score, market position map (cheapest to premium), price change alerts, price history charts, margin analysis, and AI recommendations with expected revenue/margin/conversion impact for each pricing change.
+
+---
+
+## 7. ADVERTISEMENT INTEGRATION
+
+The e-commerce system integrates directly with FlowSmartly's existing ad campaign engine. Product data flows automatically into ad feeds and creative generation.
+
+### 7.1 Product Feed Generator
+
+The system auto-generates and maintains product feeds in the required format for each advertising platform:
+
+- Google Shopping Feed (XML/TSV)
+- Facebook / Instagram Catalog (JSON)
+- TikTok Product Feed
+- Pinterest Product Pins
+- FlowSmartly Internal Ad Feed
+
+Each feed is kept in sync with real-time inventory levels, dynamic pricing updates, and AI-optimized titles and descriptions tailored per platform. Images are automatically resized to meet each platform's specifications.
+
+### 7.2 AI Ad Campaign Creation
+
+The AI Ad Creative module generates ad copy and visuals directly from product data. For each product, it can produce multiple ad variants for A/B testing across platforms. The AI Targeting module discovers optimal audiences using lookalike modeling and interest-based targeting, while the AI Budget Optimizer allocates spend based on ROAS targets with automatic dayparting and scaling.
+
+---
+
+## 8. STOREFRONT & THEME ENGINE
+
+### 8.1 Template Library
+
+- Luxe — Fashion, Jewelry, Beauty — Full-bleed imagery, elegant typography, lookbook layout
+- Fresh — Food, Health, Organic — Clean design, green accents, recipe integration, subscription-ready
+- Tech — Electronics, Gadgets, SaaS — Spec comparison tables, feature highlights, dark mode
+- Craft — Handmade, Art, Vintage — Story-driven, maker profiles, artisan feel
+- Sport — Athletic, Outdoor, Fitness — Dynamic imagery, size guides, performance metrics
+- Minimal — Any niche — Ultra-clean, whitespace-focused, product-forward
+- Mega — Large catalogs, Marketplace — Advanced filtering, mega menus, quick compare
+- Local — Small business, Services — Map integration, booking, local SEO optimized
+- Digital — Downloads, Courses, Templates — Instant delivery, preview, license management
+- Subscription — Boxes, SaaS, Memberships — Subscription management, recurring billing, member portal
+
+### 8.2 Mobile-First Design Requirements
+
+All stores are built mobile-first with the following performance targets: Lighthouse Score 90+ on all metrics, First Contentful Paint under 1.5 seconds, Largest Contentful Paint under 2.5 seconds, and Total Blocking Time under 200 milliseconds.
+
+Mobile UX features include: sticky bottom "Add to Cart" bar, thumb-friendly navigation zones, swipeable product image gallery, pull-to-refresh, progressive image loading, offline-capable browsing via PWA, touch-optimized filters, Apple Pay and Google Pay one-tap checkout, bottom sheet cart preview, and haptic feedback on interactions.
+
+### 8.3 Custom Domain Support
+
+Users can either use a free FlowSmartly subdomain (storename.flowsmartly.com) or connect their own custom domain. Custom domains receive automatic SSL provisioning via Cloudflare, custom email forwarding, and full white-label treatment with no FlowSmartly branding. DNS verification requires a simple CNAME or A record configuration.
+
+---
+
+## 9. CORE COMMERCE ENGINE
+
+- Cart: Persistent cart, guest cart, cart recovery, quantity limits, minimum/maximum order, cart notes
+- Checkout: Multi-step or one-page, guest checkout, address autocomplete, order summary, promo codes, express checkout (Apple Pay/Google Pay)
+- Payments: Stripe Connect, mobile money integrations, cash on delivery, cash at pickup, PayPal, Buy Now Pay Later, region-specific methods
+- Orders: Full lifecycle management, status tracking, order notes, partial fulfillment, refunds, exchanges, manual payment confirmation for cash orders
+- Shipping: Real-time carrier rates (USPS/UPS/FedEx), flat rate, free shipping rules, local pickup, shipping zones, delivery area configuration for COD
+- Tax: Auto-calculate via TaxJar/Avalara, tax-exempt customers, EU VAT handling, region-specific tax rules
+- Inventory: Real-time tracking, low stock alerts, multi-location support, reserved stock, backorder management
+- Customers: Customer accounts, order history, saved addresses, wishlists, loyalty points, customer groups
+- Discounts: Percentage off, fixed amount, BOGO, bundle pricing, volume discounts, automatic discounts, scheduled sales
+- Reviews: Star ratings, photo reviews, verified buyer badges, AI moderation, automated review request emails
+- Notifications: Order confirmation, shipping updates, delivery confirmation, review requests, abandoned cart recovery, cash payment reminders
+- Returns: Return requests, RMA generation, return shipping labels, refund processing, exchange handling
+- Subscriptions: Recurring orders, subscription management, skip/pause functionality, product swaps
+- Gift Cards: Digital gift cards, balance management, custom designs
+- Multi-Currency: Auto-detect, manual selection, forex rate updates, currency-specific pricing
+- Multi-Language: AI-translated product content, locale detection, RTL support
+
+---
+
+## 10. REGION-SPECIFIC PAYMENT METHODS — DEEP DIVE
+
+Payment availability varies dramatically by region. FlowSmartly's region selection during onboarding is what determines which payment methods are offered.
+
+### 10.1 Mobile Money Integration
+
+Mobile money is the primary digital payment method across much of Sub-Saharan Africa, with over 600 million registered accounts continent-wide. FlowSmartly integrates with major mobile money providers through aggregator APIs:
+
+- M-Pesa — Kenya, Tanzania, DRC, Mozambique, Egypt — Via Safaricom Daraja API / Flutterwave — Real-time to T+1
+- Orange Money — Côte d'Ivoire, Senegal, Mali, Cameroon, Guinea, Burkina Faso — Via Orange Money API / Flutterwave — T+1
+- MTN Mobile Money — Ghana, Uganda, Rwanda, Cameroon, Benin, Côte d'Ivoire — Via MTN MoMo API / Flutterwave — T+1
+- Wave — Senegal, Côte d'Ivoire, Mali, Burkina Faso — Via Wave Business API — Real-time
+- Airtel Money — Kenya, Uganda, Tanzania, Rwanda, DRC — Via Airtel Money API / Flutterwave — T+1
+- MonCash — Haiti — Via Digicel MonCash API — T+1
+- NatCash — Haiti — Via Natcom NatCash API — T+1
+- GCash — Philippines — Via GCash API / PayMongo — Real-time
+- GrabPay — Singapore, Malaysia, Philippines, Thailand — Via GrabPay API — T+1
+- UPI — India — Via Razorpay / Stripe India — Real-time
+
+### 10.2 Cash on Delivery (COD) System
+
+Cash on delivery is essential in markets where digital payment adoption is still growing or where customer trust in online payments is low. The COD system works as follows:
+
+1. Customer selects "Cash on Delivery" at checkout
+2. Order is created with financial_status = "pending" and payment_method = "cod"
+3. Store owner receives notification: "New COD order #1234 — collect [amount] on delivery"
+4. Order is fulfilled and shipped/dispatched for delivery
+5. Delivery driver/courier collects cash from customer
+6. Store owner (or delivery partner) marks order as "Paid" in the dashboard or via mobile notification
+7. System updates financial_status to "paid" and triggers confirmation email/SMS to customer
+
+**COD Configuration Options:**
+
+- Maximum COD Order Value: Set a ceiling to limit cash exposure (e.g., no COD for orders above $100)
+- COD Delivery Zones: Restrict COD to specific geographic areas where you have reliable delivery partners
+- COD Fee: Optionally charge a small fee for COD orders to offset the operational cost
+- COD Verification: Require customer phone verification before accepting COD orders
+- Auto-Cancel Window: Automatically cancel unpaid COD orders after a configurable number of days
+
+### 10.3 Cash at Pickup Point
+
+For markets with limited last-mile delivery, customers can pay cash at a designated pickup location:
+
+- Store owner defines pickup points (their own store, partner locations, delivery agents)
+- Customer selects a pickup point during checkout
+- System generates a unique pickup code sent via SMS or email
+- Customer arrives at pickup point, presents code, pays cash, and receives item
+- Agent marks order as "Paid & Collected" using a simple mobile interface
+
+---
+
+## 11. BRAND IDENTITY INDEXING FOR AI INSIGHTS
+
+When the e-commerce module is activated and the onboarding is completed, the user's brand identity is indexed into the AI engine. This indexing process creates a comprehensive brand profile that powers all AI modules across the platform.
+
+### 11.1 What Gets Indexed
+
+- Visual Identity: Logo variants, primary/secondary/accent colors, heading and body fonts, spacing and radius preferences
+- Brand Voice: Tone (professional, casual, luxury, etc.), personality traits (trustworthy, innovative, warm), writing style (sentence length, vocabulary level, emoji usage)
+- Audience Data: Demographics from social followers, engagement patterns, geographic distribution, interests
+- Content Performance: Top-performing social posts, engagement rates, content types that resonate, optimal posting times
+- Industry Context: Detected industry, identified competitors, unique selling points
+- Regional Context: Selected region, country, available payment methods, currency, language preferences
+
+### 11.2 How Indexing Powers AI Features
+
+- Store Theme Generation: Colors, fonts, and spacing are applied to the selected template to create a store that matches the brand perfectly
+- Product Descriptions: AI writes copy in the brand's voice and tone, matching vocabulary level and style preferences
+- Product Recommendations: AI understands the brand's target audience to suggest products that fit the brand identity
+- Ad Creative Generation: Ad copy and visuals match the brand's visual identity and messaging style
+- Pricing Intelligence: AI considers the brand's positioning (premium vs. value) when suggesting pricing strategies
+- SEO Optimization: Meta descriptions and content are written in the brand's voice while optimizing for search
+- Email Sequences: Abandoned cart, welcome, and promotional emails match the brand's tone and visual style
+- Customer Support Chatbot: AI responds to customer questions in the brand's voice with product-specific knowledge
+
+---
+
+## 12. IMPLEMENTATION ROADMAP
+
+- Phase 1: Foundation (Weeks 1–4) — Database schema, Store CRUD API, Product management API, Brand Identity extraction, Basic storefront rendering (Next.js), Subdomain routing, FlowSmartly auth integration
+- Phase 2: AI Store Builder (Weeks 5–8) — AI Brand Identity analyzer, Theme engine with 5 starter templates, AI Store Builder autopilot, AI Product Copy generator, AI Product Image enhancer, Section-based page builder, Mobile-first responsive system
+- Phase 3: Commerce Engine (Weeks 9–12) — Cart & checkout, Stripe Connect, Order management, Inventory tracking, Shipping calculator, Tax auto-calculation, Email notifications, Customer accounts, Region-based payment integration, COD system, Mobile money integration
+- Phase 4: Intelligence (Weeks 13–16) — Google Trends integration, Product recommendation engine, Competitor price scraping, AI dynamic pricing, Pricing comparison dashboard, SEO auto-optimization, Analytics dashboard
+- Phase 5: Ad Bridge (Weeks 17–20) — Product feed generator (Google, Facebook, TikTok), FlowSmartly Ads integration, AI ad creative generator, Retargeting pixel integration, Cross-platform campaign management, ROAS tracking
+- Phase 6: Advanced Features (Weeks 21–24) — Custom domain support, Multi-currency & multi-language, Subscription commerce, AI customer support chatbot, Review system, Gift cards & loyalty, Advanced discounts, PWA optimization
+- Phase 7: Scale & Launch (Weeks 25–28) — Performance optimization (Lighthouse 90+), Load testing & auto-scaling, Advanced analytics, A/B testing framework, API documentation, Security audit & compliance, Launch
+
+**Total estimated timeline: 28 weeks (~7 months) from start to full launch.**
+
+---
+
+## 13. TECHNOLOGY STACK
+
+- Storefront: Next.js 14+ (App Router) — SSR/SSG for SEO, React Server Components, edge rendering
+- Mobile: React Native + PWA — Native-feel on all devices with offline capability
+- API: Node.js / FastAPI hybrid — Node for real-time operations, Python for ML pipelines
+- Database: PostgreSQL + TimescaleDB — Relational data + time-series for pricing/analytics history
+- Cache: Redis Cluster — Cart sessions, rate limiting, real-time inventory
+- Search: Meilisearch or Typesense — Instant product search with typo tolerance
+- Queue: BullMQ (Redis-backed) — Background jobs: AI generation, competitor scraping, feed sync
+- Storage: Cloudflare R2 (S3-compatible) — Product images, assets, store themes, generated media
+- CDN: Cloudflare — Global edge delivery, custom domain SSL, image optimization
+- AI/ML: OpenAI + custom fine-tuned models — Product descriptions, recommendations, pricing optimization
+- Payments: Stripe Connect + regional providers — Multi-vendor splits, mobile money aggregation, COD tracking
+
+---
+
+## 14. SUMMARY
+
+FlowSmartly E-Commerce (FlowShop) transforms FlowSmartly from a social media management platform into a complete social commerce ecosystem. By integrating AI-powered store building, Google Trends-driven product discovery, real-time competitor pricing, unified ad feeds, and region-aware payment methods including mobile money and cash on delivery, FlowSmartly offers a uniquely competitive e-commerce solution that serves users across North America, Europe, Africa, the Middle East, Asia, the Caribbean, and Latin America.
+
+The $5/month add-on pricing, layered on top of existing plans, makes the feature accessible while maintaining a clear revenue stream. The modular AI architecture ensures that every AI capability built for e-commerce is reusable across the entire FlowSmartly platform, maximizing development ROI.
+
+The 28-week implementation roadmap provides a clear path from foundation to launch, with each phase delivering usable functionality that can be tested and refined before the next phase begins.
+
+— End of Document —

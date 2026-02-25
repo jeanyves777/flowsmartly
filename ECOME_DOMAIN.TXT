@@ -1,0 +1,369 @@
+## UPDATED E-COMMERCE SUBSCRIPTION PLANS
+
+### Plan A: FlowShop Basic — $5/month
+
+- Full AI-powered e-commerce store
+- AI Store Builder autopilot
+- Full product management with AI content generation
+- Google Trends & Search product discovery
+- Competitor pricing comparison & dynamic pricing
+- Ad feed integration (Google Shopping, Facebook, TikTok)
+- Mobile-first responsive storefront
+- AI product recommendations
+- Region-aware payments (mobile money, COD, cards)
+- Free FlowSmartly subdomain (storename.flowsmartly.com)
+- Connect your own domain (BYOD) — user handles DNS
+- No free domain included — user can purchase a domain through FlowSmartly at marketplace pricing or bring their own
+
+### Plan B: FlowShop Pro — $12/month
+
+Everything in FlowShop Basic, plus:
+
+- 1 FREE domain included (up to $14.99/year value — covers .com, .store, .shop, .online, .co)
+- Domain auto-configured, SSL auto-provisioned, zero setup
+- WHOIS privacy protection included
+- Auto-renewal included (domain renews free as long as the $12/month subscription is active)
+- Priority AI processing (faster store generation, product discovery, ad creative)
+- Advanced analytics dashboard
+- AI customer support chatbot for the store
+- Abandoned cart recovery email sequences
+- If user cancels the $12/month plan, domain reverts to standard renewal pricing ($14.99/year billed separately) or user can transfer domain out for free
+
+**Why $12/month makes sense:** The user is essentially paying $7/month more than the basic plan. That's $84/year extra. A .com domain costs FlowSmartly ~$10/year from Cloudflare. So FlowSmartly earns ~$74/year net from the upgrade — far more than the $4.88/year markup from selling the domain separately. The user feels like they're getting a deal because they see "1 FREE domain" and they're paying less than buying the $5/month plan + a $14.99/year domain separately ($5 x 12 + $14.99 = $74.99/year vs $12 x 12 = $144/year, but the user gets more features and the domain feels free).
+
+---
+
+## HOW THE DOMAIN INTEGRATES INTO THE EXISTING STORE FLOW
+
+### Integration Point 1: Onboarding Step 5 (Store Address)
+
+The current Step 5 asks users to choose between subdomain or custom domain. With the new plans, this step now becomes plan-aware:
+
+**If user is on FlowShop Basic ($5/month):**
+
+```
+🌐 Store Address
+
+Choose how customers will find your store:
+
+[Option 1] FlowSmartly Subdomain (Free)
+  mystore.flowsmartly.com — instant setup
+
+[Option 2] Buy a Domain — starting at $9.99/year
+  Search and register a domain right here
+  (charged separately to your payment method)
+
+[Option 3] Connect My Own Domain (Free)
+  I already own a domain — show me DNS instructions
+
+💡 Upgrade to FlowShop Pro ($12/month) to get 1 FREE domain included
+```
+
+**If user is on FlowShop Pro ($12/month):**
+
+```
+🌐 Store Address — 1 FREE Domain Included with Your Plan!
+
+Choose how customers will find your store:
+
+[Option 1] Claim Your Free Domain ⭐
+  Search and register — included with your Pro plan
+  (no extra charge, auto-renews free while subscribed)
+
+[Option 2] FlowSmartly Subdomain (Free)
+  mystore.flowsmartly.com — instant setup
+  (you can claim your free domain later in Store Settings)
+
+[Option 3] Connect My Own Domain (Free)
+  I already own a domain — show me DNS instructions
+  (your free domain credit stays available for later use)
+```
+
+### Integration Point 2: Agreement Page Update
+
+The agreement page now shows both plan options before the user activates:
+
+```
+🛍️ Enable E-Commerce
+
+Choose your plan:
+
+┌──────────────────────────┐  ┌──────────────────────────────┐
+│  FlowShop Basic          │  │  FlowShop Pro ⭐ BEST VALUE  │
+│  $5/month                │  │  $12/month                   │
+│                          │  │                              │
+│  ✅ Full AI store        │  │  ✅ Everything in Basic      │
+│  ✅ Product management   │  │  ✅ 1 FREE domain (.com etc) │
+│  ✅ Google Trends        │  │  ✅ Priority AI processing   │
+│  ✅ Competitor pricing   │  │  ✅ Advanced analytics       │
+│  ✅ Ad integration       │  │  ✅ AI customer support bot  │
+│  ✅ Free subdomain       │  │  ✅ Abandoned cart recovery  │
+│  ✅ BYOD domain support  │  │  ✅ WHOIS privacy           │
+│                          │  │                              │
+│  [Select Basic]          │  │  [Select Pro]                │
+└──────────────────────────┘  └──────────────────────────────┘
+
+Added to your current FlowSmartly subscription • Cancel anytime
+```
+
+### Integration Point 3: Store Settings — Domain Management Page
+
+After activation, the Domain page in Store Settings adapts to the user's plan:
+
+**FlowShop Basic user sees:**
+
+```
+🌐 Domain Management
+
+Current: mystore.flowsmartly.com (active ✅)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🛒 Buy a Domain
+Search for your perfect domain name
+Starting at $9.99/year
+
+[Search domain...] [Search]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔗 Connect My Own Domain
+Already have a domain? Connect it here
+[Enter your domain...] [Connect]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 Upgrade to FlowShop Pro ($12/month) to get
+   1 FREE domain + advanced features
+   [Upgrade Now]
+```
+
+**FlowShop Pro user who hasn't claimed their free domain yet:**
+
+```
+🌐 Domain Management
+
+Current: mystore.flowsmartly.com (active ✅)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎁 Claim Your FREE Domain
+You have 1 free domain included with your Pro plan!
+Search and register — no extra charge
+
+[Search domain...] [Search]
+
+Eligible TLDs: .com, .store, .shop, .online, .co
+(up to $14.99/year value — free while subscribed)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔗 Connect My Own Domain
+Already have a domain? Connect it here
+[Enter your domain...] [Connect]
+```
+
+**FlowShop Pro user who already claimed their free domain:**
+
+```
+🌐 Domain Management
+
+Primary Domain: www.mybrandstore.com (active ✅ SSL ✅)
+  🎁 Free with Pro plan — auto-renews while subscribed
+  Expires: Feb 23, 2027 (auto-renew ON)
+  WHOIS Privacy: Enabled
+  SSL: Valid until Mar 2026 (auto-renews)
+
+Subdomain: mystore.flowsmartly.com (redirects to primary ✅)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🛒 Buy Additional Domains
+Need another domain? Purchase at marketplace pricing
+Starting at $9.99/year
+[Search domain...] [Search]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚙️ Domain Settings
+[Change Primary Domain]
+[Manage DNS Records] (auto-managed for purchased domains)
+[Disconnect Domain]
+```
+
+### Integration Point 4: Billing & Subscription Page
+
+The user's billing page reflects the e-commerce add-on clearly:
+
+```
+📋 Your Subscriptions
+
+FlowSmartly Pro Plan .............. $29/month
+FlowShop Pro Add-On .............. $12/month
+  └ Includes: 1 free domain (mybrandstore.com)
+───────────────────────────────────────────
+Total Monthly ..................... $41/month
+
+Next billing date: March 23, 2026
+Payment method: Visa ending in 4242
+
+Additional charges:
+  Extra domain (myotherbrand.store) .. $9.99/year
+  Next renewal: Feb 23, 2027
+```
+
+### Integration Point 5: Cancellation & Downgrade Logic
+
+**If FlowShop Pro user downgrades to FlowShop Basic:**
+
+1. User receives warning: "Your free domain (mybrandstore.com) will no longer be included. It will convert to a paid domain at $14.99/year, billed on your next domain renewal date. You can also transfer your domain to another registrar for free."
+2. If user confirms downgrade: plan drops to $5/month, domain stays active but flagged for paid renewal
+3. 30 days before domain renewal, user gets email: "Your domain mybrandstore.com will renew at $14.99. [Renew] [Transfer Out] [Let Expire]"
+
+**If FlowShop Pro user cancels e-commerce entirely:**
+
+1. User receives warning about both store deactivation and domain status
+2. Store is deactivated, data retained for 90 days
+3. Domain remains registered (Cloudflare still manages it) — user gets option to: renew at $14.99/year as standalone, transfer to another registrar for free, or let it expire
+4. Subdomain stops working immediately upon cancellation
+
+**If FlowShop Basic user cancels:**
+
+1. Store deactivated, data retained 90 days
+2. Any purchased domains remain registered — renewal at marketplace pricing
+3. Subdomain stops working immediately
+
+### Integration Point 6: Upgrade Nudges Throughout the Platform
+
+Strategic points where Basic users see Pro upgrade prompts:
+
+- **Store Dashboard:** Banner at top: "Upgrade to Pro — Get a FREE domain + AI chatbot + abandoned cart recovery"
+- **Domain Settings:** When they try to buy a domain: "This domain costs $14.99/year, or upgrade to Pro ($12/month) and get it FREE"
+- **Analytics:** "Unlock Advanced Analytics with FlowShop Pro"
+- **Orders:** When they get their first abandoned cart: "You just lost a sale! FlowShop Pro includes automatic abandoned cart recovery emails"
+- **After 30 days on Basic:** Email: "You've been running your store for 30 days! Here's what you're missing on Pro..."
+
+### Integration Point 7: AI Indexing Step Update (Onboarding Step 6)
+
+The AI indexing step now also includes domain configuration when a domain was selected:
+
+**FlowShop Basic (no domain purchased):**
+1. Extracting brand colors & typography
+2. Analyzing content voice & tone
+3. Mapping audience demographics
+4. Configuring regional payment gateways
+5. Building product recommendation model
+6. Indexing social performance data
+7. Generating store theme from brand DNA
+8. Setting up delivery & payment rules
+9. Configuring subdomain routing
+10. Store ready for launch!
+
+**FlowShop Pro (free domain claimed):**
+1. Extracting brand colors & typography
+2. Analyzing content voice & tone
+3. Mapping audience demographics
+4. Configuring regional payment gateways
+5. Registering domain via Cloudflare (mybrandstore.com)
+6. Configuring DNS records automatically
+7. Provisioning SSL certificate
+8. Building product recommendation model
+9. Indexing social performance data
+10. Generating store theme from brand DNA
+11. Setting up delivery & payment rules
+12. Enabling AI customer support chatbot
+13. Configuring abandoned cart recovery
+14. Store ready for launch on mybrandstore.com!
+
+---
+
+## REVENUE MODEL SUMMARY
+
+**Per user monthly revenue scenarios:**
+
+- FlowSmartly Pro ($29) + FlowShop Basic ($5) = $34/month = $408/year
+- FlowSmartly Pro ($29) + FlowShop Pro ($12) = $41/month = $492/year
+- FlowSmartly Pro ($29) + FlowShop Basic ($5) + domain purchase ($14.99/yr) = $34/month + $14.99/year = $422.99/year
+- FlowSmartly Enterprise ($49) + FlowShop Pro ($12) = $61/month = $732/year
+
+**At scale (assuming 60% Basic / 40% Pro split across e-commerce users):**
+
+- 1,000 e-commerce users: 600 × $5 + 400 × $12 = $7,800/month = $93,600/year
+- 5,000 e-commerce users: 3,000 × $5 + 2,000 × $12 = $39,000/month = $468,000/year
+- 10,000 e-commerce users: 6,000 × $5 + 4,000 × $12 = $78,000/month = $936,000/year
+
+Plus domain markup revenue on top of that ($5-7 per domain per year for purchased domains).
+
+---
+
+USER BUYS DOMAIN IN FLOWSMARTLY
+         │
+         ▼
+┌─────────────────────────┐
+│      OpenSRS API         │
+│  (Domain Registration)   │
+│                          │
+│  • Search availability   │
+│  • Register domain       │
+│  • Set nameservers to    │
+│    Cloudflare            │
+│  • Handle renewals       │
+│  • Domain transfers      │
+│  • WHOIS privacy         │
+└──────────┬──────────────┘
+           │ Nameservers pointed to
+           │ ns1.cloudflare.com
+           │ ns2.cloudflare.com
+           ▼
+┌─────────────────────────┐
+│     Cloudflare API       │
+│  (DNS / CDN / SSL)       │
+│                          │
+│  • Create DNS zone       │
+│  • Add A/CNAME records   │
+│  • Auto-provision SSL    │
+│  • CDN edge caching      │
+│  • DDoS protection       │
+│  • Performance optimize  │
+└──────────┬──────────────┘
+           │
+           ▼
+┌─────────────────────────┐
+│  FlowSmartly Store Live  │
+│  on custom domain        │
+│  with SSL + CDN          │
+└─────────────────────────┘
+
+STEP 1 — User searches "mybrandstore"
+
+  → OpenSRS API: lookup domain availability
+  → Returns: mybrandstore.com ✅ $10.11
+              mybrandstore.store ✅ $3.00
+              mybrandstore.shop ✅ $11.00
+  → FlowSmartly displays with YOUR markup:
+              mybrandstore.com — $14.99/year
+              mybrandstore.store — $9.99/year
+              mybrandstore.shop — $16.99/year
+
+STEP 2 — User clicks "Purchase mybrandstore.com"
+
+  → OpenSRS API: register domain
+  → Set nameservers: ns1.cloudflare.com, ns2.cloudflare.com
+  → Enable WHOIS privacy
+  → Deducts ~$10.11 from your OpenSRS prepaid balance
+
+STEP 3 — Auto-configure Cloudflare
+
+  → Cloudflare API: create zone for mybrandstore.com
+  → Cloudflare API: add DNS records
+      A record → FlowSmartly server IP
+      CNAME www → stores.flowsmartly.com
+  → SSL auto-provisions (15-30 minutes)
+
+STEP 4 — Store is live
+
+  → mybrandstore.com serves the user's FlowSmartly store
+  → Full SSL, CDN, DDoS protection via Cloudflare
+
+  SUMMARY — WHAT TO CREATE NOW
+AccountLinkCostPurposeOpenSRS Reselleropensrs.com/joinFree signup, prepaid balance for domainsDomain search, registration, renewal, transfer APICloudflaredash.cloudflare.com/sign-upFree planDNS zones, SSL, CDN, edge routing for all stores
