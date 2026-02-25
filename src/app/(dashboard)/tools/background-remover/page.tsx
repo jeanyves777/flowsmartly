@@ -745,9 +745,9 @@ export default function BackgroundRemoverStudio() {
   const hasChanges = historyIndex > 0;
 
   return (
-    <div className="fixed inset-0 top-16 flex flex-col bg-muted/30">
-      {/* ═══ TOP AI TOOLS NAVIGATION - STICKY ═══ */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-6 py-3 shrink-0">
+    <div className="h-screen flex flex-col bg-muted/30">
+      {/* ═══ TOP AI TOOLS NAVIGATION ═══ */}
+      <div className="bg-background border-b border-border px-6 py-3 shrink-0">
         <div className="flex items-center gap-1 overflow-x-auto">
           {AI_TOOLS.map((tool) => {
             const Icon = tool.icon;
