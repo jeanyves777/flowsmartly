@@ -168,14 +168,18 @@ export default function BackgroundRemoverStudio() {
       setIsLoaded(false);
       setLoadError(null);
 
-      const imageUrl = selectedImage.processedUrl || selectedImage.originalUrl;
+      let imageUrl = selectedImage.processedUrl || selectedImage.originalUrl;
       console.log("[Load] Starting image load:", imageUrl);
       console.log("[Load] Image ID:", selectedImage.id);
 
-      const img = new Image();
+      // Use proxy for external URLs (S3, etc) to avoid CORS
+      if (imageUrl.startsWith("http") && !imageUrl.startsWith(window.location.origin)) {
+        const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+        console.log("[Load] Using proxy for external URL");
+        imageUrl = proxyUrl;
+      }
 
-      // Simple CORS handling
-      img.crossOrigin = "anonymous";
+      const img = new Image();
 
       const loadTimeout = setTimeout(() => {
         if (!isCancelled) {
@@ -1090,17 +1094,19 @@ export default function BackgroundRemoverStudio() {
               ) : (
                 <div className="relative w-full h-full flex items-center justify-center">
                   <div
-                    className="relative inline-block rounded-xl overflow-hidden border-2 border-border shadow-2xl"
+                    className="relative inline-block rounded-xl overflow-hidden border-2 border-border shadow-2xl max-w-full max-h-full"
                     style={checkerboardStyle}
                     onMouseLeave={() => setCursorPos(null)}
                   >
                     <canvas
                       ref={canvasRef}
-                      className="block"
+                      className="block max-w-full max-h-full"
                       style={{
                         cursor: "none",
-                        maxWidth: "calc(100vw - 400px)",
-                        maxHeight: "calc(100vh - 250px)",
+                        width: "auto",
+                        height: "auto",
+                        maxWidth: "100%",
+                        maxHeight: "calc(100vh - 300px)",
                         transform: `scale(${zoom})`,
                         transformOrigin: "center",
                       }}
