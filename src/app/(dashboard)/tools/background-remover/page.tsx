@@ -822,9 +822,9 @@ export default function BackgroundRemoverStudio() {
   const hasChanges = historyIndex > 0;
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-muted/20 via-background to-muted/20">
+    <div className="fixed inset-0 flex flex-col bg-gradient-to-br from-muted/20 via-background to-muted/20 overflow-hidden">
       {/* ═══ TOP AI TOOLS NAVIGATION ═══ */}
-      <div className="bg-background/95 backdrop-blur-sm border-b border-border/50 px-6 py-3 shrink-0 z-30">
+      <div className="bg-background/95 backdrop-blur-sm border-b border-border/50 px-6 py-3 shrink-0 z-30 sticky top-0">
         <div className="flex items-center gap-2 overflow-x-auto">
           {AI_TOOLS.map((tool) => {
             const Icon = tool.icon;
@@ -1068,11 +1068,11 @@ export default function BackgroundRemoverStudio() {
                   <>
                     <Button
                       onClick={handleAIRemove}
-                      className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white shadow-md"
+                      className="bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-md shadow-brand-500/20"
                       size="sm"
                     >
                       <Sparkles className="w-4 h-4 mr-2" />
-                      AI Remove Background
+                      AI Remove
                     </Button>
 
                     <div className="flex gap-1 border border-border/50 rounded-lg p-0.5 bg-muted/30">
@@ -1248,7 +1248,7 @@ export default function BackgroundRemoverStudio() {
 
       {/* ═══ BOTTOM NAVIGATION BAR ═══ */}
       {isLoaded && !isProcessingAI && (
-        <div className="bg-background/95 backdrop-blur-sm border-t border-border/50 px-6 py-4 shrink-0 z-30">
+        <div className="bg-background/95 backdrop-blur-sm border-t border-border/50 px-6 py-4 shrink-0 z-30 sticky bottom-0">
           <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">

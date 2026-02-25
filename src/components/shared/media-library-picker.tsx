@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Play,
   FileText,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +81,7 @@ export function MediaLibraryPicker({
   const [total, setTotal] = useState(0);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const limit = 12;
 
   // Determine the media kind for labels
@@ -216,6 +218,46 @@ export function MediaLibraryPicker({
     }
     setPage(1);
     setSelectedFile(null);
+  };
+
+  // Handle file upload
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      const uploadedFiles: MediaFile[] = [];
+
+      for (const file of Array.from(fileList)) {
+        const formData = new FormData();
+        formData.append("file", file);
+        if (activeFolderId) {
+          formData.append("folderId", activeFolderId);
+        }
+
+        const res = await fetch("/api/media", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (data.success && data.data?.file) {
+          uploadedFiles.push(data.data.file);
+        }
+      }
+
+      if (uploadedFiles.length > 0) {
+        // Refresh the file list
+        fetchFiles();
+      }
+    } catch (error) {
+      console.error("Upload failed:", error);
+    } finally {
+      setIsUploading(false);
+      // Reset input
+      e.target.value = "";
+    }
   };
 
   // Get visible folders for current location
@@ -460,28 +502,58 @@ export function MediaLibraryPicker({
 
           {/* Footer */}
           <div className="flex items-center justify-between p-4 border-t border-border bg-muted/30">
-            <div className="text-sm text-muted-foreground">
-              {multiSelect ? (
-                selectedFiles.length > 0 ? (
+            <div className="flex items-center gap-3">
+              <div className="text-sm text-muted-foreground">
+                {multiSelect ? (
+                  selectedFiles.length > 0 ? (
+                    <span>
+                      <strong>{selectedFiles.length}</strong> {mediaLabel}{selectedFiles.length !== 1 ? "s" : ""} selected
+                      {maxSelection && (
+                        <span className="ml-1 text-xs">(max {maxSelection})</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span>Click {mediaLabel}s to select them{maxSelection ? ` (max ${maxSelection})` : ""}</span>
+                  )
+                ) : selectedFile ? (
                   <span>
-                    <strong>{selectedFiles.length}</strong> {mediaLabel}{selectedFiles.length !== 1 ? "s" : ""} selected
-                    {maxSelection && (
-                      <span className="ml-1 text-xs">(max {maxSelection})</span>
+                    Selected: <strong>{selectedFile.originalName}</strong>
+                    {selectedFile.size > 0 && (
+                      <span className="ml-2 text-xs">({formatSize(selectedFile.size)})</span>
                     )}
                   </span>
                 ) : (
-                  <span>Click {mediaLabel}s to select them{maxSelection ? ` (max ${maxSelection})` : ""}</span>
-                )
-              ) : selectedFile ? (
-                <span>
-                  Selected: <strong>{selectedFile.originalName}</strong>
-                  {selectedFile.size > 0 && (
-                    <span className="ml-2 text-xs">({formatSize(selectedFile.size)})</span>
-                  )}
-                </span>
-              ) : (
-                <span>Click a {mediaLabel} to select it</span>
-              )}
+                  <span>Click a {mediaLabel} to select it</span>
+                )}
+              </div>
+              {/* Upload Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => document.getElementById("library-upload-input")?.click()}
+                disabled={isUploading}
+                className="border-brand-200 text-brand-600 hover:bg-brand-50"
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload
+                  </>
+                )}
+              </Button>
+              <input
+                id="library-upload-input"
+                type="file"
+                multiple
+                accept={filterTypes.includes("video") ? "video/*,image/*" : "image/*"}
+                onChange={handleFileUpload}
+                className="hidden"
+              />
             </div>
             <div className="flex gap-2">
               {multiSelect && selectedFiles.length > 0 && (
