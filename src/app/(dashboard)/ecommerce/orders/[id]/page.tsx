@@ -161,7 +161,7 @@ function StatusTimeline({ currentStatus }: { currentStatus: string }) {
       )}
       {isRefunded && (
         <div className="flex items-center gap-3">
-          <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-500 text-white flex-shrink-0">
+          <div className="w-6 h-6 rounded-full flex items-center justify-center bg-muted-foreground text-white flex-shrink-0">
             <DollarSign className="w-4 h-4" />
           </div>
           <span className="text-sm text-foreground font-medium">Refunded</span>
@@ -389,14 +389,14 @@ export default function OrderDetailPage() {
                     <img src={item.imageUrl} alt={item.name} className="w-12 h-12 rounded-lg object-cover border border-border" />
                   ) : (
                     <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center">
-                      <Package className="w-5 h-5 text-gray-400" />
+                      <Package className="w-5 h-5 text-muted-foreground" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
-                    <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
+                    <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
                   </div>
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-foreground">
                     {formatCents(item.priceCents * item.quantity, order.currency)}
                   </p>
                 </div>
@@ -409,21 +409,21 @@ export default function OrderDetailPage() {
             <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">Shipping Address</h2>
             <div className="flex items-start gap-2">
               <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-gray-600">
-                {order.shippingAddress.name && <p className="font-medium text-gray-900">{order.shippingAddress.name}</p>}
+              <div className="text-sm text-muted-foreground">
+                {order.shippingAddress.name && <p className="font-medium text-foreground">{order.shippingAddress.name}</p>}
                 <p>{formatAddress(order.shippingAddress)}</p>
               </div>
             </div>
             {order.trackingNumber && (
               <div className="mt-3 pt-3 border-t border-border">
-                <p className="text-xs text-gray-500">Tracking Number</p>
-                <p className="text-sm font-mono text-gray-900">{order.trackingNumber}</p>
+                <p className="text-xs text-muted-foreground">Tracking Number</p>
+                <p className="text-sm font-mono text-foreground">{order.trackingNumber}</p>
               </div>
             )}
             {order.shippingMethod && (
               <div className="mt-2">
-                <p className="text-xs text-gray-500">Shipping Method</p>
-                <p className="text-sm text-gray-900">{order.shippingMethod}</p>
+                <p className="text-xs text-muted-foreground">Shipping Method</p>
+                <p className="text-sm text-foreground">{order.shippingMethod}</p>
               </div>
             )}
           </div>
@@ -435,13 +435,13 @@ export default function OrderDetailPage() {
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm">
                   <Truck className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-gray-900 font-medium">{order.deliveryAssignment.driver.name}</span>
+                  <span className="text-foreground font-medium">{order.deliveryAssignment.driver.name}</span>
                   <span className="text-muted-foreground">|</span>
                   <span className="text-muted-foreground">{order.deliveryAssignment.driver.phone}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <span className="text-muted-foreground">Status:</span>
-                  <span className="font-medium text-gray-900 capitalize">
+                  <span className="font-medium text-foreground capitalize">
                     {order.deliveryAssignment.status.replace(/_/g, " ")}
                   </span>
                 </div>
@@ -454,7 +454,7 @@ export default function OrderDetailPage() {
                         {order.deliveryAssignment.driver.currentLongitude.toFixed(6)}
                       </span>
                       {order.deliveryAssignment.driver.lastLocationUpdate && (
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-muted-foreground">
                           ({new Date(order.deliveryAssignment.driver.lastLocationUpdate).toLocaleTimeString()})
                         </span>
                       )}
@@ -484,7 +484,7 @@ export default function OrderDetailPage() {
           ) : order.paymentMethod === "cod" ? (
             <div className="bg-card rounded-lg border border-border p-5">
               <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">Delivery</h2>
-              <p className="text-sm text-gray-500 mb-3">No driver assigned yet. This is a COD order.</p>
+              <p className="text-sm text-muted-foreground mb-3">No driver assigned yet. This is a COD order.</p>
               <button
                 onClick={() => {
                   setShowAssignModal(true);
@@ -506,7 +506,7 @@ export default function OrderDetailPage() {
                 {order.notes}
               </pre>
             ) : (
-              <p className="text-sm text-gray-400 mb-4">No notes yet</p>
+              <p className="text-sm text-muted-foreground mb-4">No notes yet</p>
             )}
             {order.cancelReason && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -564,7 +564,7 @@ export default function OrderDetailPage() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Method</span>
-                <span className="text-gray-900 capitalize">
+                <span className="text-foreground capitalize">
                   {order.paymentMethod?.replace(/_/g, " ") || "N/A"}
                 </span>
               </div>
@@ -583,7 +583,7 @@ export default function OrderDetailPage() {
               {order.paymentId && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">ID</span>
-                  <span className="text-gray-600 font-mono text-xs truncate max-w-[160px]">{order.paymentId}</span>
+                  <span className="text-muted-foreground font-mono text-xs truncate max-w-[160px]">{order.paymentId}</span>
                 </div>
               )}
             </div>
@@ -688,12 +688,12 @@ export default function OrderDetailPage() {
             {loadingDrivers ? (
               <div className="py-8 text-center">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto" />
-                <p className="mt-2 text-sm text-gray-500">Loading drivers...</p>
+                <p className="mt-2 text-sm text-muted-foreground">Loading drivers...</p>
               </div>
             ) : drivers.length === 0 ? (
               <div className="py-8 text-center">
                 <Truck className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-gray-500">No available drivers. Add drivers in the Drivers page.</p>
+                <p className="text-sm text-muted-foreground">No available drivers. Add drivers in the Drivers page.</p>
               </div>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto mb-4">

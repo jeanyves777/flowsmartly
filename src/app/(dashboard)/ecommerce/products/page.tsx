@@ -64,9 +64,9 @@ function statusBadge(status: string) {
   const map: Record<string, string> = {
     ACTIVE: "bg-green-100 text-green-800",
     DRAFT: "bg-yellow-100 text-yellow-800",
-    ARCHIVED: "bg-gray-100 text-gray-600",
+    ARCHIVED: "bg-muted text-muted-foreground",
   };
-  return map[status] || "bg-gray-100 text-gray-600";
+  return map[status] || "bg-muted text-muted-foreground";
 }
 
 // ── Component ──
@@ -223,8 +223,8 @@ export default function ProductsListPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage your store products</p>
+          <h1 className="text-2xl font-bold text-foreground">Products</h1>
+          <p className="text-sm text-muted-foreground mt-1">Manage your store products</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -250,7 +250,7 @@ export default function ProductsListPage() {
           { label: "Total Products", value: stats.total, color: "bg-blue-50 text-blue-700" },
           { label: "Active", value: stats.active, color: "bg-green-50 text-green-700" },
           { label: "Draft", value: stats.draft, color: "bg-yellow-50 text-yellow-700" },
-          { label: "Archived", value: stats.archived, color: "bg-gray-50 text-gray-600" },
+          { label: "Archived", value: stats.archived, color: "bg-muted text-muted-foreground" },
         ].map((stat) => (
           <div key={stat.label} className={`rounded-lg p-4 ${stat.color}`}>
             <p className="text-sm font-medium opacity-80">{stat.label}</p>
@@ -260,25 +260,25 @@ export default function ProductsListPage() {
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+      <div className="bg-card rounded-lg border border-border p-4 space-y-3">
         <div className="flex flex-col sm:flex-row gap-3">
           {/* Search */}
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search products... (press Enter)"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={handleSearchKeyDown}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full pl-10 pr-4 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
             />
           </div>
 
           {/* Toggle filters */}
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+            className="inline-flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm text-foreground hover:bg-muted"
           >
             <Filter className="w-4 h-4" />
             Filters
@@ -288,12 +288,12 @@ export default function ProductsListPage() {
 
         {/* Expanded filters */}
         {showFilters && (
-          <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-gray-100">
+          <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-border">
             {/* Status */}
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              className="px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
             >
               <option value="">All Statuses</option>
               <option value="ACTIVE">Active</option>
@@ -305,7 +305,7 @@ export default function ProductsListPage() {
             <select
               value={categoryFilter}
               onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              className="px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
             >
               <option value="">All Categories</option>
               {flatCategories.map((cat) => (
@@ -319,7 +319,7 @@ export default function ProductsListPage() {
             <select
               value={sortBy}
               onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              className="px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
             >
               <option value="createdAt_desc">Newest First</option>
               <option value="name_asc">Name A-Z</option>
@@ -331,14 +331,14 @@ export default function ProductsListPage() {
       </div>
 
       {/* Products Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="bg-card rounded-lg border border-border overflow-hidden">
         {loading ? (
           <PageLoader tips={["Loading products..."]} />
         ) : products.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4">
-            <Package className="w-12 h-12 text-gray-300 mb-3" />
-            <h3 className="text-lg font-medium text-gray-900">No products yet</h3>
-            <p className="text-sm text-gray-500 mt-1">Create your first product!</p>
+            <Package className="w-12 h-12 text-muted-foreground/40 mb-3" />
+            <h3 className="text-lg font-medium text-foreground">No products yet</h3>
+            <p className="text-sm text-muted-foreground mt-1">Create your first product!</p>
             <button
               onClick={() => router.push("/ecommerce/products/new")}
               className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
@@ -352,21 +352,21 @@ export default function ProductsListPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Inventory</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <tr className="border-b border-border bg-muted">
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Product</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Price</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Inventory</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {products.map((product) => (
-                    <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={product.id} className="hover:bg-muted transition-colors">
                       {/* Product */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                          <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
                             {product.images.length > 0 ? (
                               <img
                                 src={product.images[0].url}
@@ -374,16 +374,16 @@ export default function ProductsListPage() {
                                 className="w-full h-full object-cover"
                               />
                             ) : (
-                              <ImageIcon className="w-5 h-5 text-gray-400" />
+                              <ImageIcon className="w-5 h-5 text-muted-foreground" />
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                            <p className="text-sm font-medium text-foreground truncate">{product.name}</p>
                             {product.categoryName && (
-                              <p className="text-xs text-gray-500">{product.categoryName}</p>
+                              <p className="text-xs text-muted-foreground">{product.categoryName}</p>
                             )}
                             {product.variantCount > 0 && (
-                              <p className="text-xs text-gray-400">{product.variantCount} variant{product.variantCount !== 1 ? "s" : ""}</p>
+                              <p className="text-xs text-muted-foreground">{product.variantCount} variant{product.variantCount !== 1 ? "s" : ""}</p>
                             )}
                           </div>
                         </div>
@@ -391,9 +391,9 @@ export default function ProductsListPage() {
 
                       {/* Price */}
                       <td className="px-4 py-3">
-                        <p className="text-sm font-medium text-gray-900">{formatPrice(product.priceCents)}</p>
+                        <p className="text-sm font-medium text-foreground">{formatPrice(product.priceCents)}</p>
                         {product.comparePriceCents && (
-                          <p className="text-xs text-gray-400 line-through">{formatPrice(product.comparePriceCents)}</p>
+                          <p className="text-xs text-muted-foreground line-through">{formatPrice(product.comparePriceCents)}</p>
                         )}
                       </td>
 
@@ -408,7 +408,7 @@ export default function ProductsListPage() {
                       <td className="px-4 py-3">
                         {product.trackInventory ? (
                           <div>
-                            <p className={`text-sm font-medium ${product.quantity <= product.lowStockThreshold ? "text-red-600" : "text-gray-900"}`}>
+                            <p className={`text-sm font-medium ${product.quantity <= product.lowStockThreshold ? "text-red-600" : "text-foreground"}`}>
                               {product.quantity} in stock
                             </p>
                             {product.quantity <= product.lowStockThreshold && (
@@ -418,7 +418,7 @@ export default function ProductsListPage() {
                             )}
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-400">Not tracked</span>
+                          <span className="text-sm text-muted-foreground">Not tracked</span>
                         )}
                       </td>
 
@@ -428,7 +428,7 @@ export default function ProductsListPage() {
                           {product.status === "ACTIVE" && (
                             <button
                               onClick={() => setPromoteProductId(product.id)}
-                              className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                              className="p-1.5 text-muted-foreground hover:text-purple-500 hover:bg-purple-500/10 rounded transition-colors"
                               title="Promote"
                             >
                               <Megaphone className="w-4 h-4" />
@@ -436,14 +436,14 @@ export default function ProductsListPage() {
                           )}
                           <button
                             onClick={() => router.push(`/ecommerce/products/${product.id}`)}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            className="p-1.5 text-muted-foreground hover:text-brand-500 hover:bg-brand-500/10 rounded transition-colors"
                             title="Edit"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setDeleteId(product.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -458,25 +458,25 @@ export default function ProductsListPage() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
-                <p className="text-sm text-gray-500">
+              <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+                <p className="text-sm text-muted-foreground">
                   Showing {(page - 1) * 20 + 1}-{Math.min(page * 20, total)} of {total}
                 </p>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page <= 1}
-                    className="p-1.5 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-1.5 rounded border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm text-foreground">
                     Page {page} of {totalPages}
                   </span>
                   <button
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     disabled={page >= totalPages}
-                    className="p-1.5 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-1.5 rounded border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -490,16 +490,16 @@ export default function ProductsListPage() {
       {/* Delete Confirmation Modal */}
       {deleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">Delete Product</h3>
-            <p className="text-sm text-gray-500 mt-2">
+          <div className="bg-card rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-foreground">Delete Product</h3>
+            <p className="text-sm text-muted-foreground mt-2">
               Are you sure you want to delete this product? This action cannot be undone.
             </p>
             <div className="flex items-center justify-end gap-3 mt-6">
               <button
                 onClick={() => setDeleteId(null)}
                 disabled={deleting}
-                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-sm font-medium text-foreground border border-border rounded-lg hover:bg-muted"
               >
                 Cancel
               </button>

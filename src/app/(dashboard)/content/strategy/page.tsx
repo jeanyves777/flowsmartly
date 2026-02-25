@@ -1218,7 +1218,7 @@ export default function MarketingStrategyPage() {
           </Button>
           <Button
             onClick={() => router.push("/content/strategy/generate")}
-            className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white"
+            className="bg-brand-500 hover:bg-brand-600 text-white"
           >
             <Sparkles className="h-4 w-4 mr-2" />
             Generate with AI
@@ -1226,7 +1226,7 @@ export default function MarketingStrategyPage() {
           {strategy && (
             <Button
               onClick={() => router.push(`/content/automation?strategy=${strategy.id}`)}
-              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+              className="bg-brand-500 hover:bg-brand-600 text-white"
             >
               <Zap className="h-4 w-4 mr-2" />
               Automate Strategy
@@ -1438,7 +1438,7 @@ export default function MarketingStrategyPage() {
                     <Button
                       size="sm"
                       onClick={() => handleAddTask(addingToColumn)}
-                      className="bg-orange-500 hover:bg-orange-600 text-white"
+                      className="bg-brand-500 hover:bg-brand-600 text-white"
                     >
                       Add Task
                     </Button>
@@ -1472,9 +1472,9 @@ export default function MarketingStrategyPage() {
               if (Array.isArray(raw)) activities = raw;
             } catch { /* ignore */ }
             const confidenceColor: Record<string, string> = {
-              low: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-              medium: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-              high: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+              low: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
+              medium: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+              high: "bg-green-500/10 text-green-600 border-green-500/20",
             };
             const activityIcon: Record<string, string> = {
               post: "📝",
@@ -1507,7 +1507,7 @@ export default function MarketingStrategyPage() {
                       {vPriority.label}
                     </span>
                     {viewingTask.autoCompleted && (
-                      <Badge variant="outline" className="text-[10px] bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
+                      <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-600 border-green-500/20">
                         Auto-completed
                       </Badge>
                     )}
@@ -1562,7 +1562,7 @@ export default function MarketingStrategyPage() {
                         </div>
                         {viewingTask.status === "DONE" ? (
                           <div className="pt-1 border-t border-border/30">
-                            <p className="text-xs text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                            <p className="text-xs text-green-600 flex items-center gap-1.5">
                               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                               All requirements met — task is complete!
                             </p>
@@ -1609,7 +1609,7 @@ export default function MarketingStrategyPage() {
                                 {act.activityUrl ? (
                                   <Link
                                     href={act.activityUrl}
-                                    className="text-xs font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 hover:underline break-words"
+                                    className="text-xs font-medium text-brand-500 hover:text-brand-600 hover:underline break-words"
                                     onClick={() => setViewDialogOpen(false)}
                                   >
                                     {act.activityName || act.matchReason}
@@ -1825,7 +1825,7 @@ export default function MarketingStrategyPage() {
               <Button
                 onClick={handleSaveTask}
                 disabled={isSavingTask || !taskForm.title.trim()}
-                className="bg-orange-500 hover:bg-orange-600 text-white ml-auto"
+                className="bg-brand-500 hover:bg-brand-600 text-white ml-auto"
               >
                 {isSavingTask ? (
                   <>

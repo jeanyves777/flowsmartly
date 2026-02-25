@@ -1153,7 +1153,7 @@ export default function PostAutomationPage() {
                 <div className="flex flex-wrap gap-3 mt-3">
                   <Badge variant="secondary">{wizardStrategy.tasks.length} Total Tasks</Badge>
                   <Badge className="bg-green-500/10 text-green-600 border-green-500/20">{automatableCount} Automatable</Badge>
-                  <Badge className="bg-gray-500/10 text-gray-600 border-gray-500/20">{manualCount} Manual Only</Badge>
+                  <Badge className="bg-muted text-muted-foreground border-border">{manualCount} Manual Only</Badge>
                 </div>
               </div>
 
@@ -1163,15 +1163,15 @@ export default function PostAutomationPage() {
                   <p className="text-xs text-muted-foreground">Social & Content tasks</p>
                   <p className="text-[10px] text-green-600 mt-0.5">Can be automated</p>
                 </div>
-                <div className="p-3 rounded-lg bg-gray-500/5 border border-gray-500/20 text-center">
-                  <p className="text-2xl font-bold text-gray-600">{manualCount}</p>
+                <div className="p-3 rounded-lg bg-muted/50 border border-border text-center">
+                  <p className="text-2xl font-bold text-muted-foreground">{manualCount}</p>
                   <p className="text-xs text-muted-foreground">Ads, Email & Analytics</p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">Require manual action</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Require manual action</p>
                 </div>
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={() => setWizardStep(2)} className="bg-gradient-to-r from-amber-500 to-orange-600 text-white">
+                <Button onClick={() => setWizardStep(2)} className="bg-brand-500 hover:bg-brand-600 text-white">
                   Configure Tasks <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
@@ -1293,7 +1293,7 @@ export default function PostAutomationPage() {
                 <Button
                   onClick={() => setWizardStep(3)}
                   disabled={enabledCount === 0}
-                  className="bg-gradient-to-r from-amber-500 to-orange-600 text-white"
+                  className="bg-brand-500 hover:bg-brand-600 text-white"
                 >
                   Content Settings <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -1456,7 +1456,7 @@ export default function PostAutomationPage() {
                 </Button>
                 <Button
                   onClick={() => setWizardStep(4)}
-                  className="bg-gradient-to-r from-amber-500 to-orange-600 text-white"
+                  className="bg-brand-500 hover:bg-brand-600 text-white"
                 >
                   Schedule & Budget <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -1548,7 +1548,7 @@ export default function PostAutomationPage() {
                 <Button
                   onClick={() => setWizardStep(5)}
                   disabled={wizardEstimate ? !wizardEstimate.hasEnoughCredits : false}
-                  className="bg-gradient-to-r from-amber-500 to-orange-600 text-white disabled:opacity-50"
+                  className="bg-brand-500 hover:bg-brand-600 text-white disabled:opacity-50"
                 >
                   Review & Launch <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -1670,7 +1670,7 @@ export default function PostAutomationPage() {
                     </p>
                   </div>
                   <Link href="/settings/upgrade">
-                    <Button size="sm" className="bg-gradient-to-r from-amber-500 to-orange-600 text-white">
+                    <Button size="sm" className="bg-brand-500 hover:bg-brand-600 text-white">
                       Upgrade
                     </Button>
                   </Link>
@@ -2401,7 +2401,7 @@ export default function PostAutomationPage() {
                 <Button
                   onClick={handleSave}
                   disabled={isSaving || !form.name.trim() || (form.type !== "EVENT_BASED" && !form.endDate)}
-                  className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white h-11"
+                  className="w-full bg-brand-500 hover:bg-brand-600 text-white h-11"
                 >
                   {isSaving ? (
                     <>
@@ -2561,7 +2561,7 @@ export default function PostAutomationPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-brand-500 flex items-center justify-center">
               <Zap className="w-4 h-4 text-white" />
             </div>
             Automation
@@ -2578,7 +2578,7 @@ export default function PostAutomationPage() {
           </Button>
           <Button
             onClick={openCreate}
-            className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white"
+            className="bg-brand-500 hover:bg-brand-600 text-white"
           >
             <Plus className="h-4 w-4 mr-2" />
             Create Automation
@@ -2662,7 +2662,7 @@ export default function PostAutomationPage() {
       {!isLoading && !error && automations.length === 0 && (
         <Card className="border-dashed">
           <CardContent className="text-center py-16">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 mb-4">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/20 mb-4">
               <Zap className="h-8 w-8 text-orange-500" />
             </div>
             <h3 className="text-xl font-semibold text-foreground mb-2">
@@ -2698,7 +2698,7 @@ export default function PostAutomationPage() {
 
             <Button
               onClick={openCreate}
-              className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white"
+              className="bg-brand-500 hover:bg-brand-600 text-white"
             >
               <Plus className="h-4 w-4 mr-2" />
               Create Your First Automation
