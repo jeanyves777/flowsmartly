@@ -790,18 +790,7 @@ export default function BackgroundRemoverStudio() {
       {/* ═══ TOP EDITING TOOLBAR ═══ */}
       <div className="bg-background/95 backdrop-blur-sm border-b border-border/50 px-6 py-3 shrink-0 z-30">
         <div className="flex items-center justify-between gap-4">
-          {/* Left: Page Title */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
-              <Scissors className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg tracking-tight">Background Studio</h1>
-              <p className="text-xs text-muted-foreground">Remove backgrounds with AI</p>
-            </div>
-          </div>
-
-          {/* Center: Editing Tools */}
+          {/* Editing Tools */}
           {isLoaded && (
             <div className="flex items-center gap-3">
               {/* Tool Mode Buttons */}

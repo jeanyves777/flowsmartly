@@ -14,9 +14,14 @@ datasource db {
 model User {
   id                String    @id @default(cuid())
   email             String    @unique
-  passwordHash      String
+  passwordHash      String?   // Optional for OAuth users
   name              String
   username          String    @unique
+
+  // OAuth Login
+  oauthProvider     String?   // "google", "facebook", or null for email/password
+  oauthId           String?   // Google/Facebook user ID
+  oauthAvatarUrl    String?   // Avatar from OAuth provider
   avatarUrl         String?
   coverImageUrl     String?
   bio               String?
@@ -2960,6 +2965,12 @@ model Store {
   ecomSubscriptionStatus String    @default("inactive") // active, inactive, cancelled, past_due, trialing
   ecomPlan               String    @default("basic")    // "basic" ($5/mo) or "pro" ($12/mo)
 
+  // Stripe Connect (for receiving payments)
+  stripeConnectAccountId String?   // Stripe Connect account ID
+  stripeOnboardingComplete Boolean @default(false)
+  platformFeePercent     Int       @default(5)  // FlowSmartly's cut (default 5%)
+  platformFeesCollectedCents Int   @default(0) // Lifetime platform fees collected
+
   // Custom Domain
   customDomain           String?                         // e.g. "mybrandstore.com"
   freeDomainClaimed      Boolean   @default(false)       // Pro plan: has user claimed their free domain?
@@ -3131,6 +3142,8 @@ model Order {
   shippingCents       Int       @default(0)
   taxCents            Int       @default(0)
   totalCents          Int
+  platformFeeCents    Int       @default(0)  // FlowSmartly's cut
+  storeOwnerAmountCents Int     @default(0)  // Amount transferred to store owner
   currency            String    @default("USD")
 
   // Status

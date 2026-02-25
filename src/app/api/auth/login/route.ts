@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
         id: true,
         email: true,
         passwordHash: true,
+        oauthProvider: true,
         name: true,
         username: true,
         avatarUrl: true,
@@ -57,6 +58,20 @@ export async function POST(request: NextRequest) {
           error: {
             code: "INVALID_CREDENTIALS",
             message: "Invalid email or password",
+          },
+        },
+        { status: 401 }
+      );
+    }
+
+    // Check if user signed up with OAuth (no password)
+    if (!user.passwordHash) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "OAUTH_ACCOUNT",
+            message: "This account uses social login. Please sign in with Google or Facebook.",
           },
         },
         { status: 401 }
