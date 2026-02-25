@@ -1064,16 +1064,29 @@ export default function BackgroundRemoverStudio() {
 
               {/* Center: AI & History */}
               <div className="flex items-center gap-3">
-                {isLoaded && !isProcessingAI && (
+                {isLoaded && (
                   <>
                     <Button
                       onClick={handleAIRemove}
+                      disabled={isProcessingAI}
                       className="bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-md shadow-brand-500/20"
                       size="sm"
                     >
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      AI Remove
+                      {isProcessingAI ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          {aiStep || "Processing..."}
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          AI Remove
+                        </>
+                      )}
                     </Button>
+
+                    {!isProcessingAI && (
+                      <>
 
                     <div className="flex gap-1 border border-border/50 rounded-lg p-0.5 bg-muted/30">
                       <Button
@@ -1119,6 +1132,8 @@ export default function BackgroundRemoverStudio() {
                         <ZoomIn className="w-4 h-4" />
                       </Button>
                     </div>
+                    </>
+                    )}
                   </>
                 )}
               </div>
@@ -1131,14 +1146,9 @@ export default function BackgroundRemoverStudio() {
           </div>
 
           {/* Canvas Area - FIXED NO SCROLL */}
-          <div className="flex-1 flex items-center justify-center p-8 overflow-hidden min-h-0 bg-gradient-to-br from-muted/10 via-background to-muted/10">
+          <div className="flex-1 flex items-center justify-center p-8 overflow-hidden min-h-0 bg-gradient-to-br from-muted/10 via-background to-muted/10 relative">
             <AnimatePresence mode="wait">
-              {isProcessingAI ? (
-                <AIGenerationLoader
-                  currentStep={aiStep}
-                  subtitle="AI is processing"
-                />
-              ) : !selectedImage ? (
+              {!selectedImage ? (
                 <div className="text-center">
                   <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-500/20 to-brand-600/20 flex items-center justify-center mx-auto mb-6">
                     <Scissors className="w-10 h-10 text-brand-500" />
@@ -1242,6 +1252,17 @@ export default function BackgroundRemoverStudio() {
                 </div>
               )}
             </AnimatePresence>
+
+            {/* AI Processing Overlay */}
+            {isProcessingAI && selectedImage && (
+              <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-40">
+                <div className="text-center">
+                  <Loader2 className="w-16 h-16 text-brand-500 mx-auto mb-4 animate-spin" />
+                  <h3 className="text-lg font-semibold mb-2">Processing with AI</h3>
+                  <p className="text-sm text-muted-foreground">{aiStep || "Please wait..."}</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
