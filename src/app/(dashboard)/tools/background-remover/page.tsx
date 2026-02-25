@@ -17,6 +17,7 @@ import {
   Coins,
   ImageIcon,
   Trash2,
+  Eraser,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import BrushRefineCanvas from "@/components/shared/brush-refine-canvas";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -92,6 +94,9 @@ export default function BackgroundRemoverPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [step, setStep] = useState("");
   const [processedUrl, setProcessedUrl] = useState<string | null>(null);
+
+  // Refine state
+  const [isRefining, setIsRefining] = useState(false);
 
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>("slider");
@@ -188,6 +193,19 @@ export default function BackgroundRemoverPage() {
     setProcessedUrl(null);
     setShowOriginal(false);
     setSliderPos(50);
+    setIsRefining(false);
+  };
+
+  const handleRefineSave = (newUrl: string) => {
+    setProcessedUrl(newUrl);
+    setGallery((prev) => {
+      if (prev.length === 0) return prev;
+      const updated = [...prev];
+      updated[0] = { ...updated[0], processedUrl: newUrl };
+      return updated;
+    });
+    setIsRefining(false);
+    toast({ title: "Refinement saved!" });
   };
 
   // Slider drag
@@ -268,8 +286,22 @@ export default function BackgroundRemoverPage() {
               </motion.div>
             )}
 
+            {/* Refine mode */}
+            {!isProcessing && processedUrl && isRefining && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <BrushRefineCanvas
+                  imageUrl={processedUrl}
+                  onSave={handleRefineSave}
+                  onCancel={() => setIsRefining(false)}
+                />
+              </motion.div>
+            )}
+
             {/* Result view */}
-            {!isProcessing && processedUrl && (
+            {!isProcessing && processedUrl && !isRefining && (
               <AnimatePresence mode="wait">
                 <motion.div
                   key="result"
@@ -430,7 +462,7 @@ export default function BackgroundRemoverPage() {
                   )}
 
                   {/* Action buttons */}
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
                     <Button
                       variant="outline"
                       onClick={handleProcessAnother}
@@ -438,6 +470,14 @@ export default function BackgroundRemoverPage() {
                     >
                       <RotateCcw className="w-4 h-4 mr-2" />
                       Process Another
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsRefining(true)}
+                      className="flex-1"
+                    >
+                      <Eraser className="w-4 h-4 mr-2" />
+                      Refine Edges
                     </Button>
                     <Button
                       variant="outline"

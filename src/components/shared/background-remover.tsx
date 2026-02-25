@@ -13,6 +13,7 @@ import {
   Columns2,
   SlidersHorizontal,
   ToggleLeft,
+  Eraser,
 } from "lucide-react";
 import {
   Dialog,
@@ -23,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import BrushRefineCanvas from "@/components/shared/brush-refine-canvas";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -61,6 +63,7 @@ export function BackgroundRemover({
   const [showOriginal, setShowOriginal] = useState(false);
   const [sliderPos, setSliderPos] = useState(50);
   const [step, setStep] = useState("");
+  const [isRefining, setIsRefining] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
 
@@ -72,6 +75,7 @@ export function BackgroundRemover({
       setShowOriginal(false);
       setSliderPos(50);
       setStep("");
+      setIsRefining(false);
     }
   }, [open]);
 
@@ -129,6 +133,11 @@ export function BackgroundRemover({
     if (!processedUrl) return;
     onComplete(processedUrl);
     onClose();
+  };
+
+  const handleRefineSave = (newUrl: string) => {
+    setProcessedUrl(newUrl);
+    setIsRefining(false);
   };
 
   // Slider drag handlers
@@ -190,8 +199,23 @@ export function BackgroundRemover({
             </motion.div>
           )}
 
+          {/* Refine mode */}
+          {!isProcessing && processedUrl && isRefining && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <BrushRefineCanvas
+                imageUrl={processedUrl}
+                onSave={handleRefineSave}
+                onCancel={() => setIsRefining(false)}
+                maxDisplaySize={500}
+              />
+            </motion.div>
+          )}
+
           {/* Before/after comparison */}
-          {!isProcessing && (
+          {!isProcessing && !isRefining && (
             <AnimatePresence mode="wait">
               {processedUrl ? (
                 <motion.div
@@ -386,7 +410,7 @@ export function BackgroundRemover({
           )}
 
           {/* Action buttons */}
-          {!isProcessing && (
+          {!isProcessing && !isRefining && (
             <div className="space-y-2">
               {!processedUrl ? (
                 <Button
@@ -399,7 +423,7 @@ export function BackgroundRemover({
                   <span className="ml-2 text-xs opacity-80">(1 credit)</span>
                 </Button>
               ) : (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -410,6 +434,14 @@ export function BackgroundRemover({
                   >
                     <RotateCcw className="w-4 h-4 mr-2" />
                     Retry
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsRefining(true)}
+                    className="flex-1"
+                  >
+                    <Eraser className="w-4 h-4 mr-2" />
+                    Refine
                   </Button>
                   <Button
                     variant="outline"
