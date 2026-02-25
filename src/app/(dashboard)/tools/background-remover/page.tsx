@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { MediaUploader } from "@/components/shared/media-uploader";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -104,6 +105,8 @@ export default function BackgroundRemoverStudio() {
   const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null);
   const [uploadUrls, setUploadUrls] = useState<string[]>([]);
   const [showUploader, setShowUploader] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
   // ─── Canvas refs ───
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -129,6 +132,39 @@ export default function BackgroundRemoverStudio() {
   // ─── AI processing state ───
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [aiStep, setAiStep] = useState("");
+
+  // ─── Load background removal history from library ───
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        setIsLoadingHistory(true);
+        const params = new URLSearchParams({
+          type: "image",
+          tag: "background-removal",
+          limit: "50",
+          page: "1",
+        });
+        const res = await fetch(`/api/media?${params}`);
+        const data = await res.json();
+
+        if (data.success && data.data.files) {
+          const historyImages: GalleryImage[] = data.data.files.map((file: any) => ({
+            id: file.id,
+            originalUrl: file.url,
+            processedUrl: file.metadata?.processedUrl || file.url,
+            createdAt: new Date(file.createdAt),
+          }));
+          setGallery(historyImages);
+        }
+      } catch (error) {
+        console.error("Failed to load history:", error);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    loadHistory();
+  }, []);
 
   // ─── Load image into canvas - SIMPLIFIED ───
   useEffect(() => {
@@ -558,6 +594,30 @@ export default function BackgroundRemoverStudio() {
     [toast]
   );
 
+  // ─── Media library picker handler ───
+  const handleLibrarySelect = useCallback(
+    (url: string, file?: any) => {
+      const newImage: GalleryImage = {
+        id: file?.id || `${Date.now()}-${Math.random()}`,
+        originalUrl: url,
+        processedUrl: file?.metadata?.processedUrl || undefined,
+        createdAt: file?.createdAt ? new Date(file.createdAt) : new Date(),
+      };
+
+      // Check if already in gallery
+      const exists = gallery.some((img) => img.id === newImage.id);
+      if (!exists) {
+        setGallery((prev) => [newImage, ...prev]);
+      }
+
+      setSelectedImage(newImage);
+      setShowLibrary(false);
+
+      toast({ title: "Image loaded!" });
+    },
+    [gallery, toast]
+  );
+
   // ─── Gallery handlers ───
   const handleSelectImage = useCallback((img: GalleryImage) => {
     console.log("[Select] Selected image:", img.id, img.originalUrl);
@@ -672,7 +732,10 @@ export default function BackgroundRemoverStudio() {
       });
 
       const formData = new FormData();
-      formData.append("file", blob, `edited-${Date.now()}.png`);
+      formData.append("file", blob, `bg-removed-${Date.now()}.png`);
+
+      // Add background-removal tag and metadata
+      formData.append("tags", JSON.stringify(["background-removal"]));
 
       const res = await fetch("/api/media", { method: "POST", body: formData });
       const data = await res.json();
@@ -684,15 +747,28 @@ export default function BackgroundRemoverStudio() {
       const newUrl = data.data?.file?.url || data.data?.url;
       if (!newUrl) throw new Error("No URL returned");
 
-      setGallery((prev) =>
-        prev.map((img) =>
-          img.id === selectedImage.id ? { ...img, processedUrl: newUrl } : img
-        )
-      );
+      // Update or add to gallery
+      const existingIndex = gallery.findIndex((img) => img.id === selectedImage.id);
+      if (existingIndex >= 0) {
+        setGallery((prev) =>
+          prev.map((img) =>
+            img.id === selectedImage.id ? { ...img, processedUrl: newUrl } : img
+          )
+        );
+        setSelectedImage((prev) => (prev ? { ...prev, processedUrl: newUrl } : null));
+      } else {
+        // If it's a new save, add it to the gallery
+        const newImage: GalleryImage = {
+          id: data.data?.file?.id || `${Date.now()}`,
+          originalUrl: selectedImage.originalUrl,
+          processedUrl: newUrl,
+          createdAt: new Date(),
+        };
+        setGallery((prev) => [newImage, ...prev]);
+        setSelectedImage(newImage);
+      }
 
-      setSelectedImage((prev) => (prev ? { ...prev, processedUrl: newUrl } : null));
-
-      toast({ title: "Changes saved!" });
+      toast({ title: "Saved to library!", description: "Image saved with background removal tag" });
     } catch (error) {
       toast({
         title: "Save failed",
@@ -745,20 +821,20 @@ export default function BackgroundRemoverStudio() {
   const hasChanges = historyIndex > 0;
 
   return (
-    <div className="h-screen flex flex-col bg-muted/30">
+    <div className="h-screen flex flex-col bg-gradient-to-br from-muted/20 via-background to-muted/20">
       {/* ═══ TOP AI TOOLS NAVIGATION ═══ */}
-      <div className="bg-background border-b border-border px-6 py-3 shrink-0">
-        <div className="flex items-center gap-1 overflow-x-auto">
+      <div className="bg-background/95 backdrop-blur-sm border-b border-border/50 px-6 py-3 shrink-0 z-30">
+        <div className="flex items-center gap-2 overflow-x-auto">
           {AI_TOOLS.map((tool) => {
             const Icon = tool.icon;
             return (
               <Link
                 key={tool.href}
                 href={tool.href}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all whitespace-nowrap ${
                   tool.active
-                    ? "bg-brand-500 text-white shadow-md"
-                    : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                    ? "bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-lg shadow-brand-500/25"
+                    : "hover:bg-muted/60 text-muted-foreground hover:text-foreground border border-transparent hover:border-border/50"
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -770,54 +846,37 @@ export default function BackgroundRemoverStudio() {
       </div>
 
       {/* ═══ MAIN CONTENT - FIXED HEIGHT NO SCROLL ═══ */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden relative">
         {/* ═══ LEFT SIDEBAR ═══ */}
-        <div className="w-80 bg-background border-r border-border flex flex-col shrink-0">
+        <div className="w-80 bg-background/95 backdrop-blur-sm border-r border-border/50 flex flex-col shrink-0 z-20 shadow-lg">
           {/* Header */}
-          <div className="p-4 border-b border-border shrink-0">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-lg bg-brand-500 flex items-center justify-center shadow-md">
-                <Scissors className="w-5 h-5 text-white" />
+          <div className="p-4 border-b border-border/50 shrink-0">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
+                <Scissors className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="font-bold text-lg">Background Studio</h1>
-                <p className="text-xs text-muted-foreground">Professional canvas editor</p>
+                <h1 className="font-bold text-lg tracking-tight">Background Studio</h1>
+                <p className="text-xs text-muted-foreground">Professional editing tools</p>
               </div>
             </div>
             <Button
-              onClick={() => setShowUploader(!showUploader)}
-              className="w-full bg-brand-500 hover:bg-brand-600 text-white"
+              onClick={() => setShowLibrary(true)}
+              className="w-full bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-md"
               size="sm"
             >
-              <Upload className="w-4 h-4 mr-2" />
-              Upload Images
+              <FolderOpen className="w-4 h-4 mr-2" />
+              Select from Library
             </Button>
           </div>
 
-          {/* Uploader */}
-          {showUploader && (
-            <div className="p-4 border-b border-border shrink-0">
-              <MediaUploader
-                value={uploadUrls}
-                onChange={handleUploadComplete}
-                accept="image/png,image/jpeg,image/jpg,image/webp"
-                maxSize={10 * 1024 * 1024}
-                filterTypes={["image"]}
-                variant="small"
-                label="Select Images"
-                placeholder="Drop images here"
-                libraryTitle="Select from Library"
-              />
-            </div>
-          )}
-
           {/* Gallery - SCROLLABLE */}
           <div className="flex-1 overflow-y-auto p-4 min-h-0">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-semibold">Gallery</span>
-                <Badge variant="secondary" className="text-xs">
+                <ImageIcon className="w-4 h-4 text-brand-500" />
+                <span className="text-sm font-semibold">History</span>
+                <Badge variant="secondary" className="text-xs bg-brand-100 text-brand-700 border-brand-200">
                   {gallery.length}
                 </Badge>
               </div>
@@ -829,29 +888,45 @@ export default function BackgroundRemoverStudio() {
                     setGallery([]);
                     setSelectedImage(null);
                   }}
-                  className="h-7 text-xs"
+                  className="h-7 text-xs hover:bg-destructive/10 hover:text-destructive"
                 >
                   Clear All
                 </Button>
               )}
             </div>
 
-            {gallery.length === 0 ? (
+            {isLoadingHistory ? (
               <div className="text-center py-12">
-                <Layers className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">No images yet</p>
-                <p className="text-xs text-muted-foreground">Upload images to get started</p>
+                <Loader2 className="w-12 h-12 text-brand-500 mx-auto mb-3 animate-spin" />
+                <p className="text-sm text-muted-foreground">Loading history...</p>
+              </div>
+            ) : gallery.length === 0 ? (
+              <div className="text-center py-12">
+                <Layers className="w-16 h-16 text-muted-foreground/20 mx-auto mb-4" />
+                <p className="text-sm font-medium mb-1">No history yet</p>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Select images from library to start editing
+                </p>
+                <Button
+                  onClick={() => setShowLibrary(true)}
+                  variant="outline"
+                  size="sm"
+                  className="border-brand-200 text-brand-600 hover:bg-brand-50"
+                >
+                  <FolderOpen className="w-3.5 h-3.5 mr-1.5" />
+                  Browse Library
+                </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 {gallery.map((img) => (
                   <div key={img.id} className="relative group">
                     <button
                       onClick={() => handleSelectImage(img)}
-                      className={`relative w-full aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                      className={`relative w-full aspect-square rounded-xl overflow-hidden border-2 transition-all ${
                         selectedImage?.id === img.id
-                          ? "border-brand-500 shadow-lg shadow-brand-500/20"
-                          : "border-border hover:border-brand-500/50"
+                          ? "border-brand-500 shadow-lg shadow-brand-500/30 ring-2 ring-brand-200"
+                          : "border-border hover:border-brand-400 hover:shadow-md"
                       }`}
                       style={img.processedUrl ? checkerboardStyle : undefined}
                     >
@@ -861,21 +936,25 @@ export default function BackgroundRemoverStudio() {
                         className="w-full h-full object-cover"
                       />
                       {img.processedUrl && (
-                        <Badge className="absolute bottom-1 right-1 text-[10px] bg-green-500 text-white border-0">
+                        <Badge className="absolute bottom-2 right-2 text-[10px] bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 shadow-sm">
+                          <Check className="w-2.5 h-2.5 mr-0.5" />
                           Edited
                         </Badge>
+                      )}
+                      {selectedImage?.id === img.id && (
+                        <div className="absolute inset-0 bg-brand-500/10 pointer-events-none" />
                       )}
                     </button>
                     <Button
                       variant="destructive"
                       size="icon"
-                      className="absolute -top-2 -right-2 w-6 h-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                      className="absolute -top-2 -right-2 w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeleteImage(img.id);
                       }}
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 ))}
@@ -885,52 +964,52 @@ export default function BackgroundRemoverStudio() {
         </div>
 
         {/* ═══ RIGHT CANVAS AREA - NO SCROLL ═══ */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden z-10">
           {/* Editing Toolbar */}
-          <div className="bg-background border-b border-border p-3 shrink-0">
+          <div className="bg-background/95 backdrop-blur-sm border-b border-border/50 p-4 shrink-0">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               {/* Left: Tools */}
               <div className="flex items-center gap-2 flex-wrap">
                 {isLoaded && (
                   <>
-                    <div className="flex gap-1 border border-border rounded-lg p-0.5">
+                    <div className="flex gap-1 border border-border/50 rounded-lg p-1 bg-muted/30">
                       <Button
                         variant={toolMode === "erase" ? "default" : "ghost"}
                         size="sm"
                         onClick={() => setToolMode("erase")}
-                        className="h-8 px-3"
+                        className={`h-9 px-4 ${toolMode === "erase" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
                       >
-                        <Eraser className="w-3.5 h-3.5 mr-1.5" />
+                        <Eraser className="w-4 h-4 mr-2" />
                         Erase
                       </Button>
                       <Button
                         variant={toolMode === "restore" ? "default" : "ghost"}
                         size="sm"
                         onClick={() => setToolMode("restore")}
-                        className="h-8 px-3"
+                        className={`h-9 px-4 ${toolMode === "restore" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
                       >
-                        <Paintbrush className="w-3.5 h-3.5 mr-1.5" />
+                        <Paintbrush className="w-4 h-4 mr-2" />
                         Restore
                       </Button>
                       <Button
                         variant={toolMode === "magic" ? "default" : "ghost"}
                         size="sm"
                         onClick={() => setToolMode("magic")}
-                        className="h-8 px-3"
+                        className={`h-9 px-4 ${toolMode === "magic" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
                       >
-                        <Wand2 className="w-3.5 h-3.5 mr-1.5" />
+                        <Wand2 className="w-4 h-4 mr-2" />
                         Magic
                       </Button>
                     </div>
 
                     {toolMode === "magic" ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Tolerance</span>
+                      <div className="flex items-center gap-2 border border-border/50 rounded-lg px-3 py-1.5 bg-muted/30">
+                        <span className="text-xs font-medium text-muted-foreground">Tolerance</span>
                         <button
                           onClick={() => setTolerance((t) => Math.max(0, t - 5))}
-                          className="p-1 rounded hover:bg-muted"
+                          className="p-1 rounded-md hover:bg-background transition-colors"
                         >
-                          <Minus className="w-3 h-3" />
+                          <Minus className="w-3.5 h-3.5" />
                         </button>
                         <input
                           type="range"
@@ -938,26 +1017,26 @@ export default function BackgroundRemoverStudio() {
                           max={100}
                           value={tolerance}
                           onChange={(e) => setTolerance(Number(e.target.value))}
-                          className="w-24 h-1.5"
+                          className="w-32 h-2 accent-brand-500"
                         />
                         <button
                           onClick={() => setTolerance((t) => Math.min(100, t + 5))}
-                          className="p-1 rounded hover:bg-muted"
+                          className="p-1 rounded-md hover:bg-background transition-colors"
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-xs text-muted-foreground tabular-nums w-8">
+                        <span className="text-xs font-semibold text-foreground tabular-nums w-8 text-right">
                           {tolerance}
                         </span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Size</span>
+                      <div className="flex items-center gap-2 border border-border/50 rounded-lg px-3 py-1.5 bg-muted/30">
+                        <span className="text-xs font-medium text-muted-foreground">Brush Size</span>
                         <button
                           onClick={() => setBrushSize((s) => Math.max(BRUSH_MIN, s - 5))}
-                          className="p-1 rounded hover:bg-muted"
+                          className="p-1 rounded-md hover:bg-background transition-colors"
                         >
-                          <Minus className="w-3 h-3" />
+                          <Minus className="w-3.5 h-3.5" />
                         </button>
                         <input
                           type="range"
@@ -965,15 +1044,15 @@ export default function BackgroundRemoverStudio() {
                           max={BRUSH_MAX}
                           value={brushSize}
                           onChange={(e) => setBrushSize(Number(e.target.value))}
-                          className="w-24 h-1.5"
+                          className="w-32 h-2 accent-brand-500"
                         />
                         <button
                           onClick={() => setBrushSize((s) => Math.min(BRUSH_MAX, s + 5))}
-                          className="p-1 rounded hover:bg-muted"
+                          className="p-1 rounded-md hover:bg-background transition-colors"
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-xs text-muted-foreground tabular-nums w-8">
+                        <span className="text-xs font-semibold text-foreground tabular-nums w-8 text-right">
                           {brushSize}
                         </span>
                       </div>
@@ -983,60 +1062,60 @@ export default function BackgroundRemoverStudio() {
               </div>
 
               {/* Center: AI & History */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 {isLoaded && !isProcessingAI && (
                   <>
                     <Button
                       onClick={handleAIRemove}
-                      className="bg-gradient-to-r from-brand-500 to-purple-600 hover:from-brand-600 hover:to-purple-700 text-white"
+                      className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white shadow-md"
                       size="sm"
                     >
                       <Sparkles className="w-4 h-4 mr-2" />
-                      AI Remove
+                      AI Remove Background
                     </Button>
 
-                    <div className="flex gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={undo}
-                        disabled={historyIndex <= 0}
-                      >
-                        <Undo2 className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={redo}
-                        disabled={historyIndex >= history.length - 1}
-                      >
-                        <Redo2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-
-                    <div className="flex items-center gap-1 border border-border rounded-lg p-0.5">
+                    <div className="flex gap-1 border border-border/50 rounded-lg p-0.5 bg-muted/30">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7"
+                        className="h-8 w-8 hover:bg-background"
+                        onClick={undo}
+                        disabled={historyIndex <= 0}
+                      >
+                        <Undo2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 hover:bg-background"
+                        onClick={redo}
+                        disabled={historyIndex >= history.length - 1}
+                      >
+                        <Redo2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center gap-1 border border-border/50 rounded-lg p-0.5 bg-muted/30">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 hover:bg-background"
                         onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}
                         disabled={zoom <= 0.25}
                       >
-                        <ZoomOut className="w-3 h-3" />
+                        <ZoomOut className="w-4 h-4" />
                       </Button>
-                      <span className="text-xs text-muted-foreground tabular-nums w-10 text-center">
+                      <span className="text-xs text-muted-foreground tabular-nums w-12 text-center font-medium">
                         {Math.round(zoom * 100)}%
                       </span>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7"
+                        className="h-8 w-8 hover:bg-background"
                         onClick={() => setZoom((z) => Math.min(4, z + 0.25))}
                         disabled={zoom >= 4}
                       >
-                        <ZoomIn className="w-3 h-3" />
+                        <ZoomIn className="w-4 h-4" />
                       </Button>
                     </div>
                   </>
@@ -1051,7 +1130,7 @@ export default function BackgroundRemoverStudio() {
           </div>
 
           {/* Canvas Area - FIXED NO SCROLL */}
-          <div className="flex-1 flex items-center justify-center p-6 overflow-hidden min-h-0">
+          <div className="flex-1 flex items-center justify-center p-8 overflow-hidden min-h-0 bg-gradient-to-br from-muted/10 via-background to-muted/10">
             <AnimatePresence mode="wait">
               {isProcessingAI ? (
                 <AIGenerationLoader
@@ -1060,23 +1139,28 @@ export default function BackgroundRemoverStudio() {
                 />
               ) : !selectedImage ? (
                 <div className="text-center">
-                  <Scissors className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
-                  <h2 className="text-xl font-semibold mb-2">Select or Upload an Image</h2>
-                  <p className="text-muted-foreground text-sm mb-6">
-                    Choose from gallery or upload new images
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-500/20 to-brand-600/20 flex items-center justify-center mx-auto mb-6">
+                    <Scissors className="w-10 h-10 text-brand-500" />
+                  </div>
+                  <h2 className="text-2xl font-bold mb-2 bg-gradient-to-r from-brand-500 to-brand-700 bg-clip-text text-transparent">
+                    Select an Image to Edit
+                  </h2>
+                  <p className="text-muted-foreground text-sm mb-8 max-w-md mx-auto">
+                    Choose from your library to start removing backgrounds with AI-powered tools
                   </p>
                   <Button
-                    onClick={() => setShowUploader(true)}
-                    className="bg-brand-500 hover:bg-brand-600 text-white"
+                    onClick={() => setShowLibrary(true)}
+                    className="bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-lg shadow-brand-500/25"
+                    size="lg"
                   >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Images
+                    <FolderOpen className="w-5 h-5 mr-2" />
+                    Browse Library
                   </Button>
                 </div>
               ) : (
                 <div className="relative w-full h-full flex items-center justify-center">
                   <div
-                    className="relative inline-block rounded-xl overflow-hidden border-2 border-border shadow-2xl max-w-full max-h-full"
+                    className="relative inline-block rounded-2xl overflow-hidden border-2 border-border/50 shadow-2xl shadow-black/10 max-w-full max-h-full ring-1 ring-black/5"
                     style={checkerboardStyle}
                     onMouseLeave={() => setCursorPos(null)}
                   >
@@ -1161,30 +1245,58 @@ export default function BackgroundRemoverStudio() {
         </div>
       </div>
 
-      {/* ═══ FIXED BOTTOM-RIGHT ACTION BUTTONS ═══ */}
+      {/* ═══ BOTTOM NAVIGATION BAR ═══ */}
       {isLoaded && !isProcessingAI && (
-        <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
-          {hasChanges && (
-            <Button
-              onClick={handleSaveToGallery}
-              size="lg"
-              className="bg-brand-500 hover:bg-brand-600 text-white shadow-xl"
-            >
-              <Check className="w-5 h-5 mr-2" />
-              Save
-            </Button>
-          )}
-          <Button
-            onClick={handleDownload}
-            variant="outline"
-            size="lg"
-            className="shadow-xl bg-background"
-          >
-            <Download className="w-5 h-5 mr-2" />
-            Download
-          </Button>
+        <div className="bg-background/95 backdrop-blur-sm border-t border-border/50 px-6 py-4 shrink-0 z-30">
+          <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Layers className="w-4 h-4" />
+                <span>
+                  {selectedImage?.originalUrl.split('/').pop()?.slice(0, 30)}
+                  {selectedImage && selectedImage.originalUrl.split('/').pop()!.length > 30 && '...'}
+                </span>
+              </div>
+              {hasChanges && (
+                <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
+                  Unsaved changes
+                </Badge>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleDownload}
+                variant="outline"
+                size="default"
+                className="border-border/50 hover:bg-muted"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download
+              </Button>
+              {hasChanges && (
+                <Button
+                  onClick={handleSaveToGallery}
+                  size="default"
+                  className="bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-md"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Save to Library
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       )}
+
+      {/* ═══ MEDIA LIBRARY PICKER ═══ */}
+      <MediaLibraryPicker
+        open={showLibrary}
+        onClose={() => setShowLibrary(false)}
+        onSelect={handleLibrarySelect}
+        title="Select Image to Edit"
+        filterTypes={["image"]}
+      />
     </div>
   );
 }
