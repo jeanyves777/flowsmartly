@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
 import {
   Scissors,
   Download,
@@ -22,10 +21,6 @@ import {
   Minus,
   Layers,
   Check,
-  Clapperboard,
-  Mic,
-  Palette,
-  Film,
   AlertCircle,
   FolderOpen,
 } from "lucide-react";
@@ -64,37 +59,6 @@ const checkerboardStyle: React.CSSProperties = {
   backgroundSize: "20px 20px",
   backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
 };
-
-// ── AI Creative Tools ──────────────────────────────────────────────────────────
-
-const AI_TOOLS = [
-  {
-    name: "AI Studio",
-    href: "/studio",
-    icon: Palette,
-  },
-  {
-    name: "Cartoon Maker",
-    href: "/cartoon-maker",
-    icon: Clapperboard,
-  },
-  {
-    name: "Video Studio",
-    href: "/video-studio",
-    icon: Film,
-  },
-  {
-    name: "Voice Studio",
-    href: "/voice-studio",
-    icon: Mic,
-  },
-  {
-    name: "Background Remover",
-    href: "/tools/background-remover",
-    icon: Scissors,
-    active: true,
-  },
-];
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
@@ -823,26 +787,188 @@ export default function BackgroundRemoverStudio() {
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-muted/20 via-background to-muted/20">
-      {/* ═══ TOP AI TOOLS NAVIGATION ═══ */}
+      {/* ═══ TOP EDITING TOOLBAR ═══ */}
       <div className="bg-background/95 backdrop-blur-sm border-b border-border/50 px-6 py-3 shrink-0 z-30">
-        <div className="flex items-center gap-2 overflow-x-auto">
-          {AI_TOOLS.map((tool) => {
-            const Icon = tool.icon;
-            return (
-              <Link
-                key={tool.href}
-                href={tool.href}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all whitespace-nowrap ${
-                  tool.active
-                    ? "bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-lg shadow-brand-500/25"
-                    : "hover:bg-muted/60 text-muted-foreground hover:text-foreground border border-transparent hover:border-border/50"
-                }`}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          {/* Left: Page Title */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
+              <Scissors className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="font-bold text-lg tracking-tight">Background Studio</h1>
+              <p className="text-xs text-muted-foreground">Remove backgrounds with AI</p>
+            </div>
+          </div>
+
+          {/* Center: Editing Tools */}
+          {isLoaded && (
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Tool Mode Buttons */}
+              <div className="flex gap-1 border border-border/50 rounded-lg p-1 bg-muted/30">
+                <Button
+                  variant={toolMode === "erase" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setToolMode("erase")}
+                  className={`h-9 px-4 ${toolMode === "erase" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
+                >
+                  <Eraser className="w-4 h-4 mr-2" />
+                  Erase
+                </Button>
+                <Button
+                  variant={toolMode === "restore" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setToolMode("restore")}
+                  className={`h-9 px-4 ${toolMode === "restore" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
+                >
+                  <Paintbrush className="w-4 h-4 mr-2" />
+                  Restore
+                </Button>
+                <Button
+                  variant={toolMode === "magic" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setToolMode("magic")}
+                  className={`h-9 px-4 ${toolMode === "magic" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
+                >
+                  <Wand2 className="w-4 h-4 mr-2" />
+                  Magic
+                </Button>
+              </div>
+
+              {/* Size/Tolerance Control */}
+              {toolMode === "magic" ? (
+                <div className="flex items-center gap-2 border border-border/50 rounded-lg px-3 py-1.5 bg-muted/30">
+                  <span className="text-xs font-medium text-muted-foreground">Tolerance</span>
+                  <button
+                    onClick={() => setTolerance((t) => Math.max(0, t - 5))}
+                    className="p-1 rounded-md hover:bg-background transition-colors"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={tolerance}
+                    onChange={(e) => setTolerance(Number(e.target.value))}
+                    className="w-32 h-2 accent-brand-500"
+                  />
+                  <button
+                    onClick={() => setTolerance((t) => Math.min(100, t + 5))}
+                    className="p-1 rounded-md hover:bg-background transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-xs font-semibold text-foreground tabular-nums w-8 text-right">
+                    {tolerance}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 border border-border/50 rounded-lg px-3 py-1.5 bg-muted/30">
+                  <span className="text-xs font-medium text-muted-foreground">Brush Size</span>
+                  <button
+                    onClick={() => setBrushSize((s) => Math.max(BRUSH_MIN, s - 5))}
+                    className="p-1 rounded-md hover:bg-background transition-colors"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <input
+                    type="range"
+                    min={BRUSH_MIN}
+                    max={BRUSH_MAX}
+                    value={brushSize}
+                    onChange={(e) => setBrushSize(Number(e.target.value))}
+                    className="w-32 h-2 accent-brand-500"
+                  />
+                  <button
+                    onClick={() => setBrushSize((s) => Math.min(BRUSH_MAX, s + 5))}
+                    className="p-1 rounded-md hover:bg-background transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-xs font-semibold text-foreground tabular-nums w-8 text-right">
+                    {brushSize}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Right: AI & History */}
+          {isLoaded && (
+            <div className="flex items-center gap-3">
+              {/* AI Remove Button */}
+              <Button
+                onClick={handleAIRemove}
+                disabled={isProcessingAI}
+                className="bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-md shadow-brand-500/20"
+                size="sm"
               >
-                <Icon className="w-4 h-4" />
-                <span className="text-sm font-medium">{tool.name}</span>
-              </Link>
-            );
-          })}
+                {isProcessingAI ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {aiStep || "Processing..."}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    AI Remove
+                  </>
+                )}
+              </Button>
+
+              {!isProcessingAI && (
+                <>
+                  {/* Undo/Redo */}
+                  <div className="flex gap-1 border border-border/50 rounded-lg p-0.5 bg-muted/30">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-background"
+                      onClick={undo}
+                      disabled={historyIndex <= 0}
+                    >
+                      <Undo2 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-background"
+                      onClick={redo}
+                      disabled={historyIndex >= history.length - 1}
+                    >
+                      <Redo2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {/* Zoom */}
+                  <div className="flex items-center gap-1 border border-border/50 rounded-lg p-0.5 bg-muted/30">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-background"
+                      onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}
+                      disabled={zoom <= 0.25}
+                    >
+                      <ZoomOut className="w-4 h-4" />
+                    </Button>
+                    <span className="text-xs text-muted-foreground tabular-nums w-12 text-center font-medium">
+                      {Math.round(zoom * 100)}%
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-background"
+                      onClick={() => setZoom((z) => Math.min(4, z + 0.25))}
+                      disabled={zoom >= 4}
+                    >
+                      <ZoomIn className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -966,185 +1092,6 @@ export default function BackgroundRemoverStudio() {
 
         {/* ═══ RIGHT CANVAS AREA - NO SCROLL ═══ */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden z-10">
-          {/* Editing Toolbar */}
-          <div className="bg-background/95 backdrop-blur-sm border-b border-border/50 p-4 shrink-0">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              {/* Left: Tools */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {isLoaded && (
-                  <>
-                    <div className="flex gap-1 border border-border/50 rounded-lg p-1 bg-muted/30">
-                      <Button
-                        variant={toolMode === "erase" ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => setToolMode("erase")}
-                        className={`h-9 px-4 ${toolMode === "erase" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
-                      >
-                        <Eraser className="w-4 h-4 mr-2" />
-                        Erase
-                      </Button>
-                      <Button
-                        variant={toolMode === "restore" ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => setToolMode("restore")}
-                        className={`h-9 px-4 ${toolMode === "restore" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
-                      >
-                        <Paintbrush className="w-4 h-4 mr-2" />
-                        Restore
-                      </Button>
-                      <Button
-                        variant={toolMode === "magic" ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => setToolMode("magic")}
-                        className={`h-9 px-4 ${toolMode === "magic" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
-                      >
-                        <Wand2 className="w-4 h-4 mr-2" />
-                        Magic
-                      </Button>
-                    </div>
-
-                    {toolMode === "magic" ? (
-                      <div className="flex items-center gap-2 border border-border/50 rounded-lg px-3 py-1.5 bg-muted/30">
-                        <span className="text-xs font-medium text-muted-foreground">Tolerance</span>
-                        <button
-                          onClick={() => setTolerance((t) => Math.max(0, t - 5))}
-                          className="p-1 rounded-md hover:bg-background transition-colors"
-                        >
-                          <Minus className="w-3.5 h-3.5" />
-                        </button>
-                        <input
-                          type="range"
-                          min={0}
-                          max={100}
-                          value={tolerance}
-                          onChange={(e) => setTolerance(Number(e.target.value))}
-                          className="w-32 h-2 accent-brand-500"
-                        />
-                        <button
-                          onClick={() => setTolerance((t) => Math.min(100, t + 5))}
-                          className="p-1 rounded-md hover:bg-background transition-colors"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                        <span className="text-xs font-semibold text-foreground tabular-nums w-8 text-right">
-                          {tolerance}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 border border-border/50 rounded-lg px-3 py-1.5 bg-muted/30">
-                        <span className="text-xs font-medium text-muted-foreground">Brush Size</span>
-                        <button
-                          onClick={() => setBrushSize((s) => Math.max(BRUSH_MIN, s - 5))}
-                          className="p-1 rounded-md hover:bg-background transition-colors"
-                        >
-                          <Minus className="w-3.5 h-3.5" />
-                        </button>
-                        <input
-                          type="range"
-                          min={BRUSH_MIN}
-                          max={BRUSH_MAX}
-                          value={brushSize}
-                          onChange={(e) => setBrushSize(Number(e.target.value))}
-                          className="w-32 h-2 accent-brand-500"
-                        />
-                        <button
-                          onClick={() => setBrushSize((s) => Math.min(BRUSH_MAX, s + 5))}
-                          className="p-1 rounded-md hover:bg-background transition-colors"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                        <span className="text-xs font-semibold text-foreground tabular-nums w-8 text-right">
-                          {brushSize}
-                        </span>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* Center: AI & History */}
-              <div className="flex items-center gap-3">
-                {isLoaded && (
-                  <>
-                    <Button
-                      onClick={handleAIRemove}
-                      disabled={isProcessingAI}
-                      className="bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-md shadow-brand-500/20"
-                      size="sm"
-                    >
-                      {isProcessingAI ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          {aiStep || "Processing..."}
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4 mr-2" />
-                          AI Remove
-                        </>
-                      )}
-                    </Button>
-
-                    {!isProcessingAI && (
-                      <>
-
-                    <div className="flex gap-1 border border-border/50 rounded-lg p-0.5 bg-muted/30">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-background"
-                        onClick={undo}
-                        disabled={historyIndex <= 0}
-                      >
-                        <Undo2 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-background"
-                        onClick={redo}
-                        disabled={historyIndex >= history.length - 1}
-                      >
-                        <Redo2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-
-                    <div className="flex items-center gap-1 border border-border/50 rounded-lg p-0.5 bg-muted/30">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-background"
-                        onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}
-                        disabled={zoom <= 0.25}
-                      >
-                        <ZoomOut className="w-4 h-4" />
-                      </Button>
-                      <span className="text-xs text-muted-foreground tabular-nums w-12 text-center font-medium">
-                        {Math.round(zoom * 100)}%
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-background"
-                        onClick={() => setZoom((z) => Math.min(4, z + 0.25))}
-                        disabled={zoom >= 4}
-                      >
-                        <ZoomIn className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    </>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* Right: Removed - buttons moved to bottom-right */}
-              <div className="flex items-center gap-2">
-                {/* Save & Download moved to fixed position */}
-              </div>
-            </div>
-          </div>
-
           {/* Canvas Area - FIXED NO SCROLL */}
           <div className="flex-1 flex items-center justify-center p-8 overflow-hidden min-h-0 bg-gradient-to-br from-muted/10 via-background to-muted/10 relative">
             <AnimatePresence mode="wait">
