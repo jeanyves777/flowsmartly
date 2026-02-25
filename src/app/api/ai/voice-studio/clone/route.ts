@@ -7,7 +7,10 @@ import { uploadToS3 } from "@/lib/utils/s3-client";
 import { nanoid } from "nanoid";
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
-const ALLOWED_AUDIO_TYPES = ["audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp3"];
+const ALLOWED_AUDIO_TYPES = [
+  "audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp3",
+  "audio/webm", "audio/ogg", "audio/mp4",
+];
 
 /**
  * GET /api/ai/voice-studio/clone — Check if voice cloning is available
@@ -101,9 +104,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!ALLOWED_AUDIO_TYPES.includes(file.type)) {
+    const baseType = file.type.split(";")[0].trim();
+    if (!ALLOWED_AUDIO_TYPES.includes(baseType)) {
       return NextResponse.json(
-        { error: "File must be an audio file (MP3 or WAV)" },
+        { error: "File must be an audio file (MP3, WAV, WebM, or OGG)" },
         { status: 400 }
       );
     }
@@ -120,14 +124,20 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
 
     // Upload sample to S3
-    const s3Key = `voice-clones/${session.userId}/${nanoid(8)}.mp3`;
+    const extMap: Record<string, string> = {
+      "audio/mpeg": "mp3", "audio/mp3": "mp3",
+      "audio/wav": "wav", "audio/x-wav": "wav",
+      "audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "mp4",
+    };
+    const fileExt = extMap[baseType] || "mp3";
+    const s3Key = `voice-clones/${session.userId}/${nanoid(8)}.${fileExt}`;
     const sampleUrl = await uploadToS3(s3Key, buffer, file.type);
 
     // Clone voice via ElevenLabs
     const result = await cloneVoice({
       name: name.trim(),
       description: `Cloned voice for ${name.trim()}`,
-      audioBuffers: [{ buffer, filename: file.name || "sample.mp3" }],
+      audioBuffers: [{ buffer, filename: file.name || `sample.${fileExt}` }],
     });
 
     // Create VoiceProfile record

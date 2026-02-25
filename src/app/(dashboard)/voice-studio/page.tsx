@@ -28,6 +28,7 @@ import { ScriptEditor } from "@/components/voice-studio/script-editor";
 import { AudioPlayer } from "@/components/voice-studio/audio-player";
 import { VoiceProfileCard } from "@/components/voice-studio/voice-profile-card";
 import { GenerationHistory } from "@/components/voice-studio/generation-history";
+import { VoiceRecorderModal } from "@/components/voice-studio/voice-recorder-modal";
 
 // ─── CollapsibleSection ───
 
@@ -164,6 +165,9 @@ export default function VoiceStudioPage() {
   const [isCloning, setIsCloning] = useState(false);
   const [cloneFile, setCloneFile] = useState<File | null>(null);
   const [cloneName, setCloneName] = useState("");
+
+  // Recorder modal
+  const [isRecorderOpen, setIsRecorderOpen] = useState(false);
 
   // Save profile
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -419,6 +423,28 @@ export default function VoiceStudioPage() {
       setIsCloning(false);
     }
   };
+
+  // ─── Handle recording from recorder modal ───
+
+  const handleRecordingComplete = useCallback(
+    (blob: Blob, durationSec: number) => {
+      const ext = blob.type.includes("webm")
+        ? "webm"
+        : blob.type.includes("ogg")
+          ? "ogg"
+          : blob.type.includes("mp4")
+            ? "mp4"
+            : "wav";
+      const file = new File([blob], `voice-recording.${ext}`, { type: blob.type });
+      setCloneFile(file);
+      setIsRecorderOpen(false);
+      toast({
+        title: "Recording ready!",
+        description: `${Math.floor(durationSec / 60)}:${(durationSec % 60).toString().padStart(2, "0")} recording captured. Enter a name and click Clone Voice.`,
+      });
+    },
+    [toast]
+  );
 
   // ─── Reuse generation ───
 
@@ -713,7 +739,7 @@ export default function VoiceStudioPage() {
               {isElevenLabsAvailable ? (
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    Upload a voice sample (30s-5min audio) to clone and reuse it.
+                    Record your voice or upload a sample (30s-5min) to clone it.
                   </p>
                   <input
                     type="text"
@@ -723,15 +749,32 @@ export default function VoiceStudioPage() {
                     className="w-full text-sm px-3 py-2 rounded-lg bg-muted border border-border focus:border-brand-500 focus:outline-none"
                     maxLength={100}
                   />
-                  <label className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-purple-500/50 transition-colors">
+                  {/* Record or Upload */}
+                  <button
+                    onClick={() => setIsRecorderOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600/20 to-indigo-600/20 border border-purple-500/30 text-purple-400 hover:from-purple-600/30 hover:to-indigo-600/30 transition-all text-sm font-medium"
+                  >
+                    <Mic className="w-4 h-4" />
+                    Record Voice with Teleprompter
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-border" />
+                    <span className="text-xs text-muted-foreground">or upload a file</span>
+                    <div className="flex-1 h-px bg-border" />
+                  </div>
+                  <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-purple-500/50 transition-colors">
                     <input
                       type="file"
-                      accept="audio/mpeg,audio/wav,audio/mp3"
+                      accept="audio/mpeg,audio/wav,audio/mp3,audio/webm,audio/ogg"
                       className="hidden"
                       onChange={(e) => setCloneFile(e.target.files?.[0] || null)}
                     />
                     {cloneFile ? (
-                      <span className="text-sm text-foreground">{cloneFile.name}</span>
+                      <span className="text-sm text-foreground truncate">
+                        {cloneFile.name.startsWith("voice-recording")
+                          ? `Voice recording ready (${(cloneFile.size / (1024 * 1024)).toFixed(1)} MB)`
+                          : cloneFile.name}
+                      </span>
                     ) : (
                       <>
                         <Upload className="w-4 h-4 text-muted-foreground" />
@@ -867,6 +910,13 @@ export default function VoiceStudioPage() {
           </div>
         </motion.div>
       )}
+
+      {/* Voice Recorder Modal */}
+      <VoiceRecorderModal
+        isOpen={isRecorderOpen}
+        onClose={() => setIsRecorderOpen(false)}
+        onRecordingComplete={handleRecordingComplete}
+      />
     </motion.div>
   );
 }
