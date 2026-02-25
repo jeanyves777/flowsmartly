@@ -12,14 +12,17 @@ import os from "os";
 const ALLOWED_TYPES = [
   "image/png", "image/jpeg", "image/jpg", "image/webp", "image/svg+xml",
   "image/gif", "video/mp4", "video/webm", "video/quicktime", "application/pdf",
+  "audio/mpeg", "audio/wav", "audio/mp3", "audio/ogg", "audio/webm",
 ];
 const MAX_FILE_SIZE_IMAGE = 10 * 1024 * 1024; // 10MB for images/docs
 const MAX_FILE_SIZE_VIDEO = 100 * 1024 * 1024; // 100MB for videos
+const MAX_FILE_SIZE_AUDIO = 25 * 1024 * 1024; // 25MB for audio
 
 function getFileType(mimeType: string): string {
   if (mimeType.startsWith("image/svg")) return "svg";
   if (mimeType.startsWith("image/")) return "image";
   if (mimeType.startsWith("video/")) return "video";
+  if (mimeType.startsWith("audio/")) return "audio";
   return "document";
 }
 
@@ -222,16 +225,17 @@ export async function POST(request: NextRequest) {
 
     if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
-        { success: false, error: { message: "Invalid file type. Allowed: images, videos, PDF" } },
+        { success: false, error: { message: "Invalid file type. Allowed: images, videos, audio, PDF" } },
         { status: 400 }
       );
     }
 
     const isVideo = file.type.startsWith("video/");
-    const maxSize = isVideo ? MAX_FILE_SIZE_VIDEO : MAX_FILE_SIZE_IMAGE;
+    const isAudio = file.type.startsWith("audio/");
+    const maxSize = isVideo ? MAX_FILE_SIZE_VIDEO : isAudio ? MAX_FILE_SIZE_AUDIO : MAX_FILE_SIZE_IMAGE;
     if (file.size > maxSize) {
       return NextResponse.json(
-        { success: false, error: { message: `File too large. Maximum size is ${isVideo ? "100MB" : "10MB"}` } },
+        { success: false, error: { message: `File too large. Maximum size is ${isVideo ? "100MB" : isAudio ? "25MB" : "10MB"}` } },
         { status: 400 }
       );
     }

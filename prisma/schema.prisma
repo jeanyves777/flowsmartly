@@ -112,6 +112,8 @@ model User {
   contentFlags           ContentFlag[]  @relation("ContentFlagsReported")
   store                  Store?
   storeDomains           StoreDomain[]
+  voiceProfiles          VoiceProfile[]
+  voiceGenerations       VoiceGeneration[]
 
   @@index([email])
   @@index([username])
@@ -3432,4 +3434,56 @@ model AdCreativeVariant {
   product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
+}
+
+// ============================================
+// AI VOICE STUDIO
+// ============================================
+
+model VoiceProfile {
+  id                String    @id @default(cuid())
+  userId            String
+  name              String
+  type              String    @default("preset")
+  gender            String?
+  accent            String?
+  style             String?
+  openaiVoice       String?
+  elevenLabsVoiceId String?
+  sampleUrl         String?
+  isDefault         Boolean   @default(false)
+  lastUsedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generations VoiceGeneration[]
+
+  @@index([userId])
+}
+
+model VoiceGeneration {
+  id             String   @id @default(cuid())
+  userId         String
+  voiceProfileId String?
+  script         String
+  scriptSource   String   @default("manual")
+  gender         String?
+  accent         String?
+  style          String?
+  openaiVoice    String?
+  speed          Float    @default(1.0)
+  isClonedVoice  Boolean  @default(false)
+  audioUrl       String?
+  durationMs     Int?
+  fileSizeBytes  Int?
+  status         String   @default("PENDING")
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  voiceProfile VoiceProfile? @relation(fields: [voiceProfileId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
 }

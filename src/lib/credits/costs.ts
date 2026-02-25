@@ -117,6 +117,11 @@ export const DEFAULT_CREDIT_COSTS = {
 
   // --- AI Ad Creative ---
   AI_AD_CREATIVE: 8,            // AI ad creative generation (GPT-4o-mini ~$0.03)
+
+  // --- AI Voice Studio ---
+  AI_VOICE_GENERATION: 5,       // TTS generation (~$0.015 OpenAI gpt-4o-mini-tts)
+  AI_VOICE_SCRIPT: 3,           // AI script generation (GPT-4o-mini ~$0.01)
+  AI_VOICE_CLONE: 15,           // Voice cloning via ElevenLabs (~$0.10)
 } as const;
 
 /**
@@ -167,6 +172,9 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_SEO_OPTIMIZE: "AI SEO optimization",
   AI_INTELLIGENCE_RESEARCH: "AI intelligence research",
   AI_AD_CREATIVE: "AI ad creative generation",
+  AI_VOICE_GENERATION: "AI voice generation",
+  AI_VOICE_SCRIPT: "AI voice script generation",
+  AI_VOICE_CLONE: "AI voice cloning",
 };
 
 /**

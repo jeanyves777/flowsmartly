@@ -47,6 +47,7 @@ import {
   MapPin,
   Brain,
   Rocket,
+  Mic,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { COD_REGIONS } from "@/lib/constants/ecommerce";
@@ -100,6 +101,7 @@ const contentNavigation = [
 const aiCreativesNavigation = [
   { name: "Image Studio", href: "/studio", icon: Palette },
   { name: "Video Studio", href: "/video-studio", icon: Video },
+  { name: "Voice Studio", href: "/voice-studio", icon: Mic },
   { name: "Logo Generator", href: "/logo-generator", icon: Crown },
   { name: "Media Library", href: "/media", icon: FolderOpen },
 ];
@@ -432,7 +434,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
 
             {/* Filtered AI Creatives */}
             {filterByAllowed(aiCreativesNavigation).length > 0 &&
-              renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/logo-generator", "/media"].some(p => pathname.startsWith(p)), filterByAllowed(aiCreativesNavigation))}
+              renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/voice-studio", "/logo-generator", "/media"].some(p => pathname.startsWith(p)), filterByAllowed(aiCreativesNavigation))}
 
             {/* Filtered Marketing */}
             {filterByAllowed(marketingNavigation).length > 0 &&
@@ -467,7 +469,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             )}
 
             {/* AI Creatives Section */}
-            {renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/logo-generator", "/media"].some(p => pathname.startsWith(p)), aiCreativesNavigation)}
+            {renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/voice-studio", "/logo-generator", "/media"].some(p => pathname.startsWith(p)), aiCreativesNavigation)}
 
             {/* Marketing Section */}
             {renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), marketingNavigation, true)}
