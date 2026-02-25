@@ -237,7 +237,7 @@ export default function BackgroundRemoverStudio() {
               accept="image/png,image/jpeg,image/jpg,image/webp"
               maxSize={10 * 1024 * 1024}
               filterTypes={["image"]}
-              variant="compact"
+              variant="small"
               label="Select Images"
               placeholder="Drop images here"
               libraryTitle="Select from Library"
