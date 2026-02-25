@@ -14,6 +14,7 @@ import {
   ZoomIn,
   ZoomOut,
   Wand2,
+  Paintbrush,
 } from "lucide-react";
 
 // ─── Checkerboard CSS for transparency visualization ───
@@ -59,7 +60,7 @@ export default function BrushRefineCanvas({
   const isDrawingRef = useRef(false);
 
   // ─── State ───
-  const [toolMode, setToolMode] = useState<"brush" | "magic">("brush");
+  const [toolMode, setToolMode] = useState<"brush" | "magic" | "restore">("brush");
   const [brushSize, setBrushSize] = useState(24);
   const [tolerance, setTolerance] = useState(32);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
@@ -71,6 +72,9 @@ export default function BrushRefineCanvas({
 
   // ─── Animation frame for smooth cursor ───
   const rafRef = useRef<number | null>(null);
+
+  // ─── Original image for restore ───
+  const originalImageDataRef = useRef<ImageData | null>(null);
 
   // ─── Image loading ───
   useEffect(() => {
@@ -96,8 +100,9 @@ export default function BrushRefineCanvas({
       canvas.height = h;
       ctx.drawImage(img, 0, 0, w, h);
 
-      // Initial history snapshot
+      // Save original image data for restore
       const initial = ctx.getImageData(0, 0, w, h);
+      originalImageDataRef.current = ctx.getImageData(0, 0, w, h);
       setHistory([initial]);
       setHistoryIndex(0);
       setIsLoaded(true);
@@ -213,6 +218,81 @@ export default function BrushRefineCanvas({
     [brushSize]
   );
 
+  // ─── Restore brush drawing ───
+  const drawRestoreStroke = useCallback(
+    (from: { x: number; y: number }, to: { x: number; y: number }) => {
+      const ctx = ctxRef.current;
+      const canvas = canvasRef.current;
+      const original = originalImageDataRef.current;
+      if (!ctx || !canvas || !original) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const scaledBrush = brushSize * (canvas.width / rect.width);
+
+      // Create a temporary canvas for the restore brush
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      const tempCtx = tempCanvas.getContext("2d")!;
+      tempCtx.putImageData(original, 0, 0);
+
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = scaledBrush;
+
+      // Create circular clipping path for the stroke
+      ctx.globalAlpha = 1.0;
+      ctx.strokeStyle = ctx.createPattern(tempCanvas, "no-repeat") as CanvasPattern;
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.stroke();
+      ctx.restore();
+    },
+    [brushSize]
+  );
+
+  const drawRestoreDot = useCallback(
+    (point: { x: number; y: number }) => {
+      const ctx = ctxRef.current;
+      const canvas = canvasRef.current;
+      const original = originalImageDataRef.current;
+      if (!ctx || !canvas || !original) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const scaledBrush = brushSize * (canvas.width / rect.width);
+      const radius = scaledBrush / 2;
+
+      // Get pixels from original in the brush area
+      const current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const { data: currentData } = current;
+      const { data: originalData } = original;
+
+      for (let y = Math.floor(point.y - radius); y < Math.ceil(point.y + radius); y++) {
+        for (let x = Math.floor(point.x - radius); x < Math.ceil(point.x + radius); x++) {
+          if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) continue;
+
+          const dx = x - point.x;
+          const dy = y - point.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist <= radius) {
+            const pos = (y * canvas.width + x) * 4;
+            currentData[pos] = originalData[pos];
+            currentData[pos + 1] = originalData[pos + 1];
+            currentData[pos + 2] = originalData[pos + 2];
+            currentData[pos + 3] = originalData[pos + 3];
+          }
+        }
+      }
+
+      ctx.putImageData(current, 0, 0);
+    },
+    [brushSize]
+  );
+
   // ─── Magic wand flood fill ───
   const magicRemove = useCallback(
     (point: { x: number; y: number }) => {
@@ -296,6 +376,11 @@ export default function BrushRefineCanvas({
         // Magic wand: single click removes area
         magicRemove(point);
         pushHistory();
+      } else if (toolMode === "restore") {
+        // Restore mode: start drawing
+        isDrawingRef.current = true;
+        lastPointRef.current = point;
+        drawRestoreDot(point);
       } else {
         // Brush mode: start drawing
         isDrawingRef.current = true;
@@ -303,7 +388,7 @@ export default function BrushRefineCanvas({
         drawDot(point);
       }
     },
-    [getCanvasPoint, drawDot, magicRemove, pushHistory, toolMode]
+    [getCanvasPoint, drawDot, drawRestoreDot, magicRemove, pushHistory, toolMode]
   );
 
   const handleMouseMove = useCallback(
@@ -318,14 +403,18 @@ export default function BrushRefineCanvas({
         setCursorPos(displayPt);
       });
 
-      // Only draw if in brush mode and drawing
-      if (toolMode !== "brush" || !isDrawingRef.current || !lastPointRef.current) return;
+      // Only draw if in drawing mode
+      if (toolMode === "magic" || !isDrawingRef.current || !lastPointRef.current) return;
 
       const point = getCanvasPoint(e.clientX, e.clientY);
-      drawEraserStroke(lastPointRef.current, point);
+      if (toolMode === "restore") {
+        drawRestoreStroke(lastPointRef.current, point);
+      } else {
+        drawEraserStroke(lastPointRef.current, point);
+      }
       lastPointRef.current = point;
     },
-    [getCanvasPoint, getDisplayPoint, drawEraserStroke, toolMode]
+    [getCanvasPoint, getDisplayPoint, drawEraserStroke, drawRestoreStroke, toolMode]
   );
 
   const handleMouseUp = useCallback(() => {
@@ -359,25 +448,33 @@ export default function BrushRefineCanvas({
       if (toolMode === "magic") {
         magicRemove(point);
         pushHistory();
+      } else if (toolMode === "restore") {
+        isDrawingRef.current = true;
+        lastPointRef.current = point;
+        drawRestoreDot(point);
       } else {
         isDrawingRef.current = true;
         lastPointRef.current = point;
         drawDot(point);
       }
     },
-    [getCanvasPoint, drawDot, magicRemove, pushHistory, toolMode]
+    [getCanvasPoint, drawDot, drawRestoreDot, magicRemove, pushHistory, toolMode]
   );
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent<HTMLCanvasElement>) => {
       e.preventDefault();
-      if (toolMode !== "brush" || !isDrawingRef.current || !lastPointRef.current) return;
+      if (toolMode === "magic" || !isDrawingRef.current || !lastPointRef.current) return;
       const touch = e.touches[0];
       const point = getCanvasPoint(touch.clientX, touch.clientY);
-      drawEraserStroke(lastPointRef.current, point);
+      if (toolMode === "restore") {
+        drawRestoreStroke(lastPointRef.current, point);
+      } else {
+        drawEraserStroke(lastPointRef.current, point);
+      }
       lastPointRef.current = point;
     },
-    [getCanvasPoint, drawEraserStroke, toolMode]
+    [getCanvasPoint, drawEraserStroke, drawRestoreStroke, toolMode]
   );
 
   const handleTouchEnd = useCallback(() => {
@@ -410,12 +507,15 @@ export default function BrushRefineCanvas({
         e.preventDefault();
         redo();
       }
-      // Tool mode: B for brush, M for magic
+      // Tool mode: B for brush, M for magic, R for restore
       if (e.key.toLowerCase() === "b") {
         setToolMode("brush");
       }
       if (e.key.toLowerCase() === "m") {
         setToolMode("magic");
+      }
+      if (e.key.toLowerCase() === "r") {
+        setToolMode("restore");
       }
       // Brush size: [ and ]
       if (e.key === "[") {
@@ -490,6 +590,8 @@ export default function BrushRefineCanvas({
         <div className="p-1.5 rounded-lg bg-brand-500/10">
           {toolMode === "brush" ? (
             <Eraser className="w-4 h-4 text-brand-500" />
+          ) : toolMode === "restore" ? (
+            <Paintbrush className="w-4 h-4 text-brand-500" />
           ) : (
             <Wand2 className="w-4 h-4 text-brand-500" />
           )}
@@ -499,6 +601,8 @@ export default function BrushRefineCanvas({
           <p className="text-[11px] text-muted-foreground">
             {toolMode === "brush"
               ? "Paint over areas to erase them"
+              : toolMode === "restore"
+              ? "Paint to restore original pixels"
               : "Click similar areas to remove them"}
           </p>
         </div>
@@ -542,14 +646,15 @@ export default function BrushRefineCanvas({
             <div
               className="absolute pointer-events-none"
               style={{
-                left: toolMode === "brush" ? cursorPos.x - brushSize / 2 : cursorPos.x - 12,
-                top: toolMode === "brush" ? cursorPos.y - brushSize / 2 : cursorPos.y - 12,
-                width: toolMode === "brush" ? brushSize : 24,
-                height: toolMode === "brush" ? brushSize : 24,
-                border: "2px solid white",
-                borderRadius: toolMode === "brush" ? "50%" : "0%",
+                left: toolMode === "magic" ? cursorPos.x - 12 : cursorPos.x - brushSize / 2,
+                top: toolMode === "magic" ? cursorPos.y - 12 : cursorPos.y - brushSize / 2,
+                width: toolMode === "magic" ? 24 : brushSize,
+                height: toolMode === "magic" ? 24 : brushSize,
+                border: toolMode === "restore" ? "2px solid #10b981" : "2px solid white",
+                borderRadius: toolMode === "magic" ? "0%" : "50%",
                 boxShadow: "0 0 0 1px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(0,0,0,0.15)",
                 transition: "width 0.1s, height 0.1s",
+                backgroundColor: toolMode === "restore" ? "rgba(16, 185, 129, 0.1)" : undefined,
               }}
             >
               {toolMode === "magic" && (
@@ -578,7 +683,16 @@ export default function BrushRefineCanvas({
             className="h-7 px-3"
           >
             <Eraser className="w-3.5 h-3.5 mr-1.5" />
-            Brush
+            Erase
+          </Button>
+          <Button
+            variant={toolMode === "restore" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setToolMode("restore")}
+            className="h-7 px-3"
+          >
+            <Paintbrush className="w-3.5 h-3.5 mr-1.5" />
+            Restore
           </Button>
           <Button
             variant={toolMode === "magic" ? "default" : "ghost"}
@@ -591,8 +705,8 @@ export default function BrushRefineCanvas({
           </Button>
         </div>
 
-        {/* Brush size (only in brush mode) */}
-        {toolMode === "brush" && (
+        {/* Brush size (for brush and restore modes) */}
+        {(toolMode === "brush" || toolMode === "restore") && (
           <div className="flex items-center gap-2 flex-1 min-w-[200px]">
             <span className="text-xs text-muted-foreground shrink-0">Size</span>
             <button
@@ -736,7 +850,10 @@ export default function BrushRefineCanvas({
       {/* Keyboard hints */}
       <p className="text-[11px] text-muted-foreground text-center space-x-2">
         <span>
-          <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">B</kbd> brush
+          <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">B</kbd> erase
+        </span>
+        <span>
+          <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">R</kbd> restore
         </span>
         <span>
           <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">M</kbd> magic
@@ -747,7 +864,7 @@ export default function BrushRefineCanvas({
         <span>
           <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">[</kbd>{" "}
           <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">]</kbd>{" "}
-          {toolMode === "brush" ? "size" : "tolerance"}
+          {toolMode === "magic" ? "tolerance" : "size"}
         </span>
       </p>
     </div>

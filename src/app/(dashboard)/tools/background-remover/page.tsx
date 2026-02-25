@@ -97,6 +97,7 @@ export default function BackgroundRemoverPage() {
 
   // Refine state
   const [isRefining, setIsRefining] = useState(false);
+  const [isManualMode, setIsManualMode] = useState(false);
 
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>("slider");
@@ -194,18 +195,39 @@ export default function BackgroundRemoverPage() {
     setShowOriginal(false);
     setSliderPos(50);
     setIsRefining(false);
+    setIsManualMode(false);
+  };
+
+  const handleManualRemove = () => {
+    if (!imageUrl) return;
+    setIsManualMode(true);
+    setProcessedUrl(imageUrl); // Use original image for manual editing
+    setIsRefining(true);
   };
 
   const handleRefineSave = (newUrl: string) => {
     setProcessedUrl(newUrl);
-    setGallery((prev) => {
-      if (prev.length === 0) return prev;
-      const updated = [...prev];
-      updated[0] = { ...updated[0], processedUrl: newUrl };
-      return updated;
-    });
+    if (isManualMode) {
+      // For manual mode, add to gallery
+      setGallery((prev) => [
+        {
+          originalUrl: imageUrl,
+          processedUrl: newUrl,
+          createdAt: new Date(),
+        },
+        ...prev.slice(0, 9),
+      ]);
+    } else {
+      // For AI mode, update existing gallery entry
+      setGallery((prev) => {
+        if (prev.length === 0) return prev;
+        const updated = [...prev];
+        updated[0] = { ...updated[0], processedUrl: newUrl };
+        return updated;
+      });
+    }
     setIsRefining(false);
-    toast({ title: "Refinement saved!" });
+    toast({ title: isManualMode ? "Manual removal saved!" : "Refinement saved!" });
   };
 
   // Slider drag
@@ -524,21 +546,42 @@ export default function BackgroundRemoverPage() {
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
+                    className="space-y-3"
                   >
-                    <Button
-                      onClick={handleRemove}
-                      size="lg"
-                      className="w-full bg-brand-500 hover:bg-brand-600 text-white shadow-lg shadow-brand-500/20"
-                    >
-                      <Scissors className="w-5 h-5 mr-2" />
-                      Remove Background
-                      <Badge
-                        variant="secondary"
-                        className="ml-3 bg-white/20 text-white border-0"
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button
+                        onClick={handleRemove}
+                        size="lg"
+                        className="bg-brand-500 hover:bg-brand-600 text-white shadow-lg shadow-brand-500/20"
                       >
-                        {creditCost} credit
-                      </Badge>
-                    </Button>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        AI Remove
+                        <Badge
+                          variant="secondary"
+                          className="ml-2 bg-white/20 text-white border-0 text-xs"
+                        >
+                          {creditCost} credit
+                        </Badge>
+                      </Button>
+                      <Button
+                        onClick={handleManualRemove}
+                        size="lg"
+                        variant="outline"
+                        className="border-2"
+                      >
+                        <Eraser className="w-4 h-4 mr-2" />
+                        Manual Remove
+                        <Badge
+                          variant="secondary"
+                          className="ml-2 bg-green-500/10 text-green-600 border-0 text-xs"
+                        >
+                          Free
+                        </Badge>
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground text-center">
+                      Use AI for instant removal or manual tools for precise control
+                    </p>
                   </motion.div>
                 )}
               </div>
