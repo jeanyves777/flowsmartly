@@ -109,17 +109,26 @@ export default function BackgroundRemoverStudio() {
 
     const loadImage = async () => {
       try {
+        setIsLoaded(false); // Reset loading state
         const img = new Image();
 
         // Handle CORS for external images
         const imageUrl = selectedImage.processedUrl || selectedImage.originalUrl;
-        if (imageUrl.startsWith("http") && !imageUrl.startsWith(window.location.origin)) {
+
+        // Set crossOrigin for any external URL (not relative paths or blob URLs)
+        if (!imageUrl.startsWith('/') && !imageUrl.startsWith('blob:') && !imageUrl.startsWith('data:')) {
           img.crossOrigin = "anonymous";
         }
 
         await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = () => reject(new Error("Failed to load image"));
+          img.onload = () => {
+            console.log('Image loaded successfully:', imageUrl);
+            resolve();
+          };
+          img.onerror = (e) => {
+            console.error('Image load error:', e, imageUrl);
+            reject(new Error("Failed to load image"));
+          };
           img.src = imageUrl;
         });
 
@@ -144,8 +153,10 @@ export default function BackgroundRemoverStudio() {
         setHistoryIndex(0);
         setIsLoaded(true);
         setZoom(1); // Reset zoom
+        console.log('Canvas ready, size:', w, 'x', h);
       } catch (error) {
         console.error("Failed to load image:", error);
+        setIsLoaded(false);
         toast({
           title: "Failed to load image",
           description: "Please try another image",
@@ -964,7 +975,7 @@ export default function BackgroundRemoverStudio() {
         </div>
 
         {/* Canvas Area */}
-        <div className="flex-1 overflow-auto p-6 flex items-center justify-center">
+        <div className="flex-1 overflow-hidden p-6 flex items-center justify-center">
           <AnimatePresence mode="wait">
             {isProcessingAI ? (
               <motion.div
