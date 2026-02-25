@@ -789,7 +789,7 @@ export default function BackgroundRemoverStudio() {
     <div className="h-full flex flex-col bg-gradient-to-br from-muted/20 via-background to-muted/20">
       {/* ═══ TOP EDITING TOOLBAR ═══ */}
       <div className="bg-background/95 backdrop-blur-sm border-b border-border/50 px-6 py-3 shrink-0 z-30">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center justify-between gap-4">
           {/* Left: Page Title */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
@@ -803,7 +803,7 @@ export default function BackgroundRemoverStudio() {
 
           {/* Center: Editing Tools */}
           {isLoaded && (
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
               {/* Tool Mode Buttons */}
               <div className="flex gap-1 border border-border/50 rounded-lg p-1 bg-muted/30">
                 <Button
@@ -978,15 +978,6 @@ export default function BackgroundRemoverStudio() {
         <div className="w-80 bg-background/95 backdrop-blur-sm border-r border-border/50 flex flex-col shrink-0 z-20 shadow-lg">
           {/* Header */}
           <div className="p-4 border-b border-border/50 shrink-0">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
-                <Scissors className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="font-bold text-lg tracking-tight">Background Studio</h1>
-                <p className="text-xs text-muted-foreground">Professional editing tools</p>
-              </div>
-            </div>
             <Button
               onClick={() => setShowLibrary(true)}
               className="w-full bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-md"
