@@ -6,6 +6,10 @@
 import { prisma } from "@/lib/db/client";
 import { isGoogleAdsConfigured } from "./google-ads-client";
 import { activateOnGoogleAds, pauseOnGoogleAds } from "./google-ads-handler";
+import { isMetaAdsConfigured } from "./meta-ads-client";
+import { activateOnMetaAds, pauseOnMetaAds } from "./meta-ads-handler";
+import { isTikTokAdsConfigured } from "./tiktok-ads-client";
+import { activateOnTikTokAds, pauseOnTikTokAds } from "./tiktok-ads-handler";
 import { REGIONS } from "@/lib/constants/regions";
 
 export interface PlacementChannel {
@@ -106,7 +110,8 @@ export function getPlacementChannels(): PlacementChannel[] {
   return [
     { id: "feed", name: "FlowSmartly Feed", enabled: true },
     { id: "google_ads", name: "Google Ads", enabled: isGoogleAdsConfigured() },
-    { id: "meta_ads", name: "Meta Ads", enabled: false },
+    { id: "meta_ads", name: "Meta Ads", enabled: isMetaAdsConfigured() },
+    { id: "tiktok_ads", name: "TikTok Ads", enabled: isTikTokAdsConfigured() },
   ];
 }
 
@@ -115,6 +120,7 @@ export const PLACEMENT_CHANNELS: PlacementChannel[] = [
   { id: "feed", name: "FlowSmartly Feed", enabled: true },
   { id: "google_ads", name: "Google Ads", enabled: false },
   { id: "meta_ads", name: "Meta Ads", enabled: false },
+  { id: "tiktok_ads", name: "TikTok Ads", enabled: false },
 ];
 
 /**
@@ -124,6 +130,8 @@ export const PLACEMENT_CHANNELS: PlacementChannel[] = [
 export async function activateOnAllChannels(campaignId: string): Promise<{
   feed: boolean;
   googleAds: boolean;
+  metaAds: boolean;
+  tiktokAds: boolean;
 }> {
   const campaign = await prisma.adCampaign.findUnique({
     where: { id: campaignId },
@@ -140,11 +148,15 @@ export async function activateOnAllChannels(campaignId: string): Promise<{
       adPageId: true,
       googleAdsCampaignId: true,
       googleAdsAdGroupId: true,
+      metaAdsCampaignId: true,
+      metaAdsAdSetId: true,
+      tiktokAdsCampaignId: true,
+      tiktokAdsAdGroupId: true,
     },
   });
 
   if (!campaign) {
-    return { feed: false, googleAds: false };
+    return { feed: false, googleAds: false, metaAds: false, tiktokAds: false };
   }
 
   // Feed placement is always active (handled by the feed API query)
@@ -156,7 +168,19 @@ export async function activateOnAllChannels(campaignId: string): Promise<{
     googleAdsResult = await activateOnGoogleAds(campaign);
   }
 
-  return { feed: feedResult, googleAds: googleAdsResult };
+  // Meta Ads placement
+  let metaAdsResult = false;
+  if (isMetaAdsConfigured() && campaign.adType !== "POST") {
+    metaAdsResult = await activateOnMetaAds(campaign);
+  }
+
+  // TikTok Ads placement
+  let tiktokAdsResult = false;
+  if (isTikTokAdsConfigured() && campaign.adType !== "POST") {
+    tiktokAdsResult = await activateOnTikTokAds(campaign);
+  }
+
+  return { feed: feedResult, googleAds: googleAdsResult, metaAds: metaAdsResult, tiktokAds: tiktokAdsResult };
 }
 
 /**
@@ -179,6 +203,10 @@ export async function pauseOnAllChannels(campaignId: string): Promise<void> {
       adPageId: true,
       googleAdsCampaignId: true,
       googleAdsAdGroupId: true,
+      metaAdsCampaignId: true,
+      metaAdsAdSetId: true,
+      tiktokAdsCampaignId: true,
+      tiktokAdsAdGroupId: true,
     },
   });
 
@@ -186,5 +214,11 @@ export async function pauseOnAllChannels(campaignId: string): Promise<void> {
 
   if (campaign.googleAdsCampaignId) {
     await pauseOnGoogleAds(campaign);
+  }
+  if (campaign.metaAdsCampaignId) {
+    await pauseOnMetaAds(campaign);
+  }
+  if (campaign.tiktokAdsCampaignId) {
+    await pauseOnTikTokAds(campaign);
   }
 }

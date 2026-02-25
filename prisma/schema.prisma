@@ -403,6 +403,14 @@ model AdCampaign {
   googleAdsCampaignId  String?   // Google Ads campaign resource name
   googleAdsAdGroupId   String?   // Google Ads ad group resource name
 
+  // Meta Ads integration
+  metaAdsCampaignId    String?
+  metaAdsAdSetId       String?
+
+  // TikTok Ads integration
+  tiktokAdsCampaignId  String?
+  tiktokAdsAdGroupId   String?
+
   // E-commerce product promotion (Ad Bridge)
   sourceProductId      String?   // Product this campaign promotes
   sourceStoreId        String?   // Store this campaign is from

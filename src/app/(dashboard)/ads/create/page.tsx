@@ -57,6 +57,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { MediaUploader } from "@/components/shared/media-uploader";
+import { StoreProductPicker } from "@/components/ads/store-product-picker";
+import { AIAdCreativePanel } from "@/components/ecommerce/ai-ad-creative-panel";
 import { REGIONS } from "@/lib/constants/regions";
 
 // Platform SVG icons
@@ -301,6 +303,10 @@ export default function CreateCampaignPage() {
   // Ad type
   const [adType, setAdType] = useState<AdType>("POST");
 
+  // Product picker state (for PRODUCT_LINK)
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
+
   // Product link / External URL fields
   const [headline, setHeadline] = useState("");
   const [adDescription, setAdDescription] = useState("");
@@ -428,6 +434,34 @@ export default function CreateCampaignPage() {
       setIsUploadingMedia(false);
     }
   };
+
+  // Product selection handlers
+  const handleProductSelect = useCallback((product: {
+    productId: string;
+    storeId: string;
+    headline: string;
+    description: string;
+    destinationUrl: string;
+    mediaUrl: string | null;
+    ctaText: string;
+    adCategory: string;
+    name: string;
+  }) => {
+    setSelectedProductId(product.productId);
+    setSelectedStoreId(product.storeId);
+    setHeadline(product.headline);
+    setAdDescription(product.description);
+    setDestinationUrl(product.destinationUrl);
+    if (product.mediaUrl) setMediaPreviewUrl(product.mediaUrl);
+    setCtaText(product.ctaText);
+    setAdCategory(product.adCategory);
+    if (!name.trim()) setName(product.name);
+  }, [name]);
+
+  const handleProductClear = useCallback(() => {
+    setSelectedProductId(null);
+    setSelectedStoreId(null);
+  }, []);
 
   // Pre-select post from query parameter
   useEffect(() => {
@@ -596,6 +630,9 @@ export default function CreateCampaignPage() {
             platforms: Array.from(selectedPlatforms),
             tags: selectedTags,
           },
+          // E-commerce product linking
+          sourceProductId: selectedProductId || undefined,
+          sourceStoreId: selectedStoreId || undefined,
         }),
       });
 
@@ -895,6 +932,60 @@ export default function CreateCampaignPage() {
 
           {/* Section 2: Content — varies by ad type */}
 
+          {/* Product Picker (PRODUCT_LINK only) */}
+          {adType === "PRODUCT_LINK" && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <ShoppingBag className="w-5 h-5 text-brand-500" />
+                      Select from Store
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      Choose a product from your store to auto-fill details, or enter them manually below
+                    </CardDescription>
+                  </div>
+                  {selectedProductId && (
+                    <Badge variant="secondary" className="text-xs">Product linked</Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <StoreProductPicker
+                  onSelect={handleProductSelect}
+                  onClear={handleProductClear}
+                  selectedProductId={selectedProductId}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* AI Ad Creatives (PRODUCT_LINK with product selected) */}
+          {adType === "PRODUCT_LINK" && selectedProductId && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Sparkles className="w-5 h-5 text-brand-500" />
+                  AI Ad Creatives
+                </CardTitle>
+                <CardDescription>
+                  Generate platform-optimized headlines and descriptions
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AIAdCreativePanel
+                  productId={selectedProductId}
+                  onSelect={({ headline: h, description: d, ctaText: c }) => {
+                    setHeadline(h);
+                    setAdDescription(d);
+                    setCtaText(c);
+                  }}
+                />
+              </CardContent>
+            </Card>
+          )}
+
           {/* Product Link / External URL Form */}
           {(adType === "PRODUCT_LINK" || adType === "EXTERNAL_URL") && (
             <Card>
@@ -909,7 +1000,7 @@ export default function CreateCampaignPage() {
                 </CardTitle>
                 <CardDescription>
                   {adType === "PRODUCT_LINK"
-                    ? "Enter your product info. We'll create a quick ad page for you."
+                    ? selectedProductId ? "Auto-filled from your product. Edit any field as needed." : "Enter your product info. We'll create a quick ad page for you."
                     : "Enter the website URL you want to promote."}
                 </CardDescription>
               </CardHeader>
@@ -1870,6 +1961,16 @@ export default function CreateCampaignPage() {
                         <p className="text-sm font-medium">{landingPages.find(lp => lp.id === selectedLandingPageId)?.title}</p>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Product Link Info */}
+                {selectedProductId && adType === "PRODUCT_LINK" && (
+                  <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2.5">
+                    <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                      Linked to store product
+                    </p>
                   </div>
                 )}
 

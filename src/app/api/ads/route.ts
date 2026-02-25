@@ -189,6 +189,9 @@ export async function POST(request: NextRequest) {
       templateStyle,
       adCategory,
       landingPageId,
+      // E-commerce product linking
+      sourceProductId,
+      sourceStoreId,
     } = body;
 
     const adType = (rawAdType || "POST").toUpperCase();
@@ -254,6 +257,24 @@ export async function POST(request: NextRequest) {
           { success: false, error: { message: "Landing page not found or not published." } },
           { status: 404 }
         );
+      }
+    }
+
+    // Product ownership validation (PRODUCT_LINK with store product)
+    let validatedSourceStoreId = sourceStoreId || null;
+    if (sourceProductId) {
+      const product = await prisma.product.findFirst({
+        where: { id: sourceProductId, store: { userId: session.userId } },
+        select: { id: true, store: { select: { id: true } } },
+      });
+      if (!product) {
+        return NextResponse.json(
+          { success: false, error: { message: "Product not found or does not belong to you." } },
+          { status: 404 }
+        );
+      }
+      if (!validatedSourceStoreId) {
+        validatedSourceStoreId = product.store.id;
       }
     }
 
@@ -387,6 +408,9 @@ export async function POST(request: NextRequest) {
         approvalStatus: initialApprovalStatus,
         adPageId: adPageId || null,
         landingPageId: adType === "LANDING_PAGE" ? landingPageId : null,
+        // E-commerce product linking
+        sourceProductId: sourceProductId || null,
+        sourceStoreId: validatedSourceStoreId,
       },
     });
 
