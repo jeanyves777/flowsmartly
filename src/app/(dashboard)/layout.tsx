@@ -327,17 +327,27 @@ export default function DashboardLayout({
         {/* Main Content */}
         <main
           className={cn(
-            "pt-16 min-h-screen transition-all duration-200",
+            "pt-16 transition-all duration-200",
+            // Full-height pages (tools) get fixed height with no padding
+            pathname?.startsWith("/tools/") ? "h-screen overflow-hidden" : "min-h-screen",
             // Desktop: respect sidebar state
             "md:pl-20",
             !sidebarCollapsed && "md:pl-[280px]"
           )}
         >
-          <div className="p-4 md:p-6">
-            {user && !user.emailVerified && <EmailVerificationBanner />}
-            {user && user.emailVerified && <OnboardingBanner />}
-            {children}
-          </div>
+          {pathname?.startsWith("/tools/") ? (
+            // Full-height tools pages: no padding, direct children
+            <>
+              {children}
+            </>
+          ) : (
+            // Regular pages: with padding and banners
+            <div className="p-4 md:p-6">
+              {user && !user.emailVerified && <EmailVerificationBanner />}
+              {user && user.emailVerified && <OnboardingBanner />}
+              {children}
+            </div>
+          )}
         </main>
 
         {/* FlowAI Chat Assistant */}
