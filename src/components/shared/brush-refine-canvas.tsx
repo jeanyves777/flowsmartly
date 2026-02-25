@@ -84,48 +84,70 @@ export default function BrushRefineCanvas({
     if (!ctx) return;
     ctxRef.current = ctx;
 
-    const img = new Image();
+    const loadImage = async () => {
+      try {
+        const img = new Image();
 
-    // Only set crossOrigin for external URLs, not for same-origin or blob URLs
-    const url = new URL(imageUrl, window.location.href);
-    const isSameOrigin = url.origin === window.location.origin;
-    const isBlobUrl = imageUrl.startsWith('blob:');
-    const isDataUrl = imageUrl.startsWith('data:');
+        // Check URL type
+        const isBlobUrl = imageUrl.startsWith('blob:');
+        const isDataUrl = imageUrl.startsWith('data:');
+        const isRelativeUrl = imageUrl.startsWith('/');
+        const isHttps = imageUrl.startsWith('https://');
+        const isHttp = imageUrl.startsWith('http://');
 
-    if (!isSameOrigin && !isBlobUrl && !isDataUrl) {
-      img.crossOrigin = "anonymous";
-    }
+        // Only set crossOrigin for external URLs
+        if ((isHttps || isHttp) && !isRelativeUrl && !isBlobUrl && !isDataUrl) {
+          try {
+            const url = new URL(imageUrl);
+            const isSameOrigin = url.origin === window.location.origin;
+            if (!isSameOrigin) {
+              img.crossOrigin = "anonymous";
+            }
+          } catch (e) {
+            console.warn("URL parsing error, proceeding without CORS:", e);
+          }
+        }
 
-    img.onload = () => {
-      // Cap resolution
-      let w = img.naturalWidth;
-      let h = img.naturalHeight;
-      if (w > MAX_CANVAS_DIM || h > MAX_CANVAS_DIM) {
-        const scale = MAX_CANVAS_DIM / Math.max(w, h);
-        w = Math.round(w * scale);
-        h = Math.round(h * scale);
+        // Wait for image to load
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = (e) => {
+            console.error("Image load error:", e, "URL:", imageUrl);
+            reject(new Error("Failed to load image"));
+          };
+          img.src = imageUrl;
+        });
+
+        // Cap resolution
+        let w = img.naturalWidth;
+        let h = img.naturalHeight;
+        if (w > MAX_CANVAS_DIM || h > MAX_CANVAS_DIM) {
+          const scale = MAX_CANVAS_DIM / Math.max(w, h);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+        }
+
+        canvas.width = w;
+        canvas.height = h;
+        ctx.drawImage(img, 0, 0, w, h);
+
+        // Save original image data for restore
+        const initial = ctx.getImageData(0, 0, w, h);
+        originalImageDataRef.current = ctx.getImageData(0, 0, w, h);
+        setHistory([initial]);
+        setHistoryIndex(0);
+        setIsLoaded(true);
+      } catch (error) {
+        console.error("Image loading failed:", error, "URL:", imageUrl);
+        toast({
+          title: "Failed to load image",
+          description: error instanceof Error ? error.message : "Please try uploading the image again",
+          variant: "destructive"
+        });
       }
-
-      canvas.width = w;
-      canvas.height = h;
-      ctx.drawImage(img, 0, 0, w, h);
-
-      // Save original image data for restore
-      const initial = ctx.getImageData(0, 0, w, h);
-      originalImageDataRef.current = ctx.getImageData(0, 0, w, h);
-      setHistory([initial]);
-      setHistoryIndex(0);
-      setIsLoaded(true);
     };
-    img.onerror = (e) => {
-      console.error("Image load error:", e);
-      toast({
-        title: "Failed to load image",
-        description: "Please try uploading the image again",
-        variant: "destructive"
-      });
-    };
-    img.src = imageUrl;
+
+    loadImage();
   }, [imageUrl, toast]);
 
   // ─── Coordinate translation ───
