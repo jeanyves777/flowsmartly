@@ -1043,27 +1043,9 @@ export default function BackgroundRemoverStudio() {
                 )}
               </div>
 
-              {/* Right: Save & Download */}
+              {/* Right: Removed - buttons moved to bottom-right */}
               <div className="flex items-center gap-2">
-                {isLoaded && !isProcessingAI && (
-                  <>
-                    {hasChanges && (
-                      <Button
-                        onClick={handleSaveToGallery}
-                        variant="outline"
-                        size="sm"
-                        className="border-brand-500 text-brand-500"
-                      >
-                        <Check className="w-4 h-4 mr-2" />
-                        Save
-                      </Button>
-                    )}
-                    <Button onClick={handleDownload} variant="outline" size="sm">
-                      <Download className="w-4 h-4 mr-2" />
-                      Download
-                    </Button>
-                  </>
-                )}
+                {/* Save & Download moved to fixed position */}
               </div>
             </div>
           </div>
@@ -1178,6 +1160,31 @@ export default function BackgroundRemoverStudio() {
           </div>
         </div>
       </div>
+
+      {/* ═══ FIXED BOTTOM-RIGHT ACTION BUTTONS ═══ */}
+      {isLoaded && !isProcessingAI && (
+        <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
+          {hasChanges && (
+            <Button
+              onClick={handleSaveToGallery}
+              size="lg"
+              className="bg-brand-500 hover:bg-brand-600 text-white shadow-xl"
+            >
+              <Check className="w-5 h-5 mr-2" />
+              Save
+            </Button>
+          )}
+          <Button
+            onClick={handleDownload}
+            variant="outline"
+            size="lg"
+            className="shadow-xl bg-background"
+          >
+            <Download className="w-5 h-5 mr-2" />
+            Download
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
