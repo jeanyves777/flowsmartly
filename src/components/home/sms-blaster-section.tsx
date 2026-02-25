@@ -35,8 +35,8 @@ function PhoneMockup({ children }: { children: React.ReactNode }) {
         xmlns="http://www.w3.org/2000/svg"
         className="w-full h-full drop-shadow-2xl"
       >
-        <rect x="4" y="4" width="272" height="552" rx="36" className="fill-gray-900 stroke-gray-700" strokeWidth="2" />
-        <rect x="16" y="52" width="248" height="468" rx="4" className="fill-white dark:fill-gray-800" />
+        <rect x="4" y="4" width="272" height="552" rx="36" className="fill-gray-900 stroke-gray-700" />
+        <rect x="16" y="52" width="248" height="468" rx="4" className="fill-card" />
         <rect x="96" y="16" width="88" height="24" rx="12" className="fill-gray-800" />
         <circle cx="150" cy="28" r="5" className="fill-gray-700" />
         <rect x="104" y="534" width="72" height="4" rx="2" className="fill-gray-600" />
@@ -55,31 +55,31 @@ function PhoneMockup({ children }: { children: React.ReactNode }) {
 // ═══════════════════════════════════════════════════════════════════
 function SmsComposeScreen() {
   return (
-    <div className="h-full bg-white dark:bg-gray-800 p-3 flex flex-col">
+    <div className="h-full bg-card p-3 flex flex-col">
       <div className="flex items-center gap-2 mb-3">
         <div className="w-7 h-7 rounded-lg bg-brand-500 flex items-center justify-center">
           <Send className="w-4 h-4 text-white" />
         </div>
         <div>
-          <div className="text-[9px] font-bold text-gray-800 dark:text-gray-200">SMS Blaster</div>
-          <div className="text-[6px] text-gray-500">New Campaign</div>
+          <div className="text-[9px] font-bold text-foreground">SMS Blaster</div>
+          <div className="text-[6px] text-muted-foreground">New Campaign</div>
         </div>
       </div>
       <div className="space-y-2 flex-1">
         <div>
-          <div className="text-[6.5px] text-gray-500 mb-0.5">Audience</div>
-          <div className="bg-gray-50 dark:bg-gray-700 rounded px-2 py-1.5 flex items-center gap-1">
+          <div className="text-[6.5px] text-muted-foreground mb-0.5">Audience</div>
+          <div className="bg-muted rounded px-2 py-1.5 flex items-center gap-1">
             <Users className="w-3 h-3 text-brand-500" />
-            <span className="text-[8px] text-gray-800 dark:text-gray-200">All Subscribers (2,847)</span>
+            <span className="text-[8px] text-foreground">All Subscribers (2,847)</span>
           </div>
         </div>
         <div>
-          <div className="text-[6.5px] text-gray-500 mb-0.5">Message</div>
-          <div className="bg-gray-50 dark:bg-gray-700 rounded px-2 py-1.5">
-            <div className="text-[7px] text-gray-800 dark:text-gray-200 leading-relaxed">
+          <div className="text-[6.5px] text-muted-foreground mb-0.5">Message</div>
+          <div className="bg-muted rounded px-2 py-1.5">
+            <div className="text-[7px] text-foreground leading-relaxed">
               Hey {"{name}"}! Flash sale today only - 40% off everything with code FLASH40. Shop now: {"{link}"}
             </div>
-            <div className="text-[6px] text-gray-400 mt-1">Reply STOP to unsubscribe</div>
+            <div className="text-[6px] text-muted-foreground mt-1">Reply STOP to unsubscribe</div>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -97,7 +97,7 @@ function SmsComposeScreen() {
 
 function SmsSendingScreen() {
   return (
-    <div className="h-full bg-white dark:bg-gray-800 p-3 flex flex-col items-center justify-center gap-3">
+    <div className="h-full bg-card p-3 flex flex-col items-center justify-center gap-3">
       <div className="relative">
         <div className="w-16 h-16 rounded-full border-4 border-brand-200 dark:border-brand-800 flex items-center justify-center">
           <Send className="w-8 h-8 text-brand-500" />
@@ -119,50 +119,50 @@ function SmsSendingScreen() {
             ) : (
               <div className="w-3 h-3 rounded-full border-2 border-brand-300 animate-pulse shrink-0" />
             )}
-            <span className={`text-[6.5px] ${step.done ? "text-gray-600 dark:text-gray-400" : "text-brand-500 font-medium"}`}>
+            <span className={`text-[6.5px] ${step.done ? "text-muted-foreground" : "text-brand-500 font-medium"}`}>
               {step.label}
             </span>
           </div>
         ))}
       </div>
-      <div className="w-full max-w-[160px] bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden mt-1">
+      <div className="w-full max-w-[160px] bg-muted rounded-full h-2 overflow-hidden mt-1">
         <div className="h-full bg-gradient-to-r from-brand-400 to-brand-600 rounded-full animate-pulse" style={{ width: "67%" }} />
       </div>
-      <div className="text-[7px] text-gray-500">1,908 / 2,847 sent</div>
+      <div className="text-[7px] text-muted-foreground">1,908 / 2,847 sent</div>
     </div>
   );
 }
 
 function SmsDeliveredScreen() {
   return (
-    <div className="h-full bg-gray-100 dark:bg-gray-900 p-2 flex flex-col">
+    <div className="h-full bg-muted p-2 flex flex-col">
       <div className="flex items-center gap-1.5 mb-2">
         <MessageSquare className="w-3.5 h-3.5 text-brand-500" />
-        <div className="text-[8px] font-medium text-gray-800 dark:text-gray-200">Messages</div>
+        <div className="text-[8px] font-medium text-foreground">Messages</div>
       </div>
       <div className="flex flex-col gap-1.5 flex-1">
         <div className="self-start max-w-[85%]">
-          <div className="bg-white dark:bg-gray-700 rounded-2xl rounded-tl-sm p-2 shadow-sm">
-            <div className="text-[7px] text-gray-800 dark:text-gray-200 leading-relaxed">
+          <div className="bg-card rounded-2xl rounded-tl-sm p-2 shadow-sm">
+            <div className="text-[7px] text-foreground leading-relaxed">
               <span className="font-bold">FlowSmartly:</span> Hey Sarah! Flash sale today only - 40% off everything with code FLASH40.
             </div>
           </div>
-          <div className="text-[5.5px] text-gray-400 mt-0.5 ml-1">2:00 PM</div>
+          <div className="text-[5.5px] text-muted-foreground mt-0.5 ml-1">2:00 PM</div>
         </div>
         <div className="self-end max-w-[70%] animate-[slideUp_0.3s_ease-out_0.3s_both]">
           <div className="bg-brand-500 rounded-2xl rounded-tr-sm p-2 shadow-sm">
             <div className="text-[7px] text-white">Omg yes! Just ordered 3 items</div>
           </div>
-          <div className="text-[5.5px] text-gray-400 mt-0.5 text-right mr-1">2:03 PM</div>
+          <div className="text-[5.5px] text-muted-foreground mt-0.5 text-right mr-1">2:03 PM</div>
         </div>
         <div className="self-start max-w-[85%] animate-[slideUp_0.3s_ease-out_0.6s_both]">
-          <div className="bg-white dark:bg-gray-700 rounded-2xl rounded-tl-sm p-2 shadow-sm">
-            <div className="text-[7px] text-gray-800 dark:text-gray-200">Glad you like it! Your order is confirmed.</div>
+          <div className="bg-card rounded-2xl rounded-tl-sm p-2 shadow-sm">
+            <div className="text-[7px] text-foreground">Glad you like it! Your order is confirmed.</div>
           </div>
         </div>
       </div>
       <div className="flex items-center gap-1 mt-2">
-        <div className="flex-1 bg-white dark:bg-gray-700 rounded-full px-2 py-1 text-[7px] text-gray-400">Text Message</div>
+        <div className="flex-1 bg-card rounded-full px-2 py-1 text-[7px] text-muted-foreground">Text Message</div>
         <div className="w-5 h-5 bg-brand-500 rounded-full flex items-center justify-center">
           <ArrowRight className="w-3 h-3 text-white" />
         </div>
@@ -173,10 +173,10 @@ function SmsDeliveredScreen() {
 
 function SmsAnalyticsScreen() {
   return (
-    <div className="h-full bg-white dark:bg-gray-800 p-3 flex flex-col">
+    <div className="h-full bg-card p-3 flex flex-col">
       <div className="flex items-center gap-2 mb-3">
         <BarChart3 className="w-4 h-4 text-brand-500" />
-        <div className="text-[9px] font-bold text-gray-800 dark:text-gray-200">Campaign Results</div>
+        <div className="text-[9px] font-bold text-foreground">Campaign Results</div>
       </div>
       <div className="grid grid-cols-2 gap-1.5 mb-3">
         {[
@@ -185,9 +185,9 @@ function SmsAnalyticsScreen() {
           { label: "Clicked", value: "34%", color: "text-violet-500" },
           { label: "Revenue", value: "$4,230", color: "text-emerald-500" },
         ].map((stat) => (
-          <div key={stat.label} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-1.5 text-center">
+          <div key={stat.label} className="bg-muted rounded-lg p-1.5 text-center">
             <div className={`text-[10px] font-bold ${stat.color}`}>{stat.value}</div>
-            <div className="text-[6px] text-gray-500">{stat.label}</div>
+            <div className="text-[6px] text-muted-foreground">{stat.label}</div>
           </div>
         ))}
       </div>
@@ -198,11 +198,11 @@ function SmsAnalyticsScreen() {
               className="w-full bg-gradient-to-t from-brand-500 to-brand-400 rounded-t-sm animate-[growUp_0.5s_ease-out_both]"
               style={{ height: `${h * 0.6}%`, animationDelay: `${i * 0.05}s` }}
             />
-            <span className="text-[4px] text-gray-400">{i + 1}</span>
+            <span className="text-[4px] text-muted-foreground">{i + 1}</span>
           </div>
         ))}
       </div>
-      <div className="text-[6px] text-center text-gray-400 mt-1">Hourly delivery distribution</div>
+      <div className="text-[6px] text-center text-muted-foreground mt-1">Hourly delivery distribution</div>
     </div>
   );
 }
@@ -214,12 +214,12 @@ function SmsCompliantScreen() {
         <Shield className="w-8 h-8 text-green-500" />
       </div>
       <div className="text-[10px] font-bold text-green-700 dark:text-green-400">100% Compliant</div>
-      <div className="text-[7px] text-gray-500 text-center px-2">Every SMS campaign is TCPA-compliant with built-in consent management</div>
+      <div className="text-[7px] text-muted-foreground text-center px-2">Every SMS campaign is TCPA-compliant with built-in consent management</div>
       <div className="w-full space-y-1 mt-2">
         {["Opt-in consent verified", "STOP keyword active", "Frequency limits enforced", "Suppression list synced", "Audit trail recorded"].map((item) => (
           <div key={item} className="flex items-center gap-1.5">
             <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />
-            <span className="text-[6.5px] text-gray-600 dark:text-gray-400">{item}</span>
+            <span className="text-[6.5px] text-muted-foreground">{item}</span>
           </div>
         ))}
       </div>
@@ -232,30 +232,30 @@ function SmsCompliantScreen() {
 // ═══════════════════════════════════════════════════════════════════
 function EmailDesignScreen() {
   return (
-    <div className="h-full bg-white dark:bg-gray-800 p-3 flex flex-col">
+    <div className="h-full bg-card p-3 flex flex-col">
       <div className="flex items-center gap-2 mb-3">
         <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center">
           <Palette className="w-4 h-4 text-white" />
         </div>
         <div>
-          <div className="text-[9px] font-bold text-gray-800 dark:text-gray-200">Email Builder</div>
-          <div className="text-[6px] text-gray-500">Drag & Drop</div>
+          <div className="text-[9px] font-bold text-foreground">Email Builder</div>
+          <div className="text-[6px] text-muted-foreground">Drag & Drop</div>
         </div>
       </div>
       {/* Mini email preview */}
-      <div className="flex-1 bg-gray-50 dark:bg-gray-700 rounded-lg p-2 space-y-1.5 overflow-hidden">
+      <div className="flex-1 bg-muted rounded-lg p-2 space-y-1.5 overflow-hidden">
         <div className="bg-gradient-to-r from-blue-500 to-brand-500 rounded-md h-10 flex items-center justify-center">
           <span className="text-[8px] font-bold text-white">Summer Collection</span>
         </div>
-        <div className="bg-white dark:bg-gray-600 rounded p-1.5">
-          <div className="text-[7px] font-medium text-gray-800 dark:text-gray-200">Hi {"{first_name}"},</div>
-          <div className="text-[6px] text-gray-500 leading-relaxed mt-0.5">
+        <div className="bg-card rounded p-1.5">
+          <div className="text-[7px] font-medium text-foreground">Hi {"{first_name}"},</div>
+          <div className="text-[6px] text-muted-foreground leading-relaxed mt-0.5">
             Our biggest sale of the year is here! Explore new arrivals and save up to 50%...
           </div>
         </div>
         <div className="grid grid-cols-2 gap-1">
-          <div className="bg-gray-200 dark:bg-gray-600 rounded h-8" />
-          <div className="bg-gray-200 dark:bg-gray-600 rounded h-8" />
+          <div className="bg-muted rounded h-8" />
+          <div className="bg-muted rounded h-8" />
         </div>
         <div className="bg-blue-500 text-white text-[6px] font-medium text-center py-1 rounded">
           Shop Now
@@ -271,8 +271,8 @@ function EmailDesignScreen() {
 
 function EmailAudienceScreen() {
   return (
-    <div className="h-full bg-white dark:bg-gray-800 p-3 flex flex-col">
-      <div className="text-[9px] font-bold text-gray-800 dark:text-gray-200 mb-2">Select Audience</div>
+    <div className="h-full bg-card p-3 flex flex-col">
+      <div className="text-[9px] font-bold text-foreground mb-2">Select Audience</div>
       <div className="space-y-1.5 flex-1">
         {[
           { name: "All Subscribers", count: "12,450", selected: false },
@@ -280,14 +280,14 @@ function EmailAudienceScreen() {
           { name: "New Signups (30d)", count: "890", selected: false },
           { name: "VIP Customers", count: "1,120", selected: true },
         ].map((seg) => (
-          <div key={seg.name} className={`flex items-center gap-1.5 p-1.5 rounded-md border ${seg.selected ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-gray-200 dark:border-gray-700"}`}>
-            <div className={`w-3.5 h-3.5 rounded border-2 shrink-0 flex items-center justify-center ${seg.selected ? "border-blue-500 bg-blue-500" : "border-gray-300 dark:border-gray-600"}`}>
+          <div key={seg.name} className={`flex items-center gap-1.5 p-1.5 rounded-md border ${seg.selected ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-border"}`}>
+            <div className={`w-3.5 h-3.5 rounded border-2 shrink-0 flex items-center justify-center ${seg.selected ? "border-blue-500 bg-blue-500" : "border-border"}`}>
               {seg.selected && <CheckCircle2 className="w-2.5 h-2.5 text-white" />}
             </div>
             <div className="flex-1">
-              <div className="text-[7px] font-medium text-gray-800 dark:text-gray-200">{seg.name}</div>
+              <div className="text-[7px] font-medium text-foreground">{seg.name}</div>
             </div>
-            <span className="text-[6px] text-gray-500">{seg.count}</span>
+            <span className="text-[6px] text-muted-foreground">{seg.count}</span>
           </div>
         ))}
       </div>
@@ -301,31 +301,31 @@ function EmailAudienceScreen() {
 
 function EmailSendingScreen() {
   return (
-    <div className="h-full bg-gray-100 dark:bg-gray-900 p-2 flex flex-col">
+    <div className="h-full bg-muted p-2 flex flex-col">
       <div className="flex items-center gap-1.5 mb-2">
         <Mail className="w-3.5 h-3.5 text-blue-500" />
-        <div className="text-[8px] font-medium text-gray-800 dark:text-gray-200">Inbox</div>
+        <div className="text-[8px] font-medium text-foreground">Inbox</div>
         <div className="ml-auto bg-red-500 text-white text-[5px] w-3 h-3 rounded-full flex items-center justify-center">1</div>
       </div>
-      <div className="bg-white dark:bg-gray-700 rounded-lg p-2 shadow-sm border-l-2 border-blue-500 animate-[slideUp_0.3s_ease-out]">
+      <div className="bg-card rounded-lg p-2 shadow-sm border-l-2 border-blue-500 animate-[slideUp_0.3s_ease-out]">
         <div className="flex items-center gap-1 mb-1">
           <div className="w-4 h-4 rounded-full bg-gradient-to-r from-blue-500 to-brand-500 flex items-center justify-center">
             <Sparkles className="w-2.5 h-2.5 text-white" />
           </div>
-          <div className="text-[7px] font-bold text-gray-800 dark:text-gray-200">Summer Collection - 50% Off!</div>
+          <div className="text-[7px] font-bold text-foreground">Summer Collection - 50% Off!</div>
         </div>
-        <div className="text-[6.5px] text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+        <div className="text-[6.5px] text-muted-foreground leading-relaxed mb-2">
           Hi Sarah! Our biggest sale of the year is here. Explore new arrivals and save up to 50% on everything...
         </div>
         <div className="bg-blue-500 text-white text-[7px] font-medium text-center py-1 rounded animate-pulse">
           Shop the Sale
         </div>
       </div>
-      <div className="mt-2 bg-white dark:bg-gray-700 rounded-lg p-2 shadow-sm opacity-50">
-        <div className="text-[7px] text-gray-500">Weekly Newsletter - New tips...</div>
+      <div className="mt-2 bg-card rounded-lg p-2 shadow-sm opacity-50">
+        <div className="text-[7px] text-muted-foreground">Weekly Newsletter - New tips...</div>
       </div>
-      <div className="mt-1 bg-white dark:bg-gray-700 rounded-lg p-2 shadow-sm opacity-30">
-        <div className="text-[7px] text-gray-500">Product Update - v2.0 launch...</div>
+      <div className="mt-1 bg-card rounded-lg p-2 shadow-sm opacity-30">
+        <div className="text-[7px] text-muted-foreground">Product Update - v2.0 launch...</div>
       </div>
     </div>
   );
@@ -333,10 +333,10 @@ function EmailSendingScreen() {
 
 function EmailAnalyticsScreen() {
   return (
-    <div className="h-full bg-white dark:bg-gray-800 p-3 flex flex-col">
+    <div className="h-full bg-card p-3 flex flex-col">
       <div className="flex items-center gap-2 mb-3">
         <BarChart3 className="w-4 h-4 text-blue-500" />
-        <div className="text-[9px] font-bold text-gray-800 dark:text-gray-200">Email Analytics</div>
+        <div className="text-[9px] font-bold text-foreground">Email Analytics</div>
       </div>
       <div className="grid grid-cols-2 gap-1.5 mb-3">
         {[
@@ -345,27 +345,27 @@ function EmailAnalyticsScreen() {
           { label: "Click Rate", value: "18%", color: "text-violet-500" },
           { label: "Conversions", value: "156", color: "text-emerald-500" },
         ].map((stat) => (
-          <div key={stat.label} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-1.5 text-center">
+          <div key={stat.label} className="bg-muted rounded-lg p-1.5 text-center">
             <div className={`text-[10px] font-bold ${stat.color}`}>{stat.value}</div>
-            <div className="text-[6px] text-gray-500">{stat.label}</div>
+            <div className="text-[6px] text-muted-foreground">{stat.label}</div>
           </div>
         ))}
       </div>
       {/* Funnel visualization */}
       <div className="flex-1 flex flex-col justify-center gap-1 px-2">
         {[
-          { label: "Sent", value: "5,350", width: "100%", color: "bg-gray-300 dark:bg-gray-600" },
+          { label: "Sent", value: "5,350", width: "100%", color: "bg-muted" },
           { label: "Delivered", value: "5,342", width: "99%", color: "bg-blue-300" },
           { label: "Opened", value: "2,244", width: "42%", color: "bg-blue-400" },
           { label: "Clicked", value: "963", width: "18%", color: "bg-blue-500" },
           { label: "Converted", value: "156", width: "3%", color: "bg-emerald-500" },
         ].map((row) => (
           <div key={row.label} className="flex items-center gap-1.5">
-            <span className="text-[5.5px] text-gray-500 w-12 text-right">{row.label}</span>
-            <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+            <span className="text-[5.5px] text-muted-foreground w-12 text-right">{row.label}</span>
+            <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
               <div className={`h-full ${row.color} rounded-full`} style={{ width: row.width }} />
             </div>
-            <span className="text-[5.5px] text-gray-500 w-8">{row.value}</span>
+            <span className="text-[5.5px] text-muted-foreground w-8">{row.value}</span>
           </div>
         ))}
       </div>
@@ -380,12 +380,12 @@ function EmailCompliantScreen() {
         <MailCheck className="w-8 h-8 text-blue-500" />
       </div>
       <div className="text-[10px] font-bold text-blue-700 dark:text-blue-400">CAN-SPAM Compliant</div>
-      <div className="text-[7px] text-gray-500 text-center px-2">Every email includes required compliance elements</div>
+      <div className="text-[7px] text-muted-foreground text-center px-2">Every email includes required compliance elements</div>
       <div className="w-full space-y-1 mt-2">
         {["Unsubscribe in every email", "Physical address included", "Sender clearly identified", "Double opt-in support", "Instant unsubscribe"].map((item) => (
           <div key={item} className="flex items-center gap-1.5">
             <CheckCircle2 className="w-3 h-3 text-blue-500 shrink-0" />
-            <span className="text-[6.5px] text-gray-600 dark:text-gray-400">{item}</span>
+            <span className="text-[6.5px] text-muted-foreground">{item}</span>
           </div>
         ))}
       </div>

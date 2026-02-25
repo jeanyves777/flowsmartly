@@ -92,16 +92,16 @@ export function PromoteProductModal({ productId, isOpen, onClose }: PromoteProdu
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-card rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-2">
             <Megaphone className="h-5 w-5 text-blue-600" />
             <h2 className="text-lg font-semibold">Promote Product</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="p-1.5 rounded-lg hover:bg-muted"
           >
             <X className="h-5 w-5" />
           </button>
@@ -109,13 +109,13 @@ export function PromoteProductModal({ productId, isOpen, onClose }: PromoteProdu
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
           <div className="p-4 space-y-4">
             {/* Product Preview */}
             {defaults && (
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
                 {defaults.mediaUrl ? (
                   <img
                     src={defaults.mediaUrl}
@@ -123,11 +123,11 @@ export function PromoteProductModal({ productId, isOpen, onClose }: PromoteProdu
                     className="w-12 h-12 rounded-lg object-cover"
                   />
                 ) : (
-                  <div className="w-12 h-12 rounded-lg bg-gray-200 dark:bg-gray-700" />
+                  <div className="w-12 h-12 rounded-lg bg-muted" />
                 )}
                 <div>
                   <p className="font-medium text-sm">{defaults.name.replace("Promote: ", "")}</p>
-                  <p className="text-xs text-gray-500 truncate max-w-[300px]">
+                  <p className="text-xs text-muted-foreground truncate max-w-[300px]">
                     {defaults.destinationUrl}
                   </p>
                 </div>
@@ -143,9 +143,9 @@ export function PromoteProductModal({ productId, isOpen, onClose }: PromoteProdu
                   value={headline}
                   onChange={(e) => setHeadline(e.target.value)}
                   maxLength={50}
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none bg-background"
                 />
-                <p className="text-xs text-gray-400 mt-1">{headline.length}/50</p>
+                <p className="text-xs text-muted-foreground mt-1">{headline.length}/50</p>
               </div>
 
               <div>
@@ -155,9 +155,9 @@ export function PromoteProductModal({ productId, isOpen, onClose }: PromoteProdu
                   onChange={(e) => setDescription(e.target.value)}
                   maxLength={200}
                   rows={3}
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none resize-none bg-background"
                 />
-                <p className="text-xs text-gray-400 mt-1">{description.length}/200</p>
+                <p className="text-xs text-muted-foreground mt-1">{description.length}/200</p>
               </div>
 
               <div>
@@ -165,7 +165,7 @@ export function PromoteProductModal({ productId, isOpen, onClose }: PromoteProdu
                 <select
                   value={ctaText}
                   onChange={(e) => setCtaText(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none bg-background"
                 >
                   <option>Shop Now</option>
                   <option>Buy Now</option>
@@ -177,7 +177,7 @@ export function PromoteProductModal({ productId, isOpen, onClose }: PromoteProdu
             </div>
 
             {/* Budget */}
-            <div className="space-y-3 pt-2 border-t">
+            <div className="space-y-3 pt-2 border-t border-border">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -189,7 +189,7 @@ export function PromoteProductModal({ productId, isOpen, onClose }: PromoteProdu
                     value={budget}
                     onChange={(e) => setBudget(Math.max(1, parseInt(e.target.value) || 0))}
                     min={1}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none bg-background"
                   />
                 </div>
                 <div>
@@ -200,7 +200,7 @@ export function PromoteProductModal({ productId, isOpen, onClose }: PromoteProdu
                     onChange={(e) => setDailyBudget(parseInt(e.target.value) || 0)}
                     min={0}
                     placeholder="No limit"
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none bg-background"
                   />
                 </div>
               </div>
@@ -215,7 +215,7 @@ export function PromoteProductModal({ productId, isOpen, onClose }: PromoteProdu
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none bg-background"
                   />
                 </div>
                 <div>
@@ -225,7 +225,7 @@ export function PromoteProductModal({ productId, isOpen, onClose }: PromoteProdu
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
                     min={startDate}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none bg-background"
                   />
                 </div>
               </div>

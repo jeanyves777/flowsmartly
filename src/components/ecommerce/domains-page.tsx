@@ -200,7 +200,7 @@ export function DomainsPageContent() {
       case "external":
         return "text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30";
       default:
-        return "text-gray-700 bg-gray-100 dark:text-gray-400 dark:bg-gray-900/30";
+        return "text-muted-foreground bg-muted";
     }
   };
 

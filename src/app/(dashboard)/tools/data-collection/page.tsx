@@ -108,13 +108,13 @@ export default function DataCollectionPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-muted/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Data Collection</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Create and manage custom forms to collect data from your audience</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Data Collection</h1>
+            <p className="text-sm text-muted-foreground mt-1">Create and manage custom forms to collect data from your audience</p>
           </div>
           <Link href="/tools/data-collection/new">
             <Button className="w-full sm:w-auto">
@@ -127,7 +127,7 @@ export default function DataCollectionPage() {
         {/* Search and Filters */}
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               type="text"
               placeholder="Search forms..."
@@ -139,7 +139,7 @@ export default function DataCollectionPage() {
           <select
             value={statusFilter}
             onChange={(e) => handleStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="">All Statuses</option>
             <option value="DRAFT">Draft</option>
@@ -152,22 +152,22 @@ export default function DataCollectionPage() {
         {loading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-5 animate-pulse">
+              <div key={i} className="bg-card rounded-xl border border-border p-4 sm:p-5 animate-pulse">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
-                    <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+                    <div className="h-5 bg-muted rounded w-3/4 mb-2"></div>
+                    <div className="h-4 bg-muted rounded w-full"></div>
                   </div>
-                  <div className="h-5 w-16 bg-gray-200 dark:bg-gray-700 rounded-full ml-2"></div>
+                  <div className="h-5 w-16 bg-muted rounded-full ml-2"></div>
                 </div>
                 <div className="flex gap-4 mb-3">
-                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24"></div>
-                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
+                  <div className="h-4 bg-muted rounded w-24"></div>
+                  <div className="h-4 bg-muted rounded w-20"></div>
                 </div>
-                <div className="flex gap-2 border-t border-gray-100 dark:border-gray-700 pt-3">
-                  <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded flex-1"></div>
-                  <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded flex-1"></div>
-                  <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-8"></div>
+                <div className="flex gap-2 border-t border-border pt-3">
+                  <div className="h-8 bg-muted rounded flex-1"></div>
+                  <div className="h-8 bg-muted rounded flex-1"></div>
+                  <div className="h-8 bg-muted rounded w-8"></div>
                 </div>
               </div>
             ))}
@@ -176,12 +176,12 @@ export default function DataCollectionPage() {
 
         {/* Empty State */}
         {!loading && forms.length === 0 && (
-          <div className="text-center py-12 sm:py-16 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-            <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-2">
+          <div className="text-center py-12 sm:py-16 bg-card rounded-xl border border-border">
+            <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg sm:text-xl font-semibold text-foreground mb-2">
               {search || statusFilter ? "No forms found" : "No forms yet"}
             </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto px-4">
+            <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto px-4">
               {search || statusFilter
                 ? "Try adjusting your search or filters"
                 : "Create your first data collection form to start gathering information from your audience"}
@@ -206,7 +206,7 @@ export default function DataCollectionPage() {
                 return (
                   <div
                     key={form.id}
-                    className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-5 hover:shadow-md transition-shadow"
+                    className="bg-card rounded-xl border border-border p-4 sm:p-5 hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
@@ -217,18 +217,18 @@ export default function DataCollectionPage() {
                           {form.title}
                         </Link>
                         {form.description && (
-                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{form.description}</p>
+                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{form.description}</p>
                         )}
                       </div>
                       <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${statusConfig.color}`}>
                         {statusConfig.label}
                       </span>
                     </div>
-                    <div className="mt-3 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                    <div className="mt-3 flex items-center gap-4 text-sm text-muted-foreground">
                       <span>{form.responseCount || 0} responses</span>
                       <span>{new Date(form.createdAt).toLocaleDateString()}</span>
                     </div>
-                    <div className="mt-3 flex items-center gap-2 border-t border-gray-100 dark:border-gray-700 pt-3">
+                    <div className="mt-3 flex items-center gap-2 border-t border-border pt-3">
                       <Link href={`/tools/data-collection/${form.id}`} className="flex-1">
                         <Button variant="outline" size="sm" className="w-full">
                           <Eye className="w-3.5 h-3.5 mr-1.5" />
@@ -248,10 +248,10 @@ export default function DataCollectionPage() {
                         <Button variant="outline" size="sm" className="px-2">
                           <MoreVertical className="w-4 h-4" />
                         </Button>
-                        <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                        <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                           <button
                             onClick={() => handleToggleStatus(form.id, form.status)}
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 first:rounded-t-lg"
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2 first:rounded-t-lg"
                           >
                             {form.status === "ACTIVE" ? (
                               <>
@@ -269,7 +269,7 @@ export default function DataCollectionPage() {
                             href={`/form/${form.slug}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
                           >
                             <ExternalLink className="w-4 h-4" />
                             Open Public Form
@@ -300,7 +300,7 @@ export default function DataCollectionPage() {
                 >
                   Previous
                 </Button>
-                <span className="text-sm text-gray-600 dark:text-gray-400 px-4">
+                <span className="text-sm text-muted-foreground px-4">
                   Page {page} of {pagination.pages}
                 </span>
                 <Button

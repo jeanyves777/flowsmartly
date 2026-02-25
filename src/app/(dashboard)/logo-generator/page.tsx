@@ -470,7 +470,7 @@ export default function LogoGeneratorPage() {
                 <Button
                   onClick={handleGenerate}
                   disabled={!brandName.trim()}
-                  className="w-full h-14 text-lg bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+                  className="w-full h-14 text-lg bg-brand-500 hover:bg-brand-600"
                   size="lg"
                 >
                   <Sparkles className="w-5 h-5 mr-2" />
@@ -703,7 +703,7 @@ export default function LogoGeneratorPage() {
             <Card>
               <CardContent className="p-4">
                 <h3 className="text-sm font-medium mb-3">Preview on Dark Background</h3>
-                <div className="grid md:grid-cols-3 gap-4 p-6 rounded-xl bg-gray-900">
+                <div className="grid md:grid-cols-3 gap-4 p-6 rounded-xl bg-zinc-900 dark:bg-zinc-950">
                   {logos.map((logo) => (
                     <div key={logo.id} className="aspect-square p-4">
                       <img
@@ -763,7 +763,7 @@ export default function LogoGeneratorPage() {
                   />
                 </div>
                 {/* Dark background */}
-                <div className="aspect-square rounded-xl bg-gray-900 p-8">
+                <div className="aspect-square rounded-xl bg-zinc-900 dark:bg-zinc-950 p-8">
                   <img
                     src={previewLogo.imageUrl}
                     alt="Logo preview"

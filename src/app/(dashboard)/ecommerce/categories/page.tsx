@@ -221,17 +221,17 @@ export default function CategoriesPage() {
 
     return (
       <div key={cat.id}>
-        <div className="flex items-center gap-2 py-2.5 px-4 hover:bg-gray-50 transition-colors border-b border-gray-100">
+        <div className="flex items-center gap-2 py-2.5 px-4 hover:bg-muted/50 transition-colors border-b border-border">
           {/* Indent + expand */}
           <div style={{ width: `${depth * 24}px` }} className="flex-shrink-0" />
 
           {hasChildren ? (
             <button
               onClick={() => toggleCollapse(cat.id)}
-              className="p-0.5 hover:bg-gray-200 rounded transition-colors"
+              className="p-0.5 hover:bg-muted rounded transition-colors"
             >
               <ChevronRight
-                className={`w-4 h-4 text-gray-400 transition-transform ${
+                className={`w-4 h-4 text-muted-foreground transition-transform ${
                   !isCollapsed ? "rotate-90" : ""
                 }`}
               />
@@ -241,15 +241,15 @@ export default function CategoriesPage() {
           )}
 
           {/* Icon */}
-          <FolderOpen className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <FolderOpen className="w-4 h-4 text-muted-foreground flex-shrink-0" />
 
           {/* Name */}
-          <span className="text-sm font-medium text-gray-900 flex-1 min-w-0 truncate">
+          <span className="text-sm font-medium text-foreground flex-1 min-w-0 truncate">
             {cat.name}
           </span>
 
           {/* Product count */}
-          <span className="text-xs text-gray-400 flex-shrink-0">
+          <span className="text-xs text-muted-foreground flex-shrink-0">
             {cat.productCount} product{cat.productCount !== 1 ? "s" : ""}
           </span>
 
@@ -257,14 +257,14 @@ export default function CategoriesPage() {
           <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={() => openEdit(cat.id)}
-              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+              className="p-1.5 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
               title="Edit"
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => openDelete(cat.id, cat.name)}
-              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+              className="p-1.5 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded transition-colors"
               title="Delete"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -287,8 +287,8 @@ export default function CategoriesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Categories</h1>
-          <p className="text-sm text-gray-500 mt-1">Organize your products into categories</p>
+          <h1 className="text-2xl font-bold text-foreground">Categories</h1>
+          <p className="text-sm text-muted-foreground mt-1">Organize your products into categories</p>
         </div>
         <button
           onClick={() => openCreate()}
@@ -300,17 +300,17 @@ export default function CategoriesPage() {
       </div>
 
       {/* Category Tree */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="bg-card rounded-lg border border-border overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-            <span className="ml-2 text-gray-500">Loading categories...</span>
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-muted-foreground">Loading categories...</span>
           </div>
         ) : categories.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4">
-            <FolderOpen className="w-12 h-12 text-gray-300 mb-3" />
-            <h3 className="text-lg font-medium text-gray-900">No categories yet</h3>
-            <p className="text-sm text-gray-500 mt-1">Create categories to organize your products.</p>
+            <FolderOpen className="w-12 h-12 text-muted-foreground mb-3" />
+            <h3 className="text-lg font-medium text-foreground">No categories yet</h3>
+            <p className="text-sm text-muted-foreground mt-1">Create categories to organize your products.</p>
             <button
               onClick={() => openCreate()}
               className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
@@ -322,10 +322,10 @@ export default function CategoriesPage() {
         ) : (
           <div>
             {/* Header row */}
-            <div className="flex items-center gap-2 py-2 px-4 bg-gray-50 border-b border-gray-200">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wider flex-1">Category</span>
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wider w-24 text-right">Products</span>
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wider w-20 text-right">Actions</span>
+            <div className="flex items-center gap-2 py-2 px-4 bg-muted/50 border-b border-border">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex-1">Category</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider w-24 text-right">Products</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider w-20 text-right">Actions</span>
             </div>
             {categories.map((cat) => renderCategoryRow(cat, 0))}
           </div>
@@ -335,19 +335,19 @@ export default function CategoriesPage() {
       {/* Create/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+          <div className="bg-card rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-foreground">
                 {editingId ? "Edit Category" : "New Category"}
               </h3>
-              <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded">
-                <X className="w-5 h-5 text-gray-400" />
+              <button onClick={closeModal} className="p-1 hover:bg-muted rounded">
+                <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -356,27 +356,27 @@ export default function CategoriesPage() {
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="e.g. Electronics"
                   autoFocus
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Description</label>
                 <textarea
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
                   placeholder="Optional description..."
                   rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-y"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none resize-y"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Parent Category</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Parent Category</label>
                 <select
                   value={formParentId}
                   onChange={(e) => setFormParentId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
                 >
                   <option value="">None (top-level)</option>
                   {flatCategories.map((cat) => (
@@ -392,7 +392,7 @@ export default function CategoriesPage() {
               <button
                 onClick={closeModal}
                 disabled={saving}
-                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-sm font-medium text-foreground border border-border rounded-lg hover:bg-muted/50"
               >
                 Cancel
               </button>
@@ -416,16 +416,16 @@ export default function CategoriesPage() {
       {/* Delete Confirmation Modal */}
       {deleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">Delete Category</h3>
-            <p className="text-sm text-gray-500 mt-2">
+          <div className="bg-card rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-foreground">Delete Category</h3>
+            <p className="text-sm text-muted-foreground mt-2">
               Are you sure you want to delete <strong>{deleteName}</strong>? Products in this category will become uncategorized.
             </p>
             <div className="flex items-center justify-end gap-3 mt-6">
               <button
                 onClick={() => setDeleteId(null)}
                 disabled={deleting}
-                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-sm font-medium text-foreground border border-border rounded-lg hover:bg-muted/50"
               >
                 Cancel
               </button>

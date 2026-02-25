@@ -122,14 +122,14 @@ export default function SurveysPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-3">
+        <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
           <FileQuestion className="h-5 w-5 text-violet-500" />
           <div>
             <p className="text-xl font-bold">{totalSurveys}</p>
             <p className="text-xs text-muted-foreground">Total</p>
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-3">
+        <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
           <div className="h-5 w-5 rounded-full bg-green-500/20 flex items-center justify-center">
             <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
           </div>
@@ -138,7 +138,7 @@ export default function SurveysPage() {
             <p className="text-xs text-muted-foreground">Active</p>
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-3">
+        <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
           <BarChart3 className="h-5 w-5 text-amber-500" />
           <div>
             <p className="text-xl font-bold">{totalResponses}</p>
@@ -172,16 +172,16 @@ export default function SurveysPage() {
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5 animate-pulse">
-              <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-3" />
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-4" />
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full" />
+            <div key={i} className="bg-card border border-border rounded-lg p-5 animate-pulse">
+              <div className="h-5 bg-muted rounded w-3/4 mb-3" />
+              <div className="h-4 bg-muted rounded w-1/2 mb-4" />
+              <div className="h-3 bg-muted rounded w-full" />
             </div>
           ))}
         </div>
       ) : surveys.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-12 text-center">
-          <FileQuestion className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+        <div className="bg-card border border-border rounded-lg p-12 text-center">
+          <FileQuestion className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="font-semibold text-lg mb-2">No surveys yet</h3>
           <p className="text-sm text-muted-foreground mb-4">Create your first survey to start collecting feedback</p>
           <Link href="/tools/surveys/new">
@@ -196,30 +196,30 @@ export default function SurveysPage() {
             {surveys.map((survey) => {
               const statusCfg = SURVEY_STATUS_CONFIG[survey.status as SurveyStatus] || SURVEY_STATUS_CONFIG.DRAFT;
               return (
-                <div key={survey.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow">
+                <div key={survey.id} className="bg-card border border-border rounded-lg hover:shadow-md transition-shadow">
                   <div className="p-5">
                     <div className="flex items-start justify-between mb-3">
                       <Link href={`/tools/surveys/${survey.id}`} className="flex-1 min-w-0">
                         <h3 className="font-semibold truncate hover:text-blue-600 transition-colors">{survey.title}</h3>
                       </Link>
                       <div className="relative ml-2">
-                        <button onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === survey.id ? null : survey.id); }} className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
-                          <MoreVertical className="h-4 w-4 text-gray-400" />
+                        <button onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === survey.id ? null : survey.id); }} className="p-1 rounded-md hover:bg-muted">
+                          <MoreVertical className="h-4 w-4 text-muted-foreground" />
                         </button>
                         {openMenu === survey.id && (
                           <>
                             <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
-                            <div className="absolute right-0 top-8 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 w-44">
-                              <button onClick={() => { router.push(`/tools/surveys/${survey.id}`); setOpenMenu(null); }} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <div className="absolute right-0 top-8 z-20 bg-card border border-border rounded-lg shadow-lg py-1 w-44">
+                              <button onClick={() => { router.push(`/tools/surveys/${survey.id}`); setOpenMenu(null); }} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted">
                                 <Eye className="h-3.5 w-3.5" /> View
                               </button>
-                              <button onClick={() => handleCopyLink(survey.slug)} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">
+                              <button onClick={() => handleCopyLink(survey.slug)} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted">
                                 <Copy className="h-3.5 w-3.5" /> Copy Link
                               </button>
-                              <button onClick={() => { window.open(`/survey/${survey.slug}`, "_blank"); setOpenMenu(null); }} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">
+                              <button onClick={() => { window.open(`/survey/${survey.slug}`, "_blank"); setOpenMenu(null); }} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted">
                                 <ExternalLink className="h-3.5 w-3.5" /> Open Public Page
                               </button>
-                              <button onClick={() => handleToggleStatus(survey.id, survey.status)} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">
+                              <button onClick={() => handleToggleStatus(survey.id, survey.status)} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted">
                                 {survey.status === "ACTIVE" ? <ToggleRight className="h-3.5 w-3.5" /> : <ToggleLeft className="h-3.5 w-3.5" />}
                                 {survey.status === "ACTIVE" ? "Close" : "Activate"}
                               </button>
@@ -251,11 +251,11 @@ export default function SurveysPage() {
                     </div>
                   </div>
 
-                  <div className="border-t border-gray-100 dark:border-gray-700 px-5 py-3 flex items-center gap-2">
+                  <div className="border-t border-border px-5 py-3 flex items-center gap-2">
                     <Link href={`/tools/surveys/${survey.id}`} className="text-xs text-blue-600 hover:underline flex-1">
                       View Details
                     </Link>
-                    <button onClick={() => handleCopyLink(survey.slug)} className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
+                    <button onClick={() => handleCopyLink(survey.slug)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
                       <Copy className="h-3 w-3" /> Copy Link
                     </button>
                   </div>

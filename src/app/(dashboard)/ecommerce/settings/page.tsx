@@ -957,7 +957,7 @@ export default function EcommerceSettingsPage() {
                         ].map((color, idx) => (
                           <div
                             key={idx}
-                            className="h-4 w-4 rounded-full border border-gray-200 dark:border-gray-700"
+                            className="h-4 w-4 rounded-full border border-border"
                             style={{ backgroundColor: color }}
                             title={["Primary", "Secondary", "Accent", "Background", "Text"][idx]}
                           />
@@ -1109,7 +1109,7 @@ export default function EcommerceSettingsPage() {
                   onChange={(e) => setDomainSearch(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSearchDomains()}
                   placeholder="Enter a domain name (e.g. mybrand)"
-                  className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
                 <button
                   onClick={handleSearchDomains}
@@ -1206,7 +1206,7 @@ export default function EcommerceSettingsPage() {
                   value={byodDomain}
                   onChange={(e) => setByodDomain(e.target.value)}
                   placeholder="e.g. mybrandstore.com"
-                  className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
                 <button
                   onClick={handleConnectDomain}

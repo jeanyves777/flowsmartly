@@ -2126,7 +2126,7 @@ export default function EcommerceDesignPage() {
 
         {/* ── Right: Live Preview ────────────────────────────────────────── */}
         {showPreview && previewUrl && (
-          <div className="flex-1 min-w-0 flex items-start justify-center bg-gray-100 dark:bg-gray-900 p-4 rounded-xl overflow-auto">
+          <div className="flex-1 min-w-0 flex items-start justify-center bg-muted p-4 rounded-xl overflow-auto">
             <div
               className={cn(
                 "bg-white rounded-xl border shadow-lg overflow-hidden transition-all duration-300 flex flex-col",

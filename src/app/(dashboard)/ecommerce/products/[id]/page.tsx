@@ -559,8 +559,8 @@ export default function EditProductPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-        <span className="ml-2 text-gray-500">Loading product...</span>
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-muted-foreground">Loading product...</span>
       </div>
     );
   }
@@ -572,13 +572,13 @@ export default function EditProductPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push("/ecommerce/products")}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-muted rounded-lg transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Edit Product</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Update your product details</p>
+            <h1 className="text-2xl font-bold text-foreground">Edit Product</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Update your product details</p>
           </div>
         </div>
         <button
@@ -591,10 +591,10 @@ export default function EditProductPage() {
       </div>
 
       {/* Section 1: Basic Info */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+      <div className="bg-card rounded-lg border border-border p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <Package className="w-5 h-5 text-gray-500" />
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <Package className="w-5 h-5 text-muted-foreground" />
             Basic Info
           </h2>
           {name.trim().length >= 2 && (
@@ -616,7 +616,7 @@ export default function EditProductPage() {
               value={aiKeywords}
               onChange={(e) => setAiKeywords(e.target.value)}
               placeholder="Optional keywords (comma-separated, e.g. organic, premium, eco-friendly)"
-              className="flex-1 px-3 py-1.5 text-sm border border-purple-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-400 bg-white"
+              className="flex-1 px-3 py-1.5 text-sm border border-purple-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-400 bg-background"
               onKeyDown={(e) => { if (e.key === "Enter") handleAIGenerate(); }}
             />
             <button
@@ -627,7 +627,7 @@ export default function EditProductPage() {
             </button>
             <button
               onClick={() => setShowAiKeywords(false)}
-              className="p-1.5 text-gray-400 hover:text-gray-600 rounded"
+              className="p-1.5 text-muted-foreground hover:text-foreground rounded"
             >
               <X className="w-4 h-4" />
             </button>
@@ -635,7 +635,7 @@ export default function EditProductPage() {
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1">
             Name <span className="text-red-500">*</span>
           </label>
           <input
@@ -643,24 +643,24 @@ export default function EditProductPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={200}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label className="block text-sm font-medium text-foreground mb-1">Description</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-y"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none resize-y"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1">
             Short Description
-            <span className="text-gray-400 font-normal ml-1">({shortDescription.length}/160)</span>
+            <span className="text-muted-foreground font-normal ml-1">({shortDescription.length}/160)</span>
           </label>
           <textarea
             value={shortDescription}
@@ -669,21 +669,21 @@ export default function EditProductPage() {
             }}
             rows={2}
             maxLength={160}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-y"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none resize-y"
           />
         </div>
       </div>
 
       {/* Section 2: Pricing */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Tag className="w-5 h-5 text-gray-500" />
+      <div className="bg-card rounded-lg border border-border p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <Tag className="w-5 h-5 text-muted-foreground" />
           Pricing
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               Price ($) <span className="text-red-500">*</span>
             </label>
             <input
@@ -692,40 +692,40 @@ export default function EditProductPage() {
               min="0.01"
               value={priceStr}
               onChange={(e) => setPriceStr(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Compare at Price ($)</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Compare at Price ($)</label>
             <input
               type="number"
               step="0.01"
               min="0"
               value={comparePriceStr}
               onChange={(e) => setComparePriceStr(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Cost Price ($)</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Cost Price ($)</label>
             <input
               type="number"
               step="0.01"
               min="0"
               value={costPriceStr}
               onChange={(e) => setCostPriceStr(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
             />
           </div>
         </div>
       </div>
 
       {/* Section 3: Images */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <ImageIcon className="w-5 h-5 text-gray-500" />
+      <div className="bg-card rounded-lg border border-border p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <ImageIcon className="w-5 h-5 text-muted-foreground" />
           Images
-          <span className="text-sm text-gray-400 font-normal">({images.length}/10)</span>
+          <span className="text-sm text-muted-foreground font-normal">({images.length}/10)</span>
         </h2>
 
         <div
@@ -734,12 +734,12 @@ export default function EditProductPage() {
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
           className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-            dragOver ? "border-blue-400 bg-blue-50" : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
+            dragOver ? "border-blue-400 bg-blue-50" : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
           }`}
         >
-          <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-          <p className="text-sm text-gray-600">Drag and drop images here, or click to browse</p>
-          <p className="text-xs text-gray-400 mt-1">PNG, JPEG, WebP up to 5MB each</p>
+          <ImageIcon className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">Drag and drop images here, or click to browse</p>
+          <p className="text-xs text-muted-foreground mt-1">PNG, JPEG, WebP up to 5MB each</p>
           <input
             ref={fileInputRef}
             type="file"
@@ -760,13 +760,13 @@ export default function EditProductPage() {
             {aiImageGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
             AI Generate Image
           </button>
-          <span className="text-xs text-gray-400">15 credits per image</span>
+          <span className="text-xs text-muted-foreground">15 credits per image</span>
         </div>
 
         {images.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {images.map((img, i) => (
-              <div key={i} className="relative group border border-gray-200 rounded-lg overflow-hidden">
+              <div key={i} className="relative group border border-border rounded-lg overflow-hidden">
                 <img
                   src={img.preview || img.url}
                   alt={img.alt}
@@ -816,27 +816,27 @@ export default function EditProductPage() {
       {/* AI Image Generation Modal */}
       {showAiImageModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+          <div className="bg-card rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <Wand2 className="w-5 h-5 text-purple-600" />
                 AI Generate Product Image
               </h3>
               <button
                 onClick={() => setShowAiImageModal(false)}
-                className="p-1 hover:bg-gray-100 rounded"
+                className="p-1 hover:bg-muted rounded"
               >
-                <X className="w-4 h-4 text-gray-500" />
+                <X className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
 
-            <p className="text-sm text-gray-500 mb-4">
-              Generate a professional product photo for <span className="font-medium text-gray-700">{name || "your product"}</span>
+            <p className="text-sm text-muted-foreground mb-4">
+              Generate a professional product photo for <span className="font-medium text-foreground">{name || "your product"}</span>
             </p>
 
             {/* Style Selection */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Photo Style</label>
+              <label className="block text-sm font-medium text-foreground mb-2">Photo Style</label>
               <div className="grid grid-cols-3 gap-2">
                 {([
                   { value: "lifestyle" as const, label: "Lifestyle", desc: "Real-life context" },
@@ -849,11 +849,11 @@ export default function EditProductPage() {
                     className={`p-3 rounded-lg border-2 text-center transition-colors ${
                       aiImageStyle === opt.value
                         ? "border-purple-500 bg-purple-50"
-                        : "border-gray-200 hover:border-gray-300"
+                        : "border-border hover:border-muted-foreground/50"
                     }`}
                   >
-                    <div className="text-sm font-medium text-gray-900">{opt.label}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">{opt.desc}</div>
+                    <div className="text-sm font-medium text-foreground">{opt.label}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{opt.desc}</div>
                   </button>
                 ))}
               </div>
@@ -861,8 +861,8 @@ export default function EditProductPage() {
 
             {/* Optional Description */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description <span className="text-gray-400 font-normal">(optional)</span>
+              <label className="block text-sm font-medium text-foreground mb-1">
+                Description <span className="text-muted-foreground font-normal">(optional)</span>
               </label>
               <textarea
                 value={aiImageDescription}
@@ -870,17 +870,17 @@ export default function EditProductPage() {
                 placeholder="e.g. Rustic wooden table setting, autumn colors, cozy atmosphere..."
                 rows={3}
                 maxLength={500}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none resize-y"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none resize-y"
               />
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-400">15 credits</span>
+              <span className="text-xs text-muted-foreground">15 credits</span>
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowAiImageModal(false)}
                   disabled={aiImageGenerating}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="px-4 py-2 text-sm font-medium text-foreground border border-border rounded-lg hover:bg-muted/50"
                 >
                   Cancel
                 </button>
@@ -899,18 +899,18 @@ export default function EditProductPage() {
       )}
 
       {/* Section 4: Variants */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+      <div className="bg-card rounded-lg border border-border p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Variants</h2>
+          <h2 className="text-lg font-semibold text-foreground">Variants</h2>
           <label className="flex items-center gap-2 cursor-pointer">
-            <span className="text-sm text-gray-600">This product has variants</span>
+            <span className="text-sm text-muted-foreground">This product has variants</span>
             <button
               type="button"
               role="switch"
               aria-checked={hasVariants}
               onClick={() => setHasVariants(!hasVariants)}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                hasVariants ? "bg-blue-600" : "bg-gray-300"
+                hasVariants ? "bg-blue-600" : "bg-muted"
               }`}
             >
               <span
@@ -928,15 +928,15 @@ export default function EditProductPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="text-left pb-2 font-medium text-gray-600">Name</th>
-                      <th className="text-left pb-2 font-medium text-gray-600">SKU</th>
-                      <th className="text-left pb-2 font-medium text-gray-600">Price ($)</th>
-                      <th className="text-left pb-2 font-medium text-gray-600">Quantity</th>
+                    <tr className="border-b border-border">
+                      <th className="text-left pb-2 font-medium text-muted-foreground">Name</th>
+                      <th className="text-left pb-2 font-medium text-muted-foreground">SKU</th>
+                      <th className="text-left pb-2 font-medium text-muted-foreground">Price ($)</th>
+                      <th className="text-left pb-2 font-medium text-muted-foreground">Quantity</th>
                       <th className="pb-2"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-border">
                     {variants.map((v) => (
                       <tr key={v.tempId}>
                         <td className="py-2 pr-2">
@@ -945,7 +945,7 @@ export default function EditProductPage() {
                             value={v.name}
                             onChange={(e) => updateVariant(v.tempId, "name", e.target.value)}
                             placeholder="e.g. Large / Red"
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-full px-2 py-1.5 border border-border rounded text-sm outline-none focus:ring-1 focus:ring-brand-500"
                           />
                         </td>
                         <td className="py-2 pr-2">
@@ -954,7 +954,7 @@ export default function EditProductPage() {
                             value={v.sku}
                             onChange={(e) => updateVariant(v.tempId, "sku", e.target.value)}
                             placeholder="SKU"
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-full px-2 py-1.5 border border-border rounded text-sm outline-none focus:ring-1 focus:ring-brand-500"
                           />
                         </td>
                         <td className="py-2 pr-2">
@@ -964,7 +964,7 @@ export default function EditProductPage() {
                             min="0.01"
                             value={dollarsFromCents(v.priceCents)}
                             onChange={(e) => updateVariant(v.tempId, "priceCents", centsFromDollars(e.target.value))}
-                            className="w-24 px-2 py-1.5 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-24 px-2 py-1.5 border border-border rounded text-sm outline-none focus:ring-1 focus:ring-brand-500"
                           />
                         </td>
                         <td className="py-2 pr-2">
@@ -973,13 +973,13 @@ export default function EditProductPage() {
                             min="0"
                             value={v.quantity}
                             onChange={(e) => updateVariant(v.tempId, "quantity", parseInt(e.target.value) || 0)}
-                            className="w-20 px-2 py-1.5 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-20 px-2 py-1.5 border border-border rounded text-sm outline-none focus:ring-1 focus:ring-brand-500"
                           />
                         </td>
                         <td className="py-2">
                           <button
                             onClick={() => removeVariant(v.tempId)}
-                            className="p-1 text-gray-400 hover:text-red-600 rounded"
+                            className="p-1 text-muted-foreground hover:text-red-600 rounded"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1003,18 +1003,18 @@ export default function EditProductPage() {
       </div>
 
       {/* Section 5: Inventory */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+      <div className="bg-card rounded-lg border border-border p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Inventory</h2>
+          <h2 className="text-lg font-semibold text-foreground">Inventory</h2>
           <label className="flex items-center gap-2 cursor-pointer">
-            <span className="text-sm text-gray-600">Track inventory</span>
+            <span className="text-sm text-muted-foreground">Track inventory</span>
             <button
               type="button"
               role="switch"
               aria-checked={trackInventory}
               onClick={() => setTrackInventory(!trackInventory)}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                trackInventory ? "bg-blue-600" : "bg-gray-300"
+                trackInventory ? "bg-blue-600" : "bg-muted"
               }`}
             >
               <span
@@ -1029,23 +1029,23 @@ export default function EditProductPage() {
         {trackInventory && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Quantity</label>
               <input
                 type="number"
                 min="0"
                 value={quantity}
                 onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Low Stock Threshold</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Low Stock Threshold</label>
               <input
                 type="number"
                 min="0"
                 value={lowStockThreshold}
                 onChange={(e) => setLowStockThreshold(parseInt(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
               />
             </div>
           </div>
@@ -1053,16 +1053,16 @@ export default function EditProductPage() {
       </div>
 
       {/* Section 6: Category */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <FolderOpen className="w-5 h-5 text-gray-500" />
+      <div className="bg-card rounded-lg border border-border p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <FolderOpen className="w-5 h-5 text-muted-foreground" />
           Category
         </h2>
 
         <select
           value={categoryId}
           onChange={(e) => setCategoryId(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+          className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
         >
           <option value="">No category</option>
           {flatCategories.map((cat) => (
@@ -1074,27 +1074,27 @@ export default function EditProductPage() {
       </div>
 
       {/* Section 7: SEO */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900">SEO</h2>
+      <div className="bg-card rounded-lg border border-border p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-foreground">SEO</h2>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1">
             SEO Title
-            <span className="text-gray-400 font-normal ml-1">({seoTitle.length}/70)</span>
+            <span className="text-muted-foreground font-normal ml-1">({seoTitle.length}/70)</span>
           </label>
           <input
             type="text"
             value={seoTitle}
             onChange={(e) => setSeoTitle(e.target.value)}
             maxLength={70}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1">
             SEO Description
-            <span className="text-gray-400 font-normal ml-1">({seoDescription.length}/160)</span>
+            <span className="text-muted-foreground font-normal ml-1">({seoDescription.length}/160)</span>
           </label>
           <textarea
             value={seoDescription}
@@ -1103,14 +1103,14 @@ export default function EditProductPage() {
             }}
             rows={2}
             maxLength={160}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-y"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none resize-y"
           />
         </div>
       </div>
 
       {/* Section 8: Status */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900">Status</h2>
+      <div className="bg-card rounded-lg border border-border p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-foreground">Status</h2>
 
         <div className="flex gap-4">
           <label className="flex items-center gap-2 cursor-pointer">
@@ -1119,9 +1119,9 @@ export default function EditProductPage() {
               name="status"
               checked={status === "DRAFT"}
               onChange={() => setStatus("DRAFT")}
-              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+              className="w-4 h-4 text-blue-600 focus:ring-brand-500"
             />
-            <span className="text-sm text-gray-700">Draft</span>
+            <span className="text-sm text-foreground">Draft</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -1129,9 +1129,9 @@ export default function EditProductPage() {
               name="status"
               checked={status === "ACTIVE"}
               onChange={() => setStatus("ACTIVE")}
-              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+              className="w-4 h-4 text-blue-600 focus:ring-brand-500"
             />
-            <span className="text-sm text-gray-700">Active</span>
+            <span className="text-sm text-foreground">Active</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -1139,9 +1139,9 @@ export default function EditProductPage() {
               name="status"
               checked={status === "ARCHIVED"}
               onChange={() => setStatus("ARCHIVED")}
-              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+              className="w-4 h-4 text-blue-600 focus:ring-brand-500"
             />
-            <span className="text-sm text-gray-700">Archived</span>
+            <span className="text-sm text-foreground">Archived</span>
           </label>
         </div>
       </div>
@@ -1150,7 +1150,7 @@ export default function EditProductPage() {
       <div className="flex items-center justify-end gap-3 pb-8">
         <button
           onClick={() => router.push("/ecommerce/products")}
-          className="px-6 py-2.5 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+          className="px-6 py-2.5 text-sm font-medium text-foreground border border-border rounded-lg hover:bg-muted/50"
         >
           Cancel
         </button>
@@ -1167,16 +1167,16 @@ export default function EditProductPage() {
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">Delete Product</h3>
-            <p className="text-sm text-gray-500 mt-2">
+          <div className="bg-card rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-foreground">Delete Product</h3>
+            <p className="text-sm text-muted-foreground mt-2">
               Are you sure you want to delete this product? This action cannot be undone.
             </p>
             <div className="flex items-center justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
                 disabled={deleting}
-                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-sm font-medium text-foreground border border-border rounded-lg hover:bg-muted/50"
               >
                 Cancel
               </button>

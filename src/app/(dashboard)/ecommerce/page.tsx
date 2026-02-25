@@ -367,7 +367,7 @@ export default function EcommercePage() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
           {HIGHLIGHTS.map((h) => (
             <div key={h.label} className="text-center">
-              <div className="h-10 w-10 rounded-lg bg-white dark:bg-gray-800 shadow-sm flex items-center justify-center mx-auto mb-2">
+              <div className="h-10 w-10 rounded-lg bg-card shadow-sm flex items-center justify-center mx-auto mb-2">
                 <h.icon className="h-5 w-5 text-violet-600 dark:text-violet-400" />
               </div>
               <p className="text-sm font-medium">{h.label}</p>

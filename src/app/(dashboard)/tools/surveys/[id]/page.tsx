@@ -324,8 +324,8 @@ export default function SurveyDetailPage() {
     return (
       <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
-          <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          <div className="h-8 bg-muted rounded w-1/3"></div>
+          <div className="h-64 bg-muted rounded"></div>
         </div>
       </div>
     );
@@ -335,7 +335,7 @@ export default function SurveyDetailPage() {
     <div className="max-w-6xl mx-auto px-4 py-6">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <Link href="/tools/surveys" className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+        <Link href="/tools/surveys" className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="flex-1 min-w-0">
@@ -361,7 +361,7 @@ export default function SurveyDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-gray-700 mb-6">
+      <div className="flex gap-1 overflow-x-auto border-b border-border mb-6">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -369,7 +369,7 @@ export default function SurveyDetailPage() {
             className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
               activeTab === tab.key
                 ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             <tab.icon className="h-4 w-4" />
@@ -407,14 +407,14 @@ export default function SurveyDetailPage() {
             <div className="space-y-3">
               <h3 className="text-sm font-semibold">Questions</h3>
               {questions.length === 0 && (
-                <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
-                  <p className="text-gray-500 mb-4">No questions yet. Add your first question to get started.</p>
+                <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
+                  <p className="text-muted-foreground mb-4">No questions yet. Add your first question to get started.</p>
                 </div>
               )}
               {questions.map((question, index) => (
-                <div key={question.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+                <div key={question.id} className="border border-border rounded-lg p-4 space-y-3">
                   <div className="flex items-start gap-3">
-                    <button className="mt-2 text-gray-400 hover:text-gray-600 cursor-move">
+                    <button className="mt-2 text-muted-foreground hover:text-foreground cursor-move">
                       <GripVertical className="h-5 w-5" />
                     </button>
                     <div className="flex-1 space-y-3">
@@ -429,7 +429,7 @@ export default function SurveyDetailPage() {
                           onClick={() =>
                             setExpandedQuestion(expandedQuestion === question.id ? null : question.id)
                           }
-                          className="text-gray-500 hover:text-gray-700"
+                          className="text-muted-foreground hover:text-foreground"
                         >
                           {expandedQuestion === question.id ? (
                             <ChevronUp className="h-5 w-5" />
@@ -439,7 +439,7 @@ export default function SurveyDetailPage() {
                         </button>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
-                        <span className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded text-xs font-medium">
+                        <span className="px-2 py-1 bg-muted rounded text-xs font-medium">
                           {QUESTION_TYPE_LABELS[question.type] || question.type}
                         </span>
                         <label className="flex items-center gap-1.5">
@@ -453,7 +453,7 @@ export default function SurveyDetailPage() {
                         </label>
                       </div>
                       {expandedQuestion === question.id && (
-                        <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <div className="space-y-3 pt-2 border-t border-border">
                           <div>
                             <label className="block text-xs font-medium mb-1">Placeholder</label>
                             <Input
@@ -543,15 +543,15 @@ export default function SurveyDetailPage() {
                 Add Question
               </Button>
               {showTypeSelector && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 z-10">
+                <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-lg shadow-lg p-4 z-10">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {QUESTION_TYPES.map((type) => (
                       <button
                         key={type.value}
                         onClick={() => addQuestion(type.value as SurveyQuestion["type"])}
-                        className="flex items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left"
+                        className="flex items-center gap-2 p-3 rounded-lg border border-border hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left"
                       >
-                        <span className="text-xs font-mono text-gray-400 uppercase w-5 text-center">
+                        <span className="text-xs font-mono text-muted-foreground uppercase w-5 text-center">
                           {type.value.charAt(0)}
                         </span>
                         <span className="text-sm font-medium">{type.label}</span>
@@ -573,12 +573,12 @@ export default function SurveyDetailPage() {
             </div>
 
             {/* Active Toggle */}
-            <div className="flex items-center gap-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3 pt-2 border-t border-border">
               <label className="text-sm font-medium">Survey Active</label>
               <button
                 onClick={() => setIsActive(!isActive)}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  isActive ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
+                  isActive ? "bg-blue-600" : "bg-muted-foreground/50"
                 }`}
               >
                 <span
@@ -587,7 +587,7 @@ export default function SurveyDetailPage() {
                   }`}
                 />
               </button>
-              <span className="text-sm text-gray-500">{isActive ? "Active" : "Inactive"}</span>
+              <span className="text-sm text-muted-foreground">{isActive ? "Active" : "Inactive"}</span>
             </div>
           </div>
         )}
@@ -599,7 +599,7 @@ export default function SurveyDetailPage() {
             <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
               <div className="flex gap-2 w-full sm:w-auto">
                 <div className="relative flex-1 sm:flex-initial">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     value={resSearch}
                     onChange={(e) => setResSearch(e.target.value)}
@@ -619,13 +619,13 @@ export default function SurveyDetailPage() {
             {/* Response Cards */}
             {resLoading ? (
               <div className="text-center py-12">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-gray-400" />
+                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
               </div>
             ) : responses.length === 0 ? (
-              <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
-                <Users className="h-12 w-12 mx-auto text-gray-400 mb-3" />
-                <p className="text-gray-500">No responses yet</p>
-                <p className="text-sm text-gray-400 mt-1">Share your survey link to start collecting feedback.</p>
+              <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
+                <Users className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">No responses yet</p>
+                <p className="text-sm text-muted-foreground mt-1">Share your survey link to start collecting feedback.</p>
               </div>
             ) : (
               <>
@@ -646,7 +646,7 @@ export default function SurveyDetailPage() {
                     return (
                       <div
                         key={resp.id}
-                        className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden"
+                        className="bg-card border border-border rounded-xl shadow-sm overflow-hidden"
                       >
                         {/* Header */}
                         <div className="flex items-center justify-between p-5 pb-3">
@@ -657,11 +657,11 @@ export default function SurveyDetailPage() {
                             <div className="min-w-0">
                               <p className="font-semibold text-sm truncate">
                                 {resp.respondentName || (
-                                  <span className="text-gray-400 italic font-normal">Anonymous</span>
+                                  <span className="text-muted-foreground italic font-normal">Anonymous</span>
                                 )}
                               </p>
                               {resp.respondentEmail && (
-                                <p className="text-xs text-gray-500 truncate">{resp.respondentEmail}</p>
+                                <p className="text-xs text-muted-foreground truncate">{resp.respondentEmail}</p>
                               )}
                             </div>
                           </div>
@@ -674,13 +674,13 @@ export default function SurveyDetailPage() {
                                     className={`h-3.5 w-3.5 ${
                                       si < resp.rating!
                                         ? "fill-amber-400 text-amber-400"
-                                        : "text-gray-300 dark:text-gray-600"
+                                        : "text-muted-foreground/50"
                                     }`}
                                   />
                                 ))}
                               </div>
                             )}
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-muted-foreground">
                               {new Date(resp.createdAt).toLocaleDateString(undefined, {
                                 month: "short",
                                 day: "numeric",
@@ -691,7 +691,7 @@ export default function SurveyDetailPage() {
                         </div>
 
                         {/* Divider */}
-                        <div className="border-t border-gray-100 dark:border-gray-700" />
+                        <div className="border-t border-border" />
 
                         {/* Body: Answers Grid */}
                         <div className="p-5 pt-4">
@@ -703,7 +703,7 @@ export default function SurveyDetailPage() {
 
                               return (
                                 <div key={qId}>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                                  <p className="text-xs text-muted-foreground mb-0.5">
                                     {question?.label || qId}
                                   </p>
                                   {qType === "rating" ? (
@@ -714,7 +714,7 @@ export default function SurveyDetailPage() {
                                           className={`h-4 w-4 ${
                                             si < Number(answer)
                                               ? "fill-amber-400 text-amber-400"
-                                              : "text-gray-300 dark:text-gray-600"
+                                              : "text-muted-foreground/50"
                                           }`}
                                         />
                                       ))}
@@ -745,9 +745,9 @@ export default function SurveyDetailPage() {
                         {/* Footer */}
                         {(resp.respondentPhone || true) && (
                           <>
-                            <div className="border-t border-gray-100 dark:border-gray-700" />
+                            <div className="border-t border-border" />
                             <div className="flex items-center justify-between px-5 py-3">
-                              <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                 {resp.respondentPhone && (
                                   <>
                                     <Phone className="h-3.5 w-3.5" />
@@ -770,7 +770,7 @@ export default function SurveyDetailPage() {
                                   }}
                                   className="rounded"
                                 />
-                                <span className="text-xs text-gray-500">Select</span>
+                                <span className="text-xs text-muted-foreground">Select</span>
                               </label>
                             </div>
                           </>
@@ -783,7 +783,7 @@ export default function SurveyDetailPage() {
                 {/* Pagination */}
                 {resPagination.pages > 1 && (
                   <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Showing {responses.length} of {resPagination.total} responses
                     </p>
                     <div className="flex gap-2">
@@ -819,13 +819,13 @@ export default function SurveyDetailPage() {
           <div className="max-w-lg mx-auto space-y-8">
             <div className="text-center">
               <h3 className="text-lg font-semibold mb-2">Share Your Survey</h3>
-              <p className="text-sm text-gray-500">Share this link or QR code to collect responses</p>
+              <p className="text-sm text-muted-foreground">Share this link or QR code to collect responses</p>
             </div>
 
             {/* Brand Preview */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-              <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <div className="border border-border rounded-xl overflow-hidden">
+              <div className="bg-muted px-4 py-2 border-b border-border">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Public Page Preview
                 </span>
               </div>
@@ -841,23 +841,23 @@ export default function SurveyDetailPage() {
                       className="h-10 w-10 mx-auto rounded-lg object-cover"
                     />
                   ) : (
-                    <div className="h-10 w-10 mx-auto rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-400">
+                    <div className="h-10 w-10 mx-auto rounded-lg bg-muted flex items-center justify-center text-xs text-muted-foreground">
                       Logo
                     </div>
                   )}
-                  <p className="text-sm font-medium text-gray-500">
+                  <p className="text-sm font-medium text-muted-foreground">
                     {brand?.name || "Your Business Name"}
                   </p>
                 </div>
                 <div className="text-center">
                   <p className="font-semibold">{survey.title}</p>
                   {survey.description && (
-                    <p className="text-sm text-gray-400">{survey.description}</p>
+                    <p className="text-sm text-muted-foreground">{survey.description}</p>
                   )}
                 </div>
                 {/* Footer: Contact Info */}
-                <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-                  <div className="flex flex-wrap gap-3 justify-center text-xs text-gray-400">
+                <div className="border-t border-border pt-3">
+                  <div className="flex flex-wrap gap-3 justify-center text-xs text-muted-foreground">
                     {brand?.email && <span>{brand.email}</span>}
                     {brand?.phone && <span>{brand.phone}</span>}
                     {brand?.website && <span>{brand.website}</span>}
@@ -892,7 +892,7 @@ export default function SurveyDetailPage() {
               <textarea
                 readOnly
                 rows={3}
-                className="w-full text-xs font-mono bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3"
+                className="w-full text-xs font-mono bg-muted border border-border rounded-lg p-3"
                 value={`<iframe src="${surveyUrl}" width="100%" height="600" frameborder="0"></iframe>`}
                 onClick={(e) => (e.target as HTMLTextAreaElement).select()}
               />
@@ -904,10 +904,10 @@ export default function SurveyDetailPage() {
         {activeTab === "send" && survey && (
           <div className="max-w-lg space-y-6">
             {questions.length === 0 ? (
-              <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
-                <FileText className="h-12 w-12 mx-auto text-gray-400 mb-3" />
+              <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
+                <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
                 <p className="font-medium mb-1">Add questions first</p>
-                <p className="text-sm text-gray-500 mb-4">
+                <p className="text-sm text-muted-foreground mb-4">
                   You need at least one question before you can send your survey.
                 </p>
                 <Button variant="outline" onClick={() => setActiveTab("builder")}>
@@ -922,7 +922,7 @@ export default function SurveyDetailPage() {
                   <select
                     value={sendListId}
                     onChange={(e) => setSendListId(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
                   >
                     <option value="">Select a contact list...</option>
                     {contactLists.map((cl) => (
@@ -944,19 +944,19 @@ export default function SurveyDetailPage() {
                         }}
                         className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all w-full ${
                           !emailReady
-                            ? "opacity-50 cursor-not-allowed border-gray-200 dark:border-gray-700"
+                            ? "opacity-50 cursor-not-allowed border-border"
                             : sendChannel === "email"
                               ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20"
-                              : "border-gray-200 dark:border-gray-700 hover:border-blue-200"
+                              : "border-border hover:border-blue-200"
                         }`}
                       >
                         <Mail
                           className={`h-6 w-6 ${
-                            sendChannel === "email" && emailReady ? "text-blue-500" : "text-gray-400"
+                            sendChannel === "email" && emailReady ? "text-blue-500" : "text-muted-foreground"
                           }`}
                         />
                         <span className="text-sm font-medium">Email</span>
-                        <span className="text-xs text-gray-500">Send via email marketing</span>
+                        <span className="text-xs text-muted-foreground">Send via email marketing</span>
                       </button>
                       {!emailReady && !configLoading && (
                         <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
@@ -975,19 +975,19 @@ export default function SurveyDetailPage() {
                         }}
                         className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all w-full ${
                           !smsReady
-                            ? "opacity-50 cursor-not-allowed border-gray-200 dark:border-gray-700"
+                            ? "opacity-50 cursor-not-allowed border-border"
                             : sendChannel === "sms"
                               ? "border-green-500 bg-green-50 dark:bg-green-950/20"
-                              : "border-gray-200 dark:border-gray-700 hover:border-green-200"
+                              : "border-border hover:border-green-200"
                         }`}
                       >
                         <Phone
                           className={`h-6 w-6 ${
-                            sendChannel === "sms" && smsReady ? "text-green-500" : "text-gray-400"
+                            sendChannel === "sms" && smsReady ? "text-green-500" : "text-muted-foreground"
                           }`}
                         />
                         <span className="text-sm font-medium">SMS</span>
-                        <span className="text-xs text-gray-500">Send via text message</span>
+                        <span className="text-xs text-muted-foreground">Send via text message</span>
                       </button>
                       {!smsReady && !configLoading && (
                         <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
@@ -1004,15 +1004,15 @@ export default function SurveyDetailPage() {
 
                 {/* Survey Link */}
                 {survey.slug && (
-                  <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-                    <p className="text-xs text-gray-500 mb-1">Survey link that will be sent:</p>
+                  <div className="p-3 rounded-lg bg-muted border border-border">
+                    <p className="text-xs text-muted-foreground mb-1">Survey link that will be sent:</p>
                     <code className="text-xs break-all">{surveyUrl}</code>
                   </div>
                 )}
 
                 {/* Send Count + Last Sent */}
                 {(survey.sendCount > 0 || survey.lastSentAt) && (
-                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     {survey.sendCount > 0 && <span>Total sent: {survey.sendCount}</span>}
                     {survey.lastSentAt && (
                       <span>Last sent: {new Date(survey.lastSentAt).toLocaleString()}</span>

@@ -1431,7 +1431,7 @@ export default function CreateCampaignPage() {
                     type="checkbox"
                     checked={contentPolicyAgreed}
                     onChange={(e) => setContentPolicyAgreed(e.target.checked)}
-                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                    className="mt-0.5 w-4 h-4 rounded border-border text-brand-500 focus:ring-brand-500"
                   />
                   <span className="text-sm">
                     I confirm this ad does not contain explicit, misleading, or prohibited content.

@@ -84,7 +84,7 @@ export default function NewFormPage() {
   };
 
   const renderFieldPreview = (field: DataFormField) => {
-    const baseClasses = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100";
+    const baseClasses = "w-full px-3 py-2 border border-border rounded-md bg-card text-foreground";
 
     switch (field.type) {
       case "text":
@@ -132,7 +132,7 @@ export default function NewFormPage() {
             {field.options?.map((opt, i) => (
               <label key={i} className="flex items-center gap-2">
                 <input type="radio" name={field.id} disabled />
-                <span className="text-sm text-gray-900 dark:text-gray-100">{opt}</span>
+                <span className="text-sm text-foreground">{opt}</span>
               </label>
             ))}
           </div>
@@ -143,7 +143,7 @@ export default function NewFormPage() {
             {field.options?.map((opt, i) => (
               <label key={i} className="flex items-center gap-2">
                 <input type="checkbox" disabled />
-                <span className="text-sm text-gray-900 dark:text-gray-100">{opt}</span>
+                <span className="text-sm text-foreground">{opt}</span>
               </label>
             ))}
           </div>
@@ -165,9 +165,9 @@ export default function NewFormPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-muted/50">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+      <div className="sticky top-0 z-10 bg-card border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -177,7 +177,7 @@ export default function NewFormPage() {
                   Back
                 </Button>
               </Link>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-2xl font-bold text-foreground">
                 Create Form
               </h1>
             </div>
@@ -216,9 +216,9 @@ export default function NewFormPage() {
           {/* Builder Section */}
           <div className={`space-y-6 ${showPreview ? "hidden lg:block" : ""}`}>
             {/* Form Settings */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 space-y-4">
+            <div className="bg-card border border-border rounded-lg p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Form Title <span className="text-red-500">*</span>
                 </label>
                 <Input
@@ -229,19 +229,19 @@ export default function NewFormPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Description
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Add a brief description of this form..."
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 resize-none"
+                  className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground resize-none"
                   rows={2}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Thank You Message
                 </label>
                 <Input
@@ -253,9 +253,9 @@ export default function NewFormPage() {
             </div>
 
             {/* Fields */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+            <div className="bg-card border border-border rounded-lg p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h2 className="text-lg font-semibold text-foreground">
                   Form Fields
                 </h2>
                 <Button
@@ -270,9 +270,9 @@ export default function NewFormPage() {
 
               {/* Field Type Selector */}
               {showTypeSelector && (
-                <div className="mb-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900">
+                <div className="mb-4 p-4 border border-border rounded-lg bg-muted/50">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                    <h3 className="text-sm font-medium text-foreground">
                       Select Field Type
                     </h3>
                     <Button
@@ -288,9 +288,9 @@ export default function NewFormPage() {
                       <button
                         key={type.value}
                         onClick={() => addField(type.value)}
-                        className="p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm transition-all"
+                        className="p-3 text-left border border-border rounded-lg hover:bg-card hover:shadow-sm transition-all"
                       >
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        <div className="text-sm font-medium text-foreground">
                           {type.label}
                         </div>
                       </button>
@@ -301,7 +301,7 @@ export default function NewFormPage() {
 
               {/* Field List */}
               {fields.length === 0 ? (
-                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                <div className="text-center py-12 text-muted-foreground">
                   <p>No fields added yet.</p>
                   <p className="text-sm mt-1">Click "Add Field" to get started.</p>
                 </div>
@@ -310,17 +310,17 @@ export default function NewFormPage() {
                   {fields.map((field, index) => (
                     <div
                       key={field.id}
-                      className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                      className="border border-border rounded-lg bg-card"
                     >
                       <div
-                        className="flex items-center gap-2 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        className="flex items-center gap-2 p-3 cursor-pointer hover:bg-muted transition-colors"
                         onClick={() => setExpandedField(expandedField === field.id ? null : field.id)}
                       >
-                        <GripVertical className="h-4 w-4 text-gray-400" />
-                        <span className="text-xs font-medium text-gray-400 uppercase">
+                        <GripVertical className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs font-medium text-muted-foreground uppercase">
                           {field.type}
                         </span>
-                        <span className="font-medium flex-1 text-gray-900 dark:text-white">
+                        <span className="font-medium flex-1 text-foreground">
                           {field.label}
                         </span>
                         {field.required && (
@@ -333,9 +333,9 @@ export default function NewFormPage() {
                         />
                       </div>
                       {expandedField === field.id && (
-                        <div className="p-3 pt-0 space-y-3 border-t border-gray-100 dark:border-gray-700">
+                        <div className="p-3 pt-0 space-y-3 border-t border-border">
                           <div>
-                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">
                               Label
                             </label>
                             <Input
@@ -345,7 +345,7 @@ export default function NewFormPage() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">
                               Placeholder
                             </label>
                             <Input
@@ -357,7 +357,7 @@ export default function NewFormPage() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">
                               Help Text
                             </label>
                             <Input
@@ -370,7 +370,7 @@ export default function NewFormPage() {
                           </div>
                           {field.options && (
                             <div className="space-y-2">
-                              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                              <label className="block text-xs font-medium text-muted-foreground">
                                 Options
                               </label>
                               {field.options.map((opt, i) => (
@@ -413,7 +413,7 @@ export default function NewFormPage() {
                             </div>
                           )}
                           <div className="flex items-center justify-between pt-2">
-                            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                            <label className="flex items-center gap-2 text-sm text-muted-foreground">
                               <input
                                 type="checkbox"
                                 checked={field.required}
@@ -468,9 +468,9 @@ export default function NewFormPage() {
           {/* Preview Section */}
           <div className={`${!showPreview ? "hidden lg:block" : ""}`}>
             <div className="sticky top-24">
-              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+              <div className="bg-card border border-border rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  <h2 className="text-lg font-semibold text-foreground">
                     Live Preview
                   </h2>
                   <Button
@@ -486,16 +486,16 @@ export default function NewFormPage() {
                 {/* Phone Frame */}
                 <div className="mx-auto max-w-sm">
                   <div className="border-8 border-gray-800 dark:border-gray-600 rounded-3xl overflow-hidden shadow-2xl">
-                    <div className="bg-white dark:bg-gray-900 h-[600px] overflow-y-auto">
+                    <div className="bg-background h-[600px] overflow-y-auto">
                       <div className="p-6 space-y-6">
                         {/* Form Header */}
                         {title && (
                           <div>
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                            <h3 className="text-xl font-bold text-foreground">
                               {title}
                             </h3>
                             {description && (
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              <p className="text-sm text-muted-foreground mt-1">
                                 {description}
                               </p>
                             )}
@@ -507,7 +507,7 @@ export default function NewFormPage() {
                           <div className="space-y-4">
                             {fields.map((field) => (
                               <div key={field.id}>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-muted-foreground mb-1">
                                   {field.label}
                                   {field.required && (
                                     <span className="text-red-500 ml-1">*</span>
@@ -515,7 +515,7 @@ export default function NewFormPage() {
                                 </label>
                                 {renderFieldPreview(field)}
                                 {field.helpText && (
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  <p className="text-xs text-muted-foreground mt-1">
                                     {field.helpText}
                                   </p>
                                 )}
@@ -529,7 +529,7 @@ export default function NewFormPage() {
                             </button>
                           </div>
                         ) : (
-                          <div className="text-center py-12 text-gray-400">
+                          <div className="text-center py-12 text-muted-foreground">
                             <p className="text-sm">Your form fields will appear here</p>
                           </div>
                         )}

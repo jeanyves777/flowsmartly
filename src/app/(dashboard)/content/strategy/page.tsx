@@ -175,7 +175,7 @@ const STATUS_CONFIG: Record<
   TaskStatus,
   { label: string; icon: typeof Circle; color: string }
 > = {
-  TODO: { label: "To Do", icon: Circle, color: "text-gray-400" },
+  TODO: { label: "To Do", icon: Circle, color: "text-muted-foreground" },
   IN_PROGRESS: { label: "In Progress", icon: Clock, color: "text-orange-500" },
   DONE: { label: "Done", icon: CheckCircle2, color: "text-green-500" },
 };
@@ -383,7 +383,7 @@ function SortableTaskCard({
               </Badge>
             )}
             {task.automationStatus === "MANUAL_ONLY" && (
-              <Badge className="text-[10px] px-1.5 py-0 bg-gray-500/10 text-gray-500 border-gray-500/20">
+              <Badge className="text-[10px] px-1.5 py-0 bg-muted text-muted-foreground border-border">
                 Manual
               </Badge>
             )}
@@ -403,7 +403,7 @@ function SortableTaskCard({
                     ? "border-green-500/30 text-green-600 hover:bg-green-500/10"
                     : col.id === "IN_PROGRESS"
                     ? "border-orange-500/30 text-orange-600 hover:bg-orange-500/10"
-                    : "border-gray-400/30 text-gray-500 hover:bg-gray-400/10"
+                    : "border-muted-foreground/30 text-muted-foreground hover:bg-muted"
                 }`}
               >
                 {col.label}
@@ -1172,7 +1172,7 @@ export default function MarketingStrategyPage() {
                     ? "bg-green-500/10 text-green-600 border-green-500/20"
                     : strategy.status === "PAUSED"
                     ? "bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
-                    : "bg-gray-500/10 text-gray-500 border-gray-500/20"
+                    : "bg-muted text-muted-foreground border-border"
                 }
               >
                 {strategy.status.charAt(0) + strategy.status.slice(1).toLowerCase()}

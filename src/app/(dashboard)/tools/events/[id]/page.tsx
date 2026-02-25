@@ -325,8 +325,8 @@ export default function EventDetailPage() {
     return (
       <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
-          <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          <div className="h-8 bg-muted rounded w-1/3"></div>
+          <div className="h-64 bg-muted rounded"></div>
         </div>
       </div>
     );
@@ -337,9 +337,9 @@ export default function EventDetailPage() {
     return (
       <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="text-center py-20">
-          <AlertCircle className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+          <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h2 className="text-xl font-semibold mb-2">Event not found</h2>
-          <p className="text-gray-500 mb-4">This event may have been deleted or you don&apos;t have access.</p>
+          <p className="text-muted-foreground mb-4">This event may have been deleted or you don&apos;t have access.</p>
           <Link href="/tools/events">
             <Button variant="outline">
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -380,7 +380,7 @@ export default function EventDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-gray-700 mb-6">
+      <div className="flex gap-1 overflow-x-auto border-b border-border mb-6">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -388,7 +388,7 @@ export default function EventDetailPage() {
             className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
               activeTab === tab.key
                 ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             <tab.icon className="h-4 w-4" />
@@ -403,7 +403,7 @@ export default function EventDetailPage() {
         {activeTab === "overview" && (
           <div className="space-y-6">
             {/* Status Toggle */}
-            <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+            <div className="flex items-center justify-between p-4 bg-card border border-border rounded-xl">
               <div className="flex items-center gap-3">
                 <span className="text-sm font-medium">Event Status</span>
                 <span
@@ -438,14 +438,14 @@ export default function EventDetailPage() {
 
             {/* Stats Grid */}
             <div className={`grid gap-4 ${event.ticketType === "paid" ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2"}`}>
-              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+              <div className="bg-card border border-border rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <Users className="h-4 w-4 text-blue-500" />
-                  <span className="text-xs text-gray-500 font-medium">Registrations</span>
+                  <span className="text-xs text-muted-foreground font-medium">Registrations</span>
                 </div>
                 <p className="text-2xl font-bold">{event.registrationCount}</p>
                 {event.capacity && (
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     of {event.capacity} capacity
                   </p>
                 )}
@@ -453,20 +453,20 @@ export default function EventDetailPage() {
 
               {event.ticketType === "paid" && (
                 <>
-                  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+                  <div className="bg-card border border-border rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <DollarSign className="h-4 w-4 text-green-500" />
-                      <span className="text-xs text-gray-500 font-medium">Revenue</span>
+                      <span className="text-xs text-muted-foreground font-medium">Revenue</span>
                     </div>
                     <p className="text-2xl font-bold text-green-600">
                       {formatCents(event.totalRevenueCents)}
                     </p>
                   </div>
 
-                  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+                  <div className="bg-card border border-border rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <RefreshCw className="h-4 w-4 text-red-500" />
-                      <span className="text-xs text-gray-500 font-medium">Refunded</span>
+                      <span className="text-xs text-muted-foreground font-medium">Refunded</span>
                     </div>
                     <p className="text-2xl font-bold text-red-600">
                       {formatCents(event.totalRefundedCents)}
@@ -475,18 +475,18 @@ export default function EventDetailPage() {
                 </>
               )}
 
-              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+              <div className="bg-card border border-border rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <Send className="h-4 w-4 text-purple-500" />
-                  <span className="text-xs text-gray-500 font-medium">Invitations Sent</span>
+                  <span className="text-xs text-muted-foreground font-medium">Invitations Sent</span>
                 </div>
                 <p className="text-2xl font-bold">{event.sendCount}</p>
               </div>
             </div>
 
             {/* Event Info */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <h3 className="font-semibold text-sm">Event Details</h3>
                 <Link href={`/tools/events/${id}/edit`}>
                   <Button variant="outline" size="sm" className="gap-1.5">
@@ -499,7 +499,7 @@ export default function EventDetailPage() {
               <div className="p-5 space-y-5">
                 {/* Cover Image */}
                 {event.coverImageUrl && (
-                  <div className="relative w-full h-48 sm:h-64 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
+                  <div className="relative w-full h-48 sm:h-64 rounded-lg overflow-hidden bg-muted">
                     <Image
                       src={event.coverImageUrl}
                       alt={event.title}
@@ -513,7 +513,7 @@ export default function EventDetailPage() {
                 <div>
                   <h4 className="text-lg font-semibold">{event.title}</h4>
                   {event.description && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 whitespace-pre-wrap">
+                    <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">
                       {event.description}
                     </p>
                   )}
@@ -521,7 +521,7 @@ export default function EventDetailPage() {
 
                 {/* Date & Time */}
                 <div className="flex items-start gap-3">
-                  <CalendarDays className="h-5 w-5 text-gray-400 mt-0.5 flex-shrink-0" />
+                  <CalendarDays className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="text-sm font-medium">
                       {new Date(event.eventDate).toLocaleDateString("en-US", {
@@ -531,7 +531,7 @@ export default function EventDetailPage() {
                         year: "numeric",
                       })}
                     </p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       {new Date(event.eventDate).toLocaleTimeString("en-US", {
                         hour: "numeric",
                         minute: "2-digit",
@@ -548,7 +548,7 @@ export default function EventDetailPage() {
                       )}
                     </p>
                     {event.timezone && (
-                      <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                      <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         {event.timezone}
                       </p>
@@ -560,7 +560,7 @@ export default function EventDetailPage() {
                 <div className="flex items-start gap-3">
                   {event.isOnline ? (
                     <>
-                      <Globe className="h-5 w-5 text-gray-400 mt-0.5 flex-shrink-0" />
+                      <Globe className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                       <div>
                         <p className="text-sm font-medium">Online Event</p>
                         {event.onlineUrl && (
@@ -578,16 +578,16 @@ export default function EventDetailPage() {
                     </>
                   ) : (
                     <>
-                      <MapPin className="h-5 w-5 text-gray-400 mt-0.5 flex-shrink-0" />
+                      <MapPin className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                       <div>
                         {event.venueName && (
                           <p className="text-sm font-medium">{event.venueName}</p>
                         )}
                         {event.venueAddress && (
-                          <p className="text-sm text-gray-500">{event.venueAddress}</p>
+                          <p className="text-sm text-muted-foreground">{event.venueAddress}</p>
                         )}
                         {!event.venueName && !event.venueAddress && (
-                          <p className="text-sm text-gray-400 italic">No venue specified</p>
+                          <p className="text-sm text-muted-foreground italic">No venue specified</p>
                         )}
                       </div>
                     </>
@@ -596,10 +596,10 @@ export default function EventDetailPage() {
 
                 {/* Registration Type */}
                 <div className="flex items-center gap-3">
-                  <Ticket className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                  <Ticket className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium capitalize">{event.registrationType}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                       {event.ticketType === "paid" ? "Paid" : "Free"}
                     </span>
                   </div>
@@ -608,12 +608,12 @@ export default function EventDetailPage() {
                 {/* Ticket Info (paid events) */}
                 {event.ticketType === "paid" && event.ticketPrice != null && (
                   <div className="flex items-center gap-3">
-                    <DollarSign className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                    <DollarSign className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                     <div>
                       <p className="text-sm font-medium">
                         {event.ticketName || "General Admission"} &mdash; ${event.ticketPrice.toFixed(2)}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted-foreground">
                         Platform fee: {event.platformFeePercent}%
                       </p>
                     </div>
@@ -631,7 +631,7 @@ export default function EventDetailPage() {
             <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
               <div className="flex gap-2 w-full sm:w-auto">
                 <div className="relative flex-1 sm:flex-initial">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     value={regSearch}
                     onChange={(e) => {
@@ -649,7 +649,7 @@ export default function EventDetailPage() {
                   </Button>
                 )}
               </div>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 {regPagination.total} total registration{regPagination.total !== 1 ? "s" : ""}
               </p>
             </div>
@@ -657,23 +657,23 @@ export default function EventDetailPage() {
             {/* Registrations Table */}
             {regLoading ? (
               <div className="text-center py-12">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-gray-400" />
+                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
               </div>
             ) : registrations.length === 0 ? (
-              <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
-                <Users className="h-12 w-12 mx-auto text-gray-400 mb-3" />
-                <p className="text-gray-500 font-medium">No registrations yet</p>
-                <p className="text-sm text-gray-400 mt-1">
+              <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
+                <Users className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground font-medium">No registrations yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
                   Share your event link to start getting registrations.
                 </p>
               </div>
             ) : (
               <>
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                        <tr className="border-b border-border bg-muted/50">
                           <th className="px-4 py-3 text-left">
                             <input
                               type="checkbox"
@@ -688,19 +688,19 @@ export default function EventDetailPage() {
                               className="rounded"
                             />
                           </th>
-                          <th className="px-4 py-3 text-left font-medium text-gray-500">Name</th>
-                          <th className="px-4 py-3 text-left font-medium text-gray-500">Email</th>
-                          <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
+                          <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
+                          <th className="px-4 py-3 text-left font-medium text-muted-foreground">Email</th>
+                          <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
                           {event.registrationType === "rsvp" && (
-                            <th className="px-4 py-3 text-left font-medium text-gray-500">RSVP</th>
+                            <th className="px-4 py-3 text-left font-medium text-muted-foreground">RSVP</th>
                           )}
-                          <th className="px-4 py-3 text-left font-medium text-gray-500">Ticket Code</th>
-                          <th className="px-4 py-3 text-left font-medium text-gray-500">Date</th>
+                          <th className="px-4 py-3 text-left font-medium text-muted-foreground">Ticket Code</th>
+                          <th className="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      <tbody className="divide-y divide-border">
                         {registrations.map((reg) => (
-                          <tr key={reg.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                          <tr key={reg.id} className="hover:bg-muted/50">
                             <td className="px-4 py-3">
                               <input
                                 type="checkbox"
@@ -718,10 +718,10 @@ export default function EventDetailPage() {
                               />
                             </td>
                             <td className="px-4 py-3 font-medium">
-                              {reg.name || <span className="text-gray-400 italic">Anonymous</span>}
+                              {reg.name || <span className="text-muted-foreground italic">Anonymous</span>}
                             </td>
-                            <td className="px-4 py-3 text-gray-500">
-                              {reg.email || <span className="text-gray-400">--</span>}
+                            <td className="px-4 py-3 text-muted-foreground">
+                              {reg.email || <span className="text-muted-foreground">--</span>}
                             </td>
                             <td className="px-4 py-3">
                               <span
@@ -743,16 +743,16 @@ export default function EventDetailPage() {
                                     {RSVP_CONFIG[reg.rsvpResponse]?.label || reg.rsvpResponse}
                                   </span>
                                 ) : (
-                                  <span className="text-gray-400">--</span>
+                                  <span className="text-muted-foreground">--</span>
                                 )}
                               </td>
                             )}
                             <td className="px-4 py-3">
-                              <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+                              <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
                                 {reg.ticketCode}
                               </code>
                             </td>
-                            <td className="px-4 py-3 text-gray-500 text-xs">
+                            <td className="px-4 py-3 text-muted-foreground text-xs">
                               {new Date(reg.createdAt).toLocaleDateString("en-US", {
                                 month: "short",
                                 day: "numeric",
@@ -769,7 +769,7 @@ export default function EventDetailPage() {
                 {/* Pagination */}
                 {regPagination.pages > 1 && (
                   <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Showing {registrations.length} of {regPagination.total} registrations
                     </p>
                     <div className="flex gap-2">
@@ -805,50 +805,50 @@ export default function EventDetailPage() {
           <div className="space-y-6">
             {salesLoading && !salesData ? (
               <div className="text-center py-12">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-gray-400" />
+                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
               </div>
             ) : salesData ? (
               <>
                 {/* Revenue Summary */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+                  <div className="bg-card border border-border rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <DollarSign className="h-4 w-4 text-green-500" />
-                      <span className="text-xs text-gray-500 font-medium">Total Sales</span>
+                      <span className="text-xs text-muted-foreground font-medium">Total Sales</span>
                     </div>
                     <p className="text-2xl font-bold text-green-600">
                       {formatCents(salesData.summary.totalRevenueCents)}
                     </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {salesData.summary.totalOrders} order{salesData.summary.totalOrders !== 1 ? "s" : ""}
                     </p>
                   </div>
 
-                  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+                  <div className="bg-card border border-border rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
-                      <BarChart3 className="h-4 w-4 text-gray-400" />
-                      <span className="text-xs text-gray-500 font-medium">Platform Fee</span>
+                      <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground font-medium">Platform Fee</span>
                     </div>
                     <p className="text-2xl font-bold">
                       {formatCents(salesData.summary.platformFeeCents)}
                     </p>
-                    <p className="text-xs text-gray-500 mt-0.5">{event.platformFeePercent}%</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{event.platformFeePercent}%</p>
                   </div>
 
-                  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+                  <div className="bg-card border border-border rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <Ticket className="h-4 w-4 text-blue-500" />
-                      <span className="text-xs text-gray-500 font-medium">Net to You</span>
+                      <span className="text-xs text-muted-foreground font-medium">Net to You</span>
                     </div>
                     <p className="text-2xl font-bold text-blue-600">
                       {formatCents(salesData.summary.organizerAmountCents)}
                     </p>
                   </div>
 
-                  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+                  <div className="bg-card border border-border rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <RefreshCw className="h-4 w-4 text-red-500" />
-                      <span className="text-xs text-gray-500 font-medium">Refunded</span>
+                      <span className="text-xs text-muted-foreground font-medium">Refunded</span>
                     </div>
                     <p className="text-2xl font-bold text-red-600">
                       {formatCents(salesData.summary.totalRefundedCents)}
@@ -868,33 +868,33 @@ export default function EventDetailPage() {
 
                 {/* Orders Table */}
                 {salesData.orders.length === 0 ? (
-                  <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
-                    <DollarSign className="h-12 w-12 mx-auto text-gray-400 mb-3" />
-                    <p className="text-gray-500 font-medium">No orders yet</p>
-                    <p className="text-sm text-gray-400 mt-1">
+                  <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
+                    <DollarSign className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-muted-foreground font-medium">No orders yet</p>
+                    <p className="text-sm text-muted-foreground mt-1">
                       Orders will appear here when attendees purchase tickets.
                     </p>
                   </div>
                 ) : (
                   <>
-                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                    <div className="bg-card border border-border rounded-xl overflow-hidden">
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                              <th className="px-4 py-3 text-left font-medium text-gray-500">Buyer</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-500">Email</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-500">Amount</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-500">Date</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-500">Actions</th>
+                            <tr className="border-b border-border bg-muted/50">
+                              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Buyer</th>
+                              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Email</th>
+                              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Amount</th>
+                              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
+                              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Actions</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                          <tbody className="divide-y divide-border">
                             {salesData.orders.map((order) => (
-                              <tr key={order.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                              <tr key={order.id} className="hover:bg-muted/50">
                                 <td className="px-4 py-3 font-medium">{order.buyerName}</td>
-                                <td className="px-4 py-3 text-gray-500">{order.buyerEmail}</td>
+                                <td className="px-4 py-3 text-muted-foreground">{order.buyerEmail}</td>
                                 <td className="px-4 py-3 font-medium">{formatCents(order.amountCents)}</td>
                                 <td className="px-4 py-3">
                                   <span
@@ -905,7 +905,7 @@ export default function EventDetailPage() {
                                     {TICKET_ORDER_STATUS_CONFIG[order.status]?.label || order.status}
                                   </span>
                                 </td>
-                                <td className="px-4 py-3 text-gray-500 text-xs">
+                                <td className="px-4 py-3 text-muted-foreground text-xs">
                                   {new Date(order.createdAt).toLocaleDateString("en-US", {
                                     month: "short",
                                     day: "numeric",
@@ -940,7 +940,7 @@ export default function EventDetailPage() {
                     {/* Sales Pagination */}
                     {salesData.pagination.pages > 1 && (
                       <div className="flex items-center justify-between">
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-muted-foreground">
                           Showing {salesData.orders.length} of {salesData.pagination.total} orders
                         </p>
                         <div className="flex gap-2">
@@ -970,9 +970,9 @@ export default function EventDetailPage() {
                 )}
               </>
             ) : (
-              <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
-                <DollarSign className="h-12 w-12 mx-auto text-gray-400 mb-3" />
-                <p className="text-gray-500">No sales data available</p>
+              <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
+                <DollarSign className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">No sales data available</p>
               </div>
             )}
           </div>
@@ -983,7 +983,7 @@ export default function EventDetailPage() {
           <div className="max-w-lg mx-auto space-y-8">
             <div className="text-center">
               <h3 className="text-lg font-semibold mb-2">Share Your Event</h3>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 Share this link or QR code to get registrations
               </p>
             </div>
@@ -991,7 +991,7 @@ export default function EventDetailPage() {
             {/* Public URL */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Public Event URL</label>
-              <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800 rounded-lg p-2 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2 bg-muted rounded-lg p-2 border border-border">
                 <input
                   readOnly
                   value={eventUrl}
@@ -1019,7 +1019,7 @@ export default function EventDetailPage() {
               <textarea
                 readOnly
                 rows={3}
-                className="w-full text-xs font-mono bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3"
+                className="w-full text-xs font-mono bg-muted border border-border rounded-lg p-3"
                 value={`<iframe src="${eventUrl}" width="100%" height="800" frameborder="0"></iframe>`}
                 onClick={(e) => (e.target as HTMLTextAreaElement).select()}
               />
@@ -1047,8 +1047,8 @@ export default function EventDetailPage() {
                   </Link>
                 </div>
               ) : (
-                <div className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                <div className="p-4 bg-muted border border-border rounded-lg">
+                  <p className="text-sm text-muted-foreground mb-3">
                     Create a dedicated landing page for your event to maximize registrations.
                   </p>
                   <Button
@@ -1079,7 +1079,7 @@ export default function EventDetailPage() {
               <select
                 value={sendListId}
                 onChange={(e) => setSendListId(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
               >
                 <option value="">Select a contact list...</option>
                 {contactLists.map((cl) => (
@@ -1101,19 +1101,19 @@ export default function EventDetailPage() {
                     }}
                     className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all w-full ${
                       !emailReady
-                        ? "opacity-50 cursor-not-allowed border-gray-200 dark:border-gray-700"
+                        ? "opacity-50 cursor-not-allowed border-border"
                         : sendChannel === "email"
                           ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20"
-                          : "border-gray-200 dark:border-gray-700 hover:border-blue-200"
+                          : "border-border hover:border-blue-200"
                     }`}
                   >
                     <Mail
                       className={`h-6 w-6 ${
-                        sendChannel === "email" && emailReady ? "text-blue-500" : "text-gray-400"
+                        sendChannel === "email" && emailReady ? "text-blue-500" : "text-muted-foreground"
                       }`}
                     />
                     <span className="text-sm font-medium">Email</span>
-                    <span className="text-xs text-gray-500">Send via email marketing</span>
+                    <span className="text-xs text-muted-foreground">Send via email marketing</span>
                   </button>
                   {!emailReady && !configLoading && (
                     <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
@@ -1135,19 +1135,19 @@ export default function EventDetailPage() {
                     }}
                     className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all w-full ${
                       !smsReady
-                        ? "opacity-50 cursor-not-allowed border-gray-200 dark:border-gray-700"
+                        ? "opacity-50 cursor-not-allowed border-border"
                         : sendChannel === "sms"
                           ? "border-green-500 bg-green-50 dark:bg-green-950/20"
-                          : "border-gray-200 dark:border-gray-700 hover:border-green-200"
+                          : "border-border hover:border-green-200"
                     }`}
                   >
                     <MessageSquare
                       className={`h-6 w-6 ${
-                        sendChannel === "sms" && smsReady ? "text-green-500" : "text-gray-400"
+                        sendChannel === "sms" && smsReady ? "text-green-500" : "text-muted-foreground"
                       }`}
                     />
                     <span className="text-sm font-medium">SMS</span>
-                    <span className="text-xs text-gray-500">Send via text message</span>
+                    <span className="text-xs text-muted-foreground">Send via text message</span>
                   </button>
                   {!smsReady && !configLoading && (
                     <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
@@ -1167,15 +1167,15 @@ export default function EventDetailPage() {
 
             {/* Event Link Preview */}
             {event.slug && (
-              <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-                <p className="text-xs text-gray-500 mb-1">Event link that will be sent:</p>
+              <div className="p-3 rounded-lg bg-muted border border-border">
+                <p className="text-xs text-muted-foreground mb-1">Event link that will be sent:</p>
                 <code className="text-xs break-all">{eventUrl}</code>
               </div>
             )}
 
             {/* Send Count + Last Sent */}
             {(event.sendCount > 0 || event.lastSentAt) && (
-              <div className="flex items-center gap-4 text-xs text-gray-500">
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 {event.sendCount > 0 && <span>Total sent: {event.sendCount}</span>}
                 {event.lastSentAt && (
                   <span>Last sent: {new Date(event.lastSentAt).toLocaleString()}</span>

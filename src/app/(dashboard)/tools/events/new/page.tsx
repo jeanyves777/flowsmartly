@@ -192,7 +192,7 @@ export default function NewEventPage() {
 
   const renderFieldPreview = (field: DataFormField) => {
     const baseClasses =
-      "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs";
+      "w-full px-3 py-2 border border-border rounded-md bg-card text-foreground text-xs";
 
     switch (field.type) {
       case "text":
@@ -234,7 +234,7 @@ export default function NewEventPage() {
             {field.options?.map((opt, i) => (
               <label key={i} className="flex items-center gap-2">
                 <input type="radio" name={field.id} disabled />
-                <span className="text-xs text-gray-900 dark:text-gray-100">
+                <span className="text-xs text-foreground">
                   {opt}
                 </span>
               </label>
@@ -247,7 +247,7 @@ export default function NewEventPage() {
             {field.options?.map((opt, i) => (
               <label key={i} className="flex items-center gap-2">
                 <input type="checkbox" disabled />
-                <span className="text-xs text-gray-900 dark:text-gray-100">
+                <span className="text-xs text-foreground">
                   {opt}
                 </span>
               </label>
@@ -281,9 +281,9 @@ export default function NewEventPage() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-muted">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+      <div className="sticky top-0 z-10 bg-card border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -293,7 +293,7 @@ export default function NewEventPage() {
                   Back
                 </Button>
               </Link>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-2xl font-bold text-foreground">
                 Create Event
               </h1>
             </div>
@@ -335,15 +335,15 @@ export default function NewEventPage() {
             className={`space-y-6 ${showPreview ? "hidden lg:block" : ""}`}
           >
             {/* Section 1: Basic Info */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 space-y-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <CalendarDays className="h-5 w-5 text-brand-500" />
                 Basic Info
               </h2>
 
               {/* Title */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Title <span className="text-red-500">*</span>
                 </label>
                 <Input
@@ -356,21 +356,21 @@ export default function NewEventPage() {
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Description
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Tell people about your event..."
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 resize-none"
+                  className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground resize-none"
                   rows={3}
                 />
               </div>
 
               {/* Cover Image */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Cover Image
                 </label>
                 <MediaUploader
@@ -383,7 +383,7 @@ export default function NewEventPage() {
 
               {/* Gallery */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Gallery
                 </label>
                 <MediaUploader
@@ -399,15 +399,15 @@ export default function NewEventPage() {
             </div>
 
             {/* Section 2: Date & Location */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 space-y-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <Clock className="h-5 w-5 text-brand-500" />
                 Date & Location
               </h2>
 
               {/* Event Date */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Event Date <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -420,7 +420,7 @@ export default function NewEventPage() {
 
               {/* End Date */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   End Date{" "}
                   <span className="text-xs text-muted-foreground">
                     (optional)
@@ -436,7 +436,7 @@ export default function NewEventPage() {
 
               {/* Timezone */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Timezone
                 </label>
                 <select
@@ -461,9 +461,9 @@ export default function NewEventPage() {
                     onChange={(e) => setIsOnline(e.target.checked)}
                     className="sr-only peer"
                   />
-                  <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-500 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-500"></div>
+                  <div className="w-9 h-5 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-500"></div>
                 </label>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <span className="text-sm font-medium text-foreground">
                   Online Event
                 </span>
               </div>
@@ -471,7 +471,7 @@ export default function NewEventPage() {
               {/* Conditional: Online URL or Venue */}
               {isOnline ? (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Online URL
                   </label>
                   <Input
@@ -484,7 +484,7 @@ export default function NewEventPage() {
               ) : (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Venue Name
                     </label>
                     <Input
@@ -494,7 +494,7 @@ export default function NewEventPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Venue Address
                     </label>
                     <Input
@@ -508,8 +508,8 @@ export default function NewEventPage() {
             </div>
 
             {/* Section 3: Registration Type */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 space-y-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <Users className="h-5 w-5 text-brand-500" />
                 Registration
               </h2>
@@ -528,7 +528,7 @@ export default function NewEventPage() {
                     className={`p-4 text-left border-2 rounded-lg transition-all ${
                       registrationType === type
                         ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10"
-                        : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                        : "border-border hover:border-border"
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
@@ -536,18 +536,18 @@ export default function NewEventPage() {
                         className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
                           registrationType === type
                             ? "border-brand-500"
-                            : "border-gray-300 dark:border-gray-600"
+                            : "border-border"
                         }`}
                       >
                         {registrationType === type && (
                           <div className="w-2 h-2 rounded-full bg-brand-500" />
                         )}
                       </div>
-                      <span className="font-semibold text-sm text-gray-900 dark:text-white">
+                      <span className="font-semibold text-sm text-foreground">
                         {config.label}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 ml-6">
+                    <p className="text-xs text-muted-foreground ml-6">
                       {config.description}
                     </p>
                   </button>
@@ -558,7 +558,7 @@ export default function NewEventPage() {
               {registrationType === "form" && (
                 <div className="mt-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    <h3 className="text-sm font-semibold text-foreground">
                       Registration Fields
                     </h3>
                     <Button
@@ -573,9 +573,9 @@ export default function NewEventPage() {
 
                   {/* Field Type Selector */}
                   {showTypeSelector && (
-                    <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900">
+                    <div className="p-4 border border-border rounded-lg bg-muted">
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-sm font-medium text-gray-900 dark:text-white">
+                        <h4 className="text-sm font-medium text-foreground">
                           Select Field Type
                         </h4>
                         <Button
@@ -591,9 +591,9 @@ export default function NewEventPage() {
                           <button
                             key={type.value}
                             onClick={() => addField(type.value)}
-                            className="p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm transition-all"
+                            className="p-3 text-left border border-border rounded-lg hover:bg-card hover:shadow-sm transition-all"
                           >
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            <div className="text-sm font-medium text-foreground">
                               {type.label}
                             </div>
                           </button>
@@ -604,7 +604,7 @@ export default function NewEventPage() {
 
                   {/* Field List */}
                   {registrationFields.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
+                    <div className="text-center py-8 text-muted-foreground border-2 border-dashed border-border rounded-lg">
                       <p className="text-sm">No fields added yet.</p>
                       <p className="text-xs mt-1">
                         Click &quot;Add Field&quot; to get started.
@@ -615,21 +615,21 @@ export default function NewEventPage() {
                       {registrationFields.map((field, index) => (
                         <div
                           key={field.id}
-                          className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                          className="border border-border rounded-lg bg-card"
                         >
                           <div
-                            className="flex items-center gap-2 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                            className="flex items-center gap-2 p-3 cursor-pointer hover:bg-muted transition-colors"
                             onClick={() =>
                               setExpandedField(
                                 expandedField === field.id ? null : field.id
                               )
                             }
                           >
-                            <GripVertical className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                            <span className="text-xs font-medium text-gray-400 uppercase">
+                            <GripVertical className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span className="text-xs font-medium text-muted-foreground uppercase">
                               {field.type}
                             </span>
-                            <span className="font-medium flex-1 text-gray-900 dark:text-white truncate">
+                            <span className="font-medium flex-1 text-foreground truncate">
                               {field.label}
                             </span>
                             {field.required && (
@@ -645,9 +645,9 @@ export default function NewEventPage() {
                           </div>
 
                           {expandedField === field.id && (
-                            <div className="p-3 pt-0 space-y-3 border-t border-gray-100 dark:border-gray-700">
+                            <div className="p-3 pt-0 space-y-3 border-t border-border">
                               <div>
-                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-xs font-medium text-foreground mb-1">
                                   Label
                                 </label>
                                 <Input
@@ -661,7 +661,7 @@ export default function NewEventPage() {
                                 />
                               </div>
                               <div>
-                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-xs font-medium text-foreground mb-1">
                                   Placeholder
                                 </label>
                                 <Input
@@ -678,7 +678,7 @@ export default function NewEventPage() {
                               {/* Options for select/radio/checkbox */}
                               {field.options && (
                                 <div className="space-y-2">
-                                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                                  <label className="block text-xs font-medium text-foreground">
                                     Options
                                   </label>
                                   {field.options.map((opt, i) => (
@@ -729,7 +729,7 @@ export default function NewEventPage() {
                               )}
 
                               <div className="flex items-center justify-between pt-2">
-                                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                <label className="flex items-center gap-2 text-sm text-foreground">
                                   <input
                                     type="checkbox"
                                     checked={field.required}
@@ -789,7 +789,7 @@ export default function NewEventPage() {
                 <div className="mt-4 space-y-4">
                   {/* Capacity */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Capacity
                     </label>
                     <Input
@@ -807,7 +807,7 @@ export default function NewEventPage() {
 
                   {/* Free / Paid Toggle */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Pricing
                     </label>
                     <div className="flex gap-2">
@@ -816,7 +816,7 @@ export default function NewEventPage() {
                         className={`flex-1 px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
                           ticketType === "free"
                             ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300"
-                            : "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300"
+                            : "border-border text-foreground hover:border-border"
                         }`}
                       >
                         Free
@@ -826,7 +826,7 @@ export default function NewEventPage() {
                         className={`flex-1 px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
                           ticketType === "paid"
                             ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300"
-                            : "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300"
+                            : "border-border text-foreground hover:border-border"
                         }`}
                       >
                         <DollarSign className="h-4 w-4 inline mr-1" />
@@ -837,9 +837,9 @@ export default function NewEventPage() {
 
                   {/* Paid Ticket Details */}
                   {ticketType === "paid" && (
-                    <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <div className="space-y-3 p-4 bg-muted rounded-lg border border-border">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium text-foreground mb-2">
                           Ticket Name
                         </label>
                         <Input
@@ -849,11 +849,11 @@ export default function NewEventPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium text-foreground mb-2">
                           Price
                         </label>
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                             $
                           </span>
                           <Input
@@ -880,27 +880,27 @@ export default function NewEventPage() {
             </div>
 
             {/* Section 4: Settings */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 space-y-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 Settings
               </h2>
 
               {/* Thank You Message */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Thank You Message
                 </label>
                 <textarea
                   value={thankYouMessage}
                   onChange={(e) => setThankYouMessage(e.target.value)}
                   placeholder="Message shown after registration"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 resize-none"
+                  className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground resize-none"
                   rows={2}
                 />
               </div>
 
               {/* Show Capacity */}
-              <label className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+              <label className="flex items-center gap-3 text-sm text-foreground cursor-pointer">
                 <input
                   type="checkbox"
                   checked={showCapacity}
@@ -912,7 +912,7 @@ export default function NewEventPage() {
 
               {/* Ticket Style Selector */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   <Ticket className="h-4 w-4 inline mr-1.5" />
                   Digital Ticket Style
                 </label>
@@ -925,7 +925,7 @@ export default function NewEventPage() {
                       className={`relative p-3 rounded-xl border-2 text-left transition-all ${
                         ticketStyle === s.value
                           ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/20"
-                          : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
+                          : "border-border hover:border-border"
                       }`}
                     >
                       {/* Mini ticket preview */}
@@ -937,7 +937,7 @@ export default function NewEventPage() {
                         <Ticket className="h-5 w-5" />
                       </div>
                       <p className="text-xs font-semibold">{s.label}</p>
-                      <p className="text-[10px] text-gray-500 leading-tight">{s.description}</p>
+                      <p className="text-[10px] text-muted-foreground leading-tight">{s.description}</p>
                     </button>
                   ))}
                 </div>
@@ -974,7 +974,7 @@ export default function NewEventPage() {
               <h3 className="text-sm font-medium text-muted-foreground mb-3">
                 Live Preview
               </h3>
-              <div className="border-8 border-gray-800 dark:border-gray-600 rounded-[2.5rem] overflow-hidden shadow-2xl bg-white dark:bg-gray-900">
+              <div className="border-8 border-gray-800 dark:border-gray-600 rounded-[2.5rem] overflow-hidden shadow-2xl bg-card">
                 <div className="h-[700px] overflow-y-auto">
                   {/* Cover Image */}
                   {coverImageUrl ? (
@@ -987,8 +987,8 @@ export default function NewEventPage() {
                       />
                     </div>
                   ) : (
-                    <div className="w-full h-40 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center">
-                      <CalendarDays className="h-12 w-12 text-gray-300 dark:text-gray-600" />
+                    <div className="w-full h-40 bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center">
+                      <CalendarDays className="h-12 w-12 text-muted-foreground" />
                     </div>
                   )}
 
@@ -996,36 +996,36 @@ export default function NewEventPage() {
                     {/* Date Badge + Title */}
                     <div className="flex items-start gap-3">
                       {eventDate ? (
-                        <div className="inline-flex flex-col items-center bg-white dark:bg-gray-800 rounded-lg shadow-md px-3 py-2 border flex-shrink-0">
+                        <div className="inline-flex flex-col items-center bg-card rounded-lg shadow-md px-3 py-2 border flex-shrink-0">
                           <span className="text-xs font-bold text-red-500 uppercase">
                             {new Date(eventDate).toLocaleDateString("en-US", {
                               month: "short",
                             })}
                           </span>
-                          <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                          <span className="text-2xl font-bold text-foreground">
                             {new Date(eventDate).getDate()}
                           </span>
                         </div>
                       ) : (
-                        <div className="inline-flex flex-col items-center bg-white dark:bg-gray-800 rounded-lg shadow-md px-3 py-2 border flex-shrink-0">
-                          <span className="text-xs font-bold text-gray-300 uppercase">
+                        <div className="inline-flex flex-col items-center bg-card rounded-lg shadow-md px-3 py-2 border flex-shrink-0">
+                          <span className="text-xs font-bold text-muted-foreground uppercase">
                             MON
                           </span>
-                          <span className="text-2xl font-bold text-gray-300">
+                          <span className="text-2xl font-bold text-muted-foreground">
                             --
                           </span>
                         </div>
                       )}
                       <div className="min-w-0">
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
+                        <h3 className="text-lg font-bold text-foreground leading-tight">
                           {title || (
-                            <span className="text-gray-300 dark:text-gray-600">
+                            <span className="text-muted-foreground">
                               Event Title
                             </span>
                           )}
                         </h3>
                         {eventDate && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          <p className="text-xs text-muted-foreground mt-1">
                             {new Date(eventDate).toLocaleDateString("en-US", {
                               weekday: "long",
                               month: "long",
@@ -1053,7 +1053,7 @@ export default function NewEventPage() {
 
                     {/* Location */}
                     {(isOnline || venueName || venueAddress) && (
-                      <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
+                      <div className="flex items-start gap-2 text-sm text-muted-foreground">
                         {isOnline ? (
                           <>
                             <Globe className="h-4 w-4 mt-0.5 flex-shrink-0 text-brand-500" />
@@ -1071,7 +1071,7 @@ export default function NewEventPage() {
                             <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0 text-brand-500" />
                             <span>
                               {venueName && (
-                                <span className="block font-medium text-gray-900 dark:text-white">
+                                <span className="block font-medium text-foreground">
                                   {venueName}
                                 </span>
                               )}
@@ -1088,7 +1088,7 @@ export default function NewEventPage() {
 
                     {/* Description */}
                     {description && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-wrap">
+                      <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
                         {description}
                       </p>
                     )}
@@ -1110,7 +1110,7 @@ export default function NewEventPage() {
                           </div>
                         ))}
                         {mediaUrls.length > 4 && (
-                          <div className="w-16 h-16 rounded-md bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 border text-xs text-gray-500 font-medium">
+                          <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center flex-shrink-0 border text-xs text-muted-foreground font-medium">
                             +{mediaUrls.length - 4}
                           </div>
                         )}
@@ -1118,11 +1118,11 @@ export default function NewEventPage() {
                     )}
 
                     {/* Divider */}
-                    <div className="border-t border-gray-200 dark:border-gray-700" />
+                    <div className="border-t border-border" />
 
                     {/* Registration Preview */}
                     <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      <h4 className="text-sm font-semibold text-foreground">
                         {registrationType === "rsvp"
                           ? "RSVP"
                           : registrationType === "form"
@@ -1160,7 +1160,7 @@ export default function NewEventPage() {
                           {registrationFields.length > 0 ? (
                             registrationFields.map((field) => (
                               <div key={field.id}>
-                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-xs font-medium text-foreground mb-1">
                                   {field.label}
                                   {field.required && (
                                     <span className="text-red-500 ml-1">
@@ -1172,7 +1172,7 @@ export default function NewEventPage() {
                               </div>
                             ))
                           ) : (
-                            <p className="text-xs text-gray-400 text-center py-4">
+                            <p className="text-xs text-muted-foreground text-center py-4">
                               Add fields to see the form preview
                             </p>
                           )}
@@ -1192,37 +1192,37 @@ export default function NewEventPage() {
                         <div className="space-y-3">
                           {/* Name / Email / Phone preview fields */}
                           <div>
-                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-xs font-medium text-foreground mb-1">
                               Full Name{" "}
                               <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
                               placeholder="Your name"
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs"
+                              className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground text-xs"
                               disabled
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-xs font-medium text-foreground mb-1">
                               Email{" "}
                               <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="email"
                               placeholder="your@email.com"
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs"
+                              className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground text-xs"
                               disabled
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-xs font-medium text-foreground mb-1">
                               Phone
                             </label>
                             <input
                               type="tel"
                               placeholder="(555) 123-4567"
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs"
+                              className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground text-xs"
                               disabled
                             />
                           </div>
@@ -1230,7 +1230,7 @@ export default function NewEventPage() {
                           {/* Capacity Bar */}
                           {capacity && showCapacity && (
                             <div className="space-y-1">
-                              <div className="flex items-center justify-between text-xs text-gray-500">
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
                                   <Users className="h-3 w-3" />
                                   Spots Available
@@ -1240,7 +1240,7 @@ export default function NewEventPage() {
                                   {Number(capacity)}
                                 </span>
                               </div>
-                              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                              <div className="w-full bg-muted rounded-full h-2">
                                 <div
                                   className="bg-green-500 h-2 rounded-full"
                                   style={{ width: "100%" }}
@@ -1251,14 +1251,14 @@ export default function NewEventPage() {
 
                           {/* Price display */}
                           {ticketType === "paid" && ticketPrice ? (
-                            <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg border border-border">
                               <Ticket className="h-4 w-4 text-brand-500" />
                               <div className="flex-1">
-                                <p className="text-xs font-medium text-gray-900 dark:text-white">
+                                <p className="text-xs font-medium text-foreground">
                                   {ticketName || "Ticket"}
                                 </p>
                               </div>
-                              <span className="text-sm font-bold text-gray-900 dark:text-white">
+                              <span className="text-sm font-bold text-foreground">
                                 $
                                 {Number(ticketPrice).toFixed(2)}
                               </span>

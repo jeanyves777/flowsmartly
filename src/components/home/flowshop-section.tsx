@@ -88,16 +88,16 @@ export function FlowShopSection() {
               </defs>
 
               {/* Browser frame */}
-              <rect x="20" y="20" width="460" height="360" rx="12" fill="white" stroke="#e5e7eb" strokeWidth="1.5" filter="url(#fs-shadow)" className="dark:fill-gray-900 dark:stroke-gray-700" />
+              <rect x="20" y="20" width="460" height="360" rx="12" fill="white" stroke="#e5e7eb" strokeWidth="1.5" filter="url(#fs-shadow)" className="dark:fill-[hsl(var(--card))] dark:stroke-[hsl(var(--border))]" />
               {/* Title bar */}
-              <rect x="20" y="20" width="460" height="40" rx="12" fill="#f9fafb" className="dark:fill-gray-800" />
-              <rect x="20" y="48" width="460" height="12" fill="#f9fafb" className="dark:fill-gray-800" />
+              <rect x="20" y="20" width="460" height="40" rx="12" fill="#f9fafb" className="dark:fill-[hsl(var(--muted))]" />
+              <rect x="20" y="48" width="460" height="12" fill="#f9fafb" className="dark:fill-[hsl(var(--muted))]" />
               {/* Dots */}
               <circle cx="44" cy="40" r="5" fill="#ef4444" />
               <circle cx="62" cy="40" r="5" fill="#f59e0b" />
               <circle cx="80" cy="40" r="5" fill="#10b981" />
               {/* URL bar */}
-              <rect x="110" y="32" width="260" height="16" rx="8" fill="#e5e7eb" className="dark:fill-gray-700" />
+              <rect x="110" y="32" width="260" height="16" rx="8" fill="#e5e7eb" className="dark:fill-[hsl(var(--border))]" />
               <text x="170" y="44" fontSize="8" fill="#9ca3af" fontFamily="system-ui">mystore.flowsmartly.com</text>
 
               {/* Store header */}
@@ -109,11 +109,11 @@ export function FlowShopSection() {
               {/* Product card 1 */}
               <g>
                 <animateTransform attributeName="transform" type="translate" values="0,0;0,-6;0,0" dur="3s" repeatCount="indefinite" />
-                <rect x="40" y="124" width="125" height="150" rx="8" fill="white" stroke="#e5e7eb" strokeWidth="1" className="dark:fill-gray-800 dark:stroke-gray-700" />
+                <rect x="40" y="124" width="125" height="150" rx="8" fill="white" stroke="#e5e7eb" strokeWidth="1" className="dark:fill-[hsl(var(--card))] dark:stroke-[hsl(var(--border))]" />
                 <rect x="48" y="132" width="109" height="75" rx="4" fill="url(#fs-grad2)" />
                 <rect x="70" y="155" width="65" height="30" rx="4" fill="url(#fs-grad1)" opacity="0.3" />
                 <text x="85" y="175" fontSize="10" fill="#7c3aed" fontFamily="system-ui">Product</text>
-                <text x="56" y="224" fontSize="10" fill="#374151" fontWeight="600" fontFamily="system-ui" className="dark:fill-gray-200">Wireless Earbuds</text>
+                <text x="56" y="224" fontSize="10" fill="#374151" fontWeight="600" fontFamily="system-ui" className="dark:fill-[hsl(var(--foreground))]">Wireless Earbuds</text>
                 <text x="56" y="240" fontSize="12" fill="#7c3aed" fontWeight="bold" fontFamily="system-ui">$49.99</text>
                 <rect x="110" y="230" width="46" height="18" rx="4" fill="url(#fs-grad1)">
                   <animate attributeName="opacity" values="1;0.7;1" dur="2s" repeatCount="indefinite" />
@@ -124,11 +124,11 @@ export function FlowShopSection() {
               {/* Product card 2 */}
               <g>
                 <animateTransform attributeName="transform" type="translate" values="0,0;0,-5;0,0" dur="3.5s" repeatCount="indefinite" />
-                <rect x="185" y="124" width="125" height="150" rx="8" fill="white" stroke="#e5e7eb" strokeWidth="1" className="dark:fill-gray-800 dark:stroke-gray-700" />
+                <rect x="185" y="124" width="125" height="150" rx="8" fill="white" stroke="#e5e7eb" strokeWidth="1" className="dark:fill-[hsl(var(--card))] dark:stroke-[hsl(var(--border))]" />
                 <rect x="193" y="132" width="109" height="75" rx="4" fill="#ecfdf5" />
                 <rect x="215" y="155" width="65" height="30" rx="4" fill="#10b981" opacity="0.3" />
                 <text x="228" y="175" fontSize="10" fill="#059669" fontFamily="system-ui">Product</text>
-                <text x="200" y="224" fontSize="10" fill="#374151" fontWeight="600" fontFamily="system-ui" className="dark:fill-gray-200">Smart Watch</text>
+                <text x="200" y="224" fontSize="10" fill="#374151" fontWeight="600" fontFamily="system-ui" className="dark:fill-[hsl(var(--foreground))]">Smart Watch</text>
                 <text x="200" y="240" fontSize="12" fill="#059669" fontWeight="bold" fontFamily="system-ui">$89.99</text>
                 <rect x="258" y="230" width="46" height="18" rx="4" fill="#10b981">
                   <animate attributeName="opacity" values="1;0.7;1" dur="2.3s" repeatCount="indefinite" />
@@ -139,11 +139,11 @@ export function FlowShopSection() {
               {/* Product card 3 */}
               <g>
                 <animateTransform attributeName="transform" type="translate" values="0,0;0,-4;0,0" dur="4s" repeatCount="indefinite" />
-                <rect x="330" y="124" width="125" height="150" rx="8" fill="white" stroke="#e5e7eb" strokeWidth="1" className="dark:fill-gray-800 dark:stroke-gray-700" />
+                <rect x="330" y="124" width="125" height="150" rx="8" fill="white" stroke="#e5e7eb" strokeWidth="1" className="dark:fill-[hsl(var(--card))] dark:stroke-[hsl(var(--border))]" />
                 <rect x="338" y="132" width="109" height="75" rx="4" fill="#fef3c7" />
                 <rect x="360" y="155" width="65" height="30" rx="4" fill="#f59e0b" opacity="0.3" />
                 <text x="373" y="175" fontSize="10" fill="#d97706" fontFamily="system-ui">Product</text>
-                <text x="345" y="224" fontSize="10" fill="#374151" fontWeight="600" fontFamily="system-ui" className="dark:fill-gray-200">Backpack Pro</text>
+                <text x="345" y="224" fontSize="10" fill="#374151" fontWeight="600" fontFamily="system-ui" className="dark:fill-[hsl(var(--foreground))]">Backpack Pro</text>
                 <text x="345" y="240" fontSize="12" fill="#d97706" fontWeight="bold" fontFamily="system-ui">$34.99</text>
                 <rect x="403" y="230" width="46" height="18" rx="4" fill="#f59e0b">
                   <animate attributeName="opacity" values="1;0.7;1" dur="2.7s" repeatCount="indefinite" />
@@ -152,9 +152,9 @@ export function FlowShopSection() {
               </g>
 
               {/* Revenue bar at bottom */}
-              <rect x="40" y="290" width="420" height="76" rx="8" fill="#f9fafb" stroke="#e5e7eb" strokeWidth="1" className="dark:fill-gray-800 dark:stroke-gray-700" />
+              <rect x="40" y="290" width="420" height="76" rx="8" fill="#f9fafb" stroke="#e5e7eb" strokeWidth="1" className="dark:fill-[hsl(var(--card))] dark:stroke-[hsl(var(--border))]" />
               <text x="56" y="310" fontSize="9" fill="#6b7280" fontFamily="system-ui">Revenue</text>
-              <text x="56" y="326" fontSize="16" fill="#374151" fontWeight="bold" fontFamily="system-ui" className="dark:fill-gray-200">$12,847</text>
+              <text x="56" y="326" fontSize="16" fill="#374151" fontWeight="bold" fontFamily="system-ui" className="dark:fill-[hsl(var(--foreground))]">$12,847</text>
               <text x="130" y="326" fontSize="9" fill="#10b981" fontFamily="system-ui">+24.5%</text>
 
               {/* Mini chart */}

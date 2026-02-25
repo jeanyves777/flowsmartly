@@ -947,7 +947,7 @@ export default function IntelligencePage() {
               <select
                 value={selectedProductId}
                 onChange={(e) => handleProductSelect(e.target.value)}
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               >
                 <option value="">Choose a product...</option>
                 {products.map((p) => (
@@ -1017,14 +1017,14 @@ export default function IntelligencePage() {
                         {formatCurrency(priceAnalysis.myPrice, storeCurrency)}
                       </p>
                     </div>
-                    <div className="rounded-lg bg-gray-50 p-4 text-center">
-                      <p className="text-xs font-medium text-gray-600 uppercase tracking-wider">Market Avg</p>
-                      <p className="text-2xl font-bold text-gray-700 mt-1">
+                    <div className="rounded-lg bg-muted/50 p-4 text-center">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Market Avg</p>
+                      <p className="text-2xl font-bold text-foreground mt-1">
                         {formatCurrency(priceAnalysis.averageCompetitorPrice, storeCurrency)}
                       </p>
                     </div>
-                    <div className="rounded-lg bg-gray-50 p-4 text-center">
-                      <p className="text-xs font-medium text-gray-600 uppercase tracking-wider">Position</p>
+                    <div className="rounded-lg bg-muted/50 p-4 text-center">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Position</p>
                       <div className="mt-2">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${positionColor(priceAnalysis.position)}`}>
                           {priceAnalysis.position}
@@ -1064,7 +1064,7 @@ export default function IntelligencePage() {
                           value={newCompetitorName}
                           onChange={(e) => setNewCompetitorName(e.target.value)}
                           placeholder="e.g. Amazon"
-                          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
                       </div>
                       <div>
@@ -1076,7 +1076,7 @@ export default function IntelligencePage() {
                           value={newCompetitorPrice}
                           onChange={(e) => setNewCompetitorPrice(e.target.value)}
                           placeholder="0.00"
-                          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
                       </div>
                     </div>
@@ -1088,7 +1088,7 @@ export default function IntelligencePage() {
                           value={newCompetitorUrl}
                           onChange={(e) => setNewCompetitorUrl(e.target.value)}
                           placeholder="https://..."
-                          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
                       </div>
                       <div className="flex items-end">
@@ -1097,7 +1097,7 @@ export default function IntelligencePage() {
                             type="checkbox"
                             checked={newCompetitorInStock}
                             onChange={(e) => setNewCompetitorInStock(e.target.checked)}
-                            className="rounded border-gray-300"
+                            className="rounded border-border"
                           />
                           In Stock
                         </label>
@@ -1175,7 +1175,7 @@ export default function IntelligencePage() {
                             <td className="p-3 text-right">
                               <button
                                 onClick={() => handleDeleteCompetitor(comp.id)}
-                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                className="p-1.5 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-colors"
                                 title="Delete"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -1227,8 +1227,8 @@ export default function IntelligencePage() {
                           {formatCurrency(aiSuggestion.suggestedPriceCents, storeCurrency)}
                         </p>
                       </div>
-                      <div className="rounded-lg bg-gray-50 p-4 text-center">
-                        <p className="text-xs font-medium text-gray-600 uppercase tracking-wider">Confidence</p>
+                      <div className="rounded-lg bg-muted/50 p-4 text-center">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Confidence</p>
                         <div className="mt-2">
                           <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium capitalize ${confidenceColor(aiSuggestion.confidence)}`}>
                             {aiSuggestion.confidence}
@@ -1289,7 +1289,7 @@ export default function IntelligencePage() {
                     <select
                       value={ruleStrategy}
                       onChange={(e) => setRuleStrategy(e.target.value)}
-                      className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                     >
                       <option value="beat_lowest">Beat Lowest Competitor</option>
                       <option value="match_average">Match Market Average</option>
@@ -1316,7 +1316,7 @@ export default function IntelligencePage() {
                         step="0.01"
                         value={(ruleOffsetCents / 100).toFixed(2)}
                         onChange={(e) => setRuleOffsetCents(Math.round(parseFloat(e.target.value || "0") * 100))}
-                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                       />
                     </div>
                   )}
@@ -1331,7 +1331,7 @@ export default function IntelligencePage() {
                         max="100"
                         value={ruleMarginPercent}
                         onChange={(e) => setRuleMarginPercent(parseFloat(e.target.value || "0"))}
-                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                       />
                     </div>
                   )}
@@ -1345,7 +1345,7 @@ export default function IntelligencePage() {
                         min="0"
                         value={(ruleMinPrice / 100).toFixed(2)}
                         onChange={(e) => setRuleMinPrice(Math.round(parseFloat(e.target.value || "0") * 100))}
-                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                         placeholder="0.00"
                       />
                     </div>
@@ -1357,7 +1357,7 @@ export default function IntelligencePage() {
                         min="0"
                         value={(ruleMaxPrice / 100).toFixed(2)}
                         onChange={(e) => setRuleMaxPrice(Math.round(parseFloat(e.target.value || "0") * 100))}
-                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                         placeholder="0.00"
                       />
                     </div>
@@ -2011,7 +2011,7 @@ export default function IntelligencePage() {
                             "font-medium px-1.5 py-0.5 rounded",
                             product.demandLevel === "high" ? "bg-green-100 text-green-700" :
                             product.demandLevel === "medium" ? "bg-yellow-100 text-yellow-700" :
-                            "bg-gray-100 text-gray-600"
+                            "bg-muted text-muted-foreground"
                           )}>
                             {product.demandLevel} demand
                           </span>
@@ -2041,7 +2041,7 @@ export default function IntelligencePage() {
                           "font-medium px-1.5 py-0.5 rounded",
                           gap.estimatedDemand === "high" ? "bg-green-100 text-green-700" :
                           gap.estimatedDemand === "medium" ? "bg-yellow-100 text-yellow-700" :
-                          "bg-gray-100 text-gray-600"
+                          "bg-muted text-muted-foreground"
                         )}>
                           {gap.estimatedDemand} demand
                         </span>

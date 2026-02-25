@@ -129,14 +129,14 @@ export default function EventsPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-3">
+        <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
           <CalendarDays className="h-5 w-5 text-emerald-500" />
           <div>
             <p className="text-xl font-bold">{totalEvents}</p>
             <p className="text-xs text-muted-foreground">Total Events</p>
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-3">
+        <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
           <div className="h-5 w-5 rounded-full bg-green-500/20 flex items-center justify-center">
             <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
           </div>
@@ -145,14 +145,14 @@ export default function EventsPage() {
             <p className="text-xs text-muted-foreground">Active Events</p>
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-3">
+        <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
           <Users className="h-5 w-5 text-blue-500" />
           <div>
             <p className="text-xl font-bold">{totalRegistrations}</p>
             <p className="text-xs text-muted-foreground">Total Registrations</p>
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-3">
+        <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
           <DollarSign className="h-5 w-5 text-amber-500" />
           <div>
             <p className="text-xl font-bold">${(totalRevenue / 100).toFixed(2)}</p>
@@ -187,16 +187,16 @@ export default function EventsPage() {
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5 animate-pulse">
-              <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-3" />
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-4" />
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full" />
+            <div key={i} className="bg-card border border-border rounded-lg p-5 animate-pulse">
+              <div className="h-5 bg-muted rounded w-3/4 mb-3" />
+              <div className="h-4 bg-muted rounded w-1/2 mb-4" />
+              <div className="h-3 bg-muted rounded w-full" />
             </div>
           ))}
         </div>
       ) : events.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-12 text-center">
-          <CalendarDays className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+        <div className="bg-card border border-border rounded-lg p-12 text-center">
+          <CalendarDays className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="font-semibold text-lg mb-2">No events yet</h3>
           <p className="text-sm text-muted-foreground mb-4">Create your first event to start managing registrations</p>
           <Link href="/tools/events/new">
@@ -211,7 +211,7 @@ export default function EventsPage() {
             {events.map((event) => {
               const statusCfg = EVENT_STATUS_CONFIG[event.status as EventStatus] || EVENT_STATUS_CONFIG.DRAFT;
               return (
-                <div key={event.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow overflow-hidden">
+                <div key={event.id} className="bg-card border border-border rounded-lg hover:shadow-md transition-shadow overflow-hidden">
                   {event.coverImageUrl && (
                     <Image src={event.coverImageUrl} alt="" width={400} height={200} className="w-full h-32 object-cover" />
                   )}
@@ -221,23 +221,23 @@ export default function EventsPage() {
                         <h3 className="font-semibold truncate hover:text-blue-600 transition-colors">{event.title}</h3>
                       </Link>
                       <div className="relative ml-2">
-                        <button onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === event.id ? null : event.id); }} className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
-                          <MoreVertical className="h-4 w-4 text-gray-400" />
+                        <button onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === event.id ? null : event.id); }} className="p-1 rounded-md hover:bg-muted">
+                          <MoreVertical className="h-4 w-4 text-muted-foreground" />
                         </button>
                         {openMenu === event.id && (
                           <>
                             <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
-                            <div className="absolute right-0 top-8 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 w-44">
-                              <button onClick={() => { router.push(`/tools/events/${event.id}`); setOpenMenu(null); }} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <div className="absolute right-0 top-8 z-20 bg-card border border-border rounded-lg shadow-lg py-1 w-44">
+                              <button onClick={() => { router.push(`/tools/events/${event.id}`); setOpenMenu(null); }} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted">
                                 <Eye className="h-3.5 w-3.5" /> View
                               </button>
-                              <button onClick={() => handleCopyLink(event.slug)} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">
+                              <button onClick={() => handleCopyLink(event.slug)} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted">
                                 <Copy className="h-3.5 w-3.5" /> Copy Link
                               </button>
-                              <button onClick={() => { window.open(`/event/${event.slug}`, "_blank"); setOpenMenu(null); }} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">
+                              <button onClick={() => { window.open(`/event/${event.slug}`, "_blank"); setOpenMenu(null); }} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted">
                                 <ExternalLink className="h-3.5 w-3.5" /> Open Public Page
                               </button>
-                              <button onClick={() => handleToggleStatus(event.id, event.status)} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">
+                              <button onClick={() => handleToggleStatus(event.id, event.status)} className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted">
                                 {event.status === "ACTIVE" ? <ToggleRight className="h-3.5 w-3.5" /> : <ToggleLeft className="h-3.5 w-3.5" />}
                                 {event.status === "ACTIVE" ? "Close" : "Activate"}
                               </button>
@@ -290,11 +290,11 @@ export default function EventsPage() {
                     </div>
                   </div>
 
-                  <div className="border-t border-gray-100 dark:border-gray-700 px-5 py-3 flex items-center gap-2">
+                  <div className="border-t border-border px-5 py-3 flex items-center gap-2">
                     <Link href={`/tools/events/${event.id}`} className="text-xs text-blue-600 hover:underline flex-1">
                       View Details
                     </Link>
-                    <button onClick={() => handleCopyLink(event.slug)} className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
+                    <button onClick={() => handleCopyLink(event.slug)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
                       <Copy className="h-3 w-3" /> Copy Link
                     </button>
                   </div>
