@@ -13,6 +13,7 @@ import {
   Loader2,
   ZoomIn,
   ZoomOut,
+  Wand2,
 } from "lucide-react";
 
 // ─── Checkerboard CSS for transparency visualization ───
@@ -58,13 +59,18 @@ export default function BrushRefineCanvas({
   const isDrawingRef = useRef(false);
 
   // ─── State ───
+  const [toolMode, setToolMode] = useState<"brush" | "magic">("brush");
   const [brushSize, setBrushSize] = useState(24);
+  const [tolerance, setTolerance] = useState(32);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
   const [history, setHistory] = useState<ImageData[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [zoom, setZoom] = useState(1);
+
+  // ─── Animation frame for smooth cursor ───
+  const rafRef = useRef<number | null>(null);
 
   // ─── Image loading ───
   useEffect(() => {
@@ -107,14 +113,15 @@ export default function BrushRefineCanvas({
     (clientX: number, clientY: number): { x: number; y: number } => {
       const canvas = canvasRef.current!;
       const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
+      // Account for CSS transform zoom
+      const scaleX = canvas.width / (rect.width / zoom);
+      const scaleY = canvas.height / (rect.height / zoom);
       return {
-        x: (clientX - rect.left) * scaleX,
-        y: (clientY - rect.top) * scaleY,
+        x: ((clientX - rect.left) / zoom) * scaleX,
+        y: ((clientY - rect.top) / zoom) * scaleY,
       };
     },
-    []
+    [zoom]
   );
 
   // Display-space cursor position relative to container
@@ -206,30 +213,119 @@ export default function BrushRefineCanvas({
     [brushSize]
   );
 
+  // ─── Magic wand flood fill ───
+  const magicRemove = useCallback(
+    (point: { x: number; y: number }) => {
+      const ctx = ctxRef.current;
+      const canvas = canvasRef.current;
+      if (!ctx || !canvas) return;
+
+      const x = Math.floor(point.x);
+      const y = Math.floor(point.y);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const { data, width, height } = imageData;
+
+      // Get start pixel color
+      const startPos = (y * width + x) * 4;
+      const startR = data[startPos];
+      const startG = data[startPos + 1];
+      const startB = data[startPos + 2];
+      const startA = data[startPos + 3];
+
+      // Skip if already transparent
+      if (startA < 10) return;
+
+      // Color matching function
+      const matches = (pos: number): boolean => {
+        const r = data[pos];
+        const g = data[pos + 1];
+        const b = data[pos + 2];
+        const a = data[pos + 3];
+
+        // Must have some opacity
+        if (a < 10) return false;
+
+        // Check color distance
+        const dr = Math.abs(r - startR);
+        const dg = Math.abs(g - startG);
+        const db = Math.abs(b - startB);
+        const da = Math.abs(a - startA);
+
+        return dr <= tolerance && dg <= tolerance && db <= tolerance && da <= tolerance;
+      };
+
+      // Flood fill with stack
+      const stack: Array<[number, number]> = [[x, y]];
+      const visited = new Set<number>();
+      const getKey = (px: number, py: number) => py * width + px;
+
+      while (stack.length > 0) {
+        const [px, py] = stack.pop()!;
+        const key = getKey(px, py);
+
+        if (visited.has(key)) continue;
+        if (px < 0 || px >= width || py < 0 || py >= height) continue;
+
+        const pos = (py * width + px) * 4;
+        if (!matches(pos)) continue;
+
+        visited.add(key);
+
+        // Make transparent
+        data[pos + 3] = 0;
+
+        // Add neighbors
+        stack.push([px + 1, py]);
+        stack.push([px - 1, py]);
+        stack.push([px, py + 1]);
+        stack.push([px, py - 1]);
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+    },
+    [tolerance]
+  );
+
   // ─── Mouse event handlers ───
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (e.button !== 0) return; // Left click only
-      isDrawingRef.current = true;
       const point = getCanvasPoint(e.clientX, e.clientY);
-      lastPointRef.current = point;
-      drawDot(point);
+
+      if (toolMode === "magic") {
+        // Magic wand: single click removes area
+        magicRemove(point);
+        pushHistory();
+      } else {
+        // Brush mode: start drawing
+        isDrawingRef.current = true;
+        lastPointRef.current = point;
+        drawDot(point);
+      }
     },
-    [getCanvasPoint, drawDot]
+    [getCanvasPoint, drawDot, magicRemove, pushHistory, toolMode]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      // Always update cursor position
-      const displayPt = getDisplayPoint(e.clientX, e.clientY);
-      setCursorPos(displayPt);
+      // Use RAF for smooth cursor updates (avoid lag)
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
 
-      if (!isDrawingRef.current || !lastPointRef.current) return;
+      rafRef.current = requestAnimationFrame(() => {
+        const displayPt = getDisplayPoint(e.clientX, e.clientY);
+        setCursorPos(displayPt);
+      });
+
+      // Only draw if in brush mode and drawing
+      if (toolMode !== "brush" || !isDrawingRef.current || !lastPointRef.current) return;
+
       const point = getCanvasPoint(e.clientX, e.clientY);
       drawEraserStroke(lastPointRef.current, point);
       lastPointRef.current = point;
     },
-    [getCanvasPoint, getDisplayPoint, drawEraserStroke]
+    [getCanvasPoint, getDisplayPoint, drawEraserStroke, toolMode]
   );
 
   const handleMouseUp = useCallback(() => {
@@ -242,6 +338,10 @@ export default function BrushRefineCanvas({
 
   const handleMouseLeave = useCallback(() => {
     setCursorPos(null);
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
     if (isDrawingRef.current) {
       isDrawingRef.current = false;
       lastPointRef.current = null;
@@ -254,24 +354,30 @@ export default function BrushRefineCanvas({
     (e: React.TouchEvent<HTMLCanvasElement>) => {
       e.preventDefault();
       const touch = e.touches[0];
-      isDrawingRef.current = true;
       const point = getCanvasPoint(touch.clientX, touch.clientY);
-      lastPointRef.current = point;
-      drawDot(point);
+
+      if (toolMode === "magic") {
+        magicRemove(point);
+        pushHistory();
+      } else {
+        isDrawingRef.current = true;
+        lastPointRef.current = point;
+        drawDot(point);
+      }
     },
-    [getCanvasPoint, drawDot]
+    [getCanvasPoint, drawDot, magicRemove, pushHistory, toolMode]
   );
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent<HTMLCanvasElement>) => {
       e.preventDefault();
-      if (!isDrawingRef.current || !lastPointRef.current) return;
+      if (toolMode !== "brush" || !isDrawingRef.current || !lastPointRef.current) return;
       const touch = e.touches[0];
       const point = getCanvasPoint(touch.clientX, touch.clientY);
       drawEraserStroke(lastPointRef.current, point);
       lastPointRef.current = point;
     },
-    [getCanvasPoint, drawEraserStroke]
+    [getCanvasPoint, drawEraserStroke, toolMode]
   );
 
   const handleTouchEnd = useCallback(() => {
@@ -281,6 +387,15 @@ export default function BrushRefineCanvas({
       pushHistory();
     }
   }, [pushHistory]);
+
+  // ─── Cleanup RAF on unmount ───
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, []);
 
   // ─── Keyboard shortcuts ───
   useEffect(() => {
@@ -295,17 +410,32 @@ export default function BrushRefineCanvas({
         e.preventDefault();
         redo();
       }
+      // Tool mode: B for brush, M for magic
+      if (e.key.toLowerCase() === "b") {
+        setToolMode("brush");
+      }
+      if (e.key.toLowerCase() === "m") {
+        setToolMode("magic");
+      }
       // Brush size: [ and ]
       if (e.key === "[") {
-        setBrushSize((s) => Math.max(BRUSH_MIN, s - BRUSH_STEP));
+        if (toolMode === "brush") {
+          setBrushSize((s) => Math.max(BRUSH_MIN, s - BRUSH_STEP));
+        } else {
+          setTolerance((t) => Math.max(0, t - 5));
+        }
       }
       if (e.key === "]") {
-        setBrushSize((s) => Math.min(BRUSH_MAX, s + BRUSH_STEP));
+        if (toolMode === "brush") {
+          setBrushSize((s) => Math.min(BRUSH_MAX, s + BRUSH_STEP));
+        } else {
+          setTolerance((t) => Math.min(100, t + 5));
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [undo, redo]);
+  }, [undo, redo, toolMode]);
 
   // ─── Zoom controls ───
   const zoomIn = () => setZoom((z) => Math.min(3, z + 0.25));
@@ -358,12 +488,18 @@ export default function BrushRefineCanvas({
       {/* Header */}
       <div className="flex items-center gap-2">
         <div className="p-1.5 rounded-lg bg-brand-500/10">
-          <Eraser className="w-4 h-4 text-brand-500" />
+          {toolMode === "brush" ? (
+            <Eraser className="w-4 h-4 text-brand-500" />
+          ) : (
+            <Wand2 className="w-4 h-4 text-brand-500" />
+          )}
         </div>
         <div>
-          <h3 className="text-sm font-semibold">Refine Edges</h3>
+          <h3 className="text-sm font-semibold">Refine Background</h3>
           <p className="text-[11px] text-muted-foreground">
-            Paint over leftover areas to erase them
+            {toolMode === "brush"
+              ? "Paint over areas to erase them"
+              : "Click similar areas to remove them"}
           </p>
         </div>
       </div>
@@ -376,7 +512,10 @@ export default function BrushRefineCanvas({
       >
         <div
           className="relative inline-block"
-          style={checkerboardStyle}
+          style={{
+            ...checkerboardStyle,
+            transformOrigin: "top left",
+          }}
           onMouseLeave={() => setCursorPos(null)}
         >
           <canvas
@@ -384,9 +523,10 @@ export default function BrushRefineCanvas({
             className="block"
             style={{
               cursor: "none",
-              maxWidth: zoom === 1 ? `${maxDisplaySize}px` : "none",
-              maxHeight: zoom === 1 ? "55vh" : "none",
-              width: zoom !== 1 ? `${zoom * 100}%` : undefined,
+              maxWidth: `${maxDisplaySize}px`,
+              maxHeight: "55vh",
+              transform: `scale(${zoom})`,
+              transformOrigin: "top left",
               touchAction: "none",
             }}
             onMouseDown={handleMouseDown}
@@ -397,19 +537,25 @@ export default function BrushRefineCanvas({
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           />
-          {/* Brush cursor preview */}
+          {/* Cursor preview */}
           {cursorPos && (
             <div
-              className="absolute rounded-full border-2 border-white pointer-events-none"
+              className="absolute pointer-events-none"
               style={{
-                left: cursorPos.x - brushSize / 2,
-                top: cursorPos.y - brushSize / 2,
-                width: brushSize,
-                height: brushSize,
+                left: toolMode === "brush" ? cursorPos.x - brushSize / 2 : cursorPos.x - 12,
+                top: toolMode === "brush" ? cursorPos.y - brushSize / 2 : cursorPos.y - 12,
+                width: toolMode === "brush" ? brushSize : 24,
+                height: toolMode === "brush" ? brushSize : 24,
+                border: "2px solid white",
+                borderRadius: toolMode === "brush" ? "50%" : "0%",
                 boxShadow: "0 0 0 1px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(0,0,0,0.15)",
-                transition: "width 0.1s, height 0.1s, left 0.02s, top 0.02s",
+                transition: "width 0.1s, height 0.1s",
               }}
-            />
+            >
+              {toolMode === "magic" && (
+                <Wand2 className="w-full h-full p-1 text-white drop-shadow-md" />
+              )}
+            </div>
           )}
 
           {/* Loading overlay */}
@@ -423,45 +569,111 @@ export default function BrushRefineCanvas({
 
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap">
-        {/* Brush size */}
-        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-          <Eraser className="w-4 h-4 text-muted-foreground shrink-0" />
-          <button
-            onClick={() => setBrushSize((s) => Math.max(BRUSH_MIN, s - BRUSH_STEP))}
-            className="p-1 rounded hover:bg-muted"
+        {/* Tool mode toggle */}
+        <div className="flex gap-1 border border-border rounded-lg p-0.5">
+          <Button
+            variant={toolMode === "brush" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setToolMode("brush")}
+            className="h-7 px-3"
           >
-            <Minus className="w-3 h-3 text-muted-foreground" />
-          </button>
-          <input
-            type="range"
-            min={BRUSH_MIN}
-            max={BRUSH_MAX}
-            value={brushSize}
-            onChange={(e) => setBrushSize(Number(e.target.value))}
-            className="flex-1 h-1.5 bg-muted rounded-lg appearance-none cursor-pointer
-              [&::-webkit-slider-thumb]:appearance-none
-              [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
-              [&::-webkit-slider-thumb]:rounded-full
-              [&::-webkit-slider-thumb]:bg-brand-500
-              [&::-webkit-slider-thumb]:shadow-md
-              [&::-webkit-slider-thumb]:cursor-pointer
-              [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4
-              [&::-moz-range-thumb]:rounded-full
-              [&::-moz-range-thumb]:bg-brand-500
-              [&::-moz-range-thumb]:border-0
-              [&::-moz-range-thumb]:shadow-md
-              [&::-moz-range-thumb]:cursor-pointer"
-          />
-          <button
-            onClick={() => setBrushSize((s) => Math.min(BRUSH_MAX, s + BRUSH_STEP))}
-            className="p-1 rounded hover:bg-muted"
+            <Eraser className="w-3.5 h-3.5 mr-1.5" />
+            Brush
+          </Button>
+          <Button
+            variant={toolMode === "magic" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setToolMode("magic")}
+            className="h-7 px-3"
           >
-            <Plus className="w-3 h-3 text-muted-foreground" />
-          </button>
-          <span className="text-xs text-muted-foreground tabular-nums w-10 text-right">
-            {brushSize}px
-          </span>
+            <Wand2 className="w-3.5 h-3.5 mr-1.5" />
+            Magic
+          </Button>
         </div>
+
+        {/* Brush size (only in brush mode) */}
+        {toolMode === "brush" && (
+          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <span className="text-xs text-muted-foreground shrink-0">Size</span>
+            <button
+              onClick={() => setBrushSize((s) => Math.max(BRUSH_MIN, s - BRUSH_STEP))}
+              className="p-1 rounded hover:bg-muted"
+            >
+              <Minus className="w-3 h-3 text-muted-foreground" />
+            </button>
+            <input
+              type="range"
+              min={BRUSH_MIN}
+              max={BRUSH_MAX}
+              value={brushSize}
+              onChange={(e) => setBrushSize(Number(e.target.value))}
+              className="flex-1 h-1.5 bg-muted rounded-lg appearance-none cursor-pointer
+                [&::-webkit-slider-thumb]:appearance-none
+                [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+                [&::-webkit-slider-thumb]:rounded-full
+                [&::-webkit-slider-thumb]:bg-brand-500
+                [&::-webkit-slider-thumb]:shadow-md
+                [&::-webkit-slider-thumb]:cursor-pointer
+                [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4
+                [&::-moz-range-thumb]:rounded-full
+                [&::-moz-range-thumb]:bg-brand-500
+                [&::-moz-range-thumb]:border-0
+                [&::-moz-range-thumb]:shadow-md
+                [&::-moz-range-thumb]:cursor-pointer"
+            />
+            <button
+              onClick={() => setBrushSize((s) => Math.min(BRUSH_MAX, s + BRUSH_STEP))}
+              className="p-1 rounded hover:bg-muted"
+            >
+              <Plus className="w-3 h-3 text-muted-foreground" />
+            </button>
+            <span className="text-xs text-muted-foreground tabular-nums w-10 text-right">
+              {brushSize}px
+            </span>
+          </div>
+        )}
+
+        {/* Tolerance (only in magic mode) */}
+        {toolMode === "magic" && (
+          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <span className="text-xs text-muted-foreground shrink-0">Tolerance</span>
+            <button
+              onClick={() => setTolerance((t) => Math.max(0, t - 5))}
+              className="p-1 rounded hover:bg-muted"
+            >
+              <Minus className="w-3 h-3 text-muted-foreground" />
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={tolerance}
+              onChange={(e) => setTolerance(Number(e.target.value))}
+              className="flex-1 h-1.5 bg-muted rounded-lg appearance-none cursor-pointer
+                [&::-webkit-slider-thumb]:appearance-none
+                [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+                [&::-webkit-slider-thumb]:rounded-full
+                [&::-webkit-slider-thumb]:bg-brand-500
+                [&::-webkit-slider-thumb]:shadow-md
+                [&::-webkit-slider-thumb]:cursor-pointer
+                [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4
+                [&::-moz-range-thumb]:rounded-full
+                [&::-moz-range-thumb]:bg-brand-500
+                [&::-moz-range-thumb]:border-0
+                [&::-moz-range-thumb]:shadow-md
+                [&::-moz-range-thumb]:cursor-pointer"
+            />
+            <button
+              onClick={() => setTolerance((t) => Math.min(100, t + 5))}
+              className="p-1 rounded hover:bg-muted"
+            >
+              <Plus className="w-3 h-3 text-muted-foreground" />
+            </button>
+            <span className="text-xs text-muted-foreground tabular-nums w-10 text-right">
+              {tolerance}
+            </span>
+          </div>
+        )}
 
         {/* Zoom */}
         <div className="flex items-center gap-1">
@@ -524,14 +736,18 @@ export default function BrushRefineCanvas({
       {/* Keyboard hints */}
       <p className="text-[11px] text-muted-foreground text-center space-x-2">
         <span>
+          <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">B</kbd> brush
+        </span>
+        <span>
+          <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">M</kbd> magic
+        </span>
+        <span>
           <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">Ctrl+Z</kbd> undo
         </span>
         <span>
-          <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">Ctrl+Shift+Z</kbd> redo
-        </span>
-        <span>
           <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">[</kbd>{" "}
-          <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">]</kbd> brush size
+          <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">]</kbd>{" "}
+          {toolMode === "brush" ? "size" : "tolerance"}
         </span>
       </p>
     </div>
