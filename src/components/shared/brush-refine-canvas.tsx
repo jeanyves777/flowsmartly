@@ -85,7 +85,17 @@ export default function BrushRefineCanvas({
     ctxRef.current = ctx;
 
     const img = new Image();
-    img.crossOrigin = "anonymous";
+
+    // Only set crossOrigin for external URLs, not for same-origin or blob URLs
+    const url = new URL(imageUrl, window.location.href);
+    const isSameOrigin = url.origin === window.location.origin;
+    const isBlobUrl = imageUrl.startsWith('blob:');
+    const isDataUrl = imageUrl.startsWith('data:');
+
+    if (!isSameOrigin && !isBlobUrl && !isDataUrl) {
+      img.crossOrigin = "anonymous";
+    }
+
     img.onload = () => {
       // Cap resolution
       let w = img.naturalWidth;
@@ -107,8 +117,13 @@ export default function BrushRefineCanvas({
       setHistoryIndex(0);
       setIsLoaded(true);
     };
-    img.onerror = () => {
-      toast({ title: "Failed to load image for refinement", variant: "destructive" });
+    img.onerror = (e) => {
+      console.error("Image load error:", e);
+      toast({
+        title: "Failed to load image",
+        description: "Please try uploading the image again",
+        variant: "destructive"
+      });
     };
     img.src = imageUrl;
   }, [imageUrl, toast]);
