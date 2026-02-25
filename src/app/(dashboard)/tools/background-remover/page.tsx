@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import {
   Scissors,
   Download,
@@ -21,6 +22,10 @@ import {
   Minus,
   Layers,
   Check,
+  Clapperboard,
+  Mic,
+  Palette,
+  Film,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +62,42 @@ const checkerboardStyle: React.CSSProperties = {
   backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
 };
 
+// ── AI Creative Tools ──────────────────────────────────────────────────────────
+
+const AI_TOOLS = [
+  {
+    name: "AI Studio",
+    href: "/studio",
+    icon: Palette,
+    description: "AI Content Generation",
+  },
+  {
+    name: "Cartoon Maker",
+    href: "/cartoon-maker",
+    icon: Clapperboard,
+    description: "Animated Videos",
+  },
+  {
+    name: "Video Studio",
+    href: "/video-studio",
+    icon: Film,
+    description: "AI Video Creation",
+  },
+  {
+    name: "Voice Studio",
+    href: "/voice-studio",
+    icon: Mic,
+    description: "Text-to-Speech & Cloning",
+  },
+  {
+    name: "Background Remover",
+    href: "/tools/background-remover",
+    icon: Scissors,
+    description: "Remove Backgrounds",
+    active: true,
+  },
+];
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export default function BackgroundRemoverStudio() {
@@ -72,7 +113,6 @@ export default function BackgroundRemoverStudio() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const originalImageDataRef = useRef<ImageData | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   // ─── Canvas state ───
   const [isLoaded, setIsLoaded] = useState(false);
@@ -101,65 +141,88 @@ export default function BackgroundRemoverStudio() {
     }
 
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) {
+      console.error("Canvas ref not available");
+      return;
+    }
 
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return;
+    if (!ctx) {
+      console.error("Canvas context not available");
+      return;
+    }
     ctxRef.current = ctx;
 
     const loadImage = async () => {
+      setIsLoaded(false);
+
       try {
-        setIsLoaded(false); // Reset loading state
+        const imageUrl = selectedImage.processedUrl || selectedImage.originalUrl;
+        console.log("Loading image:", imageUrl);
+
         const img = new Image();
 
-        // Handle CORS for external images
-        const imageUrl = selectedImage.processedUrl || selectedImage.originalUrl;
-
-        // Set crossOrigin for any external URL (not relative paths or blob URLs)
-        if (!imageUrl.startsWith('/') && !imageUrl.startsWith('blob:') && !imageUrl.startsWith('data:')) {
+        // Set crossOrigin BEFORE setting src
+        const urlObj = new URL(imageUrl, window.location.href);
+        if (urlObj.origin !== window.location.origin) {
           img.crossOrigin = "anonymous";
+          console.log("Setting crossOrigin for external URL");
         }
 
+        // Load image
         await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("Image load timeout"));
+          }, 30000);
+
           img.onload = () => {
-            console.log('Image loaded successfully:', imageUrl);
+            clearTimeout(timeout);
+            console.log("✓ Image loaded:", img.naturalWidth, "x", img.naturalHeight);
             resolve();
           };
+
           img.onerror = (e) => {
-            console.error('Image load error:', e, imageUrl);
+            clearTimeout(timeout);
+            console.error("✗ Image load error:", e);
             reject(new Error("Failed to load image"));
           };
+
           img.src = imageUrl;
         });
 
-        // Scale down if too large
+        // Calculate canvas size
         let w = img.naturalWidth;
         let h = img.naturalHeight;
+
         if (w > MAX_CANVAS_DIM || h > MAX_CANVAS_DIM) {
           const scale = MAX_CANVAS_DIM / Math.max(w, h);
           w = Math.round(w * scale);
           h = Math.round(h * scale);
         }
 
+        console.log("Setting canvas size:", w, "x", h);
         canvas.width = w;
         canvas.height = h;
+
+        // Draw image
         ctx.clearRect(0, 0, w, h);
         ctx.drawImage(img, 0, 0, w, h);
 
-        // Save original and initialize history
+        // Initialize history
         const initial = ctx.getImageData(0, 0, w, h);
         originalImageDataRef.current = ctx.getImageData(0, 0, w, h);
         setHistory([initial]);
         setHistoryIndex(0);
+        setZoom(1);
         setIsLoaded(true);
-        setZoom(1); // Reset zoom
-        console.log('Canvas ready, size:', w, 'x', h);
+
+        console.log("✓ Canvas ready!");
       } catch (error) {
         console.error("Failed to load image:", error);
         setIsLoaded(false);
         toast({
           title: "Failed to load image",
-          description: "Please try another image",
+          description: error instanceof Error ? error.message : "Please try another image",
           variant: "destructive",
         });
       }
@@ -304,27 +367,17 @@ export default function BackgroundRemoverStudio() {
 
   const drawRestoreStroke = useCallback(
     (from: { x: number; y: number }, to: { x: number; y: number }) => {
-      const ctx = ctxRef.current;
-      const canvas = canvasRef.current;
-      const original = originalImageDataRef.current;
-      if (!ctx || !canvas || !original) return;
-
-      const rect = canvas.getBoundingClientRect();
-      const scaledBrush = brushSize * (canvas.width / rect.width);
-
-      // Sample points along the line
       const dx = to.x - from.x;
       const dy = to.y - from.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      const steps = Math.max(1, Math.ceil(dist / (scaledBrush / 4)));
+      const steps = Math.max(1, Math.ceil(dist / (brushSize / 8)));
 
       for (let i = 0; i <= steps; i++) {
         const t = i / steps;
-        const point = {
+        drawRestoreDot({
           x: from.x + dx * t,
           y: from.y + dy * t,
-        };
-        drawRestoreDot(point);
+        });
       }
     },
     [brushSize, drawRestoreDot]
@@ -407,7 +460,6 @@ export default function BackgroundRemoverStudio() {
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      // Update cursor position with RAF
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
         setCursorPos(getDisplayPoint(e.clientX, e.clientY));
@@ -462,7 +514,6 @@ export default function BackgroundRemoverStudio() {
       setUploadUrls([]);
       setShowUploader(false);
 
-      // Auto-select first uploaded image
       if (newImages.length > 0) {
         setSelectedImage(newImages[0]);
       }
@@ -514,7 +565,6 @@ export default function BackgroundRemoverStudio() {
         throw new Error(data.error?.message || "Background removal failed");
       }
 
-      // Update gallery with processed image
       setGallery((prev) =>
         prev.map((img) =>
           img.id === selectedImage.id
@@ -523,7 +573,6 @@ export default function BackgroundRemoverStudio() {
         )
       );
 
-      // Update selected image to load processed version
       setSelectedImage((prev) =>
         prev ? { ...prev, processedUrl: data.data.imageUrl } : null
       );
@@ -541,7 +590,7 @@ export default function BackgroundRemoverStudio() {
     }
   };
 
-  // ─── Download current canvas ───
+  // ─── Download ───
   const handleDownload = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -573,7 +622,7 @@ export default function BackgroundRemoverStudio() {
     }
   };
 
-  // ─── Save canvas to gallery ───
+  // ─── Save to gallery ───
   const handleSaveToGallery = async () => {
     const canvas = canvasRef.current;
     if (!canvas || !selectedImage) return;
@@ -599,7 +648,6 @@ export default function BackgroundRemoverStudio() {
       const newUrl = data.data?.file?.url || data.data?.url;
       if (!newUrl) throw new Error("No URL returned");
 
-      // Update current image with processed version
       setGallery((prev) =>
         prev.map((img) =>
           img.id === selectedImage.id ? { ...img, processedUrl: newUrl } : img
@@ -661,480 +709,496 @@ export default function BackgroundRemoverStudio() {
   const hasChanges = historyIndex > 0;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-muted/30">
-      {/* ═══ LEFT SIDEBAR ═══ */}
-      <div className="w-80 bg-background border-r border-border flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-lg bg-brand-500 flex items-center justify-center shadow-md">
-              <Scissors className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg">Background Studio</h1>
-              <p className="text-xs text-muted-foreground">Professional canvas editor</p>
-            </div>
-          </div>
-          <Button
-            onClick={() => setShowUploader(!showUploader)}
-            className="w-full bg-brand-500 hover:bg-brand-600 text-white"
-            size="sm"
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            Upload Images
-          </Button>
-        </div>
-
-        {/* Uploader */}
-        {showUploader && (
-          <div className="p-4 border-b border-border">
-            <MediaUploader
-              value={uploadUrls}
-              onChange={handleUploadComplete}
-              accept="image/png,image/jpeg,image/jpg,image/webp"
-              maxSize={10 * 1024 * 1024}
-              filterTypes={["image"]}
-              variant="small"
-              label="Select Images"
-              placeholder="Drop images here"
-              libraryTitle="Select from Library"
-            />
-          </div>
-        )}
-
-        {/* Gallery */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <ImageIcon className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-semibold">Gallery</span>
-              <Badge variant="secondary" className="text-xs">
-                {gallery.length}
-              </Badge>
-            </div>
-            {gallery.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setGallery([]);
-                  setSelectedImage(null);
-                }}
-                className="h-7 text-xs"
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-muted/30">
+      {/* ═══ TOP AI TOOLS NAVIGATION ═══ */}
+      <div className="bg-background border-b border-border px-6 py-3">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {AI_TOOLS.map((tool) => {
+            const Icon = tool.icon;
+            return (
+              <Link
+                key={tool.href}
+                href={tool.href}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap ${
+                  tool.active
+                    ? "bg-brand-500 text-white shadow-md"
+                    : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                }`}
               >
-                Clear All
-              </Button>
-            )}
-          </div>
-
-          {gallery.length === 0 ? (
-            <div className="text-center py-12">
-              <Layers className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">No images yet</p>
-              <p className="text-xs text-muted-foreground">Upload images to get started</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              {gallery.map((img) => (
-                <div key={img.id} className="relative group">
-                  <button
-                    onClick={() => handleSelectImage(img)}
-                    className={`relative w-full aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                      selectedImage?.id === img.id
-                        ? "border-brand-500 shadow-lg shadow-brand-500/20"
-                        : "border-border hover:border-brand-500/50"
-                    }`}
-                    style={img.processedUrl ? checkerboardStyle : undefined}
-                  >
-                    <img
-                      src={img.processedUrl || img.originalUrl}
-                      alt="Gallery item"
-                      className="w-full h-full object-cover"
-                    />
-                    {img.processedUrl && (
-                      <Badge className="absolute bottom-1 right-1 text-[10px] bg-green-500 text-white border-0">
-                        Edited
-                      </Badge>
-                    )}
-                  </button>
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteImage(img.id);
-                    }}
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
+                <Icon className="w-4 h-4" />
+                <span className="text-sm font-medium">{tool.name}</span>
+              </Link>
+            );
+          })}
         </div>
       </div>
 
-      {/* ═══ RIGHT CANVAS AREA ═══ */}
-      <div className="flex-1 flex flex-col">
-        {/* Top Toolbar */}
-        <div className="bg-background border-b border-border p-3">
-          <div className="flex items-center justify-between gap-3">
-            {/* Left: Tools */}
-            <div className="flex items-center gap-2">
-              {isLoaded && (
-                <>
-                  {/* Tool selector */}
-                  <div className="flex gap-1 border border-border rounded-lg p-0.5">
-                    <Button
-                      variant={toolMode === "erase" ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => setToolMode("erase")}
-                      className="h-8 px-3"
-                      title="Erase (E)"
-                    >
-                      <Eraser className="w-3.5 h-3.5 mr-1.5" />
-                      Erase
-                    </Button>
-                    <Button
-                      variant={toolMode === "restore" ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => setToolMode("restore")}
-                      className="h-8 px-3"
-                      title="Restore (R)"
-                    >
-                      <Paintbrush className="w-3.5 h-3.5 mr-1.5" />
-                      Restore
-                    </Button>
-                    <Button
-                      variant={toolMode === "magic" ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => setToolMode("magic")}
-                      className="h-8 px-3"
-                      title="Magic Wand (M)"
-                    >
-                      <Wand2 className="w-3.5 h-3.5 mr-1.5" />
-                      Magic
-                    </Button>
-                  </div>
+      {/* ═══ MAIN CONTENT ═══ */}
+      <div className="flex flex-1 min-h-0">
+        {/* ═══ LEFT SIDEBAR ═══ */}
+        <div className="w-80 bg-background border-r border-border flex flex-col">
+          {/* Header */}
+          <div className="p-4 border-b border-border">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-lg bg-brand-500 flex items-center justify-center shadow-md">
+                <Scissors className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="font-bold text-lg">Background Studio</h1>
+                <p className="text-xs text-muted-foreground">Professional canvas editor</p>
+              </div>
+            </div>
+            <Button
+              onClick={() => setShowUploader(!showUploader)}
+              className="w-full bg-brand-500 hover:bg-brand-600 text-white"
+              size="sm"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              Upload Images
+            </Button>
+          </div>
 
-                  {/* Brush/Tolerance control */}
-                  {toolMode === "magic" ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Tolerance</span>
-                      <button
-                        onClick={() => setTolerance((t) => Math.max(0, t - 5))}
-                        className="p-1 rounded hover:bg-muted"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        value={tolerance}
-                        onChange={(e) => setTolerance(Number(e.target.value))}
-                        className="w-24 h-1.5 bg-muted rounded-lg appearance-none cursor-pointer
-                          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5
-                          [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full
-                          [&::-webkit-slider-thumb]:bg-brand-500 [&::-webkit-slider-thumb]:shadow-md"
+          {/* Uploader */}
+          {showUploader && (
+            <div className="p-4 border-b border-border">
+              <MediaUploader
+                value={uploadUrls}
+                onChange={handleUploadComplete}
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                maxSize={10 * 1024 * 1024}
+                filterTypes={["image"]}
+                variant="small"
+                label="Select Images"
+                placeholder="Drop images here"
+                libraryTitle="Select from Library"
+              />
+            </div>
+          )}
+
+          {/* Gallery */}
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-semibold">Gallery</span>
+                <Badge variant="secondary" className="text-xs">
+                  {gallery.length}
+                </Badge>
+              </div>
+              {gallery.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setGallery([]);
+                    setSelectedImage(null);
+                  }}
+                  className="h-7 text-xs"
+                >
+                  Clear All
+                </Button>
+              )}
+            </div>
+
+            {gallery.length === 0 ? (
+              <div className="text-center py-12">
+                <Layers className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">No images yet</p>
+                <p className="text-xs text-muted-foreground">Upload images to get started</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {gallery.map((img) => (
+                  <div key={img.id} className="relative group">
+                    <button
+                      onClick={() => handleSelectImage(img)}
+                      className={`relative w-full aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                        selectedImage?.id === img.id
+                          ? "border-brand-500 shadow-lg shadow-brand-500/20"
+                          : "border-border hover:border-brand-500/50"
+                      }`}
+                      style={img.processedUrl ? checkerboardStyle : undefined}
+                    >
+                      <img
+                        src={img.processedUrl || img.originalUrl}
+                        alt="Gallery item"
+                        className="w-full h-full object-cover"
                       />
-                      <button
-                        onClick={() => setTolerance((t) => Math.min(100, t + 5))}
-                        className="p-1 rounded hover:bg-muted"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                      <span className="text-xs text-muted-foreground tabular-nums w-8">
-                        {tolerance}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Size</span>
-                      <button
-                        onClick={() => setBrushSize((s) => Math.max(BRUSH_MIN, s - 5))}
-                        className="p-1 rounded hover:bg-muted"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <input
-                        type="range"
-                        min={BRUSH_MIN}
-                        max={BRUSH_MAX}
-                        value={brushSize}
-                        onChange={(e) => setBrushSize(Number(e.target.value))}
-                        className="w-24 h-1.5 bg-muted rounded-lg appearance-none cursor-pointer
-                          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5
-                          [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full
-                          [&::-webkit-slider-thumb]:bg-brand-500 [&::-webkit-slider-thumb]:shadow-md"
-                      />
-                      <button
-                        onClick={() => setBrushSize((s) => Math.min(BRUSH_MAX, s + 5))}
-                        className="p-1 rounded hover:bg-muted"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                      <span className="text-xs text-muted-foreground tabular-nums w-8">
-                        {brushSize}
-                      </span>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Center: AI & Actions */}
-            <div className="flex items-center gap-2">
-              {isLoaded && !isProcessingAI && (
-                <>
-                  <Button
-                    onClick={handleAIRemove}
-                    className="bg-gradient-to-r from-brand-500 to-purple-600 hover:from-brand-600 hover:to-purple-700 text-white shadow-md"
-                    size="sm"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    AI Remove
-                  </Button>
-
-                  {/* History controls */}
-                  <div className="flex gap-1">
+                      {img.processedUrl && (
+                        <Badge className="absolute bottom-1 right-1 text-[10px] bg-green-500 text-white border-0">
+                          Edited
+                        </Badge>
+                      )}
+                    </button>
                     <Button
-                      variant="outline"
+                      variant="destructive"
                       size="icon"
-                      className="h-8 w-8"
-                      onClick={undo}
-                      disabled={historyIndex <= 0}
-                      title="Undo (Ctrl+Z)"
+                      className="absolute -top-2 -right-2 w-6 h-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteImage(img.id);
+                      }}
                     >
-                      <Undo2 className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={redo}
-                      disabled={historyIndex >= history.length - 1}
-                      title="Redo (Ctrl+Shift+Z)"
-                    >
-                      <Redo2 className="w-3.5 h-3.5" />
+                      <X className="w-3 h-3" />
                     </Button>
                   </div>
-
-                  {/* Zoom controls */}
-                  <div className="flex items-center gap-1 border border-border rounded-lg p-0.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}
-                      disabled={zoom <= 0.25}
-                    >
-                      <ZoomOut className="w-3 h-3" />
-                    </Button>
-                    <span className="text-xs text-muted-foreground tabular-nums w-10 text-center">
-                      {Math.round(zoom * 100)}%
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => setZoom((z) => Math.min(4, z + 0.25))}
-                      disabled={zoom >= 4}
-                    >
-                      <ZoomIn className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Right: Save & Download */}
-            <div className="flex items-center gap-2">
-              {isLoaded && !isProcessingAI && (
-                <>
-                  {hasChanges && (
-                    <Button
-                      onClick={handleSaveToGallery}
-                      variant="outline"
-                      size="sm"
-                      className="border-brand-500 text-brand-500 hover:bg-brand-50"
-                    >
-                      <Check className="w-4 h-4 mr-2" />
-                      Save
-                    </Button>
-                  )}
-                  <Button onClick={handleDownload} variant="outline" size="sm">
-                    <Download className="w-4 h-4 mr-2" />
-                    Download
-                  </Button>
-                </>
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Canvas Area */}
-        <div className="flex-1 overflow-hidden p-6 flex items-center justify-center">
-          <AnimatePresence mode="wait">
-            {isProcessingAI ? (
-              <motion.div
-                key="processing"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="max-w-md"
-              >
-                <AIGenerationLoader
-                  currentStep={aiStep}
-                  subtitle="AI is processing your image"
-                />
-              </motion.div>
-            ) : !selectedImage ? (
-              <motion.div
-                key="empty"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="text-center"
-              >
-                <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                  <Scissors className="w-12 h-12 text-muted-foreground/50" />
-                </div>
-                <h2 className="text-xl font-semibold mb-2">
-                  Select or Upload an Image
-                </h2>
-                <p className="text-muted-foreground text-sm mb-6">
-                  Choose an image from the gallery or upload new images to start editing
-                </p>
-                <Button
-                  onClick={() => setShowUploader(true)}
-                  className="bg-brand-500 hover:bg-brand-600 text-white"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload Images
-                </Button>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="canvas"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                ref={containerRef}
-                className="relative"
-              >
-                <div
-                  className="relative inline-block rounded-xl overflow-hidden border-2 border-border shadow-2xl"
-                  style={{
-                    ...checkerboardStyle,
-                    maxWidth: "calc(100vw - 400px)",
-                    maxHeight: "calc(100vh - 200px)",
-                  }}
-                  onMouseLeave={() => setCursorPos(null)}
-                >
-                  <canvas
-                    ref={canvasRef}
-                    className="block"
-                    style={{
-                      cursor: "none",
-                      transform: `scale(${zoom})`,
-                      transformOrigin: "top left",
-                      touchAction: "none",
-                      maxWidth: "100%",
-                      maxHeight: "100%",
-                    }}
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseLeave}
-                  />
-
-                  {/* Custom cursor */}
-                  {cursorPos && isLoaded && (
-                    <div
-                      className="absolute pointer-events-none"
-                      style={{
-                        left:
-                          toolMode === "magic"
-                            ? cursorPos.x - 12
-                            : cursorPos.x - brushSize / 2,
-                        top:
-                          toolMode === "magic"
-                            ? cursorPos.y - 12
-                            : cursorPos.y - brushSize / 2,
-                        width: toolMode === "magic" ? 24 : brushSize,
-                        height: toolMode === "magic" ? 24 : brushSize,
-                        border:
-                          toolMode === "restore"
-                            ? "2px solid #10b981"
-                            : "2px solid white",
-                        borderRadius: toolMode === "magic" ? "0%" : "50%",
-                        boxShadow:
-                          "0 0 0 1px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(0,0,0,0.15)",
-                        backgroundColor:
-                          toolMode === "restore"
-                            ? "rgba(16, 185, 129, 0.1)"
-                            : undefined,
-                      }}
-                    >
-                      {toolMode === "magic" && (
-                        <Wand2 className="w-full h-full p-1 text-white drop-shadow-md" />
-                      )}
-                    </div>
-                  )}
-
-                  {/* Loading overlay */}
-                  {!isLoaded && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-background/80">
-                      <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Keyboard hints */}
+        {/* ═══ RIGHT CANVAS AREA ═══ */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Editing Toolbar */}
+          <div className="bg-background border-b border-border p-3">
+            <div className="flex items-center justify-between gap-3">
+              {/* Left: Tools */}
+              <div className="flex items-center gap-2">
                 {isLoaded && (
-                  <div className="mt-3 text-center">
-                    <p className="text-[11px] text-muted-foreground space-x-3">
-                      <span>
-                        <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">
-                          E
-                        </kbd>{" "}
-                        erase
-                      </span>
-                      <span>
-                        <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">
-                          R
-                        </kbd>{" "}
-                        restore
-                      </span>
-                      <span>
-                        <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">
-                          M
-                        </kbd>{" "}
-                        magic
-                      </span>
-                      <span>
-                        <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">
-                          [
-                        </kbd>{" "}
-                        <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">
-                          ]
-                        </kbd>{" "}
-                        size
-                      </span>
-                      <span>
-                        <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">
-                          Ctrl+Z
-                        </kbd>{" "}
-                        undo
-                      </span>
-                    </p>
-                  </div>
+                  <>
+                    {/* Tool selector */}
+                    <div className="flex gap-1 border border-border rounded-lg p-0.5">
+                      <Button
+                        variant={toolMode === "erase" ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setToolMode("erase")}
+                        className="h-8 px-3"
+                        title="Erase (E)"
+                      >
+                        <Eraser className="w-3.5 h-3.5 mr-1.5" />
+                        Erase
+                      </Button>
+                      <Button
+                        variant={toolMode === "restore" ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setToolMode("restore")}
+                        className="h-8 px-3"
+                        title="Restore (R)"
+                      >
+                        <Paintbrush className="w-3.5 h-3.5 mr-1.5" />
+                        Restore
+                      </Button>
+                      <Button
+                        variant={toolMode === "magic" ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setToolMode("magic")}
+                        className="h-8 px-3"
+                        title="Magic Wand (M)"
+                      >
+                        <Wand2 className="w-3.5 h-3.5 mr-1.5" />
+                        Magic
+                      </Button>
+                    </div>
+
+                    {/* Brush/Tolerance control */}
+                    {toolMode === "magic" ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Tolerance</span>
+                        <button
+                          onClick={() => setTolerance((t) => Math.max(0, t - 5))}
+                          className="p-1 rounded hover:bg-muted"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={tolerance}
+                          onChange={(e) => setTolerance(Number(e.target.value))}
+                          className="w-24 h-1.5 bg-muted rounded-lg appearance-none cursor-pointer
+                            [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5
+                            [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full
+                            [&::-webkit-slider-thumb]:bg-brand-500 [&::-webkit-slider-thumb]:shadow-md"
+                        />
+                        <button
+                          onClick={() => setTolerance((t) => Math.min(100, t + 5))}
+                          className="p-1 rounded hover:bg-muted"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                        <span className="text-xs text-muted-foreground tabular-nums w-8">
+                          {tolerance}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Size</span>
+                        <button
+                          onClick={() => setBrushSize((s) => Math.max(BRUSH_MIN, s - 5))}
+                          className="p-1 rounded hover:bg-muted"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <input
+                          type="range"
+                          min={BRUSH_MIN}
+                          max={BRUSH_MAX}
+                          value={brushSize}
+                          onChange={(e) => setBrushSize(Number(e.target.value))}
+                          className="w-24 h-1.5 bg-muted rounded-lg appearance-none cursor-pointer
+                            [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5
+                            [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full
+                            [&::-webkit-slider-thumb]:bg-brand-500 [&::-webkit-slider-thumb]:shadow-md"
+                        />
+                        <button
+                          onClick={() => setBrushSize((s) => Math.min(BRUSH_MAX, s + 5))}
+                          className="p-1 rounded hover:bg-muted"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                        <span className="text-xs text-muted-foreground tabular-nums w-8">
+                          {brushSize}
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
+
+              {/* Center: AI & History */}
+              <div className="flex items-center gap-2">
+                {isLoaded && !isProcessingAI && (
+                  <>
+                    <Button
+                      onClick={handleAIRemove}
+                      className="bg-gradient-to-r from-brand-500 to-purple-600 hover:from-brand-600 hover:to-purple-700 text-white shadow-md"
+                      size="sm"
+                    >
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      AI Remove
+                    </Button>
+
+                    <div className="flex gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={undo}
+                        disabled={historyIndex <= 0}
+                        title="Undo (Ctrl+Z)"
+                      >
+                        <Undo2 className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={redo}
+                        disabled={historyIndex >= history.length - 1}
+                        title="Redo (Ctrl+Shift+Z)"
+                      >
+                        <Redo2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center gap-1 border border-border rounded-lg p-0.5">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}
+                        disabled={zoom <= 0.25}
+                      >
+                        <ZoomOut className="w-3 h-3" />
+                      </Button>
+                      <span className="text-xs text-muted-foreground tabular-nums w-10 text-center">
+                        {Math.round(zoom * 100)}%
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => setZoom((z) => Math.min(4, z + 0.25))}
+                        disabled={zoom >= 4}
+                      >
+                        <ZoomIn className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Right: Save & Download */}
+              <div className="flex items-center gap-2">
+                {isLoaded && !isProcessingAI && (
+                  <>
+                    {hasChanges && (
+                      <Button
+                        onClick={handleSaveToGallery}
+                        variant="outline"
+                        size="sm"
+                        className="border-brand-500 text-brand-500 hover:bg-brand-50"
+                      >
+                        <Check className="w-4 h-4 mr-2" />
+                        Save
+                      </Button>
+                    )}
+                    <Button onClick={handleDownload} variant="outline" size="sm">
+                      <Download className="w-4 h-4 mr-2" />
+                      Download
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Canvas Area - FIXED NO SCROLL */}
+          <div className="flex-1 flex items-center justify-center p-6 overflow-hidden">
+            <AnimatePresence mode="wait">
+              {isProcessingAI ? (
+                <motion.div
+                  key="processing"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="max-w-md"
+                >
+                  <AIGenerationLoader
+                    currentStep={aiStep}
+                    subtitle="AI is processing your image"
+                  />
+                </motion.div>
+              ) : !selectedImage ? (
+                <motion.div
+                  key="empty"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="text-center"
+                >
+                  <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                    <Scissors className="w-12 h-12 text-muted-foreground/50" />
+                  </div>
+                  <h2 className="text-xl font-semibold mb-2">
+                    Select or Upload an Image
+                  </h2>
+                  <p className="text-muted-foreground text-sm mb-6">
+                    Choose an image from the gallery or upload new images to start editing
+                  </p>
+                  <Button
+                    onClick={() => setShowUploader(true)}
+                    className="bg-brand-500 hover:bg-brand-600 text-white"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload Images
+                  </Button>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="canvas"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="relative max-w-full max-h-full flex items-center justify-center"
+                >
+                  <div
+                    className="relative inline-block rounded-xl overflow-hidden border-2 border-border shadow-2xl"
+                    style={checkerboardStyle}
+                    onMouseLeave={() => setCursorPos(null)}
+                  >
+                    <canvas
+                      ref={canvasRef}
+                      className="block max-w-full max-h-[calc(100vh-300px)]"
+                      style={{
+                        cursor: "none",
+                        transform: `scale(${zoom})`,
+                        transformOrigin: "center center",
+                        touchAction: "none",
+                      }}
+                      onMouseDown={handleMouseDown}
+                      onMouseMove={handleMouseMove}
+                      onMouseUp={handleMouseUp}
+                      onMouseLeave={handleMouseLeave}
+                    />
+
+                    {/* Custom cursor */}
+                    {cursorPos && isLoaded && (
+                      <div
+                        className="absolute pointer-events-none"
+                        style={{
+                          left:
+                            toolMode === "magic"
+                              ? cursorPos.x - 12
+                              : cursorPos.x - brushSize / 2,
+                          top:
+                            toolMode === "magic"
+                              ? cursorPos.y - 12
+                              : cursorPos.y - brushSize / 2,
+                          width: toolMode === "magic" ? 24 : brushSize,
+                          height: toolMode === "magic" ? 24 : brushSize,
+                          border:
+                            toolMode === "restore"
+                              ? "2px solid #10b981"
+                              : "2px solid white",
+                          borderRadius: toolMode === "magic" ? "0%" : "50%",
+                          boxShadow:
+                            "0 0 0 1px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(0,0,0,0.15)",
+                          backgroundColor:
+                            toolMode === "restore"
+                              ? "rgba(16, 185, 129, 0.1)"
+                              : undefined,
+                        }}
+                      >
+                        {toolMode === "magic" && (
+                          <Wand2 className="w-full h-full p-1 text-white drop-shadow-md" />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Loading overlay */}
+                    {!isLoaded && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                        <div className="text-center">
+                          <Loader2 className="w-8 h-8 animate-spin text-brand-500 mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">Loading image...</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Keyboard hints */}
+                  {isLoaded && (
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+                      <div className="bg-black/80 text-white text-[11px] px-4 py-2 rounded-lg backdrop-blur-sm">
+                        <span className="space-x-3">
+                          <span>
+                            <kbd className="px-1.5 py-0.5 rounded bg-white/20 text-[10px] font-mono">
+                              E
+                            </kbd>{" "}
+                            erase
+                          </span>
+                          <span>
+                            <kbd className="px-1.5 py-0.5 rounded bg-white/20 text-[10px] font-mono">
+                              R
+                            </kbd>{" "}
+                            restore
+                          </span>
+                          <span>
+                            <kbd className="px-1.5 py-0.5 rounded bg-white/20 text-[10px] font-mono">
+                              M
+                            </kbd>{" "}
+                            magic
+                          </span>
+                          <span>
+                            <kbd className="px-1.5 py-0.5 rounded bg-white/20 text-[10px] font-mono">
+                              [
+                            </kbd>{" "}
+                            <kbd className="px-1.5 py-0.5 rounded bg-white/20 text-[10px] font-mono">
+                              ]
+                            </kbd>{" "}
+                            size
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </div>
