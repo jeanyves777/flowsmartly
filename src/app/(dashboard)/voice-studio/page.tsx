@@ -625,7 +625,7 @@ export default function VoiceStudioPage() {
             <button
               onClick={handleGenerate}
               disabled={!script.trim() || isGenerating}
-              className="w-full h-12 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-600/25"
+              className="w-full h-12 rounded-2xl bg-brand-500 text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-500/25"
             >
               {isGenerating ? (
                 <>
@@ -715,7 +715,7 @@ export default function VoiceStudioPage() {
                     placeholder="Profile name..."
                     value={profileName}
                     onChange={(e) => setProfileName(e.target.value)}
-                    className="flex-1 text-sm px-3 py-2 rounded-lg bg-muted border border-border focus:border-brand-500 focus:outline-none"
+                    className="flex-1 text-sm px-3 py-2 rounded-lg bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                     maxLength={50}
                   />
                   <Button
@@ -733,55 +733,57 @@ export default function VoiceStudioPage() {
             {/* Voice Cloning */}
             <div className="rounded-2xl border border-border bg-card p-5">
               <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                <Upload className="w-4 h-4 text-purple-500" />
+                <Upload className="w-4 h-4 text-brand-500" />
                 Voice Cloning
               </h3>
-              {isElevenLabsAvailable ? (
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">
-                    Record your voice or upload a sample (30s-5min) to clone it.
-                  </p>
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Record your voice or upload a sample (30s-5min) to clone it.
+                </p>
+                <input
+                  type="text"
+                  placeholder="Clone name..."
+                  value={cloneName}
+                  onChange={(e) => setCloneName(e.target.value)}
+                  className="w-full text-sm px-3 py-2 rounded-lg bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                  maxLength={100}
+                />
+                {/* Record or Upload */}
+                <Button
+                  variant="outline"
+                  onClick={() => setIsRecorderOpen(true)}
+                  className="w-full gap-2"
+                  size="sm"
+                >
+                  <Mic className="w-4 h-4" />
+                  Record Voice with Teleprompter
+                </Button>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-xs text-muted-foreground">or upload a file</span>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+                <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-brand-500/50 transition-colors">
                   <input
-                    type="text"
-                    placeholder="Clone name..."
-                    value={cloneName}
-                    onChange={(e) => setCloneName(e.target.value)}
-                    className="w-full text-sm px-3 py-2 rounded-lg bg-muted border border-border focus:border-brand-500 focus:outline-none"
-                    maxLength={100}
+                    type="file"
+                    accept="audio/mpeg,audio/wav,audio/mp3,audio/webm,audio/ogg"
+                    className="hidden"
+                    onChange={(e) => setCloneFile(e.target.files?.[0] || null)}
                   />
-                  {/* Record or Upload */}
-                  <button
-                    onClick={() => setIsRecorderOpen(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600/20 to-indigo-600/20 border border-purple-500/30 text-purple-400 hover:from-purple-600/30 hover:to-indigo-600/30 transition-all text-sm font-medium"
-                  >
-                    <Mic className="w-4 h-4" />
-                    Record Voice with Teleprompter
-                  </button>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-px bg-border" />
-                    <span className="text-xs text-muted-foreground">or upload a file</span>
-                    <div className="flex-1 h-px bg-border" />
-                  </div>
-                  <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-purple-500/50 transition-colors">
-                    <input
-                      type="file"
-                      accept="audio/mpeg,audio/wav,audio/mp3,audio/webm,audio/ogg"
-                      className="hidden"
-                      onChange={(e) => setCloneFile(e.target.files?.[0] || null)}
-                    />
-                    {cloneFile ? (
-                      <span className="text-sm text-foreground truncate">
-                        {cloneFile.name.startsWith("voice-recording")
-                          ? `Voice recording ready (${(cloneFile.size / (1024 * 1024)).toFixed(1)} MB)`
-                          : cloneFile.name}
-                      </span>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">Upload audio file</span>
-                      </>
-                    )}
-                  </label>
+                  {cloneFile ? (
+                    <span className="text-sm text-foreground truncate">
+                      {cloneFile.name.startsWith("voice-recording")
+                        ? `Voice recording ready (${(cloneFile.size / (1024 * 1024)).toFixed(1)} MB)`
+                        : cloneFile.name}
+                    </span>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Upload audio file</span>
+                    </>
+                  )}
+                </label>
+                {isElevenLabsAvailable ? (
                   <Button
                     onClick={handleCloneVoice}
                     disabled={!cloneFile || !cloneName.trim() || isCloning}
@@ -802,15 +804,12 @@ export default function VoiceStudioPage() {
                       </>
                     )}
                   </Button>
-                </div>
-              ) : (
-                <div className="text-center py-4">
-                  <UserIcon className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">
+                ) : (
+                  <p className="text-xs text-muted-foreground text-center py-1">
                     Voice cloning requires ElevenLabs API. Contact admin to enable.
                   </p>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Quick Stats */}

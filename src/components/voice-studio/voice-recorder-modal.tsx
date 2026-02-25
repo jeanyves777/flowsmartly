@@ -511,27 +511,27 @@ export function VoiceRecorderModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="bg-gray-950/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+            className="bg-card backdrop-blur-xl border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* ─── Header ─────────────────────────────────────── */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                <div className="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center shadow-lg shadow-brand-500/20">
                   <Mic className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">
+                  <h2 className="text-lg font-semibold text-foreground">
                     Voice Recorder
                   </h2>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-muted-foreground">
                     Read the script aloud to clone your voice
                   </p>
                 </div>
               </div>
               <button
                 onClick={handleClose}
-                className="p-2 rounded-xl hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                className="p-2 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -549,16 +549,16 @@ export function VoiceRecorderModal({
                   <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto">
                     <MicOff className="w-6 h-6 text-red-400" />
                   </div>
-                  <h3 className="text-white font-medium">
+                  <h3 className="text-foreground font-medium">
                     Microphone Access Required
                   </h3>
-                  <p className="text-sm text-gray-400">
+                  <p className="text-sm text-muted-foreground">
                     {permissionError ||
                       "Please allow microphone access in your browser settings to record your voice."}
                   </p>
                   <button
                     onClick={requestMicAccess}
-                    className="px-5 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-sm font-medium hover:from-purple-500 hover:to-indigo-500 transition-all"
+                    className="px-5 py-2.5 rounded-full bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-all"
                   >
                     Try Again
                   </button>
@@ -574,8 +574,8 @@ export function VoiceRecorderModal({
                       animate={{ opacity: 1, y: 0 }}
                       className="space-y-3"
                     >
-                      <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-purple-400" />
+                      <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-brand-500" />
                         Choose a Script
                       </label>
                       <motion.div
@@ -595,8 +595,8 @@ export function VoiceRecorderModal({
                             className={cn(
                               "px-4 py-2 rounded-full text-sm font-medium transition-all",
                               !isCustomScript && selectedScriptIndex === i
-                                ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/20"
-                                : "bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10"
+                                ? "bg-brand-500 text-white shadow-lg shadow-brand-500/20"
+                                : "bg-muted border border-border text-muted-foreground hover:text-foreground hover:bg-accent"
                             )}
                           >
                             {script.title}
@@ -608,8 +608,8 @@ export function VoiceRecorderModal({
                           className={cn(
                             "px-4 py-2 rounded-full text-sm font-medium transition-all",
                             isCustomScript
-                              ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/20"
-                              : "bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10"
+                              ? "bg-brand-500 text-white shadow-lg shadow-brand-500/20"
+                              : "bg-muted border border-border text-muted-foreground hover:text-foreground hover:bg-accent"
                           )}
                         >
                           Custom
@@ -633,7 +633,7 @@ export function VoiceRecorderModal({
                               }
                               placeholder="Paste or type your script here... (at least a few sentences for best results)"
                               rows={4}
-                              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-gray-500 focus:ring-2 focus:ring-purple-500/50 focus:border-transparent resize-none mt-2"
+                              className="w-full px-4 py-3 bg-background border border-input rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-brand-500/30 focus:border-transparent resize-none mt-2"
                             />
                           </motion.div>
                         )}
@@ -641,12 +641,12 @@ export function VoiceRecorderModal({
 
                       {/* Script info */}
                       {currentScript && (
-                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
                           <span>
                             {currentScript.split(/\s+/).filter(Boolean).length}{" "}
                             words
                           </span>
-                          <span className="w-1 h-1 rounded-full bg-gray-600" />
+                          <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
                           <span>
                             ~
                             {Math.round(
@@ -662,10 +662,10 @@ export function VoiceRecorderModal({
 
                   {/* ─── Teleprompter ─────────────────────────── */}
                   <div className="space-y-2">
-                    <div className="relative bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
+                    <div className="relative bg-muted/50 border border-border rounded-2xl overflow-hidden">
                       {/* Gradient fade overlays */}
-                      <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-gray-950/90 to-transparent z-10 pointer-events-none rounded-t-2xl" />
-                      <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-gray-950/90 to-transparent z-10 pointer-events-none rounded-b-2xl" />
+                      <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-card/90 to-transparent z-10 pointer-events-none rounded-t-2xl" />
+                      <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-card/90 to-transparent z-10 pointer-events-none rounded-b-2xl" />
 
                       <div
                         ref={teleprompterRef}
@@ -677,11 +677,11 @@ export function VoiceRecorderModal({
                         }}
                       >
                         {currentScript ? (
-                          <p className="text-xl sm:text-2xl leading-relaxed font-medium text-white/90 tracking-wide">
+                          <p className="text-xl sm:text-2xl leading-relaxed font-medium text-foreground tracking-wide">
                             {currentScript}
                           </p>
                         ) : (
-                          <p className="text-xl text-gray-500 text-center mt-12">
+                          <p className="text-xl text-muted-foreground text-center mt-12">
                             Select or type a script above to begin
                           </p>
                         )}
@@ -730,7 +730,7 @@ export function VoiceRecorderModal({
                         animate={{ opacity: 1, y: 0 }}
                         className="flex items-center justify-center gap-2"
                       >
-                        <span className="text-xs text-gray-500 mr-1">
+                        <span className="text-xs text-muted-foreground mr-1">
                           Scroll:
                         </span>
                         {(
@@ -742,8 +742,8 @@ export function VoiceRecorderModal({
                             className={cn(
                               "px-3 py-1 rounded-full text-xs font-medium transition-all",
                               scrollSpeed === speed
-                                ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
-                                : "text-gray-500 hover:text-gray-300"
+                                ? "bg-brand-500/20 text-brand-400 border border-brand-500/30"
+                                : "text-muted-foreground hover:text-foreground"
                             )}
                           >
                             {SCROLL_SPEEDS[speed].label}
@@ -754,19 +754,19 @@ export function VoiceRecorderModal({
                   </div>
 
                   {/* ─── Recording Controls ───────────────────── */}
-                  <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 space-y-4">
+                  <div className="bg-muted/50 border border-border rounded-2xl p-5 space-y-4">
                     {/* Timer + Volume Meter */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         {/* Timer */}
-                        <span className="font-mono text-2xl text-white min-w-[70px]">
+                        <span className="font-mono text-2xl text-foreground min-w-[70px]">
                           {formatTime(durationSeconds)}
                         </span>
 
                         {/* Max duration hint */}
                         {recordingState !== "idle" &&
                           recordingState !== "stopped" && (
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-muted-foreground">
                               / {formatTime(MAX_DURATION)}
                             </span>
                           )}
@@ -776,8 +776,8 @@ export function VoiceRecorderModal({
                       {(recordingState === "recording" ||
                         recordingState === "paused") && (
                         <div className="flex items-center gap-2">
-                          <Mic className="w-4 h-4 text-gray-500" />
-                          <div className="w-32 h-3 bg-white/5 rounded-full overflow-hidden border border-white/10">
+                          <Mic className="w-4 h-4 text-muted-foreground" />
+                          <div className="w-32 h-3 bg-muted rounded-full overflow-hidden border border-border">
                             <motion.div
                               className="h-full rounded-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500"
                               animate={{ width: `${volumeLevel * 100}%` }}
@@ -814,7 +814,7 @@ export function VoiceRecorderModal({
                             exit={{ opacity: 0, scale: 0.9 }}
                             onClick={startRecording}
                             disabled={!currentScript.trim()}
-                            className="flex items-center gap-2.5 px-8 py-3.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium hover:from-purple-500 hover:to-indigo-500 transition-all shadow-lg shadow-purple-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="flex items-center gap-2.5 px-8 py-3.5 rounded-full bg-brand-500 text-white font-medium hover:bg-brand-600 transition-all shadow-lg shadow-brand-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Mic className="w-5 h-5" />
                             Start Recording
@@ -838,7 +838,7 @@ export function VoiceRecorderModal({
                             </button>
                             <button
                               onClick={stopRecording}
-                              className="flex items-center gap-2 px-5 py-3 rounded-full bg-white/10 border border-white/20 text-white font-medium hover:bg-white/20 transition-all"
+                              className="flex items-center gap-2 px-5 py-3 rounded-full bg-muted border border-border text-foreground font-medium hover:bg-accent transition-all"
                             >
                               <Square className="w-4 h-4" />
                               Stop
@@ -856,14 +856,14 @@ export function VoiceRecorderModal({
                           >
                             <button
                               onClick={resumeRecording}
-                              className="flex items-center gap-2 px-5 py-3 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium hover:from-purple-500 hover:to-indigo-500 transition-all shadow-lg shadow-purple-500/20"
+                              className="flex items-center gap-2 px-5 py-3 rounded-full bg-brand-500 text-white font-medium hover:bg-brand-600 transition-all shadow-lg shadow-brand-500/20"
                             >
                               <Mic className="w-4 h-4" />
                               Resume
                             </button>
                             <button
                               onClick={stopRecording}
-                              className="flex items-center gap-2 px-5 py-3 rounded-full bg-white/10 border border-white/20 text-white font-medium hover:bg-white/20 transition-all"
+                              className="flex items-center gap-2 px-5 py-3 rounded-full bg-muted border border-border text-foreground font-medium hover:bg-accent transition-all"
                             >
                               <Square className="w-4 h-4" />
                               Stop
@@ -895,9 +895,9 @@ export function VoiceRecorderModal({
                         initial={{ opacity: 0, y: 12 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 12 }}
-                        className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 space-y-4"
+                        className="bg-muted/50 border border-border rounded-2xl p-5 space-y-4"
                       >
-                        <h3 className="text-sm font-medium text-gray-300">
+                        <h3 className="text-sm font-medium text-foreground">
                           Preview Recording
                         </h3>
 
@@ -906,7 +906,7 @@ export function VoiceRecorderModal({
                           <div className="flex items-center gap-3">
                             <button
                               onClick={togglePreviewPlayback}
-                              className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 flex items-center justify-center hover:from-purple-500 hover:to-indigo-500 transition-all shadow-lg shadow-purple-500/20 flex-shrink-0"
+                              className="w-10 h-10 rounded-full bg-brand-500 flex items-center justify-center hover:bg-brand-600 transition-all shadow-lg shadow-brand-500/20 flex-shrink-0"
                             >
                               {isPlaying ? (
                                 <Pause className="w-4 h-4 text-white" />
@@ -916,29 +916,29 @@ export function VoiceRecorderModal({
                             </button>
 
                             {/* Progress bar */}
-                            <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                               <motion.div
-                                className="h-full rounded-full bg-gradient-to-r from-purple-600 to-indigo-600"
+                                className="h-full rounded-full bg-brand-500"
                                 style={{
                                   width: `${playbackProgress * 100}%`,
                                 }}
                               />
                             </div>
 
-                            <span className="text-xs text-gray-400 font-mono min-w-[40px]">
+                            <span className="text-xs text-muted-foreground font-mono min-w-[40px]">
                               {formatTime(durationSeconds)}
                             </span>
                           </div>
 
                           {/* File info */}
-                          <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
                             <span>Duration: {formatTime(durationSeconds)}</span>
-                            <span className="w-1 h-1 rounded-full bg-gray-600" />
+                            <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
                             <span>
                               Size: ~
                               {(recordedBlob.size / (1024 * 1024)).toFixed(1)} MB
                             </span>
-                            <span className="w-1 h-1 rounded-full bg-gray-600" />
+                            <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
                             <span>
                               {recordedBlob.type.split(";")[0]}
                             </span>
@@ -949,7 +949,7 @@ export function VoiceRecorderModal({
                         <div className="flex items-center gap-3 pt-1">
                           <button
                             onClick={reRecord}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 border border-white/10 text-gray-300 hover:text-white hover:bg-white/10 transition-all text-sm font-medium"
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-muted border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-all text-sm font-medium"
                           >
                             <RotateCcw className="w-4 h-4" />
                             Re-record
@@ -957,7 +957,7 @@ export function VoiceRecorderModal({
                           <button
                             onClick={handleUseRecording}
                             disabled={durationSeconds < MIN_DURATION}
-                            className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-sm font-medium hover:from-purple-500 hover:to-indigo-500 transition-all shadow-lg shadow-purple-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-all shadow-lg shadow-brand-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Sparkles className="w-4 h-4" />
                             Use This Recording

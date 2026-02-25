@@ -67,12 +67,12 @@ export function ScriptEditor({
           onChange={(e) => onScriptChange(e.target.value)}
           placeholder="Type or paste your script here..."
           maxLength={maxLength}
-          className="w-full min-h-[200px] rounded-2xl bg-white/5 border border-white/10 p-4 text-sm text-white placeholder:text-gray-500 resize-y focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+          className="w-full min-h-[200px] rounded-2xl bg-background border border-input p-4 text-sm text-foreground placeholder:text-muted-foreground resize-y focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/30 transition-all"
         />
       </div>
 
       {/* Info bar */}
-      <div className="flex flex-wrap items-center gap-4 px-1 text-xs text-gray-400">
+      <div className="flex flex-wrap items-center gap-4 px-1 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <Type className="w-3 h-3" />
           {wordCount} words
@@ -91,19 +91,19 @@ export function ScriptEditor({
       </div>
 
       {/* AI Generate Section */}
-      <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
+      <div className="bg-muted/50 border border-border rounded-2xl overflow-hidden">
         <button
           onClick={() => setExpanded((prev) => !prev)}
-          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-300 hover:text-white transition-colors"
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           <span className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-purple-400" />
+            <Sparkles className="w-4 h-4 text-brand-500" />
             Generate with AI
           </span>
           {expanded ? (
-            <ChevronUp className="w-4 h-4 text-gray-500" />
+            <ChevronUp className="w-4 h-4 text-muted-foreground" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-gray-500" />
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
           )}
         </button>
 
@@ -116,16 +116,16 @@ export function ScriptEditor({
               transition={{ duration: 0.25 }}
               className="overflow-hidden"
             >
-              <div className="px-4 pb-4 space-y-4 border-t border-white/5 pt-4">
+              <div className="px-4 pb-4 space-y-4 border-t border-border pt-4">
                 {/* Topic input */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-gray-400">Topic</label>
+                  <label className="text-xs font-medium text-muted-foreground">Topic</label>
                   <input
                     type="text"
                     value={topic}
                     onChange={(e) => setTopic(e.target.value)}
                     placeholder="e.g. Product launch announcement, Podcast intro..."
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+                    className="w-full rounded-xl bg-background border border-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/30 transition-all"
                   />
                 </div>
 
@@ -133,7 +133,7 @@ export function ScriptEditor({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Duration */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-gray-400">Duration</label>
+                    <label className="text-xs font-medium text-muted-foreground">Duration</label>
                     <div className="flex gap-2">
                       {DURATIONS.map((d) => (
                         <button
@@ -141,8 +141,8 @@ export function ScriptEditor({
                           onClick={() => setDuration(d.value)}
                           className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                             duration === d.value
-                              ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg"
-                              : "bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white"
+                              ? "bg-brand-500 text-white shadow-lg"
+                              : "bg-muted border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
                           }`}
                         >
                           {d.label}
@@ -153,14 +153,14 @@ export function ScriptEditor({
 
                   {/* Tone */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-gray-400">Tone</label>
+                    <label className="text-xs font-medium text-muted-foreground">Tone</label>
                     <select
                       value={tone}
                       onChange={(e) => setTone(e.target.value)}
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all appearance-none cursor-pointer"
+                      className="w-full rounded-xl bg-background border border-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/30 transition-all appearance-none cursor-pointer"
                     >
                       {TONES.map((t) => (
-                        <option key={t} value={t} className="bg-gray-900 text-white">
+                        <option key={t} value={t} className="bg-background text-foreground">
                           {t}
                         </option>
                       ))}
@@ -172,7 +172,7 @@ export function ScriptEditor({
                 <button
                   onClick={handleGenerate}
                   disabled={isGenerating || !topic.trim()}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-sm font-medium shadow-lg hover:from-purple-700 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 text-white text-sm font-medium shadow-lg hover:bg-brand-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isGenerating ? (
                     <>

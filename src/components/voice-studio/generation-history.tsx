@@ -115,7 +115,7 @@ function MiniPlayer({ audioUrl }: { audioUrl: string }) {
       />
       <button
         onClick={togglePlay}
-        className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 hover:from-purple-700 hover:to-indigo-700 transition-all"
+        className="w-8 h-8 rounded-full bg-gradient-to-r from-brand-500 to-brand-600 text-white flex items-center justify-center shrink-0 hover:from-brand-600 hover:to-brand-700 transition-all"
       >
         {isPlaying ? (
           <Pause className="w-3.5 h-3.5" />
@@ -123,7 +123,7 @@ function MiniPlayer({ audioUrl }: { audioUrl: string }) {
           <Play className="w-3.5 h-3.5 ml-0.5" />
         )}
       </button>
-      <span className="text-xs font-mono text-gray-400">
+      <span className="text-xs font-mono text-muted-foreground">
         {formatTime(currentTime)} / {formatTime(duration)}
       </span>
     </div>
@@ -155,13 +155,13 @@ export function GenerationHistory({
   if (generations.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4">
-          <Mic className="w-7 h-7 text-gray-500" />
+        <div className="w-16 h-16 rounded-2xl bg-muted border border-border flex items-center justify-center mb-4">
+          <Mic className="w-7 h-7 text-muted-foreground" />
         </div>
-        <p className="text-sm font-medium text-gray-400">
+        <p className="text-sm font-medium text-muted-foreground">
           No voice generations yet
         </p>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-muted-foreground mt-1">
           Generate your first voice-over to see it here
         </p>
       </div>
@@ -187,10 +187,10 @@ export function GenerationHistory({
           <motion.div
             key={gen.id}
             variants={itemVariants}
-            className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-4 space-y-3"
+            className="bg-card border border-border rounded-2xl p-4 space-y-3"
           >
             {/* Script preview */}
-            <p className="text-sm text-gray-300 leading-relaxed">
+            <p className="text-sm text-foreground leading-relaxed">
               {truncatedScript}
             </p>
 
@@ -202,7 +202,7 @@ export function GenerationHistory({
               {voiceBadges.map((badge) => (
                 <span
                   key={badge}
-                  className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/5 border border-white/10 text-gray-400"
+                  className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted border border-border text-muted-foreground"
                 >
                   {capitalize(badge)}
                 </span>
@@ -215,23 +215,23 @@ export function GenerationHistory({
               )}
 
               {gen.durationMs && (
-                <span className="text-[10px] text-gray-500">
+                <span className="text-[10px] text-muted-foreground">
                   {formatDuration(gen.durationMs)}
                 </span>
               )}
 
-              <span className="ml-auto text-[10px] text-gray-500">
+              <span className="ml-auto text-[10px] text-muted-foreground">
                 {timeAgo(gen.createdAt)}
               </span>
             </div>
 
             {/* Action buttons */}
-            <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+            <div className="flex items-center gap-2 pt-2 border-t border-border">
               {gen.audioUrl && (
                 <a
                   href={gen.audioUrl}
                   download
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-gray-300 hover:bg-white/10 hover:text-white transition-all"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted border border-border text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-all"
                 >
                   <Download className="w-3.5 h-3.5" />
                   Download
@@ -248,7 +248,7 @@ export function GenerationHistory({
                       style: gen.style || "",
                     })
                   }
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-gray-300 hover:bg-white/10 hover:text-white transition-all"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted border border-border text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-all"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   Reuse

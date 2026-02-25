@@ -118,7 +118,7 @@ export function AudioPlayer({ audioUrl, onDownload }: AudioPlayerProps) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 space-y-4"
+      className="bg-muted/50 border border-border rounded-2xl p-6 space-y-4"
     >
       {/* Hidden audio element */}
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
@@ -127,10 +127,10 @@ export function AudioPlayer({ audioUrl, onDownload }: AudioPlayerProps) {
       <div
         ref={progressRef}
         onClick={handleProgressClick}
-        className="w-full h-2 rounded-full bg-white/10 cursor-pointer group relative"
+        className="w-full h-2 rounded-full bg-muted cursor-pointer group relative"
       >
         <div
-          className="h-full rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 transition-[width] duration-100 relative"
+          className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-600 transition-[width] duration-100 relative"
           style={{ width: `${progress}%` }}
         >
           <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -142,7 +142,7 @@ export function AudioPlayer({ audioUrl, onDownload }: AudioPlayerProps) {
         {/* Play/Pause button */}
         <button
           onClick={togglePlay}
-          className="w-12 h-12 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-lg hover:from-purple-700 hover:to-indigo-700 transition-all shrink-0"
+          className="w-12 h-12 rounded-full bg-gradient-to-r from-brand-500 to-brand-600 text-white flex items-center justify-center shadow-lg hover:from-brand-600 hover:to-brand-700 transition-all shrink-0"
         >
           {isPlaying ? (
             <Pause className="w-5 h-5" />
@@ -152,7 +152,7 @@ export function AudioPlayer({ audioUrl, onDownload }: AudioPlayerProps) {
         </button>
 
         {/* Time display */}
-        <span className="text-sm font-mono text-gray-300 min-w-[90px]">
+        <span className="text-sm font-mono text-foreground min-w-[90px]">
           {formatTime(currentTime)} / {formatTime(duration)}
         </span>
 
@@ -167,8 +167,8 @@ export function AudioPlayer({ audioUrl, onDownload }: AudioPlayerProps) {
               onClick={() => handleSpeedChange(rate)}
               className={`px-2 py-1 rounded-lg text-xs font-medium transition-all ${
                 playbackRate === rate
-                  ? "bg-purple-600/30 text-purple-300 border border-purple-500/40"
-                  : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                  ? "bg-brand-500/20 text-brand-500 border border-brand-500/30"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
             >
               {rate}x
@@ -178,10 +178,10 @@ export function AudioPlayer({ audioUrl, onDownload }: AudioPlayerProps) {
       </div>
 
       {/* Actions row */}
-      <div className="flex items-center gap-3 pt-2 border-t border-white/5">
+      <div className="flex items-center gap-3 pt-2 border-t border-border">
         <button
           onClick={onDownload}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-all"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted border border-border text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-all"
         >
           <Download className="w-4 h-4" />
           Download MP3
@@ -189,7 +189,7 @@ export function AudioPlayer({ audioUrl, onDownload }: AudioPlayerProps) {
 
         <button
           onClick={handleCopyUrl}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-all"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted border border-border text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-all"
         >
           {copied ? (
             <>

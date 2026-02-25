@@ -44,10 +44,10 @@ export function VoiceProfileCard({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.25 }}
-      className={`bg-white/5 backdrop-blur-sm border rounded-2xl p-4 transition-all ${
+      className={`bg-card border rounded-2xl p-4 transition-all ${
         isSelected
-          ? "border-purple-500 shadow-[0_0_16px_rgba(147,51,234,0.25)]"
-          : "border-white/10 hover:border-white/20"
+          ? "border-brand-500 shadow-[0_0_16px_rgba(147,51,234,0.25)]"
+          : "border-border hover:border-border"
       }`}
     >
       {/* Header */}
@@ -70,7 +70,7 @@ export function VoiceProfileCard({
         {/* Name + badges */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-white truncate">
+            <h3 className="text-sm font-semibold text-foreground truncate">
               {profile.name}
             </h3>
             {profile.isDefault && (
@@ -93,17 +93,17 @@ export function VoiceProfileCard({
 
       {/* Details */}
       {details && (
-        <p className="mt-3 text-xs text-gray-400">{details}</p>
+        <p className="mt-3 text-xs text-muted-foreground">{details}</p>
       )}
 
       {/* Actions */}
-      <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/5">
+      <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border">
         <button
           onClick={() => onSelect(profile.id)}
           className={`flex-1 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
             isSelected
-              ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg"
-              : "bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:text-white"
+              ? "bg-brand-500 text-white shadow-lg"
+              : "bg-muted border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
           }`}
         >
           {isSelected ? "Selected" : "Use"}
@@ -111,7 +111,7 @@ export function VoiceProfileCard({
 
         <button
           onClick={() => onDelete(profile.id)}
-          className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+          className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-all"
           title="Delete profile"
         >
           <Trash2 className="w-4 h-4" />
