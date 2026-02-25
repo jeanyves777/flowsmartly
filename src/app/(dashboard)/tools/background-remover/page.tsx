@@ -138,24 +138,33 @@ export default function BackgroundRemoverStudio() {
       return;
     }
 
-    const canvas = canvasRef.current;
-    if (!canvas) {
-      console.error("[Canvas] Canvas ref not available");
-      setLoadError("Canvas not ready");
-      return;
-    }
+    // Wait for canvas to be available
+    const waitForCanvas = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        console.log("[Canvas] Waiting for canvas ref...");
+        setTimeout(waitForCanvas, 50);
+        return;
+      }
 
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) {
-      console.error("[Canvas] Canvas context not available");
-      setLoadError("Canvas context failed");
-      return;
-    }
-    ctxRef.current = ctx;
+      console.log("[Canvas] Canvas ref available!");
 
-    let isCancelled = false;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) {
+        console.error("[Canvas] Canvas context not available");
+        setLoadError("Canvas context failed");
+        return;
+      }
+      ctxRef.current = ctx;
 
-    const loadImage = () => {
+      // Start loading image
+      loadImage(canvas, ctx);
+    };
+
+    const loadImage = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
+
+      let isCancelled = false;
+
       setIsLoaded(false);
       setLoadError(null);
 
@@ -243,13 +252,14 @@ export default function BackgroundRemoverStudio() {
       // Set src LAST
       console.log("[Load] Setting img.src...");
       img.src = imageUrl;
+
+      return () => {
+        isCancelled = true;
+      };
     };
 
-    loadImage();
-
-    return () => {
-      isCancelled = true;
-    };
+    // Start waiting for canvas
+    waitForCanvas();
   }, [selectedImage, toast]);
 
   // ─── Coordinate translation ───
