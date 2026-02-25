@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { setSession } from "@/lib/auth/session";
+import { createSession, setSessionCookies } from "@/lib/auth/session";
 import { generateUsername } from "@/lib/utils/username";
+import { notifyWelcome } from "@/lib/notifications";
 
 /**
  * Facebook OAuth - Step 2: Handle callback from Facebook
@@ -65,6 +66,8 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    let isNewUser = false;
+
     if (user) {
       // User exists - update OAuth info if needed
       if (!user.oauthProvider || !user.oauthId) {
@@ -74,6 +77,7 @@ export async function GET(request: NextRequest) {
             oauthProvider: "facebook",
             oauthId: profile.id,
             oauthAvatarUrl: profile.picture?.data?.url,
+            avatarUrl: profile.picture?.data?.url,
             lastLoginAt: new Date(),
           },
         });
@@ -85,7 +89,8 @@ export async function GET(request: NextRequest) {
         });
       }
     } else {
-      // Create new user
+      // Create new user with all required fields
+      isNewUser = true;
       const username = await generateUsername(profile.name || profile.email);
 
       user = await prisma.user.create({
@@ -93,6 +98,8 @@ export async function GET(request: NextRequest) {
           email: profile.email,
           name: profile.name || profile.email.split("@")[0],
           username,
+          country: "US", // Default country for OAuth users
+          region: "worldwide",
           oauthProvider: "facebook",
           oauthId: profile.id,
           oauthAvatarUrl: profile.picture?.data?.url,
@@ -100,14 +107,50 @@ export async function GET(request: NextRequest) {
           emailVerified: true, // Facebook verifies email
           emailVerifiedAt: new Date(),
           lastLoginAt: new Date(),
+          aiCredits: 100, // Welcome credits
+          freeCredits: 100,
         },
       });
+
+      // Record welcome credits transaction
+      await prisma.creditTransaction.create({
+        data: {
+          userId: user.id,
+          amount: 100,
+          type: "BONUS",
+          description: "Welcome credits for new account",
+          balanceAfter: 100,
+        },
+      });
+
+      // Send welcome email (non-blocking)
+      notifyWelcome({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        verificationUrl: "", // Email already verified by Facebook
+      }).catch((err) => console.error("Failed to send welcome email:", err));
     }
 
     // Create session
-    await setSession({ userId: user.id });
+    const userAgent = request.headers.get("user-agent") || undefined;
+    const ipAddress =
+      request.headers.get("x-forwarded-for")?.split(",")[0] ||
+      request.headers.get("x-real-ip") ||
+      undefined;
 
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/feed`);
+    const { accessToken, refreshToken } = await createSession(
+      user.id,
+      userAgent,
+      ipAddress
+    );
+
+    // Set session cookies
+    await setSessionCookies(accessToken, refreshToken);
+
+    // Redirect to dashboard for new users, feed for existing users
+    const redirectPath = isNewUser ? "/dashboard" : "/feed";
+    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}${redirectPath}`);
   } catch (error) {
     console.error("Facebook OAuth callback error:", error);
     return NextResponse.redirect(
