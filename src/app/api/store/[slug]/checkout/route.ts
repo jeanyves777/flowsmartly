@@ -9,6 +9,7 @@ import {
   notifyOrderConfirmation,
   notifyNewOrder,
 } from "@/lib/notifications/commerce";
+import { attributeOrderToAd } from "@/lib/ads/roas-tracker";
 
 // ── Zod Schema ──
 
@@ -34,6 +35,12 @@ const checkoutSchema = z.object({
   items: z.array(checkoutItemSchema).min(1, "At least one item is required"),
   paymentMethod: z.enum(["card", "cod", "mobile_money", "bank_transfer"]),
   shippingMethod: z.enum(["standard", "local_pickup"]).optional(),
+  // UTM Attribution
+  utmSource: z.string().max(200).optional(),
+  utmMedium: z.string().max(200).optional(),
+  utmCampaign: z.string().max(200).optional(),
+  utmContent: z.string().max(200).optional(),
+  referrer: z.string().max(500).optional(),
 });
 
 // ── POST /api/store/[slug]/checkout ──
@@ -70,6 +77,11 @@ export async function POST(
       items,
       paymentMethod,
       shippingMethod,
+      utmSource,
+      utmMedium,
+      utmCampaign,
+      utmContent,
+      referrer,
     } = parsed.data;
 
     // ── Fetch store ──
@@ -252,6 +264,11 @@ export async function POST(
           shippingMethod: shippingMethod || "standard",
           status: "PENDING",
           paymentStatus: "pending",
+          utmSource: utmSource || null,
+          utmMedium: utmMedium || null,
+          utmCampaign: utmCampaign || null,
+          utmContent: utmContent || null,
+          referrer: referrer || null,
         },
       });
 
@@ -268,6 +285,12 @@ export async function POST(
 
       return newOrder;
     });
+
+    // ── Fire-and-forget ROAS attribution ──
+
+    attributeOrderToAd(order.id).catch((err) =>
+      console.error("ROAS attribution failed:", err)
+    );
 
     // ── Fire-and-forget notification emails ──
 

@@ -403,6 +403,12 @@ model AdCampaign {
   googleAdsCampaignId  String?   // Google Ads campaign resource name
   googleAdsAdGroupId   String?   // Google Ads ad group resource name
 
+  // E-commerce product promotion (Ad Bridge)
+  sourceProductId      String?   // Product this campaign promotes
+  sourceStoreId        String?   // Store this campaign is from
+  revenueTrackedCents  Int       @default(0) // Total revenue attributed to this campaign
+  adOrderCount         Int       @default(0) // Orders attributed to this campaign
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -414,6 +420,8 @@ model AdCampaign {
   @@index([status, startDate, endDate])
   @@index([approvalStatus])
   @@index([adType])
+  @@index([sourceProductId])
+  @@index([sourceStoreId])
 }
 
 model AdPage {
@@ -2974,6 +2982,7 @@ model Store {
   domains                StoreDomain[]
   intelligenceReports    IntelligenceReport[]
   marketResearchReports  MarketResearchReport[]
+  productFeeds           ProductFeed[]
 
   @@index([slug])
   @@index([userId])
@@ -3030,6 +3039,7 @@ model Product {
   competitorPrices    CompetitorPrice[]
   priceHistory        PriceHistory[]
   pricingRule         PricingRule?
+  adCreativeVariants  AdCreativeVariant[]
 
   @@unique([storeId, slug])
   @@index([storeId])
@@ -3131,6 +3141,14 @@ model Order {
   notes               String?
   cancelReason        String?
 
+  // Ad attribution (UTM tracking for ROAS)
+  utmSource           String?
+  utmMedium           String?
+  utmCampaign         String?
+  utmContent          String?
+  adCampaignId        String?   // Direct link to AdCampaign
+  referrer            String?
+
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -3144,6 +3162,7 @@ model Order {
   @@index([customerEmail])
   @@index([buyerUserId])
   @@index([createdAt])
+  @@index([adCampaignId])
 }
 
 model DeliveryDriver {
@@ -3366,4 +3385,43 @@ model StoreDomain {
   @@index([storeId])
   @@index([userId])
   @@index([domainName])
+}
+
+// ── Product Feeds (Google Shopping, Facebook Catalog, TikTok) ────────────────
+model ProductFeed {
+  id           String    @id @default(cuid())
+  storeId      String
+  platform     String    // "google_shopping" | "facebook_catalog" | "tiktok"
+  feedUrl      String?   // Public URL to generated feed file
+  feedFormat   String    // "xml" | "json" | "csv"
+  productCount Int       @default(0)
+  lastSyncedAt DateTime?
+  status       String    @default("pending") // "pending" | "synced" | "error"
+  errorMessage String?
+  settings     String    @default("{}")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, platform])
+  @@index([storeId])
+}
+
+// ── AI Ad Creative Variants ──────────────────────────────────────────────────
+model AdCreativeVariant {
+  id          String   @id @default(cuid())
+  productId   String
+  platform    String   // "google" | "facebook" | "tiktok" | "flowsmartly"
+  headline    String
+  description String
+  ctaText     String   @default("Shop Now")
+  imageUrl    String?
+  score       Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
 }

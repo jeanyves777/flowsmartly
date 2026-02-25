@@ -23,7 +23,9 @@ import {
   Search,
   Sparkles,
   ImageIcon,
+  Target,
 } from "lucide-react";
+import PixelSettings from "@/components/ecommerce/pixel-settings";
 import {
   PRODUCT_CATEGORIES,
   PAYMENT_METHODS_BY_REGION,
@@ -39,7 +41,7 @@ import {
 import { STORE_TEMPLATES_FULL, type StoreTemplateConfig } from "@/lib/constants/store-templates";
 import { cn } from "@/lib/utils/cn";
 
-type TabId = "general" | "payments" | "shipping" | "branding" | "domain" | "subscription";
+type TabId = "general" | "payments" | "shipping" | "branding" | "domain" | "pixels" | "subscription";
 
 interface Store {
   id: string;
@@ -75,6 +77,7 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: "shipping", label: "Shipping", icon: Truck },
   { id: "branding", label: "Branding", icon: Palette },
   { id: "domain", label: "Domain", icon: Globe },
+  { id: "pixels", label: "Pixels", icon: Target },
   { id: "subscription", label: "Subscription", icon: ReceiptText },
 ];
 
@@ -1289,6 +1292,9 @@ export default function EcommerceSettingsPage() {
             )}
           </div>
         )}
+
+        {/* TRACKING PIXELS TAB */}
+        {activeTab === "pixels" && <PixelSettings />}
 
         {/* SUBSCRIPTION TAB */}
         {activeTab === "subscription" && (

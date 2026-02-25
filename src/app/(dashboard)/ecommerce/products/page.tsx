@@ -16,8 +16,10 @@ import {
   Loader2,
   AlertTriangle,
   Sparkles,
+  Megaphone,
 } from "lucide-react";
 import { AIProductGeneratorModal } from "@/components/ecommerce/ai-product-generator-modal";
+import { PromoteProductModal } from "@/components/ecommerce/promote-product-modal";
 import { PageLoader } from "@/components/shared/page-loader";
 import { useToast } from "@/hooks/use-toast";
 
@@ -97,6 +99,7 @@ export default function ProductsListPage() {
 
   // AI Product Generator
   const [showAIGenerator, setShowAIGenerator] = useState(false);
+  const [promoteProductId, setPromoteProductId] = useState<string | null>(null);
 
   // Fetch stats
   const fetchStats = useCallback(async () => {
@@ -422,6 +425,15 @@ export default function ProductsListPage() {
                       {/* Actions */}
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {product.status === "ACTIVE" && (
+                            <button
+                              onClick={() => setPromoteProductId(product.id)}
+                              className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                              title="Promote"
+                            >
+                              <Megaphone className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => router.push(`/ecommerce/products/${product.id}`)}
                             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
@@ -514,6 +526,13 @@ export default function ProductsListPage() {
           fetchStats();
         }}
         storeCurrency="USD"
+      />
+
+      {/* Promote Product Modal */}
+      <PromoteProductModal
+        productId={promoteProductId}
+        isOpen={!!promoteProductId}
+        onClose={() => setPromoteProductId(null)}
       />
     </div>
   );

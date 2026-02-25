@@ -13,6 +13,7 @@ import { CartProvider } from "@/components/store/cart-provider";
 import { CartButton } from "@/components/store/cart-button";
 import { CartDrawer } from "@/components/store/cart-drawer";
 import { PreviewListener } from "@/components/store/preview-listener";
+import TrackingPixels from "@/components/store/tracking-pixels";
 
 interface StoreLayoutProps {
   children: React.ReactNode;
@@ -105,7 +106,7 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
     logoUrl: store.logoUrl || undefined,
   });
 
-  const headerStyle = theme.layout.headerStyle;
+  const headerStyle = theme.layout.headerStyle as string;
 
   return (
     <CartProvider storeSlug={store.slug} currency={store.currency}>
@@ -363,6 +364,16 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
 
       {/* Cart Drawer */}
       <CartDrawer />
+
+      {/* Tracking Pixels */}
+      {storeSettings.pixels ? (
+        <TrackingPixels
+          facebookPixelId={(storeSettings.pixels as Record<string, string>).facebookPixelId}
+          googleTagId={(storeSettings.pixels as Record<string, string>).googleTagId}
+          tiktokPixelId={(storeSettings.pixels as Record<string, string>).tiktokPixelId}
+          pinterestTagId={(storeSettings.pixels as Record<string, string>).pinterestTagId}
+        />
+      ) : null}
 
       {/* Preview Listener */}
       {isPreview && <PreviewListener />}

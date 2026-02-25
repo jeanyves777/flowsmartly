@@ -163,6 +163,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
     { name: "Design", href: "/ecommerce/design", icon: Palette },
     { name: "Analytics", href: "/ecommerce/analytics", icon: BarChart3 },
     { name: "Intelligence", href: "/ecommerce/intelligence", icon: Brain },
+    { name: "Ads & Feeds", href: "/ecommerce/ads", icon: Megaphone },
     { name: "Domains", href: "/ecommerce/domains", icon: Globe },
   ];
   // Only show for COD regions
