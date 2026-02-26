@@ -155,9 +155,10 @@ async function handleIncomingMessages(value: any) {
       await prisma.whatsAppMessage.create({
         data: {
           conversationId: conversation.id,
-          messageId,
-          direction: "INBOUND",
-          body: messageBody,
+          whatsappMessageId: messageId,
+          direction: "inbound",
+          messageType: messageType,
+          content: messageBody,
           mediaUrl,
           status: "delivered",
           timestamp,
@@ -188,7 +189,7 @@ async function handleMessageStatuses(value: any) {
 
       // Update message status in database
       await prisma.whatsAppMessage.updateMany({
-        where: { messageId },
+        where: { whatsappMessageId: messageId },
         data: { status: newStatus },
       });
 
