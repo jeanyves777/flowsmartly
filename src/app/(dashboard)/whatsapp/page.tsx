@@ -1,10 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MessageSquare, Send, Settings, Zap, FileText, Image } from "lucide-react";
 
 export default function WhatsAppPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading WhatsApp...</p>
+        </div>
+      </div>
+    }>
+      <WhatsAppPageContent />
+    </Suspense>
+  );
+}
+
+function WhatsAppPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
