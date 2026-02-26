@@ -24,10 +24,13 @@ export async function POST(request: NextRequest) {
       templateId,
     } = body;
 
-    console.log("[WhatsApp Send] Request:", { conversationId, socialAccountId, to, messageType, hasMessage: !!message });
+    // Sanitize phone number: strip +, spaces, dashes, parens — WhatsApp API needs digits only
+    const sanitizedTo = to ? to.replace(/[^0-9]/g, "") : undefined;
+
+    console.log("[WhatsApp Send] Request:", { conversationId, socialAccountId, to, sanitizedTo, messageType, hasMessage: !!message });
 
     // Validate required fields
-    if (!socialAccountId || (!conversationId && !to)) {
+    if (!socialAccountId || (!conversationId && !sanitizedTo)) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -70,10 +73,10 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      recipientPhone = conversation.customerPhone;
+      recipientPhone = conversation.customerPhone.replace(/[^0-9]/g, "");
     } else {
-      // Create new conversation
-      recipientPhone = to;
+      // Create new conversation with sanitized phone number
+      recipientPhone = sanitizedTo!;
       conversation = await prisma.whatsAppConversation.create({
         data: {
           userId: session.userId,
