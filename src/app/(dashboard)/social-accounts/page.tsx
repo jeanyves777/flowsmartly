@@ -64,20 +64,20 @@ export default function SocialAccountsPage() {
         description: `Successfully connected ${pages || 1} Facebook Page(s)`,
       });
       // Clean URL
-      router.replace("/dashboard/social-accounts");
+      router.replace("/social-accounts");
     } else if (success === "instagram_connected") {
       toast({
         title: "Instagram Connected!",
         description: `Successfully connected ${accountsCount || 1} Instagram account(s)`,
       });
-      router.replace("/dashboard/social-accounts");
+      router.replace("/social-accounts");
     } else if (error) {
       toast({
         title: "Connection Failed",
         description: getErrorMessage(error),
         variant: "destructive",
       });
-      router.replace("/dashboard/social-accounts");
+      router.replace("/social-accounts");
     }
   }, [searchParams, toast, router]);
 

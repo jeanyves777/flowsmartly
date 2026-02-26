@@ -136,7 +136,7 @@ const moneyNavigation = [
 ];
 
 const secondaryNavigation = [
-  { name: "Social Accounts", href: "/dashboard/social-accounts", icon: Link2 },
+  { name: "Social Accounts", href: "/social-accounts", icon: Link2 },
   { name: "Settings", href: "/settings", icon: Settings },
   { name: "Help", href: "/help", icon: HelpCircle },
 ];

@@ -13,13 +13,13 @@ export async function GET(request: NextRequest) {
   if (error) {
     console.error("YouTube OAuth error:", error);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/social-accounts?error=youtube_auth_failed`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=youtube_auth_failed`
     );
   }
 
   if (!code || !state) {
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/social-accounts?error=missing_params`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=missing_params`
     );
   }
 
@@ -106,12 +106,12 @@ export async function GET(request: NextRequest) {
 
     // Redirect to social accounts page with success
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/social-accounts?success=youtube_connected`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=youtube_connected`
     );
   } catch (error) {
     console.error("YouTube OAuth callback error:", error);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/social-accounts?error=youtube_connect_failed`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=youtube_connect_failed`
     );
   }
 }

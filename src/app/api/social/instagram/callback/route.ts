@@ -13,13 +13,13 @@ export async function GET(request: NextRequest) {
   if (error) {
     console.error("Instagram OAuth error:", error);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/social-accounts?error=instagram_auth_failed`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=instagram_auth_failed`
     );
   }
 
   if (!code || !state) {
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/social-accounts?error=missing_params`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=missing_params`
     );
   }
 
@@ -109,18 +109,18 @@ export async function GET(request: NextRequest) {
 
     if (instagramAccountsFound === 0) {
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/social-accounts?error=no_instagram_accounts`
+        `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=no_instagram_accounts`
       );
     }
 
     // Redirect to social accounts page with success
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/social-accounts?success=instagram_connected&accounts=${instagramAccountsFound}`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=instagram_connected&accounts=${instagramAccountsFound}`
     );
   } catch (error) {
     console.error("Instagram OAuth callback error:", error);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/social-accounts?error=instagram_connect_failed`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=instagram_connect_failed`
     );
   }
 }

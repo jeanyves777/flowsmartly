@@ -13,13 +13,13 @@ export async function GET(request: NextRequest) {
   if (error) {
     console.error("TikTok OAuth error:", error);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/social-accounts?error=tiktok_auth_failed`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=tiktok_auth_failed`
     );
   }
 
   if (!code || !state) {
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/social-accounts?error=missing_params`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=missing_params`
     );
   }
 
@@ -105,12 +105,12 @@ export async function GET(request: NextRequest) {
 
     // Redirect to social accounts page with success
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/social-accounts?success=tiktok_connected`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=tiktok_connected`
     );
   } catch (error) {
     console.error("TikTok OAuth callback error:", error);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/social-accounts?error=tiktok_connect_failed`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=tiktok_connect_failed`
     );
   }
 }
