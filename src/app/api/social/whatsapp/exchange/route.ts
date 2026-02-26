@@ -166,38 +166,52 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Step 6: Store in database
-        await prisma.socialAccount.upsert({
+        // Step 6: Store in database (find existing by platformUserId or platform fallback)
+        const existingAccount = await prisma.socialAccount.findFirst({
           where: {
-            userId_platform: {
-              userId: session.userId,
-              platform: `whatsapp_${phone.id}`,
-            },
-          },
-          create: {
             userId: session.userId,
-            platform: "whatsapp",
-            platformUserId: phone.id,
-            platformUsername: phone.display_phone_number,
-            platformDisplayName: phone.verified_name || waba.name,
-            platformAvatarUrl: null,
-            accessToken: tokenData.access_token,
-            refreshToken: null,
-            tokenExpiresAt: null,
-            scopes: JSON.stringify([
-              "whatsapp_business_messaging",
-              "whatsapp_business_management",
-            ]),
-            isActive: true,
-          },
-          update: {
-            platformUsername: phone.display_phone_number,
-            platformDisplayName: phone.verified_name || waba.name,
-            accessToken: tokenData.access_token,
-            isActive: true,
-            updatedAt: new Date(),
+            OR: [
+              { platformUserId: phone.id, platform: "whatsapp" },
+              { platform: "whatsapp" },
+            ],
           },
         });
+
+        if (existingAccount) {
+          await prisma.socialAccount.update({
+            where: { id: existingAccount.id },
+            data: {
+              platformUserId: phone.id,
+              platformUsername: phone.display_phone_number,
+              platformDisplayName: phone.verified_name || waba.name,
+              accessToken: tokenData.access_token,
+              isActive: true,
+              scopes: JSON.stringify([
+                "whatsapp_business_messaging",
+                "whatsapp_business_management",
+              ]),
+            },
+          });
+        } else {
+          await prisma.socialAccount.create({
+            data: {
+              userId: session.userId,
+              platform: "whatsapp",
+              platformUserId: phone.id,
+              platformUsername: phone.display_phone_number,
+              platformDisplayName: phone.verified_name || waba.name,
+              platformAvatarUrl: null,
+              accessToken: tokenData.access_token,
+              refreshToken: null,
+              tokenExpiresAt: null,
+              scopes: JSON.stringify([
+                "whatsapp_business_messaging",
+                "whatsapp_business_management",
+              ]),
+              isActive: true,
+            },
+          });
+        }
 
         accountsFound++;
       }
