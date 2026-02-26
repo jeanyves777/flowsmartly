@@ -46,7 +46,6 @@ export async function GET(request: NextRequest) {
           connectedAt: true,
           isActive: true,
           tokenExpiresAt: true,
-          createdAt: true,
         },
         orderBy: {
           connectedAt: "desc",

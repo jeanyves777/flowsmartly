@@ -44,7 +44,6 @@ interface SocialAccount {
   connectedAt: string;
   isActive: boolean;
   tokenExpiresAt: string | null;
-  createdAt: string;
 }
 
 interface ErrorInfo {
