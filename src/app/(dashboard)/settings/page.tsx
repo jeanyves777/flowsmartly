@@ -1696,7 +1696,9 @@ export default function SettingsPage() {
                     <div className="space-y-4">
                       {socialPlatforms.map((sp) => {
                         const Icon = platformIcons[sp.platform] || Link2;
-                        const isNotReady = ["pinterest", "threads"].includes(sp.platform);
+                        // Only enable platforms with credentials: facebook, instagram, whatsapp, youtube
+                        const hasCredentials = ["facebook", "instagram", "whatsapp", "youtube"].includes(sp.platform);
+                        const isNotReady = !hasCredentials;
                         return (
                           <div
                             key={sp.platform}

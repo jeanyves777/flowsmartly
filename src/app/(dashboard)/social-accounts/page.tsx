@@ -19,6 +19,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { PLATFORM_META } from "@/components/shared/social-platform-icons";
 
+// Platform colors
+const PLATFORM_COLORS: Record<string, string> = {
+  facebook: "from-blue-500 to-blue-600",
+  instagram: "from-purple-500 to-pink-500",
+  twitter: "from-gray-700 to-gray-900",
+  linkedin: "from-blue-500 to-blue-700",
+  tiktok: "from-gray-900 to-pink-500",
+  youtube: "from-red-500 to-red-700",
+  pinterest: "from-red-400 to-red-600",
+  threads: "from-gray-800 to-gray-950",
+  whatsapp: "from-green-500 to-green-600",
+};
+
 interface SocialAccount {
   id: string;
   platform: string;
@@ -153,13 +166,11 @@ export default function SocialAccountsPage() {
     return acc;
   }, {} as Record<string, SocialAccount[]>);
 
+  // Only show platforms with credentials configured
   const availablePlatforms = [
     { id: "facebook", name: "Facebook Pages", connectUrl: "/api/social/facebook/connect" },
     { id: "instagram", name: "Instagram", connectUrl: "/api/social/instagram/connect" },
     { id: "whatsapp", name: "WhatsApp Business", connectUrl: "/api/social/whatsapp/connect" },
-    { id: "twitter", name: "X (Twitter)", connectUrl: "/api/social/twitter/connect" },
-    { id: "linkedin", name: "LinkedIn", connectUrl: "/api/social/linkedin/connect" },
-    { id: "tiktok", name: "TikTok", connectUrl: "/api/social/tiktok/connect" },
     { id: "youtube", name: "YouTube", connectUrl: "/api/social/youtube/connect" },
   ];
 
@@ -221,10 +232,10 @@ export default function SocialAccountsPage() {
                 return (
                   <div key={platform}>
                     <div className="flex items-center gap-2 mb-3">
-                      <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${meta?.color || "from-gray-500 to-gray-700"} flex items-center justify-center`}>
+                      <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${PLATFORM_COLORS[platform] || "from-gray-500 to-gray-700"} flex items-center justify-center`}>
                         <Icon className="w-4 h-4 text-white" />
                       </div>
-                      <h3 className="font-semibold capitalize">{meta?.name || platform}</h3>
+                      <h3 className="font-semibold capitalize">{meta?.label || platform}</h3>
                       <Badge variant="secondary" className="ml-auto">
                         {platformAccounts.length} connected
                       </Badge>
@@ -300,7 +311,7 @@ export default function SocialAccountsPage() {
                   className="flex items-center justify-between p-4 rounded-xl border hover:border-brand-500/50 transition-all text-left hover:shadow-md"
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${meta?.color || "from-gray-500 to-gray-700"} flex items-center justify-center`}>
+                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${PLATFORM_COLORS[platform] || "from-gray-500 to-gray-700"} flex items-center justify-center`}>
                       <Icon className="w-5 h-5 text-white" />
                     </div>
                     <div>
