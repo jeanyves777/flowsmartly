@@ -1677,75 +1677,31 @@ export default function SettingsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="flex items-center gap-2">
-                        Connected Accounts
+                        Social Media Accounts
                       </CardTitle>
                       <CardDescription>
-                        Connect your social media accounts to share content directly
+                        Manage your connected social media accounts
                       </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {socialLoading ? (
-                    <div className="space-y-4">
-                      {[1, 2, 3, 4].map((i) => (
-                        <Skeleton key={i} className="h-[72px]" />
-                      ))}
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center mx-auto mb-4">
+                      <Link2 className="w-8 h-8 text-white" />
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {socialPlatforms.map((sp) => {
-                        const Icon = platformIcons[sp.platform] || Link2;
-                        // Only enable platforms with credentials: facebook, instagram, whatsapp, youtube
-                        const hasCredentials = ["facebook", "instagram", "whatsapp", "youtube"].includes(sp.platform);
-                        const isNotReady = !hasCredentials;
-                        return (
-                          <div
-                            key={sp.platform}
-                            className="flex items-center justify-between p-4 rounded-xl border"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${sp.color} flex items-center justify-center`}>
-                                <Icon className="w-5 h-5 text-white" />
-                              </div>
-                              <div>
-                                <p className="font-medium">{sp.name}</p>
-                                {sp.connected ? (
-                                  <p className="text-xs text-green-500">
-                                    Connected{sp.username ? ` as ${sp.username}` : ""}
-                                  </p>
-                                ) : (
-                                  <p className="text-xs text-muted-foreground">
-                                    {isNotReady ? "Coming Soon" : "Not connected"}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            {sp.connected ? (
-                              <Badge variant="outline" className="text-green-500 border-green-500/50">
-                                <Check className="w-3 h-3 mr-1" />
-                                Connected
-                              </Badge>
-                            ) : isNotReady ? (
-                              <Badge variant="secondary">Coming Soon</Badge>
-                            ) : (
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => window.location.href = `/api/social/${sp.platform}/connect`}
-                              >
-                                Connect
-                              </Button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                  <div className="mt-6 p-4 rounded-lg bg-brand-500/10 border border-brand-500/20">
-                    <p className="text-sm text-foreground text-center">
-                      <strong>Note:</strong> Some platforms (Pinterest, Threads) are still in development. Facebook, Instagram, and WhatsApp are ready to connect!
+                    <h3 className="font-semibold text-lg mb-2">Connect Your Social Accounts</h3>
+                    <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+                      Connect Facebook, Instagram, WhatsApp, YouTube and more to share content across all your platforms
                     </p>
+                    <Button
+                      size="lg"
+                      onClick={() => window.location.href = "/social-accounts"}
+                      className="gap-2"
+                    >
+                      <Link2 className="w-4 h-4" />
+                      Manage Social Accounts
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
