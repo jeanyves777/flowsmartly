@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { PLATFORM_META } from "@/components/shared/social-platform-icons";
+import { WhatsAppConnect } from "@/components/whatsapp/whatsapp-connect";
 
 // Platform colors
 const PLATFORM_COLORS: Record<string, string> = {
@@ -344,7 +345,7 @@ export default function SocialAccountsPage() {
   const availablePlatforms = [
     { id: "facebook", name: "Facebook Pages", connectUrl: "/api/social/facebook/connect" },
     { id: "instagram", name: "Instagram", connectUrl: "/api/social/instagram/connect" },
-    { id: "whatsapp", name: "WhatsApp Business", connectUrl: "/api/social/whatsapp/connect" },
+    { id: "whatsapp", name: "WhatsApp Business", connectUrl: "" }, // Uses Embedded Signup (WhatsAppConnect component)
     { id: "youtube", name: "YouTube", connectUrl: "/api/social/youtube/connect" },
   ];
 
@@ -490,6 +491,37 @@ export default function SocialAccountsPage() {
               const meta = PLATFORM_META[platform.id as keyof typeof PLATFORM_META];
               const Icon = meta?.icon || Link2;
               const isConnected = !!groupedAccounts[platform.id];
+
+              // WhatsApp uses Embedded Signup (FB.login + config_id) instead of redirect
+              if (platform.id === "whatsapp") {
+                return (
+                  <div
+                    key={platform.id}
+                    className="flex items-center justify-between p-4 rounded-xl border hover:border-brand-500/50 transition-all text-left hover:shadow-md"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${PLATFORM_COLORS[platform.id]} flex items-center justify-center`}>
+                        <Icon className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{platform.name}</p>
+                        {isConnected && (
+                          <p className="text-xs text-green-500">
+                            {groupedAccounts[platform.id].length} connected
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <WhatsAppConnect
+                      onSuccess={() => fetchAccounts()}
+                      buttonText="Connect"
+                      variant="outline"
+                      size="sm"
+                      icon="connect"
+                    />
+                  </div>
+                );
+              }
 
               return (
                 <button
