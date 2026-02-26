@@ -12,6 +12,8 @@ import {
   AlertCircle,
   Clock,
   X,
+  Plus,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +23,6 @@ import { WhatsAppInbox } from "@/components/whatsapp/whatsapp-inbox";
 import { WhatsAppAutomations } from "@/components/whatsapp/whatsapp-automations";
 import { WhatsAppTemplates } from "@/components/whatsapp/whatsapp-templates";
 import { WhatsAppStatus } from "@/components/whatsapp/whatsapp-status";
-import { WhatsAppConnect } from "@/components/whatsapp/whatsapp-connect";
 import type { WhatsAppAccount } from "@/components/whatsapp/types";
 
 export default function WhatsAppPage() {
@@ -101,9 +102,8 @@ function WhatsAppPageContent() {
     }
   }
 
-  function handleConnectSuccess() {
-    loadWhatsAppAccounts();
-    setShowReconnectModal(false);
+  function goToSocialAccounts() {
+    router.push("/social-accounts");
   }
 
   function getTokenStatus(account: WhatsAppAccount) {
@@ -180,13 +180,12 @@ function WhatsAppPageContent() {
             </div>
 
             <div className="text-center">
-              <WhatsAppConnect
-                onSuccess={handleConnectSuccess}
-                buttonText="Connect WhatsApp Business"
-                size="lg"
-              />
+              <Button size="lg" onClick={goToSocialAccounts}>
+                <Plus className="w-4 h-4 mr-2" />
+                Connect WhatsApp Business
+              </Button>
               <p className="text-sm text-muted-foreground mt-4">
-                A Facebook popup will guide you through connecting your WhatsApp Business account
+                You&apos;ll be taken to Social Accounts to connect your WhatsApp Business account
               </p>
             </div>
           </CardContent>
@@ -218,12 +217,10 @@ function WhatsAppPageContent() {
             </p>
           </div>
         </div>
-        <WhatsAppConnect
-          onSuccess={handleConnectSuccess}
-          buttonText="Add Account"
-          variant="outline"
-          size="default"
-        />
+        <Button variant="outline" size="default" onClick={goToSocialAccounts}>
+          <Plus className="w-4 h-4 mr-2" />
+          Add Account
+        </Button>
       </div>
 
       {/* Account Cards */}
@@ -271,14 +268,15 @@ function WhatsAppPageContent() {
 
                 {tokenStatus.label === "Expired" && (
                   <div className="mt-3" onClick={(e) => e.stopPropagation()}>
-                    <WhatsAppConnect
-                      onSuccess={handleConnectSuccess}
-                      buttonText="Reconnect to Refresh Token"
+                    <Button
                       variant="outline"
                       size="sm"
-                      icon="refresh"
                       className="w-full text-green-600 border-green-500/50 hover:bg-green-500/10"
-                    />
+                      onClick={goToSocialAccounts}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Reconnect to Refresh Token
+                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -365,13 +363,13 @@ function WhatsAppPageContent() {
                 <Button variant="outline" className="flex-1" onClick={() => setShowReconnectModal(false)}>
                   Cancel
                 </Button>
-                <WhatsAppConnect
-                  onSuccess={handleConnectSuccess}
-                  buttonText="Reconnect"
-                  icon="refresh"
-                  size="default"
+                <Button
                   className="flex-1 bg-green-500 hover:bg-green-600"
-                />
+                  onClick={goToSocialAccounts}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Reconnect
+                </Button>
               </div>
             </CardContent>
           </Card>
