@@ -58,8 +58,15 @@ export async function GET(request: NextRequest) {
 
     const channelData = await channelResponse.json();
 
+    console.log("YouTube channel API response status:", channelResponse.status);
+    console.log("YouTube channel API response:", JSON.stringify(channelData, null, 2));
+
+    if (channelData.error) {
+      throw new Error(`YouTube API error: ${channelData.error.message || JSON.stringify(channelData.error)}`);
+    }
+
     if (!channelData.items || channelData.items.length === 0) {
-      throw new Error("No YouTube channel found");
+      throw new Error("No YouTube channel found for this Google account. The user may not have a YouTube channel.");
     }
 
     const channel = channelData.items[0];
