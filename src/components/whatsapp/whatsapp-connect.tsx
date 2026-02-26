@@ -147,7 +147,7 @@ export function WhatsAppConnect({
         setLoading(false);
       },
       {
-        scope: "whatsapp_business_management,whatsapp_business_messaging",
+        config_id: process.env.NEXT_PUBLIC_WHATSAPP_CONFIG_ID,
         response_type: "code",
         override_default_response_type: true,
         extras: {
