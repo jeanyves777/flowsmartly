@@ -106,45 +106,47 @@ export function WhatsAppConnect({
     setLoading(true);
 
     window.FB.login(
-      async function (response: any) {
+      function (response: any) {
         if (response.authResponse) {
           const code = response.authResponse.code;
 
-          try {
-            const res = await fetch("/api/social/whatsapp/exchange", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ code }),
-            });
-
-            const data = await res.json();
-
-            if (data.success) {
-              toast({
-                title: "WhatsApp Connected!",
-                description: `Connected ${data.accountsFound} phone number${data.accountsFound > 1 ? "s" : ""} successfully.`,
-              });
-              onSuccess();
-            } else {
+          fetch("/api/social/whatsapp/exchange", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code }),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.success) {
+                toast({
+                  title: "WhatsApp Connected!",
+                  description: `Connected ${data.accountsFound} phone number${data.accountsFound > 1 ? "s" : ""} successfully.`,
+                });
+                onSuccess();
+              } else {
+                toast({
+                  title: "Connection Failed",
+                  description: data.error || "Failed to connect WhatsApp Business account.",
+                  variant: "destructive",
+                });
+              }
+            })
+            .catch((error) => {
+              console.error("[WhatsApp Connect] Exchange error:", error);
               toast({
                 title: "Connection Failed",
-                description: data.error || "Failed to connect WhatsApp Business account.",
+                description: "Something went wrong connecting your WhatsApp account. Please try again.",
                 variant: "destructive",
               });
-            }
-          } catch (error) {
-            console.error("[WhatsApp Connect] Exchange error:", error);
-            toast({
-              title: "Connection Failed",
-              description: "Something went wrong connecting your WhatsApp account. Please try again.",
-              variant: "destructive",
+            })
+            .finally(() => {
+              setLoading(false);
             });
-          }
         } else {
           // User cancelled or popup was closed
           console.log("[WhatsApp Connect] Login cancelled or failed");
+          setLoading(false);
         }
-        setLoading(false);
       },
       {
         config_id: process.env.NEXT_PUBLIC_WHATSAPP_CONFIG_ID,
