@@ -13,13 +13,13 @@ export async function GET(request: NextRequest) {
   if (error) {
     console.error("WhatsApp OAuth error:", error);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/whatsapp?error=whatsapp_auth_failed`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=whatsapp_auth_failed`
     );
   }
 
   if (!code || !state) {
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/whatsapp?error=missing_params`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=missing_params`
     );
   }
 
@@ -112,18 +112,18 @@ export async function GET(request: NextRequest) {
 
     if (whatsappAccountsFound === 0) {
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/whatsapp?error=no_phone_numbers`
+        `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=no_phone_numbers`
       );
     }
 
     // Redirect to WhatsApp dashboard with success
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/whatsapp?success=connected&accounts=${whatsappAccountsFound}`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=whatsapp_connected&accounts=${whatsappAccountsFound}`
     );
   } catch (error) {
     console.error("WhatsApp OAuth callback error:", error);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/whatsapp?error=connect_failed`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=connect_failed`
     );
   }
 }
