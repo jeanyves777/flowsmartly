@@ -133,7 +133,7 @@ model User {
 model SocialAccount {
   id                  String    @id @default(cuid())
   userId              String
-  platform            String    // "instagram", "twitter", "linkedin", "facebook", "tiktok", "youtube", "pinterest", "threads"
+  platform            String    // "instagram", "twitter", "linkedin", "facebook", "tiktok", "youtube", "pinterest", "threads", "whatsapp"
   platformUserId      String?   // The user's ID on the platform
   platformUsername    String?   // e.g. @username
   platformDisplayName String?   // Display name on the platform
@@ -146,7 +146,9 @@ model SocialAccount {
   connectedAt         DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  whatsappTemplates   WhatsAppTemplate[]
+  whatsappAutomations WhatsAppAutomation[]
 
   @@unique([userId, platform])
   @@index([userId])
@@ -3535,78 +3537,86 @@ model WhatsAppConversation {
 }
 
 model WhatsAppMessage {
-  id              String   @id @default(cuid())
-  conversationId  String
-  messageId       String?  // WhatsApp message ID from API
-  direction       String   // "inbound" | "outbound"
-  messageType     String   // "text" | "image" | "video" | "document" | "audio" | "location" | "template"
-  content         String   // Text content or media URL
-  mediaUrl        String?  // For images, videos, documents
-  mimeType        String?
-  fileName        String?
-  thumbnailUrl    String?
-  caption         String?
-  templateName    String?  // If sent via template
-  status          String   @default("pending") // "pending" | "sent" | "delivered" | "read" | "failed"
-  errorCode       String?
-  errorMessage    String?
-  metadata        String   @default("{}") // JSON metadata
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  conversationId     String
+  whatsappMessageId  String?  // WhatsApp message ID from API
+  direction          String   // "inbound" | "outbound"
+  messageType        String   // "text" | "image" | "video" | "document" | "audio" | "location" | "template"
+  content            String   // Text content or media URL
+  mediaUrl           String?  // For images, videos, documents
+  mimeType           String?
+  fileName           String?
+  thumbnailUrl       String?
+  caption            String?
+  templateName       String?  // If sent via template
+  status             String   @default("pending") // "pending" | "sent" | "delivered" | "read" | "failed"
+  errorCode          String?
+  errorMessage       String?
+  metadata           String   @default("{}") // JSON metadata
+  timestamp          DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  conversation    WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation       WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
-  @@index([messageId])
+  @@index([whatsappMessageId])
   @@index([direction])
   @@index([status])
-  @@index([createdAt])
+  @@index([timestamp])
 }
 
 model WhatsAppTemplate {
-  id           String   @id @default(cuid())
-  userId       String
-  name         String   // Template name (lowercase, no spaces)
-  category     String   // "MARKETING" | "UTILITY" | "AUTHENTICATION"
-  language     String   @default("en") // Language code
-  status       String   @default("pending") // "pending" | "approved" | "rejected"
-  headerType   String?  // "text" | "image" | "video" | "document"
-  headerText   String?
-  headerMediaUrl String?
-  bodyText     String   // Template body with {{1}} placeholders
-  footerText   String?
-  buttons      String   @default("[]") // JSON array of buttons
-  variables    String   @default("[]") // JSON array of variable names
-  usageCount   Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  userId             String
+  socialAccountId    String
+  name               String   // Template name (lowercase, no spaces)
+  category           String   // "MARKETING" | "UTILITY" | "AUTHENTICATION"
+  language           String   @default("en") // Language code
+  status             String   @default("PENDING") // "PENDING" | "APPROVED" | "REJECTED"
+  headerType         String?  // "text" | "image" | "video" | "document"
+  headerText         String?
+  headerMediaUrl     String?
+  bodyText           String   // Template body with {{1}} placeholders
+  footerText         String?
+  buttons            String?  // JSON array of buttons
+  templateConfig     String?  // Full template JSON config
+  whatsappTemplateId String?  // WhatsApp template ID
+  usageCount         Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  socialAccount      SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
 
   @@unique([userId, name])
   @@index([userId])
+  @@index([socialAccountId])
   @@index([status])
 }
 
 model WhatsAppAutomation {
-  id          String   @id @default(cuid())
-  userId      String
-  name        String
-  description String?
-  isActive    Boolean  @default(true)
-  triggerType String   // "keyword" | "new_conversation" | "inbound_message" | "missed_chat" | "schedule"
-  triggerValue String? // Keyword or schedule expression
-  actionType  String   // "send_message" | "send_template" | "assign_to" | "add_tag" | "webhook"
-  actionConfig String  @default("{}") // JSON configuration
-  conditions  String   @default("[]") // JSON array of conditions
-  priority    Int      @default(0)
-  usageCount  Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(cuid())
+  userId          String
+  socialAccountId String
+  name            String
+  description     String?
+  isActive        Boolean  @default(true)
+  triggerType     String   // "keyword" | "new_conversation" | "inbound_message" | "missed_chat" | "schedule"
+  triggerConfig   String?  // JSON config for trigger
+  actionType      String   // "send_message" | "send_template" | "assign_to" | "add_tag" | "webhook"
+  actionValue     String?  // Action value (e.g., message text)
+  actionConfig    String?  // JSON configuration
+  priority        Int      @default(0)
+  usageCount      Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([socialAccountId])
   @@index([isActive])
   @@index([triggerType])
 }
