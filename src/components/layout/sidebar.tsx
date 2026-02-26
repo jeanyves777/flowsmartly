@@ -88,6 +88,7 @@ const MARKETING_PLANS = ["PRO", "BUSINESS", "ENTERPRISE", "ADMIN", "AGENT"];
 const topNavigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Feed", href: "/feed", icon: Rss },
+  { name: "Analytics", href: "/analytics", icon: BarChart3 },
 ];
 
 // Content management
@@ -125,7 +126,6 @@ const toolsNavigation = [
   { name: "Surveys", href: "/tools/surveys", icon: FileQuestion },
   { name: "Events", href: "/tools/events", icon: CalendarDays },
   { name: "BG Remover", href: "/tools/background-remover", icon: Scissors },
-  { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Domains", href: "/domains", icon: Globe },
 ];
 
