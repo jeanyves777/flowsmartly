@@ -65,17 +65,22 @@ export async function GET(request: NextRequest) {
       error: profile.error,
     });
 
-    if (!profile.id || !profile.email) {
-      console.error("[Facebook OAuth] Profile fetch failed:", profile);
+    if (!profile.id) {
+      console.error("[Facebook OAuth] Profile fetch failed - no ID:", profile);
       throw new Error("Failed to get user profile");
     }
 
+    // Email might not be available if permission not granted or user declined
+    // Generate placeholder email using Facebook ID
+    const email = profile.email || `facebook_${profile.id}@flowsmartly.local`;
+    const emailVerified = !!profile.email; // Only verify if real email provided
+
     // Check if user exists
-    console.log("[Facebook OAuth] Checking if user exists:", profile.email);
+    console.log("[Facebook OAuth] Checking if user exists:", email);
     let user = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: profile.email },
+          { email: email },
           { oauthProvider: "facebook", oauthId: profile.id },
         ],
       },
@@ -113,8 +118,8 @@ export async function GET(request: NextRequest) {
 
       user = await prisma.user.create({
         data: {
-          email: profile.email,
-          name: profile.name || profile.email.split("@")[0],
+          email: email,
+          name: profile.name || `User_${profile.id.slice(0, 8)}`,
           username,
           country: "US", // Default country for OAuth users
           region: "worldwide",
@@ -122,8 +127,8 @@ export async function GET(request: NextRequest) {
           oauthId: profile.id,
           oauthAvatarUrl: profile.picture?.data?.url,
           avatarUrl: profile.picture?.data?.url,
-          emailVerified: true, // Facebook verifies email
-          emailVerifiedAt: new Date(),
+          emailVerified: emailVerified,
+          emailVerifiedAt: emailVerified ? new Date() : null,
           lastLoginAt: new Date(),
           aiCredits: 100, // Welcome credits
           freeCredits: 100,
