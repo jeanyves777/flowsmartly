@@ -1678,9 +1678,6 @@ export default function SettingsPage() {
                     <div>
                       <CardTitle className="flex items-center gap-2">
                         Connected Accounts
-                        <Badge variant="secondary" className="bg-orange-500/10 text-orange-500 border-orange-500/20">
-                          Coming Soon
-                        </Badge>
                       </CardTitle>
                       <CardDescription>
                         Connect your social media accounts to share content directly
@@ -1725,7 +1722,11 @@ export default function SettingsPage() {
                                 Connected
                               </Badge>
                             ) : (
-                              <Button variant="default" size="sm" disabled>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => window.location.href = `/api/social/${sp.platform}/connect`}
+                              >
                                 Connect
                               </Button>
                             )}
@@ -1734,9 +1735,9 @@ export default function SettingsPage() {
                       })}
                     </div>
                   )}
-                  <div className="mt-6 p-4 rounded-lg bg-muted/50 border border-dashed">
-                    <p className="text-sm text-muted-foreground text-center">
-                      Social media integrations are coming soon. You&apos;ll be able to connect Instagram, X, LinkedIn, Facebook, TikTok, YouTube, Pinterest, Threads and more to publish directly from FlowSmartly.
+                  <div className="mt-6 p-4 rounded-lg bg-brand-500/10 border border-brand-500/20">
+                    <p className="text-sm text-foreground text-center">
+                      <strong>Note:</strong> Some platforms (Pinterest, Threads) are still in development. Facebook, Instagram, and WhatsApp are ready to connect!
                     </p>
                   </div>
                 </CardContent>
