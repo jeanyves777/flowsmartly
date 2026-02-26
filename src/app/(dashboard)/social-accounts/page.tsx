@@ -344,26 +344,6 @@ export default function SocialAccountsPage() {
         </CardContent>
       </Card>
 
-      {/* Help Card */}
-      <Card className="border-orange-500/20 bg-orange-500/5">
-        <CardContent className="pt-6">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-orange-500 mt-0.5" />
-            <div className="flex-1">
-              <h3 className="font-semibold mb-1">Need Help?</h3>
-              <p className="text-sm text-muted-foreground mb-3">
-                Having trouble connecting your accounts? Check our documentation or contact support.
-              </p>
-              <Button variant="outline" size="sm" asChild>
-                <a href="https://docs.flowsmartly.com/social-accounts" target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  View Documentation
-                </a>
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
