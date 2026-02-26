@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 
@@ -12,10 +12,11 @@ const SUPPORTED_PLATFORMS = [
   { id: "youtube", name: "YouTube", color: "from-red-500 to-red-700" },
   { id: "pinterest", name: "Pinterest", color: "from-red-400 to-red-600" },
   { id: "threads", name: "Threads", color: "from-gray-800 to-gray-950" },
+  { id: "whatsapp", name: "WhatsApp", color: "from-green-500 to-green-600" },
 ];
 
 // GET /api/social-accounts - Get user's social connections
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
@@ -25,6 +26,37 @@ export async function GET() {
       );
     }
 
+    const platformFilter = request.nextUrl.searchParams.get("platform");
+
+    // If platform filter is specified, return only accounts for that platform
+    if (platformFilter) {
+      const accounts = await prisma.socialAccount.findMany({
+        where: {
+          userId: session.userId,
+          platform: platformFilter,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          platform: true,
+          platformUserId: true,
+          platformUsername: true,
+          platformDisplayName: true,
+          platformAvatarUrl: true,
+          connectedAt: true,
+        },
+        orderBy: {
+          connectedAt: "desc",
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        accounts,
+      });
+    }
+
+    // Otherwise, return the platforms overview
     const connectedAccounts = await prisma.socialAccount.findMany({
       where: { userId: session.userId, isActive: true },
       select: {

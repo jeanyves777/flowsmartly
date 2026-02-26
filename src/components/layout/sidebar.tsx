@@ -112,6 +112,7 @@ const marketingNavigation = [
   { name: "Campaigns", href: "/campaigns", icon: Megaphone },
   { name: "Email Marketing", href: "/email-marketing", icon: Mail },
   { name: "SMS Marketing", href: "/sms-marketing", icon: MessageSquare, premium: true },
+  { name: "WhatsApp", href: "/whatsapp", icon: MessageCircle, premium: true },
   { name: "Ads", href: "/ads", icon: Megaphone },
   { name: "Landing Pages", href: "/landing-pages", icon: Globe },
 ];
@@ -438,7 +439,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
 
             {/* Filtered Marketing */}
             {filterByAllowed(marketingNavigation).length > 0 &&
-              renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), filterByAllowed(marketingNavigation))}
+              renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/whatsapp", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), filterByAllowed(marketingNavigation))}
 
             {/* Filtered Tools */}
             {filterByAllowed(toolsNavigation).length > 0 &&
@@ -472,7 +473,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             {renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/voice-studio", "/logo-generator", "/media"].some(p => pathname.startsWith(p)), aiCreativesNavigation)}
 
             {/* Marketing Section */}
-            {renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), marketingNavigation, true)}
+            {renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/whatsapp", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), marketingNavigation, true)}
 
             {/* Tools & Insights Section */}
             {renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics"].some(p => pathname.startsWith(p)), toolsNavigation)}
