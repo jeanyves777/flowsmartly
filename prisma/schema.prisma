@@ -146,6 +146,16 @@ model SocialAccount {
   connectedAt         DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
+  // Analytics fields
+  followersCount      Int?      // Total followers/subscribers
+  followingCount      Int?      // Total following (for platforms that have it)
+  postsCount          Int?      // Total posts/videos/tweets
+  engagementRate      Float?    // Average engagement rate (likes+comments/followers)
+  impressions         Int?      // Total impressions (last 30 days)
+  reach               Int?      // Total reach (last 30 days)
+  profileViews        Int?      // Profile views (last 30 days)
+  analyticsUpdatedAt  DateTime? // Last time analytics were fetched
+
   user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   whatsappConversations WhatsAppConversation[]
   whatsappTemplates     WhatsAppTemplate[]
