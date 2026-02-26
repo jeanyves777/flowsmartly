@@ -1696,6 +1696,7 @@ export default function SettingsPage() {
                     <div className="space-y-4">
                       {socialPlatforms.map((sp) => {
                         const Icon = platformIcons[sp.platform] || Link2;
+                        const isNotReady = ["pinterest", "threads"].includes(sp.platform);
                         return (
                           <div
                             key={sp.platform}
@@ -1712,7 +1713,9 @@ export default function SettingsPage() {
                                     Connected{sp.username ? ` as ${sp.username}` : ""}
                                   </p>
                                 ) : (
-                                  <p className="text-xs text-muted-foreground">Not connected</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {isNotReady ? "Coming Soon" : "Not connected"}
+                                  </p>
                                 )}
                               </div>
                             </div>
@@ -1721,6 +1724,8 @@ export default function SettingsPage() {
                                 <Check className="w-3 h-3 mr-1" />
                                 Connected
                               </Badge>
+                            ) : isNotReady ? (
+                              <Badge variant="secondary">Coming Soon</Badge>
                             ) : (
                               <Button
                                 variant="default"
