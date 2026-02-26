@@ -1776,6 +1776,8 @@ model Design {
   size        String   // e.g., "1080x1080"
   style       String?  // e.g., "photorealistic", "illustration", "minimalist"
   imageUrl    String?
+  name        String   @default("Untitled Design")
+  canvasData  String?  // Fabric.js JSON serialization for canvas studio
   status      String   @default("PENDING") // PENDING, GENERATING, COMPLETED, FAILED
   metadata    String   @default("{}")
 

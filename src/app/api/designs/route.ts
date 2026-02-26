@@ -44,6 +44,8 @@ export async function GET(request: NextRequest) {
             size: d.size,
             style: d.style,
             imageUrl: d.imageUrl,
+            name: d.name,
+            canvasData: d.canvasData,
             pipeline: meta.pipeline || null,
             status: d.status,
             metadata: d.metadata || "{}",
@@ -75,11 +77,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { prompt, category, size, style, imageUrl } = body;
+    const { prompt, category, size, style, imageUrl, name, canvasData } = body;
 
-    if (!prompt || !category || !size) {
+    if (!category || !size) {
       return NextResponse.json(
-        { success: false, error: { message: "Prompt, category, and size are required" } },
+        { success: false, error: { message: "Category and size are required" } },
         { status: 400 }
       );
     }
@@ -87,12 +89,14 @@ export async function POST(request: NextRequest) {
     const design = await prisma.design.create({
       data: {
         userId: session.userId,
-        prompt,
+        prompt: prompt || "",
         category,
         size,
         style: style || null,
         imageUrl: imageUrl || null,
-        status: imageUrl ? "COMPLETED" : "PENDING",
+        name: name || "Untitled Design",
+        canvasData: canvasData || null,
+        status: canvasData || imageUrl ? "COMPLETED" : "PENDING",
       },
     });
 
@@ -106,6 +110,8 @@ export async function POST(request: NextRequest) {
           size: design.size,
           style: design.style,
           imageUrl: design.imageUrl,
+          name: design.name,
+          canvasData: design.canvasData,
           status: design.status,
           createdAt: design.createdAt.toISOString(),
         },
@@ -115,6 +121,78 @@ export async function POST(request: NextRequest) {
     console.error("Create design error:", error);
     return NextResponse.json(
       { success: false, error: { message: "Failed to save design" } },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/designs - Update an existing design
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: { message: "Unauthorized" } },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { id, name, canvasData, imageUrl, category, size, style, prompt } = body;
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: { message: "Design ID is required" } },
+        { status: 400 }
+      );
+    }
+
+    const existing = await prisma.design.findFirst({
+      where: { id, userId: session.userId },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, error: { message: "Design not found" } },
+        { status: 404 }
+      );
+    }
+
+    const updated = await prisma.design.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(canvasData !== undefined && { canvasData }),
+        ...(imageUrl !== undefined && { imageUrl }),
+        ...(category !== undefined && { category }),
+        ...(size !== undefined && { size }),
+        ...(style !== undefined && { style }),
+        ...(prompt !== undefined && { prompt }),
+        status: "COMPLETED",
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: await presignAllUrls({
+        design: {
+          id: updated.id,
+          prompt: updated.prompt,
+          category: updated.category,
+          size: updated.size,
+          style: updated.style,
+          imageUrl: updated.imageUrl,
+          name: updated.name,
+          canvasData: updated.canvasData,
+          status: updated.status,
+          createdAt: updated.createdAt.toISOString(),
+        },
+      }),
+    });
+  } catch (error) {
+    console.error("Update design error:", error);
+    return NextResponse.json(
+      { success: false, error: { message: "Failed to update design" } },
       { status: 500 }
     );
   }

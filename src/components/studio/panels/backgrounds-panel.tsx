@@ -1,0 +1,177 @@
+"use client";
+
+import { useState } from "react";
+import { Paintbrush, ImageIcon, Upload } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useCanvasStore } from "../hooks/use-canvas-store";
+
+const SOLID_COLORS = [
+  "#ffffff", "#f8f9fa", "#e9ecef", "#dee2e6", "#ced4da", "#adb5bd",
+  "#6c757d", "#495057", "#343a40", "#212529", "#000000",
+  "#ff6b6b", "#ee5a24", "#f0932b", "#f9ca24", "#6ab04c", "#badc58",
+  "#22a6b3", "#0984e3", "#6c5ce7", "#a29bfe", "#fd79a8", "#e84393",
+  "#d63031", "#e17055", "#fdcb6e", "#00b894", "#00cec9", "#0984e3",
+  "#6c5ce7", "#e84393", "#2d3436", "#636e72",
+];
+
+const GRADIENT_PRESETS = [
+  { name: "Sunset", colors: ["#ff6b6b", "#feca57"] },
+  { name: "Ocean", colors: ["#0984e3", "#00cec9"] },
+  { name: "Forest", colors: ["#00b894", "#55efc4"] },
+  { name: "Purple", colors: ["#6c5ce7", "#a29bfe"] },
+  { name: "Rose", colors: ["#e84393", "#fd79a8"] },
+  { name: "Night", colors: ["#2d3436", "#636e72"] },
+  { name: "Fire", colors: ["#d63031", "#f0932b"] },
+  { name: "Sky", colors: ["#74b9ff", "#a29bfe"] },
+  { name: "Mint", colors: ["#00cec9", "#81ecec"] },
+  { name: "Warm", colors: ["#fdcb6e", "#e17055"] },
+  { name: "Cool", colors: ["#74b9ff", "#0984e3"] },
+  { name: "Candy", colors: ["#fd79a8", "#fdcb6e"] },
+];
+
+export function BackgroundsPanel() {
+  const canvas = useCanvasStore((s) => s.canvas);
+  const [customColor, setCustomColor] = useState("#ffffff");
+
+  const setBackgroundColor = (color: string) => {
+    if (!canvas) return;
+    canvas.backgroundColor = color;
+    canvas.renderAll();
+  };
+
+  const setBackgroundGradient = async (colors: string[]) => {
+    if (!canvas) return;
+    const fabric = await import("fabric");
+    const gradient = new fabric.Gradient({
+      type: "linear",
+      coords: { x1: 0, y1: 0, x2: canvas.width, y2: canvas.height },
+      colorStops: [
+        { offset: 0, color: colors[0] },
+        { offset: 1, color: colors[1] },
+      ],
+    });
+    canvas.backgroundColor = gradient as any;
+    canvas.renderAll();
+  };
+
+  const handleImageBackground = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !canvas) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const url = reader.result as string;
+      const fabric = await import("fabric");
+      const imgEl = new Image();
+      imgEl.onload = () => {
+        const fabricImg = new fabric.FabricImage(imgEl);
+        // Scale to fill canvas
+        const scaleX = canvas.width / (fabricImg.width || 1);
+        const scaleY = canvas.height / (fabricImg.height || 1);
+        const scale = Math.max(scaleX, scaleY);
+        fabricImg.scale(scale);
+        fabricImg.set({ left: 0, top: 0, selectable: false, evented: false });
+        (fabricImg as any).id = "background-image";
+        (fabricImg as any).customName = "Background";
+
+        // Remove existing background image if any
+        const existing = canvas.getObjects().find((o: any) => o.id === "background-image");
+        if (existing) canvas.remove(existing);
+
+        canvas.insertAt(fabricImg, 0);
+        canvas.renderAll();
+      };
+      imgEl.src = url;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  return (
+    <div className="p-3">
+      <h3 className="text-sm font-semibold mb-3">Background</h3>
+
+      {/* Solid Colors */}
+      <div className="mb-4">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Paintbrush className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium">Solid Colors</span>
+        </div>
+        <div className="grid grid-cols-8 gap-1.5">
+          {SOLID_COLORS.map((color) => (
+            <button
+              key={color}
+              onClick={() => setBackgroundColor(color)}
+              className="w-7 h-7 rounded border border-border hover:scale-110 transition-transform"
+              style={{ backgroundColor: color }}
+              title={color}
+            />
+          ))}
+        </div>
+        <div className="flex items-center gap-2 mt-2">
+          <input
+            type="color"
+            value={customColor}
+            onChange={(e) => {
+              setCustomColor(e.target.value);
+              setBackgroundColor(e.target.value);
+            }}
+            className="w-8 h-8 rounded cursor-pointer border border-border"
+          />
+          <Input
+            value={customColor}
+            onChange={(e) => {
+              setCustomColor(e.target.value);
+              if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
+                setBackgroundColor(e.target.value);
+              }
+            }}
+            className="h-8 text-xs font-mono flex-1"
+            placeholder="#000000"
+          />
+        </div>
+      </div>
+
+      {/* Gradients */}
+      <div className="mb-4">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Paintbrush className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium">Gradients</span>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {GRADIENT_PRESETS.map((gradient) => (
+            <button
+              key={gradient.name}
+              onClick={() => setBackgroundGradient(gradient.colors)}
+              className="aspect-square rounded-lg border border-border hover:scale-105 transition-transform"
+              style={{
+                background: `linear-gradient(135deg, ${gradient.colors[0]}, ${gradient.colors[1]})`,
+              }}
+              title={gradient.name}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Image Background */}
+      <div>
+        <div className="flex items-center gap-1.5 mb-2">
+          <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium">Image Background</span>
+        </div>
+        <label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageBackground}
+            className="hidden"
+          />
+          <div className="w-full h-16 rounded-lg border-2 border-dashed border-border hover:border-brand-500 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors">
+            <Upload className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Upload image</span>
+          </div>
+        </label>
+      </div>
+    </div>
+  );
+}
