@@ -13,6 +13,7 @@ const productLinks = [
 const legalLinks = [
   { href: "/privacy", label: "Privacy Policy" },
   { href: "/terms", label: "Terms of Service" },
+  { href: "/gdpr", label: "GDPR Compliance" },
   { href: "/sms-terms", label: "SMS Terms" },
   { href: "/ecommerce-terms", label: "E-Commerce Terms" },
   { href: "/marketing-compliance", label: "Marketing Compliance" },
@@ -100,6 +101,9 @@ export function PublicFooter() {
             </Link>
             <Link href="/terms" className="hover:text-foreground transition-colors">
               Terms
+            </Link>
+            <Link href="/gdpr" className="hover:text-foreground transition-colors">
+              GDPR
             </Link>
           </div>
         </div>
