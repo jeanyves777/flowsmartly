@@ -40,7 +40,7 @@ async function createReviewerAccount() {
         email,
         username,
         name: "Facebook Reviewer",
-        password: hashedPassword,
+        passwordHash: hashedPassword,
         country: "US",
         region: "worldwide",
         emailVerified: true,
