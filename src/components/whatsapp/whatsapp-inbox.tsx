@@ -21,13 +21,15 @@ import {
   ArrowLeft,
   Loader2,
   Plus,
+  RefreshCw,
+  WifiOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { formatDistanceToNow, format, isToday, isYesterday } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
 import type { WhatsAppAccount, Conversation, Message } from "./types";
 
 interface WhatsAppInboxProps {
@@ -40,25 +42,40 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [messageInput, setMessageInput] = useState("");
   const [showNewChat, setShowNewChat] = useState(false);
   const [newChatPhone, setNewChatPhone] = useState("");
+  const [startingChat, setStartingChat] = useState(false);
+  const [newChatReady, setNewChatReady] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState<string | null>(null);
+  const [archiving, setArchiving] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load conversations
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (showLoadingState = false) => {
+    if (showLoadingState) setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch(`/api/whatsapp/conversations?socialAccountId=${account.id}`);
+      if (!res.ok) {
+        throw new Error(`Server error (${res.status})`);
+      }
       const data = await res.json();
       if (data.success) {
         setConversations(data.conversations || []);
+      } else {
+        throw new Error(data.error || "Failed to load conversations");
       }
-    } catch (error) {
+    } catch (error: any) {
+      const msg = error?.message || "Failed to load conversations";
+      setLoadError(msg);
       console.error("Error loading conversations:", error);
     } finally {
       setLoading(false);
@@ -66,15 +83,23 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
   }, [account.id]);
 
   // Load messages for selected conversation
-  const loadMessages = useCallback(async (conversationId: string) => {
-    setMessagesLoading(true);
+  const loadMessages = useCallback(async (conversationId: string, showLoader = true) => {
+    if (showLoader) setMessagesLoading(true);
+    setMessagesError(null);
     try {
       const res = await fetch(`/api/whatsapp/messages/${conversationId}`);
+      if (!res.ok) {
+        throw new Error(`Server error (${res.status})`);
+      }
       const data = await res.json();
       if (data.success) {
         setMessages(data.messages || []);
+      } else {
+        throw new Error(data.error || "Failed to load messages");
       }
-    } catch (error) {
+    } catch (error: any) {
+      const msg = error?.message || "Failed to load messages";
+      setMessagesError(msg);
       console.error("Error loading messages:", error);
     } finally {
       setMessagesLoading(false);
@@ -83,15 +108,15 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
 
   // Initial load
   useEffect(() => {
-    loadConversations();
+    loadConversations(true);
   }, [loadConversations]);
 
-  // Poll for new messages
+  // Poll for new messages (silent — no loading spinners)
   useEffect(() => {
     pollRef.current = setInterval(() => {
-      loadConversations();
+      loadConversations(false);
       if (selectedConversation) {
-        loadMessages(selectedConversation.id);
+        loadMessages(selectedConversation.id, false);
       }
     }, 10000);
 
@@ -108,6 +133,9 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
   // Select a conversation
   function handleSelectConversation(conv: Conversation) {
     setSelectedConversation(conv);
+    setNewChatReady(false);
+    setShowNewChat(false);
+    setNewChatPhone("");
     loadMessages(conv.id);
 
     // Mark as read
@@ -116,22 +144,62 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ conversationId: conv.id, unreadCount: 0 }),
-      });
+      }).catch(() => {}); // silent — not critical
       setConversations((prev) =>
         prev.map((c) => (c.id === conv.id ? { ...c, unreadCount: 0 } : c))
       );
     }
   }
 
+  // Start new chat — validates phone then opens chat panel
+  async function handleStartNewChat() {
+    const phone = newChatPhone.trim();
+    if (!phone) return;
+
+    // Basic phone validation
+    if (!/^\+?[\d\s\-()]{7,20}$/.test(phone)) {
+      toast({
+        title: "Invalid phone number",
+        description: "Please enter a valid phone number in international format (e.g. +1234567890)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setStartingChat(true);
+    try {
+      // Check if conversation already exists with this number
+      const existing = conversations.find(
+        (c) => c.customerPhone === phone || c.customerPhone === phone.replace(/[\s\-()]/g, "")
+      );
+      if (existing) {
+        handleSelectConversation(existing);
+        toast({ title: "Conversation found", description: `Opening existing conversation with ${existing.customerName || phone}` });
+        return;
+      }
+
+      // Ready to chat — show the message panel for this new number
+      setSelectedConversation(null);
+      setMessages([]);
+      setNewChatReady(true);
+    } finally {
+      setStartingChat(false);
+    }
+  }
+
   // Send message
   async function handleSend() {
-    if (!messageInput.trim() || (!selectedConversation && !newChatPhone.trim())) return;
+    const text = messageInput.trim();
+    if (!text) return;
+
+    // Must have either an existing conversation or a new chat phone
+    if (!selectedConversation && !newChatReady) return;
 
     setSending(true);
     try {
-      const body: any = {
+      const body: Record<string, string> = {
         socialAccountId: account.id,
-        message: messageInput.trim(),
+        message: text,
         messageType: "text",
       };
 
@@ -147,32 +215,47 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
         body: JSON.stringify(body),
       });
 
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Server error (${res.status})`);
+      }
+
       const data = await res.json();
 
-      if (data.success) {
-        setMessageInput("");
-
-        if (!selectedConversation) {
-          // New conversation was created
-          setShowNewChat(false);
-          setNewChatPhone("");
-          await loadConversations();
-        } else {
-          // Reload messages for existing conversation
-          await loadMessages(selectedConversation.id);
-          await loadConversations();
-        }
-      } else {
-        toast({
-          title: "Failed to send",
-          description: data.error || "Could not send message",
-          variant: "destructive",
-        });
+      if (!data.success) {
+        throw new Error(data.error || "Message was not sent");
       }
-    } catch (error) {
+
+      setMessageInput("");
+
+      if (!selectedConversation) {
+        // New conversation created — reload and select it
+        setNewChatReady(false);
+        setShowNewChat(false);
+        setNewChatPhone("");
+        await loadConversations(false);
+
+        // Try to find and select the newly created conversation
+        const newConvRes = await fetch(`/api/whatsapp/conversations?socialAccountId=${account.id}`);
+        const newConvData = await newConvRes.json();
+        if (newConvData.success && newConvData.conversations?.length > 0) {
+          const newest = newConvData.conversations[0]; // sorted by lastMessageAt desc
+          setConversations(newConvData.conversations);
+          setSelectedConversation(newest);
+          await loadMessages(newest.id);
+        }
+
+        toast({ title: "Message sent", description: "New conversation started" });
+      } else {
+        // Existing conversation — reload messages
+        await loadMessages(selectedConversation.id, false);
+        await loadConversations(false);
+      }
+    } catch (error: any) {
+      const errorMsg = error?.message || "Could not send message";
       toast({
-        title: "Error",
-        description: "Network error sending message",
+        title: "Failed to send message",
+        description: errorMsg,
         variant: "destructive",
       });
     } finally {
@@ -180,40 +263,63 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
     }
   }
 
-  // Archive/delete conversation
+  // Archive conversation
   async function handleArchiveConversation(convId: string) {
+    setArchiving(convId);
+    setShowContextMenu(null);
     try {
-      await fetch("/api/whatsapp/conversations", {
+      const res = await fetch("/api/whatsapp/conversations", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ conversationId: convId, status: "archived" }),
       });
-      setShowContextMenu(null);
+      if (!res.ok) throw new Error("Server error");
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Failed to archive");
+
       if (selectedConversation?.id === convId) {
         setSelectedConversation(null);
         setMessages([]);
       }
-      await loadConversations();
+      await loadConversations(false);
       toast({ title: "Conversation archived" });
-    } catch {
-      toast({ title: "Failed to archive", variant: "destructive" });
+    } catch (error: any) {
+      toast({
+        title: "Failed to archive",
+        description: error?.message || "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setArchiving(null);
     }
   }
 
+  // Delete conversation
   async function handleDeleteConversation(convId: string) {
+    setDeleting(convId);
+    setShowContextMenu(null);
     try {
-      await fetch(`/api/whatsapp/conversations?conversationId=${convId}`, {
+      const res = await fetch(`/api/whatsapp/conversations?conversationId=${convId}`, {
         method: "DELETE",
       });
-      setShowContextMenu(null);
+      if (!res.ok) throw new Error("Server error");
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Failed to delete");
+
       if (selectedConversation?.id === convId) {
         setSelectedConversation(null);
         setMessages([]);
       }
-      await loadConversations();
+      await loadConversations(false);
       toast({ title: "Conversation deleted" });
-    } catch {
-      toast({ title: "Failed to delete", variant: "destructive" });
+    } catch (error: any) {
+      toast({
+        title: "Failed to delete",
+        description: error?.message || "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -270,10 +376,38 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
     }
   }
 
+  // Show right panel?
+  const showChatPanel = selectedConversation || newChatReady;
+
+  // Loading state
   if (loading) {
     return (
       <Card className="flex items-center justify-center h-[500px]">
-        <Loader2 className="w-8 h-8 animate-spin text-green-500" />
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-green-500 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">Loading conversations...</p>
+        </div>
+      </Card>
+    );
+  }
+
+  // Error state
+  if (loadError && conversations.length === 0) {
+    return (
+      <Card className="flex items-center justify-center h-[500px]">
+        <div className="text-center">
+          <WifiOff className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
+          <p className="text-sm font-medium mb-1">Failed to load conversations</p>
+          <p className="text-xs text-muted-foreground mb-4 max-w-xs">{loadError}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadConversations(true)}
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry
+          </Button>
+        </div>
       </Card>
     );
   }
@@ -284,7 +418,7 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
         {/* Left Panel - Conversation List */}
         <div
           className={`w-full md:w-[360px] border-r flex flex-col ${
-            selectedConversation ? "hidden md:flex" : "flex"
+            showChatPanel ? "hidden md:flex" : "flex"
           }`}
         >
           {/* Search & New Chat */}
@@ -302,7 +436,10 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
               variant="outline"
               size="sm"
               className="w-full"
-              onClick={() => setShowNewChat(true)}
+              onClick={() => {
+                setShowNewChat(true);
+                setNewChatReady(false);
+              }}
             >
               <Plus className="w-4 h-4 mr-2" />
               New Conversation
@@ -315,23 +452,29 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
               <p className="text-xs font-medium mb-2">New Conversation</p>
               <div className="flex gap-2">
                 <Input
-                  placeholder="Phone number (e.g. +1234567890)"
+                  placeholder="Phone (e.g. +1234567890)"
                   value={newChatPhone}
                   onChange={(e) => setNewChatPhone(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleStartNewChat();
+                    }
+                  }}
                   className="h-8 text-sm"
+                  disabled={startingChat}
                 />
                 <Button
                   size="sm"
-                  className="h-8 bg-green-500 hover:bg-green-600"
-                  onClick={() => {
-                    if (newChatPhone.trim()) {
-                      setSelectedConversation(null);
-                      setMessages([]);
-                    }
-                  }}
-                  disabled={!newChatPhone.trim()}
+                  className="h-8 bg-green-500 hover:bg-green-600 min-w-[60px]"
+                  onClick={handleStartNewChat}
+                  disabled={!newChatPhone.trim() || startingChat}
                 >
-                  Start
+                  {startingChat ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    "Start"
+                  )}
                 </Button>
                 <Button
                   size="sm"
@@ -340,7 +483,9 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
                   onClick={() => {
                     setShowNewChat(false);
                     setNewChatPhone("");
+                    setNewChatReady(false);
                   }}
+                  disabled={startingChat}
                 >
                   Cancel
                 </Button>
@@ -363,90 +508,102 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
                 )}
               </div>
             ) : (
-              filteredConversations.map((conv) => (
-                <div
-                  key={conv.id}
-                  onClick={() => handleSelectConversation(conv)}
-                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b transition-colors relative group ${
-                    selectedConversation?.id === conv.id
-                      ? "bg-green-500/10"
-                      : "hover:bg-muted/50"
-                  }`}
-                >
-                  {/* Avatar */}
-                  <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
-                    {conv.customerAvatarUrl ? (
-                      <img
-                        src={conv.customerAvatarUrl}
-                        alt=""
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
-                    ) : (
-                      <User className="w-5 h-5 text-green-600" />
-                    )}
-                  </div>
+              filteredConversations.map((conv) => {
+                const isArchivingThis = archiving === conv.id;
+                const isDeletingThis = deleting === conv.id;
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium truncate">
-                        {conv.customerName || conv.customerPhone}
-                      </p>
-                      <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
-                        {conv.lastMessage
-                          ? formatConvTime(conv.lastMessage.timestamp)
-                          : formatConvTime(conv.lastMessageAt)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-0.5">
-                      <p className="text-xs text-muted-foreground truncate">
-                        {getMessagePreview(conv.lastMessage)}
-                      </p>
-                      {conv.unreadCount > 0 && (
-                        <Badge className="bg-green-500 text-white text-[10px] h-5 min-w-5 flex items-center justify-center rounded-full shrink-0 ml-2">
-                          {conv.unreadCount}
-                        </Badge>
+                return (
+                  <div
+                    key={conv.id}
+                    onClick={() => !isArchivingThis && !isDeletingThis && handleSelectConversation(conv)}
+                    className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b transition-colors relative group ${
+                      selectedConversation?.id === conv.id
+                        ? "bg-green-500/10"
+                        : "hover:bg-muted/50"
+                    } ${isArchivingThis || isDeletingThis ? "opacity-50 pointer-events-none" : ""}`}
+                  >
+                    {/* Avatar */}
+                    <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
+                      {conv.customerAvatarUrl ? (
+                        <img
+                          src={conv.customerAvatarUrl}
+                          alt=""
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <User className="w-5 h-5 text-green-600" />
                       )}
                     </div>
-                  </div>
 
-                  {/* Context Menu */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowContextMenu(showContextMenu === conv.id ? null : conv.id);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 absolute right-2 top-2 p-1 rounded hover:bg-muted"
-                  >
-                    <MoreVertical className="w-3.5 h-3.5 text-muted-foreground" />
-                  </button>
-
-                  {showContextMenu === conv.id && (
-                    <div className="absolute right-2 top-8 bg-popover border rounded-lg shadow-lg z-10 py-1 min-w-[140px]">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleArchiveConversation(conv.id);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted"
-                      >
-                        <Archive className="w-3.5 h-3.5" />
-                        Archive
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteConversation(conv.id);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-500 hover:bg-muted"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
-                      </button>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium truncate">
+                          {conv.customerName || conv.customerPhone}
+                        </p>
+                        <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
+                          {conv.lastMessage
+                            ? formatConvTime(conv.lastMessage.timestamp)
+                            : formatConvTime(conv.lastMessageAt)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <p className="text-xs text-muted-foreground truncate">
+                          {getMessagePreview(conv.lastMessage)}
+                        </p>
+                        {conv.unreadCount > 0 && (
+                          <Badge className="bg-green-500 text-white text-[10px] h-5 min-w-5 flex items-center justify-center rounded-full shrink-0 ml-2">
+                            {conv.unreadCount}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))
+
+                    {/* Loading indicator for archive/delete */}
+                    {(isArchivingThis || isDeletingThis) && (
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
+                    )}
+
+                    {/* Context Menu */}
+                    {!isArchivingThis && !isDeletingThis && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowContextMenu(showContextMenu === conv.id ? null : conv.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 absolute right-2 top-2 p-1 rounded hover:bg-muted"
+                      >
+                        <MoreVertical className="w-3.5 h-3.5 text-muted-foreground" />
+                      </button>
+                    )}
+
+                    {showContextMenu === conv.id && (
+                      <div className="absolute right-2 top-8 bg-popover border rounded-lg shadow-lg z-10 py-1 min-w-[140px]">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleArchiveConversation(conv.id);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted"
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                          Archive
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteConversation(conv.id);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-500 hover:bg-muted"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
@@ -454,10 +611,10 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
         {/* Right Panel - Messages */}
         <div
           className={`flex-1 flex flex-col ${
-            selectedConversation || (showNewChat && newChatPhone) ? "flex" : "hidden md:flex"
+            showChatPanel ? "flex" : "hidden md:flex"
           }`}
         >
-          {selectedConversation || (showNewChat && newChatPhone) ? (
+          {showChatPanel ? (
             <>
               {/* Chat Header */}
               <div className="flex items-center gap-3 px-4 py-3 border-b bg-card">
@@ -465,6 +622,7 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
                   className="md:hidden"
                   onClick={() => {
                     setSelectedConversation(null);
+                    setNewChatReady(false);
                     setMessages([]);
                   }}
                 >
@@ -479,10 +637,13 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
                       selectedConversation?.customerPhone ||
                       newChatPhone}
                   </p>
-                  {selectedConversation && (
+                  {selectedConversation && selectedConversation.customerName && (
                     <p className="text-[10px] text-muted-foreground">
                       {selectedConversation.customerPhone}
                     </p>
+                  )}
+                  {newChatReady && !selectedConversation && (
+                    <p className="text-[10px] text-green-600">New conversation</p>
                   )}
                 </div>
                 {selectedConversation && (
@@ -499,14 +660,37 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
               <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/20">
                 {messagesLoading ? (
                   <div className="flex items-center justify-center h-full">
-                    <Loader2 className="w-6 h-6 animate-spin text-green-500" />
+                    <div className="text-center">
+                      <Loader2 className="w-6 h-6 animate-spin text-green-500 mx-auto mb-2" />
+                      <p className="text-xs text-muted-foreground">Loading messages...</p>
+                    </div>
+                  </div>
+                ) : messagesError ? (
+                  <div className="flex items-center justify-center h-full text-center">
+                    <div>
+                      <AlertCircle className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground mb-1">Failed to load messages</p>
+                      <p className="text-xs text-muted-foreground mb-3">{messagesError}</p>
+                      {selectedConversation && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loadMessages(selectedConversation.id)}
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                          Retry
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-center">
                     <div>
                       <MessageSquare className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">No messages yet</p>
-                      <p className="text-xs text-muted-foreground mt-1">Send the first message below</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {newChatReady ? "Type your first message to start the conversation" : "Send the first message below"}
+                      </p>
                     </div>
                   </div>
                 ) : (
@@ -593,7 +777,11 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
               <div className="p-3 border-t bg-card">
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Type a message..."
+                    placeholder={
+                      newChatReady && !selectedConversation
+                        ? `Message ${newChatPhone}...`
+                        : "Type a message..."
+                    }
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -604,6 +792,7 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
                     }}
                     disabled={sending}
                     className="flex-1"
+                    autoFocus
                   />
                   <Button
                     onClick={handleSend}
