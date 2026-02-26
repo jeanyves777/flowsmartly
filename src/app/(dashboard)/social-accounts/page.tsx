@@ -88,12 +88,25 @@ export default function SocialAccountsPage() {
   async function fetchAccounts() {
     try {
       setIsLoading(true);
-      const response = await fetch("/api/social-accounts?platform=all");
-      const data = await response.json();
+      const allAccounts: SocialAccount[] = [];
 
-      if (data.success) {
-        setAccounts(data.accounts || []);
+      // Fetch accounts for each platform
+      const platforms = ["facebook", "instagram", "youtube", "whatsapp", "twitter", "linkedin", "tiktok", "pinterest", "threads"];
+
+      for (const platform of platforms) {
+        try {
+          const response = await fetch(`/api/social-accounts?platform=${platform}`);
+          const data = await response.json();
+
+          if (data.success && data.accounts) {
+            allAccounts.push(...data.accounts);
+          }
+        } catch (err) {
+          console.error(`Error fetching ${platform} accounts:`, err);
+        }
       }
+
+      setAccounts(allAccounts);
     } catch (error) {
       console.error("Error fetching accounts:", error);
       toast({
