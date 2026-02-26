@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
  * User clicks "Continue with Facebook" → redirects to this endpoint
  */
 export async function GET() {
-  const fbAppId = process.env.FACEBOOK_APP_ID;
+  const fbAppId = process.env.FACEBOOK_AUTH_APP_ID;
   const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/facebook/callback`;
 
   if (!fbAppId) {

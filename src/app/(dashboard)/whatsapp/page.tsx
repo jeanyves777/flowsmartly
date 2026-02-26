@@ -19,6 +19,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { WhatsAppInbox } from "@/components/whatsapp/whatsapp-inbox";
+import { WhatsAppAutomations } from "@/components/whatsapp/whatsapp-automations";
+import { WhatsAppTemplates } from "@/components/whatsapp/whatsapp-templates";
+import { WhatsAppStatus } from "@/components/whatsapp/whatsapp-status";
+import type { WhatsAppAccount } from "@/components/whatsapp/types";
 
 export default function WhatsAppPage() {
   return (
@@ -33,18 +38,6 @@ export default function WhatsAppPage() {
       <WhatsAppPageContent />
     </Suspense>
   );
-}
-
-interface WhatsAppAccount {
-  id: string;
-  platform: string;
-  platformUserId: string;
-  platformUsername: string;
-  platformDisplayName: string;
-  platformAvatarUrl: string | null;
-  connectedAt: string;
-  isActive: boolean;
-  tokenExpiresAt: string | null;
 }
 
 function WhatsAppPageContent() {
@@ -394,79 +387,3 @@ function WhatsAppPageContent() {
   );
 }
 
-// Placeholder components
-function WhatsAppInbox({ account }: { account: WhatsAppAccount }) {
-  return (
-    <Card>
-      <CardContent className="flex items-center justify-center py-16">
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4">
-            <MessageSquare className="w-8 h-8 text-green-500" />
-          </div>
-          <h3 className="font-semibold text-lg mb-2">Inbox</h3>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            Manage conversations for <span className="font-medium">{account.platformDisplayName}</span>
-          </p>
-          <Badge variant="secondary" className="mt-3">Coming Soon</Badge>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function WhatsAppAutomations({ account }: { account: WhatsAppAccount }) {
-  return (
-    <Card>
-      <CardContent className="flex items-center justify-center py-16">
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4">
-            <Zap className="w-8 h-8 text-green-500" />
-          </div>
-          <h3 className="font-semibold text-lg mb-2">Automations</h3>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            Set up auto-replies and keyword triggers for <span className="font-medium">{account.platformDisplayName}</span>
-          </p>
-          <Badge variant="secondary" className="mt-3">Coming Soon</Badge>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function WhatsAppTemplates({ account }: { account: WhatsAppAccount }) {
-  return (
-    <Card>
-      <CardContent className="flex items-center justify-center py-16">
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4">
-            <FileText className="w-8 h-8 text-green-500" />
-          </div>
-          <h3 className="font-semibold text-lg mb-2">Templates</h3>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            Create and manage message templates for <span className="font-medium">{account.platformDisplayName}</span>
-          </p>
-          <Badge variant="secondary" className="mt-3">Coming Soon</Badge>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function WhatsAppStatus({ account }: { account: WhatsAppAccount }) {
-  return (
-    <Card>
-      <CardContent className="flex items-center justify-center py-16">
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4">
-            <Image className="w-8 h-8 text-green-500" />
-          </div>
-          <h3 className="font-semibold text-lg mb-2">WhatsApp Status</h3>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            Post to WhatsApp Status for <span className="font-medium">{account.platformDisplayName}</span>
-          </p>
-          <Badge variant="secondary" className="mt-3">Coming Soon</Badge>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
