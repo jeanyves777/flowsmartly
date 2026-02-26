@@ -24,6 +24,8 @@ export async function POST(request: NextRequest) {
       templateId,
     } = body;
 
+    console.log("[WhatsApp Send] Request:", { conversationId, socialAccountId, to, messageType, hasMessage: !!message });
+
     // Validate required fields
     if (!socialAccountId || (!conversationId && !to)) {
       return NextResponse.json(
@@ -136,8 +138,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (!whatsappResponse.messages) {
+      const waError = whatsappResponse.error;
+      const errorDetail = waError
+        ? `WhatsApp API error: ${waError.message || waError.error_user_msg || JSON.stringify(waError)}`
+        : "WhatsApp did not return a message ID";
+      console.error("WhatsApp send failed:", JSON.stringify(whatsappResponse, null, 2));
       return NextResponse.json(
-        { error: "Failed to send message", details: whatsappResponse },
+        { error: errorDetail, details: whatsappResponse },
         { status: 500 }
       );
     }
@@ -169,10 +176,11 @@ export async function POST(request: NextRequest) {
       message: dbMessage,
       whatsappMessageId: whatsappResponse.messages[0].id,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("WhatsApp send message error:", error);
+    const msg = error?.message || "Failed to send message";
     return NextResponse.json(
-      { error: "Failed to send message" },
+      { error: msg },
       { status: 500 }
     );
   }
