@@ -115,10 +115,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=youtube_connected`
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("YouTube OAuth callback error:", error);
+
+    // Determine specific error type for user-friendly messaging
+    let errorType = "youtube_connect_failed";
+    const msg = error?.message || "";
+    if (msg.includes("No YouTube channel found")) {
+      errorType = "youtube_no_channel";
+    } else if (msg.includes("No access token")) {
+      errorType = "youtube_auth_denied";
+    } else if (msg.includes("YouTube API error")) {
+      errorType = "youtube_api_error";
+    }
+
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=youtube_connect_failed`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=${errorType}`
     );
   }
 }

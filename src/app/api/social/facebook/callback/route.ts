@@ -91,10 +91,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=facebook_connected&pages=${pagesData.data.length}`
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Facebook OAuth callback error:", error);
+
+    let errorType = "facebook_connect_failed";
+    const msg = error?.message || "";
+    if (msg.includes("No Facebook Pages found")) {
+      errorType = "facebook_no_pages";
+    } else if (msg.includes("No access token")) {
+      errorType = "facebook_auth_denied";
+    }
+
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=facebook_connect_failed`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=${errorType}`
     );
   }
 }

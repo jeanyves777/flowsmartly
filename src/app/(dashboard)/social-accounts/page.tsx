@@ -11,6 +11,8 @@ import {
   Trash2,
   AlertCircle,
   ExternalLink,
+  X,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,7 +43,151 @@ interface SocialAccount {
   platformAvatarUrl: string | null;
   connectedAt: string;
   isActive: boolean;
+  tokenExpiresAt: string | null;
+  createdAt: string;
 }
+
+interface ErrorInfo {
+  title: string;
+  description: string;
+  actionLabel?: string;
+  actionUrl?: string;
+  icon?: "error" | "warning" | "info";
+}
+
+const ERROR_MAP: Record<string, ErrorInfo> = {
+  // YouTube errors
+  youtube_no_channel: {
+    title: "No YouTube Channel Found",
+    description: "Your Google account doesn't have a YouTube channel. You need to create a YouTube channel first before connecting it to FlowSmartly.",
+    actionLabel: "Create YouTube Channel",
+    actionUrl: "https://www.youtube.com/create_channel",
+    icon: "info",
+  },
+  youtube_auth_denied: {
+    title: "YouTube Authorization Denied",
+    description: "The authorization was denied or the access token was not received. Please try connecting again and make sure to accept all permissions.",
+    icon: "warning",
+  },
+  youtube_api_error: {
+    title: "YouTube API Error",
+    description: "There was an issue communicating with YouTube. This might be a temporary problem. Please try again in a few minutes.",
+    icon: "error",
+  },
+  youtube_connect_failed: {
+    title: "YouTube Connection Failed",
+    description: "Something went wrong while connecting your YouTube account. Please try again.",
+    icon: "error",
+  },
+  // Facebook errors
+  facebook_auth_failed: {
+    title: "Facebook Authorization Failed",
+    description: "You denied access or the authorization timed out. Please try connecting again and accept the required permissions.",
+    icon: "warning",
+  },
+  facebook_no_pages: {
+    title: "No Facebook Pages Found",
+    description: "Your Facebook account doesn't have any Pages. You need to create a Facebook Page first to connect it to FlowSmartly.",
+    actionLabel: "Create Facebook Page",
+    actionUrl: "https://www.facebook.com/pages/create",
+    icon: "info",
+  },
+  facebook_connect_failed: {
+    title: "Facebook Connection Failed",
+    description: "Something went wrong while connecting your Facebook account. Please try again.",
+    icon: "error",
+  },
+  // Instagram errors
+  instagram_auth_failed: {
+    title: "Instagram Authorization Failed",
+    description: "You denied access or the authorization timed out. Please try connecting again.",
+    icon: "warning",
+  },
+  no_instagram_accounts: {
+    title: "No Instagram Business Account Found",
+    description: "No Instagram Business or Creator account was found linked to your Facebook Pages. To connect Instagram, you need to:\n1. Have an Instagram Business or Creator account\n2. Link it to a Facebook Page you manage",
+    actionLabel: "Learn How to Set Up",
+    actionUrl: "https://help.instagram.com/502981923235522",
+    icon: "info",
+  },
+  instagram_connect_failed: {
+    title: "Instagram Connection Failed",
+    description: "Something went wrong while connecting your Instagram account. Please try again.",
+    icon: "error",
+  },
+  // WhatsApp errors
+  whatsapp_auth_failed: {
+    title: "WhatsApp Authorization Failed",
+    description: "You denied access or the authorization timed out. Please try connecting again.",
+    icon: "warning",
+  },
+  no_phone_numbers: {
+    title: "No WhatsApp Phone Numbers Found",
+    description: "No WhatsApp Business phone numbers were found on your account. Make sure you have a WhatsApp Business account set up with an active phone number.",
+    actionLabel: "Learn About WhatsApp Business",
+    actionUrl: "https://business.whatsapp.com/",
+    icon: "info",
+  },
+  connect_failed: {
+    title: "WhatsApp Connection Failed",
+    description: "Something went wrong while connecting your WhatsApp account. Please try again.",
+    icon: "error",
+  },
+  // LinkedIn errors
+  linkedin_auth_failed: {
+    title: "LinkedIn Authorization Failed",
+    description: "You denied access or the authorization timed out. Please try connecting again.",
+    icon: "warning",
+  },
+  linkedin_connect_failed: {
+    title: "LinkedIn Connection Failed",
+    description: "Something went wrong while connecting your LinkedIn account. Please try again.",
+    icon: "error",
+  },
+  // TikTok errors
+  tiktok_auth_failed: {
+    title: "TikTok Authorization Failed",
+    description: "You denied access or the authorization timed out. Please try connecting again.",
+    icon: "warning",
+  },
+  tiktok_connect_failed: {
+    title: "TikTok Connection Failed",
+    description: "Something went wrong while connecting your TikTok account. Please try again.",
+    icon: "error",
+  },
+  // Twitter/X errors
+  twitter_auth_failed: {
+    title: "X (Twitter) Authorization Failed",
+    description: "You denied access or the authorization timed out. Please try connecting again.",
+    icon: "warning",
+  },
+  twitter_connect_failed: {
+    title: "X (Twitter) Connection Failed",
+    description: "Something went wrong while connecting your X account. Please try again.",
+    icon: "error",
+  },
+  // Generic
+  missing_params: {
+    title: "Connection Error",
+    description: "Some required information was missing during the connection process. Please try again.",
+    icon: "error",
+  },
+  no_code: {
+    title: "Authorization Incomplete",
+    description: "The authorization process was not completed. Please try connecting again.",
+    icon: "warning",
+  },
+};
+
+const SUCCESS_MAP: Record<string, { title: string; description: string }> = {
+  facebook_connected: { title: "Facebook Connected!", description: "Your Facebook Page has been connected successfully." },
+  instagram_connected: { title: "Instagram Connected!", description: "Your Instagram account has been connected successfully." },
+  youtube_connected: { title: "YouTube Connected!", description: "Your YouTube channel has been connected successfully." },
+  whatsapp_connected: { title: "WhatsApp Connected!", description: "Your WhatsApp Business account has been connected successfully." },
+  linkedin_connected: { title: "LinkedIn Connected!", description: "Your LinkedIn account has been connected successfully." },
+  twitter_connected: { title: "X (Twitter) Connected!", description: "Your X account has been connected successfully." },
+  tiktok_connected: { title: "TikTok Connected!", description: "Your TikTok account has been connected successfully." },
+};
 
 export default function SocialAccountsPage() {
   const router = useRouter();
@@ -50,6 +196,28 @@ export default function SocialAccountsPage() {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [errorModal, setErrorModal] = useState<ErrorInfo | null>(null);
+  const [disconnectTarget, setDisconnectTarget] = useState<{ id: string; platform: string; name: string } | null>(null);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+  function getTokenStatus(account: SocialAccount): { label: string; color: string } {
+    if (!account.tokenExpiresAt) {
+      return { label: "No expiry", color: "text-green-500" };
+    }
+    const expiresAt = new Date(account.tokenExpiresAt);
+    const now = new Date();
+    const daysLeft = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (daysLeft < 0) {
+      return { label: "Expired", color: "text-red-500" };
+    } else if (daysLeft <= 3) {
+      return { label: `Expires in ${daysLeft}d`, color: "text-red-500" };
+    } else if (daysLeft <= 14) {
+      return { label: `Expires in ${daysLeft}d`, color: "text-yellow-500" };
+    } else {
+      return { label: `Expires in ${daysLeft}d`, color: "text-green-500" };
+    }
+  }
 
   // Handle success/error messages from OAuth callbacks
   useEffect(() => {
@@ -58,25 +226,31 @@ export default function SocialAccountsPage() {
     const pages = searchParams.get("pages");
     const accountsCount = searchParams.get("accounts");
 
-    if (success === "facebook_connected") {
-      toast({
-        title: "Facebook Pages Connected!",
-        description: `Successfully connected ${pages || 1} Facebook Page(s)`,
-      });
-      // Clean URL
-      router.replace("/social-accounts");
-    } else if (success === "instagram_connected") {
-      toast({
-        title: "Instagram Connected!",
-        description: `Successfully connected ${accountsCount || 1} Instagram account(s)`,
-      });
+    if (success) {
+      const successInfo = SUCCESS_MAP[success];
+      if (successInfo) {
+        let desc = successInfo.description;
+        if (success === "facebook_connected" && pages) {
+          desc = `Successfully connected ${pages} Facebook Page(s)`;
+        } else if (success === "instagram_connected" && accountsCount) {
+          desc = `Successfully connected ${accountsCount} Instagram account(s)`;
+        }
+        toast({ title: successInfo.title, description: desc });
+      }
       router.replace("/social-accounts");
     } else if (error) {
-      toast({
-        title: "Connection Failed",
-        description: getErrorMessage(error),
-        variant: "destructive",
-      });
+      const errorInfo = ERROR_MAP[error];
+      if (errorInfo && (errorInfo.actionUrl || errorInfo.icon === "info")) {
+        // Show modal for actionable errors
+        setErrorModal(errorInfo);
+      } else {
+        // Show toast for simple errors
+        toast({
+          title: errorInfo?.title || "Connection Failed",
+          description: errorInfo?.description || "An unexpected error occurred. Please try again.",
+          variant: "destructive",
+        });
+      }
       router.replace("/social-accounts");
     }
   }, [searchParams, toast, router]);
@@ -126,11 +300,12 @@ export default function SocialAccountsPage() {
     toast({ title: "Refreshed!", description: "Account list updated" });
   }
 
-  async function handleDisconnect(accountId: string, platform: string) {
-    if (!confirm(`Disconnect this ${platform} account?`)) return;
+  async function handleDisconnect() {
+    if (!disconnectTarget) return;
+    setIsDisconnecting(true);
 
     try {
-      const response = await fetch(`/api/social-accounts/${accountId}`, {
+      const response = await fetch(`/api/social-accounts/${disconnectTarget.id}`, {
         method: "DELETE",
       });
 
@@ -139,7 +314,7 @@ export default function SocialAccountsPage() {
       if (data.success) {
         toast({
           title: "Disconnected",
-          description: `${platform} account disconnected successfully`,
+          description: `${disconnectTarget.name} has been disconnected successfully`,
         });
         fetchAccounts();
       } else {
@@ -151,23 +326,10 @@ export default function SocialAccountsPage() {
         description: error instanceof Error ? error.message : "Failed to disconnect account",
         variant: "destructive",
       });
+    } finally {
+      setIsDisconnecting(false);
+      setDisconnectTarget(null);
     }
-  }
-
-  function getErrorMessage(error: string): string {
-    const messages: Record<string, string> = {
-      facebook_auth_failed: "Facebook authorization failed",
-      instagram_auth_failed: "Instagram authorization failed",
-      whatsapp_auth_failed: "WhatsApp authorization failed",
-      no_code: "Authorization code missing",
-      missing_params: "Missing required parameters",
-      no_instagram_accounts: "No Instagram Business accounts found. Make sure your Instagram account is connected to a Facebook Page.",
-      instagram_connect_failed: "Failed to connect Instagram",
-      facebook_connect_failed: "Failed to connect Facebook",
-      no_phone_numbers: "No WhatsApp phone numbers found",
-      connect_failed: "Connection failed",
-    };
-    return messages[error] || "An error occurred during connection";
   }
 
   // Group accounts by platform
@@ -255,44 +417,57 @@ export default function SocialAccountsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      {platformAccounts.map((account) => (
-                        <div
-                          key={account.id}
-                          className="flex items-center justify-between p-4 rounded-lg border bg-muted/30"
-                        >
-                          <div className="flex items-center gap-3">
-                            {account.platformAvatarUrl && (
-                              <img
-                                src={account.platformAvatarUrl}
-                                alt={account.platformDisplayName}
-                                className="w-10 h-10 rounded-full"
-                              />
-                            )}
-                            <div>
-                              <p className="font-medium text-sm">
-                                {account.platformDisplayName}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {account.platformUsername}
-                              </p>
+                      {platformAccounts.map((account) => {
+                        const tokenStatus = getTokenStatus(account);
+                        return (
+                          <div
+                            key={account.id}
+                            className="flex items-center justify-between p-4 rounded-lg border bg-muted/30"
+                          >
+                            <div className="flex items-center gap-3">
+                              {account.platformAvatarUrl && (
+                                <img
+                                  src={account.platformAvatarUrl}
+                                  alt={account.platformDisplayName}
+                                  className="w-10 h-10 rounded-full"
+                                />
+                              )}
+                              <div>
+                                <p className="font-medium text-sm">
+                                  {account.platformDisplayName}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {account.platformUsername}
+                                </p>
+                                <p className={`text-xs mt-0.5 ${tokenStatus.color}`}>
+                                  {tokenStatus.label}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {tokenStatus.label === "Expired" ? (
+                                <Badge variant="outline" className="text-red-500 border-red-500/50">
+                                  <AlertCircle className="w-3 h-3 mr-1" />
+                                  Expired
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-green-500 border-green-500/50">
+                                  <Check className="w-3 h-3 mr-1" />
+                                  Connected
+                                </Badge>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                                onClick={() => setDisconnectTarget({ id: account.id, platform, name: account.platformDisplayName })}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-green-500 border-green-500/50">
-                              <Check className="w-3 h-3 mr-1" />
-                              Connected
-                            </Badge>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                              onClick={() => handleDisconnect(account.id, platform)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -343,6 +518,112 @@ export default function SocialAccountsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Error Modal */}
+      {errorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-background rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden border"
+          >
+            <div className="flex items-center justify-between p-4 border-b">
+              <div className="flex items-center gap-2">
+                {errorModal.icon === "info" ? (
+                  <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                    <Info className="w-4 h-4 text-blue-500" />
+                  </div>
+                ) : errorModal.icon === "warning" ? (
+                  <div className="w-8 h-8 rounded-full bg-yellow-500/10 flex items-center justify-center">
+                    <AlertCircle className="w-4 h-4 text-yellow-500" />
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center">
+                    <AlertCircle className="w-4 h-4 text-red-500" />
+                  </div>
+                )}
+                <h3 className="font-semibold">{errorModal.title}</h3>
+              </div>
+              <button
+                onClick={() => setErrorModal(null)}
+                className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-muted-foreground whitespace-pre-line">
+                {errorModal.description}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 p-4 border-t bg-muted/30">
+              {errorModal.actionUrl && (
+                <Button
+                  onClick={() => window.open(errorModal.actionUrl, "_blank")}
+                  className="flex-1"
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  {errorModal.actionLabel}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => setErrorModal(null)}
+                className={errorModal.actionUrl ? "" : "flex-1"}
+              >
+                Close
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Disconnect Confirmation Modal */}
+      {disconnectTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-background rounded-2xl shadow-xl max-w-sm w-full mx-4 overflow-hidden border"
+          >
+            <div className="p-5 text-center">
+              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-6 h-6 text-red-500" />
+              </div>
+              <h3 className="font-semibold text-lg mb-2">Disconnect Account?</h3>
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to disconnect <span className="font-medium text-foreground">{disconnectTarget.name}</span>?
+                You won&apos;t be able to post to this account until you reconnect it.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 p-4 border-t bg-muted/30">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setDisconnectTarget(null)}
+                disabled={isDisconnecting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={handleDisconnect}
+                disabled={isDisconnecting}
+              >
+                {isDisconnecting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Disconnecting...
+                  </>
+                ) : (
+                  "Disconnect"
+                )}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
     </div>
   );

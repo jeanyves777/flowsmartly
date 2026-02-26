@@ -44,6 +44,9 @@ export async function GET(request: NextRequest) {
           platformDisplayName: true,
           platformAvatarUrl: true,
           connectedAt: true,
+          isActive: true,
+          tokenExpiresAt: true,
+          createdAt: true,
         },
         orderBy: {
           connectedAt: "desc",
