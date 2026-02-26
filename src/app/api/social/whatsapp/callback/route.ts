@@ -13,13 +13,13 @@ export async function GET(request: NextRequest) {
   if (error) {
     console.error("WhatsApp OAuth error:", error);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=whatsapp_auth_failed`
+      `${process.env.NEXT_PUBLIC_APP_URL}/whatsapp?error=whatsapp_auth_failed`
     );
   }
 
   if (!code || !state) {
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=missing_params`
+      `${process.env.NEXT_PUBLIC_APP_URL}/whatsapp?error=missing_params`
     );
   }
 
@@ -63,13 +63,53 @@ export async function GET(request: NextRequest) {
         for (const waba of business.owned_whatsapp_business_accounts.data) {
           // Get phone numbers for this WABA
           const phonesResponse = await fetch(
-            `https://graph.facebook.com/v21.0/${waba.id}/phone_numbers?access_token=${tokenData.access_token}`
+            `https://graph.facebook.com/v21.0/${waba.id}/phone_numbers?fields=id,verified_name,display_phone_number,platform_type,status&access_token=${tokenData.access_token}`
           );
 
           const phonesData = await phonesResponse.json();
 
           if (phonesData.data && phonesData.data.length > 0) {
+            // Subscribe app to WABA for webhooks
+            try {
+              await fetch(
+                `https://graph.facebook.com/v21.0/${waba.id}/subscribed_apps`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${tokenData.access_token}`,
+                  },
+                }
+              );
+              console.log(`[WhatsApp Callback] Subscribed app to WABA ${waba.id}`);
+            } catch (e) {
+              console.error(`[WhatsApp Callback] Failed to subscribe to WABA ${waba.id}:`, e);
+            }
+
             for (const phone of phonesData.data) {
+              // Register phone for Cloud API if not already
+              if (phone.platform_type !== "CLOUD_API") {
+                try {
+                  const registerResponse = await fetch(
+                    `https://graph.facebook.com/v21.0/${phone.id}/register`,
+                    {
+                      method: "POST",
+                      headers: {
+                        Authorization: `Bearer ${tokenData.access_token}`,
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        messaging_product: "whatsapp",
+                        pin: "100200",
+                      }),
+                    }
+                  );
+                  const registerData = await registerResponse.json();
+                  console.log(`[WhatsApp Callback] Register phone ${phone.id}:`, registerData);
+                } catch (e) {
+                  console.error(`[WhatsApp Callback] Failed to register phone ${phone.id}:`, e);
+                }
+              }
+
               // Store WhatsApp account
               await prisma.socialAccount.upsert({
                 where: {
@@ -112,18 +152,18 @@ export async function GET(request: NextRequest) {
 
     if (whatsappAccountsFound === 0) {
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=no_phone_numbers`
+        `${process.env.NEXT_PUBLIC_APP_URL}/whatsapp?error=no_phone_numbers`
       );
     }
 
     // Redirect to WhatsApp dashboard with success
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=whatsapp_connected&accounts=${whatsappAccountsFound}`
+      `${process.env.NEXT_PUBLIC_APP_URL}/whatsapp?success=whatsapp_connected&accounts=${whatsappAccountsFound}`
     );
   } catch (error) {
     console.error("WhatsApp OAuth callback error:", error);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=connect_failed`
+      `${process.env.NEXT_PUBLIC_APP_URL}/whatsapp?error=connect_failed`
     );
   }
 }
