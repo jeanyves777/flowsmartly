@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils/cn";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import { DESIGN_CATEGORIES } from "@/lib/constants/design-presets";
 
@@ -9,6 +11,7 @@ export function CanvasProperties() {
   const { canvasWidth, canvasHeight, setCanvasDimensions, canvas } = useCanvasStore();
   const [customW, setCustomW] = useState(canvasWidth);
   const [customH, setCustomH] = useState(canvasHeight);
+  const [presetsOpen, setPresetsOpen] = useState(false);
 
   const applySize = (w: number, h: number) => {
     setCustomW(w);
@@ -49,32 +52,50 @@ export function CanvasProperties() {
         </div>
       </div>
 
-      {/* Presets */}
-      <div>
-        <label className="text-xs text-muted-foreground mb-2 block">Presets</label>
-        <div className="space-y-3">
-          {DESIGN_CATEGORIES.map((cat) => (
-            <div key={cat.id}>
-              <div className="text-xs font-medium mb-1">{cat.name}</div>
-              <div className="space-y-0.5">
-                {cat.presets.map((preset) => (
-                  <button
-                    key={preset.name}
-                    onClick={() => applySize(preset.width, preset.height)}
-                    className={`w-full text-left px-2 py-1 rounded text-xs hover:bg-muted transition-colors flex justify-between ${
-                      canvasWidth === preset.width && canvasHeight === preset.height
-                        ? "bg-brand-500/10 text-brand-600"
-                        : "text-muted-foreground"
-                    }`}
-                  >
-                    <span>{preset.name}</span>
-                    <span className="font-mono">{preset.width}x{preset.height}</span>
-                  </button>
-                ))}
+      {/* Collapsible Presets */}
+      <div className="border rounded-lg">
+        <button
+          onClick={() => setPresetsOpen(!presetsOpen)}
+          className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs font-medium hover:bg-muted/50 transition-colors"
+        >
+          {presetsOpen ? (
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+          )}
+          <span className="flex-1">Size Presets</span>
+          <span className="text-[10px] text-muted-foreground font-mono">
+            {canvasWidth}x{canvasHeight}
+          </span>
+        </button>
+        {presetsOpen && (
+          <div className="px-3 pb-3 space-y-3 max-h-[300px] overflow-y-auto">
+            {DESIGN_CATEGORIES.map((cat) => (
+              <div key={cat.id}>
+                <div className="text-[11px] font-medium mb-1 text-muted-foreground uppercase tracking-wider">
+                  {cat.name}
+                </div>
+                <div className="space-y-0.5">
+                  {cat.presets.map((preset) => (
+                    <button
+                      key={preset.name}
+                      onClick={() => applySize(preset.width, preset.height)}
+                      className={cn(
+                        "w-full text-left px-2 py-1 rounded text-xs hover:bg-muted transition-colors flex justify-between",
+                        canvasWidth === preset.width && canvasHeight === preset.height
+                          ? "bg-brand-500/10 text-brand-600"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      <span>{preset.name}</span>
+                      <span className="font-mono">{preset.width}x{preset.height}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Background Color */}

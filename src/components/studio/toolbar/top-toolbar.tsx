@@ -24,6 +24,7 @@ import {
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import { useCanvasHistory } from "../hooks/use-canvas-history";
 import { useCanvasExport } from "../hooks/use-canvas-export";
+import { ShareDialog } from "../share-dialog";
 
 export function TopToolbar() {
   const {
@@ -43,6 +44,7 @@ export function TopToolbar() {
   const { exportPNG, exportJPG, exportSVG, exportPDF } = useCanvasExport();
 
   const [isEditingName, setIsEditingName] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -215,10 +217,19 @@ export function TopToolbar() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button variant="ghost" size="icon" className="h-8 w-8" title="Share">
+        <Button
+          variant="default"
+          size="sm"
+          className="h-8 gap-1.5 bg-gradient-to-r from-brand-500 to-purple-600 hover:from-brand-600 hover:to-purple-700"
+          onClick={() => setShowShareDialog(true)}
+        >
           <Share2 className="h-4 w-4" />
+          Share
         </Button>
       </div>
+
+      {/* Share Dialog */}
+      <ShareDialog open={showShareDialog} onOpenChange={setShowShareDialog} />
     </div>
   );
 }

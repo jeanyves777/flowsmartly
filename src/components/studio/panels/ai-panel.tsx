@@ -164,6 +164,8 @@ export function AiPanel() {
   // Improve design
   const [improveInstruction, setImproveInstruction] = useState("");
 
+  const [removingBg, setRemovingBg] = useState(false);
+
   // Active section
   const [activeSection, setActiveSection] = useState<"generate" | "improve" | "bgremove" | "text">("generate");
 
@@ -403,27 +405,61 @@ export function AiPanel() {
       return;
     }
     const src = obj.getSrc?.() || obj._element?.src;
-    if (!src) return;
+    if (!src) {
+      toast({ title: "Cannot read image source", variant: "destructive" });
+      return;
+    }
 
+    setRemovingBg(true);
     try {
+      let imageUrl = src;
+
+      // If data URL or blob URL, upload first
+      if (src.startsWith("data:") || src.startsWith("blob:")) {
+        const blob = await fetch(src).then((r) => r.blob());
+        const formData = new FormData();
+        formData.append("file", blob, "bg-remove-input.png");
+        formData.append("tags", JSON.stringify(["studio-bg-remove"]));
+        const uploadRes = await fetch("/api/media", { method: "POST", body: formData });
+        const uploadData = await uploadRes.json();
+        if (!uploadData.success) throw new Error("Upload failed");
+        imageUrl = uploadData.data.file.url;
+      }
+
       const res = await fetch("/api/image-tools/remove-background", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: src }),
+        body: JSON.stringify({ imageUrl }),
       });
       const data = await res.json();
-      if (data.success && data.data?.imageUrl) {
-        const imgEl = new Image();
-        imgEl.crossOrigin = "anonymous";
-        imgEl.onload = () => {
-          obj.setElement(imgEl);
+      if (!data.success) throw new Error(data.error?.message || "Failed");
+
+      if (data.data?.imageUrl) {
+        const fabric = await import("fabric");
+        const newImg = await fabric.FabricImage.fromURL(data.data.imageUrl, { crossOrigin: "anonymous" });
+        if (newImg) {
+          newImg.set({
+            left: obj.left, top: obj.top,
+            scaleX: obj.scaleX, scaleY: obj.scaleY,
+            angle: obj.angle,
+          });
+          (newImg as any).id = (obj as any).id;
+          (newImg as any).customName = "Image (No BG)";
+          canvas.remove(obj);
+          canvas.add(newImg);
+          canvas.setActiveObject(newImg);
           canvas.renderAll();
-        };
-        imgEl.src = data.data.imageUrl;
+        }
         toast({ title: "Background removed!" });
       }
-    } catch {
-      toast({ title: "Background removal failed", variant: "destructive" });
+    } catch (e) {
+      toast({
+        title: "Background removal failed",
+        description: e instanceof Error ? e.message : "Try again",
+        variant: "destructive",
+      });
+    } finally {
+      setRemovingBg(false);
     }
   };
 
@@ -861,9 +897,10 @@ export function AiPanel() {
             className="w-full gap-2"
             size="sm"
             variant="outline"
+            disabled={removingBg}
           >
-            <Eraser className="h-4 w-4" />
-            Remove Background
+            {removingBg ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
+            {removingBg ? "Removing..." : "Remove Background"}
           </Button>
         </div>
       )}

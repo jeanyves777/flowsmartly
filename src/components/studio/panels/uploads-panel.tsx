@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Upload, FolderOpen, Loader2, ImageIcon } from "lucide-react";
+import { Upload, FolderOpen, Loader2, ImageIcon, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import { addImageToCanvas } from "../utils/canvas-helpers";
 
@@ -17,10 +18,12 @@ interface MediaItem {
 
 export function UploadsPanel() {
   const canvas = useCanvasStore((s) => s.canvas);
+  const { toast } = useToast();
   const [uploads, setUploads] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [addingId, setAddingId] = useState<string | null>(null);
 
   const fetchUploads = useCallback(async () => {
     setLoading(true);
@@ -42,8 +45,17 @@ export function UploadsPanel() {
 
   const handleAddToCanvas = async (item: MediaItem) => {
     if (!canvas) return;
-    const fabric = await import("fabric");
-    await addImageToCanvas(canvas, item.url, fabric);
+    setAddingId(item.id);
+    try {
+      const fabric = await import("fabric");
+      await addImageToCanvas(canvas, item.url, fabric);
+      toast({ title: "Image added to canvas" });
+    } catch (err) {
+      console.error("Failed to add image:", err);
+      toast({ title: "Failed to add image", description: "The image could not be loaded", variant: "destructive" });
+    } finally {
+      setAddingId(null);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,17 +145,23 @@ export function UploadsPanel() {
             <button
               key={item.id}
               onClick={() => handleAddToCanvas(item)}
-              className="relative aspect-square rounded-lg overflow-hidden border border-border hover:border-brand-500 transition-colors group"
+              disabled={addingId === item.id}
+              className="relative aspect-square rounded-lg overflow-hidden border border-border hover:border-brand-500 transition-all group"
             >
               <img
                 src={item.url}
                 alt={item.filename}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                <span className="text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                  Add
-                </span>
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                {addingId === item.id ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-white" />
+                ) : (
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full px-2.5 py-1">
+                    <Plus className="h-3 w-3 text-white" />
+                    <span className="text-white text-xs font-medium">Add</span>
+                  </div>
+                )}
               </div>
             </button>
           ))}

@@ -175,33 +175,37 @@ export async function addImageToCanvas(
   fabric: any,
   options?: Record<string, any>
 ): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const imgEl = new Image();
-    imgEl.crossOrigin = "anonymous";
-    imgEl.onload = () => {
-      const fabricImg = new fabric.FabricImage(imgEl, {
-        left: 50,
-        top: 50,
-        ...options,
-      });
-      // Scale to fit within 80% of canvas bounds
-      const maxW = canvas.width * 0.8;
-      const maxH = canvas.height * 0.8;
-      const imgW = fabricImg.width || 1;
-      const imgH = fabricImg.height || 1;
-      if (imgW > maxW || imgH > maxH) {
-        const scale = Math.min(maxW / imgW, maxH / imgH);
-        fabricImg.scale(scale);
-      }
-      assignId(fabricImg);
-      canvas.add(fabricImg);
-      canvas.setActiveObject(fabricImg);
-      canvas.renderAll();
-      resolve(fabricImg);
-    };
-    imgEl.onerror = () => reject(new Error("Failed to load image"));
-    imgEl.src = url;
-  });
+  try {
+    // Use Fabric.js built-in fromURL for reliable cross-origin loading
+    const fabricImg = await fabric.FabricImage.fromURL(url, { crossOrigin: "anonymous" });
+    if (!fabricImg) throw new Error("Failed to create image object");
+
+    fabricImg.set({
+      left: 50,
+      top: 50,
+      ...options,
+    });
+
+    // Scale to fit within 80% of canvas bounds
+    const maxW = canvas.width * 0.8;
+    const maxH = canvas.height * 0.8;
+    const imgW = fabricImg.width || 1;
+    const imgH = fabricImg.height || 1;
+    if (imgW > maxW || imgH > maxH) {
+      const scale = Math.min(maxW / imgW, maxH / imgH);
+      fabricImg.scale(scale);
+    }
+
+    assignId(fabricImg);
+    (fabricImg as any).customName = "Image";
+    canvas.add(fabricImg);
+    canvas.setActiveObject(fabricImg);
+    canvas.renderAll();
+    return fabricImg;
+  } catch (err) {
+    console.error("addImageToCanvas failed:", url, err);
+    throw err;
+  }
 }
 
 // Center an object on the canvas
