@@ -67,9 +67,11 @@ export function TopToolbar() {
   const handleZoomOut = () => setZoom(Math.max(zoom - 0.25, 0.1));
   const handleZoomFit = () => {
     if (!canvas) return;
-    // Reset zoom and viewport
+    // Reset viewport transform
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    setZoom(1);
+    // Calculate zoom to fit canvas in viewport
+    // Dispatch event so canvas-editor can calculate with its container size
+    document.dispatchEvent(new CustomEvent("studio:zoom-to-fit"));
   };
 
   const handleSave = () => {
@@ -166,7 +168,7 @@ export function TopToolbar() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="center">
             {[25, 50, 75, 100, 150, 200, 300].map((z) => (
-              <DropdownMenuItem key={z} onClick={() => { setZoom(z / 100); handleZoomFit(); setZoom(z / 100); }}>
+              <DropdownMenuItem key={z} onClick={() => setZoom(z / 100)}>
                 {z}%
               </DropdownMenuItem>
             ))}

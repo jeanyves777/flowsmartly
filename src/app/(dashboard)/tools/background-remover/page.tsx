@@ -786,7 +786,7 @@ export default function BackgroundRemoverStudio() {
   const hasChanges = historyIndex > 0;
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-muted/20 via-background to-muted/20">
+    <div className="h-[calc(100vh-64px)] flex flex-col bg-gradient-to-br from-muted/20 via-background to-muted/20">
       {/* ═══ TOP EDITING TOOLBAR ═══ */}
       <div className="bg-background/95 backdrop-blur-sm border-b border-border/50 px-6 py-3 shrink-0 z-30">
         <div className="flex items-center justify-between gap-4">

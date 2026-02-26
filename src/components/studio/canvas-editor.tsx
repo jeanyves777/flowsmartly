@@ -86,8 +86,19 @@ export function CanvasEditor() {
 
       setCanvas(fabricCanvas);
 
-      // Push initial state
-      setTimeout(() => pushState(), 100);
+      // Push initial state + auto-fit zoom
+      setTimeout(() => {
+        pushState();
+        // Auto zoom-to-fit on initial load
+        if (containerRef.current) {
+          const availW = containerRef.current.clientWidth - 80;
+          const availH = containerRef.current.clientHeight - 80;
+          if (availW > 0 && availH > 0) {
+            const fitZoom = Math.min(availW / canvasWidth, availH / canvasHeight, 1);
+            useCanvasStore.getState().setZoom(Math.max(0.1, fitZoom));
+          }
+        }
+      }, 100);
     })();
 
     return () => {
@@ -99,12 +110,26 @@ export function CanvasEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update canvas dimensions when they change
+  // Auto zoom-to-fit: calculate zoom so canvas fits in container with padding
+  const zoomToFit = useCallback(() => {
+    if (!containerRef.current) return;
+    const container = containerRef.current;
+    const availW = container.clientWidth - 80; // 40px padding each side
+    const availH = container.clientHeight - 80;
+    if (availW <= 0 || availH <= 0) return;
+
+    const fitZoom = Math.min(availW / canvasWidth, availH / canvasHeight, 1);
+    setZoom(Math.max(0.1, fitZoom));
+  }, [canvasWidth, canvasHeight, setZoom]);
+
+  // Update canvas dimensions when they change + auto zoom-to-fit
   useEffect(() => {
     if (!canvas) return;
     canvas.setDimensions({ width: canvasWidth, height: canvasHeight });
     canvas.renderAll();
-  }, [canvas, canvasWidth, canvasHeight]);
+    // Auto-fit after dimensions change
+    requestAnimationFrame(() => zoomToFit());
+  }, [canvas, canvasWidth, canvasHeight, zoomToFit]);
 
   // Handle selection helper
   const handleSelection = useCallback(
@@ -122,6 +147,13 @@ export function CanvasEditor() {
     },
     [setSelection]
   );
+
+  // Listen for zoom-to-fit events from toolbar
+  useEffect(() => {
+    const handleZoomToFit = () => zoomToFit();
+    document.addEventListener("studio:zoom-to-fit", handleZoomToFit);
+    return () => document.removeEventListener("studio:zoom-to-fit", handleZoomToFit);
+  }, [zoomToFit]);
 
   // Zoom with mouse wheel (Ctrl + scroll)
   useEffect(() => {
