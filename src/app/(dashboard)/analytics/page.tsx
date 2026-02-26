@@ -19,6 +19,10 @@ import {
   Zap,
   AlertTriangle,
   RefreshCw,
+  Link2,
+  Youtube,
+  Facebook,
+  Instagram,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -73,6 +77,21 @@ interface TopPost {
   createdAt: string;
 }
 
+interface SocialAnalytics {
+  id: string;
+  platform: string;
+  platformDisplayName: string | null;
+  platformAvatarUrl: string | null;
+  followersCount: number | null;
+  followingCount: number | null;
+  postsCount: number | null;
+  engagementRate: number | null;
+  impressions: number | null;
+  reach: number | null;
+  profileViews: number | null;
+  analyticsUpdatedAt: string | null;
+}
+
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>("7d");
   const [chartMode, setChartMode] = useState<ChartMode>("views");
@@ -81,6 +100,8 @@ export default function AnalyticsPage() {
   const [adStats, setAdStats] = useState<AdStats | null>(null);
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [topPosts, setTopPosts] = useState<TopPost[]>([]);
+  const [socialAnalytics, setSocialAnalytics] = useState<SocialAnalytics[]>([]);
+  const [isSocialLoading, setIsSocialLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,6 +131,26 @@ export default function AnalyticsPage() {
   useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
+
+  const fetchSocialAnalytics = useCallback(async (refresh = false) => {
+    try {
+      setIsSocialLoading(true);
+      const response = await fetch(`/api/social-accounts/analytics${refresh ? "?refresh=true" : ""}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setSocialAnalytics(data.analytics || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch social analytics:", error);
+    } finally {
+      setIsSocialLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSocialAnalytics();
+  }, [fetchSocialAnalytics]);
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -614,6 +655,151 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Social Media Analytics */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Link2 className="w-5 h-5 text-brand-500" />
+              Social Media Analytics
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchSocialAnalytics(true)}
+              disabled={isSocialLoading}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isSocialLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isSocialLoading && socialAnalytics.length === 0 ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-24 w-full" />
+              ))}
+            </div>
+          ) : socialAnalytics.length === 0 ? (
+            <div className="text-center py-12 border-2 border-dashed rounded-lg">
+              <Link2 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <p className="font-medium mb-1">No social accounts connected</p>
+              <p className="text-sm text-muted-foreground mb-4">
+                Connect your social media accounts to see analytics
+              </p>
+              <Button
+                variant="default"
+                onClick={() => (window.location.href = "/social-accounts")}
+              >
+                Connect Accounts
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="rounded-xl border bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20 p-4">
+                  <Users className="w-6 h-6 text-blue-500 mb-3" />
+                  <p className="text-2xl font-bold">
+                    {formatNumber(
+                      socialAnalytics.reduce((sum, a) => sum + (a.followersCount || 0), 0)
+                    )}
+                  </p>
+                  <p className="text-sm text-muted-foreground">Total Followers</p>
+                </div>
+                <div className="rounded-xl border bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20 p-4">
+                  <Eye className="w-6 h-6 text-purple-500 mb-3" />
+                  <p className="text-2xl font-bold">
+                    {formatNumber(
+                      socialAnalytics.reduce((sum, a) => sum + (a.impressions || 0), 0)
+                    )}
+                  </p>
+                  <p className="text-sm text-muted-foreground">Total Impressions</p>
+                </div>
+                <div className="rounded-xl border bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20 p-4">
+                  <Share2 className="w-6 h-6 text-green-500 mb-3" />
+                  <p className="text-2xl font-bold">
+                    {formatNumber(
+                      socialAnalytics.reduce((sum, a) => sum + (a.postsCount || 0), 0)
+                    )}
+                  </p>
+                  <p className="text-sm text-muted-foreground">Total Posts</p>
+                </div>
+                <div className="rounded-xl border bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20 p-4">
+                  <Link2 className="w-6 h-6 text-orange-500 mb-3" />
+                  <p className="text-2xl font-bold">{socialAnalytics.length}</p>
+                  <p className="text-sm text-muted-foreground">Connected Accounts</p>
+                </div>
+              </div>
+
+              {/* Platform Breakdown */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                  Platform Breakdown
+                </h3>
+                {socialAnalytics.map((account) => {
+                  const platformColors: Record<string, string> = {
+                    facebook: "from-blue-500 to-blue-600",
+                    instagram: "from-purple-500 to-pink-500",
+                    youtube: "from-red-500 to-red-700",
+                    twitter: "from-gray-700 to-gray-900",
+                    linkedin: "from-blue-500 to-blue-700",
+                    tiktok: "from-gray-900 to-pink-500",
+                    whatsapp: "from-green-500 to-green-600",
+                  };
+
+                  return (
+                    <div
+                      key={account.id}
+                      className="flex items-center gap-4 p-4 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
+                    >
+                      <div
+                        className={`w-12 h-12 rounded-lg bg-gradient-to-br ${
+                          platformColors[account.platform] || "from-gray-500 to-gray-700"
+                        } flex items-center justify-center flex-shrink-0`}
+                      >
+                        <Link2 className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium capitalize truncate">
+                          {account.platformDisplayName || account.platform}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {account.analyticsUpdatedAt
+                            ? `Updated ${formatTimeAgo(account.analyticsUpdatedAt)}`
+                            : "Never updated"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-6 text-sm">
+                        {account.followersCount !== null && (
+                          <div className="text-center">
+                            <p className="font-bold">{formatNumber(account.followersCount)}</p>
+                            <p className="text-xs text-muted-foreground">Followers</p>
+                          </div>
+                        )}
+                        {account.postsCount !== null && (
+                          <div className="text-center">
+                            <p className="font-bold">{formatNumber(account.postsCount)}</p>
+                            <p className="text-xs text-muted-foreground">Posts</p>
+                          </div>
+                        )}
+                        {account.engagementRate !== null && (
+                          <div className="text-center">
+                            <p className="font-bold">{(account.engagementRate * 100).toFixed(1)}%</p>
+                            <p className="text-xs text-muted-foreground">Engagement</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Top Posts */}
       <Card>
