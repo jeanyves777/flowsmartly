@@ -794,13 +794,27 @@ export default function DesignsPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-                  {/* Thumbnail */}
-                  <div className="aspect-[4/3] bg-muted flex items-center justify-center overflow-hidden">
+                  {/* Thumbnail — preserves actual design aspect ratio */}
+                  <div
+                    className="bg-muted/50 flex items-center justify-center overflow-hidden"
+                    style={{
+                      aspectRatio: (() => {
+                        const [w, h] = design.size.split("x").map(Number);
+                        if (w && h) {
+                          // Clamp extreme ratios for reasonable grid layout (min 3:4, max 2:1)
+                          const ratio = w / h;
+                          const clamped = Math.max(0.75, Math.min(2, ratio));
+                          return `${clamped}`;
+                        }
+                        return "4/3";
+                      })(),
+                    }}
+                  >
                     {design.imageUrl ? (
                       <img
                         src={design.imageUrl}
                         alt={design.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                       />
                     ) : (
                       <div

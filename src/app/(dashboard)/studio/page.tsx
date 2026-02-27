@@ -51,7 +51,16 @@ function StudioPageInner() {
         const data = await res.json();
         if (data.success && data.data?.design?.canvasData) {
           const store = useCanvasStore.getState();
-          const rawData = data.data.design.canvasData;
+          const design = data.data.design;
+          const rawData = design.canvasData;
+
+          // Restore canvas dimensions from saved size (e.g. "1080x1350")
+          if (design.size) {
+            const [w, h] = design.size.split("x").map(Number);
+            if (w && h) {
+              store.setCanvasDimensions(w, h);
+            }
+          }
 
           // Parse the stored data to check if it's multi-page
           let parsed: Record<string, unknown> | null = null;
@@ -80,11 +89,16 @@ function StudioPageInner() {
               restoredPages.length - 1
             );
 
+            // Restore per-page dimensions from the active page
+            const activePage = restoredPages[activeIdx];
+            if (activePage?.width && activePage?.height) {
+              store.setCanvasDimensions(activePage.width, activePage.height);
+            }
+
             store.setPages(restoredPages);
             store.setActivePageIndex(activeIdx);
 
             // Load the active page canvas content
-            const activePage = restoredPages[activeIdx];
             if (activePage) {
               await safeLoadFromJSON(canvas, activePage.canvasJSON);
             }
@@ -93,7 +107,9 @@ function StudioPageInner() {
             const canvasJSON = typeof rawData === "string" ? rawData : JSON.stringify(rawData);
             await safeLoadFromJSON(canvas, canvasJSON);
 
-            // Initialize single-page pages array
+            // Initialize single-page pages array using the restored dimensions
+            const currentW = store.canvasWidth;
+            const currentH = store.canvasHeight;
             const initialJSON = JSON.stringify(
               canvas.toJSON(["id", "customName", "selectable", "visible"])
             );
@@ -102,15 +118,15 @@ function StudioPageInner() {
                 id: `page-${Date.now()}`,
                 canvasJSON: initialJSON,
                 thumbnailDataUrl: null,
-                width: store.canvasWidth,
-                height: store.canvasHeight,
+                width: currentW,
+                height: currentH,
               },
             ]);
             store.setActivePageIndex(0);
           }
 
           setDesignId(designId);
-          store.setDesignName(data.data.design.name || "Untitled Design");
+          store.setDesignName(design.name || "Untitled Design");
           store.refreshLayers();
           store.setDirty(false);
         }
