@@ -29,6 +29,8 @@ interface PostSharePanelProps {
   mediaUrls?: string[];
   mediaType: "image" | "video";
   prompt: string;
+  /** Render without Card wrapper (for use inside dialogs) */
+  bare?: boolean;
 }
 
 const TONES = [
@@ -42,7 +44,7 @@ const MAX_MEDIA = 10;
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export function PostSharePanel({ mediaUrl, mediaUrls: initialMediaUrls, mediaType, prompt }: PostSharePanelProps) {
+export function PostSharePanel({ mediaUrl, mediaUrls: initialMediaUrls, mediaType, prompt, bare }: PostSharePanelProps) {
   const router = useRouter();
   const { toast } = useToast();
   const { isConnected } = useSocialPlatforms();
@@ -222,27 +224,8 @@ export function PostSharePanel({ mediaUrl, mediaUrls: initialMediaUrls, mediaTyp
 
   const canAddMore = mediaUrls.length < MAX_MEDIA;
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3, duration: 0.5 }}
-    >
-      <Card className="rounded-2xl overflow-hidden border-brand-500/20">
-        {/* Gradient accent bar */}
-        <div className="h-1 bg-gradient-to-r from-blue-500 via-brand-500 to-purple-500" />
-
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
-              <Share2 className="w-4 h-4 text-white" />
-            </div>
-            Share to Feed & Social
-          </CardTitle>
-        </CardHeader>
-
-        <CardContent className="space-y-5">
-          <AnimatePresence mode="wait">
+  const content = (
+        <AnimatePresence mode="wait">
             {isPublishing ? (
               /* ── Publishing State ── */
               <motion.div
@@ -486,6 +469,30 @@ export function PostSharePanel({ mediaUrl, mediaUrls: initialMediaUrls, mediaTyp
               </motion.div>
             )}
           </AnimatePresence>
+  );
+
+  if (bare) {
+    return <div className="space-y-5">{content}</div>;
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.3, duration: 0.5 }}
+    >
+      <Card className="rounded-2xl overflow-hidden border-brand-500/20">
+        <div className="h-1 bg-gradient-to-r from-blue-500 via-brand-500 to-purple-500" />
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
+              <Share2 className="w-4 h-4 text-white" />
+            </div>
+            Share to Feed & Social
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {content}
         </CardContent>
       </Card>
     </motion.div>
