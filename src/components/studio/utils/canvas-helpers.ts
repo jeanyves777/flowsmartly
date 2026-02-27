@@ -7,6 +7,46 @@ function assignId(obj: any): any {
   return obj;
 }
 
+/**
+ * Strip viewportTransform from canvas JSON before loading.
+ * Fabric.js loadFromJSON restores the saved viewportTransform, which can
+ * re-introduce a shifted viewport from old saves. We handle zoom/pan via CSS,
+ * so the Fabric.js viewport must always be identity [1,0,0,1,0,0].
+ */
+export function stripViewportFromJSON(json: string | object): string {
+  try {
+    const parsed = typeof json === "string" ? JSON.parse(json) : { ...json };
+    delete parsed.viewportTransform;
+    return JSON.stringify(parsed);
+  } catch {
+    return typeof json === "string" ? json : JSON.stringify(json);
+  }
+}
+
+/**
+ * Safe wrapper around canvas.loadFromJSON that strips viewport and resets it after load.
+ */
+export async function safeLoadFromJSON(canvas: any, json: string | object): Promise<void> {
+  const cleanJSON = stripViewportFromJSON(json);
+  await canvas.loadFromJSON(cleanJSON);
+  canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+  canvas.renderAll();
+}
+
+/**
+ * Lock the canvas viewport to identity. Call this after creating the canvas.
+ * Overrides setViewportTransform so nothing can shift the viewport.
+ */
+export function lockViewportTransform(canvas: any): void {
+  const identity = [1, 0, 0, 1, 0, 0];
+  canvas.setViewportTransform(identity);
+  canvas.viewportTransform = identity;
+  // Override so any future calls (including from loadFromJSON) are no-ops
+  canvas.setViewportTransform = () => {
+    canvas.viewportTransform = identity;
+  };
+}
+
 export function createTextbox(
   fabric: any,
   options?: Record<string, any>

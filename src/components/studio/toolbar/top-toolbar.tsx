@@ -77,7 +77,6 @@ export function TopToolbar() {
   const handleZoomOut = () => setZoom(Math.max(zoom - 0.1, 0.1));
   const handleZoomFit = () => {
     if (!canvas) return;
-    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     document.dispatchEvent(new CustomEvent("studio:zoom-to-fit"));
   };
 

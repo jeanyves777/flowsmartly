@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
 import { useCanvasStore } from "../hooks/use-canvas-store";
-import { addImageToCanvas, createTextbox } from "../utils/canvas-helpers";
+import { addImageToCanvas, createTextbox, safeLoadFromJSON } from "../utils/canvas-helpers";
 import { DESIGN_CATEGORIES } from "@/lib/constants/design-presets";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
@@ -277,9 +277,7 @@ export function TemplatesPanel() {
     setApplyingId(template.id);
     try {
       if (template.canvasData) {
-        await canvas.loadFromJSON(template.canvasData);
-        canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-        canvas.renderAll();
+        await safeLoadFromJSON(canvas, template.canvasData);
         refreshLayers();
         setApplyingId(null);
         return;

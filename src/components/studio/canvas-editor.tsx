@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { useCanvasStore } from "./hooks/use-canvas-store";
 import { useCanvasHistory } from "./hooks/use-canvas-history";
 import { useCanvasShortcuts } from "./hooks/use-canvas-shortcuts";
+import { lockViewportTransform, safeLoadFromJSON } from "./utils/canvas-helpers";
 
 export function CanvasEditor() {
   const canvasElRef = useRef<HTMLCanvasElement>(null);
@@ -86,6 +87,9 @@ export function CanvasEditor() {
         setIsEditingText(false);
         pushState();
       });
+
+      // Lock viewport to identity — zoom/pan is handled by CSS only
+      lockViewportTransform(fabricCanvas);
 
       setCanvas(fabricCanvas);
 
@@ -177,10 +181,8 @@ export function CanvasEditor() {
       }
     }
 
-    // Load target page JSON into canvas
-    canvas.loadFromJSON(targetPage.canvasJSON).then(() => {
-      canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-      canvas.renderAll();
+    // Load target page JSON into canvas (strip viewport from saved data)
+    safeLoadFromJSON(canvas, targetPage.canvasJSON).then(() => {
       refreshLayers();
       pushState();
     });
@@ -261,10 +263,10 @@ export function CanvasEditor() {
     };
   }, [canvas, zoom, setZoom]);
 
-  // Ensure Fabric.js viewport transform stays at identity (zoom/pan handled by CSS)
+  // Re-lock viewport when canvas reference changes (belt-and-suspenders)
   useEffect(() => {
     if (!canvas) return;
-    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    lockViewportTransform(canvas);
     canvas.renderAll();
   }, [canvas]);
 

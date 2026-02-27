@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useCanvasStore } from "@/components/studio/hooks/use-canvas-store";
+import { safeLoadFromJSON } from "@/components/studio/utils/canvas-helpers";
 import { Loader2 } from "lucide-react";
 
 // Dynamic import to avoid SSR issues with Fabric.js
@@ -85,16 +86,12 @@ function StudioPageInner() {
             // Load the active page canvas content
             const activePage = restoredPages[activeIdx];
             if (activePage) {
-              await canvas.loadFromJSON(activePage.canvasJSON);
-              canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-              canvas.renderAll();
+              await safeLoadFromJSON(canvas, activePage.canvasJSON);
             }
           } else {
             // Single-page design (backward compatible): load directly
             const canvasJSON = typeof rawData === "string" ? rawData : JSON.stringify(rawData);
-            await canvas.loadFromJSON(canvasJSON);
-            canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-            canvas.renderAll();
+            await safeLoadFromJSON(canvas, canvasJSON);
 
             // Initialize single-page pages array
             const initialJSON = JSON.stringify(

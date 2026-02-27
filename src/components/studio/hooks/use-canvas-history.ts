@@ -2,6 +2,7 @@
 
 import { useRef, useCallback, useEffect } from "react";
 import { useCanvasStore } from "./use-canvas-store";
+import { safeLoadFromJSON } from "../utils/canvas-helpers";
 
 const MAX_HISTORY = 50;
 
@@ -45,9 +46,7 @@ export function useCanvasHistory() {
     indexRef.current--;
     const json = historyRef.current[indexRef.current];
 
-    await canvas.loadFromJSON(json);
-    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    canvas.renderAll();
+    await safeLoadFromJSON(canvas, json);
 
     isRestoringRef.current = false;
     updateHistoryState();
@@ -61,9 +60,7 @@ export function useCanvasHistory() {
     indexRef.current++;
     const json = historyRef.current[indexRef.current];
 
-    await canvas.loadFromJSON(json);
-    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    canvas.renderAll();
+    await safeLoadFromJSON(canvas, json);
 
     isRestoringRef.current = false;
     updateHistoryState();
