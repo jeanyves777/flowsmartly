@@ -81,6 +81,13 @@ export async function GET(request: NextRequest) {
     const permissionsData = await permissionsResponse.json();
     console.log("[Facebook Callback] Permissions:", JSON.stringify(permissionsData.data));
 
+    // Debug: inspect token to see granular_scopes and page IDs
+    const debugTokenResponse = await fetch(
+      `https://graph.facebook.com/v21.0/debug_token?input_token=${accessToken}&access_token=${process.env.FACEBOOK_APP_ID}|${process.env.FACEBOOK_APP_SECRET}`
+    );
+    const debugTokenData = await debugTokenResponse.json();
+    console.log("[Facebook Callback] Debug token:", JSON.stringify(debugTokenData.data?.granular_scopes || debugTokenData).slice(0, 1000));
+
     // Try multiple methods to get user's pages
     let pages: any[] = [];
 
@@ -99,55 +106,78 @@ export async function GET(request: NextRequest) {
       pages = pagesData.data;
     }
 
-    // Method 2: Use user ID directly with /accounts
-    if (pages.length === 0 && meData.id) {
-      const pagesResponse2 = await fetch(
-        `https://graph.facebook.com/v21.0/${meData.id}/accounts?fields=id,name,access_token,category&limit=100&access_token=${accessToken}`
-      );
-      const pagesData2 = await pagesResponse2.json();
-      console.log("[Facebook Callback] Method 2 ({user_id}/accounts):", {
-        count: pagesData2.data?.length || 0,
-        pages: pagesData2.data?.map((p: any) => ({ id: p.id, name: p.name })),
-        error: pagesData2.error,
-      });
+    // Method 2: Extract page IDs from debug_token granular_scopes and fetch directly
+    if (pages.length === 0 && debugTokenData.data?.granular_scopes) {
+      const granularScopes = debugTokenData.data.granular_scopes;
+      const pageIds = new Set<string>();
+      for (const scope of granularScopes) {
+        if (scope.target_ids) {
+          for (const id of scope.target_ids) {
+            pageIds.add(id);
+          }
+        }
+      }
+      console.log("[Facebook Callback] Method 2 (granular_scopes page IDs):", [...pageIds]);
 
-      if (pagesData2.data?.length > 0) {
-        pages = pagesData2.data;
+      if (pageIds.size > 0) {
+        // Fetch each page directly using the user token
+        for (const pageId of pageIds) {
+          try {
+            const pageResponse = await fetch(
+              `https://graph.facebook.com/v21.0/${pageId}?fields=id,name,access_token,category&access_token=${accessToken}`
+            );
+            const pageData = await pageResponse.json();
+            console.log("[Facebook Callback] Direct page fetch:", { id: pageData.id, name: pageData.name, error: pageData.error });
+            if (pageData.id && pageData.access_token) {
+              pages.push(pageData);
+            } else if (pageData.id && !pageData.access_token) {
+              // Try to get page token via user token
+              const pageTokenResponse = await fetch(
+                `https://graph.facebook.com/v21.0/${pageId}?fields=access_token&access_token=${accessToken}`
+              );
+              const pageTokenData = await pageTokenResponse.json();
+              if (pageTokenData.access_token) {
+                pages.push({ ...pageData, access_token: pageTokenData.access_token });
+              }
+            }
+          } catch (err) {
+            console.error(`[Facebook Callback] Failed to fetch page ${pageId}:`, err);
+          }
+        }
       }
     }
 
-    // Method 3: Field expansion on me
-    if (pages.length === 0) {
-      const meAccountsResponse = await fetch(
-        `https://graph.facebook.com/v21.0/me?fields=accounts{id,name,access_token,category}&access_token=${accessToken}`
-      );
-      const meAccountsData = await meAccountsResponse.json();
-      console.log("[Facebook Callback] Method 3 (me?fields=accounts):", {
-        count: meAccountsData.accounts?.data?.length || 0,
-        pages: meAccountsData.accounts?.data?.map((p: any) => ({ id: p.id, name: p.name })),
-        error: meAccountsData.error,
-      });
-
-      if (meAccountsData.accounts?.data?.length > 0) {
-        pages = meAccountsData.accounts.data;
-      }
-    }
-
-    // Method 4: Try via businesses
+    // Method 3: Try via businesses (needs business_management scope)
     if (pages.length === 0 && meData.id) {
       const bizResponse = await fetch(
-        `https://graph.facebook.com/v21.0/${meData.id}/businesses?fields=id,name,owned_pages{id,name,access_token,category}&access_token=${accessToken}`
+        `https://graph.facebook.com/v21.0/${meData.id}/businesses?fields=id,name,owned_pages{id,name,access_token,category},client_pages{id,name,access_token,category}&access_token=${accessToken}`
       );
       const bizData = await bizResponse.json();
-      console.log("[Facebook Callback] Method 4 (businesses/owned_pages):", JSON.stringify(bizData).slice(0, 500));
+      console.log("[Facebook Callback] Method 3 (businesses):", JSON.stringify(bizData).slice(0, 1000));
 
       if (bizData.data) {
         for (const biz of bizData.data) {
-          if (biz.owned_pages?.data?.length > 0) {
-            pages = biz.owned_pages.data;
+          const bizPages = biz.owned_pages?.data || biz.client_pages?.data || [];
+          if (bizPages.length > 0) {
+            pages = bizPages;
             break;
           }
         }
+      }
+    }
+
+    // Method 4: Try lower API version (v18.0) as fallback
+    if (pages.length === 0) {
+      const pagesV18Response = await fetch(
+        `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,category&limit=100&access_token=${accessToken}`
+      );
+      const pagesV18Data = await pagesV18Response.json();
+      console.log("[Facebook Callback] Method 4 (v18.0 me/accounts):", {
+        count: pagesV18Data.data?.length || 0,
+        error: pagesV18Data.error,
+      });
+      if (pagesV18Data.data?.length > 0) {
+        pages = pagesV18Data.data;
       }
     }
 

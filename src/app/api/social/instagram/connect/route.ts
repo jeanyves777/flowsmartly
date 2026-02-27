@@ -23,7 +23,9 @@ export async function GET(request: NextRequest) {
     const scopes = [
       "instagram_basic",
       "instagram_content_publish",
-      "pages_show_list", // Needed to get Page
+      "pages_show_list",
+      "pages_manage_metadata",
+      "business_management",
     ];
 
     // Build OAuth URL
