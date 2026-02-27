@@ -328,15 +328,17 @@ export default function DashboardLayout({
         <main
           className={cn(
             "pt-16 transition-all duration-200",
-            // Full-height pages (tools) get fixed height with no padding
-            pathname?.startsWith("/tools/") ? "h-screen overflow-hidden" : "min-h-screen",
+            // Full-height pages (tools, studio) get fixed height with no padding
+            pathname?.startsWith("/tools/") || pathname === "/studio"
+              ? "h-screen overflow-hidden"
+              : "min-h-screen",
             // Desktop: respect sidebar state
             "md:pl-20",
             !sidebarCollapsed && "md:pl-[280px]"
           )}
         >
-          {pathname?.startsWith("/tools/") ? (
-            // Full-height tools pages: no padding, direct children
+          {pathname?.startsWith("/tools/") || pathname === "/studio" ? (
+            // Full-height pages: no padding, direct children
             <>
               {children}
             </>
