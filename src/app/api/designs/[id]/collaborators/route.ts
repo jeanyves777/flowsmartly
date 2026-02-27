@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { checkDesignAccess, recordDesignActivity } from "@/lib/designs/access";
+import { notifyDesignInvitation } from "@/lib/notifications";
+import { sendDesignInvitationEmail } from "@/lib/email";
+import { sendMarketingEmail } from "@/lib/email/marketing-sender";
+import { baseTemplate } from "@/lib/email";
 import crypto from "crypto";
 
 // GET /api/designs/:id/collaborators - List collaborators for a design
@@ -162,7 +166,7 @@ export async function POST(
     // Check if the user is the design owner
     const design = await prisma.design.findUnique({
       where: { id: designId },
-      select: { userId: true },
+      select: { userId: true, name: true },
     });
 
     if (design && design.userId === invitedUser.id) {
@@ -218,6 +222,86 @@ export async function POST(
       invitedEmail: invitedUser.email,
       role: inviteRole,
     });
+
+    // Send invitation email + in-app notification (fire-and-forget)
+    const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com"}/designs/invite/${inviteToken}`;
+    const inviterUser = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { name: true, email: true },
+    });
+    const inviterName = inviterUser?.name || inviterUser?.email || "Someone";
+    const designName = design?.name || "Untitled Design";
+
+    (async () => {
+      try {
+        // Try sending via inviter's configured email provider first
+        const marketingConfig = await prisma.marketingConfig.findUnique({
+          where: { userId: session.userId },
+        });
+
+        if (marketingConfig?.emailProvider && marketingConfig?.emailConfig) {
+          const emailConfig = typeof marketingConfig.emailConfig === "string"
+            ? JSON.parse(marketingConfig.emailConfig)
+            : marketingConfig.emailConfig;
+
+          const fromName = marketingConfig.defaultFromName || inviterName;
+          const fromEmail = marketingConfig.defaultFromEmail || inviterUser?.email || "noreply@flowsmartly.com";
+          const from = `${fromName} <${fromEmail}>`;
+
+          const roleLabel = inviteRole === "EDITOR" ? "an Editor" : "a Viewer";
+          const html = baseTemplate(`
+            <h2>You've Been Invited to Collaborate!</h2>
+            <p>Hi there,</p>
+            <p><strong>${inviterName}</strong> has invited you to collaborate on the design <strong>"${designName}"</strong> as <strong>${roleLabel}</strong>.</p>
+            <div class="highlight">
+              <strong>Design:</strong> ${designName}<br>
+              <strong>Role:</strong> ${inviteRole}<br>
+              <strong>Access:</strong> ${inviteRole === "EDITOR" ? "You can view and edit this design" : "You can view this design"}
+            </div>
+            <p style="text-align: center;">
+              <a href="${inviteUrl}" class="button">Accept Invitation</a>
+            </p>
+            <p style="color: #71717a; font-size: 13px;">If you didn't expect this invitation, you can safely ignore this email.</p>
+          `, `${inviterName} invited you to collaborate on ${designName}`);
+
+          const result = await sendMarketingEmail({
+            provider: marketingConfig.emailProvider,
+            emailConfig: emailConfig as Record<string, unknown>,
+            from,
+            to: invitedUser.email,
+            subject: `${inviterName} invited you to collaborate on "${designName}"`,
+            html,
+          });
+
+          if (result.success) {
+            // Also create in-app notification (without sending system email again)
+            await prisma.notification.create({
+              data: {
+                userId: invitedUser.id,
+                type: "DESIGN_INVITATION",
+                title: "Design Collaboration Invite",
+                message: `${inviterName} invited you to ${inviteRole.toLowerCase()} "${designName}".`,
+                actionUrl: inviteUrl,
+              },
+            });
+            return; // Email sent via user's provider, done
+          }
+          // If user provider failed, fall through to system email
+        }
+
+        // Fallback: send via system SMTP + in-app notification
+        await notifyDesignInvitation({
+          userId: invitedUser.id,
+          email: invitedUser.email,
+          inviterName,
+          designName,
+          role: inviteRole,
+          inviteUrl,
+        });
+      } catch (err) {
+        console.error("Failed to send invitation email:", err);
+      }
+    })();
 
     return NextResponse.json({ success: true, data: collaborator });
   } catch (error) {
