@@ -81,6 +81,10 @@ model User {
   invoices          Invoice[]
   designs           Design[]
   designFolders     DesignFolder[]
+  designShares           DesignShare[]         @relation("DesignShareCreator")
+  designCollaborations   DesignCollaborator[]  @relation("DesignCollaborator")
+  designInvitations      DesignCollaborator[]  @relation("DesignCollaboratorInviter")
+  designActivities       DesignActivity[]
   landingPages      LandingPage[]
   mediaFiles        MediaFile[]
   mediaFolders      MediaFolder[]
@@ -1787,7 +1791,10 @@ model Design {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shares         DesignShare[]
+  collaborators  DesignCollaborator[]
+  activities     DesignActivity[]
 
   @@index([userId])
   @@index([category])
@@ -1809,6 +1816,64 @@ model DesignFolder {
 
   @@index([userId])
   @@index([parentId])
+}
+
+model DesignShare {
+  id          String    @id @default(cuid())
+  designId    String
+  token       String    @unique
+  permission  String    @default("VIEW") // VIEW, EDIT, COPY
+  createdBy   String
+  label       String?
+  expiresAt   DateTime?
+  maxUses     Int?
+  useCount    Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  design      Design    @relation(fields: [designId], references: [id], onDelete: Cascade)
+  creator     User      @relation("DesignShareCreator", fields: [createdBy], references: [id])
+
+  @@index([designId])
+  @@index([token])
+}
+
+model DesignCollaborator {
+  id          String    @id @default(cuid())
+  designId    String
+  userId      String
+  role        String    @default("VIEWER") // VIEWER, EDITOR
+  invitedBy   String
+  inviteEmail String?
+  inviteToken String?   @unique
+  status      String    @default("PENDING") // PENDING, ACCEPTED, DECLINED
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  design      Design    @relation(fields: [designId], references: [id], onDelete: Cascade)
+  user        User      @relation("DesignCollaborator", fields: [userId], references: [id])
+  inviter     User      @relation("DesignCollaboratorInviter", fields: [invitedBy], references: [id])
+
+  @@unique([designId, userId])
+  @@index([designId])
+  @@index([inviteToken])
+}
+
+model DesignActivity {
+  id          String    @id @default(cuid())
+  designId    String
+  userId      String
+  action      String // VIEWED, EDITED, SHARED, DUPLICATED, INVITED, JOINED
+  details     String    @default("{}")
+  createdAt   DateTime  @default(now())
+
+  design      Design    @relation(fields: [designId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@index([designId])
+  @@index([userId])
 }
 
 // ============================================

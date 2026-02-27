@@ -51,7 +51,11 @@ export function LeftPanel() {
   const setActiveTool = useCanvasStore((s) => s.setActiveTool);
   const isLeftPanelCollapsed = useCanvasStore((s) => s.isLeftPanelCollapsed);
   const toggleLeftPanel = useCanvasStore((s) => s.toggleLeftPanel);
+  const isReadOnly = useCanvasStore((s) => s.isReadOnly);
   const PanelContent = PANEL_COMPONENTS[activePanel];
+
+  // Hide entire left panel for view-only users
+  if (isReadOnly) return null;
 
   return (
     <div className="flex h-full shrink-0">

@@ -12,6 +12,10 @@ export function RightPanel() {
   const selectedObjectType = useCanvasStore((s) => s.selectedObjectType);
   const isRightPanelCollapsed = useCanvasStore((s) => s.isRightPanelCollapsed);
   const toggleRightPanel = useCanvasStore((s) => s.toggleRightPanel);
+  const isReadOnly = useCanvasStore((s) => s.isReadOnly);
+
+  // Hide entire right panel for view-only users
+  if (isReadOnly) return null;
 
   if (isRightPanelCollapsed) {
     return (

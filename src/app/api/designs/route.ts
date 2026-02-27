@@ -21,7 +21,22 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "20");
     const cursor = searchParams.get("cursor");
 
-    const where: Record<string, unknown> = { userId: session.userId };
+    // Include designs owned by the user OR where they are an accepted collaborator
+    const accessFilter = {
+      OR: [
+        { userId: session.userId },
+        {
+          collaborators: {
+            some: {
+              userId: session.userId,
+              status: "ACCEPTED",
+            },
+          },
+        },
+      ],
+    };
+
+    const where: Record<string, unknown> = { ...accessFilter };
     if (category) where.category = category;
     if (folderId) {
       where.folderId = folderId === "root" ? null : folderId;

@@ -27,11 +27,83 @@ function StudioPageInner() {
   const searchParams = useSearchParams();
   const designId = searchParams.get("id");
   const preset = searchParams.get("preset");
+  const shareParam = searchParams.get("share");
 
   const setDesignId = useCanvasStore((s) => s.setDesignId);
   const setCanvasDimensions = useCanvasStore((s) => s.setCanvasDimensions);
   const isDirty = useCanvasStore((s) => s.isDirty);
   const canvas = useCanvasStore((s) => s.canvas);
+
+  // Store share token and resolve access role
+  useEffect(() => {
+    const store = useCanvasStore.getState();
+    store.setShareToken(shareParam);
+
+    if (!shareParam) {
+      // No share token — role will be determined by SSE presence init
+      return;
+    }
+
+    // Validate share token and set collaboration role
+    (async () => {
+      try {
+        const res = await fetch(`/api/designs/share/${shareParam}`);
+        const data = await res.json();
+        if (data.success && data.data?.permission) {
+          const perm = data.data.permission as string;
+          // Map share permission to collaboration role
+          if (perm === "EDIT") {
+            store.setCollaborationRole("EDITOR");
+          } else {
+            store.setCollaborationRole("VIEWER");
+          }
+        }
+      } catch {
+        // Silent — role defaults to null, SSE will resolve
+      }
+    })();
+  }, [shareParam]);
+
+  // Reset store for new design (no designId param).
+  // Runs once when canvas is ready and there's no design to load.
+  // The ref prevents re-running if the effect fires again with same deps.
+  const didResetRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!canvas || designId) return;
+
+    // Build a key so we only reset once per "new design" navigation
+    const resetKey = `new-${preset || "default"}`;
+    if (didResetRef.current === resetKey) return;
+    didResetRef.current = resetKey;
+
+    const store = useCanvasStore.getState();
+    store.setDesignId(null);
+    store.setDesignName("Untitled Design");
+    store.setDirty(false);
+    store.setPages([]);
+    store.setActivePageIndex(0);
+
+    // Clear canvas objects
+    canvas.clear();
+    canvas.backgroundColor = "#ffffff";
+    canvas.renderAll();
+    store.refreshLayers();
+
+    // Apply preset dimensions if provided
+    if (preset) {
+      const [w, h] = preset.split("x").map(Number);
+      if (w && h) store.setCanvasDimensions(w, h);
+    } else {
+      store.setCanvasDimensions(1080, 1080);
+    }
+  }, [designId, canvas, preset]);
+
+  // Clear the reset key when loading an existing design so next "new" triggers reset
+  useEffect(() => {
+    if (designId) {
+      didResetRef.current = null;
+    }
+  }, [designId]);
 
   // Set canvas dimensions from preset param
   useEffect(() => {
@@ -152,7 +224,7 @@ function StudioPageInner() {
   useEffect(() => {
     const handleSave = async () => {
       const store = useCanvasStore.getState();
-      if (!store.canvas) return;
+      if (!store.canvas || store.isReadOnly) return;
 
       try {
         // Snapshot current page before saving

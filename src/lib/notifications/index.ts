@@ -39,6 +39,7 @@ import {
   sendEcomTrialReminderEmail,
   sendEcomTrialExpiredEmail,
   sendEcomTrialConvertedEmail,
+  sendDesignInvitationEmail,
 } from "@/lib/email";
 
 // ── Notification Types ──
@@ -146,6 +147,12 @@ export const NOTIFICATION_TYPES = {
   // E-Commerce Intelligence
   INTELLIGENCE_WEEKLY: "INTELLIGENCE_WEEKLY",
   INTELLIGENCE_COMPLETED: "INTELLIGENCE_COMPLETED",
+
+  // Design Collaboration
+  DESIGN_SHARED: "DESIGN_SHARED",
+  DESIGN_INVITATION: "DESIGN_INVITATION",
+  DESIGN_INVITATION_ACCEPTED: "DESIGN_INVITATION_ACCEPTED",
+  DESIGN_EDITED: "DESIGN_EDITED",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -1771,5 +1778,77 @@ export async function notifyEcomTrialConverted(params: {
     storeName: params.storeName,
     planName: params.planName,
     amountCents: params.amountCents,
+  });
+}
+
+// ── Design Collaboration Notifications ──
+
+export async function notifyDesignShared(params: {
+  userId: string;
+  sharerName: string;
+  designName: string;
+  designId: string;
+}) {
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.DESIGN_SHARED,
+    title: "Design Shared With You",
+    message: `${params.sharerName} shared "${params.designName}" with you.`,
+    actionUrl: `/studio?id=${params.designId}`,
+  });
+}
+
+export async function notifyDesignInvitation(params: {
+  userId: string;
+  email: string;
+  inviterName: string;
+  designName: string;
+  role: string;
+  inviteUrl: string;
+}) {
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.DESIGN_INVITATION,
+    title: "Design Collaboration Invite",
+    message: `${params.inviterName} invited you to ${params.role.toLowerCase()} "${params.designName}".`,
+    actionUrl: params.inviteUrl,
+  });
+
+  await sendDesignInvitationEmail({
+    to: params.email,
+    inviterName: params.inviterName,
+    designName: params.designName,
+    role: params.role,
+    inviteUrl: params.inviteUrl,
+  });
+}
+
+export async function notifyDesignInvitationAccepted(params: {
+  userId: string;
+  acceptorName: string;
+  designName: string;
+  designId: string;
+}) {
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.DESIGN_INVITATION_ACCEPTED,
+    title: "Invitation Accepted",
+    message: `${params.acceptorName} accepted your invitation to "${params.designName}".`,
+    actionUrl: `/studio?id=${params.designId}`,
+  });
+}
+
+export async function notifyDesignEdited(params: {
+  userId: string;
+  editorName: string;
+  designName: string;
+  designId: string;
+}) {
+  await createNotification({
+    userId: params.userId,
+    type: NOTIFICATION_TYPES.DESIGN_EDITED,
+    title: "Design Updated",
+    message: `${params.editorName} edited "${params.designName}".`,
+    actionUrl: `/studio?id=${params.designId}`,
   });
 }

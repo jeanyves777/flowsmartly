@@ -27,8 +27,15 @@ import { useCanvasStore } from "../hooks/use-canvas-store";
 import { useCanvasHistory } from "../hooks/use-canvas-history";
 import { useCanvasExport } from "../hooks/use-canvas-export";
 import { ShareDialog } from "../share-dialog";
+import { PresenceAvatars } from "./presence-avatars";
+import type { CollabUser } from "../hooks/use-collaboration";
 
-export function TopToolbar() {
+interface TopToolbarProps {
+  activeUsers?: CollabUser[];
+  isCollabConnected?: boolean;
+}
+
+export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopToolbarProps) {
   const {
     designName,
     setDesignName,
@@ -42,6 +49,7 @@ export function TopToolbar() {
     isDirty,
     activeTool,
     setActiveTool,
+    isReadOnly,
   } = useCanvasStore();
 
   const { undo, redo } = useCanvasHistory();
@@ -130,63 +138,78 @@ export function TopToolbar() {
           </button>
         )}
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={handleSave}
-          title="Save (Ctrl+S)"
-        >
-          <Save className="h-4 w-4" />
-        </Button>
+        {isReadOnly ? (
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 rounded">
+            View Only
+          </span>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={handleSave}
+            title="Save (Ctrl+S)"
+          >
+            <Save className="h-4 w-4" />
+          </Button>
+        )}
+
+        {/* Presence Avatars */}
+        <PresenceAvatars users={activeUsers} isConnected={isCollabConnected} />
       </div>
 
       {/* Center: Cursor Mode + Undo/Redo + Canvas Size + Zoom */}
       <div className="flex items-center gap-1">
-        {/* Cursor mode toggle */}
-        <div className="flex gap-0.5 border border-border/50 rounded-lg p-0.5 bg-muted/30">
-          <Button
-            variant={activeTool === "select" ? "default" : "ghost"}
-            size="icon"
-            className={`h-7 w-7 ${activeTool === "select" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
-            onClick={() => setActiveTool("select")}
-            title="Select (V)"
-          >
-            <MousePointer2 className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant={activeTool === "pan" ? "default" : "ghost"}
-            size="icon"
-            className={`h-7 w-7 ${activeTool === "pan" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
-            onClick={() => setActiveTool("pan")}
-            title="Hand / Pan (H)"
-          >
-            <Hand className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+        {/* Cursor mode toggle — viewers only get pan */}
+        {!isReadOnly && (
+          <div className="flex gap-0.5 border border-border/50 rounded-lg p-0.5 bg-muted/30">
+            <Button
+              variant={activeTool === "select" ? "default" : "ghost"}
+              size="icon"
+              className={`h-7 w-7 ${activeTool === "select" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
+              onClick={() => setActiveTool("select")}
+              title="Select (V)"
+            >
+              <MousePointer2 className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant={activeTool === "pan" ? "default" : "ghost"}
+              size="icon"
+              className={`h-7 w-7 ${activeTool === "pan" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
+              onClick={() => setActiveTool("pan")}
+              title="Hand / Pan (H)"
+            >
+              <Hand className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
 
-        <div className="h-4 w-px bg-border mx-1" />
+        {!isReadOnly && <div className="h-4 w-px bg-border mx-1" />}
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={undo}
-          disabled={!canUndo}
-          title="Undo (Ctrl+Z)"
-        >
-          <Undo2 className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={redo}
-          disabled={!canRedo}
-          title="Redo (Ctrl+Shift+Z)"
-        >
-          <Redo2 className="h-4 w-4" />
-        </Button>
+        {!isReadOnly && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={undo}
+              disabled={!canUndo}
+              title="Undo (Ctrl+Z)"
+            >
+              <Undo2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={redo}
+              disabled={!canRedo}
+              title="Redo (Ctrl+Shift+Z)"
+            >
+              <Redo2 className="h-4 w-4" />
+            </Button>
+          </>
+        )}
 
         <div className="h-4 w-px bg-border mx-1" />
 

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, Share2, Check, LinkIcon } from "lucide-react";
+import { Send, Sparkles, Share2, Check, LinkIcon, X, ImageIcon, Plus, Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,10 @@ import { PLATFORM_META, PLATFORM_ORDER } from "@/components/shared/social-platfo
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface PostSharePanelProps {
-  mediaUrl: string;
+  /** Single media URL (legacy — use mediaUrls for multiple) */
+  mediaUrl?: string;
+  /** Multiple media URLs (preferred) */
+  mediaUrls?: string[];
   mediaType: "image" | "video";
   prompt: string;
 }
@@ -35,20 +38,27 @@ const TONES = [
   { id: "inspirational", label: "Inspirational" },
 ] as const;
 
+const MAX_MEDIA = 10;
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export function PostSharePanel({ mediaUrl, mediaType, prompt }: PostSharePanelProps) {
+export function PostSharePanel({ mediaUrl, mediaUrls: initialMediaUrls, mediaType, prompt }: PostSharePanelProps) {
   const router = useRouter();
   const { toast } = useToast();
   const { isConnected } = useSocialPlatforms();
 
+  // Merge legacy single URL with array prop
+  const initialUrls = initialMediaUrls ?? (mediaUrl ? [mediaUrl] : []);
+
   // State
+  const [mediaUrls, setMediaUrls] = useState<string[]>(initialUrls);
   const [caption, setCaption] = useState("");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["feed"]);
   const [selectedTone, setSelectedTone] = useState("casual");
   const [isGeneratingCaption, setIsGeneratingCaption] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
+  const [isUploadingMore, setIsUploadingMore] = useState(false);
 
   // Build the platform list with enabled/disabled state
   const platforms = useMemo(() => {
@@ -69,6 +79,56 @@ export function PostSharePanel({ mediaUrl, mediaType, prompt }: PostSharePanelPr
         : [...prev, platformId]
     );
   };
+
+  // ─── Media Management ─────────────────────────────────────────────────
+
+  const removeMedia = useCallback((url: string) => {
+    setMediaUrls((prev) => prev.filter((u) => u !== url));
+  }, []);
+
+  const handleUploadFiles = useCallback(async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+
+    const remaining = MAX_MEDIA - mediaUrls.length;
+    if (remaining <= 0) {
+      toast({ title: "Limit reached", description: `Maximum ${MAX_MEDIA} files allowed` });
+      return;
+    }
+
+    const toUpload = fileArray.slice(0, remaining);
+    setIsUploadingMore(true);
+
+    const uploaded: string[] = [];
+    for (const file of toUpload) {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/media", { method: "POST", body: formData });
+        const data = await res.json();
+        if (data.success && data.data?.file?.url) {
+          uploaded.push(data.data.file.url);
+        }
+      } catch {
+        // skip failed uploads
+      }
+    }
+
+    setIsUploadingMore(false);
+
+    if (uploaded.length > 0) {
+      setMediaUrls((prev) => [...prev, ...uploaded]);
+    } else {
+      toast({ title: "Upload failed", description: "Could not upload the file(s)", variant: "destructive" });
+    }
+  }, [mediaUrls.length, toast]);
+
+  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      handleUploadFiles(e.target.files);
+      e.target.value = "";
+    }
+  }, [handleUploadFiles]);
 
   // ─── AI Caption Generation ──────────────────────────────────────────────
 
@@ -119,7 +179,7 @@ export function PostSharePanel({ mediaUrl, mediaType, prompt }: PostSharePanelPr
   // ─── Publish ────────────────────────────────────────────────────────────
 
   const handlePublish = async () => {
-    if (!caption.trim() || isPublishing) return;
+    if (!caption.trim() || isPublishing || mediaUrls.length === 0) return;
     setIsPublishing(true);
 
     try {
@@ -128,7 +188,7 @@ export function PostSharePanel({ mediaUrl, mediaType, prompt }: PostSharePanelPr
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           caption: caption.trim(),
-          mediaUrls: [mediaUrl],
+          mediaUrls,
           mediaType,
           platforms: selectedPlatforms,
         }),
@@ -159,6 +219,8 @@ export function PostSharePanel({ mediaUrl, mediaType, prompt }: PostSharePanelPr
   };
 
   // ─── Render ─────────────────────────────────────────────────────────────
+
+  const canAddMore = mediaUrls.length < MAX_MEDIA;
 
   return (
     <motion.div
@@ -223,6 +285,63 @@ export function PostSharePanel({ mediaUrl, mediaType, prompt }: PostSharePanelPr
                 exit={{ opacity: 0 }}
                 className="space-y-5"
               >
+                {/* 0. Media Preview + Upload */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Media</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {mediaUrls.map((url, idx) => (
+                      <div
+                        key={`${url}-${idx}`}
+                        className="relative w-20 h-20 rounded-lg border overflow-hidden group bg-muted/30"
+                      >
+                        {mediaType === "video" ? (
+                          <div className="absolute inset-0 bg-gray-900 flex items-center justify-center">
+                            <span className="text-[10px] font-bold text-white/70">VIDEO</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={url}
+                            alt={`Media ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                        <button
+                          onClick={() => removeMedia(url)}
+                          className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+
+                    {/* Add more button */}
+                    {canAddMore && (
+                      <label className="w-20 h-20 rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center cursor-pointer hover:border-brand-500/50 hover:bg-muted/50 transition-colors">
+                        {isUploadingMore ? (
+                          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                        ) : (
+                          <>
+                            <Plus className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-[9px] text-muted-foreground mt-0.5">Add</span>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm"
+                          multiple
+                          className="hidden"
+                          onChange={handleFileInputChange}
+                          disabled={isUploadingMore}
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  {mediaUrls.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No media attached. Upload at least one image or video.</p>
+                  )}
+                </div>
+
                 {/* 1. Caption */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -357,7 +476,7 @@ export function PostSharePanel({ mediaUrl, mediaType, prompt }: PostSharePanelPr
                 {/* 3. Publish Button */}
                 <Button
                   onClick={handlePublish}
-                  disabled={!caption.trim()}
+                  disabled={!caption.trim() || mediaUrls.length === 0}
                   className="w-full bg-gradient-to-r from-brand-500 to-purple-600 hover:from-brand-600 hover:to-purple-700 h-12 rounded-2xl text-base font-semibold shadow-lg shadow-brand-500/20"
                   size="lg"
                 >

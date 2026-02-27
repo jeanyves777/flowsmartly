@@ -5,13 +5,31 @@ import { useCanvasStore } from "./hooks/use-canvas-store";
 import { useCanvasHistory } from "./hooks/use-canvas-history";
 import { useCanvasShortcuts } from "./hooks/use-canvas-shortcuts";
 import { lockViewportTransform, safeLoadFromJSON } from "./utils/canvas-helpers";
+import { RemoteCursors } from "./collaboration/remote-cursor";
+import type { CollabUser, CanvasOperation } from "./hooks/use-collaboration";
 
-export function CanvasEditor() {
+interface CanvasEditorProps {
+  broadcastOperation?: (op: Omit<CanvasOperation, "userId" | "sessionKey" | "timestamp">) => void;
+  sendCursorPosition?: (x: number, y: number, pageIndex: number) => void;
+  sendSelection?: (objectId: string | null) => void;
+  activeUsers?: CollabUser[];
+  sessionKey?: string | null;
+}
+
+export function CanvasEditor({
+  broadcastOperation,
+  sendCursorPosition,
+  sendSelection,
+  activeUsers = [],
+  sessionKey,
+}: CanvasEditorProps) {
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasWrapperRef = useRef<HTMLDivElement>(null);
   const fabricRef = useRef<any>(null);
   const prevPageIndexRef = useRef<number>(0);
   const thumbnailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRemoteUpdate = useRef(false);
 
   const {
     canvas,
@@ -26,10 +44,19 @@ export function CanvasEditor() {
     setDirty,
     activeTool,
     activePageIndex,
+    isReadOnly,
   } = useCanvasStore();
 
   const { pushState } = useCanvasHistory();
   useCanvasShortcuts();
+
+  // Keep refs for collaboration callbacks (avoid stale closures)
+  const broadcastRef = useRef(broadcastOperation);
+  broadcastRef.current = broadcastOperation;
+  const cursorRef = useRef(sendCursorPosition);
+  cursorRef.current = sendCursorPosition;
+  const sendSelectionRef = useRef(sendSelection);
+  sendSelectionRef.current = sendSelection;
 
   // Initialize Fabric.js canvas
   useEffect(() => {
@@ -54,29 +81,64 @@ export function CanvasEditor() {
       // Selection events
       fabricCanvas.on("selection:created", (e: any) => {
         handleSelection(e.selected);
+        // Broadcast selection for soft object locking
+        if (e.selected?.length === 1 && sendSelectionRef.current) {
+          sendSelectionRef.current(e.selected[0].id || null);
+        }
       });
       fabricCanvas.on("selection:updated", (e: any) => {
         handleSelection(e.selected);
+        // Broadcast selection for soft object locking
+        if (e.selected?.length === 1 && sendSelectionRef.current) {
+          sendSelectionRef.current(e.selected[0].id || null);
+        }
       });
       fabricCanvas.on("selection:cleared", () => {
         setSelection([], null);
+        // Broadcast deselection for soft object locking
+        if (sendSelectionRef.current) {
+          sendSelectionRef.current(null);
+        }
       });
 
-      // Object modification events (trigger history + layers)
-      fabricCanvas.on("object:modified", () => {
+      // Object modification events (trigger history + layers + collaboration broadcast)
+      fabricCanvas.on("object:modified", (e: any) => {
         pushState();
         refreshLayers();
         setDirty(true);
+        if (!isRemoteUpdate.current && e.target && broadcastRef.current) {
+          broadcastRef.current({
+            type: "object:modified",
+            objectId: e.target.id || "",
+            objectJSON: JSON.stringify(e.target.toJSON(["id", "customName", "selectable", "visible"])),
+            pageIndex: useCanvasStore.getState().activePageIndex,
+          });
+        }
       });
-      fabricCanvas.on("object:added", () => {
+      fabricCanvas.on("object:added", (e: any) => {
         pushState();
         refreshLayers();
         setDirty(true);
+        if (!isRemoteUpdate.current && e.target && broadcastRef.current) {
+          broadcastRef.current({
+            type: "object:added",
+            objectId: e.target.id || "",
+            objectJSON: JSON.stringify(e.target.toJSON(["id", "customName", "selectable", "visible"])),
+            pageIndex: useCanvasStore.getState().activePageIndex,
+          });
+        }
       });
-      fabricCanvas.on("object:removed", () => {
+      fabricCanvas.on("object:removed", (e: any) => {
         pushState();
         refreshLayers();
         setDirty(true);
+        if (!isRemoteUpdate.current && e.target && broadcastRef.current) {
+          broadcastRef.current({
+            type: "object:removed",
+            objectId: e.target.id || "",
+            pageIndex: useCanvasStore.getState().activePageIndex,
+          });
+        }
       });
 
       // Text editing events
@@ -133,6 +195,72 @@ export function CanvasEditor() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Listen for remote canvas operations from collaboration hook
+  useEffect(() => {
+    const handleRemoteOp = async (e: Event) => {
+      const op = (e as CustomEvent).detail as CanvasOperation;
+      const c = useCanvasStore.getState().canvas;
+      if (!c || !fabricRef.current) return;
+
+      // Skip if this is our own operation echoed back
+      if (op.sessionKey === sessionKey) return;
+
+      // Only apply if we're on the same page
+      if (op.pageIndex !== useCanvasStore.getState().activePageIndex) return;
+
+      isRemoteUpdate.current = true;
+      try {
+        const fabric = fabricRef.current;
+
+        if (op.type === "object:added" && op.objectJSON) {
+          const parsed = JSON.parse(op.objectJSON);
+          const objects = await fabric.util.enlivenObjects([parsed]);
+          if (objects[0]) {
+            c.add(objects[0]);
+            c.renderAll();
+          }
+        } else if (op.type === "object:modified" && op.objectJSON) {
+          const parsed = JSON.parse(op.objectJSON);
+          const existing = c.getObjects().find((obj: any) => obj.id === op.objectId);
+          if (existing) {
+            existing.set(parsed);
+            existing.setCoords();
+            c.renderAll();
+          }
+        } else if (op.type === "object:removed") {
+          const existing = c.getObjects().find((obj: any) => obj.id === op.objectId);
+          if (existing) {
+            c.remove(existing);
+            c.renderAll();
+          }
+        }
+      } catch {
+        // Malformed remote op, ignore
+      } finally {
+        isRemoteUpdate.current = false;
+      }
+    };
+
+    document.addEventListener("collab:canvas-op", handleRemoteOp);
+    return () => document.removeEventListener("collab:canvas-op", handleRemoteOp);
+  }, [sessionKey]);
+
+  // Track mouse position for cursor broadcasting
+  useEffect(() => {
+    if (!canvas) return;
+
+    const handleMouseMove = (opt: any) => {
+      if (!cursorRef.current) return;
+      const pointer = canvas.getPointer(opt.e);
+      cursorRef.current(pointer.x, pointer.y, useCanvasStore.getState().activePageIndex);
+    };
+
+    canvas.on("mouse:move", handleMouseMove);
+    return () => {
+      canvas.off("mouse:move", handleMouseMove);
+    };
+  }, [canvas]);
 
   // Auto zoom-to-fit: calculate zoom so canvas fits in container with padding
   const zoomToFit = useCallback(() => {
@@ -297,6 +425,25 @@ export function CanvasEditor() {
     canvas.renderAll();
   }, [canvas, activeTool]);
 
+  // Enforce read-only mode: disable all object interaction for viewers
+  useEffect(() => {
+    if (!canvas) return;
+    if (isReadOnly) {
+      canvas.selection = false;
+      canvas.skipTargetFind = true;
+      canvas.defaultCursor = "default";
+      canvas.hoverCursor = "default";
+      canvas.isDrawingMode = false;
+      // Make all existing objects non-selectable
+      canvas.getObjects().forEach((obj: any) => {
+        obj.selectable = false;
+        obj.evented = false;
+      });
+      canvas.discardActiveObject();
+      canvas.renderAll();
+    }
+  }, [canvas, isReadOnly]);
+
   // Pan with space + drag — uses CSS transform, not Fabric.js viewport
   const isEditingText = useCanvasStore((s) => s.isEditingText);
   const panRef = useRef({ x: 0, y: 0 });
@@ -403,6 +550,37 @@ export function CanvasEditor() {
     };
   }, [canvas, activeTool, isEditingText]);
 
+  // Compute canvas rect for remote cursor positioning
+  const [canvasRect, setCanvasRect] = useState<{ left: number; top: number } | null>(null);
+  useEffect(() => {
+    if (!canvasWrapperRef.current) return;
+    const updateRect = () => {
+      const el = canvasWrapperRef.current;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        setCanvasRect({ left: rect.left, top: rect.top });
+      }
+    };
+    updateRect();
+    window.addEventListener("resize", updateRect);
+    window.addEventListener("scroll", updateRect);
+    return () => {
+      window.removeEventListener("resize", updateRect);
+      window.removeEventListener("scroll", updateRect);
+    };
+  }, [zoom, pan]);
+
+  // Get current user ID from session for cursor filtering
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.user?.id) setMyUserId(d.user.id);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div
       ref={containerRef}
@@ -410,6 +588,7 @@ export function CanvasEditor() {
       style={{ minHeight: 0 }}
     >
       <div
+        ref={canvasWrapperRef}
         className="relative shadow-2xl ring-1 ring-gray-300 dark:ring-gray-600"
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
@@ -431,6 +610,16 @@ export function CanvasEditor() {
         />
         <canvas ref={canvasElRef} />
       </div>
+
+      {/* Remote cursors overlay */}
+      <RemoteCursors
+        users={activeUsers}
+        myUserId={myUserId}
+        activePageIndex={activePageIndex}
+        zoom={zoom}
+        pan={pan}
+        canvasRect={canvasRect}
+      />
     </div>
   );
 }

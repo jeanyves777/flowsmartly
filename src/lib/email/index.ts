@@ -1848,3 +1848,63 @@ export async function sendEcomTrialConvertedEmail(params: {
     html: baseTemplate(content, `Your FlowShop subscription for ${params.storeName} is now active`),
   });
 }
+
+// ── Design Collaboration Emails ─────────────────────────────────────────────
+
+// Design Collaboration Invitation
+export async function sendDesignInvitationEmail(params: {
+  to: string;
+  inviterName: string;
+  designName: string;
+  role: string;
+  inviteUrl: string;
+}) {
+  const content = `
+    <h2>You've Been Invited to Collaborate!</h2>
+    <p>Hi there,</p>
+    <p><strong>${params.inviterName}</strong> has invited you to collaborate on the design <strong>"${params.designName}"</strong> as a <strong>${params.role}</strong>.</p>
+    <div class="highlight">
+      <strong>Design:</strong> ${params.designName}<br>
+      <strong>Role:</strong> ${params.role}<br>
+      <strong>Access:</strong> ${params.role === "EDITOR" ? "You can view and edit this design" : "You can view this design"}
+    </div>
+    <p style="text-align: center;">
+      <a href="${params.inviteUrl}" class="button">Accept Invitation</a>
+    </p>
+    <p style="color: #71717a; font-size: 13px;">If you didn't expect this invitation, you can safely ignore this email.</p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `${params.inviterName} invited you to collaborate on "${params.designName}"`,
+    html: baseTemplate(content, `You've been invited to collaborate on ${params.designName}`),
+  });
+}
+
+// Design Shared Notification
+export async function sendDesignSharedEmail(params: {
+  to: string;
+  sharerName: string;
+  designName: string;
+  shareUrl: string;
+  permission: string;
+}) {
+  const content = `
+    <h2>A Design Has Been Shared With You</h2>
+    <p>Hi there,</p>
+    <p><strong>${params.sharerName}</strong> shared the design <strong>"${params.designName}"</strong> with you.</p>
+    <div class="highlight">
+      <strong>Design:</strong> ${params.designName}<br>
+      <strong>Permission:</strong> ${params.permission}
+    </div>
+    <p style="text-align: center;">
+      <a href="${params.shareUrl}" class="button">View Design</a>
+    </p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `${params.sharerName} shared "${params.designName}" with you`,
+    html: baseTemplate(content, `${params.sharerName} shared a design with you`),
+  });
+}

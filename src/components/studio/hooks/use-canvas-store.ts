@@ -83,6 +83,13 @@ interface CanvasState {
   isEditingText: boolean;
   setIsEditingText: (editing: boolean) => void;
 
+  // Collaboration
+  collaborationRole: "OWNER" | "EDITOR" | "VIEWER" | null;
+  isReadOnly: boolean;
+  shareToken: string | null;
+  setCollaborationRole: (role: "OWNER" | "EDITOR" | "VIEWER" | null) => void;
+  setShareToken: (token: string | null) => void;
+
   // Panel collapse state
   isLeftPanelCollapsed: boolean;
   isRightPanelCollapsed: boolean;
@@ -155,6 +162,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   isEditingText: false,
   setIsEditingText: (editing) => set({ isEditingText: editing }),
+
+  // Collaboration
+  collaborationRole: null,
+  isReadOnly: false,
+  shareToken: null,
+  setCollaborationRole: (role) =>
+    set({ collaborationRole: role, isReadOnly: role === "VIEWER" }),
+  setShareToken: (token) => set({ shareToken: token }),
 
   // Panel collapse
   isLeftPanelCollapsed: false,

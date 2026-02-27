@@ -12,6 +12,7 @@ export function PagesPanel() {
   const deletePage = useCanvasStore((s) => s.deletePage);
   const duplicatePage = useCanvasStore((s) => s.duplicatePage);
   const updateCurrentPageSnapshot = useCanvasStore((s) => s.updateCurrentPageSnapshot);
+  const isReadOnly = useCanvasStore((s) => s.isReadOnly);
 
   const handlePageClick = (index: number) => {
     if (index === activePageIndex) return;
@@ -54,46 +55,50 @@ export function PagesPanel() {
             {index + 1}
           </span>
 
-          {/* Hover action buttons */}
-          <div className="absolute -top-1 -right-1 hidden group-hover:flex gap-0.5">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                updateCurrentPageSnapshot();
-                duplicatePage(index);
-              }}
-              className="w-5 h-5 rounded bg-background border border-border shadow-sm flex items-center justify-center hover:bg-accent transition-colors"
-              title="Duplicate page"
-            >
-              <Copy className="w-3 h-3 text-muted-foreground" />
-            </button>
-            {pages.length > 1 && (
+          {/* Hover action buttons — hidden for viewers */}
+          {!isReadOnly && (
+            <div className="absolute -top-1 -right-1 hidden group-hover:flex gap-0.5">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  deletePage(index);
+                  updateCurrentPageSnapshot();
+                  duplicatePage(index);
                 }}
-                className="w-5 h-5 rounded bg-background border border-border shadow-sm flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600 transition-colors"
-                title="Delete page"
+                className="w-5 h-5 rounded bg-background border border-border shadow-sm flex items-center justify-center hover:bg-accent transition-colors"
+                title="Duplicate page"
               >
-                <Trash2 className="w-3 h-3" />
+                <Copy className="w-3 h-3 text-muted-foreground" />
               </button>
-            )}
-          </div>
+              {pages.length > 1 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deletePage(index);
+                  }}
+                  className="w-5 h-5 rounded bg-background border border-border shadow-sm flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600 transition-colors"
+                  title="Delete page"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       ))}
 
-      {/* Add page button */}
-      <button
-        onClick={() => {
-          updateCurrentPageSnapshot();
-          addPage(activePageIndex);
-        }}
-        className="w-[80px] h-[56px] rounded-md border-2 border-dashed border-border hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-colors flex items-center justify-center shrink-0"
-        title="Add new page"
-      >
-        <Plus className="w-5 h-5 text-muted-foreground" />
-      </button>
+      {/* Add page button — hidden for viewers */}
+      {!isReadOnly && (
+        <button
+          onClick={() => {
+            updateCurrentPageSnapshot();
+            addPage(activePageIndex);
+          }}
+          className="w-[80px] h-[56px] rounded-md border-2 border-dashed border-border hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-colors flex items-center justify-center shrink-0"
+          title="Add new page"
+        >
+          <Plus className="w-5 h-5 text-muted-foreground" />
+        </button>
+      )}
     </div>
   );
 }

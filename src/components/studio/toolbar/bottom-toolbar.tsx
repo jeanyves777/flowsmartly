@@ -39,9 +39,10 @@ export function BottomToolbar() {
   const zoom = useCanvasStore((s) => s.zoom);
   const selectedObjectIds = useCanvasStore((s) => s.selectedObjectIds);
   const refreshLayers = useCanvasStore((s) => s.refreshLayers);
+  const isReadOnly = useCanvasStore((s) => s.isReadOnly);
   const { pushState } = useCanvasHistory();
 
-  const hasSelection = selectedObjectIds.length > 0;
+  const hasSelection = !isReadOnly && selectedObjectIds.length > 0;
 
   const getActiveObject = () => canvas?.getActiveObject?.();
 
