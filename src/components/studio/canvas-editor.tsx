@@ -277,13 +277,23 @@ export function CanvasEditor() {
     if (activeTool === "select") {
       canvas.isDrawingMode = false;
       canvas.defaultCursor = "default";
+      canvas.hoverCursor = "move";
       canvas.selection = true;
+      canvas.skipTargetFind = false;
     } else if (activeTool === "pan") {
       canvas.isDrawingMode = false;
       canvas.defaultCursor = "grab";
+      canvas.hoverCursor = "grab";
       canvas.selection = false;
+      canvas.skipTargetFind = false;
+    } else if (activeTool === "draw") {
+      // Eraser editing mode — crosshair cursor, prevent object interaction
+      canvas.isDrawingMode = false;
+      canvas.defaultCursor = "crosshair";
+      canvas.hoverCursor = "crosshair";
+      canvas.selection = false;
+      canvas.skipTargetFind = true;
     }
-    // "draw" mode is managed by the eraser panel
     canvas.renderAll();
   }, [canvas, activeTool]);
 
@@ -322,19 +332,29 @@ export function CanvasEditor() {
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.code === "Space" && !isEditingText) {
-        canvas.defaultCursor = "default";
-        canvas.selection = true;
+        // Restore cursor based on current activeTool
+        const tool = useCanvasStore.getState().activeTool;
+        if (tool === "pan") {
+          canvas.defaultCursor = "grab";
+        } else if (tool === "draw") {
+          canvas.defaultCursor = "crosshair";
+        } else {
+          canvas.defaultCursor = "default";
+        }
+        canvas.selection = tool === "select";
         isPanning = false;
       }
     };
 
     const handleMouseDown = (opt: any) => {
       const e = opt.e as MouseEvent;
-      if (e.altKey || (canvas.defaultCursor === "grab")) {
+      // Pan if: holding Alt, or cursor is grab (space held / pan tool), or activeTool is pan
+      if (e.altKey || canvas.defaultCursor === "grab" || activeTool === "pan") {
         isPanning = true;
         lastX = e.clientX;
         lastY = e.clientY;
         canvas.defaultCursor = "grabbing";
+        canvas.hoverCursor = "grabbing";
       }
     };
 
@@ -353,7 +373,18 @@ export function CanvasEditor() {
     const handleMouseUp = () => {
       if (isPanning) {
         isPanning = false;
-        canvas.defaultCursor = "default";
+        // Restore cursor based on current activeTool
+        const tool = useCanvasStore.getState().activeTool;
+        if (tool === "pan") {
+          canvas.defaultCursor = "grab";
+          canvas.hoverCursor = "grab";
+        } else if (tool === "draw") {
+          canvas.defaultCursor = "crosshair";
+          canvas.hoverCursor = "crosshair";
+        } else {
+          canvas.defaultCursor = "default";
+          canvas.hoverCursor = "move";
+        }
       }
     };
 

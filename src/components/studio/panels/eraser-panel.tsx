@@ -346,8 +346,7 @@ export function EraserPanel() {
     }
 
     setIsEditing(true);
-    setActiveTool("draw"); // Prevents normal canvas interactions
-    canvas.selection = false;
+    setActiveTool("draw"); // canvas-editor sync sets skipTargetFind, crosshair cursor, etc.
     canvas.discardActiveObject();
     canvas.renderAll();
 
@@ -361,8 +360,7 @@ export function EraserPanel() {
   const finishEditing = useCallback(() => {
     applyOffscreenToFabric();
     setIsEditing(false);
-    setActiveTool("select");
-    canvas.selection = true;
+    setActiveTool("select"); // canvas-editor sync restores cursor, selection, skipTargetFind
 
     // Push canvas history for undo
     pushState();
