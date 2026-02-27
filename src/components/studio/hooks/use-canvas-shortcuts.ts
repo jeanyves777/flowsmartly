@@ -75,6 +75,9 @@ export function useCanvasShortcuts() {
           case "v":
             setActiveTool("select");
             return;
+          case "h":
+            setActiveTool("pan");
+            return;
           case "t":
             setActiveTool("text");
             return;

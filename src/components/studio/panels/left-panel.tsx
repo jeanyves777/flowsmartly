@@ -48,6 +48,7 @@ const PANEL_COMPONENTS: Record<ActivePanel, React.ComponentType> = {
 export function LeftPanel() {
   const activePanel = useCanvasStore((s) => s.activePanel);
   const setActivePanel = useCanvasStore((s) => s.setActivePanel);
+  const setActiveTool = useCanvasStore((s) => s.setActiveTool);
   const isLeftPanelCollapsed = useCanvasStore((s) => s.isLeftPanelCollapsed);
   const toggleLeftPanel = useCanvasStore((s) => s.toggleLeftPanel);
   const PanelContent = PANEL_COMPONENTS[activePanel];
@@ -63,6 +64,10 @@ export function LeftPanel() {
             <button
               key={tab.id}
               onClick={() => {
+                // Reset drawing mode when switching away from eraser
+                if (tab.id !== "eraser") {
+                  setActiveTool("select");
+                }
                 setActivePanel(tab.id);
                 if (isLeftPanelCollapsed) toggleLeftPanel();
               }}

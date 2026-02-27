@@ -270,6 +270,23 @@ export function CanvasEditor() {
     canvas.renderAll();
   }, [canvas]);
 
+  // Sync canvas state with activeTool — ensures drawing mode / cursor reset properly
+  useEffect(() => {
+    if (!canvas) return;
+
+    if (activeTool === "select") {
+      canvas.isDrawingMode = false;
+      canvas.defaultCursor = "default";
+      canvas.selection = true;
+    } else if (activeTool === "pan") {
+      canvas.isDrawingMode = false;
+      canvas.defaultCursor = "grab";
+      canvas.selection = false;
+    }
+    // "draw" mode is managed by the eraser panel
+    canvas.renderAll();
+  }, [canvas, activeTool]);
+
   // Pan with space + drag — uses CSS transform, not Fabric.js viewport
   const isEditingText = useCanvasStore((s) => s.isEditingText);
   const panRef = useRef({ x: 0, y: 0 });

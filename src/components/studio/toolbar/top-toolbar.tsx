@@ -12,6 +12,8 @@ import {
   FileImage,
   File,
   ChevronDown,
+  MousePointer2,
+  Hand,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +40,8 @@ export function TopToolbar() {
     canRedo,
     canvas,
     isDirty,
+    activeTool,
+    setActiveTool,
   } = useCanvasStore();
 
   const { undo, redo } = useCanvasHistory();
@@ -137,8 +141,32 @@ export function TopToolbar() {
         </Button>
       </div>
 
-      {/* Center: Undo/Redo + Canvas Size + Zoom */}
+      {/* Center: Cursor Mode + Undo/Redo + Canvas Size + Zoom */}
       <div className="flex items-center gap-1">
+        {/* Cursor mode toggle */}
+        <div className="flex gap-0.5 border border-border/50 rounded-lg p-0.5 bg-muted/30">
+          <Button
+            variant={activeTool === "select" ? "default" : "ghost"}
+            size="icon"
+            className={`h-7 w-7 ${activeTool === "select" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
+            onClick={() => setActiveTool("select")}
+            title="Select (V)"
+          >
+            <MousePointer2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant={activeTool === "pan" ? "default" : "ghost"}
+            size="icon"
+            className={`h-7 w-7 ${activeTool === "pan" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
+            onClick={() => setActiveTool("pan")}
+            title="Hand / Pan (H)"
+          >
+            <Hand className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
+        <div className="h-4 w-px bg-border mx-1" />
+
         <Button
           variant="ghost"
           size="icon"
