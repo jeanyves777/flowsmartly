@@ -76,7 +76,7 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
-      data: [ownerEntry, ...collaborators],
+      data: { collaborators: [ownerEntry, ...collaborators] },
     });
   } catch (error) {
     console.error("List collaborators error:", error);

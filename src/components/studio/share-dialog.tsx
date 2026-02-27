@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Share2,
   Link2,
   Users,
-  Rss,
   Clock,
   Copy,
   Check,
@@ -20,7 +19,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -36,10 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { PostSharePanel } from "@/components/shared/post-share-panel";
 import { useCanvasStore } from "./hooks/use-canvas-store";
-import { useCanvasExport } from "./hooks/use-canvas-export";
-import { safeLoadFromJSON } from "./utils/canvas-helpers";
 
 interface ShareDialogProps {
   open: boolean;
@@ -94,8 +89,6 @@ const PERMISSION_LABELS: Record<string, string> = {
 
 export function ShareDialog({ open, onOpenChange }: ShareDialogProps) {
   const designId = useCanvasStore((s) => s.designId);
-  const designName = useCanvasStore((s) => s.designName);
-  const { getCanvasDataUrl } = useCanvasExport();
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState("link");
@@ -117,11 +110,6 @@ export function ShareDialog({ open, onOpenChange }: ShareDialogProps) {
   // ─── Activity State ─────────────────────────────────────────────
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
-
-  // ─── Post to Feed State ─────────────────────────────────────────
-  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
-  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-  const [mediaError, setMediaError] = useState<string | null>(null);
 
   // ─── Fetch Helpers ──────────────────────────────────────────────
 
@@ -168,14 +156,6 @@ export function ShareDialog({ open, onOpenChange }: ShareDialogProps) {
     else if (activeTab === "invite") fetchCollaborators();
     else if (activeTab === "activity") fetchActivity();
   }, [open, activeTab, designId, fetchShares, fetchCollaborators, fetchActivity]);
-
-  // Reset state when closed
-  useEffect(() => {
-    if (!open) {
-      setMediaUrls([]);
-      setMediaError(null);
-    }
-  }, [open]);
 
   // ─── Share Link Actions ─────────────────────────────────────────
 
@@ -261,38 +241,6 @@ export function ShareDialog({ open, onOpenChange }: ShareDialogProps) {
     } catch { /* */ }
   };
 
-  // ─── Media Export for Post Tab ──────────────────────────────────
-
-  const exportAndUpload = useCallback(async () => {
-    if (mediaUrls.length > 0 || isUploadingMedia) return;
-    setIsUploadingMedia(true);
-    setMediaError(null);
-    try {
-      const dataUrl = getCanvasDataUrl("png", 2);
-      if (!dataUrl) throw new Error("Failed to export canvas");
-
-      const blob = await fetch(dataUrl).then((r) => r.blob());
-      const formData = new FormData();
-      formData.append("file", blob, `${designName || "design"}.png`);
-      formData.append("tags", JSON.stringify(["studio-share"]));
-
-      const res = await fetch("/api/media", { method: "POST", body: formData });
-      const data = await res.json();
-      if (!data.success) throw new Error("Upload failed");
-      setMediaUrls([data.data.file.url]);
-    } catch (err) {
-      setMediaError(err instanceof Error ? err.message : "Failed to prepare image");
-    } finally {
-      setIsUploadingMedia(false);
-    }
-  }, [getCanvasDataUrl, designName, mediaUrls.length, isUploadingMedia]);
-
-  useEffect(() => {
-    if (open && activeTab === "post" && mediaUrls.length === 0 && !isUploadingMedia) {
-      exportAndUpload();
-    }
-  }, [open, activeTab, exportAndUpload, mediaUrls.length, isUploadingMedia]);
-
   // ─── Render ─────────────────────────────────────────────────────
 
   // Design must be saved first
@@ -331,10 +279,6 @@ export function ShareDialog({ open, onOpenChange }: ShareDialogProps) {
               <TabsTrigger value="invite" className="flex-1 gap-1.5 text-xs">
                 <Users className="w-3.5 h-3.5" />
                 Invite
-              </TabsTrigger>
-              <TabsTrigger value="post" className="flex-1 gap-1.5 text-xs">
-                <Rss className="w-3.5 h-3.5" />
-                Post
               </TabsTrigger>
               <TabsTrigger value="activity" className="flex-1 gap-1.5 text-xs">
                 <Clock className="w-3.5 h-3.5" />
@@ -524,30 +468,6 @@ export function ShareDialog({ open, onOpenChange }: ShareDialogProps) {
                   ))}
                 </div>
               )}
-            </TabsContent>
-
-            {/* ─── Post to Feed Tab ─── */}
-            <TabsContent value="post">
-              {isUploadingMedia ? (
-                <div className="flex flex-col items-center justify-center gap-3 py-12">
-                  <div className="relative">
-                    <div className="w-12 h-12 rounded-full border-4 border-brand-500/20 border-t-brand-500 animate-spin" />
-                    <Share2 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-5 w-5 text-brand-500" />
-                  </div>
-                  <p className="text-sm font-medium">Preparing your design...</p>
-                </div>
-              ) : mediaError ? (
-                <div className="flex flex-col items-center gap-3 py-12">
-                  <p className="text-sm text-destructive">{mediaError}</p>
-                  <Button variant="outline" size="sm" onClick={exportAndUpload}>Try Again</Button>
-                </div>
-              ) : mediaUrls.length > 0 ? (
-                <PostSharePanel
-                  mediaUrls={mediaUrls}
-                  mediaType="image"
-                  prompt={designName}
-                />
-              ) : null}
             </TabsContent>
 
             {/* ─── Activity Tab ─── */}

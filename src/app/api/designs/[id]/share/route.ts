@@ -46,7 +46,7 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
-      data: shares,
+      data: { shares },
     });
   } catch (error) {
     console.error("List share links error:", error);
@@ -156,7 +156,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      data: share,
+      data: { share },
     });
   } catch (error) {
     console.error("Create share link error:", error);

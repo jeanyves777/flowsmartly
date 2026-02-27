@@ -8,6 +8,7 @@ import {
   ZoomOut,
   Download,
   Share2,
+  Rss,
   Save,
   FileImage,
   File,
@@ -27,6 +28,7 @@ import { useCanvasStore } from "../hooks/use-canvas-store";
 import { useCanvasHistory } from "../hooks/use-canvas-history";
 import { useCanvasExport } from "../hooks/use-canvas-export";
 import { ShareDialog } from "../share-dialog";
+import { SocialDialog } from "../social-dialog";
 import { PresenceAvatars } from "./presence-avatars";
 import type { CollabUser } from "../hooks/use-collaboration";
 
@@ -59,6 +61,7 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
   const [isEditingZoom, setIsEditingZoom] = useState(false);
   const [zoomInputValue, setZoomInputValue] = useState("");
   const [showShareDialog, setShowShareDialog] = useState(false);
+  const [showSocialDialog, setShowSocialDialog] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const zoomInputRef = useRef<HTMLInputElement>(null);
 
@@ -326,10 +329,21 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
           <Share2 className="h-4 w-4" />
           Share
         </Button>
+
+        <Button
+          variant="default"
+          size="sm"
+          className="h-8 gap-1.5 bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600"
+          onClick={() => setShowSocialDialog(true)}
+        >
+          <Rss className="h-4 w-4" />
+          Social
+        </Button>
       </div>
 
       {/* Share Dialog */}
       <ShareDialog open={showShareDialog} onOpenChange={setShowShareDialog} />
+      <SocialDialog open={showSocialDialog} onOpenChange={setShowSocialDialog} />
     </div>
   );
 }
