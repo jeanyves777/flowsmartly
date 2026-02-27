@@ -54,6 +54,8 @@ export function createTextbox(
   const text = new fabric.Textbox("Your text here", {
     left: 100,
     top: 100,
+    originX: "left",
+    originY: "top",
     width: 300,
     fontSize: 32,
     fontFamily: "Inter",
@@ -110,6 +112,8 @@ export function createRect(
   const rect = new fabric.Rect({
     left: 100,
     top: 100,
+    originX: "left",
+    originY: "top",
     width: 200,
     height: 200,
     fill: "#3b82f6",
@@ -127,6 +131,8 @@ export function createCircle(
   const circle = new fabric.Circle({
     left: 100,
     top: 100,
+    originX: "left",
+    originY: "top",
     radius: 100,
     fill: "#8b5cf6",
     ...options,
@@ -141,6 +147,8 @@ export function createTriangle(
   const triangle = new fabric.Triangle({
     left: 100,
     top: 100,
+    originX: "left",
+    originY: "top",
     width: 200,
     height: 200,
     fill: "#f59e0b",
@@ -157,6 +165,8 @@ export function createLine(
   const line = new fabric.Line(points || [50, 50, 300, 50], {
     stroke: "#000000",
     strokeWidth: 3,
+    originX: "left",
+    originY: "top",
     ...options,
   });
   return assignId(line);
@@ -178,6 +188,8 @@ export function createStar(
   const star = new fabric.Polygon(coords, {
     left: 100,
     top: 100,
+    originX: "left",
+    originY: "top",
     fill: "#ef4444",
     ...options,
   });
@@ -205,6 +217,8 @@ export function createArrow(
   const group = new fabric.Group([line, head], {
     left: 100,
     top: 100,
+    originX: "left",
+    originY: "top",
   });
   return assignId(group);
 }
@@ -231,6 +245,8 @@ export async function addImageToCanvas(
     fabricImg.set({
       left: 50,
       top: 50,
+      originX: "left",
+      originY: "top",
       ...options,
     });
 
@@ -256,11 +272,19 @@ export async function addImageToCanvas(
   }
 }
 
-// Center an object on the canvas
+// Center an object on the canvas (handles both 'left' and 'center' origin)
 export function centerObject(canvas: any, obj: any) {
-  obj.set({
-    left: (canvas.width - (obj.width * (obj.scaleX || 1))) / 2,
-    top: (canvas.height - (obj.height * (obj.scaleY || 1))) / 2,
-  });
+  const w = obj.width * (obj.scaleX || 1);
+  const h = obj.height * (obj.scaleY || 1);
+  if (obj.originX === "center") {
+    obj.set({ left: canvas.width / 2 });
+  } else {
+    obj.set({ left: (canvas.width - w) / 2 });
+  }
+  if (obj.originY === "center") {
+    obj.set({ top: canvas.height / 2 });
+  } else {
+    obj.set({ top: (canvas.height - h) / 2 });
+  }
   obj.setCoords();
 }

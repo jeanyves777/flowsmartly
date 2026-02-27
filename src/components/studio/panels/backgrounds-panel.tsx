@@ -111,9 +111,13 @@ export function BackgroundsPanel() {
       const ch = store.canvasHeight;
 
       // Scale to exactly fill canvas (stretches to fit, no overflow)
+      // Fabric.js v6 defaults originX/originY to 'center' — we need 'left'/'top'
+      // so that left:0, top:0 places the image's top-left corner at canvas origin
       fabricImg.set({
         left: 0,
         top: 0,
+        originX: "left",
+        originY: "top",
         scaleX: cw / fabricImg.width,
         scaleY: ch / fabricImg.height,
         selectable: false,
