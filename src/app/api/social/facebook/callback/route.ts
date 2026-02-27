@@ -39,20 +39,39 @@ export async function GET(request: NextRequest) {
     );
 
     const tokenData = await tokenResponse.json();
+    console.log("[Facebook Callback] Token exchange response:", {
+      hasToken: !!tokenData.access_token,
+      tokenType: tokenData.token_type,
+      error: tokenData.error,
+    });
 
     if (!tokenData.access_token) {
+      console.error("[Facebook Callback] Token exchange failed:", tokenData);
       throw new Error("No access token received");
     }
 
+    // Check what permissions were actually granted
+    const permissionsResponse = await fetch(
+      `https://graph.facebook.com/v21.0/me/permissions?access_token=${tokenData.access_token}`
+    );
+    const permissionsData = await permissionsResponse.json();
+    console.log("[Facebook Callback] Granted permissions:", JSON.stringify(permissionsData.data));
+
     // Get user's pages
     const pagesResponse = await fetch(
-      `https://graph.facebook.com/v21.0/me/accounts?access_token=${tokenData.access_token}`
+      `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,category&access_token=${tokenData.access_token}`
     );
 
     const pagesData = await pagesResponse.json();
+    console.log("[Facebook Callback] Pages response:", {
+      count: pagesData.data?.length || 0,
+      pages: pagesData.data?.map((p: any) => ({ id: p.id, name: p.name })),
+      error: pagesData.error,
+    });
 
     if (!pagesData.data || pagesData.data.length === 0) {
-      throw new Error("No Facebook Pages found");
+      throw new Error("No Facebook Pages found. Permissions: " +
+        (permissionsData.data?.map((p: any) => `${p.permission}:${p.status}`).join(", ") || "none"));
     }
 
     // Store each page as a separate social account
@@ -61,12 +80,12 @@ export async function GET(request: NextRequest) {
         where: {
           userId_platform: {
             userId,
-            platform: `facebook_${page.id}`, // Unique per page
+            platform: `facebook_${page.id}`,
           },
         },
         create: {
           userId,
-          platform: "facebook",
+          platform: `facebook_${page.id}`,
           platformUserId: page.id,
           platformUsername: page.name,
           platformDisplayName: page.name,

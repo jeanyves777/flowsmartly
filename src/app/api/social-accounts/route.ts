@@ -30,10 +30,16 @@ export async function GET(request: NextRequest) {
 
     // If platform filter is specified, return only accounts for that platform
     if (platformFilter) {
+      // Facebook pages stored as "facebook_<pageId>", Instagram as "instagram_<igId>"
+      const prefixPlatforms = ["facebook", "instagram"];
+      const platformWhere = prefixPlatforms.includes(platformFilter)
+        ? { startsWith: platformFilter }
+        : platformFilter;
+
       const accounts = await prisma.socialAccount.findMany({
         where: {
           userId: session.userId,
-          platform: platformFilter,
+          platform: platformWhere,
           isActive: true,
         },
         select: {
@@ -72,9 +78,17 @@ export async function GET(request: NextRequest) {
     });
 
     // Build a map of connected accounts by platform
-    const connectedMap = new Map(
-      connectedAccounts.map((a) => [a.platform, a])
-    );
+    // Facebook pages stored as "facebook_<pageId>", Instagram as "instagram_<igId>"
+    const connectedMap = new Map<string, typeof connectedAccounts[0]>();
+    for (const a of connectedAccounts) {
+      if (a.platform.startsWith("facebook_")) {
+        if (!connectedMap.has("facebook")) connectedMap.set("facebook", a);
+      } else if (a.platform.startsWith("instagram_")) {
+        if (!connectedMap.has("instagram")) connectedMap.set("instagram", a);
+      } else {
+        connectedMap.set(a.platform, a);
+      }
+    }
 
     // Merge with supported platforms list
     const platforms = SUPPORTED_PLATFORMS.map((p) => {

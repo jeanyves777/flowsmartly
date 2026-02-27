@@ -39,17 +39,34 @@ export async function GET(request: NextRequest) {
     );
 
     const tokenData = await tokenResponse.json();
+    console.log("[Instagram Callback] Token exchange:", {
+      hasToken: !!tokenData.access_token,
+      error: tokenData.error,
+    });
 
     if (!tokenData.access_token) {
+      console.error("[Instagram Callback] Token exchange failed:", tokenData);
       throw new Error("No access token received");
     }
 
+    // Check what permissions were actually granted
+    const permissionsResponse = await fetch(
+      `https://graph.facebook.com/v21.0/me/permissions?access_token=${tokenData.access_token}`
+    );
+    const permissionsData = await permissionsResponse.json();
+    console.log("[Instagram Callback] Granted permissions:", JSON.stringify(permissionsData.data));
+
     // Get user's pages
     const pagesResponse = await fetch(
-      `https://graph.facebook.com/v21.0/me/accounts?access_token=${tokenData.access_token}`
+      `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&access_token=${tokenData.access_token}`
     );
 
     const pagesData = await pagesResponse.json();
+    console.log("[Instagram Callback] Pages response:", {
+      count: pagesData.data?.length || 0,
+      pages: pagesData.data?.map((p: any) => ({ id: p.id, name: p.name })),
+      error: pagesData.error,
+    });
 
     if (!pagesData.data) {
       throw new Error("Failed to get pages");
@@ -79,7 +96,7 @@ export async function GET(request: NextRequest) {
             },
             create: {
               userId,
-              platform: "instagram",
+              platform: `instagram_${ig.id}`,
               platformUserId: ig.id,
               platformUsername: `@${ig.username}`,
               platformDisplayName: ig.name || ig.username,

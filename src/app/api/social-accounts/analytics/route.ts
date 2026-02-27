@@ -96,7 +96,12 @@ async function fetchPlatformAnalytics(account: any) {
     return;
   }
 
-  switch (account.platform) {
+  // Facebook pages stored as "facebook_<pageId>", Instagram as "instagram_<igId>"
+  const platform = account.platform.startsWith("facebook_") ? "facebook"
+    : account.platform.startsWith("instagram_") ? "instagram"
+    : account.platform;
+
+  switch (platform) {
     case "facebook":
       await fetchFacebookAnalytics(account);
       break;
