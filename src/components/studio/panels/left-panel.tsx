@@ -7,6 +7,8 @@ import {
   Upload,
   Sparkles,
   Image as ImageIcon,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useCanvasStore, type ActivePanel } from "../hooks/use-canvas-store";
@@ -40,20 +42,26 @@ const PANEL_COMPONENTS: Record<ActivePanel, React.ComponentType> = {
 };
 
 export function LeftPanel() {
-  const { activePanel, setActivePanel } = useCanvasStore();
+  const activePanel = useCanvasStore((s) => s.activePanel);
+  const setActivePanel = useCanvasStore((s) => s.setActivePanel);
+  const isLeftPanelCollapsed = useCanvasStore((s) => s.isLeftPanelCollapsed);
+  const toggleLeftPanel = useCanvasStore((s) => s.toggleLeftPanel);
   const PanelContent = PANEL_COMPONENTS[activePanel];
 
   return (
     <div className="flex h-full shrink-0">
-      {/* Icon strip */}
+      {/* Icon strip - always visible */}
       <div className="w-[72px] bg-muted/50 border-r flex flex-col items-center py-2 gap-1 shrink-0">
         {TABS.map((tab) => {
           const Icon = tab.icon;
-          const isActive = activePanel === tab.id;
+          const isActive = activePanel === tab.id && !isLeftPanelCollapsed;
           return (
             <button
               key={tab.id}
-              onClick={() => setActivePanel(tab.id)}
+              onClick={() => {
+                setActivePanel(tab.id);
+                if (isLeftPanelCollapsed) toggleLeftPanel();
+              }}
               className={cn(
                 "flex flex-col items-center justify-center w-14 h-14 rounded-lg text-xs gap-1 transition-colors",
                 isActive
@@ -67,12 +75,28 @@ export function LeftPanel() {
             </button>
           );
         })}
+
+        <div className="flex-1" />
+
+        <button
+          onClick={toggleLeftPanel}
+          className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors mb-1"
+          title={isLeftPanelCollapsed ? "Expand panel" : "Collapse panel"}
+        >
+          {isLeftPanelCollapsed ? (
+            <PanelLeftOpen className="h-4 w-4" />
+          ) : (
+            <PanelLeftClose className="h-4 w-4" />
+          )}
+        </button>
       </div>
 
-      {/* Panel content */}
-      <div className="w-[280px] border-r bg-background overflow-y-auto shrink-0">
-        <PanelContent />
-      </div>
+      {/* Panel content - hidden when collapsed */}
+      {!isLeftPanelCollapsed && (
+        <div className="w-[280px] border-r bg-background overflow-y-auto shrink-0">
+          <PanelContent />
+        </div>
+      )}
     </div>
   );
 }

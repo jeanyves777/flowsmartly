@@ -6,6 +6,7 @@ import { TextToolbar } from "./toolbar/text-toolbar";
 import { BottomToolbar } from "./toolbar/bottom-toolbar";
 import { LeftPanel } from "./panels/left-panel";
 import { RightPanel } from "./panels/right-panel";
+import { PagesPanel } from "./panels/pages-panel";
 
 export function StudioLayout() {
   return (
@@ -27,6 +28,9 @@ export function StudioLayout() {
         {/* Right Panel - fixed on right */}
         <RightPanel />
       </div>
+
+      {/* Pages Panel - between canvas area and bottom toolbar */}
+      <PagesPanel />
 
       {/* Bottom Toolbar - fixed at bottom, full width */}
       <BottomToolbar />

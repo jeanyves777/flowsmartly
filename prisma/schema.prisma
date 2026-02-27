@@ -80,6 +80,7 @@ model User {
   creditTransactions CreditTransaction[]
   invoices          Invoice[]
   designs           Design[]
+  designFolders     DesignFolder[]
   landingPages      LandingPage[]
   mediaFiles        MediaFile[]
   mediaFolders      MediaFolder[]
@@ -1769,26 +1770,45 @@ model AnalyticsPageDaily {
 // ============================================
 
 model Design {
-  id          String   @id @default(cuid())
+  id          String         @id @default(cuid())
   userId      String
   prompt      String
-  category    String   // social_post, ad, flyer, poster, banner, signboard
-  size        String   // e.g., "1080x1080"
-  style       String?  // e.g., "photorealistic", "illustration", "minimalist"
+  category    String         // social_post, ad, flyer, poster, banner, signboard
+  size        String         // e.g., "1080x1080"
+  style       String?        // e.g., "photorealistic", "illustration", "minimalist"
   imageUrl    String?
-  name        String   @default("Untitled Design")
-  canvasData  String?  // Fabric.js JSON serialization for canvas studio
-  status      String   @default("PENDING") // PENDING, GENERATING, COMPLETED, FAILED
-  metadata    String   @default("{}")
+  name        String         @default("Untitled Design")
+  canvasData  String?        // Fabric.js JSON serialization for canvas studio
+  status      String         @default("PENDING") // PENDING, GENERATING, COMPLETED, FAILED
+  metadata    String         @default("{}")
+  folderId    String?
+  folder      DesignFolder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([category])
   @@index([createdAt])
+  @@index([folderId])
+}
+
+model DesignFolder {
+  id        String          @id @default(cuid())
+  userId    String
+  name      String
+  parentId  String?
+  parent    DesignFolder?   @relation("DesignFolderTree", fields: [parentId], references: [id])
+  children  DesignFolder[]  @relation("DesignFolderTree")
+  designs   Design[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([parentId])
 }
 
 // ============================================

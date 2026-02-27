@@ -9,6 +9,8 @@ export function CanvasEditor() {
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fabricRef = useRef<any>(null);
+  const prevPageIndexRef = useRef<number>(0);
+  const thumbnailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     canvas,
@@ -22,6 +24,7 @@ export function CanvasEditor() {
     refreshLayers,
     setDirty,
     activeTool,
+    activePageIndex,
   } = useCanvasStore();
 
   const { pushState } = useCanvasHistory();
@@ -98,6 +101,23 @@ export function CanvasEditor() {
             useCanvasStore.getState().setZoom(Math.max(0.1, fitZoom));
           }
         }
+
+        // Initialize pages array if empty (first load or single-page designs)
+        const store = useCanvasStore.getState();
+        if (store.pages.length === 0) {
+          const initialJSON = JSON.stringify(
+            fabricCanvas.toJSON(["id", "customName", "selectable", "visible"])
+          );
+          store.setPages([
+            {
+              id: `page-${Date.now()}`,
+              canvasJSON: initialJSON,
+              thumbnailDataUrl: null,
+              width: canvasWidth,
+              height: canvasHeight,
+            },
+          ]);
+        }
       }, 100);
     })();
 
@@ -130,6 +150,69 @@ export function CanvasEditor() {
     // Auto-fit after dimensions change
     requestAnimationFrame(() => zoomToFit());
   }, [canvas, canvasWidth, canvasHeight, zoomToFit]);
+
+  // Switch canvas content when activePageIndex changes
+  useEffect(() => {
+    if (!canvas) return;
+    const prevIndex = prevPageIndexRef.current;
+    if (prevIndex === activePageIndex) return;
+
+    const store = useCanvasStore.getState();
+    const { pages } = store;
+    const targetPage = pages[activePageIndex];
+    if (!targetPage) return;
+
+    // Save current page snapshot before switching (in case it wasn't saved yet)
+    if (pages[prevIndex]) {
+      try {
+        const json = JSON.stringify(
+          canvas.toJSON(["id", "customName", "selectable", "visible"])
+        );
+        const thumbnail = canvas.toDataURL({ format: "png", multiplier: 0.15, quality: 0.5 });
+        const newPages = [...pages];
+        newPages[prevIndex] = { ...newPages[prevIndex], canvasJSON: json, thumbnailDataUrl: thumbnail };
+        store.setPages(newPages);
+      } catch {
+        // silently fail
+      }
+    }
+
+    // Load target page JSON into canvas
+    canvas.loadFromJSON(targetPage.canvasJSON).then(() => {
+      canvas.renderAll();
+      refreshLayers();
+      pushState();
+    });
+
+    prevPageIndexRef.current = activePageIndex;
+  }, [canvas, activePageIndex, refreshLayers, pushState]);
+
+  // Debounced thumbnail update on canvas modifications
+  useEffect(() => {
+    if (!canvas) return;
+
+    const debouncedThumbnailUpdate = () => {
+      if (thumbnailTimerRef.current) {
+        clearTimeout(thumbnailTimerRef.current);
+      }
+      thumbnailTimerRef.current = setTimeout(() => {
+        useCanvasStore.getState().updateCurrentPageSnapshot();
+      }, 1000);
+    };
+
+    canvas.on("object:modified", debouncedThumbnailUpdate);
+    canvas.on("object:added", debouncedThumbnailUpdate);
+    canvas.on("object:removed", debouncedThumbnailUpdate);
+
+    return () => {
+      canvas.off("object:modified", debouncedThumbnailUpdate);
+      canvas.off("object:added", debouncedThumbnailUpdate);
+      canvas.off("object:removed", debouncedThumbnailUpdate);
+      if (thumbnailTimerRef.current) {
+        clearTimeout(thumbnailTimerRef.current);
+      }
+    };
+  }, [canvas]);
 
   // Handle selection helper
   const handleSelection = useCallback(
@@ -259,7 +342,7 @@ export function CanvasEditor() {
       style={{ minHeight: 0 }}
     >
       <div
-        className="relative shadow-2xl"
+        className="relative shadow-2xl ring-1 ring-gray-300 dark:ring-gray-600"
         style={{
           transform: `scale(${zoom})`,
           transformOrigin: "center center",

@@ -176,9 +176,17 @@ export async function addImageToCanvas(
   options?: Record<string, any>
 ): Promise<any> {
   try {
-    // Use Fabric.js built-in fromURL for reliable cross-origin loading
-    const fabricImg = await fabric.FabricImage.fromURL(url, { crossOrigin: "anonymous" });
-    if (!fabricImg) throw new Error("Failed to create image object");
+    // Proxy external URLs through our image proxy to avoid CORS issues
+    // with presigned S3 URLs and other cross-origin sources
+    let safeUrl = url;
+    if (typeof window !== "undefined" && url.startsWith("http") && !url.startsWith(window.location.origin)) {
+      safeUrl = `/api/image-proxy?url=${encodeURIComponent(url)}`;
+    }
+
+    const fabricImg = await fabric.FabricImage.fromURL(safeUrl, { crossOrigin: "anonymous" });
+    if (!fabricImg || !fabricImg.width || !fabricImg.height) {
+      throw new Error("Image loaded but has no dimensions — likely a CORS or network failure");
+    }
 
     fabricImg.set({
       left: 50,

@@ -49,12 +49,71 @@ function StudioPageInner() {
         const res = await fetch(`/api/designs/${designId}`);
         const data = await res.json();
         if (data.success && data.data?.design?.canvasData) {
-          await canvas.loadFromJSON(data.data.design.canvasData);
-          canvas.renderAll();
+          const store = useCanvasStore.getState();
+          const rawData = data.data.design.canvasData;
+
+          // Parse the stored data to check if it's multi-page
+          let parsed: Record<string, unknown> | null = null;
+          try {
+            parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
+          } catch {
+            parsed = rawData;
+          }
+
+          if (parsed && (parsed as any)._multiPage === true) {
+            // Multi-page design: restore pages array and load the active page
+            const multiPageData = parsed as {
+              pages: Array<{ id: string; canvasJSON: string; width: number; height: number }>;
+              activePageIndex: number;
+            };
+            const restoredPages = multiPageData.pages.map((p) => ({
+              id: p.id,
+              canvasJSON: typeof p.canvasJSON === "string" ? p.canvasJSON : JSON.stringify(p.canvasJSON),
+              thumbnailDataUrl: null as string | null,
+              width: p.width,
+              height: p.height,
+            }));
+
+            const activeIdx = Math.min(
+              multiPageData.activePageIndex || 0,
+              restoredPages.length - 1
+            );
+
+            store.setPages(restoredPages);
+            store.setActivePageIndex(activeIdx);
+
+            // Load the active page canvas content
+            const activePage = restoredPages[activeIdx];
+            if (activePage) {
+              await canvas.loadFromJSON(activePage.canvasJSON);
+              canvas.renderAll();
+            }
+          } else {
+            // Single-page design (backward compatible): load directly
+            const canvasJSON = typeof rawData === "string" ? rawData : JSON.stringify(rawData);
+            await canvas.loadFromJSON(canvasJSON);
+            canvas.renderAll();
+
+            // Initialize single-page pages array
+            const initialJSON = JSON.stringify(
+              canvas.toJSON(["id", "customName", "selectable", "visible"])
+            );
+            store.setPages([
+              {
+                id: `page-${Date.now()}`,
+                canvasJSON: initialJSON,
+                thumbnailDataUrl: null,
+                width: store.canvasWidth,
+                height: store.canvasHeight,
+              },
+            ]);
+            store.setActivePageIndex(0);
+          }
+
           setDesignId(designId);
-          useCanvasStore.getState().setDesignName(data.data.design.name || "Untitled Design");
-          useCanvasStore.getState().refreshLayers();
-          useCanvasStore.getState().setDirty(false);
+          store.setDesignName(data.data.design.name || "Untitled Design");
+          store.refreshLayers();
+          store.setDirty(false);
         }
       } catch {
         // silently
@@ -81,9 +140,29 @@ function StudioPageInner() {
       if (!store.canvas) return;
 
       try {
-        const canvasData = JSON.stringify(
-          store.canvas.toJSON(["id", "customName", "selectable", "visible"])
-        );
+        // Snapshot current page before saving
+        store.updateCurrentPageSnapshot();
+
+        let canvasData: string;
+
+        if (store.pages.length > 1) {
+          // Multi-page: save all pages in a wrapper object
+          canvasData = JSON.stringify({
+            _multiPage: true,
+            pages: store.pages.map((p) => ({
+              id: p.id,
+              canvasJSON: p.canvasJSON,
+              width: p.width,
+              height: p.height,
+            })),
+            activePageIndex: store.activePageIndex,
+          });
+        } else {
+          // Single page: save canvas JSON directly (backward compatible)
+          canvasData = JSON.stringify(
+            store.canvas.toJSON(["id", "customName", "selectable", "visible"])
+          );
+        }
 
         const body: Record<string, unknown> = {
           prompt: store.designName,

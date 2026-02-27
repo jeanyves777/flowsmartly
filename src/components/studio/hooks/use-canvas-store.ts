@@ -8,6 +8,14 @@ export interface LayerInfo {
   locked: boolean;
 }
 
+export interface PageData {
+  id: string;
+  canvasJSON: string;
+  thumbnailDataUrl: string | null;
+  width: number;
+  height: number;
+}
+
 export type ActiveTool = "select" | "text" | "shape" | "draw" | "pan";
 export type ActiveShape = "rect" | "circle" | "triangle" | "line" | "arrow" | "star";
 export type ActivePanel =
@@ -73,6 +81,22 @@ interface CanvasState {
   // Text editing state
   isEditingText: boolean;
   setIsEditingText: (editing: boolean) => void;
+
+  // Panel collapse state
+  isLeftPanelCollapsed: boolean;
+  isRightPanelCollapsed: boolean;
+  toggleLeftPanel: () => void;
+  toggleRightPanel: () => void;
+
+  // Multi-page support
+  pages: PageData[];
+  activePageIndex: number;
+  setPages: (pages: PageData[]) => void;
+  setActivePageIndex: (index: number) => void;
+  addPage: (afterIndex?: number) => void;
+  deletePage: (index: number) => void;
+  duplicatePage: (index: number) => void;
+  updateCurrentPageSnapshot: () => void;
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
@@ -130,4 +154,67 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   isEditingText: false,
   setIsEditingText: (editing) => set({ isEditingText: editing }),
+
+  // Panel collapse
+  isLeftPanelCollapsed: false,
+  isRightPanelCollapsed: false,
+  toggleLeftPanel: () => set((s) => ({ isLeftPanelCollapsed: !s.isLeftPanelCollapsed })),
+  toggleRightPanel: () => set((s) => ({ isRightPanelCollapsed: !s.isRightPanelCollapsed })),
+
+  // Multi-page
+  pages: [],
+  activePageIndex: 0,
+  setPages: (pages) => set({ pages }),
+  setActivePageIndex: (index) => set({ activePageIndex: index }),
+
+  addPage: (afterIndex) => {
+    const { pages, canvasWidth, canvasHeight } = get();
+    const newPage: PageData = {
+      id: `page-${Date.now()}`,
+      canvasJSON: JSON.stringify({ version: "6.0.0", objects: [], background: "#ffffff" }),
+      thumbnailDataUrl: null,
+      width: canvasWidth,
+      height: canvasHeight,
+    };
+    const idx = afterIndex !== undefined ? afterIndex + 1 : pages.length;
+    const newPages = [...pages];
+    newPages.splice(idx, 0, newPage);
+    set({ pages: newPages, activePageIndex: idx });
+  },
+
+  deletePage: (index) => {
+    const { pages, activePageIndex } = get();
+    if (pages.length <= 1) return;
+    const newPages = pages.filter((_, i) => i !== index);
+    const newActive = activePageIndex >= newPages.length
+      ? newPages.length - 1
+      : activePageIndex > index
+        ? activePageIndex - 1
+        : activePageIndex;
+    set({ pages: newPages, activePageIndex: newActive });
+  },
+
+  duplicatePage: (index) => {
+    const { pages } = get();
+    const source = pages[index];
+    if (!source) return;
+    const newPage: PageData = { ...source, id: `page-${Date.now()}`, thumbnailDataUrl: source.thumbnailDataUrl };
+    const newPages = [...pages];
+    newPages.splice(index + 1, 0, newPage);
+    set({ pages: newPages, activePageIndex: index + 1 });
+  },
+
+  updateCurrentPageSnapshot: () => {
+    const { canvas, pages, activePageIndex } = get();
+    if (!canvas || pages.length === 0) return;
+    try {
+      const json = JSON.stringify(canvas.toJSON(["id", "customName", "selectable", "visible"]));
+      const thumbnail = canvas.toDataURL({ format: "png", multiplier: 0.15, quality: 0.5 });
+      const newPages = [...pages];
+      newPages[activePageIndex] = { ...newPages[activePageIndex], canvasJSON: json, thumbnailDataUrl: thumbnail };
+      set({ pages: newPages });
+    } catch {
+      // silently fail for snapshot
+    }
+  },
 }));

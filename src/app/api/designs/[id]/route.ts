@@ -56,3 +56,42 @@ export async function GET(
     );
   }
 }
+
+// DELETE /api/designs/:id - Delete a design
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: { message: "Unauthorized" } },
+        { status: 401 }
+      );
+    }
+
+    const { id } = await params;
+
+    const design = await prisma.design.findFirst({
+      where: { id, userId: session.userId },
+    });
+
+    if (!design) {
+      return NextResponse.json(
+        { success: false, error: { message: "Design not found" } },
+        { status: 404 }
+      );
+    }
+
+    await prisma.design.delete({ where: { id } });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Delete design error:", error);
+    return NextResponse.json(
+      { success: false, error: { message: "Failed to delete design" } },
+      { status: 500 }
+    );
+  }
+}

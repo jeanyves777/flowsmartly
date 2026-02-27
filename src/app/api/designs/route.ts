@@ -16,15 +16,23 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");
+    const folderId = searchParams.get("folderId");
+    const search = searchParams.get("search");
     const limit = parseInt(searchParams.get("limit") || "20");
     const cursor = searchParams.get("cursor");
 
     const where: Record<string, unknown> = { userId: session.userId };
     if (category) where.category = category;
+    if (folderId) {
+      where.folderId = folderId === "root" ? null : folderId;
+    }
+    if (search) {
+      where.name = { contains: search };
+    }
 
     const designs = await prisma.design.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: { updatedAt: "desc" },
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
