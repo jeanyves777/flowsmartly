@@ -1,76 +1,77 @@
 "use client";
 
-import { useRef, useCallback, useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { useCanvasStore } from "./use-canvas-store";
 import { safeLoadFromJSON } from "../utils/canvas-helpers";
 
 const MAX_HISTORY = 50;
 
+// Module-level singletons so all useCanvasHistory() instances share the same stack
+let historyStack: string[] = [];
+let historyIndex = -1;
+let isRestoring = false;
+
 export function useCanvasHistory() {
   const canvas = useCanvasStore((s) => s.canvas);
   const setHistoryState = useCanvasStore((s) => s.setHistoryState);
 
-  const historyRef = useRef<string[]>([]);
-  const indexRef = useRef(-1);
-  const isRestoringRef = useRef(false);
-
   const updateHistoryState = useCallback(() => {
-    setHistoryState(indexRef.current > 0, indexRef.current < historyRef.current.length - 1);
+    setHistoryState(historyIndex > 0, historyIndex < historyStack.length - 1);
   }, [setHistoryState]);
 
   const pushState = useCallback(() => {
-    if (!canvas || isRestoringRef.current) return;
+    if (!canvas || isRestoring) return;
 
     const json = JSON.stringify(canvas.toJSON(["id", "customName", "selectable", "visible"]));
 
     // Remove any redo states
-    historyRef.current = historyRef.current.slice(0, indexRef.current + 1);
+    historyStack = historyStack.slice(0, historyIndex + 1);
 
     // Push new state
-    historyRef.current.push(json);
+    historyStack.push(json);
 
     // Trim if over limit
-    if (historyRef.current.length > MAX_HISTORY) {
-      historyRef.current.shift();
+    if (historyStack.length > MAX_HISTORY) {
+      historyStack.shift();
     } else {
-      indexRef.current++;
+      historyIndex++;
     }
 
     updateHistoryState();
   }, [canvas, updateHistoryState]);
 
   const undo = useCallback(async () => {
-    if (!canvas || indexRef.current <= 0) return;
+    if (!canvas || historyIndex <= 0) return;
 
-    isRestoringRef.current = true;
-    indexRef.current--;
-    const json = historyRef.current[indexRef.current];
+    isRestoring = true;
+    historyIndex--;
+    const json = historyStack[historyIndex];
 
     await safeLoadFromJSON(canvas, json);
 
-    isRestoringRef.current = false;
+    isRestoring = false;
     updateHistoryState();
     useCanvasStore.getState().refreshLayers();
   }, [canvas, updateHistoryState]);
 
   const redo = useCallback(async () => {
-    if (!canvas || indexRef.current >= historyRef.current.length - 1) return;
+    if (!canvas || historyIndex >= historyStack.length - 1) return;
 
-    isRestoringRef.current = true;
-    indexRef.current++;
-    const json = historyRef.current[indexRef.current];
+    isRestoring = true;
+    historyIndex++;
+    const json = historyStack[historyIndex];
 
     await safeLoadFromJSON(canvas, json);
 
-    isRestoringRef.current = false;
+    isRestoring = false;
     updateHistoryState();
     useCanvasStore.getState().refreshLayers();
   }, [canvas, updateHistoryState]);
 
   // Reset history when canvas changes
   useEffect(() => {
-    historyRef.current = [];
-    indexRef.current = -1;
+    historyStack = [];
+    historyIndex = -1;
     updateHistoryState();
   }, [canvas, updateHistoryState]);
 
