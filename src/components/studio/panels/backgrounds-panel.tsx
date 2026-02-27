@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { Paintbrush, ImageIcon, Upload } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Paintbrush, ImageIcon, Upload, Loader2, FolderOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useCanvasStore } from "../hooks/use-canvas-store";
+
+interface MediaItem {
+  id: string;
+  url: string;
+  filename: string;
+  type: string;
+}
 
 const SOLID_COLORS = [
   "#ffffff", "#f8f9fa", "#e9ecef", "#dee2e6", "#ced4da", "#adb5bd",
@@ -31,16 +38,47 @@ const GRADIENT_PRESETS = [
 
 export function BackgroundsPanel() {
   const canvas = useCanvasStore((s) => s.canvas);
+  const setDirty = useCanvasStore((s) => s.setDirty);
+  const refreshLayers = useCanvasStore((s) => s.refreshLayers);
   const [customColor, setCustomColor] = useState("#ffffff");
+  const [libraryImages, setLibraryImages] = useState<MediaItem[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [settingBgId, setSettingBgId] = useState<string | null>(null);
+
+  // Auto-load user's media library
+  const fetchLibrary = useCallback(async () => {
+    setLibraryLoading(true);
+    try {
+      const res = await fetch("/api/media?type=image&limit=20");
+      const data = await res.json();
+      if (data.success) {
+        setLibraryImages(data.data?.files || []);
+      }
+    } catch {
+      // silently fail
+    }
+    setLibraryLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchLibrary();
+  }, [fetchLibrary]);
 
   const setBackgroundColor = (color: string) => {
     if (!canvas) return;
+    // Remove existing background image
+    const existing = canvas.getObjects().find((o: any) => o.id === "background-image");
+    if (existing) canvas.remove(existing);
     canvas.backgroundColor = color;
     canvas.renderAll();
+    setDirty(true);
   };
 
   const setBackgroundGradient = async (colors: string[]) => {
     if (!canvas) return;
+    // Remove existing background image
+    const existing = canvas.getObjects().find((o: any) => o.id === "background-image");
+    if (existing) canvas.remove(existing);
     const fabric = await import("fabric");
     const gradient = new fabric.Gradient({
       type: "linear",
@@ -52,6 +90,58 @@ export function BackgroundsPanel() {
     });
     canvas.backgroundColor = gradient as any;
     canvas.renderAll();
+    setDirty(true);
+  };
+
+  // Shared helper: load an image URL as canvas background
+  const setImageBackground = async (imageUrl: string) => {
+    if (!canvas) return;
+    try {
+      const fabric = await import("fabric");
+      // Proxy external URLs
+      const url = imageUrl.startsWith("http") && !imageUrl.startsWith(window.location.origin)
+        ? `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`
+        : imageUrl;
+      const fabricImg = await fabric.FabricImage.fromURL(url, { crossOrigin: "anonymous" });
+      if (!fabricImg || !fabricImg.width || !fabricImg.height) return;
+
+      // Use design dimensions from store (not viewport size)
+      const store = useCanvasStore.getState();
+      const cw = store.canvasWidth;
+      const ch = store.canvasHeight;
+
+      // Scale to fill canvas and center the image
+      const scaleX = cw / fabricImg.width;
+      const scaleY = ch / fabricImg.height;
+      const scale = Math.max(scaleX, scaleY);
+      fabricImg.scale(scale);
+      const scaledW = fabricImg.width * scale;
+      const scaledH = fabricImg.height * scale;
+      fabricImg.set({
+        left: (cw - scaledW) / 2,
+        top: (ch - scaledH) / 2,
+        selectable: false,
+        evented: false,
+      });
+      (fabricImg as any).id = "background-image";
+      (fabricImg as any).customName = "Background";
+
+      // Remove existing background image if any
+      const existing = canvas.getObjects().find((o: any) => o.id === "background-image");
+      if (existing) canvas.remove(existing);
+
+      // Reset canvas backgroundColor when using image
+      canvas.backgroundColor = "#ffffff";
+
+      // Add at bottom of stack
+      canvas.add(fabricImg);
+      canvas.sendObjectToBack(fabricImg);
+      canvas.renderAll();
+      refreshLayers();
+      setDirty(true);
+    } catch {
+      // silently fail
+    }
   };
 
   const handleImageBackground = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,34 +151,16 @@ export function BackgroundsPanel() {
     const reader = new FileReader();
     reader.onload = async () => {
       const dataUrl = reader.result as string;
-      try {
-        const fabric = await import("fabric");
-        const fabricImg = await fabric.FabricImage.fromURL(dataUrl);
-        if (!fabricImg || !fabricImg.width || !fabricImg.height) return;
-
-        // Scale to fill canvas
-        const scaleX = canvas.width / fabricImg.width;
-        const scaleY = canvas.height / fabricImg.height;
-        const scale = Math.max(scaleX, scaleY);
-        fabricImg.scale(scale);
-        fabricImg.set({ left: 0, top: 0, selectable: false, evented: false });
-        (fabricImg as any).id = "background-image";
-        (fabricImg as any).customName = "Background";
-
-        // Remove existing background image if any
-        const existing = canvas.getObjects().find((o: any) => o.id === "background-image");
-        if (existing) canvas.remove(existing);
-
-        // Add at bottom of stack
-        canvas.add(fabricImg);
-        canvas.sendObjectToBack(fabricImg);
-        canvas.renderAll();
-      } catch {
-        // silently fail
-      }
+      await setImageBackground(dataUrl);
     };
     reader.readAsDataURL(file);
     e.target.value = "";
+  };
+
+  const handleLibraryImageClick = async (item: MediaItem) => {
+    setSettingBgId(item.id);
+    await setImageBackground(item.url);
+    setSettingBgId(null);
   };
 
   return (
@@ -102,9 +174,9 @@ export function BackgroundsPanel() {
           <span className="text-xs font-medium">Solid Colors</span>
         </div>
         <div className="grid grid-cols-8 gap-1.5">
-          {SOLID_COLORS.map((color) => (
+          {SOLID_COLORS.map((color, i) => (
             <button
-              key={color}
+              key={`${color}-${i}`}
               onClick={() => setBackgroundColor(color)}
               className="w-7 h-7 rounded border border-border hover:scale-110 transition-transform"
               style={{ backgroundColor: color }}
@@ -157,11 +229,11 @@ export function BackgroundsPanel() {
         </div>
       </div>
 
-      {/* Image Background */}
-      <div>
+      {/* Image Background Upload */}
+      <div className="mb-4">
         <div className="flex items-center gap-1.5 mb-2">
-          <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium">Image Background</span>
+          <Upload className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium">Upload Image</span>
         </div>
         <label>
           <input
@@ -170,11 +242,51 @@ export function BackgroundsPanel() {
             onChange={handleImageBackground}
             className="hidden"
           />
-          <div className="w-full h-16 rounded-lg border-2 border-dashed border-border hover:border-brand-500 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors">
+          <div className="w-full h-14 rounded-lg border-2 border-dashed border-border hover:border-brand-500 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors">
             <Upload className="h-4 w-4 text-muted-foreground" />
             <span className="text-xs text-muted-foreground">Upload image</span>
           </div>
         </label>
+      </div>
+
+      {/* From Library */}
+      <div>
+        <div className="flex items-center gap-1.5 mb-2">
+          <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium">From Library</span>
+        </div>
+        {libraryLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : libraryImages.length === 0 ? (
+          <div className="text-center py-4 text-xs text-muted-foreground">
+            <ImageIcon className="h-6 w-6 mx-auto mb-1 opacity-50" />
+            <p>No images in library</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-1.5">
+            {libraryImages.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => handleLibraryImageClick(item)}
+                disabled={settingBgId === item.id}
+                className="relative aspect-square rounded-lg overflow-hidden border border-border hover:border-brand-500 transition-all group"
+              >
+                <img
+                  src={item.url}
+                  alt={item.filename}
+                  className="w-full h-full object-cover"
+                />
+                {settingBgId === item.id && (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

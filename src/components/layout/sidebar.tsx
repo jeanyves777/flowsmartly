@@ -79,6 +79,7 @@ interface SidebarProps {
   onToggleStoreMode?: () => void;
   hasEcommerce?: boolean;
   storeRegion?: string | null;
+  hasDelegations?: boolean;
 }
 
 // Plans that have access to marketing features
@@ -142,7 +143,7 @@ const secondaryNavigation = [
   { name: "Help", href: "/help", icon: HelpCircle },
 ];
 
-export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = false, delegationMode, onExitDelegation, storeMode, onToggleStoreMode, hasEcommerce, storeRegion }: SidebarProps) {
+export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = false, delegationMode, onExitDelegation, storeMode, onToggleStoreMode, hasEcommerce, storeRegion, hasDelegations = false }: SidebarProps) {
   const pathname = usePathname();
   const hasMarketingAccess = MARKETING_PLANS.includes(userPlan.toUpperCase());
   const isDelegating = delegationMode?.active === true;
@@ -419,9 +420,9 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
               </div>
             )}
 
-            {/* My Projects always visible */}
+            {/* Team Projects always visible in delegation mode */}
             {renderNavItem(
-              { name: "My Projects", href: "/projects", icon: FolderKanban },
+              { name: "Team Projects", href: "/projects", icon: FolderKanban },
               pathname === "/projects"
             )}
 
@@ -457,9 +458,9 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
               return renderNavItem(item, isActive);
             })}
 
-            {/* My Projects — always visible for users with delegations */}
-            {renderNavItem(
-              { name: "My Projects", href: "/projects", icon: FolderKanban },
+            {/* Team Projects — only visible when user has delegated projects */}
+            {hasDelegations && renderNavItem(
+              { name: "Team Projects", href: "/projects", icon: FolderKanban },
               pathname === "/projects"
             )}
 

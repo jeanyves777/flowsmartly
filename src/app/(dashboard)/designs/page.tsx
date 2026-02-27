@@ -69,7 +69,7 @@ interface DesignFolder {
   id: string;
   name: string;
   parentId: string | null;
-  _count: { designs: number };
+  designCount: number;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -205,7 +205,7 @@ export default function DesignsPage() {
       const data = await res.json();
 
       if (data.success) {
-        setFolders(data.folders);
+        setFolders(data.data?.folders || []);
       }
     } catch (error) {
       console.error("Failed to fetch folders:", error);
@@ -622,7 +622,7 @@ export default function DesignsPage() {
                   </span>
                 )}
                 <span className="text-xs text-muted-foreground">
-                  {folder._count.designs} design{folder._count.designs !== 1 ? "s" : ""}
+                  {folder.designCount} design{folder.designCount !== 1 ? "s" : ""}
                 </span>
               </button>
               {renamingFolderId !== folder.id && (
@@ -1190,7 +1190,7 @@ export default function DesignsPage() {
                 <FolderOpen className="w-4 h-4" />
                 {folder.name}
                 <span className="text-xs opacity-60 ml-auto">
-                  {folder._count.designs}
+                  {folder.designCount}
                 </span>
               </button>
             ))}

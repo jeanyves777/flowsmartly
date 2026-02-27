@@ -59,6 +59,7 @@ export default function DashboardLayout({
   const [storeMode, setStoreMode] = useState(false);
   const [hasEcommerce, setHasEcommerce] = useState(false);
   const [storeRegion, setStoreRegion] = useState<string | null>(null);
+  const [hasDelegations, setHasDelegations] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -98,6 +99,14 @@ export default function DashboardLayout({
               // Store inactive or not found — clear stale storeMode
               setStoreMode(false);
               try { localStorage.removeItem("flowsmartly_store_mode"); } catch {}
+            }
+          } catch {}
+          // Check if user has any delegated projects (for sidebar nav)
+          try {
+            const delRes = await fetch("/api/delegations");
+            const delData = await delRes.json();
+            if (delData.success && Array.isArray(delData.data) && delData.data.length > 0) {
+              setHasDelegations(true);
             }
           } catch {}
           setIsLoading(false);
@@ -306,6 +315,7 @@ export default function DashboardLayout({
             onToggleStoreMode={toggleStoreMode}
             hasEcommerce={hasEcommerce}
             storeRegion={storeRegion}
+            hasDelegations={hasDelegations}
           />
         </div>
 
