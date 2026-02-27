@@ -110,16 +110,12 @@ export function BackgroundsPanel() {
       const cw = store.canvasWidth;
       const ch = store.canvasHeight;
 
-      // Scale to fill canvas and center the image
-      const scaleX = cw / fabricImg.width;
-      const scaleY = ch / fabricImg.height;
-      const scale = Math.max(scaleX, scaleY);
-      fabricImg.scale(scale);
-      const scaledW = fabricImg.width * scale;
-      const scaledH = fabricImg.height * scale;
+      // Scale to exactly fill canvas (stretches to fit, no overflow)
       fabricImg.set({
-        left: (cw - scaledW) / 2,
-        top: (ch - scaledH) / 2,
+        left: 0,
+        top: 0,
+        scaleX: cw / fabricImg.width,
+        scaleY: ch / fabricImg.height,
         selectable: false,
         evented: false,
       });

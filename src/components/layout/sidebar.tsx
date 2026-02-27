@@ -90,6 +90,7 @@ const topNavigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Feed", href: "/feed", icon: Rss },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
+  { name: "My Designs", href: "/designs", icon: FolderKanban },
 ];
 
 // Content management
@@ -102,7 +103,6 @@ const contentNavigation = [
 
 // AI Creatives
 const aiCreativesNavigation = [
-  { name: "My Designs", href: "/designs", icon: FolderKanban },
   { name: "Image Studio", href: "/studio", icon: Palette },
   { name: "Video Studio", href: "/video-studio", icon: Video },
   { name: "Voice Studio", href: "/voice-studio", icon: Mic },
@@ -439,7 +439,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
 
             {/* Filtered AI Creatives */}
             {filterByAllowed(aiCreativesNavigation).length > 0 &&
-              renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/designs", "/studio", "/video-studio", "/voice-studio", "/logo-generator", "/media"].some(p => pathname.startsWith(p)), filterByAllowed(aiCreativesNavigation))}
+              renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/voice-studio", "/logo-generator", "/media"].some(p => pathname.startsWith(p)), filterByAllowed(aiCreativesNavigation))}
 
             {/* Filtered Marketing */}
             {filterByAllowed(marketingNavigation).length > 0 &&
@@ -474,7 +474,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             )}
 
             {/* AI Creatives Section */}
-            {renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/designs", "/studio", "/video-studio", "/voice-studio", "/logo-generator", "/media"].some(p => pathname.startsWith(p)), aiCreativesNavigation)}
+            {renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-studio", "/voice-studio", "/logo-generator", "/media"].some(p => pathname.startsWith(p)), aiCreativesNavigation)}
 
             {/* Marketing Section */}
             {renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/whatsapp", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), marketingNavigation, true)}

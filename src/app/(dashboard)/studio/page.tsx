@@ -164,12 +164,25 @@ function StudioPageInner() {
           );
         }
 
+        // Generate a small thumbnail for the designs listing page
+        let thumbnailDataUrl: string | null = null;
+        try {
+          thumbnailDataUrl = store.canvas.toDataURL({
+            format: "png",
+            multiplier: 0.2,
+            quality: 0.7,
+          });
+        } catch {
+          // thumbnail generation can fail silently
+        }
+
         const body: Record<string, unknown> = {
           prompt: store.designName,
           name: store.designName,
           category: "social_post",
           size: `${store.canvasWidth}x${store.canvasHeight}`,
           canvasData,
+          ...(thumbnailDataUrl && { imageUrl: thumbnailDataUrl }),
         };
 
         let method = "POST";

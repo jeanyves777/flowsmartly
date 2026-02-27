@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useCanvasStore } from "./hooks/use-canvas-store";
 import { useCanvasHistory } from "./hooks/use-canvas-history";
 import { useCanvasShortcuts } from "./hooks/use-canvas-shortcuts";
@@ -238,7 +238,7 @@ export function CanvasEditor() {
     return () => document.removeEventListener("studio:zoom-to-fit", handleZoomToFit);
   }, [zoomToFit]);
 
-  // Zoom with mouse wheel (Ctrl + scroll)
+  // Zoom with mouse wheel (Ctrl + scroll) — CSS-only, no Fabric.js viewport changes
   useEffect(() => {
     if (!canvas) return;
 
@@ -251,10 +251,6 @@ export function CanvasEditor() {
       const delta = e.deltaY;
       let newZoom = zoom * (1 - delta / 500);
       newZoom = Math.max(0.1, Math.min(5, newZoom));
-
-      // Zoom toward mouse position
-      const point = canvas.getScenePoint(e);
-      canvas.zoomToPoint(point, newZoom);
       setZoom(newZoom);
     };
 
@@ -264,8 +260,28 @@ export function CanvasEditor() {
     };
   }, [canvas, zoom, setZoom]);
 
-  // Pan with space + drag (skip when editing text so spacebar types normally)
+  // Ensure Fabric.js viewport transform stays at identity (zoom/pan handled by CSS)
+  useEffect(() => {
+    if (!canvas) return;
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    canvas.renderAll();
+  }, [canvas]);
+
+  // Pan with space + drag — uses CSS transform, not Fabric.js viewport
   const isEditingText = useCanvasStore((s) => s.isEditingText);
+  const panRef = useRef({ x: 0, y: 0 });
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+
+  // Reset pan when zoom changes via toolbar (zoom-to-fit)
+  useEffect(() => {
+    const handleZoomReset = () => {
+      panRef.current = { x: 0, y: 0 };
+      setPan({ x: 0, y: 0 });
+    };
+    document.addEventListener("studio:zoom-to-fit", handleZoomReset);
+    return () => document.removeEventListener("studio:zoom-to-fit", handleZoomReset);
+  }, []);
+
   useEffect(() => {
     if (!canvas) return;
     let isPanning = false;
@@ -273,7 +289,6 @@ export function CanvasEditor() {
     let lastY = 0;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept space when editing text on canvas or in input fields
       if (isEditingText) return;
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
@@ -306,14 +321,13 @@ export function CanvasEditor() {
     const handleMouseMove = (opt: any) => {
       if (!isPanning) return;
       const e = opt.e as MouseEvent;
-      const vpt = canvas.viewportTransform;
-      if (vpt) {
-        vpt[4] += e.clientX - lastX;
-        vpt[5] += e.clientY - lastY;
-        canvas.requestRenderAll();
-        lastX = e.clientX;
-        lastY = e.clientY;
-      }
+      panRef.current = {
+        x: panRef.current.x + (e.clientX - lastX),
+        y: panRef.current.y + (e.clientY - lastY),
+      };
+      setPan({ ...panRef.current });
+      lastX = e.clientX;
+      lastY = e.clientY;
     };
 
     const handleMouseUp = () => {
@@ -338,9 +352,6 @@ export function CanvasEditor() {
     };
   }, [canvas, activeTool, isEditingText]);
 
-  // Calculate scale to fit canvas in viewport
-  const containerPadding = 40;
-
   return (
     <div
       ref={containerRef}
@@ -350,7 +361,7 @@ export function CanvasEditor() {
       <div
         className="relative shadow-2xl ring-1 ring-gray-300 dark:ring-gray-600"
         style={{
-          transform: `scale(${zoom})`,
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           transformOrigin: "center center",
           transition: "none",
         }}
