@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, Suspense } from "react";
+import { useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useCanvasStore } from "@/components/studio/hooks/use-canvas-store";
@@ -202,6 +202,42 @@ function StudioPageInner() {
     document.addEventListener("studio:save", handleSave);
     return () => document.removeEventListener("studio:save", handleSave);
   }, []);
+
+  // Auto-save: debounced 30s after last change + 2-min periodic safety net
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const periodicTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isSaving = useRef(false);
+
+  const triggerAutoSave = useCallback(() => {
+    if (isSaving.current) return;
+    const store = useCanvasStore.getState();
+    if (!store.isDirty || !store.canvas) return;
+    isSaving.current = true;
+    document.dispatchEvent(new Event("studio:save"));
+    // Reset saving flag after a short delay so save can complete
+    setTimeout(() => { isSaving.current = false; }, 3000);
+  }, []);
+
+  // Debounced auto-save: when isDirty changes to true, wait 30s then save
+  useEffect(() => {
+    if (isDirty) {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+      autoSaveTimer.current = setTimeout(triggerAutoSave, 30000);
+    }
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, [isDirty, triggerAutoSave]);
+
+  // Periodic safety-net auto-save every 2 minutes
+  useEffect(() => {
+    periodicTimer.current = setInterval(() => {
+      triggerAutoSave();
+    }, 120000);
+    return () => {
+      if (periodicTimer.current) clearInterval(periodicTimer.current);
+    };
+  }, [triggerAutoSave]);
 
   return <StudioLayout />;
 }

@@ -264,7 +264,8 @@ export function CanvasEditor() {
     };
   }, [canvas, zoom, setZoom]);
 
-  // Pan with space + drag
+  // Pan with space + drag (skip when editing text so spacebar types normally)
+  const isEditingText = useCanvasStore((s) => s.isEditingText);
   useEffect(() => {
     if (!canvas) return;
     let isPanning = false;
@@ -272,6 +273,11 @@ export function CanvasEditor() {
     let lastY = 0;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept space when editing text on canvas or in input fields
+      if (isEditingText) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
       if (e.code === "Space" && activeTool === "select") {
         e.preventDefault();
         canvas.defaultCursor = "grab";
@@ -280,7 +286,7 @@ export function CanvasEditor() {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === "Space") {
+      if (e.code === "Space" && !isEditingText) {
         canvas.defaultCursor = "default";
         canvas.selection = true;
         isPanning = false;
@@ -330,7 +336,7 @@ export function CanvasEditor() {
       canvas.off("mouse:move", handleMouseMove);
       canvas.off("mouse:up", handleMouseUp);
     };
-  }, [canvas, activeTool]);
+  }, [canvas, activeTool, isEditingText]);
 
   // Calculate scale to fit canvas in viewport
   const containerPadding = 40;

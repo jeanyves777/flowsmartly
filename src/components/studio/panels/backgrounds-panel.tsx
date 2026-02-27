@@ -60,14 +60,15 @@ export function BackgroundsPanel() {
 
     const reader = new FileReader();
     reader.onload = async () => {
-      const url = reader.result as string;
-      const fabric = await import("fabric");
-      const imgEl = new Image();
-      imgEl.onload = () => {
-        const fabricImg = new fabric.FabricImage(imgEl);
+      const dataUrl = reader.result as string;
+      try {
+        const fabric = await import("fabric");
+        const fabricImg = await fabric.FabricImage.fromURL(dataUrl);
+        if (!fabricImg || !fabricImg.width || !fabricImg.height) return;
+
         // Scale to fill canvas
-        const scaleX = canvas.width / (fabricImg.width || 1);
-        const scaleY = canvas.height / (fabricImg.height || 1);
+        const scaleX = canvas.width / fabricImg.width;
+        const scaleY = canvas.height / fabricImg.height;
         const scale = Math.max(scaleX, scaleY);
         fabricImg.scale(scale);
         fabricImg.set({ left: 0, top: 0, selectable: false, evented: false });
@@ -78,10 +79,13 @@ export function BackgroundsPanel() {
         const existing = canvas.getObjects().find((o: any) => o.id === "background-image");
         if (existing) canvas.remove(existing);
 
-        canvas.insertAt(fabricImg, 0);
+        // Add at bottom of stack
+        canvas.add(fabricImg);
+        canvas.sendObjectToBack(fabricImg);
         canvas.renderAll();
-      };
-      imgEl.src = url;
+      } catch {
+        // silently fail
+      }
     };
     reader.readAsDataURL(file);
     e.target.value = "";

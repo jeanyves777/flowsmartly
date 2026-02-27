@@ -24,7 +24,8 @@ export type ActivePanel =
   | "text"
   | "uploads"
   | "ai"
-  | "backgrounds";
+  | "backgrounds"
+  | "eraser";
 
 interface CanvasState {
   // Fabric.js canvas reference (set once on mount)

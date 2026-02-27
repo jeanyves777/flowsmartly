@@ -7,6 +7,7 @@ import {
   Upload,
   Sparkles,
   Image as ImageIcon,
+  Eraser,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -18,6 +19,7 @@ import { TextPanel } from "./text-panel";
 import { UploadsPanel } from "./uploads-panel";
 import { AiPanel } from "./ai-panel";
 import { BackgroundsPanel } from "./backgrounds-panel";
+import { EraserPanel } from "./eraser-panel";
 
 const TABS: {
   id: ActivePanel;
@@ -30,6 +32,7 @@ const TABS: {
   { id: "uploads", icon: Upload, label: "Uploads" },
   { id: "ai", icon: Sparkles, label: "AI" },
   { id: "backgrounds", icon: ImageIcon, label: "Background" },
+  { id: "eraser", icon: Eraser, label: "Eraser" },
 ];
 
 const PANEL_COMPONENTS: Record<ActivePanel, React.ComponentType> = {
@@ -39,6 +42,7 @@ const PANEL_COMPONENTS: Record<ActivePanel, React.ComponentType> = {
   uploads: UploadsPanel,
   ai: AiPanel,
   backgrounds: BackgroundsPanel,
+  eraser: EraserPanel,
 };
 
 export function LeftPanel() {

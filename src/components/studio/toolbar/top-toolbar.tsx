@@ -44,8 +44,11 @@ export function TopToolbar() {
   const { exportPNG, exportJPG, exportSVG, exportPDF } = useCanvasExport();
 
   const [isEditingName, setIsEditingName] = useState(false);
+  const [isEditingZoom, setIsEditingZoom] = useState(false);
+  const [zoomInputValue, setZoomInputValue] = useState("");
   const [showShareDialog, setShowShareDialog] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const zoomInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isEditingName && nameInputRef.current) {
@@ -53,6 +56,13 @@ export function TopToolbar() {
       nameInputRef.current.select();
     }
   }, [isEditingName]);
+
+  useEffect(() => {
+    if (isEditingZoom && zoomInputRef.current) {
+      zoomInputRef.current.focus();
+      zoomInputRef.current.select();
+    }
+  }, [isEditingZoom]);
 
   const handleNameSubmit = () => {
     setIsEditingName(false);
@@ -63,15 +73,25 @@ export function TopToolbar() {
 
   const zoomPercent = Math.round(zoom * 100);
 
-  const handleZoomIn = () => setZoom(Math.min(zoom + 0.25, 5));
-  const handleZoomOut = () => setZoom(Math.max(zoom - 0.25, 0.1));
+  const handleZoomIn = () => setZoom(Math.min(zoom + 0.1, 5));
+  const handleZoomOut = () => setZoom(Math.max(zoom - 0.1, 0.1));
   const handleZoomFit = () => {
     if (!canvas) return;
-    // Reset viewport transform
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    // Calculate zoom to fit canvas in viewport
-    // Dispatch event so canvas-editor can calculate with its container size
     document.dispatchEvent(new CustomEvent("studio:zoom-to-fit"));
+  };
+
+  const handleZoomInputSubmit = () => {
+    setIsEditingZoom(false);
+    const parsed = parseInt(zoomInputValue, 10);
+    if (!isNaN(parsed) && parsed >= 10 && parsed <= 500) {
+      setZoom(parsed / 100);
+    }
+  };
+
+  const startEditingZoom = () => {
+    setZoomInputValue(String(zoomPercent));
+    setIsEditingZoom(true);
   };
 
   const handleSave = () => {
@@ -154,35 +174,63 @@ export function TopToolbar() {
           size="icon"
           className="h-8 w-8"
           onClick={handleZoomOut}
-          title="Zoom Out"
+          title="Zoom Out (-10%)"
         >
           <ZoomOut className="h-4 w-4" />
         </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 text-xs font-mono min-w-[60px]">
-              {zoomPercent}%
-              <ChevronDown className="h-3 w-3 ml-1" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="center">
-            {[25, 50, 75, 100, 150, 200, 300].map((z) => (
-              <DropdownMenuItem key={z} onClick={() => setZoom(z / 100)}>
-                {z}%
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleZoomFit}>Fit to Screen</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {isEditingZoom ? (
+          <div className="flex items-center">
+            <input
+              ref={zoomInputRef}
+              type="text"
+              value={zoomInputValue}
+              onChange={(e) => setZoomInputValue(e.target.value.replace(/[^0-9]/g, ""))}
+              onBlur={handleZoomInputSubmit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleZoomInputSubmit();
+                if (e.key === "Escape") setIsEditingZoom(false);
+              }}
+              className="w-12 h-8 text-xs font-mono text-center bg-muted border rounded outline-none focus:ring-1 focus:ring-brand-500"
+            />
+            <span className="text-xs text-muted-foreground ml-0.5">%</span>
+          </div>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs font-mono min-w-[60px]"
+                onDoubleClick={(e) => {
+                  e.preventDefault();
+                  startEditingZoom();
+                }}
+              >
+                {zoomPercent}%
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center">
+              {[10, 25, 50, 75, 100, 125, 150, 200, 300].map((z) => (
+                <DropdownMenuItem key={z} onClick={() => setZoom(z / 100)}>
+                  {z}%
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleZoomFit}>Fit to Screen</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={startEditingZoom}>Custom...</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         <Button
           variant="ghost"
           size="icon"
           className="h-8 w-8"
           onClick={handleZoomIn}
-          title="Zoom In"
+          title="Zoom In (+10%)"
         >
           <ZoomIn className="h-4 w-4" />
         </Button>
