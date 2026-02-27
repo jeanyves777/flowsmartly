@@ -34,6 +34,8 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set("scope", scopes.join(","));
     authUrl.searchParams.set("state", session.userId);
     authUrl.searchParams.set("response_type", "code");
+    // Force re-showing permission + page selection screens (prevents cached auth skipping page picker)
+    authUrl.searchParams.set("auth_type", "rerequest");
 
     return NextResponse.redirect(authUrl.toString());
   } catch (error) {
