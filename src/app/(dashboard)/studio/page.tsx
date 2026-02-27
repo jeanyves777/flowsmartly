@@ -86,12 +86,14 @@ function StudioPageInner() {
             const activePage = restoredPages[activeIdx];
             if (activePage) {
               await canvas.loadFromJSON(activePage.canvasJSON);
+              canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
               canvas.renderAll();
             }
           } else {
             // Single-page design (backward compatible): load directly
             const canvasJSON = typeof rawData === "string" ? rawData : JSON.stringify(rawData);
             await canvas.loadFromJSON(canvasJSON);
+            canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
             canvas.renderAll();
 
             // Initialize single-page pages array
@@ -167,10 +169,12 @@ function StudioPageInner() {
         // Generate a small thumbnail for the designs listing page
         let thumbnailDataUrl: string | null = null;
         try {
+          // Ensure viewport is at identity before capturing thumbnail
+          store.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
           thumbnailDataUrl = store.canvas.toDataURL({
-            format: "png",
-            multiplier: 0.2,
-            quality: 0.7,
+            format: "jpeg",
+            multiplier: 0.15,
+            quality: 0.6,
           });
         } catch {
           // thumbnail generation can fail silently

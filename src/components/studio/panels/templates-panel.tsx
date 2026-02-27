@@ -278,6 +278,7 @@ export function TemplatesPanel() {
     try {
       if (template.canvasData) {
         await canvas.loadFromJSON(template.canvasData);
+        canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
         canvas.renderAll();
         refreshLayers();
         setApplyingId(null);

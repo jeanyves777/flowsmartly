@@ -179,6 +179,7 @@ export function CanvasEditor() {
 
     // Load target page JSON into canvas
     canvas.loadFromJSON(targetPage.canvasJSON).then(() => {
+      canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
       canvas.renderAll();
       refreshLayers();
       pushState();

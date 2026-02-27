@@ -46,6 +46,7 @@ export function useCanvasHistory() {
     const json = historyRef.current[indexRef.current];
 
     await canvas.loadFromJSON(json);
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     canvas.renderAll();
 
     isRestoringRef.current = false;
@@ -61,6 +62,7 @@ export function useCanvasHistory() {
     const json = historyRef.current[indexRef.current];
 
     await canvas.loadFromJSON(json);
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     canvas.renderAll();
 
     isRestoringRef.current = false;
