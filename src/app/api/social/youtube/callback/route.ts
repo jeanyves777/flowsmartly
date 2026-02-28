@@ -41,9 +41,15 @@ export async function GET(request: NextRequest) {
     });
 
     const tokenData = await tokenResponse.json();
+    console.log("[YouTube Callback] Token exchange:", {
+      status: tokenResponse.status,
+      hasToken: !!tokenData.access_token,
+      error: tokenData.error,
+      errorDescription: tokenData.error_description,
+    });
 
     if (!tokenData.access_token) {
-      throw new Error("No access token received");
+      throw new Error(`No access token received: ${tokenData.error || ''} ${tokenData.error_description || ''}`);
     }
 
     // Get YouTube channel info
