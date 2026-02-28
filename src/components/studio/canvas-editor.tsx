@@ -50,7 +50,9 @@ export function CanvasEditor({
   const { pushState } = useCanvasHistory();
   useCanvasShortcuts();
 
-  // Keep refs for collaboration callbacks (avoid stale closures)
+  // Keep refs for callbacks used inside the one-shot canvas init effect (avoid stale closures)
+  const pushStateRef = useRef(pushState);
+  pushStateRef.current = pushState;
   const broadcastRef = useRef(broadcastOperation);
   broadcastRef.current = broadcastOperation;
   const cursorRef = useRef(sendCursorPosition);
@@ -103,7 +105,7 @@ export function CanvasEditor({
 
       // Object modification events (trigger history + layers + collaboration broadcast)
       fabricCanvas.on("object:modified", (e: any) => {
-        pushState();
+        pushStateRef.current();
         refreshLayers();
         setDirty(true);
         if (!isRemoteUpdate.current && e.target && broadcastRef.current) {
@@ -116,7 +118,7 @@ export function CanvasEditor({
         }
       });
       fabricCanvas.on("object:added", (e: any) => {
-        pushState();
+        pushStateRef.current();
         refreshLayers();
         setDirty(true);
         if (!isRemoteUpdate.current && e.target && broadcastRef.current) {
@@ -129,7 +131,7 @@ export function CanvasEditor({
         }
       });
       fabricCanvas.on("object:removed", (e: any) => {
-        pushState();
+        pushStateRef.current();
         refreshLayers();
         setDirty(true);
         if (!isRemoteUpdate.current && e.target && broadcastRef.current) {
@@ -147,7 +149,7 @@ export function CanvasEditor({
       });
       fabricCanvas.on("text:editing:exited", () => {
         setIsEditingText(false);
-        pushState();
+        pushStateRef.current();
       });
 
       // Lock viewport to identity — zoom/pan is handled by CSS only
@@ -157,7 +159,7 @@ export function CanvasEditor({
 
       // Push initial state + auto-fit zoom
       setTimeout(() => {
-        pushState();
+        pushStateRef.current();
         // Auto zoom-to-fit on initial load
         if (containerRef.current) {
           const availW = containerRef.current.clientWidth - 80;

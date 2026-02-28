@@ -621,7 +621,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                 </Label>
                 <div className="flex items-center gap-1">
                   <AIIdeasHistory
-                    contentType="DESIGN_IDEAS"
+                    contentType="design_ideas"
                     onSelect={(idea) => setPrompt(idea)}
                     className="text-xs"
                   />

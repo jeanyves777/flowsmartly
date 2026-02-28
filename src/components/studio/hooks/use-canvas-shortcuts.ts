@@ -11,7 +11,7 @@ export function useCanvasShortcuts() {
   const setDirty = useCanvasStore((s) => s.setDirty);
   const refreshLayers = useCanvasStore((s) => s.refreshLayers);
 
-  const { undo, redo } = useCanvasHistory();
+  const { undo, redo, pushState } = useCanvasHistory();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -160,6 +160,7 @@ export function useCanvasShortcuts() {
     canvas.renderAll();
     refreshLayers();
     setDirty(true);
+    pushState();
   }
 
   function handleSelectAll() {
@@ -181,6 +182,8 @@ export function useCanvasShortcuts() {
     (active as any).toGroup();
     canvas.renderAll();
     refreshLayers();
+    setDirty(true);
+    pushState();
   }
 
   function handleUngroup() {
@@ -190,6 +193,8 @@ export function useCanvasShortcuts() {
     (active as any).toActiveSelection();
     canvas.renderAll();
     refreshLayers();
+    setDirty(true);
+    pushState();
   }
 
   function handleSendBackward() {
@@ -199,6 +204,8 @@ export function useCanvasShortcuts() {
     canvas.sendObjectBackwards(active);
     canvas.renderAll();
     refreshLayers();
+    setDirty(true);
+    pushState();
   }
 
   function handleBringForward() {
@@ -208,5 +215,7 @@ export function useCanvasShortcuts() {
     canvas.bringObjectForward(active);
     canvas.renderAll();
     refreshLayers();
+    setDirty(true);
+    pushState();
   }
 }
