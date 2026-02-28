@@ -29,6 +29,7 @@ import {
   Target,
   Briefcase,
   MessageSquare,
+  Clapperboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -368,14 +369,14 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
                   </div>
                 </Link>
                 <Link
-                  href="/video-studio"
+                  href="/video-editor"
                   className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent transition-colors"
                   onClick={() => setShowCreateMenu(false)}
                 >
-                  <Video className="h-4 w-4 text-rose-500" />
+                  <Clapperboard className="h-4 w-4 text-rose-500" />
                   <div>
-                    <div className="font-medium">Video Studio</div>
-                    <div className="text-xs text-muted-foreground">AI video ads & promos</div>
+                    <div className="font-medium">Video Editor</div>
+                    <div className="text-xs text-muted-foreground">AI video editor & captions</div>
                   </div>
                 </Link>
                 <Link

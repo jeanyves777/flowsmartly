@@ -39,6 +39,7 @@ import {
   Scissors,
   FolderKanban,
   FormInput,
+  Clapperboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -78,7 +79,8 @@ const contentNavigation = [
 // AI Creatives
 const aiCreativesNavigation = [
   { name: "Image Studio", href: "/studio", icon: Palette },
-  { name: "Video Studio", href: "/video-studio", icon: Video },
+  { name: "Video Editor", href: "/video-editor", icon: Clapperboard },
+  // { name: "Video Studio", href: "/video-studio", icon: Video },
   { name: "Logo Generator", href: "/logo-generator", icon: Crown },
   { name: "Media Library", href: "/media", icon: FolderOpen },
 ];
