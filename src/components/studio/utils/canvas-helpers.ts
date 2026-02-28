@@ -51,7 +51,10 @@ export function createTextbox(
   fabric: any,
   options?: Record<string, any>
 ): any {
-  const text = new fabric.Textbox("Your text here", {
+  // Fabric.js Textbox takes text content as first positional arg
+  const textContent = options?.text || "Your text here";
+  const { text: _text, ...restOptions } = options || {};
+  const obj = new fabric.Textbox(textContent, {
     left: 100,
     top: 100,
     originX: "left",
@@ -61,9 +64,9 @@ export function createTextbox(
     fontFamily: "Inter",
     fill: "#000000",
     editable: true,
-    ...options,
+    ...restOptions,
   });
-  return assignId(text);
+  return assignId(obj);
 }
 
 export function createHeading(
