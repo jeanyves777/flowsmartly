@@ -121,6 +121,28 @@ export function getContentType(filename: string): string {
 }
 
 const PRESIGN_EXPIRES = 3600; // 1 hour
+const PRESIGN_UPLOAD_EXPIRES = 600; // 10 minutes for uploads
+
+/**
+ * Generate a presigned PUT URL for direct browser-to-S3 uploads.
+ * Returns the presigned URL and the final public URL after upload.
+ */
+export async function getPresignedUploadUrl(
+  key: string,
+  contentType: string,
+  maxSizeBytes?: number
+): Promise<{ uploadUrl: string; publicUrl: string; key: string }> {
+  const command = new PutObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    ContentType: contentType,
+    ...(maxSizeBytes ? { ContentLength: maxSizeBytes } : {}),
+  });
+  const uploadUrl = await getSignedUrl(s3, command, {
+    expiresIn: PRESIGN_UPLOAD_EXPIRES,
+  });
+  return { uploadUrl, publicUrl: `${STORAGE_URL}/${key}`, key };
+}
 
 /**
  * Generate a presigned URL for reading an S3 object.
