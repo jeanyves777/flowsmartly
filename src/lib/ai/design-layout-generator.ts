@@ -202,7 +202,7 @@ DESIGN REQUEST: ${prompt}`;
   if (ctaText) {
     userPrompt += `\n\nCTA BUTTON: Use this exact text: "${ctaText}"`;
   } else {
-    userPrompt += `\n\nCTA BUTTON: Add an appropriate call-to-action like "Shop Now", "Learn More", "Get Started", etc.`;
+    userPrompt += `\n\nCTA BUTTON: The user did NOT provide a call-to-action. Do NOT add any CTA button element to the layout.`;
   }
 
   // Brand

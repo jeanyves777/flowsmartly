@@ -666,6 +666,19 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
               )}
             </div>
 
+            {/* CTA */}
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                Call to Action (optional)
+              </Label>
+              <Input
+                value={ctaText}
+                onChange={(e) => setCtaText(e.target.value)}
+                placeholder='e.g. "Shop Now", "Book Today"'
+                className="h-8 text-sm mt-1"
+              />
+            </div>
+
             {/* Design Type & Size */}
             <CollapsibleSection
               title="Design Type & Size"
@@ -831,19 +844,6 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                     Use My Text
                   </button>
                 </div>
-              </div>
-
-              {/* CTA */}
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Call to Action (optional)
-                </Label>
-                <Input
-                  value={ctaText}
-                  onChange={(e) => setCtaText(e.target.value)}
-                  placeholder='e.g. "Shop Now", "Book Today"'
-                  className="h-8 text-sm mt-1"
-                />
               </div>
 
               {/* Style Reference (image mode only) */}
