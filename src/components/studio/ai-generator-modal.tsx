@@ -149,7 +149,7 @@ function BrandedLoader() {
           Creating your design
         </h3>
         <p className="text-sm text-muted-foreground max-w-xs">
-          AI is generating your custom design. This usually takes 10-30 seconds.
+          AI is generating your custom design. This usually takes 10-60 seconds.
         </p>
       </div>
 
@@ -235,6 +235,11 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
   const [designCreditCost, setDesignCreditCost] = useState(15);
   const [layoutCreditCost, setLayoutCreditCost] = useState(5);
 
+  // Smart Layout image options
+  const [generateHeroImage, setGenerateHeroImage] = useState(false);
+  const [generateBackground, setGenerateBackground] = useState(false);
+  const [layoutImageCost, setLayoutImageCost] = useState(15);
+
   // Result
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(
     null
@@ -260,7 +265,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
         const [brandRes, studioRes, costsRes] = await Promise.all([
           fetch("/api/brand"),
           fetch("/api/ai/studio"),
-          fetch("/api/credits/costs?keys=AI_VISUAL_DESIGN,AI_DESIGN_LAYOUT"),
+          fetch("/api/credits/costs?keys=AI_VISUAL_DESIGN,AI_DESIGN_LAYOUT,AI_DESIGN_LAYOUT_IMAGE"),
         ]);
         const brandData = await brandRes.json();
         const studioData = await studioRes.json();
@@ -300,6 +305,8 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
           setDesignCreditCost(costsData.data.costs.AI_VISUAL_DESIGN);
         if (costsData.success && costsData.data?.costs?.AI_DESIGN_LAYOUT)
           setLayoutCreditCost(costsData.data.costs.AI_DESIGN_LAYOUT);
+        if (costsData.success && costsData.data?.costs?.AI_DESIGN_LAYOUT_IMAGE)
+          setLayoutImageCost(costsData.data.costs.AI_DESIGN_LAYOUT_IMAGE);
       } catch {
         /* silently */
       }
@@ -393,6 +400,9 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
               website: includeInDesign.website ? brandIdentity?.website : null,
               address: includeInDesign.address ? brandIdentity?.address : null,
             },
+            generateHeroImage,
+            generateBackground,
+            imageProvider: (generateHeroImage || generateBackground) ? selectedProvider : undefined,
           }),
         });
 
@@ -584,7 +594,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                 <Layers className="h-3.5 w-3.5" />
                 Smart Layout
                 <Badge variant="secondary" className="text-[9px] px-1 py-0">
-                  {layoutCreditCost}cr
+                  {layoutCreditCost}+cr
                 </Badge>
               </button>
               <button
@@ -777,7 +787,10 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                   ].map((h) => (
                     <button
                       key={h.id}
-                      onClick={() => setHeroType(h.id)}
+                      onClick={() => {
+                        setHeroType(h.id);
+                        if (h.id === "text-only") setGenerateHeroImage(false);
+                      }}
                       className={`flex-1 flex flex-col items-center gap-1 p-2.5 rounded-lg border text-xs transition-colors ${
                         heroType === h.id
                           ? "border-brand-500 bg-brand-500/10 text-brand-600"
@@ -863,6 +876,90 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                 </div>
               )}
             </CollapsibleSection>
+
+            {/* AI Images (Smart Layout mode) */}
+            {generationMode === "layout" && (
+              <CollapsibleSection title="AI Images" icon={ImageIcon}>
+                <div className="space-y-3">
+                  <p className="text-[11px] text-muted-foreground">
+                    Optionally generate AI images for your layout. Each image adds {layoutImageCost} credits.
+                  </p>
+
+                  {/* Hero Image Toggle */}
+                  <label className="flex items-center justify-between gap-2 text-xs cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={generateHeroImage}
+                        onChange={(e) => setGenerateHeroImage(e.target.checked)}
+                        className="accent-brand-500"
+                        disabled={heroType === "text-only"}
+                      />
+                      <span className={heroType === "text-only" ? "text-muted-foreground" : ""}>
+                        Generate Hero Image
+                      </span>
+                    </div>
+                    {generateHeroImage && (
+                      <Badge variant="secondary" className="text-[9px] px-1 py-0">
+                        +{layoutImageCost}cr
+                      </Badge>
+                    )}
+                  </label>
+                  {heroType === "text-only" && (
+                    <p className="text-[10px] text-muted-foreground -mt-2 ml-5">
+                      Change Visual Focus to People or Product to enable
+                    </p>
+                  )}
+
+                  {/* Background Image Toggle */}
+                  <label className="flex items-center justify-between gap-2 text-xs cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={generateBackground}
+                        onChange={(e) => setGenerateBackground(e.target.checked)}
+                        className="accent-brand-500"
+                      />
+                      <span>AI Background</span>
+                    </div>
+                    {generateBackground && (
+                      <Badge variant="secondary" className="text-[9px] px-1 py-0">
+                        +{layoutImageCost}cr
+                      </Badge>
+                    )}
+                  </label>
+
+                  {/* Provider selector — only when image toggles are on */}
+                  {(generateHeroImage || generateBackground) && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Image Provider
+                      </Label>
+                      <Select
+                        value={selectedProvider}
+                        onValueChange={(v) =>
+                          setSelectedProvider(v as ImageProvider)
+                        }
+                      >
+                        <SelectTrigger className="h-8 text-xs mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="openai">OpenAI (gpt-image-1)</SelectItem>
+                          <SelectItem value="xai">Grok (xAI)</SelectItem>
+                          <SelectItem value="gemini">Gemini (Google)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {selectedProvider !== "openai" && generateHeroImage && (
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Transparent background via AI background removal
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </CollapsibleSection>
+            )}
 
             {/* Provider (image mode only) */}
             {generationMode === "image" && (
@@ -1199,7 +1296,9 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                 ? "Generate Layout"
                 : "Generate Design"}
             <Badge variant="secondary" className="text-[10px] ml-1">
-              {generationMode === "layout" ? layoutCreditCost : designCreditCost} credits
+              {generationMode === "layout"
+                ? layoutCreditCost + (generateHeroImage ? layoutImageCost : 0) + (generateBackground ? layoutImageCost : 0)
+                : designCreditCost} credits
             </Badge>
           </Button>
         </div>

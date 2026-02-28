@@ -79,6 +79,7 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_LOGO_GENERATION: 40, // 3x gpt-image-1 transparent PNGs (~$0.24 total)
   AI_VISUAL_DESIGN: 15,   // Single image gen (~$0.08 + margin)
   AI_DESIGN_LAYOUT: 5,    // Claude text generation for structured layout
+  AI_DESIGN_LAYOUT_IMAGE: 15, // Per image generated within Smart Layout (same as visual design)
 
   // --- AI Video Generation ---
   AI_CARTOON_VIDEO: 80,   // 6-8 scene images + TTS audio + FFmpeg (~$0.50 total)
@@ -153,6 +154,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_LOGO_GENERATION: "AI logo generation (3 images)",
   AI_VISUAL_DESIGN: "AI visual design",
   AI_DESIGN_LAYOUT: "AI smart layout generation",
+  AI_DESIGN_LAYOUT_IMAGE: "AI smart layout image generation",
   AI_CARTOON_VIDEO: "AI cartoon video generation",
   AI_CARTOON_CHARACTER_REGEN: "AI character preview regeneration",
   AI_LANDING_PAGE: "AI landing page generation",

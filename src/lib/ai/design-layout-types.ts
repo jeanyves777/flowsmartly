@@ -12,13 +12,15 @@
 export interface AIDesignLayout {
   /** Canvas background configuration */
   background: {
-    type: "solid" | "gradient";
+    type: "solid" | "gradient" | "image";
     color?: string;
     gradient?: {
       type: "linear" | "radial";
       colorStops: Array<{ offset: number; color: string }>;
       angle?: number;
     };
+    /** URL of AI-generated background image (populated by server) */
+    imageUrl?: string;
   };
 
   /** Ordered list of elements (bottom to top z-order) */
@@ -92,9 +94,11 @@ export interface AIDividerElement extends AIBaseElement {
 
 export interface AIImagePlaceholder extends AIBaseElement {
   type: "image";
-  imageRole: "hero" | "decoration" | "icon" | "logo-placeholder";
+  imageRole: "hero" | "decoration" | "icon" | "logo-placeholder" | "background";
   /** Prompt for AI image generation (hero photos, decorative illustrations) */
   imagePrompt?: string;
   /** Whether to generate with transparent background */
   transparent?: boolean;
+  /** URL of the generated image (populated by server after image generation) */
+  imageUrl?: string;
 }

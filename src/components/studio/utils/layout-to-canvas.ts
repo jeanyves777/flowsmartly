@@ -55,8 +55,8 @@ export async function applyAILayout(
     canvas.clear();
   }
 
-  // 2. Set background
-  applyBackground(canvas, layout.background, fabric, canvasWidth, canvasHeight);
+  // 2. Set background (image or color/gradient)
+  await applyBackground(canvas, layout.background, fabric, canvasWidth, canvasHeight);
 
   // 3. Collect all fonts used and preload them
   const fontsUsed = new Set<string>();
@@ -67,8 +67,11 @@ export async function applyAILayout(
   }
   await Promise.all([...fontsUsed].map((f) => loadGoogleFont(f)));
 
-  // 4. Create elements (ordered bottom-to-top)
+  // 4. Create elements (ordered bottom-to-top), skip background-role images
   for (const el of layout.elements) {
+    if (el.type === "image" && (el as AIImagePlaceholder).imageRole === "background") {
+      continue; // background images are handled in applyBackground
+    }
     const obj = await createElement(el, fabric, canvasWidth, canvasHeight, brandLogoUrl);
     if (obj) {
       canvas.add(obj);
@@ -79,13 +82,43 @@ export async function applyAILayout(
   canvas.renderAll();
 }
 
-function applyBackground(
+async function applyBackground(
   canvas: any,
   bg: AIDesignLayout["background"],
   fabric: any,
   w: number,
   h: number
-): void {
+): Promise<void> {
+  // Handle AI-generated background image
+  if (bg.type === "image" && bg.imageUrl) {
+    try {
+      let safeUrl = bg.imageUrl;
+      if (typeof window !== "undefined" && bg.imageUrl.startsWith("http") && !bg.imageUrl.startsWith(window.location.origin)) {
+        safeUrl = `/api/image-proxy?url=${encodeURIComponent(bg.imageUrl)}`;
+      }
+      const img = await fabric.FabricImage.fromURL(safeUrl, { crossOrigin: "anonymous" });
+      if (img && img.width && img.height) {
+        // Scale to cover the entire canvas
+        const scale = Math.max(w / img.width, h / img.height);
+        img.set({
+          scaleX: scale,
+          scaleY: scale,
+          originX: "left",
+          originY: "top",
+        });
+        canvas.backgroundImage = img;
+        // Also set a fallback solid color
+        canvas.backgroundColor = bg.color || "#1e293b";
+        return;
+      }
+    } catch (err) {
+      console.warn("[LayoutToCanvas] Failed to load background image:", err);
+    }
+    // Fallback to solid color
+    canvas.backgroundColor = bg.color || "#1e293b";
+    return;
+  }
+
   if (bg.type === "gradient" && bg.gradient) {
     const g = bg.gradient;
     const angleRad = ((g.angle || 0) * Math.PI) / 180;
@@ -302,35 +335,20 @@ async function createImageElement(
 
   // If it's a logo placeholder and we have a brand logo URL, load it
   if (el.imageRole === "logo-placeholder" && brandLogoUrl) {
-    try {
-      let safeUrl = brandLogoUrl;
-      if (typeof window !== "undefined" && brandLogoUrl.startsWith("http") && !brandLogoUrl.startsWith(window.location.origin)) {
-        safeUrl = `/api/image-proxy?url=${encodeURIComponent(brandLogoUrl)}`;
-      }
-      const img = await fabric.FabricImage.fromURL(safeUrl, { crossOrigin: "anonymous" });
-      if (img && img.width && img.height) {
-        // Scale to fit within the placeholder bounds
-        const scale = Math.min(absWidth / img.width, absHeight / img.height);
-        img.set({
-          left: absLeft,
-          top: absTop,
-          scaleX: scale,
-          scaleY: scale,
-          originX: "left",
-          originY: "top",
-        });
-        img.id = `obj-${Date.now()}-logo`;
-        img.customName = "Logo";
-        if (el.opacity !== undefined) img.opacity = el.opacity;
-        return img;
-      }
-    } catch (err) {
-      console.warn("[LayoutToCanvas] Failed to load brand logo:", err);
-    }
+    return loadImageToCanvas(fabric, brandLogoUrl, absLeft, absTop, absWidth, absHeight, "Logo", el.opacity);
   }
 
-  // For other image placeholders (hero, decoration, icon) or logo without URL:
-  // Create a dashed placeholder rectangle
+  // If the element has a generated imageUrl, load the real image
+  if (el.imageUrl) {
+    const roleName = el.imageRole === "hero"
+      ? "Hero Image"
+      : el.imageRole === "icon"
+        ? "Icon"
+        : "Decoration";
+    return loadImageToCanvas(fabric, el.imageUrl, absLeft, absTop, absWidth, absHeight, roleName, el.opacity);
+  }
+
+  // For image placeholders without a URL: show dashed placeholder rectangle
   const placeholder = createRect(fabric, {
     left: absLeft,
     top: absTop,
@@ -355,4 +373,44 @@ async function createImageElement(
 
   placeholder.customName = `${roleName} (placeholder)`;
   return placeholder;
+}
+
+/**
+ * Load an image URL into a Fabric.js image object, scaled to fit bounds.
+ */
+async function loadImageToCanvas(
+  fabric: any,
+  url: string,
+  left: number,
+  top: number,
+  maxWidth: number,
+  maxHeight: number,
+  customName: string,
+  opacity?: number
+): Promise<any | null> {
+  try {
+    let safeUrl = url;
+    if (typeof window !== "undefined" && url.startsWith("http") && !url.startsWith(window.location.origin)) {
+      safeUrl = `/api/image-proxy?url=${encodeURIComponent(url)}`;
+    }
+    const img = await fabric.FabricImage.fromURL(safeUrl, { crossOrigin: "anonymous" });
+    if (img && img.width && img.height) {
+      const scale = Math.min(maxWidth / img.width, maxHeight / img.height);
+      img.set({
+        left,
+        top,
+        scaleX: scale,
+        scaleY: scale,
+        originX: "left",
+        originY: "top",
+      });
+      img.id = `obj-${Date.now()}-${customName.toLowerCase().replace(/\s+/g, "-")}`;
+      img.customName = customName;
+      if (opacity !== undefined) img.opacity = opacity;
+      return img;
+    }
+  } catch (err) {
+    console.warn(`[LayoutToCanvas] Failed to load image (${customName}):`, err);
+  }
+  return null;
 }

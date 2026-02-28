@@ -32,6 +32,10 @@ export interface LayoutGeneratorParams {
   socialHandles?: Record<string, string> | null;
   showBrandName?: boolean;
   showSocialIcons?: boolean;
+  /** Whether an image AI will generate the hero image */
+  generateHeroImage?: boolean;
+  /** Whether an image AI will generate the background */
+  generateBackground?: boolean;
 }
 
 const FONT_LIST = POPULAR_FONTS.join(", ");
@@ -115,11 +119,18 @@ AIDividerElement: {
 AIImagePlaceholder: {
   type: "image"; id: string;
   x: number; y: number; width: number; height: number;
-  imageRole: "hero" | "decoration" | "icon" | "logo-placeholder";
-  imagePrompt?: string;
+  imageRole: "hero" | "decoration" | "icon" | "logo-placeholder" | "background";
+  imagePrompt?: string;          // detailed prompt for AI image generation
   transparent?: boolean;
   opacity?: number;
 }
+
+IMAGE PROMPT GUIDELINES (for imagePrompt field):
+- Write detailed, descriptive prompts suitable for AI image generation (Midjourney-style).
+- For hero images: describe the subject, pose, lighting, setting, camera angle, and style.
+- For backgrounds: describe the scene, atmosphere, colors, and mood. Always add "No text or words in the image."
+- Example hero: "Professional young woman in navy blazer, confident smile, arms crossed, studio lighting, white background, waist-up portrait"
+- Example background: "Modern city skyline at sunset, warm golden tones, bokeh lights, cinematic atmosphere. No text or words in the image."
 
 ALLOWED FONTS (use ONLY these): ${FONT_LIST}
 
@@ -172,9 +183,17 @@ DESIGN REQUEST: ${prompt}`;
 
   // Hero type
   if (heroType === "people") {
-    userPrompt += `\n\nHERO: Include an image placeholder (imageRole: "hero") on the right side (~50-60% width) for a person photo. Leave text on the left.`;
+    if (params.generateHeroImage) {
+      userPrompt += `\n\nHERO IMAGE: Include an image placeholder (imageRole: "hero") on the right side (~50-60% width, ~70-90% height) for a person photo. Write a detailed imagePrompt describing the person (pose, clothing, expression, lighting). Set transparent: true. Leave text on the left side. The image WILL be AI-generated, so make the prompt detailed and specific.`;
+    } else {
+      userPrompt += `\n\nHERO: Include an image placeholder (imageRole: "hero") on the right side (~50-60% width) for a person photo. Leave text on the left.`;
+    }
   } else if (heroType === "product") {
-    userPrompt += `\n\nHERO: Include an image placeholder (imageRole: "hero") for a product shot. Position text around it.`;
+    if (params.generateHeroImage) {
+      userPrompt += `\n\nHERO IMAGE: Include an image placeholder (imageRole: "hero") for a product shot (~40-50% width, ~50-70% height). Write a detailed imagePrompt describing the product (appearance, angle, lighting, setting). Set transparent: true. Position text around it. The image WILL be AI-generated.`;
+    } else {
+      userPrompt += `\n\nHERO: Include an image placeholder (imageRole: "hero") for a product shot. Position text around it.`;
+    }
   } else {
     userPrompt += `\n\nHERO: Typography-focused — no hero image placeholder. Use bold text, shapes, and decorative elements as the visual focus.`;
   }
@@ -222,6 +241,11 @@ DESIGN REQUEST: ${prompt}`;
       .map(([platform, handle]) => `${platform}: @${handle}`)
       .join(", ");
     userPrompt += `\n\nSOCIAL HANDLES (include as small text near bottom): ${handlesList}`;
+  }
+
+  // AI Background
+  if (params.generateBackground) {
+    userPrompt += `\n\nAI BACKGROUND: An AI-generated background image will be used. Use a simple solid background in the layout JSON (type: "solid", dark or neutral color that provides good contrast). Also include an image element with imageRole: "background" at position (0, 0, 100, 100) with a detailed imagePrompt describing the ideal background scene for this design. The background image will be placed behind all other elements. Add "No text or words in the image." at the end of the imagePrompt.`;
   }
 
   // Logo placeholder
@@ -303,7 +327,7 @@ function sanitizeLayout(layout: AIDesignLayout): AIDesignLayout {
         }
         case "image": {
           const img = el as AIImagePlaceholder;
-          if (!["hero", "decoration", "icon", "logo-placeholder"].includes(img.imageRole)) {
+          if (!["hero", "decoration", "icon", "logo-placeholder", "background"].includes(img.imageRole)) {
             img.imageRole = "decoration";
           }
           break;
