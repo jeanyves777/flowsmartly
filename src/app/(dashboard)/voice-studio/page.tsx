@@ -106,6 +106,7 @@ interface VoiceProfile {
   style: string | null;
   openaiVoice: string | null;
   elevenLabsVoiceId: string | null;
+  openaiVoiceId: string | null;
   sampleUrl: string | null;
   isDefault: boolean;
   lastUsedAt: string | null;
@@ -159,15 +160,18 @@ export default function VoiceStudioPage() {
   const [voiceGenCost, setVoiceGenCost] = useState(5);
   const [voiceScriptCost, setVoiceScriptCost] = useState(3);
   const [voiceCloneCost, setVoiceCloneCost] = useState(15);
-  const [isElevenLabsAvailable, setIsElevenLabsAvailable] = useState(false);
+  const [isVoiceCloningAvailable, setIsVoiceCloningAvailable] = useState(false);
 
-  // Clone
+  // Clone (two-step: consent recording + voice sample)
   const [isCloning, setIsCloning] = useState(false);
   const [cloneFile, setCloneFile] = useState<File | null>(null);
+  const [consentFile, setConsentFile] = useState<File | null>(null);
   const [cloneName, setCloneName] = useState("");
+  const [cloneStep, setCloneStep] = useState<"consent" | "sample">("consent");
 
   // Recorder modal
   const [isRecorderOpen, setIsRecorderOpen] = useState(false);
+  const [recorderMode, setRecorderMode] = useState<"consent" | "sample">("sample");
 
   // Save profile
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -207,7 +211,7 @@ export default function VoiceStudioPage() {
 
       if (cloneCheckRes.ok) {
         const data = await cloneCheckRes.json();
-        setIsElevenLabsAvailable(data.data?.available || false);
+        setIsVoiceCloningAvailable(data.data?.available || false);
       }
 
       if (creditsRes.ok) {
@@ -377,17 +381,18 @@ export default function VoiceStudioPage() {
     if (profile.gender) setSelectedGender(profile.gender);
     if (profile.accent) setSelectedAccent(profile.accent);
     if (profile.style) setSelectedStyle(profile.style);
-    setUseClonedVoice(profile.type === "cloned" && !!profile.elevenLabsVoiceId);
+    setUseClonedVoice(profile.type === "cloned" && !!(profile.openaiVoiceId || profile.elevenLabsVoiceId));
   };
 
   // ─── Clone voice handler ───
 
   const handleCloneVoice = async () => {
-    if (!cloneFile || !cloneName.trim() || isCloning) return;
+    if (!consentFile || !cloneFile || !cloneName.trim() || isCloning) return;
     setIsCloning(true);
     try {
       const formData = new FormData();
       formData.append("name", cloneName.trim());
+      formData.append("consentRecording", consentFile);
       formData.append("file", cloneFile);
 
       const response = await fetch("/api/ai/voice-studio/clone", {
@@ -407,7 +412,9 @@ export default function VoiceStudioPage() {
       const data = await response.json();
       setVoiceProfiles((prev) => [data.data.profile, ...prev]);
       setCloneFile(null);
+      setConsentFile(null);
       setCloneName("");
+      setCloneStep("consent");
       if (data.data.creditsRemaining !== undefined) {
         setCreditsRemaining(data.data.creditsRemaining);
         emitCreditsUpdate(data.data.creditsRemaining);
@@ -435,15 +442,34 @@ export default function VoiceStudioPage() {
           : blob.type.includes("mp4")
             ? "mp4"
             : "wav";
-      const file = new File([blob], `voice-recording.${ext}`, { type: blob.type });
-      setCloneFile(file);
-      setIsRecorderOpen(false);
-      toast({
-        title: "Recording ready!",
-        description: `${Math.floor(durationSec / 60)}:${(durationSec % 60).toString().padStart(2, "0")} recording captured. Enter a name and click Clone Voice.`,
-      });
+
+      if (recorderMode === "consent") {
+        // Step 1 complete: consent recording captured
+        const file = new File([blob], `consent-recording.${ext}`, { type: blob.type });
+        setConsentFile(file);
+        setIsRecorderOpen(false);
+        setCloneStep("sample");
+        toast({
+          title: "Consent recorded!",
+          description: "Now record or upload your voice sample.",
+        });
+        // Auto-open recorder in sample mode after a brief delay
+        setTimeout(() => {
+          setRecorderMode("sample");
+          setIsRecorderOpen(true);
+        }, 500);
+      } else {
+        // Step 2 complete: voice sample captured
+        const file = new File([blob], `voice-recording.${ext}`, { type: blob.type });
+        setCloneFile(file);
+        setIsRecorderOpen(false);
+        toast({
+          title: "Voice sample ready!",
+          description: `${Math.floor(durationSec / 60)}:${(durationSec % 60).toString().padStart(2, "0")} recording captured. Enter a name and click Clone Voice.`,
+        });
+      }
     },
-    [toast]
+    [toast, recorderMode]
   );
 
   // ─── Reuse generation ───
@@ -730,7 +756,7 @@ export default function VoiceStudioPage() {
               </div>
             </div>
 
-            {/* Voice Cloning */}
+            {/* Voice Cloning (Two-Step: Consent + Voice Sample) */}
             <div className="rounded-2xl border border-border bg-card p-5">
               <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <Upload className="w-4 h-4 text-brand-500" />
@@ -738,7 +764,7 @@ export default function VoiceStudioPage() {
               </h3>
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground">
-                  Record your voice or upload a sample (30s-5min) to clone it.
+                  Clone your voice in 2 steps: record a consent phrase, then provide a voice sample (up to 30s).
                 </p>
                 <input
                   type="text"
@@ -748,45 +774,94 @@ export default function VoiceStudioPage() {
                   className="w-full text-sm px-3 py-2 rounded-lg bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                   maxLength={100}
                 />
-                {/* Record or Upload */}
-                <Button
-                  variant="outline"
-                  onClick={() => setIsRecorderOpen(true)}
-                  className="w-full gap-2"
-                  size="sm"
-                >
-                  <Mic className="w-4 h-4" />
-                  Record Voice with Teleprompter
-                </Button>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-px bg-border" />
-                  <span className="text-xs text-muted-foreground">or upload a file</span>
-                  <div className="flex-1 h-px bg-border" />
+
+                {/* Step indicators */}
+                <div className="flex gap-2">
+                  <div className={`flex-1 rounded-lg p-2.5 border transition-colors ${consentFile ? "border-green-500/30 bg-green-500/5" : cloneStep === "consent" ? "border-brand-500/30 bg-brand-500/5" : "border-border"}`}>
+                    <p className="text-xs font-medium">Step 1: Consent</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {consentFile ? "Recorded" : "Read consent phrase"}
+                    </p>
+                  </div>
+                  <div className={`flex-1 rounded-lg p-2.5 border transition-colors ${cloneFile ? "border-green-500/30 bg-green-500/5" : cloneStep === "sample" ? "border-brand-500/30 bg-brand-500/5" : "border-border"}`}>
+                    <p className="text-xs font-medium">Step 2: Sample</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {cloneFile ? "Ready" : "Record voice sample"}
+                    </p>
+                  </div>
                 </div>
-                <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-brand-500/50 transition-colors">
-                  <input
-                    type="file"
-                    accept="audio/mpeg,audio/wav,audio/mp3,audio/webm,audio/ogg"
-                    className="hidden"
-                    onChange={(e) => setCloneFile(e.target.files?.[0] || null)}
-                  />
-                  {cloneFile ? (
-                    <span className="text-sm text-foreground truncate">
-                      {cloneFile.name.startsWith("voice-recording")
-                        ? `Voice recording ready (${(cloneFile.size / (1024 * 1024)).toFixed(1)} MB)`
-                        : cloneFile.name}
-                    </span>
-                  ) : (
-                    <>
+
+                {/* Record buttons */}
+                {!consentFile ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setRecorderMode("consent");
+                      setIsRecorderOpen(true);
+                    }}
+                    className="w-full gap-2"
+                    size="sm"
+                  >
+                    <Mic className="w-4 h-4" />
+                    Record Consent Phrase
+                  </Button>
+                ) : !cloneFile ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setRecorderMode("sample");
+                        setIsRecorderOpen(true);
+                      }}
+                      className="w-full gap-2"
+                      size="sm"
+                    >
+                      <Mic className="w-4 h-4" />
+                      Record Voice Sample
+                    </Button>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-px bg-border" />
+                      <span className="text-xs text-muted-foreground">or upload a file</span>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                    <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-brand-500/50 transition-colors">
+                      <input
+                        type="file"
+                        accept="audio/mpeg,audio/wav,audio/mp3,audio/webm,audio/ogg"
+                        className="hidden"
+                        onChange={(e) => setCloneFile(e.target.files?.[0] || null)}
+                      />
                       <Upload className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">Upload audio file</span>
-                    </>
-                  )}
-                </label>
-                {isElevenLabsAvailable ? (
+                      <span className="text-sm text-muted-foreground">Upload voice sample</span>
+                    </label>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+                    <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center">
+                      <span className="text-[10px]">&#10003;</span>
+                    </div>
+                    Both recordings ready
+                  </div>
+                )}
+
+                {/* Reset button */}
+                {(consentFile || cloneFile) && (
+                  <button
+                    onClick={() => {
+                      setConsentFile(null);
+                      setCloneFile(null);
+                      setCloneStep("consent");
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground underline"
+                  >
+                    Start over
+                  </button>
+                )}
+
+                {isVoiceCloningAvailable ? (
                   <Button
                     onClick={handleCloneVoice}
-                    disabled={!cloneFile || !cloneName.trim() || isCloning}
+                    disabled={!consentFile || !cloneFile || !cloneName.trim() || isCloning}
                     className="w-full"
                     size="sm"
                   >
@@ -806,7 +881,7 @@ export default function VoiceStudioPage() {
                   </Button>
                 ) : (
                   <p className="text-xs text-muted-foreground text-center py-1">
-                    Voice cloning requires ElevenLabs API. Contact admin to enable.
+                    Voice cloning requires OpenAI API access. Contact admin to enable.
                   </p>
                 )}
               </div>
@@ -885,9 +960,9 @@ export default function VoiceStudioPage() {
               <div className="text-center py-8 rounded-2xl border border-dashed border-border">
                 <UserIcon className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">
-                  {isElevenLabsAvailable
+                  {isVoiceCloningAvailable
                     ? "No cloned voices yet. Upload a voice sample to get started."
-                    : "Voice cloning requires ElevenLabs API configuration."}
+                    : "Voice cloning requires OpenAI API access."}
                 </p>
               </div>
             ) : (
@@ -915,6 +990,8 @@ export default function VoiceStudioPage() {
         isOpen={isRecorderOpen}
         onClose={() => setIsRecorderOpen(false)}
         onRecordingComplete={handleRecordingComplete}
+        mode={recorderMode}
+        title={recorderMode === "consent" ? "Record Consent Phrase" : undefined}
       />
     </motion.div>
   );

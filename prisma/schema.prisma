@@ -1782,7 +1782,8 @@ model Design {
   style       String?        // e.g., "photorealistic", "illustration", "minimalist"
   imageUrl    String?
   name        String         @default("Untitled Design")
-  canvasData  String?        // Fabric.js JSON serialization for canvas studio
+  type        String         @default("image") // "image" | "video_project"
+  canvasData  String?        // Fabric.js JSON or video project JSON serialization
   status      String         @default("PENDING") // PENDING, GENERATING, COMPLETED, FAILED
   metadata    String         @default("{}")
   folderId    String?
@@ -3566,6 +3567,8 @@ model VoiceProfile {
   style             String?
   openaiVoice       String?
   elevenLabsVoiceId String?
+  openaiVoiceId     String?
+  openaiConsentId   String?
   sampleUrl         String?
   isDefault         Boolean   @default(false)
   lastUsedAt        DateTime?

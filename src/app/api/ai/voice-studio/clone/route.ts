@@ -2,20 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
-import { isElevenLabsEnabled, cloneVoice } from "@/lib/voice/elevenlabs-client";
+import {
+  isOpenAIVoiceCloningEnabled,
+  createVoiceConsent,
+  createClonedVoice,
+} from "@/lib/voice/openai-voice-client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { nanoid } from "nanoid";
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 const ALLOWED_AUDIO_TYPES = [
   "audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp3",
-  "audio/webm", "audio/ogg", "audio/mp4",
+  "audio/webm", "audio/ogg", "audio/mp4", "audio/flac", "audio/aac",
 ];
 
 /**
  * GET /api/ai/voice-studio/clone — Check if voice cloning is available
  *
- * Returns whether the ElevenLabs integration is configured and ready.
+ * Returns whether OpenAI voice cloning is configured and ready.
  */
 export async function GET() {
   try {
@@ -26,7 +30,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: { available: isElevenLabsEnabled() },
+      data: { available: isOpenAIVoiceCloningEnabled() },
     });
   } catch (error) {
     console.error("[VoiceStudio] Clone availability check error:", error);
@@ -38,14 +42,15 @@ export async function GET() {
 }
 
 /**
- * POST /api/ai/voice-studio/clone — Clone a voice from an audio sample
+ * POST /api/ai/voice-studio/clone — Clone a voice via OpenAI Custom Voices
  *
- * Accepts multipart form data with:
+ * Two-step process requiring:
+ *   - consentRecording: File — the voice actor reading the consent phrase
+ *   - file: File (max 25 MB, ≤30s) — the voice sample
  *   - name: string (1-100 chars) — name for the cloned voice
- *   - file: File (audio/mpeg or audio/wav, max 25 MB) — voice sample
  *
- * Uploads the sample to S3, sends it to ElevenLabs for cloning,
- * and creates a VoiceProfile record.
+ * Creates a consent record, then creates the custom voice, and stores
+ * the openaiVoiceId + openaiConsentId in the VoiceProfile.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -54,10 +59,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if ElevenLabs is configured
-    if (!isElevenLabsEnabled()) {
+    // Check if OpenAI voice cloning is configured
+    if (!isOpenAIVoiceCloningEnabled()) {
       return NextResponse.json(
-        { error: "Voice cloning is not available. ElevenLabs is not configured." },
+        { error: "Voice cloning is not available. OpenAI API key is not configured." },
         { status: 503 }
       );
     }
@@ -86,6 +91,7 @@ export async function POST(req: NextRequest) {
     // Parse multipart form data
     const formData = await req.formData();
     const name = formData.get("name") as string | null;
+    const consentRecording = formData.get("consentRecording") as File | null;
     const file = formData.get("file") as File | null;
 
     // Validate name
@@ -96,10 +102,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate file
+    // Validate consent recording
+    if (!consentRecording || !(consentRecording instanceof File)) {
+      return NextResponse.json(
+        { error: "Consent recording is required. Please record yourself reading the consent phrase." },
+        { status: 400 }
+      );
+    }
+
+    const consentType = consentRecording.type.split(";")[0].trim();
+    if (!ALLOWED_AUDIO_TYPES.includes(consentType)) {
+      return NextResponse.json(
+        { error: "Consent recording must be an audio file (MP3, WAV, WebM, OGG, AAC, or FLAC)" },
+        { status: 400 }
+      );
+    }
+
+    // Validate voice sample file
     if (!file || !(file instanceof File)) {
       return NextResponse.json(
-        { error: "Audio file is required" },
+        { error: "Voice sample audio file is required" },
         { status: 400 }
       );
     }
@@ -107,7 +129,7 @@ export async function POST(req: NextRequest) {
     const baseType = file.type.split(";")[0].trim();
     if (!ALLOWED_AUDIO_TYPES.includes(baseType)) {
       return NextResponse.json(
-        { error: "File must be an audio file (MP3, WAV, WebM, or OGG)" },
+        { error: "File must be an audio file (MP3, WAV, WebM, OGG, AAC, or FLAC)" },
         { status: 400 }
       );
     }
@@ -119,25 +141,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Read file into buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // Read both files into buffers
+    const consentBuffer = Buffer.from(await consentRecording.arrayBuffer());
+    const sampleBuffer = Buffer.from(await file.arrayBuffer());
 
-    // Upload sample to S3
+    // Upload sample to S3 for storage
     const extMap: Record<string, string> = {
       "audio/mpeg": "mp3", "audio/mp3": "mp3",
       "audio/wav": "wav", "audio/x-wav": "wav",
-      "audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "mp4",
+      "audio/webm": "webm", "audio/ogg": "ogg",
+      "audio/mp4": "mp4", "audio/flac": "flac", "audio/aac": "aac",
     };
     const fileExt = extMap[baseType] || "mp3";
     const s3Key = `voice-clones/${session.userId}/${nanoid(8)}.${fileExt}`;
-    const sampleUrl = await uploadToS3(s3Key, buffer, file.type);
+    const sampleUrl = await uploadToS3(s3Key, sampleBuffer, file.type);
 
-    // Clone voice via ElevenLabs
-    const result = await cloneVoice({
+    // Step 1: Create voice consent via OpenAI
+    const { consentId } = await createVoiceConsent({
       name: name.trim(),
-      description: `Cloned voice for ${name.trim()}`,
-      audioBuffers: [{ buffer, filename: file.name || `sample.${fileExt}` }],
+      language: "en",
+      recording: consentBuffer,
+      mimeType: consentType,
+    });
+
+    // Step 2: Create custom voice via OpenAI
+    const { voiceId } = await createClonedVoice({
+      name: name.trim(),
+      audioSample: sampleBuffer,
+      consentId,
+      mimeType: baseType,
     });
 
     // Create VoiceProfile record
@@ -146,7 +178,8 @@ export async function POST(req: NextRequest) {
         userId: session.userId,
         type: "cloned",
         name: name.trim(),
-        elevenLabsVoiceId: result.voiceId,
+        openaiVoiceId: voiceId,
+        openaiConsentId: consentId,
         sampleUrl,
       },
     });

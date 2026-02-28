@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { deleteClonedVoice } from "@/lib/voice/elevenlabs-client";
+import { deleteClonedVoice } from "@/lib/voice/openai-voice-client";
+import { deleteClonedVoice as deleteElevenLabsVoice } from "@/lib/voice/elevenlabs-client";
 
 /**
  * DELETE /api/ai/voice-studio/profiles/[id] — Delete a voice profile
@@ -33,16 +34,29 @@ export async function DELETE(
       );
     }
 
-    // If it's a cloned voice, delete from ElevenLabs
-    if (profile.type === "cloned" && profile.elevenLabsVoiceId) {
-      try {
-        await deleteClonedVoice(profile.elevenLabsVoiceId);
-      } catch (err) {
-        console.warn(
-          "[VoiceStudio] Failed to delete ElevenLabs voice:",
-          err instanceof Error ? err.message : err
-        );
-        // Continue with DB deletion even if ElevenLabs cleanup fails
+    // If it's a cloned voice, delete from the provider
+    if (profile.type === "cloned") {
+      // Delete from OpenAI if present
+      if (profile.openaiVoiceId) {
+        try {
+          await deleteClonedVoice(profile.openaiVoiceId);
+        } catch (err) {
+          console.warn(
+            "[VoiceStudio] Failed to delete OpenAI voice:",
+            err instanceof Error ? err.message : err
+          );
+        }
+      }
+      // Delete from ElevenLabs if present (legacy profiles)
+      if (profile.elevenLabsVoiceId) {
+        try {
+          await deleteElevenLabsVoice(profile.elevenLabsVoiceId);
+        } catch (err) {
+          console.warn(
+            "[VoiceStudio] Failed to delete ElevenLabs voice:",
+            err instanceof Error ? err.message : err
+          );
+        }
       }
     }
 

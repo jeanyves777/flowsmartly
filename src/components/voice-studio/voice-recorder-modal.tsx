@@ -69,17 +69,31 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+// ─── Consent phrase for OpenAI voice cloning ─────────────────────
+const CONSENT_PHRASE =
+  "I am the owner of this voice and I consent to OpenAI using this voice to create a synthetic voice model.";
+
 // ─── Props ────────────────────────────────────────────────────────
 interface VoiceRecorderModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRecordingComplete: (blob: Blob, durationSeconds: number) => void;
+  /**
+   * Recording mode:
+   * - "sample" (default) — normal voice sample recording with teleprompter scripts
+   * - "consent" — shows the consent phrase for OpenAI voice cloning (no custom scripts)
+   */
+  mode?: "sample" | "consent";
+  /** Optional title override */
+  title?: string;
 }
 
 export function VoiceRecorderModal({
   isOpen,
   onClose,
   onRecordingComplete,
+  mode = "sample",
+  title,
 }: VoiceRecorderModalProps) {
   // Recording state
   const [recordingState, setRecordingState] = useState<RecordingState>("idle");
@@ -121,9 +135,11 @@ export function VoiceRecorderModal({
     null
   );
 
-  const currentScript = isCustomScript
-    ? customScriptText
-    : SAMPLE_SCRIPTS[selectedScriptIndex]?.text || "";
+  const currentScript = mode === "consent"
+    ? CONSENT_PHRASE
+    : isCustomScript
+      ? customScriptText
+      : SAMPLE_SCRIPTS[selectedScriptIndex]?.text || "";
 
   // ─── Cleanup ──────────────────────────────────────────────────
   const cleanup = useCallback(() => {
@@ -522,10 +538,12 @@ export function VoiceRecorderModal({
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">
-                    Voice Recorder
+                    {title || (mode === "consent" ? "Record Consent" : "Voice Recorder")}
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    Read the script aloud to clone your voice
+                    {mode === "consent"
+                      ? "Read the consent phrase below clearly and naturally"
+                      : "Read the script aloud to clone your voice"}
                   </p>
                 </div>
               </div>
@@ -567,8 +585,25 @@ export function VoiceRecorderModal({
 
               {permissionState !== "denied" && (
                 <>
+                  {/* ─── Consent Mode Notice ─────────────────── */}
+                  {mode === "consent" && recordingState === "idle" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4"
+                    >
+                      <p className="text-sm font-medium text-amber-600 dark:text-amber-400 mb-1">
+                        Consent Required
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Please read the phrase below clearly. This verifies you consent to creating
+                        a synthetic voice model from your voice.
+                      </p>
+                    </motion.div>
+                  )}
+
                   {/* ─── Script Selection ─────────────────────── */}
-                  {recordingState === "idle" && (
+                  {recordingState === "idle" && mode !== "consent" && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}

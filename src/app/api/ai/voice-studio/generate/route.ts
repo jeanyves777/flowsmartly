@@ -3,7 +3,8 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { generateVoice } from "@/lib/voice/voice-engine";
-import { generateWithClonedVoice } from "@/lib/voice/elevenlabs-client";
+import { generateWithClonedVoice } from "@/lib/voice/openai-voice-client";
+import { generateWithClonedVoice as generateWithElevenLabs } from "@/lib/voice/elevenlabs-client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { nanoid } from "nanoid";
 
@@ -72,17 +73,31 @@ export async function POST(req: NextRequest) {
         where: { id: voiceProfileId, userId: session.userId },
       });
 
-      if (!profile || !profile.elevenLabsVoiceId) {
+      if (!profile || (!profile.openaiVoiceId && !profile.elevenLabsVoiceId)) {
         return NextResponse.json(
           { error: "Voice profile not found or missing cloned voice ID" },
           { status: 404 }
         );
       }
 
-      buffer = await generateWithClonedVoice({
-        text: script,
-        voiceId: profile.elevenLabsVoiceId,
-      });
+      // Prefer OpenAI custom voice, fallback to ElevenLabs for legacy profiles
+      if (profile.openaiVoiceId) {
+        buffer = await generateWithClonedVoice({
+          text: script,
+          voiceId: profile.openaiVoiceId,
+          speed,
+        });
+      } else if (profile.elevenLabsVoiceId) {
+        buffer = await generateWithElevenLabs({
+          text: script,
+          voiceId: profile.elevenLabsVoiceId,
+        });
+      } else {
+        return NextResponse.json(
+          { error: "Voice profile has no cloned voice ID" },
+          { status: 400 }
+        );
+      }
       // Estimate duration from word count (~150 words/min)
       const wordCount = script.split(/\s+/).filter(Boolean).length;
       durationMs = Math.round(((wordCount / 150) * 60 * 1000) / speed);
