@@ -50,6 +50,7 @@ import {
 } from "@/lib/constants/design-presets";
 import { useCanvasStore } from "./hooks/use-canvas-store";
 import { addImageToCanvas } from "./utils/canvas-helpers";
+import { applyAILayout } from "./utils/layout-to-canvas";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface SocialHandles {
@@ -187,6 +188,9 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
   const canvasHeight = useCanvasStore((s) => s.canvasHeight);
   const setCanvasDimensions = useCanvasStore((s) => s.setCanvasDimensions);
 
+  // Generation mode: "layout" = structured elements, "image" = flat AI image
+  const [generationMode, setGenerationMode] = useState<"layout" | "image">("layout");
+
   // Generation state
   const [prompt, setPrompt] = useState("");
   const [selectedCategory, setSelectedCategory] =
@@ -229,11 +233,13 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState(0);
   const [designCreditCost, setDesignCreditCost] = useState(15);
+  const [layoutCreditCost, setLayoutCreditCost] = useState(5);
 
   // Result
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(
     null
   );
+  const [layoutApplied, setLayoutApplied] = useState(false);
 
   // Auto-select first compatible preset
   useEffect(() => {
@@ -254,7 +260,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
         const [brandRes, studioRes, costsRes] = await Promise.all([
           fetch("/api/brand"),
           fetch("/api/ai/studio"),
-          fetch("/api/credits/costs?keys=AI_VISUAL_DESIGN"),
+          fetch("/api/credits/costs?keys=AI_VISUAL_DESIGN,AI_DESIGN_LAYOUT"),
         ]);
         const brandData = await brandRes.json();
         const studioData = await studioRes.json();
@@ -292,6 +298,8 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
           setCreditsRemaining(studioData.data.stats?.creditsRemaining ?? 0);
         if (costsData.success && costsData.data?.costs?.AI_VISUAL_DESIGN)
           setDesignCreditCost(costsData.data.costs.AI_VISUAL_DESIGN);
+        if (costsData.success && costsData.data?.costs?.AI_DESIGN_LAYOUT)
+          setLayoutCreditCost(costsData.data.costs.AI_DESIGN_LAYOUT);
       } catch {
         /* silently */
       }
@@ -350,6 +358,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
 
     setIsGenerating(true);
     setGeneratedImageUrl(null);
+    setLayoutApplied(false);
     try {
       const socialHandles: Record<string, string> = {};
       if (showSocialIcons && brandIdentity?.handles) {
@@ -359,74 +368,139 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
         });
       }
 
-      const res = await fetch("/api/ai/visual", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          category: selectedCategory,
-          size: `${selectedSize.width}x${selectedSize.height}`,
-          style: selectedStyle,
-          provider: selectedProvider,
-          heroType,
-          textMode,
-          brandColors: brandIdentity?.colors || null,
-          brandLogo:
+      if (generationMode === "layout") {
+        // ── Smart Layout mode: structured elements via Claude ──
+        const res = await fetch("/api/ai/design-layout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            category: selectedCategory,
+            size: `${selectedSize.width}x${selectedSize.height}`,
+            style: selectedStyle,
+            heroType,
+            textMode,
+            ctaText: ctaText.trim() || null,
+            brandColors: brandIdentity?.colors || null,
+            brandName: showBrandName ? brandIdentity?.name : null,
+            showBrandName,
+            showSocialIcons,
+            socialHandles:
+              Object.keys(socialHandles).length > 0 ? socialHandles : null,
+            contactInfo: {
+              email: includeInDesign.email ? brandIdentity?.email : null,
+              phone: includeInDesign.phone ? brandIdentity?.phone : null,
+              website: includeInDesign.website ? brandIdentity?.website : null,
+              address: includeInDesign.address ? brandIdentity?.address : null,
+            },
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          if (handleCreditError(data.error || {}, "smart layout")) return;
+          throw new Error(data.error?.message || "Layout generation failed");
+        }
+
+        if (data.data?.creditsRemaining !== undefined) {
+          setCreditsRemaining(data.data.creditsRemaining);
+          emitCreditsUpdate(data.data.creditsRemaining);
+        }
+
+        // Apply layout to canvas
+        if (data.data?.layout && canvas) {
+          const [w, h] = (data.data.size || "").split("x").map(Number);
+          if (w && h && (w !== canvasWidth || h !== canvasHeight)) {
+            setCanvasDimensions(w, h);
+          }
+          const fabric = await import("fabric");
+          const brandLogoUrl =
             logoType === "icon"
               ? brandIdentity?.iconLogo || brandIdentity?.logo
               : logoType === "full"
                 ? brandIdentity?.logo || brandIdentity?.iconLogo
-                : brandIdentity?.logo || brandIdentity?.iconLogo,
-          logoSizePercent,
-          brandName: showBrandName ? brandIdentity?.name : null,
-          showBrandName,
-          showSocialIcons,
-          socialHandles:
-            Object.keys(socialHandles).length > 0 ? socialHandles : null,
-          contactInfo: {
-            email: includeInDesign.email ? brandIdentity?.email : null,
-            phone: includeInDesign.phone ? brandIdentity?.phone : null,
-            website: includeInDesign.website ? brandIdentity?.website : null,
-            address: includeInDesign.address ? brandIdentity?.address : null,
-          },
-          ctaText: ctaText.trim() || null,
-          templateImageUrl: styleReferenceUrls[0] || null,
-          referenceImageUrl: exactImageUrls[0] || null,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        if (handleCreditError(data.error || {}, "visual design")) return;
-        throw new Error(data.error?.message || "Generation failed");
-      }
-
-      if (data.data?.creditsRemaining !== undefined) {
-        setCreditsRemaining(data.data.creditsRemaining);
-        emitCreditsUpdate(data.data.creditsRemaining);
-      }
-
-      // Add generated image to canvas
-      if (data.data?.design?.imageUrl && canvas) {
-        const [w, h] = (data.data.design.size || "").split("x").map(Number);
-        if (w && h && (w !== canvasWidth || h !== canvasHeight)) {
-          setCanvasDimensions(w, h);
-        }
-        setGeneratedImageUrl(data.data.design.imageUrl);
-        const fabric = await import("fabric");
-        try {
-          await addImageToCanvas(canvas, data.data.design.imageUrl, fabric);
-          toast({ title: "Design generated and added to canvas!" });
-        } catch {
-          toast({
-            title: "Design generated but failed to load on canvas",
-            description:
-              "The image was saved. Try adding it from your uploads.",
-            variant: "destructive",
+                : brandIdentity?.logo || brandIdentity?.iconLogo;
+          await applyAILayout(canvas, data.data.layout, fabric, w || canvasWidth, h || canvasHeight, {
+            clearCanvas: true,
+            brandLogoUrl: brandLogoUrl || null,
           });
+          // Refresh layers panel
+          const refreshLayers = useCanvasStore.getState().refreshLayers;
+          if (refreshLayers) refreshLayers();
+          setLayoutApplied(true);
+          toast({ title: "Smart layout applied to canvas!" });
         }
       } else {
-        toast({ title: "Design generated!" });
+        // ── AI Image mode: flat image via provider ──
+        const res = await fetch("/api/ai/visual", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            category: selectedCategory,
+            size: `${selectedSize.width}x${selectedSize.height}`,
+            style: selectedStyle,
+            provider: selectedProvider,
+            heroType,
+            textMode,
+            brandColors: brandIdentity?.colors || null,
+            brandLogo:
+              logoType === "icon"
+                ? brandIdentity?.iconLogo || brandIdentity?.logo
+                : logoType === "full"
+                  ? brandIdentity?.logo || brandIdentity?.iconLogo
+                  : brandIdentity?.logo || brandIdentity?.iconLogo,
+            logoSizePercent,
+            brandName: showBrandName ? brandIdentity?.name : null,
+            showBrandName,
+            showSocialIcons,
+            socialHandles:
+              Object.keys(socialHandles).length > 0 ? socialHandles : null,
+            contactInfo: {
+              email: includeInDesign.email ? brandIdentity?.email : null,
+              phone: includeInDesign.phone ? brandIdentity?.phone : null,
+              website: includeInDesign.website ? brandIdentity?.website : null,
+              address: includeInDesign.address ? brandIdentity?.address : null,
+            },
+            ctaText: ctaText.trim() || null,
+            templateImageUrl: styleReferenceUrls[0] || null,
+            referenceImageUrl: exactImageUrls[0] || null,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          if (handleCreditError(data.error || {}, "visual design")) return;
+          throw new Error(data.error?.message || "Generation failed");
+        }
+
+        if (data.data?.creditsRemaining !== undefined) {
+          setCreditsRemaining(data.data.creditsRemaining);
+          emitCreditsUpdate(data.data.creditsRemaining);
+        }
+
+        // Add generated image to canvas
+        if (data.data?.design?.imageUrl && canvas) {
+          const [w, h] = (data.data.design.size || "").split("x").map(Number);
+          if (w && h && (w !== canvasWidth || h !== canvasHeight)) {
+            setCanvasDimensions(w, h);
+          }
+          setGeneratedImageUrl(data.data.design.imageUrl);
+          const fabric = await import("fabric");
+          try {
+            await addImageToCanvas(canvas, data.data.design.imageUrl, fabric);
+            toast({ title: "Design generated and added to canvas!" });
+          } catch {
+            toast({
+              title: "Design generated but failed to load on canvas",
+              description:
+                "The image was saved. Try adding it from your uploads.",
+              variant: "destructive",
+            });
+          }
+        } else {
+          toast({ title: "Design generated!" });
+        }
       }
     } catch (e) {
       toast({
@@ -497,6 +571,38 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
         <div className="flex-1 flex min-h-0">
           {/* Left: Form */}
           <div className="w-[420px] shrink-0 border-r overflow-y-auto p-5 space-y-4">
+            {/* Mode Switcher */}
+            <div className="flex items-center gap-1 p-1 rounded-lg bg-muted">
+              <button
+                onClick={() => setGenerationMode("layout")}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-colors ${
+                  generationMode === "layout"
+                    ? "bg-background shadow-sm text-brand-600"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Layers className="h-3.5 w-3.5" />
+                Smart Layout
+                <Badge variant="secondary" className="text-[9px] px-1 py-0">
+                  {layoutCreditCost}cr
+                </Badge>
+              </button>
+              <button
+                onClick={() => setGenerationMode("image")}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-colors ${
+                  generationMode === "image"
+                    ? "bg-background shadow-sm text-brand-600"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <ImageIcon className="h-3.5 w-3.5" />
+                AI Image
+                <Badge variant="secondary" className="text-[9px] px-1 py-0">
+                  {designCreditCost}cr
+                </Badge>
+              </button>
+            </div>
+
             {/* Prompt input + Ideas */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
@@ -727,56 +833,62 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                 />
               </div>
 
-              {/* Style Reference */}
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Style Reference
-                </Label>
-                <MediaUploader
-                  value={styleReferenceUrls}
-                  onChange={setStyleReferenceUrls}
-                  maxFiles={1}
-                  accept="image/*"
-                />
-              </div>
+              {/* Style Reference (image mode only) */}
+              {generationMode === "image" && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">
+                    Style Reference
+                  </Label>
+                  <MediaUploader
+                    value={styleReferenceUrls}
+                    onChange={setStyleReferenceUrls}
+                    maxFiles={1}
+                    accept="image/*"
+                  />
+                </div>
+              )}
 
-              {/* Exact Image */}
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Exact Image
-                </Label>
-                <MediaUploader
-                  value={exactImageUrls}
-                  onChange={setExactImageUrls}
-                  maxFiles={1}
-                  accept="image/*"
-                />
-              </div>
+              {/* Exact Image (image mode only) */}
+              {generationMode === "image" && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">
+                    Exact Image
+                  </Label>
+                  <MediaUploader
+                    value={exactImageUrls}
+                    onChange={setExactImageUrls}
+                    maxFiles={1}
+                    accept="image/*"
+                  />
+                </div>
+              )}
             </CollapsibleSection>
 
-            {/* Provider */}
-            <div>
-              <Label className="text-xs text-muted-foreground">
-                AI Provider
-              </Label>
-              <Select
-                value={selectedProvider}
-                onValueChange={(v) =>
-                  setSelectedProvider(v as ImageProvider)
-                }
-              >
-                <SelectTrigger className="h-9 text-sm mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="openai">
-                    OpenAI (gpt-image-1)
-                  </SelectItem>
-                  <SelectItem value="xai">Grok (xAI)</SelectItem>
-                  <SelectItem value="gemini">Gemini (Google)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Provider (image mode only) */}
+            {generationMode === "image" && (
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  AI Provider
+                </Label>
+                <Select
+                  value={selectedProvider}
+                  onValueChange={(v) =>
+                    setSelectedProvider(v as ImageProvider)
+                  }
+                >
+                  <SelectTrigger className="h-9 text-sm mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="openai">
+                      OpenAI (gpt-image-1)
+                    </SelectItem>
+                    <SelectItem value="xai">Grok (xAI)</SelectItem>
+                    <SelectItem value="gemini">Gemini (Google)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Brand & Contact */}
             <CollapsibleSection title="Brand & Contact Info" icon={Building2}>
@@ -815,23 +927,25 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                     </div>
                   </div>
 
-                  {/* Logo Size */}
-                  <div>
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Logo Size</span>
-                      <span>{logoSizePercent}%</span>
+                  {/* Logo Size (image mode only — composites logo into flat image) */}
+                  {generationMode === "image" && (
+                    <div>
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Logo Size</span>
+                        <span>{logoSizePercent}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={8}
+                        max={35}
+                        value={logoSizePercent}
+                        onChange={(e) =>
+                          setLogoSizePercent(parseInt(e.target.value))
+                        }
+                        className="w-full h-1.5 accent-brand-500"
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min={8}
-                      max={35}
-                      value={logoSizePercent}
-                      onChange={(e) =>
-                        setLogoSizePercent(parseInt(e.target.value))
-                      }
-                      className="w-full h-1.5 accent-brand-500"
-                    />
-                  </div>
+                  )}
 
                   {/* Brand Name */}
                   <label className="flex items-center gap-2 text-xs cursor-pointer">
@@ -973,6 +1087,37 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                   </Button>
                 </div>
               </div>
+            ) : layoutApplied ? (
+              <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-400/20 to-green-600/20 flex items-center justify-center">
+                  <Layers className="h-8 w-8 text-green-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">
+                    Layout applied!
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Your design elements have been placed on the canvas. Close this dialog to edit, move, and customize each element individually.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setLayoutApplied(false)}
+                  >
+                    Generate Another
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="text-xs"
+                    onClick={handleClose}
+                  >
+                    Close & Edit
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="flex flex-col items-center gap-4 text-center max-w-sm">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-400/20 to-brand-600/20 flex items-center justify-center">
@@ -983,27 +1128,43 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                     Ready to create
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Describe your design, pick a style and size, then hit
-                    Generate. Your AI-created design will appear here and be
-                    added to the canvas.
+                    {generationMode === "layout"
+                      ? "Describe your design and hit Generate. AI will create editable text, shapes, and elements you can customize on the canvas."
+                      : "Describe your design, pick a style and size, then hit Generate. Your AI-created design will appear here and be added to the canvas."}
                   </p>
                 </div>
                 <div className="grid grid-cols-3 gap-3 w-full mt-2">
-                  {[
-                    { icon: Layers, label: "Multi-format" },
-                    { icon: Palette, label: "Brand-aware" },
-                    { icon: Zap, label: "Instant" },
-                  ].map((f) => (
-                    <div
-                      key={f.label}
-                      className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-muted/50 border"
-                    >
-                      <f.icon className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-[11px] text-muted-foreground">
-                        {f.label}
-                      </span>
-                    </div>
-                  ))}
+                  {generationMode === "layout"
+                    ? [
+                        { icon: Layers, label: "Editable elements" },
+                        { icon: Type, label: "Live text" },
+                        { icon: Zap, label: "Fast & cheap" },
+                      ].map((f) => (
+                        <div
+                          key={f.label}
+                          className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-muted/50 border"
+                        >
+                          <f.icon className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-[11px] text-muted-foreground">
+                            {f.label}
+                          </span>
+                        </div>
+                      ))
+                    : [
+                        { icon: Layers, label: "Multi-format" },
+                        { icon: Palette, label: "Brand-aware" },
+                        { icon: Zap, label: "Instant" },
+                      ].map((f) => (
+                        <div
+                          key={f.label}
+                          className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-muted/50 border"
+                        >
+                          <f.icon className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-[11px] text-muted-foreground">
+                            {f.label}
+                          </span>
+                        </div>
+                      ))}
                 </div>
               </div>
             )}
@@ -1032,9 +1193,13 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
             ) : (
               <Sparkles className="h-4 w-4" />
             )}
-            {isGenerating ? "Generating..." : "Generate Design"}
+            {isGenerating
+              ? "Generating..."
+              : generationMode === "layout"
+                ? "Generate Layout"
+                : "Generate Design"}
             <Badge variant="secondary" className="text-[10px] ml-1">
-              {designCreditCost} credits
+              {generationMode === "layout" ? layoutCreditCost : designCreditCost} credits
             </Badge>
           </Button>
         </div>

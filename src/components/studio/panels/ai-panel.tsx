@@ -221,7 +221,7 @@ export function AiPanel() {
               <div className="text-center">
                 <h4 className="text-sm font-semibold">AI Design Generator</h4>
                 <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                  Create professional designs with AI. Choose from multiple styles, sizes, and providers.
+                  Create designs with AI. Smart Layout generates editable elements, or use AI Image for a flat design.
                 </p>
               </div>
               <Button
