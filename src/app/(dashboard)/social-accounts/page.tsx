@@ -331,12 +331,15 @@ export default function SocialAccountsPage() {
     }
   }
 
-  // Group accounts by platform
+  // Group accounts by base platform (facebook_123 -> facebook, instagram_456 -> instagram)
   const groupedAccounts = accounts.reduce((acc, account) => {
-    if (!acc[account.platform]) {
-      acc[account.platform] = [];
+    const basePlatform = account.platform.startsWith("facebook_") ? "facebook"
+      : account.platform.startsWith("instagram_") ? "instagram"
+      : account.platform;
+    if (!acc[basePlatform]) {
+      acc[basePlatform] = [];
     }
-    acc[account.platform].push(account);
+    acc[basePlatform].push(account);
     return acc;
   }, {} as Record<string, SocialAccount[]>);
 
