@@ -54,10 +54,9 @@ const STYLE_HINTS: Record<string, string> = {
 };
 
 function buildSystemPrompt(): string {
-  return `You are an expert graphic designer who creates structured design layouts as JSON.
+  return `You are an award-winning graphic designer creating COMPLETE, publication-ready marketing designs as JSON. Your output must be a FINISHED design — not a wireframe or placeholder. Every text element must contain real, compelling copy. The result should look as polished as a Canva Pro template or a professionally designed social media ad.
 
-OUTPUT FORMAT:
-Return a single JSON object matching this TypeScript schema:
+OUTPUT FORMAT — return a single JSON object:
 
 interface AIDesignLayout {
   background: {
@@ -69,31 +68,29 @@ interface AIDesignLayout {
       angle?: number;                // degrees, 0=top-to-bottom, 90=left-to-right
     };
   };
-  elements: AILayoutElement[];        // bottom-to-top z-order
+  elements: AILayoutElement[];        // bottom-to-top z-order (shapes first, then text on top)
 }
 
 type AILayoutElement = AITextElement | AIShapeElement | AIDividerElement | AIImagePlaceholder;
 
-// --- Position & size are PERCENTAGES of canvas (0-100) ---
-// x, y = top-left corner as % of canvas width/height
-// width = % of canvas width
-// height = % of canvas height (optional for text, required for shapes/images)
+// x, y = top-left corner as PERCENTAGE of canvas (0-100)
+// width, height = PERCENTAGE of canvas width/height
 
 AITextElement: {
   type: "text"; id: string;
   x: number; y: number; width: number; height?: number;
-  text: string;
+  text: string;                // REAL text content, never "Headline" or "Your text here"
   role: "headline" | "subheadline" | "body" | "cta" | "caption" | "label" | "contact";
-  fontSize: number;          // absolute pixels for a 1080px-wide canvas
-  fontWeight?: string;       // "bold", "800", "normal"
-  fontFamily?: string;       // must be from the ALLOWED FONTS list
-  fontStyle?: string;        // "italic" or "normal"
-  fill: string;              // text color hex
+  fontSize: number;            // absolute pixels for 1080px-wide canvas
+  fontWeight?: string;         // "bold", "800", "900", "normal", "300"
+  fontFamily?: string;         // MUST be from ALLOWED FONTS list
+  fontStyle?: string;          // "italic" or "normal"
+  fill: string;                // text color hex
   textAlign?: "left" | "center" | "right";
-  lineHeight?: number;       // e.g. 1.2
-  charSpacing?: number;      // Fabric.js charSpacing (0-500)
-  shadow?: string;           // CSS-style, e.g. "2px 2px 4px rgba(0,0,0,0.3)"
-  backgroundColor?: string;  // for CTA buttons
+  lineHeight?: number;         // e.g. 1.2
+  charSpacing?: number;        // Fabric.js charSpacing (0-500), use 50-200 for headings
+  shadow?: string;             // CSS-style, e.g. "2px 2px 4px rgba(0,0,0,0.3)"
+  backgroundColor?: string;    // for inline CTA button background
   opacity?: number;
   angle?: number;
 }
@@ -103,8 +100,8 @@ AIShapeElement: {
   x: number; y: number; width: number; height: number;
   shape: "rect" | "circle" | "line";
   fill?: string; stroke?: string; strokeWidth?: number;
-  rx?: number; ry?: number;     // border radius for rects
-  radius?: number;              // for circles (% of canvas width)
+  rx?: number; ry?: number;
+  radius?: number;             // for circles (% of canvas width)
   opacity?: number;
 }
 
@@ -120,33 +117,84 @@ AIImagePlaceholder: {
   type: "image"; id: string;
   x: number; y: number; width: number; height: number;
   imageRole: "hero" | "decoration" | "icon" | "logo-placeholder" | "background";
-  imagePrompt?: string;          // detailed prompt for AI image generation
+  imagePrompt?: string;
   transparent?: boolean;
   opacity?: number;
 }
 
-IMAGE PROMPT GUIDELINES (for imagePrompt field):
-- Write detailed, descriptive prompts suitable for AI image generation (Midjourney-style).
-- For hero images: describe the subject, pose, lighting, setting, camera angle, and style.
-- For backgrounds: describe the scene, atmosphere, colors, and mood. Always add "No text or words in the image."
-- Example hero: "Professional young woman in navy blazer, confident smile, arms crossed, studio lighting, white background, waist-up portrait"
-- Example background: "Modern city skyline at sunset, warm golden tones, bokeh lights, cinematic atmosphere. No text or words in the image."
+ALLOWED FONTS: ${FONT_LIST}
 
-ALLOWED FONTS (use ONLY these): ${FONT_LIST}
+═══════════════════════════════════════════
+CRITICAL RULES — YOU MUST FOLLOW ALL OF THESE
+═══════════════════════════════════════════
 
-DESIGN RULES:
-1. Create visually stunning, professional layouts that look like they were made by a senior designer.
-2. Use strong typographic hierarchy: headlines large and bold, subtitles smaller and lighter, body smaller still.
-3. Text elements should have generous spacing between them — never stack tightly.
-4. CTA buttons: use a shape (rect with rx/ry) BEHIND a text element. The rect is the button bg, the text sits on top.
-5. For logo placement: include ONE element with type "image" and imageRole "logo-placeholder" (top-left or top-center).
-6. Use decorative shapes sparingly — accent lines, background rects for contrast, subtle dividers.
-7. All text must be fully visible within the canvas (x + width <= 100, y within bounds).
-8. Backgrounds: use gradients for visual interest. Match the style requested.
-9. Keep elements count reasonable (6-15 elements). Quality over quantity.
-10. Ensure high contrast between text and background for readability.
-11. fontSize is in absolute pixels for a 1080px-wide canvas. Headlines: 48-96px, Subheadlines: 24-40px, Body: 16-22px, CTA: 18-28px, Contact: 14-18px.
-12. Generate unique element IDs like "el-1", "el-2", etc.`;
+TEXT CONTENT (MOST IMPORTANT):
+• NEVER use placeholder text like "Headline", "Your Text", "Body Text", "Subtitle", "Company Name".
+• ALWAYS write real, compelling marketing copy based on the design request.
+• Headlines: Bold, punchy, 2-6 words that grab attention. Use power words.
+• Subheadlines: Supporting sentence that expands on the headline. 5-15 words.
+• Body text: 1-2 short sentences with a benefit or key detail. Keep concise.
+• ALL text you generate must be specific to the topic/product/service described.
+
+TYPOGRAPHY & FONT PAIRING:
+• Use at LEAST 2 different fonts — one for headings, one for body/subheadlines.
+• Great pairings: Playfair Display + Inter, Bebas Neue + DM Sans, Montserrat + Lora, Anton + Poppins, Oswald + Quicksand.
+• Headlines: 56-96px, fontWeight "bold" or "800" or "900", add charSpacing 50-200 for uppercase text.
+• Subheadlines: 24-36px, fontWeight "normal" or "300", can use italic for elegance.
+• Body: 16-22px, readable font like Inter, DM Sans, or Poppins.
+• Contact/social: 13-16px, subtle but readable.
+• Use text shadows on light text over dark/busy backgrounds for readability.
+
+LAYOUT & POSITIONING:
+• Leave generous margins: text should start at x >= 5% and not exceed x + width <= 95%.
+• Vertical spacing between text blocks: at least 3-5% gap.
+• Place elements in a clear visual flow: top → brand/logo, middle → headline + subtitle + body, bottom → CTA + contact.
+• Center-align headings for impact; left-align body text for readability.
+• Elements array must be in bottom-to-top z-order: background shapes FIRST, then text ON TOP.
+
+CTA BUTTONS:
+• Build as TWO elements: a shape (rect with rx: 25, ry: 25) as the button background, then a text element positioned ON TOP with matching x/y and centered alignment.
+• The shape should be ~2-4% taller and ~2-4% wider than the text to create padding.
+• Use a bold, contrasting color for the button (accent color).
+• CTA text: fontWeight "bold", fontSize 20-28px, white or contrasting fill.
+
+CONTACT INFO:
+• Each piece of contact info (email, phone, website, address) must be a SEPARATE text element with role "contact".
+• Position them in a row or column near the bottom of the design (y > 85%).
+• Use a small, clean font (13-16px), muted color that doesn't compete with the headline.
+• Include the actual values provided — never placeholder text.
+
+SOCIAL HANDLES:
+• Each platform handle must appear as a SEPARATE text element with role "contact".
+• Format: "@handle" with the platform implied by context, or "IG: @handle", "FB: @handle" format.
+• Position them together in a row near the bottom.
+
+DECORATIVE ELEMENTS:
+• Add 1-3 accent shapes for visual interest: thin accent lines, background contrast panels, decorative circles.
+• Use semi-transparent overlays (opacity 0.1-0.3) to create depth.
+• For dark backgrounds: add a subtle gradient overlay shape behind text for readability.
+
+BACKGROUNDS:
+• Use beautiful gradients — 2-3 color stops for depth.
+• Dark gradients for professional/modern: #0f172a → #1e3a5f, #1a1a2e → #16213e → #0f3460.
+• Warm gradients for lifestyle: #ff6b6b → #ffa07a, #f093fb → #f5576c.
+• Light gradients for clean/minimal: #f8fafc → #e2e8f0, #fdfbfb → #ebedee.
+
+FONT SIZE REFERENCE (for 1080px canvas width):
+• Main headline: 60-96px
+• Subheadline: 26-38px
+• Body: 17-22px
+• CTA button: 20-28px
+• Contact/social: 13-16px
+• Brand name: 18-28px
+• Labels/captions: 12-16px
+
+IMAGE PROMPT GUIDELINES:
+• For hero images: describe subject, pose, clothing, lighting, camera angle, background, mood.
+• For backgrounds: describe scene, atmosphere, colors, mood. End with "No text or words in the image."
+• Be specific and cinematic: "Professional woman in navy blazer, confident smile, arms crossed, soft studio lighting, shallow depth of field, waist-up portrait, clean white background"
+
+ELEMENT IDs: Use "el-1", "el-2", etc. sequentially.`;
 }
 
 function buildUserPrompt(params: LayoutGeneratorParams): string {
@@ -168,46 +216,56 @@ function buildUserPrompt(params: LayoutGeneratorParams): string {
 
   const styleHint = STYLE_HINTS[style || "modern"] || STYLE_HINTS.modern;
 
-  let userPrompt = `Create a ${category.replace(/_/g, " ")} design layout for a ${formatDesc} canvas.
+  let userPrompt = `Design a COMPLETE, publication-ready ${category.replace(/_/g, " ")} for a ${formatDesc} canvas.
 
 STYLE: ${style || "modern"} — ${styleHint}
 
-DESIGN REQUEST: ${prompt}`;
+TOPIC/BRIEF: ${prompt}
+
+IMPORTANT: Generate ALL text content yourself based on the topic above. Write real, specific marketing copy — a powerful headline, a supporting subtitle, and body text. Do NOT leave any text as placeholder or generic.`;
 
   // Text mode
   if (textMode === "exact") {
-    userPrompt += `\n\nTEXT MODE: Use the user's exact text as-is for the headline. Do not rephrase or rewrite it.`;
+    userPrompt += `\n\nTEXT MODE: Use the user's exact text as-is for the headline. Do not rephrase it. But still generate a supporting subtitle and body text that complement it.`;
   } else {
-    userPrompt += `\n\nTEXT MODE: Generate compelling ad copy based on the description. Create a punchy headline (2-6 words), a supporting subtitle, and appropriate body text.`;
+    userPrompt += `\n\nTEXT MODE: Write creative, compelling copy:
+- HEADLINE: Punchy, attention-grabbing (2-6 words). Use power words that create urgency or excitement.
+- SUBTITLE: Supporting message that adds context (5-15 words). Different font weight/style than headline.
+- BODY: 1-2 short benefit-driven sentences (optional but recommended for designs with enough space).
+All text must be specific to the topic "${prompt}" — never generic.`;
   }
 
   // Hero type
   if (heroType === "people") {
     if (params.generateHeroImage) {
-      userPrompt += `\n\nHERO IMAGE: Include an image placeholder (imageRole: "hero") on the right side (~50-60% width, ~70-90% height) for a person photo. Write a detailed imagePrompt describing the person (pose, clothing, expression, lighting). Set transparent: true. Leave text on the left side. The image WILL be AI-generated, so make the prompt detailed and specific.`;
+      userPrompt += `\n\nHERO IMAGE: Include an image placeholder (imageRole: "hero") on the right side (~45-55% of canvas width, ~65-85% height). Write a DETAILED imagePrompt describing the person (pose, clothing, expression, lighting, camera angle, background). Set transparent: true. Position ALL text elements on the left side (x: 5-45%).`;
     } else {
-      userPrompt += `\n\nHERO: Include an image placeholder (imageRole: "hero") on the right side (~50-60% width) for a person photo. Leave text on the left.`;
+      userPrompt += `\n\nHERO: Include an image placeholder (imageRole: "hero") on the right side (~50% width, ~70% height) for a person photo. Position text on the left side.`;
     }
   } else if (heroType === "product") {
     if (params.generateHeroImage) {
-      userPrompt += `\n\nHERO IMAGE: Include an image placeholder (imageRole: "hero") for a product shot (~40-50% width, ~50-70% height). Write a detailed imagePrompt describing the product (appearance, angle, lighting, setting). Set transparent: true. Position text around it. The image WILL be AI-generated.`;
+      userPrompt += `\n\nHERO IMAGE: Include an image placeholder (imageRole: "hero") for a product (~40-50% width, ~50-70% height). Write a DETAILED imagePrompt describing the product (appearance, angle, lighting, setting, style). Set transparent: true. Position text around it elegantly.`;
     } else {
-      userPrompt += `\n\nHERO: Include an image placeholder (imageRole: "hero") for a product shot. Position text around it.`;
+      userPrompt += `\n\nHERO: Include an image placeholder (imageRole: "hero") for a product shot (~40% width). Position text around it.`;
     }
   } else {
-    userPrompt += `\n\nHERO: Typography-focused — no hero image placeholder. Use bold text, shapes, and decorative elements as the visual focus.`;
+    userPrompt += `\n\nLAYOUT: Typography-focused design — no hero image. Make the headline the visual centerpiece. Use large, bold typography, decorative shapes, and accent elements to create visual impact. Use at least 2 different font families for contrast.`;
   }
 
   // CTA
   if (ctaText) {
-    userPrompt += `\n\nCTA BUTTON: Use this exact text: "${ctaText}"`;
+    userPrompt += `\n\nCTA BUTTON: Build a complete button using this exact text: "${ctaText}"
+- Create a shape element (rect, rx: 25, ry: 25) as the button background with a bold accent color.
+- Create a text element ON TOP with the CTA text, centered, white or contrasting color.
+- Position both at the same x/y. Make the shape ~3% wider and ~2% taller than the text for padding.
+- Place the button in a prominent position (center-bottom area, y: 70-85%).`;
   } else {
-    userPrompt += `\n\nCTA BUTTON: The user did NOT provide a call-to-action. Do NOT add any CTA button element to the layout.`;
+    userPrompt += `\n\nCTA: No call-to-action was provided. Do NOT add any CTA button.`;
   }
 
   // Brand
   if (brandName && showBrandName) {
-    userPrompt += `\n\nBRAND NAME: Display "${brandName}" in a tasteful position (top area or near the logo placeholder).`;
+    userPrompt += `\n\nBRAND NAME: Display "${brandName}" as a text element (role: "label"). Position it near the top of the design, close to the logo placeholder. Use a clean font (18-24px), subtle but visible.`;
   }
 
   if (brandColors) {
@@ -216,40 +274,50 @@ DESIGN REQUEST: ${prompt}`;
     if (brandColors.secondary) parts.push(`secondary: ${brandColors.secondary}`);
     if (brandColors.accent) parts.push(`accent: ${brandColors.accent}`);
     if (parts.length > 0) {
-      userPrompt += `\n\nBRAND COLORS: ${parts.join(", ")}. Use these as the primary palette for backgrounds, text, CTA buttons, and accents.`;
+      userPrompt += `\n\nBRAND COLORS: ${parts.join(", ")}. Use these throughout: background gradient, headline color, CTA button, accent shapes. Build a cohesive color scheme around these.`;
     }
   }
 
   if (brandFonts) {
-    if (brandFonts.heading) userPrompt += `\nPREFERRED HEADING FONT: ${brandFonts.heading} (use if it's in the allowed list, otherwise pick a similar one)`;
+    if (brandFonts.heading) userPrompt += `\nPREFERRED HEADING FONT: ${brandFonts.heading} (use if it's in the allowed list, otherwise pick the closest match)`;
     if (brandFonts.body) userPrompt += `\nPREFERRED BODY FONT: ${brandFonts.body}`;
   }
 
   // Contact info
   const contactParts: string[] = [];
-  if (contactInfo?.email) contactParts.push(`Email: ${contactInfo.email}`);
-  if (contactInfo?.phone) contactParts.push(`Phone: ${contactInfo.phone}`);
-  if (contactInfo?.website) contactParts.push(`Website: ${contactInfo.website}`);
-  if (contactInfo?.address) contactParts.push(`Address: ${contactInfo.address}`);
+  if (contactInfo?.email) contactParts.push(`email: ${contactInfo.email}`);
+  if (contactInfo?.phone) contactParts.push(`phone: ${contactInfo.phone}`);
+  if (contactInfo?.website) contactParts.push(`website: ${contactInfo.website}`);
+  if (contactInfo?.address) contactParts.push(`address: ${contactInfo.address}`);
   if (contactParts.length > 0) {
-    userPrompt += `\n\nCONTACT INFO (include as small text near bottom):\n${contactParts.join("\n")}`;
+    userPrompt += `\n\nCONTACT INFO — create SEPARATE text elements for each (role: "contact", fontSize: 13-15px, near bottom y > 87%):
+${contactParts.map(c => `• ${c}`).join("\n")}
+Use the EXACT values above. Position them in a clean row or column at the bottom. Use a subtle color that doesn't compete with the headline.`;
   }
 
   // Social handles
   if (showSocialIcons && socialHandles && Object.keys(socialHandles).length > 0) {
-    const handlesList = Object.entries(socialHandles)
-      .map(([platform, handle]) => `${platform}: @${handle}`)
-      .join(", ");
-    userPrompt += `\n\nSOCIAL HANDLES (include as small text near bottom): ${handlesList}`;
+    const handles = Object.entries(socialHandles)
+      .map(([platform, handle]) => `${platform}: @${handle}`);
+    userPrompt += `\n\nSOCIAL HANDLES — create SEPARATE text elements for each (role: "contact", fontSize: 13-15px):
+${handles.map(h => `• ${h}`).join("\n")}
+Position them in a row near the bottom alongside contact info. Use the EXACT handles above.`;
   }
 
   // AI Background
   if (params.generateBackground) {
-    userPrompt += `\n\nAI BACKGROUND: An AI-generated background image will be used. Use a simple solid background in the layout JSON (type: "solid", dark or neutral color that provides good contrast). Also include an image element with imageRole: "background" at position (0, 0, 100, 100) with a detailed imagePrompt describing the ideal background scene for this design. The background image will be placed behind all other elements. Add "No text or words in the image." at the end of the imagePrompt.`;
+    userPrompt += `\n\nAI BACKGROUND: An AI image will be generated for the background. In the layout JSON:
+1. Set background to { type: "solid", color: "<dark fallback color>" } (e.g. "#1a1a2e").
+2. Include an image element with imageRole: "background" at (x: 0, y: 0, width: 100, height: 100) with a detailed imagePrompt describing the ideal background scene. End the prompt with "No text or words in the image."
+3. Add a semi-transparent dark overlay shape (rect, opacity: 0.4-0.6) over the background to ensure text readability.
+4. Use white or light-colored text over the dark overlay.`;
   }
 
   // Logo placeholder
-  userPrompt += `\n\nLOGO: Include a logo-placeholder image element in the top-left area (~5% x, ~3% y, ~12% width, ~8% height).`;
+  userPrompt += `\n\nLOGO: Include a logo-placeholder image element (imageRole: "logo-placeholder") in the top-left area (~5% x, ~3% y, ~12% width, ~8% height).`;
+
+  // Final reminder
+  userPrompt += `\n\nREMINDER: Every text element must contain REAL copy specific to "${prompt}". Use beautiful, varied fonts. Make this look like a professionally designed ${category.replace(/_/g, " ")} ready for publication.`;
 
   return userPrompt;
 }
@@ -359,8 +427,8 @@ export async function generateDesignLayout(
 
   const layout = await ai.generateJSON<AIDesignLayout>(userPrompt, {
     systemPrompt,
-    maxTokens: 4096,
-    temperature: 0.5,
+    maxTokens: 6000,
+    temperature: 0.7,
   });
 
   if (!layout) {
