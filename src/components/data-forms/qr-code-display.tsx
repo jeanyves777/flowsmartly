@@ -92,11 +92,13 @@ export function QRCodeDisplay({
     const cardW = 400;
     const padding = 32;
     const qrSize = size;
-    const headerH = 72;
-    const subtitleH = title ? 32 : 0;
-    const footerH = brandName ? 52 : 20;
     const qrPad = 16; // white border around QR
-    const cardH = headerH + subtitleH + qrSize + qrPad * 2 + footerH + padding * 2;
+
+    // Layout: Title banner (top) → QR code → "SCAN ME" CTA → Brand name → accent bar
+    const titleH = title ? 90 : 60; // taller banner when title present
+    const ctaH = 56; // "SCAN ME" section below QR
+    const footerH = brandName ? 48 : 16;
+    const cardH = titleH + qrSize + qrPad * 2 + ctaH + footerH + padding;
 
     canvas.width = cardW * scale;
     canvas.height = cardH * scale;
@@ -111,70 +113,41 @@ export function QRCodeDisplay({
     roundedRect(ctx, 0, 0, cardW, cardH, 24);
     ctx.fill();
 
-    // === Top banner with brand color ===
+    // === Top banner with brand color — shows the TITLE prominently ===
     ctx.save();
-    roundedRect(ctx, 0, 0, cardW, headerH + subtitleH + 20, 24);
+    roundedRect(ctx, 0, 0, cardW, titleH, 24);
     ctx.clip();
-    // Gradient
     const grad = ctx.createLinearGradient(0, 0, cardW, 0);
     grad.addColorStop(0, primaryColor);
     grad.addColorStop(1, secondaryColor);
     ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, cardW, headerH + subtitleH + 20);
+    ctx.fillRect(0, 0, cardW, titleH);
     ctx.restore();
 
-    // === Phone icon + "SCAN ME" text ===
-    const bannerCenterY = (headerH - 4) / 2;
-    ctx.fillStyle = textOnPrimary;
-    ctx.font = "bold 28px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    // === Title text (big and bold) ===
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    // Draw a small phone icon before text
-    const ctaText = callToAction;
-    const ctaMetrics = ctx.measureText(ctaText);
-    const iconSize = 22;
-    const totalW = iconSize + 10 + ctaMetrics.width;
-    const startX = (cardW - totalW) / 2;
-
-    // Phone icon (simple rectangle with rounded corners)
-    ctx.save();
-    ctx.strokeStyle = textOnPrimary;
-    ctx.lineWidth = 2;
-    const phoneX = startX;
-    const phoneY = bannerCenterY - iconSize / 2;
-    roundedRect(ctx, phoneX, phoneY, iconSize * 0.65, iconSize, 3);
-    ctx.stroke();
-    // Screen area
-    ctx.fillStyle = textOnPrimary;
-    ctx.globalAlpha = 0.3;
-    ctx.fillRect(phoneX + 3, phoneY + 4, iconSize * 0.65 - 6, iconSize - 10);
-    ctx.globalAlpha = 1;
-    ctx.restore();
-
-    // CTA text
-    ctx.fillStyle = textOnPrimary;
-    ctx.font = "bold 28px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText(ctaText, startX + iconSize + 10, bannerCenterY + 2);
-
-    // === Subtitle text (form title) ===
     if (title) {
+      // Main title — large, bold, clearly readable
       ctx.fillStyle = textOnPrimary;
-      ctx.globalAlpha = 0.85;
-      ctx.font = "500 14px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-      ctx.textAlign = "center";
+      ctx.font = "bold 26px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+
       // Truncate if too long
       let displayTitle = title;
       while (ctx.measureText(displayTitle).width > cardW - padding * 2 && displayTitle.length > 3) {
         displayTitle = displayTitle.slice(0, -4) + "...";
       }
-      ctx.fillText(displayTitle, cardW / 2, headerH + subtitleH / 2 + 4);
-      ctx.globalAlpha = 1;
+      ctx.fillText(displayTitle, cardW / 2, titleH / 2);
+    } else {
+      // No title — show brand name in the banner instead
+      ctx.fillStyle = textOnPrimary;
+      ctx.font = "bold 24px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+      ctx.fillText(brandName || "QR Code", cardW / 2, titleH / 2);
     }
 
     // === QR Code section ===
-    const qrY = headerH + subtitleH + 20;
+    const qrY = titleH + 8;
     const qrBoxX = (cardW - qrSize - qrPad * 2) / 2;
 
     // White background for QR
@@ -199,12 +172,11 @@ export function QRCodeDisplay({
         width: qrSize * scale,
         margin: 1,
         color: { dark: primaryColor, light: "#ffffff" },
-        errorCorrectionLevel: "H", // High correction so logo overlay doesn't break scanning
+        errorCorrectionLevel: "H",
       });
       const qrImg = await loadImage(qrDataUrl);
       ctx.drawImage(qrImg, qrBoxX + qrPad, qrY + qrPad, qrSize, qrSize);
     } catch {
-      // Fallback: black QR
       const qrDataUrl = await QRCode.toDataURL(url, {
         width: qrSize * scale,
         margin: 1,
@@ -218,7 +190,7 @@ export function QRCodeDisplay({
     if (logoSrc) {
       try {
         const logoImg = await loadImage(logoSrc);
-        const logoSize = qrSize * 0.22; // ~22% of QR size
+        const logoSize = qrSize * 0.22;
         const logoPad = 6;
         const logoCx = cardW / 2;
         const logoCy = qrY + qrPad + qrSize / 2;
@@ -229,7 +201,7 @@ export function QRCodeDisplay({
         ctx.fillStyle = "#ffffff";
         ctx.fill();
 
-        // Subtle border ring in brand color
+        // Brand color ring
         ctx.beginPath();
         ctx.arc(logoCx, logoCy, logoSize / 2 + logoPad, 0, Math.PI * 2);
         ctx.strokeStyle = primaryColor;
@@ -241,20 +213,58 @@ export function QRCodeDisplay({
         ctx.beginPath();
         ctx.arc(logoCx, logoCy, logoSize / 2, 0, Math.PI * 2);
         ctx.clip();
-        ctx.drawImage(
-          logoImg,
-          logoCx - logoSize / 2,
-          logoCy - logoSize / 2,
-          logoSize,
-          logoSize,
-        );
+        ctx.drawImage(logoImg, logoCx - logoSize / 2, logoCy - logoSize / 2, logoSize, logoSize);
         ctx.restore();
       } catch {
-        // Logo failed to load — skip it
+        // Logo failed to load — skip
       }
     }
 
-    // === Decorative corner dots (brand accent) ===
+    // === "SCAN ME" CTA below QR — bold, with pointing arrows ===
+    const ctaY = qrY + qrSize + qrPad * 2 + 8;
+    const ctaCenterY = ctaY + ctaH / 2 - 4;
+
+    // CTA text
+    ctx.fillStyle = primaryColor;
+    ctx.font = "bold 22px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    const ctaText = callToAction;
+    const ctaWidth = ctx.measureText(ctaText).width;
+
+    // Arrow pointing up (toward QR) on left side
+    const arrowGap = 14;
+    const arrowSize = 8;
+    const arrowLeftX = cardW / 2 - ctaWidth / 2 - arrowGap - arrowSize;
+    const arrowRightX = cardW / 2 + ctaWidth / 2 + arrowGap + arrowSize;
+
+    ctx.strokeStyle = primaryColor;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    // Left arrow pointing up
+    ctx.beginPath();
+    ctx.moveTo(arrowLeftX, ctaCenterY + arrowSize / 2);
+    ctx.lineTo(arrowLeftX, ctaCenterY - arrowSize / 2);
+    ctx.lineTo(arrowLeftX - arrowSize / 2, ctaCenterY);
+    ctx.moveTo(arrowLeftX, ctaCenterY - arrowSize / 2);
+    ctx.lineTo(arrowLeftX + arrowSize / 2, ctaCenterY);
+    ctx.stroke();
+
+    // Right arrow pointing up
+    ctx.beginPath();
+    ctx.moveTo(arrowRightX, ctaCenterY + arrowSize / 2);
+    ctx.lineTo(arrowRightX, ctaCenterY - arrowSize / 2);
+    ctx.lineTo(arrowRightX - arrowSize / 2, ctaCenterY);
+    ctx.moveTo(arrowRightX, ctaCenterY - arrowSize / 2);
+    ctx.lineTo(arrowRightX + arrowSize / 2, ctaCenterY);
+    ctx.stroke();
+
+    ctx.fillText(ctaText, cardW / 2, ctaCenterY);
+
+    // === Decorative corner dots ===
     const dotR = 4;
     const dotOff = 16;
     ctx.fillStyle = primaryColor;
@@ -267,10 +277,11 @@ export function QRCodeDisplay({
     ctx.globalAlpha = 1;
 
     // === Footer: brand name ===
-    if (brandName) {
-      const footerY = qrY + qrSize + qrPad * 2 + 12;
+    if (brandName && title) {
+      // Only show brand name in footer when title is in the header
+      const footerY = ctaY + ctaH;
 
-      // Thin colored line separator
+      // Thin separator
       ctx.strokeStyle = primaryColor;
       ctx.globalAlpha = 0.3;
       ctx.lineWidth = 1;
@@ -285,7 +296,7 @@ export function QRCodeDisplay({
       ctx.fillStyle = "#6b7280";
       ctx.font = "600 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(brandName, cardW / 2, footerY + 20);
+      ctx.fillText(brandName, cardW / 2, footerY + 18);
     }
 
     // === Bottom accent bar ===
