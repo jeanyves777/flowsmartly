@@ -289,6 +289,12 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
             }
           }
 
+          // Crop via CSS clip-path inset on the media wrapper
+          const crop = clip.crop;
+          const cropClipPath = crop && (crop.top > 0 || crop.right > 0 || crop.bottom > 0 || crop.left > 0)
+            ? `inset(${crop.top}% ${crop.right}% ${crop.bottom}% ${crop.left}%)`
+            : undefined;
+
           return (
             <div
               key={clip.id}
@@ -308,6 +314,7 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
                   data-video-editor-clip={clip.id}
                   src={clip.sourceUrl}
                   className="w-full h-full object-contain pointer-events-none"
+                  style={cropClipPath ? { clipPath: cropClipPath } : undefined}
                   muted={clip.muted}
                   playsInline
                 />
@@ -317,6 +324,7 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
                   src={clip.sourceUrl}
                   alt={clip.name}
                   className="w-full h-full object-contain pointer-events-none"
+                  style={cropClipPath ? { clipPath: cropClipPath } : undefined}
                   draggable={false}
                 />
               ) : null}

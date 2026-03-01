@@ -187,10 +187,28 @@ export const useVideoStore = create<VideoStudioState>((set, get) => ({
   // ─── Project ───────────────────────────────────────────────
   project: createDefaultProject(),
   setProject: (p) =>
-    set((s) => ({
-      project: { ...s.project, ...p },
-      isDirty: true,
-    })),
+    set((s) => {
+      const sizeChanged =
+        (p.width !== undefined && p.width !== s.project.width) ||
+        (p.height !== undefined && p.height !== s.project.height);
+
+      // Reset clip transforms when canvas size changes so they re-center
+      const clips = sizeChanged
+        ? Object.fromEntries(
+            Object.entries(s.clips).map(([id, clip]) =>
+              clip.type === "video" || clip.type === "image"
+                ? [id, { ...clip, transform: { x: 0, y: 0, scale: 1 } }]
+                : [id, clip]
+            )
+          )
+        : s.clips;
+
+      return {
+        project: { ...s.project, ...p },
+        clips,
+        isDirty: true,
+      };
+    }),
 
   // ─── Timeline ──────────────────────────────────────────────
   tracks: createDefaultTracks(),

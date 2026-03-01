@@ -129,3 +129,58 @@ export const ASPECT_RATIO_OPTIONS: { id: AspectRatio; label: string }[] = [
 export function getCategoryById(id: VideoCategory): VideoCategoryConfig | undefined {
   return VIDEO_CATEGORIES.find((c) => c.id === id);
 }
+
+// ── Canvas Size Presets (pixel dimensions for the video editor) ──────
+
+export interface CanvasSizePreset {
+  name: string;
+  width: number;
+  height: number;
+  aspectRatio: AspectRatio;
+}
+
+export interface CanvasSizeCategory {
+  id: string;
+  name: string;
+  presets: CanvasSizePreset[];
+}
+
+export const CANVAS_SIZE_PRESETS: CanvasSizeCategory[] = [
+  {
+    id: "landscape",
+    name: "Landscape",
+    presets: [
+      { name: "Full HD (1080p)", width: 1920, height: 1080, aspectRatio: "16:9" },
+      { name: "HD (720p)", width: 1280, height: 720, aspectRatio: "16:9" },
+      { name: "4K UHD", width: 3840, height: 2160, aspectRatio: "16:9" },
+    ],
+  },
+  {
+    id: "portrait",
+    name: "Portrait / Story",
+    presets: [
+      { name: "TikTok / Reels", width: 1080, height: 1920, aspectRatio: "9:16" },
+      { name: "Story HD", width: 720, height: 1280, aspectRatio: "9:16" },
+    ],
+  },
+  {
+    id: "square",
+    name: "Square",
+    presets: [
+      { name: "Instagram Square", width: 1080, height: 1080, aspectRatio: "1:1" },
+      { name: "Small Square", width: 720, height: 720, aspectRatio: "1:1" },
+    ],
+  },
+];
+
+/** Compute aspect ratio string from dimensions */
+export function getAspectRatioFromDimensions(w: number, h: number): AspectRatio {
+  const ratio = w / h;
+  if (Math.abs(ratio - 16 / 9) < 0.05) return "16:9";
+  if (Math.abs(ratio - 9 / 16) < 0.05) return "9:16";
+  if (Math.abs(ratio - 1) < 0.05) return "1:1";
+  // Fallback: closest match
+  if (ratio > 1.2) return "16:9";
+  if (ratio < 0.8) return "9:16";
+  return "1:1";
+}

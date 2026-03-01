@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Volume2, VolumeX, Move, Maximize2, RotateCcw, Eye, Gauge, MousePointerClick } from "lucide-react";
+import { X, Volume2, VolumeX, Move, Maximize2, RotateCcw, Eye, Gauge, MousePointerClick, Crop } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useVideoStore } from "../hooks/use-video-store";
@@ -196,6 +196,74 @@ export function VideoRightPanel() {
                 }
                 className="w-full accent-brand-500"
               />
+            </div>
+          </div>
+        )}
+
+        {/* Crop (video/image clips) */}
+        {(selectedClip.type === "video" || selectedClip.type === "image") && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold flex items-center gap-1">
+                <Crop className="h-3.5 w-3.5" /> Crop
+              </Label>
+              <button
+                onClick={() =>
+                  updateClip(selectedClip.id, {
+                    crop: { top: 0, right: 0, bottom: 0, left: 0 },
+                  })
+                }
+                className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                title="Reset crop"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Reset
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {(["top", "right", "bottom", "left"] as const).map((side) => (
+                <div key={side} className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground capitalize">{side}</Label>
+                  <input
+                    type="number"
+                    value={Math.round(selectedClip.crop?.[side] ?? 0)}
+                    onChange={(e) =>
+                      updateClip(selectedClip.id, {
+                        crop: {
+                          top: selectedClip.crop?.top ?? 0,
+                          right: selectedClip.crop?.right ?? 0,
+                          bottom: selectedClip.crop?.bottom ?? 0,
+                          left: selectedClip.crop?.left ?? 0,
+                          [side]: Math.max(0, Math.min(90, parseInt(e.target.value) || 0)),
+                        },
+                      })
+                    }
+                    min={0}
+                    max={90}
+                    step={1}
+                    className="w-full px-2 py-1 text-xs rounded-md border bg-background font-mono"
+                  />
+                </div>
+              ))}
+            </div>
+            {/* Visual crop preview */}
+            <div className="relative w-full aspect-video bg-muted/30 rounded border overflow-hidden">
+              <div
+                className="absolute bg-brand-500/20 border border-brand-500/50"
+                style={{
+                  top: `${selectedClip.crop?.top ?? 0}%`,
+                  right: `${selectedClip.crop?.right ?? 0}%`,
+                  bottom: `${selectedClip.crop?.bottom ?? 0}%`,
+                  left: `${selectedClip.crop?.left ?? 0}%`,
+                }}
+              />
+              {/* Dimmed areas outside crop */}
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute bg-black/40" style={{ top: 0, left: 0, right: 0, height: `${selectedClip.crop?.top ?? 0}%` }} />
+                <div className="absolute bg-black/40" style={{ bottom: 0, left: 0, right: 0, height: `${selectedClip.crop?.bottom ?? 0}%` }} />
+                <div className="absolute bg-black/40" style={{ top: `${selectedClip.crop?.top ?? 0}%`, left: 0, bottom: `${selectedClip.crop?.bottom ?? 0}%`, width: `${selectedClip.crop?.left ?? 0}%` }} />
+                <div className="absolute bg-black/40" style={{ top: `${selectedClip.crop?.top ?? 0}%`, right: 0, bottom: `${selectedClip.crop?.bottom ?? 0}%`, width: `${selectedClip.crop?.right ?? 0}%` }} />
+              </div>
             </div>
           </div>
         )}

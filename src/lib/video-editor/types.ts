@@ -52,6 +52,7 @@ export interface TimelineClip {
 
   // Preview transform (position & scale on canvas)
   transform?: ClipTransform;
+  crop?: ClipCrop;       // crop region (percentage-based)
   opacity?: number;      // 0-1, default 1
   speed?: number;        // playback rate, default 1 (0.25-4)
 
@@ -84,6 +85,15 @@ export interface ClipTransform {
   x: number;       // percentage offset from center (0 = centered)
   y: number;       // percentage offset from center (0 = centered)
   scale: number;   // 1 = 100% (fill frame), 0.5 = 50%, etc.
+}
+
+// ── Clip crop (percentage-based region of source media) ──────────────
+
+export interface ClipCrop {
+  top: number;     // 0-100 (% from top)
+  right: number;   // 0-100 (% from right)
+  bottom: number;  // 0-100 (% from bottom)
+  left: number;    // 0-100 (% from left)
 }
 
 // ── Text clip styling ────────────────────────────────────────────────
