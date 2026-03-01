@@ -99,6 +99,7 @@ export function MediaUploader({
   className = "",
 }: MediaUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [showLibrary, setShowLibrary] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -156,14 +157,17 @@ export function MediaUploader({
       const toUpload = files.slice(0, remaining);
 
       setIsUploading(true);
+      setUploadProgress({ current: 0, total: toUpload.length });
       const uploaded: string[] = [];
 
-      for (const file of toUpload) {
-        const url = await uploadFile(file);
+      for (let i = 0; i < toUpload.length; i++) {
+        setUploadProgress({ current: i + 1, total: toUpload.length });
+        const url = await uploadFile(toUpload[i]);
         if (url) uploaded.push(url);
       }
 
       setIsUploading(false);
+      setUploadProgress({ current: 0, total: 0 });
 
       if (uploaded.length > 0) {
         if (multiple) {
@@ -291,12 +295,17 @@ export function MediaUploader({
               {/* Add more button (inline in grid) */}
               {multiple && canAddMore && !disabled && (
                 <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`${sizeClass} rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center hover:border-brand-500/50 hover:bg-muted/50 transition-colors`}
+                  onClick={() => !isUploading && fileInputRef.current?.click()}
+                  className={`${sizeClass} rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center hover:border-brand-500/50 hover:bg-muted/50 transition-colors`}
                   disabled={isUploading}
                 >
                   {isUploading ? (
-                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    <div className="flex flex-col items-center gap-0.5">
+                      <Loader2 className="w-4 h-4 animate-spin text-brand-500" />
+                      <span className="text-[9px] font-medium text-brand-500">
+                        {uploadProgress.current}/{uploadProgress.total}
+                      </span>
+                    </div>
                   ) : (
                     <Plus className="w-5 h-5 text-muted-foreground" />
                   )}
@@ -310,7 +319,14 @@ export function MediaUploader({
               className={`${sizeClass} rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center cursor-pointer hover:border-brand-500/50 hover:bg-muted/50 transition-colors mb-2`}
             >
               {isUploading ? (
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                <div className="flex flex-col items-center gap-0.5">
+                  <Loader2 className="w-5 h-5 animate-spin text-brand-500" />
+                  {uploadProgress.total > 1 && (
+                    <span className="text-[9px] font-medium text-brand-500">
+                      {uploadProgress.current}/{uploadProgress.total}
+                    </span>
+                  )}
+                </div>
               ) : (
                 <div className="flex flex-col items-center gap-1 text-muted-foreground">
                   {filterTypes.includes("video") ? (
@@ -341,7 +357,9 @@ export function MediaUploader({
                 ) : (
                   <Upload className="w-3 h-3 mr-1" />
                 )}
-                Upload
+                {isUploading && uploadProgress.total > 1
+                  ? `Uploading ${uploadProgress.current}/${uploadProgress.total}`
+                  : "Upload"}
               </Button>
               <Button
                 variant="outline"

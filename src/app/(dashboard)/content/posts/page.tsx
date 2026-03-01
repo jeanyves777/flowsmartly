@@ -243,7 +243,7 @@ export default function ContentPostsPage() {
               value={mediaUrls}
               onChange={setMediaUrls}
               multiple
-              maxFiles={10}
+              maxFiles={50}
               accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm"
               maxSize={100 * 1024 * 1024}
               filterTypes={["image", "video"]}
