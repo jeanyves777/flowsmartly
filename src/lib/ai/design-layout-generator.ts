@@ -148,26 +148,30 @@ TYPOGRAPHY & FONT PAIRING:
 LAYOUT & POSITIONING:
 • Leave generous margins: text should start at x >= 5% and not exceed x + width <= 95%.
 • Vertical spacing between text blocks: at least 3-5% gap.
-• Place elements in a clear visual flow: top → brand/logo, middle → headline + subtitle + body, bottom → CTA + contact.
+• Place elements in a clear visual flow: top → brand/logo, middle → headline + subtitle + body, bottom → contact/social.
 • Center-align headings for impact; left-align body text for readability.
 • Elements array must be in bottom-to-top z-order: background shapes FIRST, then text ON TOP.
 
-CTA BUTTONS:
-• Build as TWO elements: a shape (rect with rx: 25, ry: 25) as the button background, then a text element positioned ON TOP with matching x/y and centered alignment.
-• The shape should be ~2-4% taller and ~2-4% wider than the text to create padding.
-• Use a bold, contrasting color for the button (accent color).
+CTA BUTTONS (ONLY when explicitly requested in the user prompt):
+• Do NOT add any CTA button unless the user prompt explicitly says "CTA BUTTON: Build a complete button".
+• If NO CTA is requested, do NOT create any element with role "cta" and do NOT create any button shapes.
+• When CTA IS requested: build as TWO elements — a shape (rect with rx: 25, ry: 25) as button background, then a text element ON TOP with matching position and centered alignment.
+• The shape should be ~3% wider and ~2% taller than the text for padding.
 • CTA text: fontWeight "bold", fontSize 20-28px, white or contrasting fill.
 
-CONTACT INFO:
-• Each piece of contact info (email, phone, website, address) must be a SEPARATE text element with role "contact".
-• Position them in a row or column near the bottom of the design (y > 85%).
-• Use a small, clean font (13-16px), muted color that doesn't compete with the headline.
-• Include the actual values provided — never placeholder text.
+CONTACT INFO (ONLY when provided in user prompt):
+• Only add contact info elements if the user prompt explicitly lists contact details.
+• Each piece (email, phone, website, address) = SEPARATE text element with role "contact".
+• Position: y between 88-94%, spaced horizontally across the bottom.
+• For multiple items in a row: first item x: 5%, second x: 30%, third x: 55%, fourth x: 75% (adjust based on count).
+• fontSize: 13-15px, muted color (e.g. rgba of main text at 60-70% opacity).
 
-SOCIAL HANDLES:
-• Each platform handle must appear as a SEPARATE text element with role "contact".
-• Format: "@handle" with the platform implied by context, or "IG: @handle", "FB: @handle" format.
-• Position them together in a row near the bottom.
+SOCIAL HANDLES (ONLY when provided in user prompt):
+• Only add social handle elements if the user prompt explicitly lists handles.
+• Each handle = SEPARATE text element with role "contact".
+• Format: "IG: @handle", "FB: @handle", "X: @handle", "TT: @handle" etc.
+• Position: y between 92-96%, spaced horizontally. Same x-spacing logic as contact info.
+• fontSize: 13-14px, same muted color as contact info.
 
 DECORATIVE ELEMENTS:
 • Add 1-3 accent shapes for visual interest: thin accent lines, background contrast panels, decorative circles.
@@ -190,9 +194,10 @@ FONT SIZE REFERENCE (for 1080px canvas width):
 • Labels/captions: 12-16px
 
 IMAGE PROMPT GUIDELINES:
-• For hero images: describe subject, pose, clothing, lighting, camera angle, background, mood.
-• For backgrounds: describe scene, atmosphere, colors, mood. End with "No text or words in the image."
-• Be specific and cinematic: "Professional woman in navy blazer, confident smile, arms crossed, soft studio lighting, shallow depth of field, waist-up portrait, clean white background"
+• For hero images (people/products): describe ONLY the subject — pose, clothing, expression, lighting, camera angle. ALWAYS end with: "Isolated subject on a plain white background. No background scene, no text, no decorations."
+• For backgrounds: describe scene, atmosphere, colors, mood. ALWAYS end with: "No text or words in the image."
+• Hero example: "Professional young woman in navy blazer, confident smile, arms crossed, soft studio lighting, waist-up portrait. Isolated subject on a plain white background. No background scene, no text, no decorations."
+• Background example: "Modern city skyline at sunset, warm golden tones, bokeh lights, cinematic atmosphere. No text or words in the image."
 
 ELEMENT IDs: Use "el-1", "el-2", etc. sequentially.`;
 }
@@ -238,15 +243,19 @@ All text must be specific to the topic "${prompt}" — never generic.`;
   // Hero type
   if (heroType === "people") {
     if (params.generateHeroImage) {
-      userPrompt += `\n\nHERO IMAGE: Include an image placeholder (imageRole: "hero") on the right side (~45-55% of canvas width, ~65-85% height). Write a DETAILED imagePrompt describing the person (pose, clothing, expression, lighting, camera angle, background). Set transparent: true. Position ALL text elements on the left side (x: 5-45%).`;
+      userPrompt += `\n\nHERO IMAGE (PERSON): You MUST include an image placeholder element with imageRole: "hero" on the right side (x: 45-55%, y: 5-15%, width: 45-55%, height: 65-85%).
+Write a DETAILED imagePrompt describing ONLY the person: their pose, clothing, expression, lighting, camera angle. Do NOT describe any background in the imagePrompt — the person will be isolated. Example: "Professional young woman in navy blazer, warm smile, arms crossed, soft studio lighting, waist-up portrait."
+Set transparent: true. Position ALL text elements on the LEFT side (x: 5-42%).`;
     } else {
-      userPrompt += `\n\nHERO: Include an image placeholder (imageRole: "hero") on the right side (~50% width, ~70% height) for a person photo. Position text on the left side.`;
+      userPrompt += `\n\nHERO (PERSON): Include an image placeholder (imageRole: "hero") on the right side (x: 50%, y: 10%, width: 45%, height: 70%) for a person photo. Position text on the left side (x: 5-45%).`;
     }
   } else if (heroType === "product") {
     if (params.generateHeroImage) {
-      userPrompt += `\n\nHERO IMAGE: Include an image placeholder (imageRole: "hero") for a product (~40-50% width, ~50-70% height). Write a DETAILED imagePrompt describing the product (appearance, angle, lighting, setting, style). Set transparent: true. Position text around it elegantly.`;
+      userPrompt += `\n\nHERO IMAGE (PRODUCT): You MUST include an image placeholder element with imageRole: "hero" (x: 25-35%, y: 10-20%, width: 40-50%, height: 50-70%).
+Write a DETAILED imagePrompt describing ONLY the product: its appearance, angle, lighting, materials. Do NOT describe any background — the product will be isolated. Example: "Sleek wireless headphones, matte black, floating at 3/4 angle, studio lighting, product photography."
+Set transparent: true. Position text around it.`;
     } else {
-      userPrompt += `\n\nHERO: Include an image placeholder (imageRole: "hero") for a product shot (~40% width). Position text around it.`;
+      userPrompt += `\n\nHERO (PRODUCT): Include an image placeholder (imageRole: "hero") for a product shot (~40% width). Position text around it.`;
     }
   } else {
     userPrompt += `\n\nLAYOUT: Typography-focused design — no hero image. Make the headline the visual centerpiece. Use large, bold typography, decorative shapes, and accent elements to create visual impact. Use at least 2 different font families for contrast.`;
@@ -260,7 +269,7 @@ All text must be specific to the topic "${prompt}" — never generic.`;
 - Position both at the same x/y. Make the shape ~3% wider and ~2% taller than the text for padding.
 - Place the button in a prominent position (center-bottom area, y: 70-85%).`;
   } else {
-    userPrompt += `\n\nCTA: No call-to-action was provided. Do NOT add any CTA button.`;
+    userPrompt += `\n\n⚠️ NO CTA: The user did NOT provide any call-to-action text. You MUST NOT add any CTA button, CTA shape, or any element with role "cta". Do not invent a CTA. Simply skip the CTA entirely.`;
   }
 
   // Brand
@@ -326,7 +335,7 @@ Position them in a row near the bottom alongside contact info. Use the EXACT han
  * Post-process and sanitize the AI-generated layout.
  * Clamps values, validates fonts, fills missing defaults.
  */
-function sanitizeLayout(layout: AIDesignLayout): AIDesignLayout {
+function sanitizeLayout(layout: AIDesignLayout, options?: { stripCTA?: boolean }): AIDesignLayout {
   // Validate background
   if (!layout.background) {
     layout.background = { type: "solid", color: "#ffffff" };
@@ -341,6 +350,20 @@ function sanitizeLayout(layout: AIDesignLayout): AIDesignLayout {
   // Validate elements
   if (!Array.isArray(layout.elements)) {
     layout.elements = [];
+  }
+
+  // Strip CTA elements if no CTA was requested (safety net — Claude sometimes adds them anyway)
+  if (options?.stripCTA) {
+    const beforeCount = layout.elements.length;
+    layout.elements = layout.elements.filter((el) => {
+      if (el.type === "text" && (el as AITextElement).role === "cta") return false;
+      return true;
+    });
+    // Also remove CTA button background shapes (rects that appear right before where CTAs were)
+    // Heuristic: rounded rects that were paired with CTA text
+    if (layout.elements.length < beforeCount) {
+      console.log(`[DesignLayout] Stripped ${beforeCount - layout.elements.length} CTA element(s) (no CTA was requested)`);
+    }
   }
 
   const fontSet = new Set(POPULAR_FONTS.map((f) => f.toLowerCase()));
@@ -435,7 +458,7 @@ export async function generateDesignLayout(
     throw new Error("AI failed to generate a valid design layout. Please try again.");
   }
 
-  const sanitized = sanitizeLayout(layout);
+  const sanitized = sanitizeLayout(layout, { stripCTA: !params.ctaText });
   console.log("[DesignLayout] Generated layout with", sanitized.elements.length, "elements");
 
   return sanitized;

@@ -131,12 +131,21 @@ async function generateAndAttachImage(
  * Returns the S3 URL of the saved image.
  */
 async function generateSingleImage(
-  prompt: string,
+  rawPrompt: string,
   provider: ImageProvider,
   width: number,
   height: number,
   needsTransparency: boolean
 ): Promise<string | null> {
+  // For hero images: enforce isolated subject with no background scene
+  // This prevents providers (especially xAI/Gemini) from generating a full design
+  let prompt = rawPrompt;
+  if (needsTransparency) {
+    // Strip any existing background instructions and enforce isolation
+    prompt = prompt.replace(/on a plain white background[.]?/gi, "").trim();
+    prompt += " Isolated subject on a plain white background. No background scene, no environment, no text, no decorations, no design elements.";
+  }
+
   console.log(`[DesignImagePipeline] Generating image via ${provider} (transparent: ${needsTransparency})`);
 
   let base64: string | null = null;
