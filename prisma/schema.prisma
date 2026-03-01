@@ -243,6 +243,9 @@ model Post {
   // Platforms for cross-posting
   platforms    String     @default("[]")  // JSON: ["feed", "instagram", "twitter"]
 
+  // Social publishing results
+  publishResults String?  // JSON: {"facebook": {"success": true, "postId": "..."}, "instagram": {...}}
+
   // Status
   status       String     @default("PUBLISHED")
   scheduledAt  DateTime?

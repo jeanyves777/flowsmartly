@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { ai } from "@/lib/ai/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { publishToSocialPlatforms } from "@/lib/social/publisher";
 
 // GET /api/content/posts - Fetch user's own posts (all statuses)
 export async function GET(request: NextRequest) {
@@ -292,6 +293,16 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Publish to external social platforms (fire-and-forget)
+    const platformsList: string[] = Array.isArray(platforms) ? platforms : ["feed"];
+    const hasExternalPlatforms = platformsList.some((p) => p !== "feed");
+
+    if (status === "PUBLISHED" && hasExternalPlatforms) {
+      publishToSocialPlatforms(post.id, session.userId).catch((err) => {
+        console.error("[Content Posts] Background publish error:", err);
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -302,7 +313,7 @@ export async function POST(request: NextRequest) {
           mediaType: post.mediaType,
           hashtags,
           mentions,
-          platforms: Array.isArray(platforms) ? platforms : ["feed"],
+          platforms: platformsList,
           status: post.status,
           scheduledAt: post.scheduledAt?.toISOString() || null,
           publishedAt: post.publishedAt?.toISOString() || null,

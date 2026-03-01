@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { publishToSocialPlatforms } from "@/lib/social/publisher";
 
 // POST /api/posts/schedule - Schedule a post for future publishing
 export async function POST(request: NextRequest) {
@@ -94,7 +95,7 @@ export async function PATCH() {
         status: "SCHEDULED",
         scheduledAt: { lte: now },
       },
-      select: { id: true },
+      select: { id: true, userId: true, platforms: true },
     });
 
     if (duePosts.length === 0) {
@@ -113,6 +114,22 @@ export async function PATCH() {
         publishedAt: now,
       },
     });
+
+    // Publish to external social platforms (fire-and-forget per post)
+    for (const post of duePosts) {
+      let platforms: string[] = [];
+      try {
+        platforms = JSON.parse(post.platforms || "[]");
+      } catch {
+        continue;
+      }
+      const hasExternal = platforms.some((p) => p !== "feed");
+      if (hasExternal) {
+        publishToSocialPlatforms(post.id, post.userId).catch((err) => {
+          console.error(`[Scheduler] Publish error for post ${post.id}:`, err);
+        });
+      }
+    }
 
     return NextResponse.json({
       success: true,
