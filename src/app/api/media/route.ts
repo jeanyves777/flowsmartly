@@ -18,7 +18,7 @@ const ALLOWED_TYPES = [
   "image/gif", "video/mp4", "video/webm", "video/quicktime", "application/pdf",
   "audio/mpeg", "audio/wav", "audio/mp3", "audio/ogg", "audio/webm",
 ];
-const MAX_FILE_SIZE_IMAGE = 10 * 1024 * 1024; // 10MB for images/docs
+const MAX_FILE_SIZE_IMAGE = 50 * 1024 * 1024; // 50MB for images/docs (optimized on upload)
 const MAX_FILE_SIZE_VIDEO = 500 * 1024 * 1024; // 500MB for videos (will be compressed)
 const MAX_FILE_SIZE_AUDIO = 25 * 1024 * 1024; // 25MB for audio
 
@@ -366,7 +366,7 @@ export async function POST(request: NextRequest) {
     const maxSize = isVideo ? MAX_FILE_SIZE_VIDEO : isAudio ? MAX_FILE_SIZE_AUDIO : MAX_FILE_SIZE_IMAGE;
     if (file.size > maxSize) {
       return NextResponse.json(
-        { success: false, error: { message: `File too large. Maximum size is ${isVideo ? "500MB" : isAudio ? "25MB" : "10MB"}` } },
+        { success: false, error: { message: `File too large. Maximum size is ${isVideo ? "500MB" : isAudio ? "25MB" : "50MB"}` } },
         { status: 400 }
       );
     }
