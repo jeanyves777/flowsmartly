@@ -50,6 +50,9 @@ export interface TimelineClip {
   width?: number;
   height?: number;
 
+  // Preview transform (position & scale on canvas)
+  transform?: ClipTransform;
+
   // Audio
   volume: number;          // 0-1
   muted: boolean;
@@ -69,6 +72,14 @@ export interface TimelineClip {
   aiGenerated?: boolean;
   aiProvider?: string;     // "veo3" | "sora" | "slideshow" | "openai-tts" | etc.
   aiPrompt?: string;
+}
+
+// ── Clip transform (position/scale on preview canvas) ────────────────
+
+export interface ClipTransform {
+  x: number;       // percentage offset from center (0 = centered)
+  y: number;       // percentage offset from center (0 = centered)
+  scale: number;   // 1 = 100% (fill frame), 0.5 = 50%, etc.
 }
 
 // ── Text clip styling ────────────────────────────────────────────────

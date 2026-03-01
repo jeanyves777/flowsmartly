@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
-import { Scissors, Trash2, Copy, Volume2 } from "lucide-react";
+import { Scissors, Trash2, Copy, Volume2, Film, Image, Music, Mic, Type as TypeIcon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,7 +11,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useVideoStore } from "../hooks/use-video-store";
 import { CLIP_COLORS } from "@/lib/video-editor/types";
-import type { TimelineClip as TimelineClipType } from "@/lib/video-editor/types";
+import type { TimelineClip as TimelineClipType, ClipType } from "@/lib/video-editor/types";
+
+const CLIP_ICONS: Record<ClipType, typeof Film> = {
+  video: Film,
+  image: Image,
+  audio: Music,
+  voiceover: Mic,
+  caption: TypeIcon,
+  text: TypeIcon,
+};
 
 interface TimelineClipProps {
   clip: TimelineClipType;
@@ -30,13 +39,16 @@ export function TimelineClip({ clip }: TimelineClipProps) {
 
   const clipRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [isTrimming, setIsTrimming] = useState<"left" | "right" | null>(null);
   const dragStartRef = useRef({ x: 0, startTime: 0 });
 
   const isSelected = selectedClipIds.includes(clip.id);
   const width = clip.duration * timelineZoom;
   const left = clip.startTime * timelineZoom;
   const bgColor = CLIP_COLORS[clip.type] || "#6b7280";
+  const ClipIcon = CLIP_ICONS[clip.type] || Film;
+
+  // Whether this clip type allows free duration extension (no fixed source length)
+  const canExtendDuration = clip.type === "image" || clip.type === "text" || clip.type === "caption";
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -78,12 +90,11 @@ export function TimelineClip({ clip }: TimelineClipProps) {
     [clip.id, clip.trackId, clip.startTime, timelineZoom, moveClip]
   );
 
-  // Trim handles
-  const handleTrimStart = useCallback(
+  // Edge handles — trim for video/audio, extend for image/text
+  const handleEdgeDrag = useCallback(
     (side: "left" | "right", e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      setIsTrimming(side);
       const startX = e.clientX;
       const origStartTime = clip.startTime;
       const origDuration = clip.duration;
@@ -95,25 +106,46 @@ export function TimelineClip({ clip }: TimelineClipProps) {
         const dt = dx / timelineZoom;
 
         if (side === "left") {
-          const maxTrim = origDuration - 0.1;
-          const trimDelta = Math.max(-origTrimStart, Math.min(maxTrim, dt));
-          updateClip(clip.id, {
-            startTime: origStartTime + trimDelta,
-            duration: origDuration - trimDelta,
-            trimStart: origTrimStart + trimDelta,
-          });
+          if (canExtendDuration) {
+            // For images/text: freely adjust start time and duration
+            const delta = Math.min(dt, origDuration - 0.1);
+            const newStart = Math.max(0, origStartTime + delta);
+            const actualDelta = newStart - origStartTime;
+            updateClip(clip.id, {
+              startTime: newStart,
+              duration: origDuration - actualDelta,
+            });
+          } else {
+            // For video/audio: trim from source start
+            const maxTrim = origDuration - 0.1;
+            const trimDelta = Math.max(-origTrimStart, Math.min(maxTrim, dt));
+            updateClip(clip.id, {
+              startTime: origStartTime + trimDelta,
+              duration: origDuration - trimDelta,
+              trimStart: origTrimStart + trimDelta,
+            });
+          }
         } else {
-          const maxTrim = origDuration - 0.1;
-          const trimDelta = Math.max(-origTrimEnd, Math.min(maxTrim, -dt));
-          updateClip(clip.id, {
-            duration: origDuration - trimDelta,
-            trimEnd: origTrimEnd + trimDelta,
-          });
+          if (canExtendDuration) {
+            // For images/text: freely extend or shrink duration
+            const newDuration = Math.max(0.1, origDuration + dt);
+            updateClip(clip.id, {
+              duration: newDuration,
+              sourceDuration: newDuration,
+            });
+          } else {
+            // For video/audio: trim from source end
+            const maxTrim = origDuration - 0.1;
+            const trimDelta = Math.max(-origTrimEnd, Math.min(maxTrim, -dt));
+            updateClip(clip.id, {
+              duration: origDuration - trimDelta,
+              trimEnd: origTrimEnd + trimDelta,
+            });
+          }
         }
       };
 
       const handleUp = () => {
-        setIsTrimming(null);
         window.removeEventListener("mousemove", handleMove);
         window.removeEventListener("mouseup", handleUp);
       };
@@ -121,7 +153,7 @@ export function TimelineClip({ clip }: TimelineClipProps) {
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [clip, timelineZoom, updateClip]
+    [clip, timelineZoom, updateClip, canExtendDuration]
   );
 
   const handleSplit = () => {
@@ -153,25 +185,30 @@ export function TimelineClip({ clip }: TimelineClipProps) {
           onMouseDown={handleDragStart}
           onContextMenu={handleContextMenu}
         >
-          {/* Left trim handle */}
+          {/* Left edge handle */}
           <div
-            className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize z-30 hover:bg-white/30 rounded-l-md"
-            onMouseDown={(e) => handleTrimStart("left", e)}
-          />
+            className="absolute left-0 top-0 bottom-0 w-3 cursor-col-resize z-30 group"
+            onMouseDown={(e) => handleEdgeDrag("left", e)}
+          >
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-white/0 group-hover:bg-white/50 rounded-l-md transition-colors" />
+          </div>
 
-          {/* Clip content */}
-          <div className="flex items-center h-full px-3 overflow-hidden pointer-events-none">
-            {clip.muted && <Volume2 className="h-3 w-3 mr-1 opacity-50 shrink-0" />}
+          {/* Clip content — icon + label */}
+          <div className="flex items-center h-full px-2.5 overflow-hidden pointer-events-none gap-1.5">
+            <ClipIcon className="h-3 w-3 text-white/70 shrink-0" />
+            {clip.muted && <Volume2 className="h-3 w-3 opacity-50 shrink-0" />}
             <span className="text-[11px] text-white font-medium truncate drop-shadow-sm">
               {clipLabel}
             </span>
           </div>
 
-          {/* Right trim handle */}
+          {/* Right edge handle */}
           <div
-            className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize z-30 hover:bg-white/30 rounded-r-md"
-            onMouseDown={(e) => handleTrimStart("right", e)}
-          />
+            className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize z-30 group"
+            onMouseDown={(e) => handleEdgeDrag("right", e)}
+          >
+            <div className="absolute right-0 top-0 bottom-0 w-1 bg-white/0 group-hover:bg-white/50 rounded-r-md transition-colors" />
+          </div>
         </div>
       </DropdownMenuTrigger>
 
