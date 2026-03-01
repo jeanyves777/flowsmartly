@@ -233,11 +233,12 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
           const t = clip.transform || { x: 0, y: 0, scale: 1 };
           const clipOpacity = clip.opacity ?? 1;
 
-          // Transition effects
+          // Transition effects (in + out)
           let transOpacity = 1;
           let transClipPath: string | undefined;
           let transX = 0;
 
+          // Transition IN (at clip start)
           if (clip.transitionType && clip.transitionType !== "none") {
             const transDur = clip.transitionDuration || 0.5;
             const elapsed = currentTime - clip.startTime;
@@ -257,6 +258,32 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
                   break;
                 case "slide":
                   transX = (1 - progress) * 100;
+                  break;
+              }
+            }
+          }
+
+          // Transition OUT (at clip end)
+          if (clip.transitionOutType && clip.transitionOutType !== "none") {
+            const transDur = clip.transitionOutDuration || 0.5;
+            const clipEnd = clip.startTime + clip.duration;
+            const remaining = clipEnd - currentTime;
+            const progress = Math.min(1, Math.max(0, remaining / transDur));
+
+            if (progress < 1) {
+              switch (clip.transitionOutType) {
+                case "crossfade":
+                case "dissolve":
+                  transOpacity *= progress;
+                  break;
+                case "wipe-left":
+                  transClipPath = `inset(0 0 0 ${(1 - progress) * 100}%)`;
+                  break;
+                case "wipe-right":
+                  transClipPath = `inset(0 ${(1 - progress) * 100}% 0 0)`;
+                  break;
+                case "slide":
+                  transX += (1 - progress) * -100;
                   break;
               }
             }

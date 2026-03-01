@@ -275,48 +275,99 @@ export function VideoRightPanel() {
           </div>
         )}
 
-        {/* Transition (video/image clips) */}
+        {/* Transitions (video/image clips) */}
         {(selectedClip.type === "video" || selectedClip.type === "image") && (
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold">Transition In</Label>
-            <div className="grid grid-cols-3 gap-1.5">
-              {TRANSITION_OPTIONS.map((opt) => (
-                <button
-                  key={opt.id}
-                  onClick={() =>
-                    updateClip(selectedClip.id, { transitionType: opt.id })
-                  }
-                  className={`text-[10px] px-1.5 py-1 rounded-md border transition-colors ${
-                    (selectedClip.transitionType || "none") === opt.id
-                      ? "border-brand-500 bg-brand-500/10 text-brand-600"
-                      : "border-border hover:bg-muted/50"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            {selectedClip.transitionType && selectedClip.transitionType !== "none" && (
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">
-                  Duration: {(selectedClip.transitionDuration || 0.5).toFixed(1)}s
-                </Label>
-                <input
-                  type="range"
-                  min={0.1}
-                  max={2}
-                  step={0.1}
-                  value={selectedClip.transitionDuration || 0.5}
-                  onChange={(e) =>
-                    updateClip(selectedClip.id, {
-                      transitionDuration: parseFloat(e.target.value),
-                    })
-                  }
-                  className="w-full accent-brand-500"
-                />
+          <>
+            {/* Transition In */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Transition In</Label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {TRANSITION_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    onClick={() =>
+                      updateClip(selectedClip.id, {
+                        transitionType: opt.id,
+                        transitionDuration: opt.id === "none" ? 0 : (selectedClip.transitionDuration || 0.5),
+                      })
+                    }
+                    className={`text-[10px] px-1.5 py-1 rounded-md border transition-colors ${
+                      (selectedClip.transitionType || "none") === opt.id
+                        ? "border-brand-500 bg-brand-500/10 text-brand-600"
+                        : "border-border hover:bg-muted/50"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
+              {selectedClip.transitionType && selectedClip.transitionType !== "none" && (
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">
+                    Duration: {(selectedClip.transitionDuration || 0.5).toFixed(1)}s
+                  </Label>
+                  <input
+                    type="range"
+                    min={0.1}
+                    max={2}
+                    step={0.1}
+                    value={selectedClip.transitionDuration || 0.5}
+                    onChange={(e) =>
+                      updateClip(selectedClip.id, {
+                        transitionDuration: parseFloat(e.target.value),
+                      })
+                    }
+                    className="w-full accent-brand-500"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Transition Out */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Transition Out</Label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {TRANSITION_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    onClick={() =>
+                      updateClip(selectedClip.id, {
+                        transitionOutType: opt.id,
+                        transitionOutDuration: opt.id === "none" ? 0 : (selectedClip.transitionOutDuration || 0.5),
+                      })
+                    }
+                    className={`text-[10px] px-1.5 py-1 rounded-md border transition-colors ${
+                      (selectedClip.transitionOutType || "none") === opt.id
+                        ? "border-brand-500 bg-brand-500/10 text-brand-600"
+                        : "border-border hover:bg-muted/50"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {selectedClip.transitionOutType && selectedClip.transitionOutType !== "none" && (
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">
+                    Duration: {(selectedClip.transitionOutDuration || 0.5).toFixed(1)}s
+                  </Label>
+                  <input
+                    type="range"
+                    min={0.1}
+                    max={2}
+                    step={0.1}
+                    value={selectedClip.transitionOutDuration || 0.5}
+                    onChange={(e) =>
+                      updateClip(selectedClip.id, {
+                        transitionOutDuration: parseFloat(e.target.value),
+                      })
+                    }
+                    className="w-full accent-brand-500"
+                  />
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {/* Text properties */}

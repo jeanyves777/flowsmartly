@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
-import { Scissors, Trash2, Copy, Volume2, Film, Image, Music, Mic, Type as TypeIcon } from "lucide-react";
+import { Scissors, Trash2, Copy, Volume2, Film, Image, Music, Mic, Type as TypeIcon, X } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -260,6 +260,46 @@ export function TimelineClip({ clip }: TimelineClipProps) {
 
   const clipLabel = clip.name || clip.type;
 
+  // Transition visual widths (in px)
+  const transInWidth = clip.transitionType && clip.transitionType !== "none"
+    ? Math.min((clip.transitionDuration || 0.5) * timelineZoom, width * 0.4)
+    : 0;
+  const transOutWidth = clip.transitionOutType && clip.transitionOutType !== "none"
+    ? Math.min((clip.transitionOutDuration || 0.5) * timelineZoom, width * 0.4)
+    : 0;
+
+  // Drop zone states
+  const [dropLeft, setDropLeft] = useState(false);
+  const [dropRight, setDropRight] = useState(false);
+
+  const isVideoOrImage = clip.type === "video" || clip.type === "image";
+
+  const handleDrop = (side: "in" | "out", e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropLeft(false);
+    setDropRight(false);
+    const transitionType = e.dataTransfer.getData("transition-type");
+    if (!transitionType) return;
+    if (side === "in") {
+      updateClip(clip.id, {
+        transitionType: transitionType as typeof clip.transitionType,
+        transitionDuration: clip.transitionDuration || 0.5,
+      });
+    } else {
+      updateClip(clip.id, {
+        transitionOutType: transitionType as typeof clip.transitionOutType,
+        transitionOutDuration: clip.transitionOutDuration || 0.5,
+      });
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes("transition-type") && isVideoOrImage) {
+      e.preventDefault();
+    }
+  };
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -273,10 +313,48 @@ export function TimelineClip({ clip }: TimelineClipProps) {
           onClick={handleClick}
           onMouseDown={handleDragStart}
         >
-          {/* Left edge handle */}
+          {/* Transition In indicator */}
+          {transInWidth > 0 && (
+            <div
+              className="absolute left-0 top-0 bottom-0 rounded-l-md z-20 pointer-events-none"
+              style={{
+                width: transInWidth,
+                background: "linear-gradient(to right, rgba(255,255,255,0.35), transparent)",
+              }}
+            >
+              <span className="absolute bottom-0.5 left-1 text-[7px] text-white/70 font-mono leading-none">
+                {clip.transitionType}
+              </span>
+            </div>
+          )}
+
+          {/* Transition Out indicator */}
+          {transOutWidth > 0 && (
+            <div
+              className="absolute right-0 top-0 bottom-0 rounded-r-md z-20 pointer-events-none"
+              style={{
+                width: transOutWidth,
+                background: "linear-gradient(to left, rgba(255,255,255,0.35), transparent)",
+              }}
+            >
+              <span className="absolute bottom-0.5 right-1 text-[7px] text-white/70 font-mono leading-none">
+                {clip.transitionOutType}
+              </span>
+            </div>
+          )}
+
+          {/* Left edge handle / Transition drop zone */}
           <div
-            className="absolute left-0 top-0 bottom-0 w-3 cursor-col-resize z-30 group"
+            className={`absolute left-0 top-0 bottom-0 w-4 cursor-col-resize z-30 group ${
+              dropLeft ? "bg-white/30" : ""
+            }`}
             onMouseDown={(e) => handleEdgeDrag("left", e)}
+            onDragOver={(e) => {
+              handleDragOver(e);
+              if (e.dataTransfer.types.includes("transition-type") && isVideoOrImage) setDropLeft(true);
+            }}
+            onDragLeave={() => setDropLeft(false)}
+            onDrop={(e) => handleDrop("in", e)}
           >
             <div className="absolute left-0 top-0 bottom-0 w-1 bg-white/0 group-hover:bg-white/50 rounded-l-md transition-colors" />
           </div>
@@ -293,10 +371,18 @@ export function TimelineClip({ clip }: TimelineClipProps) {
             )}
           </div>
 
-          {/* Right edge handle */}
+          {/* Right edge handle / Transition drop zone */}
           <div
-            className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize z-30 group"
+            className={`absolute right-0 top-0 bottom-0 w-4 cursor-col-resize z-30 group ${
+              dropRight ? "bg-white/30" : ""
+            }`}
             onMouseDown={(e) => handleEdgeDrag("right", e)}
+            onDragOver={(e) => {
+              handleDragOver(e);
+              if (e.dataTransfer.types.includes("transition-type") && isVideoOrImage) setDropRight(true);
+            }}
+            onDragLeave={() => setDropRight(false)}
+            onDrop={(e) => handleDrop("out", e)}
           >
             <div className="absolute right-0 top-0 bottom-0 w-1 bg-white/0 group-hover:bg-white/50 rounded-r-md transition-colors" />
           </div>
@@ -312,6 +398,19 @@ export function TimelineClip({ clip }: TimelineClipProps) {
           <Copy className="h-4 w-4 mr-2" />
           Duplicate
         </ContextMenuItem>
+        {/* Remove transitions */}
+        {(clip.transitionType && clip.transitionType !== "none") && (
+          <ContextMenuItem onClick={() => updateClip(clip.id, { transitionType: "none", transitionDuration: 0 })}>
+            <X className="h-4 w-4 mr-2" />
+            Remove Transition In
+          </ContextMenuItem>
+        )}
+        {(clip.transitionOutType && clip.transitionOutType !== "none") && (
+          <ContextMenuItem onClick={() => updateClip(clip.id, { transitionOutType: "none", transitionOutDuration: 0 })}>
+            <X className="h-4 w-4 mr-2" />
+            Remove Transition Out
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem
           className="text-red-600"

@@ -67,8 +67,10 @@ export interface TimelineClip {
   captionData?: CaptionClipData;
 
   // Transitions
-  transitionType?: TransitionType;
-  transitionDuration?: number; // seconds
+  transitionType?: TransitionType;      // transition in (start of clip)
+  transitionDuration?: number;          // seconds
+  transitionOutType?: TransitionType;   // transition out (end of clip)
+  transitionOutDuration?: number;       // seconds
 
   // AI generation metadata
   aiGenerated?: boolean;
