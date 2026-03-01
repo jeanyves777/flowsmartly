@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useMemo } from "react";
 import { useVideoStore } from "../hooks/use-video-store";
 import { TimelineRuler } from "./timeline-ruler";
 import { TimelineTrack } from "./timeline-track";
@@ -14,6 +14,7 @@ interface VideoTimelineProps {
 export function VideoTimeline({ onSeek }: VideoTimelineProps) {
   const tracks = useVideoStore((s) => s.tracks);
   const timelineZoom = useVideoStore((s) => s.timelineZoom);
+  const timelineDuration = useVideoStore((s) => s.timelineDuration);
   const scrollOffset = useVideoStore((s) => s.scrollOffset);
   const setScrollOffset = useVideoStore((s) => s.setScrollOffset);
 
@@ -43,20 +44,31 @@ export function VideoTimeline({ onSeek }: VideoTimelineProps) {
     [height]
   );
 
-  // Horizontal scroll
+  // Horizontal scroll — any wheel event scrolls horizontally (no shift key needed)
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
-      if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        // Horizontal scroll
-        const delta = (e.deltaX || e.deltaY) / timelineZoom;
-        setScrollOffset(scrollOffset + delta);
-      }
+      const rawDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      const delta = rawDelta / timelineZoom;
+      const store = useVideoStore.getState();
+      const maxOffset = Math.max(0, store.timelineDuration);
+      const newOffset = Math.max(0, Math.min(maxOffset, store.scrollOffset + delta));
+      setScrollOffset(newOffset);
+      e.preventDefault();
     },
-    [timelineZoom, scrollOffset, setScrollOffset]
+    [timelineZoom, setScrollOffset]
   );
 
   // Compute total track area height for playhead
   const trackAreaHeight = tracks.reduce((sum, t) => sum + t.height, 0);
+
+  // Max scroll offset (in seconds)
+  const maxScrollOffset = useMemo(
+    () => Math.max(0, timelineDuration),
+    [timelineDuration]
+  );
+
+  // Only show scrollbar when there's content to scroll
+  const showScrollbar = timelineDuration > 0;
 
   return (
     <div className="border-t bg-background flex flex-col shrink-0" style={{ height }}>
@@ -96,6 +108,21 @@ export function VideoTimeline({ onSeek }: VideoTimelineProps) {
           </div>
         )}
       </div>
+
+      {/* Horizontal scrollbar */}
+      {showScrollbar && (
+        <div className="h-4 pl-[140px] pr-2 bg-muted/20 border-t border-border/30 flex items-center">
+          <input
+            type="range"
+            min={0}
+            max={maxScrollOffset}
+            step={0.5}
+            value={scrollOffset}
+            onChange={(e) => setScrollOffset(parseFloat(e.target.value))}
+            className="w-full h-1.5 accent-muted-foreground/50 cursor-pointer"
+          />
+        </div>
+      )}
 
       {/* Bottom controls */}
       <TimelineControls />

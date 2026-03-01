@@ -437,7 +437,7 @@ export const useVideoStore = create<VideoStudioState>((set, get) => ({
 
   // ─── Timeline UI ───────────────────────────────────────────
   timelineZoom: 50, // 50px per second
-  setTimelineZoom: (z) => set({ timelineZoom: Math.max(10, Math.min(200, z)) }),
+  setTimelineZoom: (z) => set({ timelineZoom: Math.max(2, Math.min(200, z)) }),
   scrollOffset: 0,
   setScrollOffset: (s) => set({ scrollOffset: Math.max(0, s) }),
   selectedClipIds: [],

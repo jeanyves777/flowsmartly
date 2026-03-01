@@ -20,8 +20,8 @@ export function TimelinePlayhead({ containerHeight, onSeek }: TimelinePlayheadPr
   const storeLeftPx = (currentTime - scrollOffset) * timelineZoom;
   const leftPx = dragLeftPx !== null ? dragLeftPx : storeLeftPx;
 
-  // Only show if in visible range
-  if (leftPx < -10 || leftPx > 5000) return null;
+  // Only show if in visible range (use generous limit based on viewport)
+  if (leftPx < -10 || leftPx > 20000) return null;
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {

@@ -33,7 +33,7 @@ export function TimelineControls() {
     const availableWidth = trackArea.clientWidth - 140 - 20;
     if (availableWidth <= 0) return;
     const fitZoom = availableWidth / timelineDuration;
-    setTimelineZoom(Math.max(10, Math.min(200, Math.round(fitZoom))));
+    setTimelineZoom(Math.max(2, Math.min(200, Math.round(fitZoom))));
     setScrollOffset(0);
   };
 
@@ -105,9 +105,9 @@ export function TimelineControls() {
         type="range"
         value={timelineZoom}
         onChange={(e) => setTimelineZoom(parseInt(e.target.value))}
-        min={10}
+        min={2}
         max={200}
-        step={5}
+        step={2}
         className="w-[100px] accent-brand-500"
       />
 
