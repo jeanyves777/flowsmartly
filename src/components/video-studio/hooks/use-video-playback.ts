@@ -30,7 +30,7 @@ export function useVideoPlayback() {
       const store = useVideoStore.getState();
       if (store.playbackState !== "playing") return;
 
-      const newTime = store.currentTime + deltaMs / 1000;
+      const newTime = store.currentTime + (deltaMs / 1000) * store.playbackSpeed;
 
       if (store.timelineDuration > 0 && newTime >= store.timelineDuration) {
         // Reached end of timeline
@@ -97,8 +97,9 @@ export function useVideoPlayback() {
           el.currentTime = mediaTime;
         }
 
-        // Set volume
+        // Set volume and playback rate
         el.volume = clip.muted ? 0 : clip.volume;
+        el.playbackRate = store.playbackSpeed * (clip.speed || 1);
 
         // Play if needed
         if (store.playbackState === "playing" && el.paused) {

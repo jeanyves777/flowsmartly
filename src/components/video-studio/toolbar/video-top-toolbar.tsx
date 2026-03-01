@@ -10,9 +10,14 @@ import {
   SkipBack,
   Download,
   Save,
-  Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useVideoStore } from "../hooks/use-video-store";
 import { ExportDialog } from "../export-dialog";
 
@@ -38,6 +43,8 @@ interface VideoTopToolbarProps {
   history: HistoryControls;
 }
 
+const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4];
+
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
@@ -54,6 +61,8 @@ export function VideoTopToolbar({
   const setProject = useVideoStore((s) => s.setProject);
   const isDirty = useVideoStore((s) => s.isDirty);
   const isExporting = useVideoStore((s) => s.isExporting);
+  const playbackSpeed = useVideoStore((s) => s.playbackSpeed);
+  const setPlaybackSpeed = useVideoStore((s) => s.setPlaybackSpeed);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -113,7 +122,7 @@ export function VideoTopToolbar({
         </Button>
       </div>
 
-      {/* Center: Undo/Redo + Transport + Time */}
+      {/* Center: Undo/Redo + Transport + Time + Speed */}
       <div className="flex items-center gap-1">
         {/* Undo/Redo */}
         <Button
@@ -182,6 +191,33 @@ export function VideoTopToolbar({
         <span className="text-xs font-mono text-muted-foreground min-w-[110px] text-center tabular-nums">
           {formatTime(playback.currentTime)} / {formatTime(playback.duration)}
         </span>
+
+        <div className="h-4 w-px bg-border mx-1.5" />
+
+        {/* Playback Speed */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs font-mono px-2 min-w-[42px]"
+              title="Playback speed"
+            >
+              {playbackSpeed}x
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="center">
+            {SPEED_OPTIONS.map((speed) => (
+              <DropdownMenuItem
+                key={speed}
+                onClick={() => setPlaybackSpeed(speed)}
+                className={playbackSpeed === speed ? "bg-brand-500/10 font-medium" : ""}
+              >
+                {speed}x {speed === 1 && "(Normal)"}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <div className="h-4 w-px bg-border mx-1.5" />
 

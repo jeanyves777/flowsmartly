@@ -40,6 +40,7 @@ export function TimelineClip({ clip }: TimelineClipProps) {
   const clipRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, startTime: 0 });
+  const hasDraggedRef = useRef(false);
 
   const isSelected = selectedClipIds.includes(clip.id);
   const width = clip.duration * timelineZoom;
@@ -52,6 +53,9 @@ export function TimelineClip({ clip }: TimelineClipProps) {
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Don't trigger selection change if we just dragged
+    if (hasDraggedRef.current) return;
+
     if (e.shiftKey) {
       setSelectedClipIds(
         isSelected
@@ -63,19 +67,93 @@ export function TimelineClip({ clip }: TimelineClipProps) {
     }
   };
 
-  // Drag to reposition
+  // ─── Snap helper ───────────────────────────────────────────
+  const snapPosition = useCallback(
+    (newStart: number, trackId: string, clipDuration: number): number => {
+      const store = useVideoStore.getState();
+      if (!store.snapEnabled) return newStart;
+
+      const SNAP_THRESHOLD_PX = 8;
+      const snapThreshold = SNAP_THRESHOLD_PX / timelineZoom;
+
+      // Collect snap points
+      const snapPoints: number[] = [0, store.currentTime];
+
+      // Snap to other clip edges on this track
+      const track = store.tracks.find((t) => t.id === trackId);
+      if (track) {
+        for (const cId of track.clips) {
+          if (cId === clip.id) continue;
+          const c = store.clips[cId];
+          if (c) {
+            snapPoints.push(c.startTime);
+            snapPoints.push(c.startTime + c.duration);
+          }
+        }
+      }
+
+      // Also snap to clip edges on all tracks (playhead-style global snap)
+      for (const c of Object.values(store.clips)) {
+        if (c.id === clip.id) continue;
+        const end = c.startTime + c.duration;
+        if (!snapPoints.includes(c.startTime)) snapPoints.push(c.startTime);
+        if (!snapPoints.includes(end)) snapPoints.push(end);
+      }
+
+      // Find nearest snap point for clip start OR end
+      let snapped = newStart;
+      let minDist = snapThreshold;
+
+      for (const sp of snapPoints) {
+        // Snap start of clip to snap point
+        const distStart = Math.abs(newStart - sp);
+        if (distStart < minDist) {
+          snapped = sp;
+          minDist = distStart;
+        }
+        // Snap end of clip to snap point
+        const distEnd = Math.abs(newStart + clipDuration - sp);
+        if (distEnd < minDist) {
+          snapped = sp - clipDuration;
+          minDist = distEnd;
+        }
+      }
+
+      return Math.max(0, snapped);
+    },
+    [clip.id, timelineZoom]
+  );
+
+  // Drag to reposition (horizontal + cross-track vertical)
   const handleDragStart = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(true);
+      hasDraggedRef.current = false;
       dragStartRef.current = { x: e.clientX, startTime: clip.startTime };
+      let currentTrackId = clip.trackId;
 
       const handleMove = (me: MouseEvent) => {
+        hasDraggedRef.current = true;
         const dx = me.clientX - dragStartRef.current.x;
         const dt = dx / timelineZoom;
-        const newStart = Math.max(0, dragStartRef.current.startTime + dt);
-        moveClip(clip.id, clip.trackId, newStart);
+        const rawStart = Math.max(0, dragStartRef.current.startTime + dt);
+
+        // Snap
+        const snappedStart = snapPosition(rawStart, currentTrackId, clip.duration);
+
+        // Cross-track detection: find which track the cursor is over
+        const els = document.elementsFromPoint(me.clientX, me.clientY);
+        for (const el of els) {
+          const trackId = el.getAttribute?.("data-track-id");
+          if (trackId && trackId !== currentTrackId) {
+            currentTrackId = trackId;
+            break;
+          }
+        }
+
+        moveClip(clip.id, currentTrackId, snappedStart);
       };
 
       const handleUp = () => {
@@ -87,7 +165,7 @@ export function TimelineClip({ clip }: TimelineClipProps) {
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [clip.id, clip.trackId, clip.startTime, timelineZoom, moveClip]
+    [clip.id, clip.trackId, clip.startTime, clip.duration, timelineZoom, moveClip, snapPosition]
   );
 
   // Edge handles — trim for video/audio, extend for image/text
@@ -107,7 +185,6 @@ export function TimelineClip({ clip }: TimelineClipProps) {
 
         if (side === "left") {
           if (canExtendDuration) {
-            // For images/text: freely adjust start time and duration
             const delta = Math.min(dt, origDuration - 0.1);
             const newStart = Math.max(0, origStartTime + delta);
             const actualDelta = newStart - origStartTime;
@@ -116,7 +193,6 @@ export function TimelineClip({ clip }: TimelineClipProps) {
               duration: origDuration - actualDelta,
             });
           } else {
-            // For video/audio: trim from source start
             const maxTrim = origDuration - 0.1;
             const trimDelta = Math.max(-origTrimStart, Math.min(maxTrim, dt));
             updateClip(clip.id, {
@@ -127,14 +203,12 @@ export function TimelineClip({ clip }: TimelineClipProps) {
           }
         } else {
           if (canExtendDuration) {
-            // For images/text: freely extend or shrink duration
             const newDuration = Math.max(0.1, origDuration + dt);
             updateClip(clip.id, {
               duration: newDuration,
               sourceDuration: newDuration,
             });
           } else {
-            // For video/audio: trim from source end
             const maxTrim = origDuration - 0.1;
             const trimDelta = Math.max(-origTrimEnd, Math.min(maxTrim, -dt));
             updateClip(clip.id, {
@@ -172,7 +246,13 @@ export function TimelineClip({ clip }: TimelineClipProps) {
   };
 
   return (
-    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+    <DropdownMenu
+      open={menuOpen}
+      onOpenChange={(open) => {
+        // Only allow closing — opening is exclusively via right-click
+        if (!open) setMenuOpen(false);
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <div
           ref={clipRef}
@@ -200,6 +280,9 @@ export function TimelineClip({ clip }: TimelineClipProps) {
             <span className="text-[11px] text-white font-medium truncate drop-shadow-sm">
               {clipLabel}
             </span>
+            {clip.speed && clip.speed !== 1 && (
+              <span className="text-[9px] text-white/60 shrink-0">{clip.speed}x</span>
+            )}
           </div>
 
           {/* Right edge handle */}

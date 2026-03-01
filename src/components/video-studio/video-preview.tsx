@@ -127,6 +127,51 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
 
   // ─── Resize (corner drag) ───────────────────────────────────
   const handleResizeStart = useCallback(
+    (e: React.MouseEvent, clip: TimelineClip, corner: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const container = previewRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const startX = e.clientX;
+      const startY = e.clientY;
+
+      const t = clip.transform || { x: 0, y: 0, scale: 1 };
+      const origScale = t.scale;
+
+      const handleMove = (me: MouseEvent) => {
+        // Use diagonal distance for scale
+        const dx = (me.clientX - startX) / rect.width;
+        const dy = (me.clientY - startY) / rect.height;
+
+        let delta = 0;
+        if (corner === "br" || corner === "tr") delta = dx + dy;
+        else if (corner === "bl" || corner === "tl") delta = -dx + dy;
+        else delta = dy;
+
+        // Bottom corners: drag down = larger. Top corners: drag up = larger.
+        if (corner === "tl" || corner === "tr") delta = -delta;
+
+        const newScale = Math.max(0.1, Math.min(5, origScale + delta * 2));
+        updateClip(clip.id, {
+          transform: { ...t, scale: newScale },
+        });
+      };
+
+      const handleUp = () => {
+        window.removeEventListener("mousemove", handleMove);
+        window.removeEventListener("mouseup", handleUp);
+      };
+
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleUp);
+    },
+    [updateClip]
+  );
+
+  // ─── Text resize (font size via corner drag) ──────────────────
+  const handleTextResizeStart = useCallback(
     (e: React.MouseEvent, clip: TimelineClip) => {
       e.preventDefault();
       e.stopPropagation();
@@ -135,16 +180,13 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
       if (!container) return;
       const rect = container.getBoundingClientRect();
       const startY = e.clientY;
-
-      const t = clip.transform || { x: 0, y: 0, scale: 1 };
-      const origScale = t.scale;
+      const origFontSize = clip.textStyle?.fontSize || 36;
 
       const handleMove = (me: MouseEvent) => {
-        // Drag down = larger, drag up = smaller
         const dy = (me.clientY - startY) / rect.height;
-        const newScale = Math.max(0.1, Math.min(5, origScale + dy * 2));
+        const newSize = Math.max(8, Math.min(200, Math.round(origFontSize + dy * 200)));
         updateClip(clip.id, {
-          transform: { ...t, scale: newScale },
+          textStyle: { ...clip.textStyle!, fontSize: newSize },
         });
       };
 
@@ -191,10 +233,40 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
           }}
         />
 
-        {/* Video/image elements — draggable & resizable */}
+        {/* Video/image elements — draggable & resizable with transitions */}
         {activeVideoClips.map((clip) => {
           const isSelected = selectedClipIds.includes(clip.id);
           const t = clip.transform || { x: 0, y: 0, scale: 1 };
+          const clipOpacity = clip.opacity ?? 1;
+
+          // Transition effects
+          let transOpacity = 1;
+          let transClipPath: string | undefined;
+          let transX = 0;
+
+          if (clip.transitionType && clip.transitionType !== "none") {
+            const transDur = clip.transitionDuration || 0.5;
+            const elapsed = playback.currentTime - clip.startTime;
+            const progress = Math.min(1, Math.max(0, elapsed / transDur));
+
+            if (progress < 1) {
+              switch (clip.transitionType) {
+                case "crossfade":
+                case "dissolve":
+                  transOpacity = progress;
+                  break;
+                case "wipe-left":
+                  transClipPath = `inset(0 ${(1 - progress) * 100}% 0 0)`;
+                  break;
+                case "wipe-right":
+                  transClipPath = `inset(0 0 0 ${(1 - progress) * 100}%)`;
+                  break;
+                case "slide":
+                  transX = (1 - progress) * 100;
+                  break;
+              }
+            }
+          }
 
           return (
             <div
@@ -202,8 +274,10 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
               className="absolute cursor-move"
               style={{
                 inset: 0,
-                transform: `translate(${t.x}%, ${t.y}%) scale(${t.scale})`,
+                transform: `translate(${t.x + transX}%, ${t.y}%) scale(${t.scale})`,
                 transformOrigin: "center center",
+                opacity: clipOpacity * transOpacity,
+                clipPath: transClipPath,
               }}
               onClick={(e) => handleClipClick(e, clip)}
               onMouseDown={(e) => handleDragStart(e, clip)}
@@ -226,7 +300,7 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
                 />
               ) : null}
 
-              {/* Selection border + handles */}
+              {/* Selection border + corner handles */}
               {isSelected && (
                 <>
                   <div className="absolute inset-0 border-2 border-brand-500 pointer-events-none rounded" />
@@ -234,26 +308,73 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
                   <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-brand-500 rounded text-[10px] text-white font-medium pointer-events-none">
                     {clip.name}
                   </div>
-                  {/* Resize handle (bottom-right corner) */}
-                  <div
-                    className="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize z-10"
-                    onMouseDown={(e) => handleResizeStart(e, clip)}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" className="absolute bottom-0.5 right-0.5">
-                      <path d="M14 2L2 14M14 6L6 14M14 10L10 14" stroke="white" strokeWidth="1.5" />
-                    </svg>
-                  </div>
+                  {/* Corner resize handles */}
+                  {["tl", "tr", "bl", "br"].map((corner) => (
+                    <div
+                      key={corner}
+                      className={`absolute w-4 h-4 z-10 ${
+                        corner === "tl" ? "top-0 left-0 cursor-nwse-resize" :
+                        corner === "tr" ? "top-0 right-0 cursor-nesw-resize" :
+                        corner === "bl" ? "bottom-0 left-0 cursor-nesw-resize" :
+                        "bottom-0 right-0 cursor-nwse-resize"
+                      }`}
+                      onMouseDown={(e) => handleResizeStart(e, clip, corner)}
+                    >
+                      <div className={`absolute w-2.5 h-2.5 bg-white border-2 border-brand-500 rounded-sm ${
+                        corner === "tl" ? "top-0 left-0" :
+                        corner === "tr" ? "top-0 right-0" :
+                        corner === "bl" ? "bottom-0 left-0" :
+                        "bottom-0 right-0"
+                      }`} />
+                    </div>
+                  ))}
                 </>
               )}
             </div>
           );
         })}
 
-        {/* Text overlays — draggable */}
+        {/* Text overlays — draggable with animations */}
         {activeTextClips.map((clip) => {
           const style = clip.textStyle;
           const isSelected = selectedClipIds.includes(clip.id);
           if (!style || !clip.textContent) return null;
+
+          // Text animation
+          const animation = style.animation || "none";
+          const elapsed = playback.currentTime - clip.startTime;
+
+          let animTransform = "translate(-50%, -50%)";
+          let animOpacity = 1;
+          let displayText = clip.textContent;
+
+          if (animation !== "none") {
+            const animDuration = animation === "typewriter"
+              ? Math.max(0.5, clip.textContent.length * 0.04)
+              : 0.5;
+            const progress = Math.min(1, Math.max(0, elapsed / animDuration));
+
+            if (progress < 1) {
+              switch (animation) {
+                case "fade-in":
+                  animOpacity = progress;
+                  break;
+                case "slide-up":
+                  animOpacity = progress;
+                  animTransform = `translate(-50%, calc(-50% + ${(1 - progress) * 40}px))`;
+                  break;
+                case "slide-left":
+                  animOpacity = progress;
+                  animTransform = `translate(calc(-50% + ${(progress - 1) * 60}px), -50%)`;
+                  break;
+                case "typewriter": {
+                  const charCount = Math.ceil(progress * clip.textContent.length);
+                  displayText = clip.textContent.slice(0, charCount) + "\u2588";
+                  break;
+                }
+              }
+            }
+          }
 
           return (
             <div
@@ -262,8 +383,9 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
               style={{
                 left: `${style.position.x}%`,
                 top: `${style.position.y}%`,
-                transform: "translate(-50%, -50%)",
+                transform: animTransform,
                 maxWidth: "90%",
+                opacity: animOpacity,
               }}
               onClick={(e) => handleClipClick(e, clip)}
               onMouseDown={(e) => handleDragStart(e, clip)}
@@ -282,8 +404,18 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
                   whiteSpace: "pre-wrap",
                 }}
               >
-                {clip.textContent}
+                {displayText}
               </div>
+
+              {/* Text resize handle */}
+              {isSelected && (
+                <div
+                  className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 cursor-ns-resize z-10"
+                  onMouseDown={(e) => handleTextResizeStart(e, clip)}
+                >
+                  <div className="w-3 h-3 bg-white border-2 border-brand-500 rounded-sm mx-auto" />
+                </div>
+              )}
             </div>
           );
         })}

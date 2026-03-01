@@ -52,6 +52,8 @@ export interface TimelineClip {
 
   // Preview transform (position & scale on canvas)
   transform?: ClipTransform;
+  opacity?: number;      // 0-1, default 1
+  speed?: number;        // playback rate, default 1 (0.25-4)
 
   // Audio
   volume: number;          // 0-1

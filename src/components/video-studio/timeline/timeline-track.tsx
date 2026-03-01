@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, EyeOff, Lock, Unlock, Volume2, VolumeX } from "lucide-react";
+import { Eye, EyeOff, Lock, Unlock, Volume2, VolumeX, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useVideoStore } from "../hooks/use-video-store";
 import { TimelineClip } from "./timeline-clip";
@@ -13,6 +13,7 @@ interface TimelineTrackProps {
 export function TimelineTrack({ track }: TimelineTrackProps) {
   const clips = useVideoStore((s) => s.clips);
   const updateTrack = useVideoStore((s) => s.updateTrack);
+  const removeTrack = useVideoStore((s) => s.removeTrack);
   const timelineZoom = useVideoStore((s) => s.timelineZoom);
   const scrollOffset = useVideoStore((s) => s.scrollOffset);
   const timelineDuration = useVideoStore((s) => s.timelineDuration);
@@ -33,6 +34,7 @@ export function TimelineTrack({ track }: TimelineTrackProps) {
 
   return (
     <div
+      data-track-id={track.id}
       className={cn(
         "flex border-b border-border/50",
         track.locked && "opacity-60",
@@ -80,6 +82,13 @@ export function TimelineTrack({ track }: TimelineTrackProps) {
             ) : (
               <EyeOff className="h-3 w-3 text-muted-foreground" />
             )}
+          </button>
+          <button
+            onClick={() => removeTrack(track.id)}
+            className="p-0.5 rounded hover:bg-red-500/20"
+            title="Delete track"
+          >
+            <Trash2 className="h-3 w-3 text-muted-foreground hover:text-red-500" />
           </button>
         </div>
       </div>

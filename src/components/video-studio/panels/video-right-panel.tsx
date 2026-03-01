@@ -1,10 +1,19 @@
 "use client";
 
-import { X, Volume2, VolumeX, Move, Maximize2, RotateCcw } from "lucide-react";
+import { X, Volume2, VolumeX, Move, Maximize2, RotateCcw, Eye, Gauge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useVideoStore } from "../hooks/use-video-store";
 import type { TimelineClip, TransitionType, TextAnimation } from "@/lib/video-editor/types";
+
+const TRANSITION_OPTIONS: { id: TransitionType; label: string }[] = [
+  { id: "none", label: "None" },
+  { id: "crossfade", label: "Crossfade" },
+  { id: "wipe-left", label: "Wipe Left" },
+  { id: "wipe-right", label: "Wipe Right" },
+  { id: "slide", label: "Slide" },
+  { id: "dissolve", label: "Dissolve" },
+];
 
 export function VideoRightPanel() {
   const selectedClipIds = useVideoStore((s) => s.selectedClipIds);
@@ -181,6 +190,52 @@ export function VideoRightPanel() {
           </div>
         )}
 
+        {/* Opacity (video/image clips) */}
+        {(selectedClip.type === "video" || selectedClip.type === "image") && (
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <Eye className="h-3 w-3" /> Opacity: {Math.round((selectedClip.opacity ?? 1) * 100)}%
+            </Label>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={Math.round((selectedClip.opacity ?? 1) * 100)}
+              onChange={(e) =>
+                updateClip(selectedClip.id, {
+                  opacity: parseInt(e.target.value) / 100,
+                })
+              }
+              className="w-full accent-brand-500"
+            />
+          </div>
+        )}
+
+        {/* Speed (video, audio, voiceover clips) */}
+        {(selectedClip.type === "video" ||
+          selectedClip.type === "audio" ||
+          selectedClip.type === "voiceover") && (
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <Gauge className="h-3 w-3" /> Speed: {(selectedClip.speed ?? 1).toFixed(2)}x
+            </Label>
+            <input
+              type="range"
+              min={25}
+              max={400}
+              step={25}
+              value={Math.round((selectedClip.speed ?? 1) * 100)}
+              onChange={(e) =>
+                updateClip(selectedClip.id, {
+                  speed: parseInt(e.target.value) / 100,
+                })
+              }
+              className="w-full accent-brand-500"
+            />
+          </div>
+        )}
+
         {/* Audio controls (video, audio, voiceover) */}
         {(selectedClip.type === "video" ||
           selectedClip.type === "audio" ||
@@ -217,6 +272,50 @@ export function VideoRightPanel() {
                 {Math.round(selectedClip.volume * 100)}%
               </span>
             </div>
+          </div>
+        )}
+
+        {/* Transition (video/image clips) */}
+        {(selectedClip.type === "video" || selectedClip.type === "image") && (
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold">Transition In</Label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {TRANSITION_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() =>
+                    updateClip(selectedClip.id, { transitionType: opt.id })
+                  }
+                  className={`text-[10px] px-1.5 py-1 rounded-md border transition-colors ${
+                    (selectedClip.transitionType || "none") === opt.id
+                      ? "border-brand-500 bg-brand-500/10 text-brand-600"
+                      : "border-border hover:bg-muted/50"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {selectedClip.transitionType && selectedClip.transitionType !== "none" && (
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">
+                  Duration: {(selectedClip.transitionDuration || 0.5).toFixed(1)}s
+                </Label>
+                <input
+                  type="range"
+                  min={0.1}
+                  max={2}
+                  step={0.1}
+                  value={selectedClip.transitionDuration || 0.5}
+                  onChange={(e) =>
+                    updateClip(selectedClip.id, {
+                      transitionDuration: parseFloat(e.target.value),
+                    })
+                  }
+                  className="w-full accent-brand-500"
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -270,6 +369,115 @@ export function VideoRightPanel() {
                   }
                   className="w-full h-7 rounded-md border cursor-pointer"
                 />
+              </div>
+            </div>
+
+            {/* Text position */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">
+                  Position X
+                </Label>
+                <input
+                  type="number"
+                  value={Math.round(selectedClip.textStyle.position.x)}
+                  onChange={(e) =>
+                    updateClip(selectedClip.id, {
+                      textStyle: {
+                        ...selectedClip.textStyle!,
+                        position: {
+                          ...selectedClip.textStyle!.position,
+                          x: Math.max(0, Math.min(100, parseInt(e.target.value) || 50)),
+                        },
+                      },
+                    })
+                  }
+                  min={0}
+                  max={100}
+                  className="w-full px-2 py-1 text-xs rounded-md border bg-background font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">
+                  Position Y
+                </Label>
+                <input
+                  type="number"
+                  value={Math.round(selectedClip.textStyle.position.y)}
+                  onChange={(e) =>
+                    updateClip(selectedClip.id, {
+                      textStyle: {
+                        ...selectedClip.textStyle!,
+                        position: {
+                          ...selectedClip.textStyle!.position,
+                          y: Math.max(0, Math.min(100, parseInt(e.target.value) || 50)),
+                        },
+                      },
+                    })
+                  }
+                  min={0}
+                  max={100}
+                  className="w-full px-2 py-1 text-xs rounded-md border bg-background font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Font weight */}
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Weight</Label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(["normal", "bold"] as const).map((w) => (
+                  <button
+                    key={w}
+                    onClick={() =>
+                      updateClip(selectedClip.id, {
+                        textStyle: { ...selectedClip.textStyle!, fontWeight: w },
+                      })
+                    }
+                    className={`text-[10px] px-2 py-1 rounded-md border capitalize ${
+                      selectedClip.textStyle!.fontWeight === w
+                        ? "border-brand-500 bg-brand-500/10"
+                        : "border-border hover:bg-muted/50"
+                    }`}
+                  >
+                    {w}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Background color */}
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">
+                Background
+              </Label>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="color"
+                  value={selectedClip.textStyle.backgroundColor || "#000000"}
+                  onChange={(e) =>
+                    updateClip(selectedClip.id, {
+                      textStyle: {
+                        ...selectedClip.textStyle!,
+                        backgroundColor: e.target.value,
+                      },
+                    })
+                  }
+                  className="w-8 h-7 rounded-md border cursor-pointer"
+                />
+                <button
+                  onClick={() =>
+                    updateClip(selectedClip.id, {
+                      textStyle: {
+                        ...selectedClip.textStyle!,
+                        backgroundColor: undefined,
+                      },
+                    })
+                  }
+                  className="text-[10px] text-muted-foreground hover:text-foreground"
+                >
+                  Remove
+                </button>
               </div>
             </div>
           </div>

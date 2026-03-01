@@ -56,6 +56,12 @@ export interface VideoStudioState {
   selectedClipIds: string[];
   setSelectedClipIds: (ids: string[]) => void;
 
+  // ─── Playback speed & snap ───────────────────────────────
+  playbackSpeed: number;
+  setPlaybackSpeed: (s: number) => void;
+  snapEnabled: boolean;
+  setSnapEnabled: (s: boolean) => void;
+
   // ─── Canvas (Fabric.js overlay) ────────────────────────────
   canvas: unknown | null;
   setCanvas: (c: unknown | null) => void;
@@ -442,6 +448,12 @@ export const useVideoStore = create<VideoStudioState>((set, get) => ({
       ...(ids.length > 0 ? { isRightPanelCollapsed: false } : {}),
     }),
 
+  // ─── Playback speed & snap ───────────────────────────────
+  playbackSpeed: 1,
+  setPlaybackSpeed: (s) => set({ playbackSpeed: Math.max(0.25, Math.min(4, s)) }),
+  snapEnabled: true,
+  setSnapEnabled: (s) => set({ snapEnabled: s }),
+
   // ─── Canvas ────────────────────────────────────────────────
   canvas: null,
   setCanvas: (c) => set({ canvas: c }),
@@ -509,6 +521,8 @@ export const useVideoStore = create<VideoStudioState>((set, get) => ({
       timelineZoom: 50,
       scrollOffset: 0,
       selectedClipIds: [],
+      playbackSpeed: 1,
+      snapEnabled: true,
       canvas: null,
       canvasZoom: 1,
       activePanel: "media",
