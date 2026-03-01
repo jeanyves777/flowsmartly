@@ -1,45 +1,5 @@
-import OpenAI from "openai";
 import type { TimedWord, CaptionSegment, CaptionClipData } from "./types";
 import type { CaptionStyleId } from "@/lib/cartoon/caption-generator";
-
-const openai = new OpenAI();
-
-// ── Transcription via Whisper ────────────────────────────────────────────
-
-/**
- * Transcribe audio with word-level timestamps using OpenAI Whisper.
- */
-export async function transcribeAudioForCaptions(
-  audioBuffer: Buffer,
-  mimeType: string = "audio/mp3"
-): Promise<TimedWord[]> {
-  const ext = mimeType.includes("wav") ? "wav" : mimeType.includes("flac") ? "flac" : "mp3";
-  const blob = new Blob([new Uint8Array(audioBuffer)], { type: mimeType });
-  const file = new File([blob], `audio.${ext}`, { type: mimeType });
-
-  const response = await openai.audio.transcriptions.create({
-    model: "whisper-1",
-    file,
-    response_format: "verbose_json",
-    timestamp_granularities: ["word"],
-  });
-
-  const words: TimedWord[] = [];
-  // The response includes a `words` array when using word-level timestamps
-  const rawWords = (response as unknown as { words?: Array<{ word: string; start: number; end: number }> }).words;
-
-  if (rawWords) {
-    for (const w of rawWords) {
-      words.push({
-        word: w.word,
-        startTime: w.start,
-        endTime: w.end,
-      });
-    }
-  }
-
-  return words;
-}
 
 // ── Generate captions from known TTS script ──────────────────────────────
 

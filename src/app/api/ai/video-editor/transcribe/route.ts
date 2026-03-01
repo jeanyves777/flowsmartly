@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import OpenAI from "openai";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
-import {
-  transcribeAudioForCaptions,
-  segmentWords,
-} from "@/lib/video-editor/caption-sync";
+import { segmentWords } from "@/lib/video-editor/caption-sync";
+import type { TimedWord } from "@/lib/video-editor/types";
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,8 +53,26 @@ export async function POST(request: NextRequest) {
     const contentType = audioRes.headers.get("content-type") || "audio/mp3";
     const audioBuffer = Buffer.from(await audioRes.arrayBuffer());
 
-    // Transcribe with Whisper
-    const words = await transcribeAudioForCaptions(audioBuffer, contentType);
+    // Transcribe with Whisper (server-side only)
+    const openai = new OpenAI();
+    const ext = contentType.includes("wav") ? "wav" : contentType.includes("flac") ? "flac" : "mp3";
+    const blob = new Blob([new Uint8Array(audioBuffer)], { type: contentType });
+    const audioFile = new File([blob], `audio.${ext}`, { type: contentType });
+
+    const transcription = await openai.audio.transcriptions.create({
+      model: "whisper-1",
+      file: audioFile,
+      response_format: "verbose_json",
+      timestamp_granularities: ["word"],
+    });
+
+    const words: TimedWord[] = [];
+    const rawWords = (transcription as unknown as { words?: Array<{ word: string; start: number; end: number }> }).words;
+    if (rawWords) {
+      for (const w of rawWords) {
+        words.push({ word: w.word, startTime: w.start, endTime: w.end });
+      }
+    }
     const segments = segmentWords(words);
 
     // Deduct credits
