@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
-  serverExternalPackages: ["@napi-rs/canvas"],
+  serverExternalPackages: ["@napi-rs/canvas", "sharp"],
 
   images: {
     remotePatterns: [
@@ -16,6 +16,9 @@ const nextConfig: NextConfig = {
 
   experimental: {
     optimizePackageImports: ["lucide-react", "@radix-ui/react-icons", "date-fns"],
+    serverActions: {
+      bodySizeLimit: "500mb",
+    },
   },
 };
 

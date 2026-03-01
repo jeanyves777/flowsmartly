@@ -181,10 +181,11 @@ export function MediaPanel() {
     fetchFolders();
   }, [fetchFolders]);
 
-  // ─── Direct-to-S3 upload with progress ───
-  const uploadFileDirectToS3 = useCallback(
+  // ─── Upload with XHR progress + server-side compression ───
+  const uploadFileWithProgress = useCallback(
     async (file: File): Promise<MediaFile | null> => {
       const uploadId = `upload-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const isVideo = file.type.startsWith("video/");
 
       setUploads((prev) => [
         ...prev,
@@ -192,36 +193,17 @@ export function MediaPanel() {
       ]);
 
       try {
-        // Step 1: Get presigned upload URL
-        const urlRes = await fetch("/api/media/upload-url", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filename: file.name,
-            contentType: file.type,
-            size: file.size,
-          }),
-        });
+        const formData = new FormData();
+        formData.append("file", file);
 
-        if (!urlRes.ok) {
-          // Fallback to traditional upload if presigned not available
-          return await fallbackUpload(file, uploadId);
-        }
-
-        const urlData = await urlRes.json();
-        if (!urlData.success) {
-          return await fallbackUpload(file, uploadId);
-        }
-
-        const { uploadUrl, file: mediaFile } = urlData.data;
-
-        // Step 2: Upload directly to S3 with progress via XMLHttpRequest
-        await new Promise<void>((resolve, reject) => {
+        // Use XHR for upload progress (fetch API doesn't support upload progress)
+        const result = await new Promise<MediaFile>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
 
           xhr.upload.addEventListener("progress", (e) => {
             if (e.lengthComputable) {
-              const pct = Math.round((e.loaded / e.total) * 100);
+              // Upload phase = 0-70%, server processing (compression) = 70-100%
+              const pct = Math.round((e.loaded / e.total) * 70);
               setUploads((prev) =>
                 prev.map((u) =>
                   u.id === uploadId ? { ...u, progress: pct } : u
@@ -232,43 +214,79 @@ export function MediaPanel() {
 
           xhr.addEventListener("load", () => {
             if (xhr.status >= 200 && xhr.status < 300) {
-              resolve();
+              try {
+                const data = JSON.parse(xhr.responseText);
+                if (data.success && data.data?.file) {
+                  resolve(data.data.file as MediaFile);
+                } else {
+                  reject(new Error(data.error?.message || "Upload failed"));
+                }
+              } catch {
+                reject(new Error("Invalid response"));
+              }
             } else {
-              reject(new Error(`Upload failed with status ${xhr.status}`));
+              try {
+                const err = JSON.parse(xhr.responseText);
+                reject(new Error(err.error?.message || `Upload failed (${xhr.status})`));
+              } catch {
+                reject(new Error(`Upload failed (${xhr.status})`));
+              }
             }
           });
 
           xhr.addEventListener("error", () => reject(new Error("Network error")));
           xhr.addEventListener("abort", () => reject(new Error("Upload aborted")));
 
-          xhr.open("PUT", uploadUrl);
-          xhr.setRequestHeader("Content-Type", file.type);
-          xhr.send(file);
+          xhr.open("POST", "/api/media");
+          xhr.send(formData);
+
+          // While waiting for server processing (compression), animate progress 70→95
+          const processingInterval = setInterval(() => {
+            setUploads((prev) =>
+              prev.map((u) => {
+                if (u.id === uploadId && u.status === "uploading" && u.progress >= 70 && u.progress < 95) {
+                  return { ...u, progress: u.progress + 1, status: "processing" };
+                }
+                return u;
+              })
+            );
+          }, isVideo ? 1000 : 300); // Slower ticks for video (compression takes longer)
+
+          // Mark as processing once upload bytes are done
+          xhr.upload.addEventListener("loadend", () => {
+            setUploads((prev) =>
+              prev.map((u) =>
+                u.id === uploadId
+                  ? { ...u, progress: 70, status: "processing" }
+                  : u
+              )
+            );
+          });
+
+          // Cleanup interval when request completes
+          xhr.addEventListener("loadend", () => clearInterval(processingInterval));
         });
 
-        // Step 3: Done
+        // Done
         setUploads((prev) =>
           prev.map((u) =>
             u.id === uploadId ? { ...u, progress: 100, status: "done" } : u
           )
         );
 
-        // Auto-remove after 3s
         setTimeout(() => {
           setUploads((prev) => prev.filter((u) => u.id !== uploadId));
         }, 3000);
 
-        return mediaFile as MediaFile;
+        return result;
       } catch (err) {
+        const message = err instanceof Error ? err.message : "Upload failed";
         setUploads((prev) =>
           prev.map((u) =>
-            u.id === uploadId
-              ? { ...u, status: "error", error: err instanceof Error ? err.message : "Upload failed" }
-              : u
+            u.id === uploadId ? { ...u, status: "error", error: message } : u
           )
         );
 
-        // Auto-remove errors after 5s
         setTimeout(() => {
           setUploads((prev) => prev.filter((u) => u.id !== uploadId));
         }, 5000);
@@ -278,38 +296,6 @@ export function MediaPanel() {
     },
     []
   );
-
-  // Fallback: traditional FormData upload through Next.js API
-  const fallbackUpload = async (file: File, uploadId: string): Promise<MediaFile | null> => {
-    setUploads((prev) =>
-      prev.map((u) =>
-        u.id === uploadId ? { ...u, status: "processing", progress: 50 } : u
-      )
-    );
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const res = await fetch("/api/media", {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!res.ok) throw new Error("Upload failed");
-    const data = await res.json();
-
-    setUploads((prev) =>
-      prev.map((u) =>
-        u.id === uploadId ? { ...u, progress: 100, status: "done" } : u
-      )
-    );
-
-    setTimeout(() => {
-      setUploads((prev) => prev.filter((u) => u.id !== uploadId));
-    }, 3000);
-
-    return data.data?.file as MediaFile | null;
-  };
 
   // Handle file selection from the input
   const handleFileUpload = useCallback(
@@ -322,7 +308,7 @@ export function MediaPanel() {
 
       // Upload all files in parallel
       const results = await Promise.all(
-        fileArray.map((file) => uploadFileDirectToS3(file))
+        fileArray.map((file) => uploadFileWithProgress(file))
       );
 
       // Add successfully uploaded files to the timeline
@@ -358,7 +344,7 @@ export function MediaPanel() {
       // Refresh library
       fetchFiles();
     },
-    [uploadFileDirectToS3, addClip, tracks, fetchFiles]
+    [uploadFileWithProgress, addClip, tracks, fetchFiles]
   );
 
   const handleAddFromLibrary = useCallback(
@@ -469,7 +455,10 @@ export function MediaPanel() {
               )}
               <div className="flex-1 min-w-0">
                 <p className="truncate text-[11px]">{upload.name}</p>
-                {upload.status === "uploading" && (
+                {upload.status === "processing" && (
+                  <p className="text-[10px] text-brand-500 mt-0.5">Optimizing...</p>
+                )}
+                {(upload.status === "uploading" || upload.status === "processing") && (
                   <div className="mt-1 h-1 w-full rounded-full bg-muted overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-300"
@@ -484,7 +473,7 @@ export function MediaPanel() {
                   <p className="text-[10px] text-red-500 mt-0.5">{upload.error}</p>
                 )}
               </div>
-              {upload.status === "uploading" && (
+              {(upload.status === "uploading" || upload.status === "processing") && (
                 <span className="text-[10px] text-muted-foreground font-mono shrink-0">
                   {upload.progress}%
                 </span>
