@@ -197,12 +197,12 @@ export const TRACK_HEIGHTS: Record<TrackType, number> = {
   caption: 32,
 };
 
-/** Clip type colors for the timeline */
+/** Clip type colors for the timeline (inline hex — Tailwind can't scan src/lib/) */
 export const CLIP_COLORS: Record<ClipType, string> = {
-  video: "bg-blue-500/80",
-  image: "bg-cyan-500/80",
-  audio: "bg-green-500/80",
-  voiceover: "bg-purple-500/80",
-  caption: "bg-amber-500/80",
-  text: "bg-orange-500/80",
+  video: "#3b82f6",     // blue-500
+  image: "#06b6d4",     // cyan-500
+  audio: "#22c55e",     // green-500
+  voiceover: "#a855f7", // purple-500
+  caption: "#f59e0b",   // amber-500
+  text: "#f97316",      // orange-500
 };

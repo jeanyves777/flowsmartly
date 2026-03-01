@@ -36,7 +36,7 @@ export function TimelineClip({ clip }: TimelineClipProps) {
   const isSelected = selectedClipIds.includes(clip.id);
   const width = clip.duration * timelineZoom;
   const left = clip.startTime * timelineZoom;
-  const colorClass = CLIP_COLORS[clip.type] || "bg-gray-500/80";
+  const bgColor = CLIP_COLORS[clip.type] || "#6b7280";
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -145,11 +145,10 @@ export function TimelineClip({ clip }: TimelineClipProps) {
         <div
           ref={clipRef}
           className={`absolute top-1 bottom-1 rounded-md cursor-pointer select-none
-            ${colorClass}
             ${isSelected ? "ring-2 ring-white ring-offset-1 ring-offset-transparent" : ""}
             ${isDragging ? "opacity-75 z-20" : "z-10"}
             hover:brightness-110 transition-[filter]`}
-          style={{ left, width: Math.max(width, 4) }}
+          style={{ left, width: Math.max(width, 4), backgroundColor: bgColor }}
           onClick={handleClick}
           onMouseDown={handleDragStart}
           onContextMenu={handleContextMenu}

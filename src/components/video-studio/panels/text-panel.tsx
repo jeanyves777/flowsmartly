@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Type, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { Type, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useVideoStore } from "../hooks/use-video-store";
@@ -9,10 +9,12 @@ import type { TextClipStyle, TextAnimation } from "@/lib/video-editor/types";
 
 const TEXT_PRESETS: {
   label: string;
+  description: string;
   style: Partial<TextClipStyle>;
 }[] = [
   {
     label: "Title",
+    description: "Large bold heading",
     style: {
       fontFamily: "Inter",
       fontSize: 72,
@@ -24,6 +26,7 @@ const TEXT_PRESETS: {
   },
   {
     label: "Subtitle",
+    description: "Medium text below title",
     style: {
       fontFamily: "Inter",
       fontSize: 36,
@@ -35,6 +38,7 @@ const TEXT_PRESETS: {
   },
   {
     label: "Lower Third",
+    description: "Name/title bar at bottom",
     style: {
       fontFamily: "Inter",
       fontSize: 28,
@@ -47,6 +51,7 @@ const TEXT_PRESETS: {
   },
   {
     label: "Call-out",
+    description: "Highlighted centered text",
     style: {
       fontFamily: "Inter",
       fontSize: 42,
@@ -71,13 +76,16 @@ export function VideoTextPanel() {
   const tracks = useVideoStore((s) => s.tracks);
   const addTrack = useVideoStore((s) => s.addTrack);
 
-  const [text, setText] = useState("Your text here");
+  const [text, setText] = useState("");
   const [selectedPreset, setSelectedPreset] = useState(0);
   const [animation, setAnimation] = useState<TextAnimation>("fade-in");
   const [duration, setDuration] = useState(5);
 
   const handleAddText = (presetIndex?: number) => {
+    const actualText = text.trim() || "Your text here";
     const preset = TEXT_PRESETS[presetIndex ?? selectedPreset];
+
+    // Find or create a text track
     let textTrack = tracks.find((t) => t.type === "text");
     if (!textTrack) {
       const trackId = addTrack("text");
@@ -94,10 +102,10 @@ export function VideoTextPanel() {
       trimEnd: 0,
       sourceUrl: "",
       sourceDuration: duration,
-      name: `Text - ${text.slice(0, 20)}`,
+      name: `Text - ${actualText.slice(0, 20)}`,
       volume: 1,
       muted: false,
-      textContent: text,
+      textContent: actualText,
       textStyle: {
         fontFamily: preset.style.fontFamily || "Inter",
         fontSize: preset.style.fontSize || 36,
@@ -109,38 +117,58 @@ export function VideoTextPanel() {
         animation,
       },
     });
+
+    // Clear input after adding
+    setText("");
   };
 
   return (
     <div className="space-y-4">
-      {/* Presets */}
+      {/* Step 1: Type your text */}
       <div className="space-y-1.5">
-        <Label className="text-xs">Text Presets</Label>
+        <Label className="text-xs font-semibold">1. Type your text</Label>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Type your text here..."
+          className="w-full h-24 px-3 py-2 text-sm rounded-lg border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+      </div>
+
+      {/* Step 2: Choose a style */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold">2. Choose a style</Label>
         <div className="grid grid-cols-2 gap-2">
           {TEXT_PRESETS.map((preset, i) => (
             <button
               key={preset.label}
-              onClick={() => {
-                setSelectedPreset(i);
-                handleAddText(i);
-              }}
-              className="flex flex-col items-center gap-1 p-3 rounded-lg border hover:border-brand-500/50 hover:bg-brand-500/5 transition-colors"
+              onClick={() => setSelectedPreset(i)}
+              className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-colors ${
+                selectedPreset === i
+                  ? "border-brand-500 bg-brand-500/10"
+                  : "hover:border-brand-500/50 hover:bg-brand-500/5"
+              }`}
             >
-              <Type className="h-4 w-4 text-muted-foreground" />
+              <span
+                className="font-medium"
+                style={{
+                  fontSize: preset.style.fontSize
+                    ? `${Math.min(preset.style.fontSize / 4, 18)}px`
+                    : "14px",
+                  color: preset.style.fontColor || "#fff",
+                  fontWeight: preset.style.fontWeight || "normal",
+                  textShadow: "0 1px 3px rgba(0,0,0,0.5)",
+                }}
+              >
+                Aa
+              </span>
               <span className="text-[11px] font-medium">{preset.label}</span>
+              <span className="text-[9px] text-muted-foreground">
+                {preset.description}
+              </span>
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Text input */}
-      <div className="space-y-1.5">
-        <Label className="text-xs">Custom Text</Label>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          className="w-full h-20 px-3 py-2 text-sm rounded-lg border bg-background resize-none focus:outline-none focus:ring-1 focus:ring-brand-500"
-        />
       </div>
 
       {/* Animation */}
@@ -178,9 +206,9 @@ export function VideoTextPanel() {
       </div>
 
       {/* Add button */}
-      <Button onClick={() => handleAddText()} className="w-full gap-2" variant="outline">
-        <Type className="h-4 w-4" />
-        Add Custom Text
+      <Button onClick={() => handleAddText()} className="w-full gap-2">
+        <Plus className="h-4 w-4" />
+        Add Text to Timeline
       </Button>
     </div>
   );

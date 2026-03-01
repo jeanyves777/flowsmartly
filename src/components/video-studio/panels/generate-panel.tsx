@@ -123,8 +123,14 @@ export function GeneratePanel() {
 
   const addVideoToTimeline = useCallback(
     (url: string, dur: number) => {
-      const videoTrack = tracks.find((t) => t.type === "video");
-      if (!videoTrack) return;
+      const store = useVideoStore.getState();
+      // Find an empty video track, or create a new one
+      let videoTrack = store.tracks.find((t) => t.type === "video" && t.clips.length === 0);
+      if (!videoTrack) {
+        const trackId = store.addTrack("video");
+        videoTrack = useVideoStore.getState().tracks.find((t) => t.id === trackId);
+        if (!videoTrack) return;
+      }
 
       addClip({
         type: "video",
@@ -143,7 +149,7 @@ export function GeneratePanel() {
         aiPrompt: prompt,
       });
     },
-    [tracks, addClip, prompt, provider]
+    [addClip, prompt, provider]
   );
 
   const extCount = provider === "veo3" ? getExtensionCount(duration.seconds) : 0;

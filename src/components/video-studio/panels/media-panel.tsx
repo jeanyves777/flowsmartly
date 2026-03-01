@@ -115,9 +115,33 @@ function LazyThumbnail({
   );
 }
 
+/**
+ * Find or create a dedicated track for a new clip.
+ * Each media gets its own track so they don't overlap.
+ */
+function findOrCreateTrack(
+  clipType: ClipType,
+  tracks: ReturnType<typeof useVideoStore.getState>["tracks"],
+  clips: ReturnType<typeof useVideoStore.getState>["clips"],
+  addTrack: ReturnType<typeof useVideoStore.getState>["addTrack"]
+): string {
+  const trackType = clipType === "audio" ? "audio" : "video";
+
+  // Find an empty track of the right type (no clips on it)
+  const emptyTrack = tracks.find(
+    (t) => t.type === trackType && t.clips.length === 0
+  );
+  if (emptyTrack) return emptyTrack.id;
+
+  // No empty track — create a new one
+  return addTrack(trackType);
+}
+
 export function MediaPanel() {
   const addClip = useVideoStore((s) => s.addClip);
   const tracks = useVideoStore((s) => s.tracks);
+  const clips = useVideoStore((s) => s.clips);
+  const addTrack = useVideoStore((s) => s.addTrack);
 
   // Library state
   const [files, setFiles] = useState<MediaFile[]>([]);
@@ -311,15 +335,14 @@ export function MediaPanel() {
         fileArray.map((file) => uploadFileWithProgress(file))
       );
 
-      // Add successfully uploaded files to the timeline
+      // Add successfully uploaded files to the timeline — each gets its own track
       for (let i = 0; i < results.length; i++) {
         const mediaFile = results[i];
         if (!mediaFile) continue;
 
         const clipType = detectClipTypeFromDbType(mediaFile.type);
-        const trackType = clipType === "audio" ? "audio" : "video";
-        const targetTrack = tracks.find((t) => t.type === trackType);
-        if (!targetTrack) continue;
+        const store = useVideoStore.getState();
+        const trackId = findOrCreateTrack(clipType, store.tracks, store.clips, store.addTrack);
 
         let duration = 5;
         if (clipType === "video" || clipType === "audio") {
@@ -328,7 +351,7 @@ export function MediaPanel() {
 
         addClip({
           type: clipType,
-          trackId: targetTrack.id,
+          trackId,
           startTime: 0,
           duration,
           trimStart: 0,
@@ -344,7 +367,7 @@ export function MediaPanel() {
       // Refresh library
       fetchFiles();
     },
-    [uploadFileWithProgress, addClip, tracks, fetchFiles]
+    [uploadFileWithProgress, addClip, fetchFiles]
   );
 
   const handleAddFromLibrary = useCallback(
@@ -352,9 +375,8 @@ export function MediaPanel() {
       setAddingFileId(file.id);
       try {
         const clipType = detectClipTypeFromDbType(file.type);
-        const trackType = clipType === "audio" ? "audio" : "video";
-        const targetTrack = tracks.find((t) => t.type === trackType);
-        if (!targetTrack) return;
+        const store = useVideoStore.getState();
+        const trackId = findOrCreateTrack(clipType, store.tracks, store.clips, store.addTrack);
 
         let duration = 5;
         if (clipType === "video" || clipType === "audio") {
@@ -363,7 +385,7 @@ export function MediaPanel() {
 
         addClip({
           type: clipType,
-          trackId: targetTrack.id,
+          trackId,
           startTime: 0,
           duration,
           trimStart: 0,
@@ -380,7 +402,7 @@ export function MediaPanel() {
         setAddingFileId(null);
       }
     },
-    [addClip, tracks]
+    [addClip]
   );
 
   const navigateToFolder = (folderId: string, folderName: string) => {

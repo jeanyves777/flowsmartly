@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useState, useCallback } from "react";
 import { useVideoStore } from "../hooks/use-video-store";
 
 interface TimelinePlayheadProps {
@@ -14,8 +14,11 @@ export function TimelinePlayhead({ containerHeight, onSeek }: TimelinePlayheadPr
   const scrollOffset = useVideoStore((s) => s.scrollOffset);
 
   const isDragging = useRef(false);
+  // Local drag position for instant visual feedback (bypasses store round-trip)
+  const [dragLeftPx, setDragLeftPx] = useState<number | null>(null);
 
-  const leftPx = (currentTime - scrollOffset) * timelineZoom;
+  const storeLeftPx = (currentTime - scrollOffset) * timelineZoom;
+  const leftPx = dragLeftPx !== null ? dragLeftPx : storeLeftPx;
 
   // Only show if in visible range
   if (leftPx < -10 || leftPx > 5000) return null;
@@ -26,27 +29,38 @@ export function TimelinePlayhead({ containerHeight, onSeek }: TimelinePlayheadPr
       e.stopPropagation();
       isDragging.current = true;
 
-      const parentRect = (e.currentTarget as HTMLElement)
-        .closest("[data-timeline-tracks]")
-        ?.getBoundingClientRect();
-      if (!parentRect) return;
+      const tracksEl = (e.currentTarget as HTMLElement).closest("[data-timeline-tracks]");
+      if (!tracksEl) return;
+      const parentRect = tracksEl.getBoundingClientRect();
+
+      const computeFromMouse = (clientX: number) => {
+        const x = clientX - parentRect.left - 140;
+        const store = useVideoStore.getState();
+        const time = Math.max(0, (x / store.timelineZoom) + store.scrollOffset);
+        const px = (time - store.scrollOffset) * store.timelineZoom;
+        return { time, px };
+      };
+
+      // Seek on initial click
+      const initial = computeFromMouse(e.clientX);
+      setDragLeftPx(initial.px);
+      onSeek(initial.time);
 
       const handleMove = (me: MouseEvent) => {
         if (!isDragging.current) return;
-        const x = me.clientX - parentRect.left - 140;
-        const store = useVideoStore.getState();
-        const time = Math.max(0, (x / store.timelineZoom) + store.scrollOffset);
+        const { time, px } = computeFromMouse(me.clientX);
+        // Update visual position immediately (local state)
+        setDragLeftPx(px);
+        // Update store (may lag slightly due to re-renders)
         onSeek(time);
       };
 
       const handleUp = () => {
         isDragging.current = false;
+        setDragLeftPx(null); // Snap back to store-driven position
         window.removeEventListener("mousemove", handleMove);
         window.removeEventListener("mouseup", handleUp);
       };
-
-      // Also seek on initial click position
-      handleMove(e.nativeEvent);
 
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);

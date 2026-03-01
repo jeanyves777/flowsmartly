@@ -106,7 +106,13 @@ export function VoicePanel() {
 
         const dur = await getAudioDuration(audioUrl);
 
-        const audioTrack = tracks.find((t) => t.type === "audio");
+        // Find an empty audio track, or create a new one
+        const store = useVideoStore.getState();
+        let audioTrack = store.tracks.find((t) => t.type === "audio" && t.clips.length === 0);
+        if (!audioTrack) {
+          const trackId = store.addTrack("audio");
+          audioTrack = useVideoStore.getState().tracks.find((t) => t.id === trackId);
+        }
         if (audioTrack) {
           addClip({
             type: "voiceover",
