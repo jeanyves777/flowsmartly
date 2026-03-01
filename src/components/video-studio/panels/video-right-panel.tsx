@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Volume2, VolumeX, Move, Maximize2, RotateCcw, Eye, Gauge } from "lucide-react";
+import { X, Volume2, VolumeX, Move, Maximize2, RotateCcw, Eye, Gauge, MousePointerClick } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useVideoStore } from "../hooks/use-video-store";
@@ -24,7 +24,7 @@ export function VideoRightPanel() {
 
   const selectedClip = selectedClipIds.length === 1 ? clips[selectedClipIds[0]] : null;
 
-  if (isRightPanelCollapsed || !selectedClip) return null;
+  if (isRightPanelCollapsed) return null;
 
   return (
     <div className="w-[260px] border-l bg-background flex flex-col shrink-0 overflow-hidden">
@@ -43,7 +43,17 @@ export function VideoRightPanel() {
         </Button>
       </div>
 
-      {/* Content */}
+      {/* Empty state when no clip selected */}
+      {!selectedClip ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+          <MousePointerClick className="h-8 w-8 text-muted-foreground/40 mb-3" />
+          <p className="text-xs font-medium text-muted-foreground">No clip selected</p>
+          <p className="text-[10px] text-muted-foreground/70 mt-1">
+            Click a clip in the preview or timeline to see its properties
+          </p>
+        </div>
+      ) : (
+      /* Content */
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         {/* Clip info */}
         <div className="space-y-1">
@@ -551,6 +561,7 @@ export function VideoRightPanel() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

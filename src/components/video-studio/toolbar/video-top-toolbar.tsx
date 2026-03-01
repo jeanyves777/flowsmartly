@@ -10,6 +10,7 @@ import {
   SkipBack,
   Download,
   Save,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -77,6 +78,8 @@ export function VideoTopToolbar({
   const isExporting = useVideoStore((s) => s.isExporting);
   const playbackSpeed = useVideoStore((s) => s.playbackSpeed);
   const setPlaybackSpeed = useVideoStore((s) => s.setPlaybackSpeed);
+  const isRightPanelCollapsed = useVideoStore((s) => s.isRightPanelCollapsed);
+  const toggleRightPanel = useVideoStore((s) => s.toggleRightPanel);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -239,8 +242,19 @@ export function VideoTopToolbar({
         </span>
       </div>
 
-      {/* Right: Export */}
+      {/* Right: Properties toggle + Export */}
       <div className="flex items-center gap-1">
+        <Button
+          variant={isRightPanelCollapsed ? "ghost" : "secondary"}
+          size="sm"
+          className="h-8 gap-1.5"
+          onClick={toggleRightPanel}
+          title={isRightPanelCollapsed ? "Show properties panel" : "Hide properties panel"}
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          Properties
+        </Button>
+
         <Button
           variant="outline"
           size="sm"

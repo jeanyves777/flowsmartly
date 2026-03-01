@@ -442,11 +442,7 @@ export const useVideoStore = create<VideoStudioState>((set, get) => ({
   setScrollOffset: (s) => set({ scrollOffset: Math.max(0, s) }),
   selectedClipIds: [],
   setSelectedClipIds: (ids) =>
-    set({
-      selectedClipIds: ids,
-      // Auto-open right panel when a clip is selected
-      ...(ids.length > 0 ? { isRightPanelCollapsed: false } : {}),
-    }),
+    set({ selectedClipIds: ids }),
 
   // ─── Playback speed & snap ───────────────────────────────
   playbackSpeed: 1,
