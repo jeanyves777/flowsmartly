@@ -3,12 +3,12 @@
 import { useRef, useState, useCallback } from "react";
 import { Scissors, Trash2, Copy, Volume2, Film, Image, Music, Mic, Type as TypeIcon } from "lucide-react";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  ContextMenuSeparator,
+} from "@/components/ui/context-menu";
 import { useVideoStore } from "../hooks/use-video-store";
 import { CLIP_COLORS } from "@/lib/video-editor/types";
 import type { TimelineClip as TimelineClipType, ClipType } from "@/lib/video-editor/types";
@@ -127,6 +127,8 @@ export function TimelineClip({ clip }: TimelineClipProps) {
   // Drag to reposition (horizontal + cross-track vertical)
   const handleDragStart = useCallback(
     (e: React.MouseEvent) => {
+      // Only drag on left mouse button
+      if (e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(true);
@@ -245,23 +247,10 @@ export function TimelineClip({ clip }: TimelineClipProps) {
   };
 
   const clipLabel = clip.name || clip.type;
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setMenuOpen(true);
-  };
 
   return (
-    <DropdownMenu
-      open={menuOpen}
-      onOpenChange={(open) => {
-        // Only allow closing — opening is exclusively via right-click
-        if (!open) setMenuOpen(false);
-      }}
-    >
-      <DropdownMenuTrigger asChild>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
         <div
           ref={clipRef}
           className={`absolute top-1 bottom-1 rounded-md cursor-pointer select-none
@@ -271,7 +260,6 @@ export function TimelineClip({ clip }: TimelineClipProps) {
           style={{ left, width: Math.max(width, 4), backgroundColor: bgColor }}
           onClick={handleClick}
           onMouseDown={handleDragStart}
-          onContextMenu={handleContextMenu}
         >
           {/* Left edge handle */}
           <div
@@ -301,26 +289,26 @@ export function TimelineClip({ clip }: TimelineClipProps) {
             <div className="absolute right-0 top-0 bottom-0 w-1 bg-white/0 group-hover:bg-white/50 rounded-r-md transition-colors" />
           </div>
         </div>
-      </DropdownMenuTrigger>
+      </ContextMenuTrigger>
 
-      <DropdownMenuContent>
-        <DropdownMenuItem onClick={handleSplit}>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={handleSplit}>
           <Scissors className="h-4 w-4 mr-2" />
           Split at Playhead
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => duplicateClip(clip.id)}>
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => duplicateClip(clip.id)}>
           <Copy className="h-4 w-4 mr-2" />
           Duplicate
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
           className="text-red-600"
           onClick={() => removeClip(clip.id)}
         >
           <Trash2 className="h-4 w-4 mr-2" />
           Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
