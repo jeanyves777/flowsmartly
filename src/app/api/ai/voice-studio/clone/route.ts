@@ -5,8 +5,12 @@ import { getDynamicCreditCost } from "@/lib/credits/costs";
 import {
   isOpenAIVoiceCloningEnabled,
   createVoiceConsent,
-  createClonedVoice,
+  createClonedVoice as createOpenAIVoice,
 } from "@/lib/voice/openai-voice-client";
+import {
+  isElevenLabsEnabled,
+  cloneVoice as cloneElevenLabsVoice,
+} from "@/lib/voice/elevenlabs-client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { nanoid } from "nanoid";
 
@@ -19,7 +23,8 @@ const ALLOWED_AUDIO_TYPES = [
 /**
  * GET /api/ai/voice-studio/clone — Check if voice cloning is available
  *
- * Returns whether OpenAI voice cloning is configured and ready.
+ * Returns whether voice cloning is configured and which provider is active.
+ * Prefers ElevenLabs (self-service) over OpenAI (requires sales approval).
  */
 export async function GET() {
   try {
@@ -28,9 +33,16 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const elevenLabsAvailable = isElevenLabsEnabled();
+    const openaiAvailable = isOpenAIVoiceCloningEnabled();
+    const available = elevenLabsAvailable || openaiAvailable;
+
     return NextResponse.json({
       success: true,
-      data: { available: isOpenAIVoiceCloningEnabled() },
+      data: {
+        available,
+        provider: elevenLabsAvailable ? "elevenlabs" : openaiAvailable ? "openai" : null,
+      },
     });
   } catch (error) {
     console.error("[VoiceStudio] Clone availability check error:", error);
@@ -42,15 +54,10 @@ export async function GET() {
 }
 
 /**
- * POST /api/ai/voice-studio/clone — Clone a voice via OpenAI Custom Voices
+ * POST /api/ai/voice-studio/clone — Clone a voice
  *
- * Two-step process requiring:
- *   - consentRecording: File — the voice actor reading the consent phrase
- *   - file: File (max 25 MB, ≤30s) — the voice sample
- *   - name: string (1-100 chars) — name for the cloned voice
- *
- * Creates a consent record, then creates the custom voice, and stores
- * the openaiVoiceId + openaiConsentId in the VoiceProfile.
+ * ElevenLabs (preferred): just name + file (voice sample). Simple one-step.
+ * OpenAI (fallback): name + consentRecording + file (two-step consent flow).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -59,10 +66,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if OpenAI voice cloning is configured
-    if (!isOpenAIVoiceCloningEnabled()) {
+    const useElevenLabs = isElevenLabsEnabled();
+    const useOpenAI = !useElevenLabs && isOpenAIVoiceCloningEnabled();
+
+    if (!useElevenLabs && !useOpenAI) {
       return NextResponse.json(
-        { error: "Voice cloning is not available. OpenAI API key is not configured." },
+        { error: "Voice cloning is not available. No API key configured." },
         { status: 503 }
       );
     }
@@ -91,29 +100,12 @@ export async function POST(req: NextRequest) {
     // Parse multipart form data
     const formData = await req.formData();
     const name = formData.get("name") as string | null;
-    const consentRecording = formData.get("consentRecording") as File | null;
     const file = formData.get("file") as File | null;
 
     // Validate name
     if (!name || typeof name !== "string" || name.trim().length < 1 || name.trim().length > 100) {
       return NextResponse.json(
         { error: "Voice name must be between 1 and 100 characters" },
-        { status: 400 }
-      );
-    }
-
-    // Validate consent recording
-    if (!consentRecording || !(consentRecording instanceof File)) {
-      return NextResponse.json(
-        { error: "Consent recording is required. Please record yourself reading the consent phrase." },
-        { status: 400 }
-      );
-    }
-
-    const consentType = consentRecording.type.split(";")[0].trim();
-    if (!ALLOWED_AUDIO_TYPES.includes(consentType)) {
-      return NextResponse.json(
-        { error: "Consent recording must be an audio file (MP3, WAV, WebM, OGG, AAC, or FLAC)" },
         { status: 400 }
       );
     }
@@ -141,8 +133,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Read both files into buffers
-    const consentBuffer = Buffer.from(await consentRecording.arrayBuffer());
+    // Read file into buffer
     const sampleBuffer = Buffer.from(await file.arrayBuffer());
 
     // Upload sample to S3 for storage
@@ -156,21 +147,59 @@ export async function POST(req: NextRequest) {
     const s3Key = `voice-clones/${session.userId}/${nanoid(8)}.${fileExt}`;
     const sampleUrl = await uploadToS3(s3Key, sampleBuffer, file.type);
 
-    // Step 1: Create voice consent via OpenAI
-    const { consentId } = await createVoiceConsent({
-      name: name.trim(),
-      language: "en",
-      recording: consentBuffer,
-      mimeType: consentType,
-    });
+    let voiceId: string;
+    let consentId: string | null = null;
+    let provider: "elevenlabs" | "openai";
 
-    // Step 2: Create custom voice via OpenAI
-    const { voiceId } = await createClonedVoice({
-      name: name.trim(),
-      audioSample: sampleBuffer,
-      consentId,
-      mimeType: baseType,
-    });
+    if (useElevenLabs) {
+      // ── ElevenLabs: Simple one-step clone ──
+      provider = "elevenlabs";
+      const result = await cloneElevenLabsVoice({
+        name: name.trim(),
+        description: `Cloned voice for ${name.trim()}`,
+        audioBuffers: [{ buffer: sampleBuffer, filename: `sample.${fileExt}` }],
+      });
+      voiceId = result.voiceId;
+    } else {
+      // ── OpenAI: Two-step consent + clone ──
+      provider = "openai";
+      const consentRecording = formData.get("consentRecording") as File | null;
+
+      if (!consentRecording || !(consentRecording instanceof File)) {
+        return NextResponse.json(
+          { error: "Consent recording is required for OpenAI voice cloning." },
+          { status: 400 }
+        );
+      }
+
+      const consentType = consentRecording.type.split(";")[0].trim();
+      if (!ALLOWED_AUDIO_TYPES.includes(consentType)) {
+        return NextResponse.json(
+          { error: "Consent recording must be an audio file" },
+          { status: 400 }
+        );
+      }
+
+      const consentBuffer = Buffer.from(await consentRecording.arrayBuffer());
+
+      // Step 1: Create voice consent
+      const consentResult = await createVoiceConsent({
+        name: name.trim(),
+        language: "en",
+        recording: consentBuffer,
+        mimeType: consentType,
+      });
+      consentId = consentResult.consentId;
+
+      // Step 2: Create custom voice
+      const voiceResult = await createOpenAIVoice({
+        name: name.trim(),
+        audioSample: sampleBuffer,
+        consentId: consentResult.consentId,
+        mimeType: baseType,
+      });
+      voiceId = voiceResult.voiceId;
+    }
 
     // Create VoiceProfile record
     const profile = await prisma.voiceProfile.create({
@@ -178,7 +207,8 @@ export async function POST(req: NextRequest) {
         userId: session.userId,
         type: "cloned",
         name: name.trim(),
-        openaiVoiceId: voiceId,
+        elevenLabsVoiceId: provider === "elevenlabs" ? voiceId : null,
+        openaiVoiceId: provider === "openai" ? voiceId : null,
         openaiConsentId: consentId,
         sampleUrl,
       },
@@ -197,7 +227,7 @@ export async function POST(req: NextRequest) {
           amount: -creditCost,
           type: "USAGE",
           balanceAfter: (user?.aiCredits || 0) - creditCost,
-          description: "AI voice cloning",
+          description: `AI voice cloning (${provider})`,
           referenceType: "ai_voice_clone",
           referenceId: profile.id,
         },
@@ -208,6 +238,7 @@ export async function POST(req: NextRequest) {
       success: true,
       data: {
         profile,
+        provider,
         creditsRemaining: (user?.aiCredits || 0) - creditCost,
       },
     });

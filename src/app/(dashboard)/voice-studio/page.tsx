@@ -161,8 +161,9 @@ export default function VoiceStudioPage() {
   const [voiceScriptCost, setVoiceScriptCost] = useState(3);
   const [voiceCloneCost, setVoiceCloneCost] = useState(15);
   const [isVoiceCloningAvailable, setIsVoiceCloningAvailable] = useState(false);
+  const [cloningProvider, setCloningProvider] = useState<"elevenlabs" | "openai" | null>(null);
 
-  // Clone (two-step: consent recording + voice sample)
+  // Clone
   const [isCloning, setIsCloning] = useState(false);
   const [cloneFile, setCloneFile] = useState<File | null>(null);
   const [consentFile, setConsentFile] = useState<File | null>(null);
@@ -212,6 +213,7 @@ export default function VoiceStudioPage() {
       if (cloneCheckRes.ok) {
         const data = await cloneCheckRes.json();
         setIsVoiceCloningAvailable(data.data?.available || false);
+        setCloningProvider(data.data?.provider || null);
       }
 
       if (creditsRes.ok) {
@@ -387,12 +389,14 @@ export default function VoiceStudioPage() {
   // ─── Clone voice handler ───
 
   const handleCloneVoice = async () => {
-    if (!consentFile || !cloneFile || !cloneName.trim() || isCloning) return;
+    const needsConsent = cloningProvider === "openai";
+    if (needsConsent && !consentFile) return;
+    if (!cloneFile || !cloneName.trim() || isCloning) return;
     setIsCloning(true);
     try {
       const formData = new FormData();
       formData.append("name", cloneName.trim());
-      formData.append("consentRecording", consentFile);
+      if (consentFile) formData.append("consentRecording", consentFile);
       formData.append("file", cloneFile);
 
       const response = await fetch("/api/ai/voice-studio/clone", {
@@ -444,7 +448,7 @@ export default function VoiceStudioPage() {
             : "wav";
 
       if (recorderMode === "consent") {
-        // Step 1 complete: consent recording captured
+        // Consent recording captured (OpenAI only)
         const file = new File([blob], `consent-recording.${ext}`, { type: blob.type });
         setConsentFile(file);
         setIsRecorderOpen(false);
@@ -453,13 +457,12 @@ export default function VoiceStudioPage() {
           title: "Consent recorded!",
           description: "Now record or upload your voice sample.",
         });
-        // Auto-open recorder in sample mode after a brief delay
         setTimeout(() => {
           setRecorderMode("sample");
           setIsRecorderOpen(true);
         }, 500);
       } else {
-        // Step 2 complete: voice sample captured
+        // Voice sample captured
         const file = new File([blob], `voice-recording.${ext}`, { type: blob.type });
         setCloneFile(file);
         setIsRecorderOpen(false);
@@ -756,15 +759,22 @@ export default function VoiceStudioPage() {
               </div>
             </div>
 
-            {/* Voice Cloning (Two-Step: Consent + Voice Sample) */}
+            {/* Voice Cloning */}
             <div className="rounded-2xl border border-border bg-card p-5">
               <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <Upload className="w-4 h-4 text-brand-500" />
                 Voice Cloning
+                {cloningProvider && (
+                  <Badge variant="outline" className="text-[10px] ml-auto capitalize">
+                    {cloningProvider === "elevenlabs" ? "ElevenLabs" : "OpenAI"}
+                  </Badge>
+                )}
               </h3>
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground">
-                  Clone your voice in 2 steps: record a consent phrase, then provide a voice sample (up to 30s).
+                  {cloningProvider === "openai"
+                    ? "Clone your voice in 2 steps: record a consent phrase, then provide a voice sample (up to 30s)."
+                    : "Clone your voice by recording or uploading a voice sample (10-30 seconds)."}
                 </p>
                 <input
                   type="text"
@@ -775,24 +785,27 @@ export default function VoiceStudioPage() {
                   maxLength={100}
                 />
 
-                {/* Step indicators */}
-                <div className="flex gap-2">
-                  <div className={`flex-1 rounded-lg p-2.5 border transition-colors ${consentFile ? "border-green-500/30 bg-green-500/5" : cloneStep === "consent" ? "border-brand-500/30 bg-brand-500/5" : "border-border"}`}>
-                    <p className="text-xs font-medium">Step 1: Consent</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {consentFile ? "Recorded" : "Read consent phrase"}
-                    </p>
+                {/* Step indicators — only show for OpenAI (needs consent) */}
+                {cloningProvider === "openai" && (
+                  <div className="flex gap-2">
+                    <div className={`flex-1 rounded-lg p-2.5 border transition-colors ${consentFile ? "border-green-500/30 bg-green-500/5" : cloneStep === "consent" ? "border-brand-500/30 bg-brand-500/5" : "border-border"}`}>
+                      <p className="text-xs font-medium">Step 1: Consent</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {consentFile ? "Recorded" : "Read consent phrase"}
+                      </p>
+                    </div>
+                    <div className={`flex-1 rounded-lg p-2.5 border transition-colors ${cloneFile ? "border-green-500/30 bg-green-500/5" : cloneStep === "sample" ? "border-brand-500/30 bg-brand-500/5" : "border-border"}`}>
+                      <p className="text-xs font-medium">Step 2: Sample</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {cloneFile ? "Ready" : "Record voice sample"}
+                      </p>
+                    </div>
                   </div>
-                  <div className={`flex-1 rounded-lg p-2.5 border transition-colors ${cloneFile ? "border-green-500/30 bg-green-500/5" : cloneStep === "sample" ? "border-brand-500/30 bg-brand-500/5" : "border-border"}`}>
-                    <p className="text-xs font-medium">Step 2: Sample</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {cloneFile ? "Ready" : "Record voice sample"}
-                    </p>
-                  </div>
-                </div>
+                )}
 
-                {/* Record buttons */}
-                {!consentFile ? (
+                {/* Record / Upload buttons */}
+                {cloningProvider === "openai" && !consentFile ? (
+                  /* OpenAI: Step 1 — record consent */
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -806,6 +819,7 @@ export default function VoiceStudioPage() {
                     Record Consent Phrase
                   </Button>
                 ) : !cloneFile ? (
+                  /* ElevenLabs: just voice sample. OpenAI: Step 2 after consent done. */
                   <>
                     <Button
                       variant="outline"
@@ -840,7 +854,7 @@ export default function VoiceStudioPage() {
                     <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center">
                       <span className="text-[10px]">&#10003;</span>
                     </div>
-                    Both recordings ready
+                    {cloningProvider === "openai" ? "Both recordings ready" : "Voice sample ready"}
                   </div>
                 )}
 
@@ -861,7 +875,10 @@ export default function VoiceStudioPage() {
                 {isVoiceCloningAvailable ? (
                   <Button
                     onClick={handleCloneVoice}
-                    disabled={!consentFile || !cloneFile || !cloneName.trim() || isCloning}
+                    disabled={
+                      !cloneFile || !cloneName.trim() || isCloning ||
+                      (cloningProvider === "openai" && !consentFile)
+                    }
                     className="w-full"
                     size="sm"
                   >
@@ -881,7 +898,7 @@ export default function VoiceStudioPage() {
                   </Button>
                 ) : (
                   <p className="text-xs text-muted-foreground text-center py-1">
-                    Voice cloning requires OpenAI API access. Contact admin to enable.
+                    Voice cloning is not configured. Add an ElevenLabs or OpenAI API key.
                   </p>
                 )}
               </div>
@@ -962,7 +979,7 @@ export default function VoiceStudioPage() {
                 <p className="text-sm text-muted-foreground">
                   {isVoiceCloningAvailable
                     ? "No cloned voices yet. Upload a voice sample to get started."
-                    : "Voice cloning requires OpenAI API access."}
+                    : "Voice cloning is not configured. Add an ElevenLabs or OpenAI API key."}
                 </p>
               </div>
             ) : (
