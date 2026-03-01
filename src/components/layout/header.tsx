@@ -40,6 +40,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
+import { openCreateModal } from "@/components/shared/create-modal";
 
 interface HeaderProps {
   user?: {
@@ -81,9 +82,7 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Create menu
-  const [showCreateMenu, setShowCreateMenu] = useState(false);
-  const createMenuRef = useRef<HTMLDivElement>(null);
+  // Create menu (now uses global modal)
 
   // Strategy score
   const [strategyScore, setStrategyScore] = useState<number | null>(null);
@@ -114,9 +113,6 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
       }
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
-      }
-      if (createMenuRef.current && !createMenuRef.current.contains(event.target as Node)) {
-        setShowCreateMenu(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -344,66 +340,20 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
             </Tooltip>
           )}
 
-          {/* Create Button with Dropdown */}
-          <div ref={createMenuRef} className="relative">
-            <Button
-              size="sm"
-              className="hidden sm:flex"
-              onClick={() => setShowCreateMenu(!showCreateMenu)}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Create
-            </Button>
-
-            {showCreateMenu && (
-              <div className="absolute right-0 top-full mt-2 w-56 rounded-lg border bg-card shadow-lg py-1 z-50">
-                <Link
-                  href="/studio"
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent transition-colors"
-                  onClick={() => setShowCreateMenu(false)}
-                >
-                  <Palette className="h-4 w-4 text-violet-500" />
-                  <div>
-                    <div className="font-medium">Image Studio</div>
-                    <div className="text-xs text-muted-foreground">AI image & design</div>
-                  </div>
-                </Link>
-                <Link
-                  href="/video-editor"
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent transition-colors"
-                  onClick={() => setShowCreateMenu(false)}
-                >
-                  <Clapperboard className="h-4 w-4 text-rose-500" />
-                  <div>
-                    <div className="font-medium">Video Editor</div>
-                    <div className="text-xs text-muted-foreground">AI video editor & captions</div>
-                  </div>
-                </Link>
-                <Link
-                  href="/feed?compose=true"
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent transition-colors"
-                  onClick={() => setShowCreateMenu(false)}
-                >
-                  <Plus className="h-4 w-4 text-blue-500" />
-                  <div>
-                    <div className="font-medium">New Post</div>
-                    <div className="text-xs text-muted-foreground">Share to feed</div>
-                  </div>
-                </Link>
-                <Link
-                  href="/ads/create"
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent transition-colors"
-                  onClick={() => setShowCreateMenu(false)}
-                >
-                  <Plus className="h-4 w-4 text-orange-500" />
-                  <div>
-                    <div className="font-medium">Ad Campaign</div>
-                    <div className="text-xs text-muted-foreground">Promote content</div>
-                  </div>
-                </Link>
-              </div>
-            )}
-          </div>
+          {/* Create Button — opens global XL creation modal */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                className="hidden sm:flex"
+                onClick={() => openCreateModal()}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Create
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Create AI images & videos</TooltipContent>
+          </Tooltip>
 
           {/* Theme Toggle */}
           <Tooltip>

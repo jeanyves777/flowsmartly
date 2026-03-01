@@ -10,6 +10,7 @@ import { OnboardingBanner } from "@/components/layout/onboarding-banner";
 import { cn } from "@/lib/utils/cn";
 import { ChatWidget } from "@/components/ai-assistant/chat-widget";
 import { EarnWidget } from "@/components/earn/earn-widget";
+import { CreateModal } from "@/components/shared/create-modal";
 import { ShieldCheck, FolderKanban } from "lucide-react";
 import { onCreditsUpdate } from "@/lib/utils/credits-event";
 import { onPlanUpdate } from "@/lib/utils/plan-event";
@@ -367,6 +368,9 @@ export default function DashboardLayout({
 
         {/* Earning Opportunities Widget (hidden for agent impersonation) */}
         {!isAgentImpersonating && <EarnWidget />}
+
+        {/* Global Create Modal (Image + Video AI generation) */}
+        <CreateModal />
       </div>
     </div>
   );
