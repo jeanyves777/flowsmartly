@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useMemo } from "react";
+import { useRef, useState, useMemo, useEffect, useCallback } from "react";
 import { useVideoStore } from "../hooks/use-video-store";
 import { TimelineRuler } from "./timeline-ruler";
 import { TimelineTrack } from "./timeline-track";
@@ -44,19 +44,30 @@ export function VideoTimeline({ onSeek }: VideoTimelineProps) {
     [height]
   );
 
-  // Horizontal scroll — any wheel event scrolls horizontally (no shift key needed)
-  const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
-      const rawDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      const delta = rawDelta / timelineZoom;
+  // Horizontal scroll via non-passive native listener so we can preventDefault
+  // Only intercepts horizontal swipe (trackpad) or shift+wheel (mouse); vertical passes through
+  useEffect(() => {
+    const el = trackAreaRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      const isHorizontalSwipe = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      const isShiftWheel = e.shiftKey && Math.abs(e.deltaY) > 0;
+
+      if (!isHorizontalSwipe && !isShiftWheel) return; // let vertical scroll pass through
+
+      const rawDelta = isHorizontalSwipe ? e.deltaX : e.deltaY;
       const store = useVideoStore.getState();
+      const delta = rawDelta / store.timelineZoom;
       const maxOffset = Math.max(0, store.timelineDuration);
       const newOffset = Math.max(0, Math.min(maxOffset, store.scrollOffset + delta));
-      setScrollOffset(newOffset);
+      store.setScrollOffset(newOffset);
       e.preventDefault();
-    },
-    [timelineZoom, setScrollOffset]
-  );
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
 
   // Compute total track area height for playhead
   const trackAreaHeight = tracks.reduce((sum, t) => sum + t.height, 0);
@@ -88,7 +99,6 @@ export function VideoTimeline({ onSeek }: VideoTimelineProps) {
         ref={trackAreaRef}
         data-timeline-tracks
         className="flex-1 overflow-y-auto overflow-x-hidden relative"
-        onWheel={handleWheel}
       >
         {/* Playhead spanning all tracks */}
         <TimelinePlayhead
