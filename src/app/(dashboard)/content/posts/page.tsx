@@ -247,7 +247,7 @@ export default function ContentPostsPage() {
               accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm"
               maxSize={100 * 1024 * 1024}
               filterTypes={["image", "video"]}
-              uploadEndpoint="/api/media/upload"
+              uploadEndpoint="/api/media"
               disabled={isPublishing}
               variant="small"
               placeholder="Add media"
