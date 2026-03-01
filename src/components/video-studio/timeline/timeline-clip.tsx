@@ -134,6 +134,9 @@ export function TimelineClip({ clip }: TimelineClipProps) {
       dragStartRef.current = { x: e.clientX, startTime: clip.startTime };
       let currentTrackId = clip.trackId;
 
+      // Cache the tracks container for cross-track detection
+      const tracksContainer = document.querySelector("[data-timeline-tracks]");
+
       const handleMove = (me: MouseEvent) => {
         hasDraggedRef.current = true;
         const dx = me.clientX - dragStartRef.current.x;
@@ -143,13 +146,18 @@ export function TimelineClip({ clip }: TimelineClipProps) {
         // Snap
         const snappedStart = snapPosition(rawStart, currentTrackId, clip.duration);
 
-        // Cross-track detection: find which track the cursor is over
-        const els = document.elementsFromPoint(me.clientX, me.clientY);
-        for (const el of els) {
-          const trackId = el.getAttribute?.("data-track-id");
-          if (trackId && trackId !== currentTrackId) {
-            currentTrackId = trackId;
-            break;
+        // Cross-track detection based on Y position in tracks container
+        if (tracksContainer) {
+          const containerRect = tracksContainer.getBoundingClientRect();
+          const relY = me.clientY - containerRect.top + tracksContainer.scrollTop;
+          const store = useVideoStore.getState();
+          let cumulativeHeight = 0;
+          for (const track of store.tracks) {
+            if (relY >= cumulativeHeight && relY < cumulativeHeight + track.height) {
+              currentTrackId = track.id;
+              break;
+            }
+            cumulativeHeight += track.height;
           }
         }
 
