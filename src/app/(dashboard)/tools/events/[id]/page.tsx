@@ -81,6 +81,32 @@ export default function EventDetailPage() {
   // Landing page state
   const [creatingLP, setCreatingLP] = useState(false);
 
+  // Brand state
+  const [brand, setBrand] = useState<{
+    name: string;
+    logo: string | null;
+    iconLogo: string | null;
+    colors: { primary?: string; secondary?: string; accent?: string } | null;
+  } | null>(null);
+
+  // Fetch brand
+  useEffect(() => {
+    fetch("/api/brand")
+      .then(r => r.json())
+      .then(json => {
+        if (json.success && json.data?.brandKit) {
+          const bk = json.data.brandKit;
+          setBrand({
+            name: bk.name,
+            logo: bk.logo,
+            iconLogo: bk.iconLogo,
+            colors: bk.colors || null,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Toast helper
   const showToast = (msg: string) => {
     setToast(msg);
@@ -1011,7 +1037,14 @@ export default function EventDetailPage() {
             </div>
 
             {/* QR Code */}
-            {eventUrl && <QRCodeDisplay url={eventUrl} />}
+            {eventUrl && (
+              <QRCodeDisplay
+                url={eventUrl}
+                title={event?.title}
+                callToAction="SCAN TO REGISTER"
+                brand={brand || undefined}
+              />
+            )}
 
             {/* Embed Code */}
             <div className="space-y-2">

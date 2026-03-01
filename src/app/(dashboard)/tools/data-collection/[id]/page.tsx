@@ -46,6 +46,7 @@ export default function DataFormDetailPage() {
     name: string;
     logo: string | null;
     iconLogo: string | null;
+    colors: { primary?: string; secondary?: string; accent?: string } | null;
     email: string | null;
     phone: string | null;
     website: string | null;
@@ -74,6 +75,7 @@ export default function DataFormDetailPage() {
             name: bk.name,
             logo: bk.logo,
             iconLogo: bk.iconLogo,
+            colors: bk.colors || null,
             email: bk.email,
             phone: bk.phone,
             website: bk.website,
@@ -807,7 +809,11 @@ export default function DataFormDetailPage() {
               </div>
             )}
 
-            <QRCodeDisplay url={`${typeof window !== "undefined" ? window.location.origin : ""}/form/${form.slug}`} />
+            <QRCodeDisplay
+              url={`${typeof window !== "undefined" ? window.location.origin : ""}/form/${form.slug}`}
+              title={form.title}
+              brand={brand ? { name: brand.name, logo: brand.logo, iconLogo: brand.iconLogo, colors: brand.colors } : undefined}
+            />
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Embed Code</label>
