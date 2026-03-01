@@ -32,7 +32,7 @@ export function useVideoPlayback() {
 
       const newTime = store.currentTime + deltaMs / 1000;
 
-      if (newTime >= store.timelineDuration) {
+      if (store.timelineDuration > 0 && newTime >= store.timelineDuration) {
         // Reached end of timeline
         setCurrentTime(store.timelineDuration);
         setPlaybackState("paused");
@@ -124,7 +124,7 @@ export function useVideoPlayback() {
 
   const play = useCallback(() => {
     const store = useVideoStore.getState();
-    if (store.currentTime >= store.timelineDuration) {
+    if (store.timelineDuration > 0 && store.currentTime >= store.timelineDuration) {
       setCurrentTime(0);
     }
     setPlaybackState("playing");

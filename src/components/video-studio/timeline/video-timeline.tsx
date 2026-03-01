@@ -74,6 +74,7 @@ export function VideoTimeline({ onSeek }: VideoTimelineProps) {
       {/* Tracks area with playhead */}
       <div
         ref={trackAreaRef}
+        data-timeline-tracks
         className="flex-1 overflow-y-auto overflow-x-hidden relative"
         onWheel={handleWheel}
       >

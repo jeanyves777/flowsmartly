@@ -23,10 +23,9 @@ export function VideoStudioLayout({ onSave }: VideoStudioLayoutProps) {
 
   const handleSeek = useCallback(
     (time: number) => {
-      playback.pause();
-      useVideoStore.getState().setCurrentTime(time);
+      useVideoStore.getState().setCurrentTime(Math.max(0, time));
     },
-    [playback]
+    []
   );
 
   return (

@@ -116,6 +116,28 @@ function computeDuration(clips: Record<string, TimelineClip>): number {
   return maxEnd;
 }
 
+/**
+ * Find the end time of the last clip on a given track.
+ * Used for auto-placing new clips at the end of existing content.
+ */
+function getTrackEndTime(
+  trackId: string,
+  tracks: TimelineTrack[],
+  clips: Record<string, TimelineClip>
+): number {
+  const track = tracks.find((t) => t.id === trackId);
+  if (!track) return 0;
+  let maxEnd = 0;
+  for (const clipId of track.clips) {
+    const clip = clips[clipId];
+    if (clip) {
+      const end = clip.startTime + clip.duration;
+      if (end > maxEnd) maxEnd = end;
+    }
+  }
+  return maxEnd;
+}
+
 // ── Default initial tracks ───────────────────────────────────────────
 
 function createDefaultTracks(): TimelineTrack[] {
@@ -228,7 +250,16 @@ export const useVideoStore = create<VideoStudioState>((set, get) => ({
 
   addClip: (clipData) => {
     const id = generateId("clip");
-    const clip: TimelineClip = { ...clipData, id };
+    const state = get();
+
+    // Auto-place at end of track if startTime is 0 and track already has clips
+    let startTime = clipData.startTime;
+    if (startTime === 0) {
+      const trackEnd = getTrackEndTime(clipData.trackId, state.tracks, state.clips);
+      if (trackEnd > 0) startTime = trackEnd;
+    }
+
+    const clip: TimelineClip = { ...clipData, id, startTime };
 
     set((s) => {
       const newClips = { ...s.clips, [id]: clip };
@@ -239,6 +270,7 @@ export const useVideoStore = create<VideoStudioState>((set, get) => ({
         clips: newClips,
         tracks: newTracks,
         timelineDuration: computeDuration(newClips),
+        selectedClipIds: [id],
         isDirty: true,
       };
     });
@@ -403,7 +435,12 @@ export const useVideoStore = create<VideoStudioState>((set, get) => ({
   scrollOffset: 0,
   setScrollOffset: (s) => set({ scrollOffset: Math.max(0, s) }),
   selectedClipIds: [],
-  setSelectedClipIds: (ids) => set({ selectedClipIds: ids }),
+  setSelectedClipIds: (ids) =>
+    set({
+      selectedClipIds: ids,
+      // Auto-open right panel when a clip is selected
+      ...(ids.length > 0 ? { isRightPanelCollapsed: false } : {}),
+    }),
 
   // ─── Canvas ────────────────────────────────────────────────
   canvas: null,

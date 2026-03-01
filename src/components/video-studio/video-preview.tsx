@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useVideoStore } from "./hooks/use-video-store";
 import { CaptionPreview } from "./caption-preview";
+import type { TimelineClip } from "@/lib/video-editor/types";
 
 interface PlaybackControls {
   play: () => void;
@@ -19,6 +20,8 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
   const project = useVideoStore((s) => s.project);
   const clips = useVideoStore((s) => s.clips);
   const tracks = useVideoStore((s) => s.tracks);
+  const selectedClipIds = useVideoStore((s) => s.selectedClipIds);
+  const setSelectedClipIds = useVideoStore((s) => s.setSelectedClipIds);
 
   // Find active video/image clips at current time
   const activeVideoClips = useMemo(() => {
@@ -37,6 +40,35 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
       });
   }, [clips, tracks, playback.currentTime]);
 
+  // Find active text clips at current time
+  const activeTextClips = useMemo(() => {
+    const ct = playback.currentTime;
+    return Object.values(clips)
+      .filter((clip) => {
+        if (clip.type !== "text") return false;
+        const clipEnd = clip.startTime + clip.duration;
+        return ct >= clip.startTime && ct < clipEnd;
+      });
+  }, [clips, playback.currentTime]);
+
+  const handleClipClick = (e: React.MouseEvent, clip: TimelineClip) => {
+    e.stopPropagation();
+    if (e.shiftKey) {
+      const isSelected = selectedClipIds.includes(clip.id);
+      setSelectedClipIds(
+        isSelected
+          ? selectedClipIds.filter((id) => id !== clip.id)
+          : [...selectedClipIds, clip.id]
+      );
+    } else {
+      setSelectedClipIds([clip.id]);
+    }
+  };
+
+  const handleBackgroundClick = () => {
+    setSelectedClipIds([]);
+  };
+
   // Calculate preview container size to maintain aspect ratio
   const aspectRatio = project.width / project.height;
 
@@ -52,10 +84,11 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
           width: aspectRatio >= 1 ? "100%" : "auto",
           height: aspectRatio < 1 ? "100%" : "auto",
         }}
+        onClick={handleBackgroundClick}
       >
         {/* Checkerboard background for transparency */}
         <div
-          className="absolute inset-0"
+          className="absolute inset-0 pointer-events-none"
           style={{
             backgroundImage: `
               linear-gradient(45deg, #1a1a2e 25%, transparent 25%),
@@ -69,29 +102,81 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
         />
 
         {/* Stacked video/image elements */}
-        {activeVideoClips.map((clip) => (
-          <div key={clip.id} className="absolute inset-0">
-            {clip.type === "video" && clip.sourceUrl ? (
-              <video
-                data-video-editor-clip={clip.id}
-                src={clip.sourceUrl}
-                className="w-full h-full object-contain"
-                muted={clip.muted}
-                playsInline
-              />
-            ) : clip.type === "image" && clip.sourceUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={clip.sourceUrl}
-                alt={clip.name}
-                className="w-full h-full object-contain"
-              />
-            ) : null}
-          </div>
-        ))}
+        {activeVideoClips.map((clip) => {
+          const isSelected = selectedClipIds.includes(clip.id);
+          return (
+            <div
+              key={clip.id}
+              className={`absolute inset-0 cursor-pointer ${isSelected ? "ring-2 ring-brand-500 ring-inset" : ""}`}
+              onClick={(e) => handleClipClick(e, clip)}
+            >
+              {clip.type === "video" && clip.sourceUrl ? (
+                <video
+                  data-video-editor-clip={clip.id}
+                  src={clip.sourceUrl}
+                  className="w-full h-full object-contain pointer-events-none"
+                  muted={clip.muted}
+                  playsInline
+                />
+              ) : clip.type === "image" && clip.sourceUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={clip.sourceUrl}
+                  alt={clip.name}
+                  className="w-full h-full object-contain pointer-events-none"
+                  draggable={false}
+                />
+              ) : null}
+              {/* Selection indicator */}
+              {isSelected && (
+                <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-brand-500 rounded text-[10px] text-white font-medium pointer-events-none">
+                  {clip.name}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Text overlays */}
+        {activeTextClips.map((clip) => {
+          const style = clip.textStyle;
+          const isSelected = selectedClipIds.includes(clip.id);
+          if (!style || !clip.textContent) return null;
+
+          return (
+            <div
+              key={clip.id}
+              className={`absolute cursor-pointer ${isSelected ? "ring-2 ring-brand-500 rounded" : ""}`}
+              style={{
+                left: `${style.position.x}%`,
+                top: `${style.position.y}%`,
+                transform: "translate(-50%, -50%)",
+                maxWidth: "90%",
+              }}
+              onClick={(e) => handleClipClick(e, clip)}
+            >
+              <div
+                style={{
+                  fontFamily: style.fontFamily || "sans-serif",
+                  fontSize: `clamp(12px, ${style.fontSize / 16}vw, ${style.fontSize}px)`,
+                  color: style.fontColor,
+                  fontWeight: style.fontWeight,
+                  textAlign: style.textAlign,
+                  backgroundColor: style.backgroundColor || "transparent",
+                  padding: style.backgroundColor ? "4px 12px" : undefined,
+                  borderRadius: style.backgroundColor ? "4px" : undefined,
+                  textShadow: !style.backgroundColor ? "0 2px 4px rgba(0,0,0,0.8)" : undefined,
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {clip.textContent}
+              </div>
+            </div>
+          );
+        })}
 
         {/* Empty state */}
-        {activeVideoClips.length === 0 && Object.keys(clips).length === 0 && (
+        {activeVideoClips.length === 0 && activeTextClips.length === 0 && Object.keys(clips).length === 0 && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white/40">
             <svg
               className="w-16 h-16 mb-3"

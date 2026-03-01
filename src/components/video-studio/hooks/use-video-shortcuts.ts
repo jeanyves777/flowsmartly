@@ -71,6 +71,11 @@ export function useVideoShortcuts() {
           if (playbackState === "playing") {
             setPlaybackState("paused");
           } else {
+            // Reset to start if at the end of timeline
+            const store = useVideoStore.getState();
+            if (store.timelineDuration > 0 && store.currentTime >= store.timelineDuration) {
+              store.setCurrentTime(0);
+            }
             setPlaybackState("playing");
           }
           break;

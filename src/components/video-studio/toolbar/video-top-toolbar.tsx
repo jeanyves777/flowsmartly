@@ -145,7 +145,7 @@ export function VideoTopToolbar({
           size="icon"
           className="h-8 w-8"
           onClick={playback.stop}
-          title="Stop"
+          title="Return to start"
         >
           <SkipBack className="h-4 w-4" />
         </Button>
@@ -163,6 +163,18 @@ export function VideoTopToolbar({
             <Play className="h-4 w-4 ml-0.5" />
           )}
         </Button>
+
+        {playback.isPlaying && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={playback.stop}
+            title="Stop"
+          >
+            <Square className="h-4 w-4" />
+          </Button>
+        )}
 
         <div className="h-4 w-px bg-border mx-1.5" />
 
