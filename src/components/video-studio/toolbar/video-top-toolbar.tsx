@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import {
   Undo2,
   Redo2,
@@ -26,8 +26,6 @@ interface PlaybackControls {
   pause: () => void;
   stop: () => void;
   isPlaying: boolean;
-  currentTime: number;
-  duration: number;
 }
 
 interface HistoryControls {
@@ -51,6 +49,22 @@ function formatTime(seconds: number): string {
   const ms = Math.floor((seconds % 1) * 100);
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${String(ms).padStart(2, "0")}`;
 }
+
+/**
+ * Isolated time display — subscribes to currentTime directly so only
+ * this tiny component re-renders at 60fps during playback, not the
+ * entire toolbar or layout tree.
+ */
+const TimeDisplay = memo(function TimeDisplay() {
+  const currentTime = useVideoStore((s) => s.currentTime);
+  const timelineDuration = useVideoStore((s) => s.timelineDuration);
+
+  return (
+    <span className="text-xs font-mono text-muted-foreground min-w-[110px] text-center tabular-nums">
+      {formatTime(currentTime)} / {formatTime(timelineDuration)}
+    </span>
+  );
+});
 
 export function VideoTopToolbar({
   onSave,
@@ -187,10 +201,8 @@ export function VideoTopToolbar({
 
         <div className="h-4 w-px bg-border mx-1.5" />
 
-        {/* Time display */}
-        <span className="text-xs font-mono text-muted-foreground min-w-[110px] text-center tabular-nums">
-          {formatTime(playback.currentTime)} / {formatTime(playback.duration)}
-        </span>
+        {/* Time display — isolated component to avoid 60fps re-renders */}
+        <TimeDisplay />
 
         <div className="h-4 w-px bg-border mx-1.5" />
 

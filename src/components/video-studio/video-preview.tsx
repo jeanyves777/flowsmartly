@@ -5,21 +5,15 @@ import { useVideoStore } from "./hooks/use-video-store";
 import { CaptionPreview } from "./caption-preview";
 import type { TimelineClip } from "@/lib/video-editor/types";
 
-interface PlaybackControls {
-  play: () => void;
-  pause: () => void;
-  isPlaying: boolean;
-  currentTime: number;
-}
-
 interface VideoPreviewProps {
-  playback: PlaybackControls;
+  playback: { isPlaying: boolean };
 }
 
 export function VideoPreview({ playback }: VideoPreviewProps) {
   const project = useVideoStore((s) => s.project);
   const clips = useVideoStore((s) => s.clips);
   const tracks = useVideoStore((s) => s.tracks);
+  const currentTime = useVideoStore((s) => s.currentTime);
   const selectedClipIds = useVideoStore((s) => s.selectedClipIds);
   const setSelectedClipIds = useVideoStore((s) => s.setSelectedClipIds);
   const updateClip = useVideoStore((s) => s.updateClip);
@@ -28,7 +22,7 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
 
   // Find active video/image clips at current time
   const activeVideoClips = useMemo(() => {
-    const ct = playback.currentTime;
+    const ct = currentTime;
     return Object.values(clips)
       .filter((clip) => {
         if (clip.type !== "video" && clip.type !== "image") return false;
@@ -40,18 +34,18 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
         const bTrackIdx = tracks.findIndex((t) => t.id === b.trackId);
         return aTrackIdx - bTrackIdx;
       });
-  }, [clips, tracks, playback.currentTime]);
+  }, [clips, tracks, currentTime]);
 
   // Find active text clips at current time
   const activeTextClips = useMemo(() => {
-    const ct = playback.currentTime;
+    const ct = currentTime;
     return Object.values(clips)
       .filter((clip) => {
         if (clip.type !== "text") return false;
         const clipEnd = clip.startTime + clip.duration;
         return ct >= clip.startTime && ct < clipEnd;
       });
-  }, [clips, playback.currentTime]);
+  }, [clips, currentTime]);
 
   const handleClipClick = (e: React.MouseEvent, clip: TimelineClip) => {
     e.stopPropagation();
@@ -246,7 +240,7 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
 
           if (clip.transitionType && clip.transitionType !== "none") {
             const transDur = clip.transitionDuration || 0.5;
-            const elapsed = playback.currentTime - clip.startTime;
+            const elapsed = currentTime - clip.startTime;
             const progress = Math.min(1, Math.max(0, elapsed / transDur));
 
             if (progress < 1) {
@@ -342,7 +336,7 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
 
           // Text animation
           const animation = style.animation || "none";
-          const elapsed = playback.currentTime - clip.startTime;
+          const elapsed = currentTime - clip.startTime;
 
           let animTransform = "translate(-50%, -50%)";
           let animOpacity = 1;
@@ -432,7 +426,7 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
         )}
 
         {/* Live caption overlay */}
-        <CaptionPreview currentTime={playback.currentTime} />
+        <CaptionPreview currentTime={currentTime} />
 
         {/* Audio elements (hidden, for playback sync) */}
         {Object.values(clips)

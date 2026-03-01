@@ -134,7 +134,9 @@ export function TimelineClip({ clip }: TimelineClipProps) {
       setIsDragging(true);
       hasDraggedRef.current = false;
       dragStartRef.current = { x: e.clientX, startTime: clip.startTime };
-      let currentTrackId = clip.trackId;
+
+      // Track the target track ID — only commit on mouseUp
+      let targetTrackId = clip.trackId;
 
       // Cache the tracks container for cross-track detection
       const tracksContainer = document.querySelector("[data-timeline-tracks]");
@@ -146,7 +148,7 @@ export function TimelineClip({ clip }: TimelineClipProps) {
         const rawStart = Math.max(0, dragStartRef.current.startTime + dt);
 
         // Snap
-        const snappedStart = snapPosition(rawStart, currentTrackId, clip.duration);
+        const snappedStart = snapPosition(rawStart, targetTrackId, clip.duration);
 
         // Cross-track detection based on Y position in tracks container
         if (tracksContainer) {
@@ -156,26 +158,36 @@ export function TimelineClip({ clip }: TimelineClipProps) {
           let cumulativeHeight = 0;
           for (const track of store.tracks) {
             if (relY >= cumulativeHeight && relY < cumulativeHeight + track.height) {
-              currentTrackId = track.id;
+              targetTrackId = track.id;
               break;
             }
             cumulativeHeight += track.height;
           }
         }
 
-        moveClip(clip.id, currentTrackId, snappedStart);
+        // Only update startTime during drag (keep clip on same track)
+        // Cross-track move is deferred to mouseUp to prevent unmount
+        updateClip(clip.id, { startTime: snappedStart });
       };
 
       const handleUp = () => {
         setIsDragging(false);
         window.removeEventListener("mousemove", handleMove);
         window.removeEventListener("mouseup", handleUp);
+
+        // Commit cross-track move on mouseUp if track changed
+        if (targetTrackId !== clip.trackId) {
+          const finalClip = useVideoStore.getState().clips[clip.id];
+          if (finalClip) {
+            moveClip(clip.id, targetTrackId, finalClip.startTime);
+          }
+        }
       };
 
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [clip.id, clip.trackId, clip.startTime, clip.duration, timelineZoom, moveClip, snapPosition]
+    [clip.id, clip.trackId, clip.startTime, clip.duration, timelineZoom, updateClip, moveClip, snapPosition]
   );
 
   // Edge handles — trim for video/audio, extend for image/text
