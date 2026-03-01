@@ -293,14 +293,17 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Publish to external social platforms (fire-and-forget)
+    // Publish to external social platforms (await results)
     const platformsList: string[] = Array.isArray(platforms) ? platforms : ["feed"];
     const hasExternalPlatforms = platformsList.some((p) => p !== "feed");
+    let publishResults: Record<string, { success: boolean; postId?: string; error?: string }> = {};
 
     if (status === "PUBLISHED" && hasExternalPlatforms) {
-      publishToSocialPlatforms(post.id, session.userId).catch((err) => {
-        console.error("[Content Posts] Background publish error:", err);
-      });
+      try {
+        publishResults = await publishToSocialPlatforms(post.id, session.userId);
+      } catch (err) {
+        console.error("[Content Posts] Publish error:", err);
+      }
     }
 
     return NextResponse.json({
@@ -326,6 +329,7 @@ export async function POST(request: NextRequest) {
           createdAt: post.createdAt.toISOString(),
         },
         aiGenerated: !!aiGenerate,
+        publishResults,
       },
     });
   } catch (error) {

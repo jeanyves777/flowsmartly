@@ -11,6 +11,9 @@ import {
   Save,
   Clock,
   X,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +25,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
@@ -29,6 +39,13 @@ import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { PLATFORM_META, PLATFORM_ORDER } from "@/components/shared/social-platform-icons";
+
+// ── Types ───────────────────────────────────────────────────────────────────
+interface PlatformPublishResult {
+  success: boolean;
+  postId?: string;
+  error?: string;
+}
 
 const MAX_CHARS = 2000;
 
@@ -59,6 +76,12 @@ export default function ContentPostsPage() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishAction, setPublishAction] = useState<"publish" | "draft" | "schedule" | null>(null);
   const [isGeneratingIdea, setIsGeneratingIdea] = useState(false);
+
+  // ── Publish Results Modal State ───────────────────────────────────────
+  const [showResultsModal, setShowResultsModal] = useState(false);
+  const [publishResults, setPublishResults] = useState<Record<string, PlatformPublishResult>>({});
+  const [lastPostId, setLastPostId] = useState<string | null>(null);
+  const [retryingPlatforms, setRetryingPlatforms] = useState<string[]>([]);
 
   // ── AI Idea Generation ──────────────────────────────────────────────────
   const handleGenerateIdea = async () => {
@@ -128,12 +151,8 @@ export default function ContentPostsPage() {
       const data = await res.json();
 
       if (data.success) {
-        const messages = {
-          publish: { title: "Post published!", description: "Your post is now live." },
-          draft: { title: "Draft saved", description: "Your post has been saved as a draft." },
-          schedule: { title: "Post scheduled", description: `Scheduled for ${scheduleDate} at ${scheduleTime}.` },
-        };
-        toast(messages[action]);
+        const postId = data.data?.post?.id;
+        setLastPostId(postId || null);
 
         // Reset composer
         setCaption("");
@@ -141,6 +160,25 @@ export default function ContentPostsPage() {
         setShowSchedulePicker(false);
         setScheduleDate("");
         setScheduleTime("");
+
+        // Show results modal if external platforms were selected
+        const externalPlatforms = selectedPlatforms.filter((p) => p !== "feed");
+        if (action === "publish" && externalPlatforms.length > 0 && data.data?.publishResults) {
+          // Add feed as success (always works since it's internal DB)
+          const allResults: Record<string, PlatformPublishResult> = {
+            feed: { success: true },
+            ...data.data.publishResults,
+          };
+          setPublishResults(allResults);
+          setShowResultsModal(true);
+        } else {
+          const messages = {
+            publish: { title: "Post published!", description: "Your post is now live." },
+            draft: { title: "Draft saved", description: "Your post has been saved as a draft." },
+            schedule: { title: "Post scheduled", description: `Scheduled for ${scheduleDate} at ${scheduleTime}.` },
+          };
+          toast(messages[action]);
+        }
       } else {
         throw new Error(data.error || "Failed to save post");
       }
@@ -153,6 +191,43 @@ export default function ContentPostsPage() {
     } finally {
       setIsPublishing(false);
       setPublishAction(null);
+    }
+  };
+
+  // ── Retry Failed Platforms ────────────────────────────────────────────
+  const handleRetryFailed = async () => {
+    if (!lastPostId) return;
+
+    const failedPlatforms = Object.entries(publishResults)
+      .filter(([, r]) => !r.success)
+      .map(([p]) => p);
+
+    if (failedPlatforms.length === 0) return;
+
+    setRetryingPlatforms(failedPlatforms);
+
+    try {
+      const res = await fetch(`/api/content/posts/${lastPostId}/retry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platforms: failedPlatforms }),
+      });
+
+      const data = await res.json();
+
+      if (data.success && data.data?.publishResults) {
+        setPublishResults((prev) => ({ ...prev, ...data.data.publishResults }));
+      } else {
+        toast({
+          title: "Retry failed",
+          description: data.error?.message || "Could not retry publishing",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({ title: "Retry failed", description: "Network error", variant: "destructive" });
+    } finally {
+      setRetryingPlatforms([]);
     }
   };
 
@@ -369,7 +444,9 @@ export default function ContentPostsPage() {
                 ) : (
                   <Send className="w-4 h-4 mr-1.5" />
                 )}
-                Publish Now
+                {isPublishing && publishAction === "publish"
+                  ? `Publishing to ${selectedPlatforms.length} platform${selectedPlatforms.length !== 1 ? "s" : ""}...`
+                  : "Publish Now"}
               </Button>
 
               <Button
@@ -408,6 +485,138 @@ export default function ContentPostsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* ─── PUBLISHING OVERLAY ───────────────────────────────────── */}
+        <AnimatePresence>
+          {isPublishing && publishAction === "publish" && selectedPlatforms.filter((p) => p !== "feed").length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <Card className="border-brand-500/30 bg-brand-500/5">
+                <CardContent className="pt-5 pb-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Loader2 className="w-5 h-5 animate-spin text-brand-500" />
+                    <span className="text-sm font-medium">Publishing to your platforms...</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedPlatforms.map((platformId) => {
+                      const meta = PLATFORM_META[platformId];
+                      if (!meta) return null;
+                      const Icon = meta.icon;
+                      return (
+                        <div
+                          key={platformId}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-background border text-xs font-medium"
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          {meta.label}
+                          <Loader2 className="w-3 h-3 animate-spin text-muted-foreground ml-0.5" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ─── PUBLISH RESULTS MODAL ──────────────────────────────────── */}
+        <Dialog open={showResultsModal} onOpenChange={setShowResultsModal}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {Object.values(publishResults).every((r) => r.success) ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                ) : Object.values(publishResults).some((r) => r.success) ? (
+                  <RefreshCw className="w-5 h-5 text-yellow-500" />
+                ) : (
+                  <XCircle className="w-5 h-5 text-red-500" />
+                )}
+                Publish Results
+              </DialogTitle>
+              <DialogDescription>
+                {(() => {
+                  const total = Object.keys(publishResults).length;
+                  const succeeded = Object.values(publishResults).filter((r) => r.success).length;
+                  const failed = total - succeeded;
+                  if (failed === 0) return "Successfully published to all platforms!";
+                  if (succeeded === 0) return "Publishing failed on all platforms.";
+                  return `Published to ${succeeded} of ${total} platforms. ${failed} failed.`;
+                })()}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2 mt-2">
+              {Object.entries(publishResults).map(([platformId, result]) => {
+                const meta = PLATFORM_META[platformId];
+                if (!meta) return null;
+                const Icon = meta.icon;
+                const isRetrying = retryingPlatforms.includes(platformId);
+
+                return (
+                  <div
+                    key={platformId}
+                    className={`flex items-center justify-between p-3 rounded-lg border ${
+                      result.success
+                        ? "border-green-500/20 bg-green-500/5"
+                        : "border-red-500/20 bg-red-500/5"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Icon className={`w-4 h-4 ${result.success ? "text-green-600" : "text-red-500"}`} />
+                      <span className="text-sm font-medium">{meta.label}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isRetrying ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      ) : result.success ? (
+                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-red-500 max-w-[180px] truncate">
+                            {result.error || "Failed"}
+                          </span>
+                          <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Retry failed + Close buttons */}
+            <div className="flex items-center gap-2 mt-4">
+              {Object.values(publishResults).some((r) => !r.success) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-red-600 border-red-500/30 hover:bg-red-500/10"
+                  onClick={handleRetryFailed}
+                  disabled={retryingPlatforms.length > 0}
+                >
+                  {retryingPlatforms.length > 0 ? (
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                  )}
+                  Retry Failed
+                </Button>
+              )}
+              <Button
+                size="sm"
+                className="ml-auto"
+                onClick={() => setShowResultsModal(false)}
+              >
+                Done
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
       </motion.div>
     </TooltipProvider>

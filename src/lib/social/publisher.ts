@@ -889,7 +889,8 @@ async function publishToPinterest(
  */
 export async function publishToSocialPlatforms(
   postId: string,
-  userId: string
+  userId: string,
+  onlyPlatforms?: string[]
 ): Promise<PlatformResults> {
   const results: PlatformResults = {};
 
@@ -931,8 +932,11 @@ export async function publishToSocialPlatforms(
     platforms,
   };
 
-  // "feed" is internal — skip it
-  const externalPlatforms = platforms.filter((p) => p !== "feed");
+  // "feed" is internal — skip it; optionally filter to specific platforms (for retry)
+  let externalPlatforms = platforms.filter((p) => p !== "feed");
+  if (onlyPlatforms && onlyPlatforms.length > 0) {
+    externalPlatforms = externalPlatforms.filter((p) => onlyPlatforms.includes(p));
+  }
 
   if (externalPlatforms.length === 0) {
     console.log("[Publisher] No external platforms selected for post", postId);
@@ -997,11 +1001,21 @@ export async function publishToSocialPlatforms(
     }
   }
 
-  // Save results to DB
+  // Save results to DB (merge with existing results for retry)
   try {
+    let mergedResults = results;
+    if (onlyPlatforms) {
+      const existing = await prisma.post.findUnique({ where: { id: postId }, select: { publishResults: true } });
+      if (existing?.publishResults) {
+        try {
+          const prev = JSON.parse(existing.publishResults);
+          mergedResults = { ...prev, ...results };
+        } catch { /* ignore parse error */ }
+      }
+    }
     await prisma.post.update({
       where: { id: postId },
-      data: { publishResults: JSON.stringify(results) },
+      data: { publishResults: JSON.stringify(mergedResults) },
     });
   } catch (err) {
     console.error("[Publisher] Failed to save publish results:", err);
