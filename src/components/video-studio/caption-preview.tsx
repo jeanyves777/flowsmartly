@@ -4,16 +4,14 @@ import { useMemo } from "react";
 import { useVideoStore } from "./hooks/use-video-store";
 import type { CaptionSegment } from "@/lib/video-editor/types";
 
-interface CaptionPreviewProps {
-  currentTime: number;
-}
-
 /**
  * Renders live caption text on the video preview.
  * Positioned as an overlay within the preview area.
+ * Reads currentTime directly from the store.
  */
-export function CaptionPreview({ currentTime }: CaptionPreviewProps) {
+export function CaptionPreview() {
   const clips = useVideoStore((s) => s.clips);
+  const currentTime = useVideoStore((s) => s.currentTime);
   const captionSettings = useVideoStore((s) => s.captionSettings);
 
   // Find active caption clips at current time

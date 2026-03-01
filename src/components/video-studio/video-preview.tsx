@@ -426,7 +426,7 @@ export function VideoPreview({ playback }: VideoPreviewProps) {
         )}
 
         {/* Live caption overlay */}
-        <CaptionPreview currentTime={currentTime} />
+        <CaptionPreview />
 
         {/* Audio elements (hidden, for playback sync) */}
         {Object.values(clips)
