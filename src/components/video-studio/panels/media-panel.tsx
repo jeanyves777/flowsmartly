@@ -133,8 +133,10 @@ function findOrCreateTrack(
   );
   if (emptyTrack) return emptyTrack.id;
 
-  // No empty track — create a new one
-  return addTrack(trackType);
+  // No empty track — create a new one with a name matching the clip type
+  const clipLabel = clipType.charAt(0).toUpperCase() + clipType.slice(1);
+  const count = tracks.filter((t) => t.type === trackType).length + 1;
+  return addTrack(trackType, `${clipLabel} ${count}`);
 }
 
 export function MediaPanel() {
