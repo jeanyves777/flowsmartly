@@ -363,6 +363,7 @@ export default function SocialAccountsPage() {
     { id: "whatsapp", name: "WhatsApp Business", connectUrl: "/api/social/whatsapp/connect" },
     { id: "youtube", name: "YouTube", connectUrl: "/api/social/youtube/connect" },
     { id: "pinterest", name: "Pinterest", connectUrl: "/api/social/pinterest/connect" },
+    { id: "linkedin", name: "LinkedIn", connectUrl: "/api/social/linkedin/connect" },
   ];
 
   return (
