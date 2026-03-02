@@ -54,32 +54,49 @@ export async function generatePitch(
     closingLine: string;
   }
 
+  // Build Google enrichment context
+  const gp = research.googlePlaces;
+  const googleContext = gp
+    ? `
+VERIFIED GOOGLE BUSINESS DATA (authoritative source):
+- Google Rating: ${gp.rating !== undefined ? `${gp.rating}/5 ⭐` : "No rating"} (${gp.reviewCount ?? 0} reviews)
+- Business Status: ${gp.businessStatus || "Unknown"}
+- Phone (verified): ${gp.phone || "N/A"}
+- Address (verified): ${gp.address || "N/A"}
+${gp.priceLevel !== undefined ? `- Price Level: ${"$".repeat(gp.priceLevel + 1)}` : ""}
+${gp.recentReviews?.length ? `
+REAL CUSTOMER REVIEWS from Google:
+${gp.recentReviews.map(rv => `  [${rv.rating}⭐ · ${rv.timeAgo}]: "${rv.text}"`).join("\n")}` : "- No public reviews found"}
+`
+    : "- No Google Business listing found (significant gap in online presence)";
+
   const result = await ai.generateJSON<AIResult>(
     `You are a world-class B2B sales strategist writing a personalized sales pitch for FlowSmartly — an AI-powered all-in-one digital marketing platform.
 
-Write a compelling, highly personalized pitch for "${businessName}" based on the research below. The pitch must:
-1. Feel like you personally reviewed their business (reference specific findings)
-2. Create CURIOSITY — tease findings without revealing everything
+Write a compelling, highly personalized pitch for "${businessName}" based on the verified research below. The pitch must:
+1. Feel like you personally reviewed their business — reference SPECIFIC data (Google rating, review count, exact gaps found)
+2. Create CURIOSITY — tease findings without revealing everything. Mention you found ${hiddenCount + 3} total issues.
 3. Be professional yet conversational — NOT corporate or generic
-4. Focus on REVENUE GROWTH and solving their specific pain points
-5. Have a soft CTA — invite a conversation, not a hard sell
+4. Focus on REVENUE GROWTH — quantify the opportunity where possible
+5. Soft CTA — invite a conversation, not a hard sell
+6. If there are real customer reviews, subtly reference what customers are saying (positive and negative)
 
 ABOUT FLOWSMARTLY:
 ${FLOWSMARTLY_FEATURES}
 
-BUSINESS RESEARCH:
+VERIFIED BUSINESS RESEARCH:
 Industry: ${research.industry}
 Summary: ${research.summary}
 Services: ${research.services.join(", ")}
-Key Pain Points Found: ${teaserPainPoints.join("; ")}
-Additional issues found (not revealed): ${hiddenCount} more
-Opportunities Identified: ${research.opportunities.join("; ")}
+Key Pain Points (first 3 of ${research.painPoints.length} found): ${teaserPainPoints.join("; ")}
+Opportunities: ${research.opportunities.join("; ")}
 Has Analytics: ${research.hasAnalytics}
-Has Social Media: ${research.socialLinks.length > 0}
-Has Chat Widget: ${research.hasChatWidget}
-Has Booking System: ${research.hasBookingSystem}
+Social Media Presence: ${research.socialLinks.length > 0 ? research.socialLinks.join(", ") : "None found"}
+Has Live Chat: ${research.hasChatWidget}
+Has Online Booking: ${research.hasBookingSystem}
 Has Email Capture: ${research.hasEmailCapture}
 Tech Stack: ${research.techStack.join(", ") || "Unknown"}
+${googleContext}
 
 Return a JSON object with these exact fields:
 {
