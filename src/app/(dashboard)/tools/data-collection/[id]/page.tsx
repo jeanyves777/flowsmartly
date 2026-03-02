@@ -7,10 +7,14 @@ import {
   ArrowLeft, Save, Plus, Trash2, GripVertical, ChevronDown, ChevronUp,
   Copy, Check, ExternalLink, Download, Eye, Settings as SettingsIcon,
   FileText, Send, Users, Search, MoreVertical, RefreshCw, Mail, MessageSquare,
-  Share2, Phone,
+  Share2, Phone, Loader2, ListPlus, FolderPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { FIELD_TYPES, FORM_STATUS_CONFIG, type DataFormField, type DataFormFieldType, type DataFormData, type DataFormSubmissionData } from "@/types/data-form";
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
 
@@ -58,6 +62,13 @@ export default function DataFormDetailPage() {
   const [sendListId, setSendListId] = useState("");
   const [sendChannel, setSendChannel] = useState<"email" | "sms">("email");
   const [isSending, setIsSending] = useState(false);
+
+  // Sync to contacts dialog state
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
+  const [syncMode, setSyncMode] = useState<"none" | "existing" | "new">("none");
+  const [syncExistingListId, setSyncExistingListId] = useState("");
+  const [syncNewListName, setSyncNewListName] = useState("");
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Marketing config state
   const [emailReady, setEmailReady] = useState(false);
@@ -128,16 +139,19 @@ export default function DataFormDetailPage() {
     if (activeTab === "submissions") fetchSubmissions();
   }, [activeTab, fetchSubmissions]);
 
-  // Fetch contact lists and marketing config when send tab is active
+  // Fetch contact lists on mount (used in sync dialog + send tab)
+  useEffect(() => {
+    fetch("/api/contact-lists?limit=100")
+      .then(r => r.json())
+      .then(json => {
+        if (json.success) setContactLists(json.data?.lists || json.data || []);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch marketing config when send tab is active
   useEffect(() => {
     if (activeTab === "send") {
-      // Fetch contact lists
-      fetch("/api/contact-lists?limit=100")
-        .then(r => r.json())
-        .then(json => {
-          if (json.success) setContactLists(json.data?.lists || json.data || []);
-        })
-        .catch(() => {});
       // Fetch marketing config
       if (!configLoading) {
         setConfigLoading(true);
@@ -241,15 +255,42 @@ export default function DataFormDetailPage() {
   };
 
   // Submissions actions
-  const handleSyncContacts = async () => {
-    const ids = selectedSubs.size > 0 ? Array.from(selectedSubs) : undefined;
-    const res = await fetch(`/api/data-forms/${id}/sync-contacts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ submissionIds: ids }),
-    });
-    const json = await res.json();
-    if (json.success) showToast(`${json.data.created} contacts created, ${json.data.linked} linked`);
+  const handleSyncContacts = () => {
+    setSyncMode("none");
+    setSyncExistingListId("");
+    setSyncNewListName(form?.title || "");
+    setShowSyncDialog(true);
+  };
+
+  const handleSyncSubmit = async () => {
+    setIsSyncing(true);
+    try {
+      const ids = selectedSubs.size > 0 ? Array.from(selectedSubs) : undefined;
+      const body: Record<string, unknown> = { submissionIds: ids };
+      if (syncMode === "existing" && syncExistingListId) {
+        body.listId = syncExistingListId;
+      } else if (syncMode === "new" && syncNewListName.trim()) {
+        body.createNewList = true;
+        body.newListName = syncNewListName.trim();
+      }
+      const res = await fetch(`/api/data-forms/${id}/sync-contacts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setShowSyncDialog(false);
+        showToast(json.data.message || `${json.data.created} contacts created`);
+        if (json.data.listId) {
+          router.push(`/contacts?tab=contacts&listId=${json.data.listId}`);
+        }
+      } else {
+        showToast(json.error?.message || "Failed to sync contacts");
+      }
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleCreateFollowUp = async () => {
@@ -1015,6 +1056,95 @@ export default function DataFormDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Sync to Contacts Dialog */}
+      <Dialog open={showSyncDialog} onOpenChange={(open) => { if (!isSyncing) setShowSyncDialog(open); }}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Sync to Contacts</DialogTitle>
+            <DialogDescription>
+              {selectedSubs.size > 0
+                ? `Sync ${selectedSubs.size} selected submission${selectedSubs.size > 1 ? "s" : ""}`
+                : "Sync all submissions"} to your contacts.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-transparent hover:bg-muted/50 transition-colors">
+              <input
+                type="radio" name="syncMode" value="none"
+                checked={syncMode === "none"} onChange={() => setSyncMode("none")}
+                className="mt-0.5"
+              />
+              <div>
+                <p className="text-sm font-medium">Just import contacts</p>
+                <p className="text-xs text-muted-foreground">Add respondents to your contacts without a list</p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-transparent hover:bg-muted/50 transition-colors">
+              <input
+                type="radio" name="syncMode" value="existing"
+                checked={syncMode === "existing"} onChange={() => setSyncMode("existing")}
+                className="mt-0.5"
+              />
+              <div className="flex-1">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <ListPlus className="h-4 w-4" /> Add to existing list
+                </p>
+                <p className="text-xs text-muted-foreground mb-2">Add to one of your existing contact lists</p>
+                {syncMode === "existing" && (
+                  <select
+                    value={syncExistingListId}
+                    onChange={e => setSyncExistingListId(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="">Select a list...</option>
+                    {contactLists.map(cl => (
+                      <option key={cl.id} value={cl.id}>{cl.name} ({cl.totalCount} contacts)</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-transparent hover:bg-muted/50 transition-colors">
+              <input
+                type="radio" name="syncMode" value="new"
+                checked={syncMode === "new"} onChange={() => setSyncMode("new")}
+                className="mt-0.5"
+              />
+              <div className="flex-1">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <FolderPlus className="h-4 w-4" /> Create a new list
+                </p>
+                <p className="text-xs text-muted-foreground mb-2">Create a new contact list from these submissions</p>
+                {syncMode === "new" && (
+                  <Input
+                    value={syncNewListName}
+                    onChange={e => setSyncNewListName(e.target.value)}
+                    placeholder="List name..."
+                  />
+                )}
+              </div>
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSyncDialog(false)} disabled={isSyncing}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-brand-500 hover:bg-brand-600"
+              onClick={handleSyncSubmit}
+              disabled={
+                isSyncing ||
+                (syncMode === "existing" && !syncExistingListId) ||
+                (syncMode === "new" && !syncNewListName.trim())
+              }
+            >
+              {isSyncing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Sync Contacts
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Toast */}
       {toast && (

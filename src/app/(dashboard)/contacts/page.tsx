@@ -24,6 +24,7 @@ import {
   ListPlus,
   AlertCircle,
   Camera,
+  ArrowRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -309,6 +310,11 @@ export default function ContactsPage() {
   const [showBulkAddDialog, setShowBulkAddDialog] = useState(false);
   const [bulkAddListId, setBulkAddListId] = useState("");
   const [isBulkAdding, setIsBulkAdding] = useState(false);
+
+  // Bulk move to list dialog
+  const [showBulkMoveDialog, setShowBulkMoveDialog] = useState(false);
+  const [bulkMoveListId, setBulkMoveListId] = useState("");
+  const [isBulkMoving, setIsBulkMoving] = useState(false);
 
   // CSV Import dialog
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -732,14 +738,70 @@ export default function ContactsPage() {
   }
 
   // -------------------------------------------------------------------------
+  // Bulk move to list
+  // -------------------------------------------------------------------------
+  async function handleBulkMoveToList() {
+    if (!bulkMoveListId) {
+      toast({ title: "Please select a target list", variant: "destructive" });
+      return;
+    }
+    if (!listFilter || listFilter === "all") {
+      toast({ title: "Cannot move: no source list selected", variant: "destructive" });
+      return;
+    }
+    setIsBulkMoving(true);
+    try {
+      // Add to target list
+      const addRes = await fetch("/api/contacts/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "addToList",
+          contactIds: [...selectedIds],
+          listId: bulkMoveListId,
+        }),
+      });
+      const addData = await addRes.json();
+      if (!addData.success) throw new Error(addData.error?.message || "Failed to add to list");
+
+      // Remove from source list
+      const removeRes = await fetch("/api/contacts/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "removeFromList",
+          contactIds: [...selectedIds],
+          listId: listFilter,
+        }),
+      });
+      const removeData = await removeRes.json();
+      if (!removeData.success) throw new Error(removeData.error?.message || "Failed to remove from source list");
+
+      toast({ title: `${addData.data.affected} contact(s) moved` });
+      setShowBulkMoveDialog(false);
+      setBulkMoveListId("");
+      setSelectedIds(new Set());
+      fetchContacts();
+      fetchLists();
+    } catch (err) {
+      toast({
+        title: err instanceof Error ? err.message : "Failed to move contacts",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBulkMoving(false);
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // CSV Import
   // -------------------------------------------------------------------------
-  function openImportDialog() {
+  function openImportDialog(preListId?: string) {
     setImportStep(1);
     setImportFile(null);
     setCsvRows([]);
     setColumnMappings({});
-    setImportListId("");
+    setImportListId(preListId || "");
     setDuplicateStrategy("skip");
     setImportResult(null);
     setShowImportDialog(true);
@@ -898,8 +960,14 @@ export default function ContactsPage() {
             Contacts
           </h1>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={openImportDialog}>
+        <div className="flex items-center gap-2 flex-wrap">
+          {urlListId && (
+            <Button variant="outline" onClick={() => openImportDialog(urlListId)}>
+              <Upload className="w-4 h-4 mr-2" />
+              Import into list
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => openImportDialog()}>
             <Upload className="w-4 h-4 mr-2" />
             Import CSV
           </Button>
@@ -1031,6 +1099,19 @@ export default function ContactsPage() {
                     <ListPlus className="h-4 w-4 mr-2" />
                     Add to List
                   </Button>
+                  {listFilter !== "all" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setBulkMoveListId("");
+                        setShowBulkMoveDialog(true);
+                      }}
+                    >
+                      <ArrowRight className="h-4 w-4 mr-2" />
+                      Move to List
+                    </Button>
+                  )}
                   <Button
                     variant="destructive"
                     size="sm"
@@ -1816,6 +1897,45 @@ export default function ContactsPage() {
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
               Add to List
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Move to List Dialog */}
+      <Dialog open={showBulkMoveDialog} onOpenChange={setShowBulkMoveDialog}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Move to List</DialogTitle>
+            <DialogDescription>
+              Move {selectedIds.size} contact{selectedIds.size > 1 ? "s" : ""} to another list. They will be removed from the current list.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Select value={bulkMoveListId} onValueChange={setBulkMoveListId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select target list" />
+              </SelectTrigger>
+              <SelectContent>
+                {lists.filter((l) => l.id !== listFilter).map((list) => (
+                  <SelectItem key={list.id} value={list.id}>
+                    {list.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkMoveDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-brand-500 hover:bg-brand-600"
+              onClick={handleBulkMoveToList}
+              disabled={isBulkMoving || !bulkMoveListId}
+            >
+              {isBulkMoving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Move Contacts
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -16,7 +16,7 @@ export async function POST(
 
     const form = await prisma.dataForm.findFirst({
       where: { id, userId: session.userId },
-      select: { userId: true, fields: true },
+      select: { userId: true, fields: true, title: true },
     });
 
     if (!form) {
@@ -24,7 +24,20 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { listId, submissionIds } = body;
+    const { listId: rawListId, submissionIds, createNewList, newListName } = body;
+
+    let listId: string | undefined = rawListId;
+
+    if (createNewList) {
+      const name = ((newListName as string) || form.title || "").trim();
+      if (!name) {
+        return NextResponse.json({ success: false, error: { message: "List name is required" } }, { status: 400 });
+      }
+      const newList = await prisma.contactList.create({
+        data: { userId: session.userId, name },
+      });
+      listId = newList.id;
+    }
 
     if (listId) {
       const list = await prisma.contactList.findFirst({
@@ -154,6 +167,7 @@ export async function POST(
         linked,
         skipped,
         total: submissions.length,
+        listId: listId || null,
         message: `Synced ${created} new contacts${linked > 0 ? `, linked ${linked} existing` : ""}${skipped > 0 ? `, ${skipped} skipped` : ""}`,
       },
     });
