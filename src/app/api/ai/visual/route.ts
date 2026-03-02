@@ -348,7 +348,7 @@ ${params.ctaText ? `- CTA BUTTON: Rounded or pill-shaped button with bold contra
   const hasLogo = !!params.brandLogo;
   designPrompt += `\n\nBRAND:`;
   if (hasLogo) {
-    designPrompt += `\n- **TOP-LEFT EXCLUSION ZONE** (VERY IMPORTANT): The top-left corner is RESERVED — a brand logo will be composited there after generation. You MUST keep the top-left area (roughly 12% width × 10% height from the top-left corner) completely CLEAR of any text, headlines, icons, buttons, or important visual elements. Only background color/gradient should be in that zone. Do NOT put ANY text there — no brand name, no headline, no tagline, nothing.`;
+    designPrompt += `\n- **TOP-LEFT EXCLUSION ZONE** (VERY IMPORTANT): The top-left corner is RESERVED — a brand logo will be composited flush against the top-left edge after generation. You MUST keep the top-left area (roughly 12% width × 12% height from the very top-left corner, starting at the absolute edge) completely CLEAR of any text, headlines, icons, buttons, or important visual elements. Only background color/gradient should be in that zone. Do NOT put ANY text there — no brand name, no headline, no tagline, nothing.`;
 
     if (showBrandName && brandName) {
       const logoHasName = await logoContainsBrandName(params.brandLogo!, brandName);
@@ -652,9 +652,9 @@ async function compositeLogo(
   // Dynamic logo size: user-chosen % of smaller dimension (default 12%), clamped 50–400px
   const pct = (sizePercent && sizePercent >= 5 && sizePercent <= 50) ? sizePercent : 12;
   const logoSize = Math.max(50, Math.min(Math.round(smallerDim * (pct / 100)), 400));
-  // Position: ~3% from left, ~2% from top — aligns with exclusion zone in prompt
-  const logoX = Math.round(imgW * 0.03);
-  const logoY = Math.round(imgH * 0.02);
+  // Position: flush to top edge (y=0) and 1% from left — sits above all design content
+  const logoX = Math.round(imgW * 0.01);
+  const logoY = 0;
 
   console.log(`[Visual] Logo: target=${logoSize}px at (${logoX}, ${logoY}) on ${imgW}x${imgH}`);
 
