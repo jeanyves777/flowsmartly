@@ -364,6 +364,7 @@ export default function SocialAccountsPage() {
     { id: "youtube", name: "YouTube", connectUrl: "/api/social/youtube/connect" },
     { id: "pinterest", name: "Pinterest", connectUrl: "/api/social/pinterest/connect" },
     { id: "linkedin", name: "LinkedIn", connectUrl: "/api/social/linkedin/connect" },
+    { id: "tiktok", name: "TikTok", connectUrl: "/api/social/tiktok/connect" },
   ];
 
   return (
