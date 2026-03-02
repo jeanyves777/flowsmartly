@@ -347,6 +347,7 @@ export default function SocialAccountsPage() {
   const availablePlatforms = [
     { id: "facebook", name: "Facebook Pages", connectUrl: "/api/social/facebook/connect" },
     { id: "instagram", name: "Instagram", connectUrl: "/api/social/instagram/connect" },
+    { id: "twitter", name: "X / Twitter", connectUrl: "/api/social/twitter/connect" },
     { id: "whatsapp", name: "WhatsApp Business", connectUrl: "/api/social/whatsapp/connect" },
     { id: "youtube", name: "YouTube", connectUrl: "/api/social/youtube/connect" },
   ];
