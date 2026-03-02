@@ -317,18 +317,22 @@ ${params.ctaText ? `- CTA BUTTON: Rounded or pill-shaped button with bold contra
 - Text should NEVER overlap the hero image awkwardly — keep text in its own clear zone with breathing room.
 - All text must be pixel-perfect: no cut-off letters, no words bleeding off the edge, no overlapping lines.`;
 
-  // Hero type — with provider-specific reinforcement for Gemini
+  // Hero type
   if (heroType === "people") {
-    const geminiPersonExtra = provider === "gemini"
-      ? `\n- GEMINI-SPECIFIC REQUIREMENT: You MUST include a real human person in this image. Do NOT replace the person with abstract art, shapes, icons, illustrations, or text-only design. The person must be a photorealistic human being — not a silhouette, not a cartoon, not an icon. This is non-negotiable.`
-      : "";
-    designPrompt += `\n\nHERO VISUAL — A REAL HUMAN PERSON (MANDATORY):
-- There MUST be a photorealistic person on the RIGHT side of the design — this is the #1 requirement
+    // Gemini/Imagen safety filters block "photorealistic human" language — use softer wording
+    const personDesc = provider === "gemini"
+      ? `Include a person on the RIGHT side of the design.
+- 3/4 body or full body view, standing upright, friendly and professional
+- Position them so their feet reach the bottom of the canvas, head visible at top with some space above
+- The person should fill the right 50-60% of the design and be the main visual focus
+- Clothing and appearance appropriate to the design context`
+      : `A REAL HUMAN PERSON (MANDATORY) on the RIGHT side of the design — this is the #1 requirement.
+- There MUST be a person — do NOT replace with shapes, patterns, or typography
 - 3/4 body or full body shot, standing pose, confident and approachable expression
 - Feet anchored to the bottom edge of the canvas, head fully visible with headroom above
 - The person should DOMINATE the right 50-60% of the design — they are the main visual focus
-- Professional appearance appropriate to the design context (business, casual, etc.)
-- Do NOT omit the person. Do NOT replace them with shapes, patterns, or typography. A HUMAN MUST be visible.${geminiPersonExtra}`;
+- Professional appearance appropriate to the design context (business, casual, etc.)`;
+    designPrompt += `\n\nHERO VISUAL: ${personDesc}`;
   } else if (heroType === "product") {
     designPrompt += `\n\nHERO VISUAL: A photorealistic product/device on the RIGHT side.
 - Well-lit, clean product photography
