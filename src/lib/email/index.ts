@@ -95,6 +95,8 @@ export interface SendEmailParams {
   subject: string;
   html: string;
   text?: string;
+  replyTo?: string;
+  attachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
 }
 
 export async function sendEmail(params: SendEmailParams): Promise<{
@@ -116,6 +118,8 @@ export async function sendEmail(params: SendEmailParams): Promise<{
       subject: params.subject,
       html: params.html,
       text: params.text,
+      ...(params.replyTo && { replyTo: params.replyTo }),
+      ...(params.attachments?.length && { attachments: params.attachments }),
     });
 
     console.log("[Email] Sent:", params.subject, "to", params.to);
@@ -1906,5 +1910,101 @@ export async function sendDesignSharedEmail(params: {
     to: params.to,
     subject: `${params.sharerName} shared "${params.designName}" with you`,
     html: baseTemplate(content, `${params.sharerName} shared a design with you`),
+  });
+}
+
+// ─── AI PITCH BOARD ───────────────────────────────────────────────────────────
+
+export async function sendPitchEmail(params: {
+  to: string;
+  recipientName?: string;
+  businessName: string;
+  pitch: {
+    subject: string;
+    headline: string;
+    personalizedHook: string;
+    keyFindings: string[];
+    hiddenFindingsCount?: number;
+    opportunityParagraph: string;
+    solutionBullets: string[];
+    impactParagraph: string;
+    ctaText: string;
+    ctaSubtext: string;
+    closingLine: string;
+  };
+  pdfBuffer?: Buffer;
+  senderName: string;
+  replyTo?: string;
+  customMessage?: string;
+}) {
+  const { to, recipientName, businessName, pitch, pdfBuffer, senderName, replyTo, customMessage } = params;
+  const greeting = recipientName ? `Hi ${recipientName},` : `Hi there,`;
+  const findingsList = pitch.keyFindings.map(f => `<li style="margin-bottom: 8px;">${f}</li>`).join("");
+  const solutionList = pitch.solutionBullets.map(s => `<li style="margin-bottom: 8px;">${s}</li>`).join("");
+  const hiddenNote = (pitch.hiddenFindingsCount || 0) > 0
+    ? `<p style="color: #6b7280; font-style: italic; margin-top: 8px;">...and ${pitch.hiddenFindingsCount} more insights we'd love to share in a conversation.</p>`
+    : "";
+  const customMsgBlock = customMessage
+    ? `<div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 14px 18px; border-radius: 6px; margin: 20px 0;"><p style="margin:0;">${customMessage}</p></div>`
+    : "";
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com";
+
+  const content = `
+    <h2 style="font-size: 22px; color: #1e293b; margin-bottom: 6px;">${pitch.headline}</h2>
+    <p style="color: #64748b; font-size: 13px; margin-top: 0;">Prepared exclusively for <strong>${businessName}</strong></p>
+
+    ${customMsgBlock}
+
+    <p>${greeting}</p>
+    <p>${pitch.personalizedHook}</p>
+
+    <div class="highlight">
+      <strong style="display: block; margin-bottom: 12px; color: #1e293b;">🔍 What We Discovered</strong>
+      <ul style="margin: 0; padding-left: 18px; color: #374151;">
+        ${findingsList}
+      </ul>
+      ${hiddenNote}
+    </div>
+
+    <h3 style="color: #2563eb; margin-top: 28px; margin-bottom: 10px;">The Opportunity</h3>
+    <p>${pitch.opportunityParagraph}</p>
+
+    <h3 style="color: #2563eb; margin-top: 28px; margin-bottom: 10px;">How FlowSmartly Can Help</h3>
+    <ul style="padding-left: 18px; color: #374151;">
+      ${solutionList}
+    </ul>
+
+    <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 18px; margin: 24px 0;">
+      <strong style="color: #1d4ed8;">📈 Expected Impact</strong>
+      <p style="margin: 8px 0 0; color: #374151;">${pitch.impactParagraph}</p>
+    </div>
+
+    <p style="text-align: center; margin: 32px 0 8px;">
+      <a href="${appUrl}" class="button">${pitch.ctaText}</a>
+    </p>
+    <p style="text-align: center; color: #6b7280; font-size: 13px; margin: 0;">${pitch.ctaSubtext}</p>
+
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;" />
+    <p style="color: #374151;">${pitch.closingLine}</p>
+    <p style="color: #6b7280; font-size: 13px;">
+      ${pdfBuffer ? "A detailed proposal PDF is attached for your reference." : ""}
+    </p>
+  `;
+
+  const attachments = pdfBuffer
+    ? [{
+        filename: `${businessName.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-proposal.pdf`,
+        content: pdfBuffer,
+        contentType: "application/pdf" as const,
+      }]
+    : [];
+
+  return sendEmail({
+    to,
+    subject: pitch.subject,
+    html: baseTemplate(content, pitch.personalizedHook.slice(0, 120)),
+    replyTo,
+    attachments: attachments.length > 0 ? attachments : undefined,
   });
 }

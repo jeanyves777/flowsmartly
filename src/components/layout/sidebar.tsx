@@ -125,6 +125,7 @@ const marketingNavigation = [
 
 // Tools & Insights
 const toolsNavigation = [
+  { name: "Pitch Board", href: "/pitch-board", icon: Briefcase },
   { name: "Follow-Ups", href: "/tools/follow-ups", icon: ClipboardList },
   { name: "Data Collection", href: "/tools/data-collection", icon: FormInput },
   { name: "Surveys", href: "/tools/surveys", icon: FileQuestion },
@@ -449,7 +450,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
 
             {/* Filtered Tools */}
             {filterByAllowed(toolsNavigation).length > 0 &&
-              renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics"].some(p => pathname.startsWith(p)), filterByAllowed(toolsNavigation))}
+              renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics", "/pitch-board"].some(p => pathname.startsWith(p)), filterByAllowed(toolsNavigation))}
           </>
         ) : (
           <>
@@ -482,7 +483,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             {renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/whatsapp", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), marketingNavigation, true)}
 
             {/* Tools & Insights Section */}
-            {renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics"].some(p => pathname.startsWith(p)), toolsNavigation)}
+            {renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics", "/pitch-board"].some(p => pathname.startsWith(p)), toolsNavigation)}
 
             {/* Money Section */}
             {renderCollapsibleSection("Money", DollarSign, moneyOpen, setMoneyOpen, ["/earnings", "/referrals"].some(p => pathname.startsWith(p)), moneyNavigation)}

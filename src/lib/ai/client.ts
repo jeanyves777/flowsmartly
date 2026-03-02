@@ -9,6 +9,7 @@ export interface AIGenerationOptions {
   maxTokens?: number;
   temperature?: number;
   systemPrompt?: string;
+  model?: string;
 }
 
 export interface AIStreamOptions extends AIGenerationOptions {
@@ -45,13 +46,14 @@ class ClaudeAI {
       maxTokens = 1024,
       temperature = 0.7,
       systemPrompt = "You are a helpful marketing and content creation assistant. Be concise, creative, and professional.",
+      model: modelOverride,
     } = options;
 
     const maxRetries = 3;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const response = await this.client.messages.create({
-          model: "claude-sonnet-4-20250514",
+          model: (modelOverride || "claude-sonnet-4-20250514") as Parameters<typeof this.client.messages.create>[0]["model"],
           max_tokens: maxTokens,
           temperature,
           system: systemPrompt,

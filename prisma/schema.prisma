@@ -127,6 +127,8 @@ model User {
   whatsappConversations  WhatsAppConversation[]
   whatsappTemplates      WhatsAppTemplate[]
   whatsappAutomations    WhatsAppAutomation[]
+  pitches                Pitch[]
+  leadSearches           LeadSearch[]
 
   @@index([email])
   @@index([username])
@@ -3724,4 +3726,45 @@ model WhatsAppAutomation {
   @@index([socialAccountId])
   @@index([isActive])
   @@index([triggerType])
+}
+
+// ============================================
+// PITCH BOARD — AI-POWERED DEAL MAKER
+// ============================================
+
+model Pitch {
+  id             String    @id @default(cuid())
+  userId         String
+  businessName   String
+  businessUrl    String?
+  status         String    @default("PENDING") // PENDING | RESEARCHING | READY | FAILED | SENT
+  research       String    @default("{}") // JSON: ResearchData (internal only)
+  pitchContent   String    @default("{}") // JSON: PitchContent (what client sees)
+  recipientEmail String?
+  recipientName  String?
+  sentAt         DateTime?
+  errorMessage   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model LeadSearch {
+  id        String   @id @default(cuid())
+  userId    String
+  query     String
+  location  String?
+  industry  String?
+  results   String   @default("[]") // JSON: BusinessLead[]
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
 }
