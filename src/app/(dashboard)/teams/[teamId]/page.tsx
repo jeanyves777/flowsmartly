@@ -20,6 +20,10 @@ import {
   CalendarDays,
   MoreVertical,
   RefreshCw,
+  Search,
+  List,
+  UserCheck,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -136,10 +140,21 @@ export default function TeamDetailPage({
 
   // Invite dialog
   const [showInvite, setShowInvite] = useState(false);
+  const [inviteTab, setInviteTab] = useState<"email" | "contacts">("email");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("MEMBER");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState("");
+  const [inviteSuccess, setInviteSuccess] = useState("");
+
+  // Contact list invite state
+  const [contactLists, setContactLists] = useState<{ id: string; name: string; totalCount: number }[]>([]);
+  const [selectedListId, setSelectedListId] = useState<string>("all");
+  const [contactSearch, setContactSearch] = useState("");
+  const [contactsPreview, setContactsPreview] = useState<{ id: string; email: string; name: string }[]>([]);
+  const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [inviteStep, setInviteStep] = useState<"select" | "preview">("select");
 
   // Project creation dialog
   const [showNewProject, setShowNewProject] = useState(false);
@@ -218,6 +233,57 @@ export default function TeamDetailPage({
     }
   }, [teamId]);
 
+  // Fetch contact lists for invite dialog
+  const fetchContactLists = useCallback(async () => {
+    try {
+      const res = await fetch("/api/contact-lists?limit=100");
+      const json = await res.json();
+      if (json.success) setContactLists(json.data?.lists || json.data || []);
+    } catch { /* silent */ }
+  }, []);
+
+  // Fetch contacts based on selected list
+  const fetchContactsForList = useCallback(async (listId: string, search: string) => {
+    setLoadingContacts(true);
+    try {
+      let contacts: { id: string; email: string; name: string }[] = [];
+      if (listId === "all") {
+        const params = new URLSearchParams({ limit: "200" });
+        if (search) params.set("search", search);
+        const res = await fetch(`/api/contacts?${params}`);
+        const json = await res.json();
+        if (json.success) {
+          contacts = (json.data?.contacts || json.data || [])
+            .filter((c: { email?: string }) => c.email)
+            .map((c: { id: string; email: string; firstName?: string; lastName?: string; name?: string }) => ({
+              id: c.id,
+              email: c.email,
+              name: [c.firstName, c.lastName].filter(Boolean).join(" ") || c.name || c.email,
+            }));
+        }
+      } else {
+        const params = new URLSearchParams({ limit: "200" });
+        if (search) params.set("search", search);
+        const res = await fetch(`/api/contact-lists/${listId}?${params}`);
+        const json = await res.json();
+        if (json.success) {
+          contacts = (json.data?.contacts || [])
+            .filter((c: { email?: string }) => c.email)
+            .map((c: { id: string; email: string; firstName?: string; lastName?: string }) => ({
+              id: c.id,
+              email: c.email,
+              name: [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email,
+            }));
+        }
+      }
+      setContactsPreview(contacts);
+      // Default: select all with emails
+      setSelectedEmails(new Set(contacts.map((c) => c.email)));
+    } finally {
+      setLoadingContacts(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchTeam();
     fetchMyRole();
@@ -227,10 +293,26 @@ export default function TeamDetailPage({
 
   const isAdmin = myRole === "OWNER" || myRole === "ADMIN";
 
+  function openInviteDialog() {
+    setInviteTab("email");
+    setInviteEmail("");
+    setInviteRole("MEMBER");
+    setInviteError("");
+    setInviteSuccess("");
+    setInviteStep("select");
+    setSelectedListId("all");
+    setContactSearch("");
+    setContactsPreview([]);
+    setSelectedEmails(new Set());
+    fetchContactLists();
+    setShowInvite(true);
+  }
+
   async function handleInvite() {
     if (!inviteEmail.trim()) return;
     setInviting(true);
     setInviteError("");
+    setInviteSuccess("");
     try {
       const res = await fetch(`/api/teams/${teamId}/members`, {
         method: "POST",
@@ -239,13 +321,41 @@ export default function TeamDetailPage({
       });
       const json = await res.json();
       if (json.success) {
-        setShowInvite(false);
+        setInviteSuccess("Invitation sent successfully!");
         setInviteEmail("");
-        setInviteRole("MEMBER");
         fetchInvitations();
         fetchTeam();
+        setTimeout(() => { setShowInvite(false); setInviteSuccess(""); }, 1500);
       } else {
         setInviteError(json.error?.message || "Failed to invite");
+      }
+    } catch {
+      setInviteError("Something went wrong");
+    } finally {
+      setInviting(false);
+    }
+  }
+
+  async function handleBulkInvite() {
+    if (selectedEmails.size === 0) return;
+    setInviting(true);
+    setInviteError("");
+    setInviteSuccess("");
+    try {
+      const res = await fetch(`/api/teams/${teamId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails: Array.from(selectedEmails), role: inviteRole }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        const { sent, skipped } = json.data;
+        setInviteSuccess(`${sent} invitation${sent !== 1 ? "s" : ""} sent${skipped > 0 ? `, ${skipped} skipped (already invited/member)` : ""}.`);
+        fetchInvitations();
+        fetchTeam();
+        setTimeout(() => { setShowInvite(false); setInviteSuccess(""); }, 2000);
+      } else {
+        setInviteError(json.error?.message || "Failed to send invitations");
       }
     } catch {
       setInviteError("Something went wrong");
@@ -413,7 +523,7 @@ export default function TeamDetailPage({
           </div>
         </div>
         {isAdmin && (
-          <Button onClick={() => setShowInvite(true)} className="gap-2">
+          <Button onClick={openInviteDialog} className="gap-2">
             <Mail className="h-4 w-4" /> Invite Member
           </Button>
         )}
@@ -639,7 +749,7 @@ export default function TeamDetailPage({
               Members ({team.memberCount})
             </h2>
             {isAdmin && (
-              <Button onClick={() => setShowInvite(true)} size="sm" className="gap-2">
+              <Button onClick={openInviteDialog} size="sm" className="gap-2">
                 <Mail className="h-4 w-4" /> Invite
               </Button>
             )}
@@ -843,49 +953,216 @@ export default function TeamDetailPage({
 
       {/* Invite Dialog */}
       <Dialog open={showInvite} onOpenChange={setShowInvite}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Invite Team Member</DialogTitle>
+            <DialogTitle>Invite Team Members</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Email Address</Label>
-              <Input
-                type="email"
-                placeholder="colleague@example.com"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Role</Label>
-              <Select value={inviteRole} onValueChange={setInviteRole}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MEMBER">Member - View and comment</SelectItem>
-                  <SelectItem value="EDITOR">Editor - Create and edit tasks</SelectItem>
-                  <SelectItem value="ADMIN">Admin - Full project management</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {inviteError && (
-              <p className="text-sm text-red-500">{inviteError}</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowInvite(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleInvite}
-              disabled={inviting || !inviteEmail.trim()}
-              className="gap-2"
+
+          {/* Mode tabs */}
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            <button
+              onClick={() => { setInviteTab("email"); setInviteStep("select"); setInviteError(""); setInviteSuccess(""); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${inviteTab === "email" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}
             >
-              {inviting && <Loader2 className="h-4 w-4 animate-spin" />}
-              Send Invitation
-            </Button>
+              <Mail className="h-4 w-4" /> Single Email
+            </button>
+            <button
+              onClick={() => { setInviteTab("contacts"); setInviteStep("select"); setInviteError(""); setInviteSuccess(""); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${inviteTab === "contacts" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}
+            >
+              <List className="h-4 w-4" /> Contact List
+            </button>
+          </div>
+
+          <div className="space-y-4 py-2">
+            {/* ── Single Email Tab ── */}
+            {inviteTab === "email" && (
+              <>
+                <div className="space-y-2">
+                  <Label>Email Address</Label>
+                  <Input
+                    type="email"
+                    placeholder="colleague@example.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleInvite()}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Role</Label>
+                  <Select value={inviteRole} onValueChange={setInviteRole}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MEMBER">Member — View and comment</SelectItem>
+                      <SelectItem value="EDITOR">Editor — Create and edit tasks</SelectItem>
+                      <SelectItem value="ADMIN">Admin — Full project management</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
+            {/* ── Contact List Tab ── */}
+            {inviteTab === "contacts" && inviteStep === "select" && (
+              <>
+                <div className="space-y-2">
+                  <Label>Contact List</Label>
+                  <Select
+                    value={selectedListId}
+                    onValueChange={(v) => { setSelectedListId(v); setContactSearch(""); setContactsPreview([]); setSelectedEmails(new Set()); }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Choose a list…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Contacts</SelectItem>
+                      {contactLists.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>{l.name} ({l.totalCount})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search contacts…"
+                      value={contactSearch}
+                      onChange={(e) => setContactSearch(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => fetchContactsForList(selectedListId, contactSearch)}
+                    disabled={loadingContacts}
+                  >
+                    {loadingContacts ? <Loader2 className="h-4 w-4 animate-spin" /> : "Load"}
+                  </Button>
+                </div>
+
+                {/* Preview list */}
+                {contactsPreview.length > 0 && (
+                  <div className="border border-border rounded-lg overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2 bg-muted border-b border-border">
+                      <span className="text-xs font-medium text-muted-foreground">{contactsPreview.length} contacts loaded</span>
+                      <div className="flex gap-2">
+                        <button
+                          className="text-xs text-blue-600 hover:underline"
+                          onClick={() => setSelectedEmails(new Set(contactsPreview.map((c) => c.email)))}
+                        >Select all</button>
+                        <span className="text-muted-foreground">·</span>
+                        <button
+                          className="text-xs text-blue-600 hover:underline"
+                          onClick={() => setSelectedEmails(new Set())}
+                        >Deselect all</button>
+                      </div>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto divide-y divide-border">
+                      {contactsPreview.map((c) => (
+                        <label key={c.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/50">
+                          <input
+                            type="checkbox"
+                            className="rounded"
+                            checked={selectedEmails.has(c.email)}
+                            onChange={(e) => {
+                              const next = new Set(selectedEmails);
+                              if (e.target.checked) next.add(c.email); else next.delete(c.email);
+                              setSelectedEmails(next);
+                            }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{c.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{c.email}</p>
+                          </div>
+                          {selectedEmails.has(c.email) && <UserCheck className="h-4 w-4 text-green-500 shrink-0" />}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {contactsPreview.length === 0 && !loadingContacts && (
+                  <p className="text-sm text-muted-foreground text-center py-2">Click "Load" to preview contacts</p>
+                )}
+              </>
+            )}
+
+            {/* ── Preview step (confirm before sending) ── */}
+            {inviteTab === "contacts" && inviteStep === "preview" && (
+              <>
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-muted border-b border-border">
+                    <UserCheck className="h-4 w-4 text-green-600" />
+                    <span className="text-sm font-medium">{selectedEmails.size} invitation{selectedEmails.size !== 1 ? "s" : ""} ready to send</span>
+                  </div>
+                  <div className="max-h-52 overflow-y-auto divide-y divide-border">
+                    {Array.from(selectedEmails).map((email) => {
+                      const contact = contactsPreview.find((c) => c.email === email);
+                      return (
+                        <div key={email} className="flex items-center gap-3 px-3 py-2">
+                          <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
+                            {(contact?.name || email)[0].toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            {contact?.name && contact.name !== email && (
+                              <p className="text-sm font-medium truncate">{contact.name}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground truncate">{email}</p>
+                          </div>
+                          <button onClick={() => { const next = new Set(selectedEmails); next.delete(email); setSelectedEmails(next); }} className="text-muted-foreground hover:text-red-500">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Role for all invitees</Label>
+                  <Select value={inviteRole} onValueChange={setInviteRole}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MEMBER">Member — View and comment</SelectItem>
+                      <SelectItem value="EDITOR">Editor — Create and edit tasks</SelectItem>
+                      <SelectItem value="ADMIN">Admin — Full project management</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
+            {inviteError && <p className="text-sm text-red-500">{inviteError}</p>}
+            {inviteSuccess && <p className="text-sm text-green-600 font-medium">{inviteSuccess}</p>}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowInvite(false)}>Cancel</Button>
+
+            {inviteTab === "email" && (
+              <Button onClick={handleInvite} disabled={inviting || !inviteEmail.trim()} className="gap-2">
+                {inviting && <Loader2 className="h-4 w-4 animate-spin" />}
+                Send Invitation
+              </Button>
+            )}
+
+            {inviteTab === "contacts" && inviteStep === "select" && (
+              <Button
+                onClick={() => setInviteStep("preview")}
+                disabled={selectedEmails.size === 0}
+                className="gap-2"
+              >
+                Preview ({selectedEmails.size})
+              </Button>
+            )}
+
+            {inviteTab === "contacts" && inviteStep === "preview" && (
+              <>
+                <Button variant="ghost" onClick={() => setInviteStep("select")}>Back</Button>
+                <Button onClick={handleBulkInvite} disabled={inviting || selectedEmails.size === 0} className="gap-2">
+                  {inviting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Send {selectedEmails.size} Invite{selectedEmails.size !== 1 ? "s" : ""}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

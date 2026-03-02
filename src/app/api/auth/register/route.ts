@@ -183,6 +183,37 @@ export async function POST(request: NextRequest) {
       verificationUrl,
     }).catch((err) => console.error("Failed to send welcome email:", err));
 
+    // Auto-join any teams that invited this email (fire-and-forget)
+    ;(async () => {
+      try {
+        const pendingInvites = await prisma.teamInvitation.findMany({
+          where: {
+            email: user.email,
+            status: "PENDING",
+            expiresAt: { gt: new Date() },
+          },
+          select: { id: true, teamId: true, role: true },
+        });
+        if (pendingInvites.length > 0) {
+          await prisma.$transaction(
+            pendingInvites.map((inv) =>
+              prisma.teamMember.upsert({
+                where: { teamId_userId: { teamId: inv.teamId, userId: user.id } },
+                create: { teamId: inv.teamId, userId: user.id, role: inv.role },
+                update: {},
+              })
+            )
+          );
+          await prisma.teamInvitation.updateMany({
+            where: { id: { in: pendingInvites.map((i) => i.id) } },
+            data: { status: "ACCEPTED", acceptedAt: new Date() },
+          });
+        }
+      } catch (err) {
+        console.error("Failed to auto-join teams on signup:", err);
+      }
+    })();
+
     return NextResponse.json(
       {
         success: true,
