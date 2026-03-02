@@ -344,16 +344,14 @@ ${params.ctaText ? `- CTA BUTTON: Rounded or pill-shaped button with bold contra
 - Geometric shapes, patterns, or decorative elements for visual interest`;
   }
 
-  // Brand identity
+  // Brand identity — logo is composited on top after generation, AI doesn't need to reserve space
   const hasLogo = !!params.brandLogo;
   designPrompt += `\n\nBRAND:`;
   if (hasLogo) {
-    designPrompt += `\n- **TOP-LEFT EXCLUSION ZONE** (VERY IMPORTANT): The top-left corner is RESERVED — a brand logo will be composited flush against the top-left edge after generation. You MUST keep the top-left area (roughly 12% width × 12% height from the very top-left corner, starting at the absolute edge) completely CLEAR of any text, headlines, icons, buttons, or important visual elements. Only background color/gradient should be in that zone. Do NOT put ANY text there — no brand name, no headline, no tagline, nothing.`;
-
     if (showBrandName && brandName) {
       const logoHasName = await logoContainsBrandName(params.brandLogo!, brandName);
       if (!logoHasName) {
-        designPrompt += `\n- Brand name: "${brandName}" — display it in the top-center or top-right area, NEVER in the top-left corner`;
+        designPrompt += `\n- Brand name: "${brandName}" — display it in the top-left corner`;
       }
     }
   } else if (showBrandName && brandName) {
@@ -426,7 +424,7 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
 - TEXT READABILITY: If text sits on a photo or complex background, you MUST ensure contrast — use a dark overlay behind light text, or a light overlay behind dark text, or add a strong drop shadow. No text should ever be hard to read.
 - Do NOT include any watermarks, AI-related text, image dimensions, pixel sizes, or technical metadata on the design
 - Do NOT render the design on a background or inside any container — the design IS the full image
-- The design must bleed to all 4 edges with no margin, border, or shadow around it${hasLogo ? "\n- KEEP THE TOP-LEFT CORNER CLEAR — no text or icons there (logo will be added separately)" : ""}`;
+- The design must bleed to all 4 edges with no margin, border, or shadow around it`;
 
   // ── Resolve reference image (if any) ──
 
