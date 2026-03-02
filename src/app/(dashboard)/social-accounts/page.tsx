@@ -165,6 +165,17 @@ const ERROR_MAP: Record<string, ErrorInfo> = {
     description: "Something went wrong while connecting your X account. Please try again.",
     icon: "error",
   },
+  // Pinterest errors
+  pinterest_auth_failed: {
+    title: "Pinterest Authorization Failed",
+    description: "You denied access or the authorization timed out. Please try connecting again.",
+    icon: "warning",
+  },
+  pinterest_connect_failed: {
+    title: "Pinterest Connection Failed",
+    description: "Something went wrong while connecting your Pinterest account. Please try again.",
+    icon: "error",
+  },
   // Generic
   missing_params: {
     title: "Connection Error",
@@ -186,6 +197,7 @@ const SUCCESS_MAP: Record<string, { title: string; description: string }> = {
   linkedin_connected: { title: "LinkedIn Connected!", description: "Your LinkedIn account has been connected successfully." },
   twitter_connected: { title: "X (Twitter) Connected!", description: "Your X account has been connected successfully." },
   tiktok_connected: { title: "TikTok Connected!", description: "Your TikTok account has been connected successfully." },
+  pinterest_connected: { title: "Pinterest Connected!", description: "Your Pinterest account has been connected successfully." },
 };
 
 export default function SocialAccountsPage() {
@@ -350,6 +362,7 @@ export default function SocialAccountsPage() {
     { id: "twitter", name: "X / Twitter", connectUrl: "/api/social/twitter/connect" },
     { id: "whatsapp", name: "WhatsApp Business", connectUrl: "/api/social/whatsapp/connect" },
     { id: "youtube", name: "YouTube", connectUrl: "/api/social/youtube/connect" },
+    { id: "pinterest", name: "Pinterest", connectUrl: "/api/social/pinterest/connect" },
   ];
 
   return (
