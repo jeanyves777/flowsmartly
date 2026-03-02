@@ -142,8 +142,16 @@ async function generateSingleImage(
   let prompt = rawPrompt;
   if (needsTransparency) {
     // Strip any existing background instructions and enforce isolation
-    prompt = prompt.replace(/on a plain white background[.]?/gi, "").trim();
-    prompt += " Isolated subject on a plain white background. No background scene, no environment, no text, no decorations, no design elements.";
+    prompt = prompt.replace(/on a plain (white|green|solid|dark|colored) background[.]?/gi, "").trim();
+    prompt = prompt.replace(/Isolated subject[^.]*\./gi, "").trim();
+    if (provider === "openai") {
+      // OpenAI has native transparency — white bg works fine
+      prompt += " Isolated subject on a plain white background. No background scene, no environment, no text, no decorations, no design elements.";
+    } else {
+      // xAI/Gemini: use solid green screen background for best rembg results
+      // (white bg fails when subject has light colors — rembg can't distinguish)
+      prompt += " Isolated subject centered on a solid bright green (#00FF00) chroma key background. The background must be a single flat solid green color with no variation, no shadows, no gradients. No background scene, no environment, no text, no decorations, no design elements.";
+    }
   }
 
   console.log(`[DesignImagePipeline] Generating image via ${provider} (transparent: ${needsTransparency})`);

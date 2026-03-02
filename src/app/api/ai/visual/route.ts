@@ -310,19 +310,25 @@ LAYOUT — designed for ${formatDesc}:
 TYPOGRAPHY & TEXT STYLING (VERY IMPORTANT — make the text look stunning):
 - HEADLINE: Extra-bold/black weight, large font size that commands attention. Use tight letter-spacing and strong line-height. Can use ALL CAPS or Title Case for impact. Position it HIGH on the canvas — near the top, not floating in the middle.
 - SUBTITLE: Medium weight, noticeably smaller than headline. Place it WELL BELOW the headline with generous vertical gap between them (at least 2–3x the line height). Slightly muted color or lighter shade for visual hierarchy. The subtitle must NOT touch or crowd the headline — give clear separation.
-- CTA BUTTON: Rounded or pill-shaped button with bold contrasting color. Text inside should be uppercase, semi-bold, with letter-spacing. Add a subtle shadow or glow to make it pop. Place it further below the subtitle with clear spacing.
-- SPACING HIERARCHY: headline → (large gap) → subtitle → (medium gap) → CTA button. Each element must have distinct breathing room. Never stack text elements tightly together.
+${params.ctaText ? `- CTA BUTTON: Rounded or pill-shaped button with bold contrasting color. Text inside should be uppercase, semi-bold, with letter-spacing. Add a subtle shadow or glow to make it pop. Place it further below the subtitle with clear spacing.` : "- NO CTA BUTTON: Do NOT include any call-to-action button, \"Learn More\", \"Shop Now\", \"Get Started\", or similar button element."}
+- SPACING HIERARCHY: headline → (large gap) → subtitle${params.ctaText ? " → (medium gap) → CTA button" : ""}. Each element must have distinct breathing room. Never stack text elements tightly together.
 - Ensure strong contrast between text and background — if the background is busy, add a semi-transparent overlay, gradient fade, or text shadow behind the text area so every word is crisp and readable.
 - Use consistent alignment (left-align or center-align all text elements together, never mix).
 - Text should NEVER overlap the hero image awkwardly — keep text in its own clear zone with breathing room.
 - All text must be pixel-perfect: no cut-off letters, no words bleeding off the edge, no overlapping lines.`;
 
-  // Hero type
+  // Hero type — with provider-specific reinforcement for Gemini
   if (heroType === "people") {
-    designPrompt += `\n\nHERO VISUAL: A professional, friendly person on the RIGHT side of the design.
-- 3/4 body shot, standing pose, confident and approachable
-- Feet anchored to the bottom edge, head fully visible with headroom above
-- The person should DOMINATE the right 50-60% of the design`;
+    const geminiPersonExtra = provider === "gemini"
+      ? `\n- GEMINI-SPECIFIC REQUIREMENT: You MUST include a real human person in this image. Do NOT replace the person with abstract art, shapes, icons, illustrations, or text-only design. The person must be a photorealistic human being — not a silhouette, not a cartoon, not an icon. This is non-negotiable.`
+      : "";
+    designPrompt += `\n\nHERO VISUAL — A REAL HUMAN PERSON (MANDATORY):
+- There MUST be a photorealistic person on the RIGHT side of the design — this is the #1 requirement
+- 3/4 body or full body shot, standing pose, confident and approachable expression
+- Feet anchored to the bottom edge of the canvas, head fully visible with headroom above
+- The person should DOMINATE the right 50-60% of the design — they are the main visual focus
+- Professional appearance appropriate to the design context (business, casual, etc.)
+- Do NOT omit the person. Do NOT replace them with shapes, patterns, or typography. A HUMAN MUST be visible.${geminiPersonExtra}`;
   } else if (heroType === "product") {
     designPrompt += `\n\nHERO VISUAL: A photorealistic product/device on the RIGHT side.
 - Well-lit, clean product photography
@@ -338,7 +344,7 @@ TYPOGRAPHY & TEXT STYLING (VERY IMPORTANT — make the text look stunning):
   const hasLogo = !!params.brandLogo;
   designPrompt += `\n\nBRAND:`;
   if (hasLogo) {
-    designPrompt += `\n- **TOP-LEFT EXCLUSION ZONE** (VERY IMPORTANT): The top-left corner is RESERVED — a brand logo will be composited there after generation. You MUST keep the top-left area (roughly 15% width × 15% height from the top-left corner) completely CLEAR of any text, headlines, icons, buttons, or important visual elements. Only background color/gradient should be in that zone. Do NOT put ANY text there — no brand name, no headline, no tagline, nothing.`;
+    designPrompt += `\n- **TOP-LEFT EXCLUSION ZONE** (VERY IMPORTANT): The top-left corner is RESERVED — a brand logo will be composited there after generation. You MUST keep the top-left area (roughly 12% width × 10% height from the top-left corner) completely CLEAR of any text, headlines, icons, buttons, or important visual elements. Only background color/gradient should be in that zone. Do NOT put ANY text there — no brand name, no headline, no tagline, nothing.`;
 
     if (showBrandName && brandName) {
       const logoHasName = await logoContainsBrandName(params.brandLogo!, brandName);
@@ -350,15 +356,20 @@ TYPOGRAPHY & TEXT STYLING (VERY IMPORTANT — make the text look stunning):
     designPrompt += `\n- Brand name: "${brandName}" — display prominently in the top-left corner`;
   }
 
-  // Social media handles
+  // Social media handles — explicit bottom-left positioning
   if (showSocialIcons && socialHandles && Object.keys(socialHandles).length > 0) {
     const handlesList = Object.entries(socialHandles)
       .map(([platform, handle]) => `${platform === "twitter" ? "X" : platform}: @${handle}`)
       .join(", ");
-    designPrompt += `\n\nSOCIAL MEDIA — Include these handles with their platform icons at the bottom or near contact info:
+    designPrompt += `\n\nSOCIAL MEDIA HANDLES — EXACT PLACEMENT:
 ${handlesList}
-- Display as small, recognizable platform icons with the @handle text next to each
-- Keep them subtle and proportional to the overall design`;
+- Position: BOTTOM-LEFT corner of the design, aligned horizontally in a single row
+- Place them at the very bottom edge of the canvas with a small margin (about 3-5% from the bottom and left edges)
+- Each handle: small recognizable platform icon (Instagram, X/Twitter, Facebook, TikTok, etc.) followed by the @handle text
+- Size: Small — roughly 2-3% of the canvas height. Do NOT make them large or prominent
+- Style: White or light-colored text if on a dark background, dark text if on a light background — must be readable but subtle
+- Spacing: Even horizontal spacing between each handle, all aligned on the same baseline
+- Do NOT scatter them vertically or place them in different parts of the design — they must be together in one row at the bottom-left`;
   }
   if (brandColors) {
     const colorParts = [];
@@ -370,19 +381,19 @@ ${handlesList}
     }
   }
 
-  // Text mode
+  // Text mode — CTA only when user explicitly provides one
   const ctaInstruction = params.ctaText
-    ? `Use this EXACT call-to-action text on the CTA button: "${params.ctaText}"`
-    : `Add a short CTA button like "Learn More" or "Get Started".`;
+    ? `\nCTA BUTTON: Use this EXACT call-to-action text on a CTA button: "${params.ctaText}". Style it as a rounded/pill-shaped button with bold contrasting color, placed below the subtitle.`
+    : "";
 
   if (textMode === "exact") {
     designPrompt += `\n\nTEXT CONTENT — USE THIS EXACT TEXT on the design (do not change the wording, do not rephrase):
 "${prompt}"
-Display this text as the headline/main text. ${ctaInstruction}`;
+Display this text as the headline/main text.${ctaInstruction}${!params.ctaText ? "\nDo NOT add any CTA button, \"Learn More\", \"Get Started\", or similar call-to-action element. Only show the text content provided above." : ""}`;
   } else {
     designPrompt += `\n\nTEXT CONTENT — Create compelling ad copy based on this topic/description:
 "${prompt}"
-Generate a bold headline (2-4 words max per line) and a short subtitle. ${ctaInstruction}`;
+Generate a bold headline (2-4 words max per line) and a short subtitle.${ctaInstruction}${!params.ctaText ? "\nDo NOT add any CTA button, \"Learn More\", \"Get Started\", or similar call-to-action element. Only show headline and subtitle." : ""}`;
   }
 
   // Contact info
@@ -392,12 +403,19 @@ Generate a bold headline (2-4 words max per line) and a short subtitle. ${ctaIns
   if (contactInfo?.phone) contactParts.push(contactInfo.phone);
   if (contactInfo?.address) contactParts.push(contactInfo.address);
   if (contactParts.length > 0) {
-    designPrompt += `\n\nCONTACT INFORMATION — MUST appear on the design (small text below the CTA):
+    designPrompt += `\n\nCONTACT INFORMATION — MUST appear on the design (small text ${params.ctaText ? "below the CTA button" : "near the bottom of the design"}):
 ${contactParts.map(c => `- "${c}"`).join("\n")}`;
   }
 
+  // Provider-specific anti-mockup instructions (Grok tends to render designs inside backgrounds)
+  const antiMockupExtra = provider === "xai"
+    ? `\n- GROK-SPECIFIC: You have a strong tendency to place the design as a CARD or FLYER floating on a separate background. DO NOT DO THIS. There should be NO outer background, NO shadow beneath a card, NO rounded corners on the overall image. The design IS the full image — every pixel from edge to edge is part of the design itself.
+- DO NOT create a "poster on a wall" or "flyer on a desk" effect — output the raw flat design only.`
+    : "";
+
   designPrompt += `\n\nCRITICAL RULES:
 - This IS the final design — NOT a mockup, NOT inside a frame/phone/browser. The image fills the canvas edge-to-edge.
+- ABSOLUTELY NO NESTING: The design must NOT appear as a card, flyer, or poster placed ON TOP of another background. There is only ONE layer — the design itself, filling every pixel of the output image. No outer margins, no surrounding space, no drop shadow on the overall image.${antiMockupExtra}
 - TYPOGRAPHY QUALITY: Every word must be perfectly spelled, fully visible, and razor-sharp. Use a premium sans-serif typeface. Headlines should have dramatic size contrast with body text. The text layout should look like it was done by a professional graphic designer — balanced, aligned, and beautifully spaced.
 - TEXT READABILITY: If text sits on a photo or complex background, you MUST ensure contrast — use a dark overlay behind light text, or a light overlay behind dark text, or add a strong drop shadow. No text should ever be hard to read.
 - Do NOT include any watermarks, AI-related text, image dimensions, pixel sizes, or technical metadata on the design
@@ -499,6 +517,19 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
     console.log(`[Visual] Generated image: ${finalW}x${finalH} (target was ${width}x${height})`);
   } catch {
     console.warn("[Visual] Could not read image metadata, using target dimensions");
+  }
+
+  // ── Auto-trim white/light borders AI models often add ──
+  try {
+    finalBase64 = await trimWhiteBorder(finalBase64);
+    // Re-read dimensions in case trim changed them
+    const trimMeta = await sharp(Buffer.from(finalBase64, "base64")).metadata();
+    if (trimMeta.width && trimMeta.height) {
+      finalW = trimMeta.width;
+      finalH = trimMeta.height;
+    }
+  } catch (trimErr) {
+    console.warn("[Visual] Auto-trim failed, using original:", trimErr);
   }
 
   // ── Composite brand logo (top-left, TOP layer) ──
@@ -614,11 +645,12 @@ async function compositeLogo(
   const [imgW, imgH] = targetSize.split("x").map(Number);
   const smallerDim = Math.min(imgW, imgH);
 
-  // Dynamic logo size: user-chosen % of smaller dimension (default 18%), clamped 60–500px
-  const pct = (sizePercent && sizePercent >= 5 && sizePercent <= 50) ? sizePercent : 18;
-  const logoSize = Math.max(60, Math.min(Math.round(smallerDim * (pct / 100)), 500));
-  const logoX = Math.round(imgW * 0.02);
-  const logoY = Math.round(imgH * 0.007);
+  // Dynamic logo size: user-chosen % of smaller dimension (default 12%), clamped 50–400px
+  const pct = (sizePercent && sizePercent >= 5 && sizePercent <= 50) ? sizePercent : 12;
+  const logoSize = Math.max(50, Math.min(Math.round(smallerDim * (pct / 100)), 400));
+  // Position: ~3% from left, ~2% from top — aligns with exclusion zone in prompt
+  const logoX = Math.round(imgW * 0.03);
+  const logoY = Math.round(imgH * 0.02);
 
   console.log(`[Visual] Logo: target=${logoSize}px at (${logoX}, ${logoY}) on ${imgW}x${imgH}`);
 

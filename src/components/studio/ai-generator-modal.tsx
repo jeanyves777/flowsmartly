@@ -217,7 +217,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
     Set<string>
   >(new Set());
   const [logoType, setLogoType] = useState<"auto" | "icon" | "full">("auto");
-  const [logoSizePercent, setLogoSizePercent] = useState(18);
+  const [logoSizePercent, setLogoSizePercent] = useState(12);
   const [includeInDesign, setIncludeInDesign] = useState({
     email: false,
     phone: false,

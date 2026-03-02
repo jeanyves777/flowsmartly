@@ -236,7 +236,7 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
   const [showSocialIcons, setShowSocialIcons] = useState(false);
   const [selectedSocialPlatforms, setSelectedSocialPlatforms] = useState<Set<string>>(new Set());
   const [logoType, setLogoType] = useState<"auto" | "icon" | "full">("auto");
-  const [logoSizePercent, setLogoSizePercent] = useState(18);
+  const [logoSizePercent, setLogoSizePercent] = useState(12);
   const [includeInDesign, setIncludeInDesign] = useState({ email: false, phone: false, website: false, address: false });
   const [generateHeroImage, setGenerateHeroImage] = useState(false);
   const [generateBackground, setGenerateBackground] = useState(false);

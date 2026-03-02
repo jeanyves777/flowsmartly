@@ -194,10 +194,11 @@ FONT SIZE REFERENCE (for 1080px canvas width):
 • Labels/captions: 12-16px
 
 IMAGE PROMPT GUIDELINES:
-• For hero images (people/products): describe ONLY the subject — pose, clothing, expression, lighting, camera angle. ALWAYS end with: "Isolated subject on a plain white background. No background scene, no text, no decorations."
+• For hero images (people/products): describe ONLY the subject — pose, clothing, expression, lighting, camera angle. Do NOT include any background description. The image pipeline will handle background isolation automatically.
 • For backgrounds: describe scene, atmosphere, colors, mood. ALWAYS end with: "No text or words in the image."
-• Hero example: "Professional young woman in navy blazer, confident smile, arms crossed, soft studio lighting, waist-up portrait. Isolated subject on a plain white background. No background scene, no text, no decorations."
+• Hero example: "Professional young woman in navy blazer, confident smile, arms crossed, soft studio lighting, waist-up portrait, centered in frame."
 • Background example: "Modern city skyline at sunset, warm golden tones, bokeh lights, cinematic atmosphere. No text or words in the image."
+• NEVER add "on a white background" or "on a plain background" to hero imagePrompts — the server handles transparency.
 
 ELEMENT IDs: Use "el-1", "el-2", etc. sequentially.`;
 }
@@ -244,7 +245,7 @@ All text must be specific to the topic "${prompt}" — never generic.`;
   if (heroType === "people") {
     if (params.generateHeroImage) {
       userPrompt += `\n\nHERO IMAGE (PERSON): You MUST include an image placeholder element with imageRole: "hero" on the right side (x: 45-55%, y: 5-15%, width: 45-55%, height: 65-85%).
-Write a DETAILED imagePrompt describing ONLY the person: their pose, clothing, expression, lighting, camera angle. Do NOT describe any background in the imagePrompt — the person will be isolated. Example: "Professional young woman in navy blazer, warm smile, arms crossed, soft studio lighting, waist-up portrait."
+Write a DETAILED imagePrompt describing ONLY the person: their pose, clothing, expression, lighting, camera angle. Do NOT mention any background at all — the server handles background removal automatically. Example: "Professional young woman in navy blazer, warm smile, arms crossed, soft studio lighting, waist-up portrait, centered in frame."
 Set transparent: true. Position ALL text elements on the LEFT side (x: 5-42%).`;
     } else {
       userPrompt += `\n\nHERO (PERSON): Include an image placeholder (imageRole: "hero") on the right side (x: 50%, y: 10%, width: 45%, height: 70%) for a person photo. Position text on the left side (x: 5-45%).`;
@@ -252,7 +253,7 @@ Set transparent: true. Position ALL text elements on the LEFT side (x: 5-42%).`;
   } else if (heroType === "product") {
     if (params.generateHeroImage) {
       userPrompt += `\n\nHERO IMAGE (PRODUCT): You MUST include an image placeholder element with imageRole: "hero" (x: 25-35%, y: 10-20%, width: 40-50%, height: 50-70%).
-Write a DETAILED imagePrompt describing ONLY the product: its appearance, angle, lighting, materials. Do NOT describe any background — the product will be isolated. Example: "Sleek wireless headphones, matte black, floating at 3/4 angle, studio lighting, product photography."
+Write a DETAILED imagePrompt describing ONLY the product: its appearance, angle, lighting, materials. Do NOT mention any background at all — the server handles background removal automatically. Example: "Sleek wireless headphones, matte black, floating at 3/4 angle, studio lighting, product photography, centered in frame."
 Set transparent: true. Position text around it.`;
     } else {
       userPrompt += `\n\nHERO (PRODUCT): Include an image placeholder (imageRole: "hero") for a product shot (~40% width). Position text around it.`;
@@ -322,8 +323,8 @@ Position them in a row near the bottom alongside contact info. Use the EXACT han
 4. Use white or light-colored text over the dark overlay.`;
   }
 
-  // Logo placeholder
-  userPrompt += `\n\nLOGO: Include a logo-placeholder image element (imageRole: "logo-placeholder") in the top-left area (~5% x, ~3% y, ~12% width, ~8% height).`;
+  // Logo placeholder — keep small so it doesn't invade text space
+  userPrompt += `\n\nLOGO: Include a logo-placeholder image element (imageRole: "logo-placeholder") in the top-left corner (x: 3%, y: 3%, width: 8%, height: 5%). Keep the logo SMALL — it should NOT overlap or crowd any headline, subtitle, or other text. Reserve the top-left 12% x 8% area exclusively for the logo — do NOT place any text elements there.`;
 
   // Final reminder
   userPrompt += `\n\nREMINDER: Every text element must contain REAL copy specific to "${prompt}". Use beautiful, varied fonts. Make this look like a professionally designed ${category.replace(/_/g, " ")} ready for publication.`;
@@ -420,6 +421,11 @@ function sanitizeLayout(layout: AIDesignLayout, options?: { stripCTA?: boolean }
           const img = el as AIImagePlaceholder;
           if (!["hero", "decoration", "icon", "logo-placeholder", "background"].includes(img.imageRole)) {
             img.imageRole = "decoration";
+          }
+          // Cap logo placeholder size to prevent it from invading text space
+          if (img.imageRole === "logo-placeholder") {
+            if (img.width > 12) img.width = 12;
+            if (img.height !== undefined && img.height > 8) img.height = 8;
           }
           break;
         }
