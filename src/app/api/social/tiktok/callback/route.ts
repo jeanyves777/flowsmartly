@@ -56,9 +56,10 @@ export async function GET(request: NextRequest) {
     });
 
     const userData = await userResponse.json();
+    console.log("[TikTok] User info response:", JSON.stringify(userData).slice(0, 500));
 
-    if (!userData.data || userData.error) {
-      throw new Error("Failed to get user info");
+    if (!userData.data?.user || (userData.error && userData.error.code !== "ok")) {
+      throw new Error(userData.error?.message || "Failed to get user info");
     }
 
     const user = userData.data.user;
