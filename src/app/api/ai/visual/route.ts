@@ -414,12 +414,14 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
   // Provider-specific anti-mockup instructions (Grok tends to render designs inside backgrounds)
   const antiMockupExtra = provider === "xai"
     ? `\n- GROK-SPECIFIC: You have a strong tendency to place the design as a CARD or FLYER floating on a separate background. DO NOT DO THIS. There should be NO outer background, NO shadow beneath a card, NO rounded corners on the overall image. The design IS the full image — every pixel from edge to edge is part of the design itself.
-- DO NOT create a "poster on a wall" or "flyer on a desk" effect — output the raw flat design only.`
+- DO NOT create a "poster on a wall" or "flyer on a desk" effect — output the raw flat design only.
+- DO NOT add any xAI logo, Grok logo, Aurora logo, or any AI/tool branding anywhere on the design. This image belongs to the user — zero third-party logos or icons.`
     : "";
 
   designPrompt += `\n\nCRITICAL RULES:
 - This IS the final design — NOT a mockup, NOT inside a frame/phone/browser. The image fills the canvas edge-to-edge.
 - ABSOLUTELY NO NESTING: The design must NOT appear as a card, flyer, or poster placed ON TOP of another background. There is only ONE layer — the design itself, filling every pixel of the output image. No outer margins, no surrounding space, no drop shadow on the overall image.${antiMockupExtra}
+- NO AI BRANDING: Do NOT add any AI provider logos (xAI, Grok, OpenAI, Google, Gemini, DALL-E, etc.), watermarks, or AI-generated badges. This is the user's design — it must contain ONLY the user's brand elements.
 - TYPOGRAPHY QUALITY: Every word must be perfectly spelled, fully visible, and razor-sharp. Use a premium sans-serif typeface. Headlines should have dramatic size contrast with body text. The text layout should look like it was done by a professional graphic designer — balanced, aligned, and beautifully spaced.
 - TEXT READABILITY: If text sits on a photo or complex background, you MUST ensure contrast — use a dark overlay behind light text, or a light overlay behind dark text, or add a strong drop shadow. No text should ever be hard to read.
 - Do NOT include any watermarks, AI-related text, image dimensions, pixel sizes, or technical metadata on the design
@@ -647,16 +649,18 @@ async function compositeLogo(
   sizePercent?: number
 ): Promise<string> {
   const [imgW, imgH] = targetSize.split("x").map(Number);
-  const smallerDim = Math.min(imgW, imgH);
 
-  // Dynamic logo size: user-chosen % of smaller dimension (default 12%), clamped 50–400px
-  const pct = (sizePercent && sizePercent >= 5 && sizePercent <= 50) ? sizePercent : 12;
-  const logoSize = Math.max(50, Math.min(Math.round(smallerDim * (pct / 100)), 400));
+  // Logo size = user-chosen % of image WIDTH (most intuitive for horizontal logos).
+  // Default 12%, minimum 30px. No upper pixel cap — respect what the user asked for.
+  const pct = (sizePercent && sizePercent >= 1 && sizePercent <= 80) ? sizePercent : 12;
+  const logoMaxW = Math.max(30, Math.round(imgW * (pct / 100)));
+  // Max height = same as max width (prevents extremely tall logos from dominating)
+  const logoMaxH = logoMaxW;
   // Position: flush to top edge (y=0) and 1% from left — sits above all design content
   const logoX = Math.round(imgW * 0.01);
   const logoY = 0;
 
-  console.log(`[Visual] Logo: target=${logoSize}px at (${logoX}, ${logoY}) on ${imgW}x${imgH}`);
+  console.log(`[Visual] Logo: maxW=${logoMaxW}px at (${logoX}, ${logoY}) on ${imgW}x${imgH}`);
 
   // Get logo buffer
   let logoBuffer: Buffer;
@@ -686,9 +690,11 @@ async function compositeLogo(
     trimmedLogo = logoBuffer;
   }
 
-  // Resize to target size (maintain aspect ratio)
+  // Resize logo: fit INSIDE the bounding box preserving aspect ratio — no padding added.
+  // "inside" means the logo's actual rendered width/height matches what the user requested,
+  // unlike "contain" which pads wide/tall logos into a square (making them look tiny).
   const resizedLogo = await sharp(trimmedLogo)
-    .resize(logoSize, logoSize, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .resize(logoMaxW, logoMaxH, { fit: "inside", withoutEnlargement: false })
     .png()
     .toBuffer();
 
