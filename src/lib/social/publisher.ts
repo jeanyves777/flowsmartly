@@ -314,10 +314,10 @@ async function publishToInstagram(
       const createData = await createRes.json();
       if (createData.error) return { success: false, error: createData.error.message };
 
-      // Poll for processing (up to 60s)
+      // Poll for processing (up to 3 minutes)
       const containerId = createData.id;
       let status = "IN_PROGRESS";
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < 36; i++) {
         await new Promise((r) => setTimeout(r, 5000));
         const statusRes = await fetch(
           `https://graph.facebook.com/v21.0/${containerId}?fields=status_code&access_token=${token}`
