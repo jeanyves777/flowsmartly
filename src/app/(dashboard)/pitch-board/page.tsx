@@ -159,7 +159,7 @@ export default function PitchBoardPage() {
       }
       if (brandRes.ok) {
         const brandData = await brandRes.json();
-        setHasBrand(!!(brandData.brandKit?.name));
+        setHasBrand(!!(brandData.data?.brandKit?.name));
       } else {
         setHasBrand(false);
       }
@@ -404,7 +404,7 @@ export default function PitchBoardPage() {
             <p className="text-sm text-amber-800 flex-1">
               <strong>Brand identity required.</strong> Set up your brand kit so pitches go out under your brand name with your services and colors.
             </p>
-            <a href="/settings/brand" className="text-sm font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-900 whitespace-nowrap">
+            <a href="/brand" className="text-sm font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-900 whitespace-nowrap">
               Set up Brand Kit →
             </a>
           </div>
