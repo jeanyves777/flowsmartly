@@ -91,21 +91,30 @@ export default function EmailMarketingSettingsPage() {
   const fetchConfig = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch("/api/marketing-config");
-      const data = await response.json();
+
+      // Fetch both config and user profile in parallel
+      const [configRes, profileRes] = await Promise.all([
+        fetch("/api/marketing-config"),
+        fetch("/api/users/profile"),
+      ]);
+      const data = await configRes.json();
+      const profileData = await profileRes.json();
 
       if (!data.success) {
         throw new Error(data.error?.message || "Failed to fetch config");
       }
 
       const cfg = data.data.config;
+      const user = profileData.user;
       setConfig(cfg);
 
-      // Set form state from config
+      // Set form state from config, falling back to user profile when not configured
       setEmailProvider(cfg.emailProvider);
-      setFromName(cfg.defaultFromName || "");
-      setFromEmail(cfg.defaultFromEmail || "");
+      setFromName(cfg.defaultFromName || user?.name || "");
+      setFromEmail(cfg.defaultFromEmail || user?.email || "");
       setReplyTo(cfg.defaultReplyTo || "");
+      // Auto-fill test email with the user's email
+      setTestEmail(user?.email || "");
 
       // Set provider-specific config
       if (cfg.emailConfig) {
