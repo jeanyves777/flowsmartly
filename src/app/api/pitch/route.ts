@@ -89,14 +89,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: { message: "Business name is required" } }, { status: 400 });
     }
 
-    // Load user plan + credits + existing pitch count (all in parallel)
-    const [user, pitchCount] = await Promise.all([
+    // Load user plan + credits + existing pitch count + brand kit (all in parallel)
+    const [user, pitchCount, brandKit] = await Promise.all([
       prisma.user.findUnique({
         where: { id: session.userId },
         select: { aiCredits: true, freeCredits: true, name: true, plan: true },
       }),
       prisma.pitch.count({ where: { userId: session.userId } }),
+      prisma.brandKit.findFirst({
+        where: { userId: session.userId },
+        select: { name: true },
+      }),
     ]);
+
+    // Require brand identity before using pitch system
+    if (!brandKit?.name) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "BRAND_IDENTITY_REQUIRED",
+            message: "Please set up your brand identity before creating pitches. Go to Settings → Brand Kit to get started.",
+          },
+        },
+        { status: 403 }
+      );
+    }
 
     const isSubscriber = user?.plan && user.plan !== "STARTER";
     const isFreeRun    = !isSubscriber && pitchCount === 0;

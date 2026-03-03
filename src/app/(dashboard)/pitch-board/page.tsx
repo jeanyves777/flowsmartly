@@ -23,6 +23,7 @@ import {
   ChevronUp,
   RefreshCw,
   Users,
+  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,6 +103,9 @@ export default function PitchBoardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"pitches" | "leads">("pitches");
 
+  // Brand identity gate
+  const [hasBrand, setHasBrand] = useState<boolean | null>(null); // null = loading
+
   // Pitches tab state
   const [pitches, setPitches] = useState<Pitch[]>([]);
   const [stats, setStats] = useState<PitchStats>({ total: 0, ready: 0, sent: 0, failed: 0 });
@@ -134,10 +138,11 @@ export default function PitchBoardPage() {
 
   const loadPitches = useCallback(async () => {
     try {
-      const [pitchRes, creditsRes, searchRes] = await Promise.all([
+      const [pitchRes, creditsRes, searchRes, brandRes] = await Promise.all([
         fetch("/api/pitch"),
         fetch("/api/user/credits"),
         fetch("/api/leads/search?limit=1"),
+        fetch("/api/brand"),
       ]);
       const pitchData = await pitchRes.json();
       if (pitchData.success) {
@@ -151,6 +156,12 @@ export default function PitchBoardPage() {
       if (searchRes.ok) {
         const searchData = await searchRes.json();
         if (searchData.success) setLeadSearchCount(searchData.data?.searches?.length ?? 0);
+      }
+      if (brandRes.ok) {
+        const brandData = await brandRes.json();
+        setHasBrand(!!(brandData.brandKit?.name));
+      } else {
+        setHasBrand(false);
       }
     } catch { /* ignore */ } finally {
       setIsLoadingPitches(false);
@@ -198,7 +209,15 @@ export default function PitchBoardPage() {
         body: JSON.stringify(createForm),
       });
       const data = await res.json();
-      if (!data.success) { setCreateError(data.error?.message || "Failed to create pitch."); return; }
+      if (!data.success) {
+        if (data.error?.code === "BRAND_IDENTITY_REQUIRED") {
+          setShowCreateDialog(false);
+          setHasBrand(false);
+        } else {
+          setCreateError(data.error?.message || "Failed to create pitch.");
+        }
+        return;
+      }
       setShowCreateDialog(false);
       setCreateForm({ businessName: "", businessUrl: "", recipientEmail: "", recipientName: "" });
       loadPitches();
@@ -346,7 +365,12 @@ export default function PitchBoardPage() {
               </div>
             </div>
             {activeTab === "pitches" && (
-              <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
+              <Button
+                onClick={() => hasBrand ? setShowCreateDialog(true) : null}
+                disabled={hasBrand === false}
+                title={hasBrand === false ? "Set up your brand identity first" : undefined}
+                className="gap-2"
+              >
                 <Plus className="w-4 h-4" /> New Pitch
               </Button>
             )}
@@ -371,6 +395,21 @@ export default function PitchBoardPage() {
           </div>
         </div>
       </div>
+
+      {/* Brand identity required banner */}
+      {hasBrand === false && (
+        <div className="bg-amber-50 border-b border-amber-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
+            <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <p className="text-sm text-amber-800 flex-1">
+              <strong>Brand identity required.</strong> Set up your brand kit so pitches go out under your brand name with your services and colors.
+            </p>
+            <a href="/settings/brand" className="text-sm font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-900 whitespace-nowrap">
+              Set up Brand Kit →
+            </a>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ── My Pitches Tab ──────────────────────────────────────────────── */}

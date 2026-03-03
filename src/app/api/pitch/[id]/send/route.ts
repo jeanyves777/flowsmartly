@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { generatePitchPDF } from "@/lib/pitch/pdf-generator";
 import { sendPitchEmail } from "@/lib/email";
+import { sendMarketingEmail, createTransporter, sendViaMailgunApi } from "@/lib/email/marketing-sender";
 import type { PitchContent } from "@/lib/pitch/generator";
 import type { ResearchData } from "@/lib/pitch/researcher";
 
@@ -52,11 +53,29 @@ export async function POST(
       return NextResponse.json({ success: false, error: { message: "Pitch content is corrupted" } }, { status: 500 });
     }
 
-    // Get user's brand info for PDF
-    const brandKit = await prisma.brandKit.findFirst({
-      where: { userId: session.userId },
-      select: { name: true, colors: true, logo: true },
-    });
+    // Get brand kit + user + marketing config in parallel
+    const [brandKit, user, marketingConfig] = await Promise.all([
+      prisma.brandKit.findFirst({
+        where: { userId: session.userId },
+        select: { name: true, colors: true, logo: true, website: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { name: true, email: true },
+      }),
+      prisma.marketingConfig.findFirst({
+        where: { userId: session.userId },
+        select: {
+          emailProvider: true,
+          emailConfig: true,
+          emailEnabled: true,
+          defaultFromName: true,
+          defaultFromEmail: true,
+          defaultReplyTo: true,
+        },
+      }),
+    ]);
+
     const brandColors = JSON.parse(brandKit?.colors || "{}") as { primary?: string; secondary?: string };
 
     // Resolve brand logo to base64 + detect aspect ratio
@@ -97,12 +116,6 @@ export async function POST(
       logoAspectRatio,
     };
 
-    // Get sender name
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-      select: { name: true, email: true },
-    });
-
     // Generate PDF
     let pdfBuffer: Buffer | undefined;
     try {
@@ -127,18 +140,75 @@ export async function POST(
       });
     }
 
-    // Send email (pass research so the email includes visual score bars)
-    await sendPitchEmail({
-      to: toEmail,
-      recipientName: toName || undefined,
-      businessName: pitch.businessName,
-      pitch: pitchContent,
-      research,
-      pdfBuffer,
-      senderName: user?.name || "FlowSmartly Team",
-      replyTo: user?.email,
-      customMessage: message || undefined,
-    });
+    // Determine sender: use user's configured marketing email, fall back to FlowSmartly SMTP
+    const emailCfg = marketingConfig?.emailConfig as Record<string, unknown> | null | undefined;
+    const canUseUserEmail =
+      marketingConfig?.emailEnabled &&
+      marketingConfig?.emailProvider &&
+      marketingConfig.emailProvider !== "NONE" &&
+      emailCfg &&
+      Object.keys(emailCfg).length > 0;
+
+    const fromName = marketingConfig?.defaultFromName || brandKit?.name || user?.name || "FlowSmartly Team";
+    const fromEmail = marketingConfig?.defaultFromEmail || user?.email || "info@flowsmartly.com";
+    const replyToAddr = marketingConfig?.defaultReplyTo || user?.email;
+
+    if (canUseUserEmail) {
+      // Build pitch email HTML then send via user's provider
+      const { buildPitchEmailHtml } = await import("@/lib/email");
+      const html = buildPitchEmailHtml({
+        recipientName: toName || undefined,
+        businessName: pitch.businessName,
+        pitch: pitchContent,
+        research,
+        pdfBuffer,
+        senderName: fromName,
+        customMessage: message || undefined,
+        brandPrimaryColor: brand.primaryColor,
+        brandWebsite: brandKit?.website || undefined,
+      });
+
+      const attachments = pdfBuffer
+        ? [{ filename: `${pitch.businessName.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-proposal.pdf`, content: pdfBuffer }]
+        : [];
+
+      // Mailgun uses HTTP API; everything else uses nodemailer
+      if (marketingConfig.emailProvider === "MAILGUN") {
+        await sendViaMailgunApi(
+          emailCfg,
+          `${fromName} <${fromEmail}>`,
+          toEmail,
+          pitchContent.subject,
+          html,
+          undefined
+        );
+      } else {
+        const transporter = createTransporter(marketingConfig.emailProvider, emailCfg);
+        await transporter.sendMail({
+          from: `${fromName} <${fromEmail}>`,
+          to: toEmail,
+          subject: pitchContent.subject,
+          html,
+          replyTo: replyToAddr,
+          attachments: attachments.map(a => ({ filename: a.filename, content: a.content })),
+        });
+      }
+    } else {
+      // Fall back to FlowSmartly's SMTP
+      await sendPitchEmail({
+        to: toEmail,
+        recipientName: toName || undefined,
+        businessName: pitch.businessName,
+        pitch: pitchContent,
+        research,
+        pdfBuffer,
+        senderName: fromName,
+        replyTo: replyToAddr,
+        customMessage: message || undefined,
+        brandPrimaryColor: brand.primaryColor,
+        brandWebsite: brandKit?.website || undefined,
+      });
+    }
 
     // Update pitch status
     await prisma.pitch.update({

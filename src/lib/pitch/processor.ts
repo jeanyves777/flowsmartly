@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import { researchBusiness } from "./researcher";
-import { generatePitch } from "./generator";
+import { generatePitch, type BrandContext } from "./generator";
 
 export async function processPitch(pitchId: string): Promise<void> {
   let pitch;
@@ -17,15 +17,53 @@ export async function processPitch(pitchId: string): Promise<void> {
     // Step 2: Research the business
     const research = await researchBusiness(pitch.businessUrl || "", pitch.businessName);
 
-    // Step 3: Get sender name (the user who created the pitch)
-    const user = await prisma.user.findUnique({
-      where: { id: pitch.userId },
-      select: { name: true },
-    });
-    const senderName = user?.name || "The FlowSmartly Team";
+    // Step 3: Get sender's user + brand kit for fully personalized pitch
+    const [user, brandKit] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: pitch.userId },
+        select: { name: true },
+      }),
+      prisma.brandKit.findFirst({
+        where: { userId: pitch.userId },
+        select: {
+          name: true,
+          description: true,
+          industry: true,
+          niche: true,
+          products: true,
+          uniqueValue: true,
+          targetAudience: true,
+          website: true,
+        },
+      }),
+    ]);
 
-    // Step 4: Generate the pitch
-    const pitchContent = await generatePitch(research, pitch.businessName, senderName);
+    // Parse products JSON array safely
+    const products = (() => {
+      try { return JSON.parse(brandKit?.products || "[]") as string[]; }
+      catch { return [] as string[]; }
+    })();
+
+    // Build brand context — fall back to generic if no brand kit
+    const brand: BrandContext = brandKit?.name
+      ? {
+          name: brandKit.name,
+          description: brandKit.description || undefined,
+          industry: brandKit.industry || undefined,
+          niche: brandKit.niche || undefined,
+          products: products.filter(Boolean),
+          uniqueValue: brandKit.uniqueValue || undefined,
+          targetAudience: brandKit.targetAudience || undefined,
+          website: brandKit.website || undefined,
+          senderName: user?.name || brandKit.name,
+        }
+      : {
+          name: user?.name || "Our Team",
+          senderName: user?.name || "Our Team",
+        };
+
+    // Step 4: Generate the pitch customized to the user's brand
+    const pitchContent = await generatePitch(research, pitch.businessName, brand);
 
     // Step 5: Save results
     await prisma.pitch.update({
