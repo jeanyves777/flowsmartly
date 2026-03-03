@@ -106,6 +106,8 @@ export default function PitchBoardPage() {
   const [pitches, setPitches] = useState<Pitch[]>([]);
   const [stats, setStats] = useState<PitchStats>({ total: 0, ready: 0, sent: 0, failed: 0 });
   const [isLoadingPitches, setIsLoadingPitches] = useState(true);
+  const [userPlan, setUserPlan] = useState<string>("STARTER");
+  const [leadSearchCount, setLeadSearchCount] = useState(0);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createForm, setCreateForm] = useState({ businessName: "", businessUrl: "", recipientEmail: "", recipientName: "" });
   const [isCreating, setIsCreating] = useState(false);
@@ -132,12 +134,23 @@ export default function PitchBoardPage() {
 
   const loadPitches = useCallback(async () => {
     try {
-      const res = await fetch("/api/pitch");
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.success) {
-        setPitches(data.data.pitches);
-        setStats(data.data.stats);
+      const [pitchRes, creditsRes, searchRes] = await Promise.all([
+        fetch("/api/pitch"),
+        fetch("/api/user/credits"),
+        fetch("/api/leads/search?limit=1"),
+      ]);
+      const pitchData = await pitchRes.json();
+      if (pitchData.success) {
+        setPitches(pitchData.data.pitches);
+        setStats(pitchData.data.stats);
+      }
+      if (creditsRes.ok) {
+        const creditsData = await creditsRes.json();
+        if (creditsData.success) setUserPlan(creditsData.data?.plan || "STARTER");
+      }
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        if (searchData.success) setLeadSearchCount(searchData.data?.searches?.length ?? 0);
       }
     } catch { /* ignore */ } finally {
       setIsLoadingPitches(false);
@@ -302,6 +315,21 @@ export default function PitchBoardPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
+  // ── Pricing helpers ───────────────────────────────────────────────────────────
+  const isSubscriber = userPlan !== "STARTER";
+  const pitchIsFreeRun = !isSubscriber && stats.total === 0;
+  const leadIsFreeRun  = !isSubscriber && leadSearchCount === 0;
+  const pitchCreditLabel = pitchIsFreeRun
+    ? "First pitch is FREE — no credits needed"
+    : isSubscriber
+      ? "15 credits will be deducted"
+      : "500 credits required (free trial used)";
+  const leadCreditLabel = leadIsFreeRun
+    ? "First search is FREE — no credits needed"
+    : isSubscriber
+      ? "5 credits per search"
+      : "250 credits per search (free trial used)";
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -440,7 +468,7 @@ export default function PitchBoardPage() {
             {/* Search form */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-base font-semibold text-gray-900 mb-1">Find Local Businesses</h2>
-              <p className="text-sm text-gray-500 mb-5">Search Google Business listings by industry and location. Uses 5 credits per search.</p>
+              <p className="text-sm text-gray-500 mb-5">Search Google Business listings by industry and location. <span className={leadIsFreeRun ? "text-green-600 font-medium" : ""}>{leadCreditLabel}.</span></p>
 
               <form onSubmit={handleLeadSearch} className="flex flex-col sm:flex-row gap-3">
                 <div className="flex-1 relative">
@@ -685,8 +713,8 @@ export default function PitchBoardPage() {
               </div>
             </div>
 
-            <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 text-sm text-blue-700">
-              <strong>15 credits</strong> will be deducted. AI will research the business and generate a personalized pitch proposal.
+            <div className={cn("rounded-lg px-4 py-3 text-sm", pitchIsFreeRun ? "bg-green-50 border border-green-100 text-green-700" : "bg-blue-50 border border-blue-100 text-blue-700")}>
+              {pitchCreditLabel}. AI will research the business and generate a personalized pitch proposal.
             </div>
 
             {createError && (

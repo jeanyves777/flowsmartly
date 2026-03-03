@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 
-const LEAD_SEARCH_COST = 5;
+const LEAD_SEARCH_COST_SUBSCRIBER = 5;    // paying plan users
+const LEAD_SEARCH_COST_FREE_USER   = 250; // STARTER plan, after their 1 free trial run
 
 export interface BusinessLead {
   placeId: string;
@@ -138,15 +139,31 @@ export async function POST(request: NextRequest) {
       }, { status: 503 });
     }
 
-    // Check credits
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-      select: { aiCredits: true, freeCredits: true },
-    });
-    const purchasedCredits = Math.max(0, (user?.aiCredits || 0) - (user?.freeCredits || 0));
-    if (purchasedCredits < LEAD_SEARCH_COST) {
+    // Load user plan + credits + existing search count in parallel
+    const [user, searchCount] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { aiCredits: true, freeCredits: true, plan: true },
+      }),
+      prisma.leadSearch.count({ where: { userId: session.userId } }),
+    ]);
+
+    const isSubscriber = user?.plan && user.plan !== "STARTER";
+    const isFreeRun    = !isSubscriber && searchCount === 0;
+    const creditCost   = isFreeRun ? 0 : isSubscriber ? LEAD_SEARCH_COST_SUBSCRIBER : LEAD_SEARCH_COST_FREE_USER;
+    const totalCredits = user?.aiCredits || 0;
+
+    if (!isFreeRun && totalCredits < creditCost) {
       return NextResponse.json(
-        { success: false, error: { code: "INSUFFICIENT_CREDITS", message: `This search costs ${LEAD_SEARCH_COST} credits.` } },
+        {
+          success: false,
+          error: {
+            code: "INSUFFICIENT_CREDITS",
+            message: isSubscriber
+              ? `This search costs ${creditCost} credits.`
+              : `Your free trial has been used. Additional searches cost ${creditCost} credits. Please purchase credits or upgrade to a plan.`,
+          },
+        },
         { status: 403 }
       );
     }
@@ -155,22 +172,24 @@ export async function POST(request: NextRequest) {
     const searchQuery = (query || industry || "").trim();
     const results = await searchGooglePlaces(searchQuery, location?.trim() || "");
 
-    // Deduct credits
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: session.userId },
-        data: { aiCredits: { decrement: LEAD_SEARCH_COST } },
-      }),
-      prisma.creditTransaction.create({
-        data: {
-          userId: session.userId,
-          type: "USAGE",
-          amount: -LEAD_SEARCH_COST,
-          balanceAfter: (user?.aiCredits || 0) - LEAD_SEARCH_COST,
-          description: `Lead search: ${searchQuery}${location ? ` in ${location}` : ""}`,
-        },
-      }),
-    ]);
+    // Deduct credits (skip for free trial run)
+    if (creditCost > 0) {
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: session.userId },
+          data: { aiCredits: { decrement: creditCost } },
+        }),
+        prisma.creditTransaction.create({
+          data: {
+            userId: session.userId,
+            type: "USAGE",
+            amount: -creditCost,
+            balanceAfter: totalCredits - creditCost,
+            description: `Lead search: ${searchQuery}${location ? ` in ${location}` : ""}`,
+          },
+        }),
+      ]);
+    }
 
     // Save search record
     const search = await prisma.leadSearch.create({
@@ -191,8 +210,9 @@ export async function POST(request: NextRequest) {
         location: location || null,
         results,
         total: results.length,
-        creditsUsed: LEAD_SEARCH_COST,
-        creditsRemaining: (user?.aiCredits || 0) - LEAD_SEARCH_COST,
+        creditsUsed: creditCost,
+        creditsRemaining: totalCredits - creditCost,
+        isFreeRun,
       },
     });
   } catch (error) {

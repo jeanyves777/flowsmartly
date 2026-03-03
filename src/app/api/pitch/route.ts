@@ -3,7 +3,9 @@ import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { processPitch } from "@/lib/pitch/processor";
 
-const PITCH_CREDIT_COST = 15;
+// Credit costs
+const PITCH_COST_SUBSCRIBER = 15;   // paying plan users
+const PITCH_COST_FREE_USER   = 500; // STARTER plan, after their 1 free trial run
 
 // GET /api/pitch — list pitches
 export async function GET(request: NextRequest) {
@@ -87,16 +89,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: { message: "Business name is required" } }, { status: 400 });
     }
 
-    // Check credits
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-      select: { aiCredits: true, freeCredits: true, name: true },
-    });
+    // Load user plan + credits + existing pitch count (all in parallel)
+    const [user, pitchCount] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { aiCredits: true, freeCredits: true, name: true, plan: true },
+      }),
+      prisma.pitch.count({ where: { userId: session.userId } }),
+    ]);
 
-    const purchasedCredits = Math.max(0, (user?.aiCredits || 0) - (user?.freeCredits || 0));
-    if (purchasedCredits < PITCH_CREDIT_COST) {
+    const isSubscriber = user?.plan && user.plan !== "STARTER";
+    const isFreeRun    = !isSubscriber && pitchCount === 0;
+    const creditCost   = isFreeRun ? 0 : isSubscriber ? PITCH_COST_SUBSCRIBER : PITCH_COST_FREE_USER;
+    const totalCredits = user?.aiCredits || 0;
+
+    if (!isFreeRun && totalCredits < creditCost) {
       return NextResponse.json(
-        { success: false, error: { code: "INSUFFICIENT_CREDITS", message: `Not enough AI credits. This action requires ${PITCH_CREDIT_COST} credits.` } },
+        {
+          success: false,
+          error: {
+            code: "INSUFFICIENT_CREDITS",
+            message: isSubscriber
+              ? `Not enough AI credits. This action requires ${creditCost} credits.`
+              : `Your free trial has been used. Additional pitches cost ${creditCost} credits. Please purchase credits or upgrade to a plan.`,
+          },
+        },
         { status: 403 }
       );
     }
@@ -113,22 +130,24 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Deduct credits upfront
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: session.userId },
-        data: { aiCredits: { decrement: PITCH_CREDIT_COST } },
-      }),
-      prisma.creditTransaction.create({
-        data: {
-          userId: session.userId,
-          type: "USAGE",
-          amount: -PITCH_CREDIT_COST,
-          balanceAfter: (user?.aiCredits || 0) - PITCH_CREDIT_COST,
-          description: `AI Pitch: ${businessName}`,
-        },
-      }),
-    ]);
+    // Deduct credits (skip if free trial run)
+    if (creditCost > 0) {
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: session.userId },
+          data: { aiCredits: { decrement: creditCost } },
+        }),
+        prisma.creditTransaction.create({
+          data: {
+            userId: session.userId,
+            type: "USAGE",
+            amount: -creditCost,
+            balanceAfter: totalCredits - creditCost,
+            description: `AI Pitch: ${businessName}`,
+          },
+        }),
+      ]);
+    }
 
     // Fire-and-forget background research
     processPitch(pitch.id).catch((err) => {
@@ -139,8 +158,9 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         pitch: { id: pitch.id, businessName: pitch.businessName, status: pitch.status },
-        creditsUsed: PITCH_CREDIT_COST,
-        creditsRemaining: (user?.aiCredits || 0) - PITCH_CREDIT_COST,
+        creditsUsed: creditCost,
+        creditsRemaining: totalCredits - creditCost,
+        isFreeRun,
       },
     });
   } catch (error) {
