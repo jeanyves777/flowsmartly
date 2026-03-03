@@ -298,10 +298,14 @@ export default function PitchDetailPage() {
       if (!res.ok) { setError("Pitch not found."); return; }
       const data = await res.json();
       if (data.success) {
-        setPitch(data.data.pitch);
-        if (data.data.pitch.recipientEmail) {
-          setSendForm(f => ({ ...f, email: data.data.pitch.recipientEmail || "", name: data.data.pitch.recipientName || "" }));
-        }
+        const p = data.data.pitch;
+        setPitch(p);
+        // Pre-fill send form: prefer previously used recipient, fall back to scraped contact info
+        setSendForm(f => ({
+          ...f,
+          email: p.recipientEmail || p.research?.contactInfo?.email || "",
+          name: p.recipientName || p.businessName || "",
+        }));
       }
     } catch {
       setError("Failed to load pitch.");
