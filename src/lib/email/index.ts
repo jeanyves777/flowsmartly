@@ -2101,11 +2101,6 @@ export async function sendPitchEmail(params: {
     ? `<div style="background:#f0fdf4;border-left:4px solid #22c55e;padding:12px 16px;border-radius:6px;margin:0 0 16px;"><p style="margin:0;font-size:13px;color:#166534;">${customMessage}</p></div>`
     : "";
 
-  // Solution bullets — short
-  const solutionHtml = pitch.solutionBullets.slice(0, 3).map(s =>
-    `<tr><td style="font-size:13px;color:#374151;padding:5px 0 5px 10px;border-left:3px solid #2563eb;margin-bottom:6px;display:block;">${s}</td></tr>`
-  ).join("");
-
   const content = `
     <!-- Headline -->
     <h2 style="font-size:20px;color:#1e293b;margin:0 0 4px;line-height:1.3;">${pitch.headline}</h2>
@@ -2119,29 +2114,18 @@ export async function sendPitchEmail(params: {
     ${scoreSection}
 
     <!-- What We Found -->
-    <div style="background:#f1f5ff;border-radius:10px;padding:16px 18px;margin:0 0 20px;">
+    <div style="background:#f1f5ff;border-radius:10px;padding:16px 18px;margin:0 0 16px;">
       <p style="margin:0 0 12px;font-size:10px;font-weight:700;letter-spacing:2px;color:#2563eb;text-transform:uppercase;">What We Discovered</p>
       ${findingsHtml}
       ${hiddenNote}
     </div>
 
-    <!-- Opportunity — 1 short paragraph -->
-    <p style="font-size:13px;color:#374151;margin:0 0 16px;line-height:1.6;">${pitch.opportunityParagraph}</p>
-
-    <!-- Solution bullets — short list -->
-    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px;">
-      ${solutionHtml}
-    </table>
-
     <!-- CTA -->
-    <div style="background:linear-gradient(135deg,#2563eb,#4f46e5);border-radius:10px;padding:20px;text-align:center;margin:0 0 20px;">
-      <a href="${appUrl}" style="display:inline-block;background:white;color:#2563eb;font-weight:700;font-size:14px;padding:12px 28px;border-radius:6px;text-decoration:none;margin-bottom:10px;">${pitch.ctaText}</a>
-      <p style="color:#bfdbfe;font-size:12px;margin:0;">${pitch.ctaSubtext}</p>
+    <div style="background:linear-gradient(135deg,#2563eb,#4f46e5);border-radius:10px;padding:20px;text-align:center;margin:0 0 16px;">
+      <a href="${appUrl}" style="display:inline-block;background:white;color:#1d4ed8;font-weight:700;font-size:14px;padding:12px 28px;border-radius:6px;text-decoration:none;margin-bottom:8px;">${pitch.ctaText}</a>
+      <p style="color:#ffffff;opacity:.75;font-size:11px;margin:0;">${pitch.ctaSubtext}</p>
     </div>
-
-    <!-- Closing -->
-    <p style="font-size:13px;color:#374151;margin:0 0 8px;">${pitch.closingLine}</p>
-    ${pdfBuffer ? `<p style="font-size:12px;color:#9ca3af;margin:0;">📎 Full proposal with detailed analysis attached as PDF.</p>` : ""}
+    ${pdfBuffer ? `<p style="font-size:11px;color:#9ca3af;margin:0;text-align:center;">📎 Full analysis attached as PDF.</p>` : ""}
   `;
 
   const attachments = pdfBuffer

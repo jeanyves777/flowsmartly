@@ -130,7 +130,9 @@ export async function generatePitchPDF(
   y += 8;
 
   // ── Digital Health Score Card ──────────────────────────────────────
-  const cardH = 58;
+  // Layout: badge (28x28) | label + main bar + 3 rows of category bars (2 cols)
+  // Row heights: title(8) + top-pad(4) + badge area(28) + catRows(3×9=27) + bottom-pad(6) = 73
+  const cardH = 76;
   doc.setFillColor(247, 249, 252);
   doc.roundedRect(margin, y, contentW, cardH, 4, 4, "F");
   doc.setDrawColor(220, 224, 235);
@@ -143,64 +145,67 @@ export async function generatePitchPDF(
   doc.setTextColor(primary.r, primary.g, primary.b);
   doc.text("DIGITAL PRESENCE SCORE", margin + 5, y + 8);
 
-  // Score badge (left side of card)
+  // Score badge (left side of card, smaller to leave room for cats)
   const badgeX = margin + 5;
-  const badgeY = y + 12;
-  const badgeSize = 34;
+  const badgeY = y + 13;
+  const badgeSize = 28;
   drawScoreBadge(doc, badgeX, badgeY, badgeSize, score.overall);
 
-  // Score label + benchmark text (next to badge)
+  // Score label + benchmark text (right of badge)
   const labelX = badgeX + badgeSize + 6;
   const scoreRgb = hexToRgb(score.hexColor);
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(scoreRgb.r, scoreRgb.g, scoreRgb.b);
-  doc.text(`${score.label} Digital Presence`, labelX, badgeY + 8);
+  doc.text(`${score.label} Digital Presence`, labelX, badgeY + 7);
 
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(130, 130, 130);
-  doc.text(`vs. industry avg: 52  ·  top performers: 85`, labelX, badgeY + 16);
-
-  // Main score bar
   doc.setFontSize(7.5);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(100, 100, 100);
-  doc.text("Score", labelX, badgeY + 26);
-  doc.text(String(score.overall), pageW - margin - 5, badgeY + 26, { align: "right" });
-  drawScoreBar(doc, labelX, badgeY + 28, contentW - (labelX - margin) - 5, 4, score.overall, score.hexColor);
-
-  // Benchmark marker line on main bar
-  const barW = contentW - (labelX - margin) - 5;
-  doc.setDrawColor(100, 100, 100);
-  doc.setLineWidth(0.5);
-  const benchmarkX = labelX + (85 / 100) * barW;
-  doc.line(benchmarkX, badgeY + 27, benchmarkX, badgeY + 33);
-  doc.setFontSize(6);
   doc.setTextColor(130, 130, 130);
-  doc.text("85", benchmarkX, badgeY + 37, { align: "center" });
+  doc.text(`Industry avg: 52  ·  Top performers: 85`, labelX, badgeY + 14);
 
-  // Category bars (2 columns)
-  const catY = badgeY + 40;
-  const halfW = (contentW - (labelX - margin) - 10) / 2;
+  // Main score bar
+  const barW = contentW - (labelX - margin) - 5;
+  doc.setFontSize(7);
+  doc.setTextColor(100, 100, 100);
+  doc.text("Overall", labelX, badgeY + 21);
+  doc.setTextColor(scoreRgb.r, scoreRgb.g, scoreRgb.b);
+  doc.setFont("helvetica", "bold");
+  doc.text(String(score.overall), labelX + barW, badgeY + 21, { align: "right" });
+  doc.setFont("helvetica", "normal");
+  drawScoreBar(doc, labelX, badgeY + 22.5, barW, 3.5, score.overall, score.hexColor);
+
+  // Benchmark marker at 85
+  doc.setDrawColor(140, 140, 140);
+  doc.setLineWidth(0.4);
+  const bmarkX = labelX + (85 / 100) * barW;
+  doc.line(bmarkX, badgeY + 21.5, bmarkX, badgeY + 27);
+  doc.setFontSize(5.5);
+  doc.setTextColor(140, 140, 140);
+  doc.text("85", bmarkX, badgeY + 30, { align: "center" });
+
+  // Category bars: 2-column grid, 3 rows (5 cats: 2+2+1)
+  const catStartY = badgeY + 33;
+  const halfW = (barW - 6) / 2;
+  const catRowH = 8.5;
   const catBarH = 3;
 
   score.categories.forEach((cat, i) => {
     const col = i % 2;
     const row = Math.floor(i / 2);
-    const cx = labelX + col * (halfW + 8);
-    const cy = catY + row * 10;
+    const cx = labelX + col * (halfW + 6);
+    const cy = catStartY + row * catRowH;
     const catRgb = hexToRgb(cat.hexColor);
 
     doc.setFontSize(6.5);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(80, 80, 80);
     doc.text(cat.name, cx, cy);
-
     doc.setTextColor(catRgb.r, catRgb.g, catRgb.b);
+    doc.setFont("helvetica", "bold");
     doc.text(String(cat.score), cx + halfW - 2, cy, { align: "right" });
-
-    drawScoreBar(doc, cx, cy + 1.5, halfW - 8, catBarH, cat.score, cat.hexColor);
+    doc.setFont("helvetica", "normal");
+    drawScoreBar(doc, cx, cy + 1.5, halfW - 4, catBarH, cat.score, cat.hexColor);
   });
 
   y += cardH + 8;
