@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/client";
+import { extractS3Key } from "@/lib/utils/s3-client";
 
 /**
  * Social Media Publisher
@@ -739,7 +740,12 @@ async function publishToTikTok(
   }
 
   try {
-    const videoUrl = post.mediaUrls.find((u) => isVideoUrl(u))!;
+    const rawVideoUrl = post.mediaUrls.find((u) => isVideoUrl(u))!;
+
+    // Proxy video through our verified domain for TikTok URL ownership
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com";
+    const s3Key = extractS3Key(rawVideoUrl);
+    const videoUrl = `${appUrl}/api/media/proxy?key=${encodeURIComponent(s3Key)}`;
 
     // TikTok Content Posting API: publish by URL
     const res = await fetch(
