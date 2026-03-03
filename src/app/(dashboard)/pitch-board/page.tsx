@@ -440,7 +440,12 @@ export default function PitchBoardPage() {
                 <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <h3 className="text-base font-semibold text-gray-700 mb-1">No pitches yet</h3>
                 <p className="text-sm text-gray-500 mb-4">Enter a business URL and our AI will research, analyze, and generate a personalized pitch proposal.</p>
-                <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
+                <Button
+                  onClick={() => hasBrand ? setShowCreateDialog(true) : null}
+                  disabled={hasBrand === false}
+                  title={hasBrand === false ? "Set up your brand identity first" : undefined}
+                  className="gap-2"
+                >
                   <Plus className="w-4 h-4" /> Create Your First Pitch
                 </Button>
               </div>
