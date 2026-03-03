@@ -55,12 +55,46 @@ export async function POST(
     // Get user's brand info for PDF
     const brandKit = await prisma.brandKit.findFirst({
       where: { userId: session.userId },
-      select: { name: true, colors: true },
+      select: { name: true, colors: true, logo: true },
     });
-    const brandColors = JSON.parse(brandKit?.colors || "{}") as { primary?: string };
+    const brandColors = JSON.parse(brandKit?.colors || "{}") as { primary?: string; secondary?: string };
+
+    // Resolve brand logo to base64 + detect aspect ratio
+    let logoBase64: string | undefined;
+    let logoAspectRatio: number | undefined;
+    if (brandKit?.logo) {
+      try {
+        const sharp = (await import("sharp")).default;
+        let buffer: Buffer;
+        const src = brandKit.logo;
+        if (src.startsWith("data:")) {
+          buffer = Buffer.from(src.replace(/^data:image\/[^;]+;base64,/, ""), "base64");
+        } else if (src.startsWith("http")) {
+          const r = await fetch(src);
+          buffer = Buffer.from(await r.arrayBuffer());
+        } else {
+          const { readFile } = await import("fs/promises");
+          const { join } = await import("path");
+          buffer = await readFile(join(process.cwd(), "public", src));
+        }
+        const meta = await sharp(buffer).metadata();
+        const w = meta.width || 100;
+        const h = meta.height || 100;
+        const mime = (meta.format === "jpeg" || meta.format === "jpg") ? "image/jpeg"
+          : meta.format === "webp" ? "image/webp" : "image/png";
+        logoBase64 = `data:${mime};base64,${buffer.toString("base64")}`;
+        logoAspectRatio = w / h;
+      } catch (e) {
+        console.warn("[pitch pdf] Could not resolve brand logo:", e);
+      }
+    }
+
     const brand = {
       name: brandKit?.name || "FlowSmartly",
       primaryColor: brandColors.primary || "#2563eb",
+      secondaryColor: brandColors.secondary,
+      logo: logoBase64,
+      logoAspectRatio,
     };
 
     // Get sender name

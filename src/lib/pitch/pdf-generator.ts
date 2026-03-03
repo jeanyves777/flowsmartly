@@ -5,6 +5,9 @@ import { computeDigitalScore, scoreHexColor } from "./scorer";
 interface BrandInfo {
   name: string;
   primaryColor?: string;
+  secondaryColor?: string;
+  logo?: string;          // base64 data URI of the brand logo
+  logoAspectRatio?: number; // width / height — needed for correct sizing in PDF
 }
 
 function hexToRgb(hex: string) {
@@ -98,10 +101,30 @@ export async function generatePitchPDF(
   // ── Header bar ─────────────────────────────────────────────────────
   doc.setFillColor(primary.r, primary.g, primary.b);
   doc.rect(0, 0, pageW, 20, "F");
+
+  // Left side: brand logo image if available, otherwise brand name text
+  if (brand.logo) {
+    try {
+      const logoH = 12; // mm — fits in 20mm header with 4mm padding top/bottom
+      const logoW = logoH * (brand.logoAspectRatio || 3);
+      const fmt = brand.logo.includes("jpeg") || brand.logo.includes("jpg") ? "JPEG"
+        : brand.logo.includes("webp") ? "WEBP" : "PNG";
+      doc.addImage(brand.logo, fmt, margin, 4, logoW, logoH);
+    } catch {
+      // Fall back to text if image fails
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text(brand.name.toUpperCase(), margin, 13);
+    }
+  } else {
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text(brand.name.toUpperCase(), margin, 13);
+  }
+
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.text("FLOWSMARTLY", margin, 13);
   doc.setFontSize(7.5);
   doc.setFont("helvetica", "normal");
   doc.text("CONFIDENTIAL PROPOSAL", pageW - margin, 13, { align: "right" });
@@ -359,7 +382,7 @@ export async function generatePitchPDF(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(primary.r, primary.g, primary.b);
-  doc.text("HOW FLOWSMARTLY CAN HELP", margin, y);
+  doc.text(`HOW ${brand.name.toUpperCase()} CAN HELP`, margin, y);
   y += 6;
 
   doc.setFont("helvetica", "normal");
@@ -432,7 +455,7 @@ export async function generatePitchPDF(
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(7.5);
     doc.setFont("helvetica", "normal");
-    doc.text("flowsmartly.com  ·  Powered by FlowSmartly AI", pageW / 2, pageH - 4, { align: "center" });
+    doc.text(`${brand.name}  ·  Powered by FlowSmartly AI`, pageW / 2, pageH - 4, { align: "center" });
     if (totalPages > 1) {
       doc.text(`Page ${p} of ${totalPages}`, pageW - margin, pageH - 4, { align: "right" });
     }
