@@ -212,55 +212,66 @@ export async function generatePitchPDF(
 
   // ── Google Business Data (if available) ────────────────────────────
   if (gp) {
-    const gpCardH = 18;
-    doc.setFillColor(255, 251, 235); // amber tint
+    // Layout (3 rows, no emoji — jsPDF Helvetica doesn't support them):
+    //   Row 1 (y+7):  Title left  |  Phone right
+    //   Row 2 (y+14): Rating stars+reviews left  |  Address right
+    //   Row 3 (y+19): Full-width rating bar + benchmark marker
+    const gpCardH = 24;
+    doc.setFillColor(255, 251, 235);
     doc.roundedRect(margin, y, contentW, gpCardH, 3, 3, "F");
     doc.setDrawColor(251, 191, 36);
     doc.setLineWidth(0.3);
     doc.roundedRect(margin, y, contentW, gpCardH, 3, 3, "S");
 
+    // Row 1 — title (left) + phone (right)
     doc.setFontSize(7.5);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(120, 80, 0);
     doc.text("GOOGLE BUSINESS PROFILE", margin + 4, y + 7);
 
-    // Stars
-    const starStr = gp.rating !== undefined ? `★ ${gp.rating}/5.0` : "No rating";
+    if (gp.phone) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Tel: ${gp.phone}`, pageW - margin - 4, y + 7, { align: "right" });
+    }
+
+    // Row 2 — stars + reviews (left) + address (right)
+    const starStr = gp.rating !== undefined ? `${gp.rating}/5.0` : "No rating";
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
     doc.setTextColor(180, 120, 0);
     doc.text(starStr, margin + 4, y + 14);
 
     if (gp.reviewCount !== undefined) {
       doc.setFont("helvetica", "normal");
-      doc.setTextColor(120, 80, 0);
-      doc.text(`(${gp.reviewCount} reviews)`, margin + 26, y + 14);
-    }
-
-    // Rating bar
-    if (gp.rating !== undefined) {
-      const ratingBarX = margin + 60;
-      const ratingBarW = 60;
-      drawScoreBar(doc, ratingBarX, y + 11, ratingBarW, 3.5, (gp.rating / 5) * 100,
-        gp.rating >= 4.5 ? "#22c55e" : gp.rating >= 4.0 ? "#f59e0b" : "#ef4444");
-      // Benchmark at 4.5
-      const bx = ratingBarX + (4.5 / 5) * ratingBarW;
-      doc.setDrawColor(100, 100, 100);
-      doc.setLineWidth(0.4);
-      doc.line(bx, y + 10, bx, y + 16);
-      doc.setFontSize(5.5);
-      doc.setTextColor(130, 130, 130);
-      doc.text("4.5★", bx, y + 18, { align: "center" });
-    }
-
-    if (gp.phone) {
-      doc.setFontSize(7.5);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(100, 100, 100);
-      doc.text(`📞 ${gp.phone}`, pageW - margin - 4, y + 7, { align: "right" });
-    }
-    if (gp.address) {
-      const shortAddr = gp.address.length > 50 ? gp.address.slice(0, 48) + "…" : gp.address;
       doc.setFontSize(7);
-      doc.text(shortAddr, pageW - margin - 4, y + 13, { align: "right" });
+      doc.setTextColor(120, 80, 0);
+      doc.text(`(${gp.reviewCount} reviews)`, margin + 20, y + 14);
+    }
+
+    if (gp.address) {
+      const shortAddr = gp.address.length > 55 ? gp.address.slice(0, 53) + "…" : gp.address;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.5);
+      doc.setTextColor(110, 110, 110);
+      doc.text(shortAddr, pageW - margin - 4, y + 14, { align: "right" });
+    }
+
+    // Row 3 — rating bar (full width) with benchmark at 4.5/5
+    if (gp.rating !== undefined) {
+      const ratingColor = gp.rating >= 4.5 ? "#22c55e" : gp.rating >= 4.0 ? "#f59e0b" : "#ef4444";
+      const ratingBarX = margin + 4;
+      const ratingBarW = contentW - 8;
+      drawScoreBar(doc, ratingBarX, y + 17, ratingBarW, 3.5, (gp.rating / 5) * 100, ratingColor);
+      // Benchmark marker at 4.5/5
+      const bx = ratingBarX + (4.5 / 5) * ratingBarW;
+      doc.setDrawColor(140, 140, 140);
+      doc.setLineWidth(0.4);
+      doc.line(bx, y + 16, bx, y + 22);
+      doc.setFontSize(5.5);
+      doc.setTextColor(140, 140, 140);
+      doc.text("4.5", bx, y + 24, { align: "center" });
     }
 
     y += gpCardH + 7;
