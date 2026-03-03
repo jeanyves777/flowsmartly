@@ -265,6 +265,7 @@ async function publishToInstagram(
 
     if (post.mediaUrls.length === 1 && !isVideo) {
       // Single image
+      console.log("[Instagram] Creating media container with image_url:", post.mediaUrls[0]);
       const createRes = await fetch(
         `https://graph.facebook.com/v21.0/${igUserId}/media`,
         {
@@ -278,7 +279,9 @@ async function publishToInstagram(
         }
       );
       const createData = await createRes.json();
+      console.log("[Instagram] Create media response:", JSON.stringify(createData).slice(0, 300));
       if (createData.error) return { success: false, error: createData.error.message };
+      if (!createData.id) return { success: false, error: "Instagram did not return a media container ID — image may not be publicly accessible" };
 
       const publishRes = await fetch(
         `https://graph.facebook.com/v21.0/${igUserId}/media_publish`,
