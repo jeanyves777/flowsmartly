@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
@@ -38,7 +38,7 @@ import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
-import { PLATFORM_META, PLATFORM_ORDER } from "@/components/shared/social-platform-icons";
+import { PLATFORM_META, PLATFORM_ORDER, PLATFORM_REQUIREMENTS } from "@/components/shared/social-platform-icons";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 interface PlatformPublishResult {
@@ -82,6 +82,61 @@ export default function ContentPostsPage() {
   const [publishResults, setPublishResults] = useState<Record<string, PlatformPublishResult>>({});
   const [lastPostId, setLastPostId] = useState<string | null>(null);
   const [retryingPlatforms, setRetryingPlatforms] = useState<string[]>([]);
+
+  // ── Content Type Detection & Platform Compatibility ─────────────────────
+  const VIDEO_EXTS = [".mp4", ".webm", ".mov", ".avi"];
+  const isVideoUrl = (url: string) => VIDEO_EXTS.some((ext) => url.toLowerCase().includes(ext));
+
+  const contentState = useMemo(() => {
+    const hasText = caption.trim().length > 0;
+    const hasImage = mediaUrls.some((url) => !isVideoUrl(url));
+    const hasVideo = mediaUrls.some((url) => isVideoUrl(url));
+    const hasMedia = mediaUrls.length > 0;
+    return { hasText, hasImage, hasVideo, hasMedia };
+  }, [caption, mediaUrls]);
+
+  const getIncompatibleReason = useCallback(
+    (platformId: string): string | null => {
+      const reqs = PLATFORM_REQUIREMENTS[platformId];
+      if (!reqs) return null;
+      // If no content yet, allow pre-selection
+      if (!contentState.hasText && !contentState.hasMedia) return null;
+
+      const hasOnlyText = contentState.hasText && !contentState.hasMedia;
+      const hasOnlyImages = contentState.hasImage && !contentState.hasVideo;
+      const hasOnlyVideo = contentState.hasVideo && !contentState.hasImage;
+
+      // Text-only post
+      if (hasOnlyText && !reqs.text) {
+        if (!reqs.image && reqs.video) return "Requires video";
+        if (reqs.image) return "Requires an image";
+        return "Requires media";
+      }
+      // Image-only post
+      if (hasOnlyImages && !reqs.image) {
+        if (reqs.video) return "Requires video";
+        return "Doesn't support images";
+      }
+      // Video-only post
+      if (hasOnlyVideo && !reqs.video) {
+        return "Doesn't support video";
+      }
+      // Mixed image+video: check if platform supports at least one
+      if (contentState.hasImage && contentState.hasVideo) {
+        if (!reqs.image && !reqs.video) return "Requires different media";
+      }
+      return null;
+    },
+    [contentState]
+  );
+
+  // Auto-deselect platforms that become incompatible when content changes
+  useEffect(() => {
+    if (!contentState.hasText && !contentState.hasMedia) return; // no content yet, skip
+    setSelectedPlatforms((prev) =>
+      prev.filter((id) => id === "feed" || !getIncompatibleReason(id))
+    );
+  }, [contentState, getIncompatibleReason]);
 
   // ── AI Idea Generation ──────────────────────────────────────────────────
   const handleGenerateIdea = async () => {
@@ -336,8 +391,9 @@ export default function ContentPostsPage() {
                 {SOCIAL_PLATFORMS.map((platform) => {
                   const Icon = platform.icon;
                   const isActive = selectedPlatforms.includes(platform.id);
+                  const incompatibleReason = getIncompatibleReason(platform.id);
 
-                  if (!platform.enabled) {
+                  if (!platform.enabled || incompatibleReason) {
                     return (
                       <Tooltip key={platform.id}>
                         <TooltipTrigger asChild>
@@ -348,7 +404,11 @@ export default function ContentPostsPage() {
                             <Icon className="w-5 h-5 text-muted-foreground" />
                           </button>
                         </TooltipTrigger>
-                        <TooltipContent>Connect {platform.label} in Settings</TooltipContent>
+                        <TooltipContent>
+                          {incompatibleReason
+                            ? `${platform.label}: ${incompatibleReason}`
+                            : `Connect ${platform.label} in Settings`}
+                        </TooltipContent>
                       </Tooltip>
                     );
                   }
