@@ -46,6 +46,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils/cn";
+import { scoreHexColor, scoreLabel } from "@/lib/pitch/scorer";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -200,17 +201,11 @@ function scoreColor(score: number): string {
 }
 
 function scoreBg(score: number): string {
-  if (score >= 80) return "bg-green-500";
-  if (score >= 60) return "bg-amber-500";
-  if (score >= 40) return "bg-orange-500";
+  const hex = scoreHexColor(score);
+  if (hex === "#22c55e") return "bg-green-500";
+  if (hex === "#f59e0b") return "bg-amber-500";
+  if (hex === "#f97316") return "bg-orange-500";
   return "bg-red-500";
-}
-
-function scoreLabel(score: number): string {
-  if (score >= 80) return "Strong";
-  if (score >= 60) return "Moderate";
-  if (score >= 40) return "Weak";
-  return "Critical";
 }
 
 // ── Circular progress ring ─────────────────────────────────────────────────────

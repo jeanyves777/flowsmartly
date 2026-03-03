@@ -93,12 +93,13 @@ export async function POST(
       });
     }
 
-    // Send email
+    // Send email (pass research so the email includes visual score bars)
     await sendPitchEmail({
       to: toEmail,
       recipientName: toName || undefined,
       businessName: pitch.businessName,
       pitch: pitchContent,
+      research,
       pdfBuffer,
       senderName: user?.name || "FlowSmartly Team",
       replyTo: user?.email,
