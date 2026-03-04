@@ -304,7 +304,7 @@ async function lookupGooglePlaces(businessName: string, websiteUrl: string): Pro
 
 // ── Main research function ────────────────────────────────────────────────────
 
-export async function researchBusiness(url: string, businessName: string): Promise<ResearchData> {
+export async function researchBusiness(url: string, businessName: string, brandName?: string): Promise<ResearchData> {
   let html = "";
   let fetchError: string | undefined;
   let hasSSL = url.startsWith("https://") || url.startsWith("http://");
@@ -449,14 +449,14 @@ ${fetchError ? `\nNOTE: Website could not be fully fetched (${fetchError}). Base
   }
 
   const aiResult = await ai.generateJSON<AIAnalysis>(
-    `You are analyzing a real business to identify pain points and growth opportunities for a FlowSmartly sales pitch. Be SPECIFIC and ACCURATE based only on what the data actually shows — do NOT invent problems that aren't evident.
+    `You are analyzing a real business to identify pain points and growth opportunities for a ${brandName || "digital marketing"} sales pitch. Be SPECIFIC and ACCURATE based only on what the data actually shows — do NOT invent problems that aren't evident.
 
 Return a JSON object with these fields:
 - summary: 2-3 sentences describing what this business does, who they serve, and a quick assessment of their digital presence
 - industry: single specific category (e.g. "Dental Clinic", "Mexican Restaurant", "Personal Injury Law Firm", "CrossFit Gym", "Hair Salon", "Plumbing Company")
 - services: array of 3-6 ACTUAL services/products this business offers (based on their content, not generic)
 - painPoints: array of 4-8 SPECIFIC weaknesses found in their digital presence. Only list what is ACTUALLY missing/weak based on the data provided. Reference actual data (e.g. "Only 12 Google reviews — well below industry average for local trust", "No SSL certificate — Google Chrome shows 'Not Secure' warning to visitors", "No email capture form — missing opportunity to build a marketing list", "No live chat — potential customers can't get instant answers"). For low Google ratings, cite the actual rating.
-- opportunities: array of 4-6 specific growth opportunities for THIS business using FlowSmartly tools. Reference their industry and actual gaps (e.g. "SMS appointment reminders would reduce no-shows — critical for dental practices", "Automated review request campaigns to increase their ${googlePlaces?.rating ?? "low"} rating and ${googlePlaces?.reviewCount ?? 0} reviews", "Email marketing to existing patients/clients for repeat business and referrals").
+- opportunities: array of 4-6 specific growth opportunities for THIS business that ${brandName || "a digital marketing partner"} could help them achieve. Reference their industry and actual gaps (e.g. "SMS appointment reminders would reduce no-shows — critical for dental practices", "Automated review request campaigns to increase their ${googlePlaces?.rating ?? "low"} rating and ${googlePlaces?.reviewCount ?? 0} reviews", "Email marketing to existing patients/clients for repeat business and referrals").
 - contactEmail: the primary business contact email from the content (not noreply@ or automated addresses), or null
 - contactPhone: the primary business phone number, formatted cleanly, or null. Prefer Google Places phone over website if both present.
 - contactAddress: the complete physical address, or null. Prefer Google Places address.

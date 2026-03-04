@@ -280,6 +280,7 @@ export default function PitchDetailPage() {
   const router = useRouter();
 
   const [pitch, setPitch] = useState<Pitch | null>(null);
+  const [brandName, setBrandName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [showReviews, setShowReviews] = useState(false);
@@ -294,7 +295,10 @@ export default function PitchDetailPage() {
 
   const loadPitch = useCallback(async () => {
     try {
-      const res = await fetch(`/api/pitch/${id}`);
+      const [res, brandRes] = await Promise.all([
+        fetch(`/api/pitch/${id}`),
+        fetch("/api/brand"),
+      ]);
       if (!res.ok) { setError("Pitch not found."); return; }
       const data = await res.json();
       if (data.success) {
@@ -306,6 +310,10 @@ export default function PitchDetailPage() {
           email: p.recipientEmail || p.research?.contactInfo?.email || "",
           name: p.recipientName || p.businessName || "",
         }));
+      }
+      if (brandRes.ok) {
+        const brandData = await brandRes.json();
+        setBrandName(brandData.data?.brandKit?.name || "");
       }
     } catch {
       setError("Failed to load pitch.");
@@ -761,7 +769,7 @@ export default function PitchDetailPage() {
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
                 {/* Header bar */}
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-6 text-white">
-                  <div className="text-xs font-bold tracking-widest opacity-75 mb-2 uppercase">FlowSmartly · Confidential Proposal</div>
+                  <div className="text-xs font-bold tracking-widest opacity-75 mb-2 uppercase">{brandName || "Confidential Proposal"}</div>
                   <h2 className="text-2xl font-black leading-tight">{pc.headline || `A Growth Strategy Built for ${pitch.businessName}`}</h2>
                   <p className="text-sm text-blue-100 mt-2">Prepared exclusively for <strong>{pitch.businessName}</strong></p>
                 </div>
@@ -834,7 +842,7 @@ export default function PitchDetailPage() {
                   {/* Solution Bullets */}
                   {pc.solutionBullets && pc.solutionBullets.length > 0 && (
                     <div>
-                      <div className="text-[10px] font-bold tracking-widest text-blue-600 mb-3 uppercase">How FlowSmartly Can Help</div>
+                      <div className="text-[10px] font-bold tracking-widest text-blue-600 mb-3 uppercase">How {brandName || "We"} Can Help</div>
                       <div className="space-y-2.5">
                         {pc.solutionBullets.map((b, i) => (
                           <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
@@ -871,7 +879,7 @@ export default function PitchDetailPage() {
                   )}
 
                   <div className="border-t border-gray-100 pt-4 text-center">
-                    <p className="text-xs text-gray-400">flowsmartly.com · Powered by FlowSmartly AI</p>
+                    <p className="text-xs text-gray-400">{brandName || "Powered by FlowSmartly AI"}</p>
                   </div>
                 </div>
               </div>

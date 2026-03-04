@@ -14,10 +14,7 @@ export async function processPitch(pitchId: string): Promise<void> {
       data: { status: "RESEARCHING" },
     });
 
-    // Step 2: Research the business
-    const research = await researchBusiness(pitch.businessUrl || "", pitch.businessName);
-
-    // Step 3: Get sender's user + brand kit for fully personalized pitch
+    // Step 2: Get sender's user + brand kit for fully personalized pitch
     const [user, brandKit] = await Promise.all([
       prisma.user.findUnique({
         where: { id: pitch.userId },
@@ -43,6 +40,9 @@ export async function processPitch(pitchId: string): Promise<void> {
       try { return JSON.parse(brandKit?.products || "[]") as string[]; }
       catch { return [] as string[]; }
     })();
+
+    // Step 3: Research the business (pass brand name so AI references the user's brand)
+    const research = await researchBusiness(pitch.businessUrl || "", pitch.businessName, brandKit?.name || undefined);
 
     // Build brand context — fall back to generic if no brand kit
     const brand: BrandContext = brandKit?.name
