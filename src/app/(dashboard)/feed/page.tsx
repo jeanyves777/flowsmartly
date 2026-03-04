@@ -1512,7 +1512,6 @@ export default function FeedPage() {
       <div className="flex gap-2 mb-4">
         {[
           { value: "feed", label: "For You" },
-          { value: "following", label: "Following" },
           { value: "trending", label: "Trending" },
         ].map(tab => (
           <Button

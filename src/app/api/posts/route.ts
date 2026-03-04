@@ -26,15 +26,23 @@ export async function GET(request: NextRequest) {
       where.userId = userId;
     }
 
-    // If type is "following" and user is logged in, only show posts from followed users
-    if (type === "following" && session) {
+    // For feed and following types, only show posts from followed users + own + FlowSmartly
+    if ((type === "feed" || type === "following") && session && !userId) {
       const following = await prisma.follow.findMany({
         where: { followerId: session.userId },
         select: { followingId: true },
       });
       const followingIds = following.map(f => f.followingId);
-      // Include own posts in following feed
+      // Include own posts
       followingIds.push(session.userId);
+      // Always include FlowSmartly's posts
+      const flowsmartlyUser = await prisma.user.findUnique({
+        where: { username: "flowsmartly" },
+        select: { id: true },
+      });
+      if (flowsmartlyUser && !followingIds.includes(flowsmartlyUser.id)) {
+        followingIds.push(flowsmartlyUser.id);
+      }
       where.userId = { in: followingIds };
     }
 
