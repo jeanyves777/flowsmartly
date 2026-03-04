@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/client";
-import { extractS3Key } from "@/lib/utils/s3-client";
+import { extractS3Key, getPresignedUrl } from "@/lib/utils/s3-client";
 
 /**
  * Social Media Publisher
@@ -485,83 +485,113 @@ async function publishToTwitter(
       for (const url of post.mediaUrls.slice(0, 4)) {
         // Download media
         const mediaResponse = await fetch(url);
-        if (!mediaResponse.ok) continue;
+        if (!mediaResponse.ok) {
+          console.log("[Twitter] Failed to download media:", url.slice(0, 100), mediaResponse.status);
+          continue;
+        }
         const mediaBuffer = Buffer.from(await mediaResponse.arrayBuffer());
-        const mimeType = isVideoUrl(url) ? "video/mp4" : "image/jpeg";
+        const isVideo = isVideoUrl(url);
+        const mimeType = isVideo ? "video/mp4" : "image/jpeg";
 
-        // Twitter media upload (v1.1)
-        // INIT
-        const initRes = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            command: "INIT",
-            total_bytes: mediaBuffer.length.toString(),
-            media_type: mimeType,
-          }),
-        });
-        const initText = await initRes.text();
-        console.log("[Twitter] Media INIT response:", initRes.status, initText.slice(0, 300));
-        let initData: any;
-        try { initData = JSON.parse(initText); } catch { continue; }
-        if (!initData.media_id_string) continue;
-
-        const mediaId = initData.media_id_string;
-
-        // APPEND (send in chunks of 5MB)
-        const chunkSize = 5 * 1024 * 1024;
-        for (let i = 0; i < mediaBuffer.length; i += chunkSize) {
-          const chunk = mediaBuffer.subarray(i, Math.min(i + chunkSize, mediaBuffer.length));
+        // Twitter media upload — simple (non-chunked) for images, chunked for videos
+        if (!isVideo && mediaBuffer.length < 5 * 1024 * 1024) {
+          // Simple upload for images < 5MB
           const formData = new FormData();
-          formData.append("command", "APPEND");
-          formData.append("media_id", mediaId);
-          formData.append("segment_index", String(Math.floor(i / chunkSize)));
-          formData.append("media_data", chunk.toString("base64"));
+          formData.append("media_data", mediaBuffer.toString("base64"));
+          formData.append("media_category", "tweet_image");
 
-          await fetch("https://upload.twitter.com/1.1/media/upload.json", {
+          const uploadRes = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },
             body: formData,
           });
-        }
-
-        // FINALIZE
-        const finalRes = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            command: "FINALIZE",
-            media_id: mediaId,
-          }),
-        });
-        const finalData = await finalRes.json();
-
-        // If video, wait for processing
-        if (finalData.processing_info) {
-          let state = finalData.processing_info.state;
-          while (state === "pending" || state === "in_progress") {
-            const wait = (finalData.processing_info.check_after_secs || 5) * 1000;
-            await new Promise((r) => setTimeout(r, wait));
-            const statusRes = await fetch(
-              `https://upload.twitter.com/1.1/media/upload.json?command=STATUS&media_id=${mediaId}`,
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-            const statusData = await statusRes.json();
-            state = statusData.processing_info?.state || "succeeded";
+          const uploadText = await uploadRes.text();
+          console.log("[Twitter] Simple upload response:", uploadRes.status, uploadText.slice(0, 300));
+          try {
+            const uploadData = JSON.parse(uploadText);
+            if (uploadData.media_id_string) {
+              mediaIds.push(uploadData.media_id_string);
+            }
+          } catch {
+            // Upload failed
           }
-        }
+        } else {
+          // Chunked upload for videos and large files
+          const initRes = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              command: "INIT",
+              total_bytes: mediaBuffer.length.toString(),
+              media_type: mimeType,
+              media_category: isVideo ? "tweet_video" : "tweet_image",
+            }),
+          });
+          const initText = await initRes.text();
+          console.log("[Twitter] Media INIT response:", initRes.status, initText.slice(0, 300));
+          let initData: any;
+          try { initData = JSON.parse(initText); } catch { continue; }
+          if (!initData.media_id_string) continue;
 
-        mediaIds.push(mediaId);
+          const mediaId = initData.media_id_string;
+
+          // APPEND (send in chunks of 5MB)
+          const chunkSize = 5 * 1024 * 1024;
+          for (let i = 0; i < mediaBuffer.length; i += chunkSize) {
+            const chunk = mediaBuffer.subarray(i, Math.min(i + chunkSize, mediaBuffer.length));
+            const formData = new FormData();
+            formData.append("command", "APPEND");
+            formData.append("media_id", mediaId);
+            formData.append("segment_index", String(Math.floor(i / chunkSize)));
+            formData.append("media_data", chunk.toString("base64"));
+
+            await fetch("https://upload.twitter.com/1.1/media/upload.json", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: formData,
+            });
+          }
+
+          // FINALIZE
+          const finalRes = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              command: "FINALIZE",
+              media_id: mediaId,
+            }),
+          });
+          const finalData = await finalRes.json();
+
+          // If video, wait for processing
+          if (finalData.processing_info) {
+            let state = finalData.processing_info.state;
+            while (state === "pending" || state === "in_progress") {
+              const wait = (finalData.processing_info.check_after_secs || 5) * 1000;
+              await new Promise((r) => setTimeout(r, wait));
+              const statusRes = await fetch(
+                `https://upload.twitter.com/1.1/media/upload.json?command=STATUS&media_id=${mediaId}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+              const statusData = await statusRes.json();
+              state = statusData.processing_info?.state || "succeeded";
+            }
+          }
+
+          mediaIds.push(mediaId);
+        }
       }
 
       if (mediaIds.length > 0) {
         tweetBody.media = { media_ids: mediaIds };
+      } else {
+        return { success: false, error: "Twitter media upload failed — media could not be uploaded. Try posting text-only or reconnect your account." };
       }
     }
 
@@ -933,12 +963,19 @@ export async function publishToSocialPlatforms(
     platforms = [];
   }
 
-  let mediaUrls: string[] = [];
+  let mediaKeys: string[] = [];
   try {
-    mediaUrls = post.mediaMeta ? JSON.parse(post.mediaMeta) : [];
+    mediaKeys = post.mediaMeta ? JSON.parse(post.mediaMeta) : [];
   } catch {
-    mediaUrls = post.mediaUrl ? [post.mediaUrl] : [];
+    mediaKeys = post.mediaUrl ? [extractS3Key(post.mediaUrl)] : [];
   }
+  // Generate fresh presigned URLs from stored S3 keys (or use as-is if already full URLs)
+  const mediaUrls: string[] = await Promise.all(
+    mediaKeys.map(async (key) => {
+      if (key.startsWith("http")) return key; // Already a full URL (legacy)
+      return getPresignedUrl(key);
+    })
+  );
 
   const postData: PostData = {
     id: post.id,

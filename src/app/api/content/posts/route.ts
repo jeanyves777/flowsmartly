@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { ai } from "@/lib/ai/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { publishToSocialPlatforms } from "@/lib/social/publisher";
+import { extractS3Key } from "@/lib/utils/s3-client";
 
 // GET /api/content/posts - Fetch user's own posts (all statuses)
 export async function GET(request: NextRequest) {
@@ -257,8 +258,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Media handling
+    // Media handling — store raw S3 keys (not presigned URLs) so they don't expire
     const allMediaUrls: string[] = Array.isArray(mediaUrls) ? mediaUrls : [];
+    const allMediaKeys = allMediaUrls.map((url) => extractS3Key(url));
     const primaryMediaUrl = allMediaUrls[0] || null;
     const mediaType = allMediaUrls.length > 0
       ? (bodyMediaType === "video" ? "video" : "image")
@@ -271,7 +273,7 @@ export async function POST(request: NextRequest) {
         mediaUrl: primaryMediaUrl,
         mediaType,
         mediaMeta:
-          allMediaUrls.length > 0 ? JSON.stringify(allMediaUrls) : null,
+          allMediaKeys.length > 0 ? JSON.stringify(allMediaKeys) : null,
         hashtags: JSON.stringify(hashtags),
         mentions: JSON.stringify(mentions),
         platforms: JSON.stringify(
