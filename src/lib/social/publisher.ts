@@ -489,7 +489,7 @@ async function publishToTwitter(
         const mediaBuffer = Buffer.from(await mediaResponse.arrayBuffer());
         const mimeType = isVideoUrl(url) ? "video/mp4" : "image/jpeg";
 
-        // Twitter media upload (v1.1 supports OAuth2 Bearer tokens)
+        // Twitter media upload (v1.1)
         // INIT
         const initRes = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
           method: "POST",
@@ -503,7 +503,10 @@ async function publishToTwitter(
             media_type: mimeType,
           }),
         });
-        const initData = await initRes.json();
+        const initText = await initRes.text();
+        console.log("[Twitter] Media INIT response:", initRes.status, initText.slice(0, 300));
+        let initData: any;
+        try { initData = JSON.parse(initText); } catch { continue; }
         if (!initData.media_id_string) continue;
 
         const mediaId = initData.media_id_string;
@@ -563,6 +566,7 @@ async function publishToTwitter(
     }
 
     // Create tweet
+    console.log("[Twitter] Creating tweet with body:", JSON.stringify(tweetBody).slice(0, 200));
     const res = await fetch("https://api.twitter.com/2/tweets", {
       method: "POST",
       headers: {
@@ -572,7 +576,9 @@ async function publishToTwitter(
       body: JSON.stringify(tweetBody),
     });
 
-    const data = await res.json();
+    const resText = await res.text();
+    console.log("[Twitter] Tweet response:", res.status, resText.slice(0, 300));
+    const data = resText ? JSON.parse(resText) : {};
     if (data.errors || data.detail) {
       return { success: false, error: data.errors?.[0]?.message || data.detail || "Tweet failed" };
     }
