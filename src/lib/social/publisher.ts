@@ -746,6 +746,7 @@ async function publishToTikTok(
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com";
     const s3Key = extractS3Key(rawVideoUrl);
     const videoUrl = `${appUrl}/api/media/proxy?key=${encodeURIComponent(s3Key)}`;
+    console.log("[TikTok] Video URL for posting:", videoUrl);
 
     // TikTok Content Posting API: publish by URL
     const res = await fetch(
