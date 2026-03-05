@@ -1719,10 +1719,37 @@ export default function FeedPage() {
             </div>
           ) : posts.length === 0 ? (
             <Card>
-              <CardContent className="p-8 text-center text-muted-foreground">
-                <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p className="font-medium">No posts yet</p>
-                <p className="text-sm mt-1">Be the first to share something!</p>
+              <CardContent className="p-8 text-center">
+                <Users className="w-12 h-12 mx-auto mb-4 text-brand-500 opacity-70" />
+                <p className="font-semibold text-lg">Your feed is empty</p>
+                <p className="text-sm text-muted-foreground mt-1 mb-6">Follow creators to see their posts here</p>
+                {suggestedUsers.length > 0 ? (
+                  <div className="space-y-3 max-w-sm mx-auto text-left">
+                    {suggestedUsers.map((user) => (
+                      <div key={user.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-10 h-10">
+                            <AvatarImage src={user.avatarUrl || undefined} />
+                            <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm font-medium">{user.name}</p>
+                            <p className="text-xs text-muted-foreground">@{user.username} · {formatCount(user.followersCount)} followers</p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant={user.isFollowing ? "secondary" : "default"}
+                          onClick={() => handleFollow(user.id)}
+                        >
+                          {user.isFollowing ? "Following" : "Follow"}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No suggested creators yet. Check back later!</p>
+                )}
               </CardContent>
             </Card>
           ) : (

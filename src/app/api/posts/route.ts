@@ -27,26 +27,23 @@ export async function GET(request: NextRequest) {
     }
 
     // For feed and following types, only show posts from followed users + own + FlowSmartly
-    // If user follows nobody, show all posts (fallback for new users)
     if ((type === "feed" || type === "following") && session && !userId) {
       const following = await prisma.follow.findMany({
         where: { followerId: session.userId },
         select: { followingId: true },
       });
-      if (following.length > 0) {
-        const followingIds = following.map(f => f.followingId);
-        // Include own posts
-        followingIds.push(session.userId);
-        // Always include FlowSmartly's posts
-        const flowsmartlyUser = await prisma.user.findUnique({
-          where: { username: "flowsmartly" },
-          select: { id: true },
-        });
-        if (flowsmartlyUser && !followingIds.includes(flowsmartlyUser.id)) {
-          followingIds.push(flowsmartlyUser.id);
-        }
-        where.userId = { in: followingIds };
+      const followingIds = following.map(f => f.followingId);
+      // Include own posts
+      followingIds.push(session.userId);
+      // Always include FlowSmartly's posts
+      const flowsmartlyUser = await prisma.user.findUnique({
+        where: { username: "flowsmartly" },
+        select: { id: true },
+      });
+      if (flowsmartlyUser && !followingIds.includes(flowsmartlyUser.id)) {
+        followingIds.push(flowsmartlyUser.id);
       }
+      where.userId = { in: followingIds };
     }
 
     // Fetch posts with pagination
