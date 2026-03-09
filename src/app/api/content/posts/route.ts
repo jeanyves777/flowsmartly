@@ -261,7 +261,7 @@ export async function POST(request: NextRequest) {
     // Media handling — store raw S3 keys (not presigned URLs) so they don't expire
     const allMediaUrls: string[] = Array.isArray(mediaUrls) ? mediaUrls : [];
     const allMediaKeys = allMediaUrls.map((url) => extractS3Key(url));
-    const primaryMediaUrl = allMediaUrls[0] || null;
+    const primaryMediaUrl = allMediaKeys[0] || null;
     const mediaType = allMediaUrls.length > 0
       ? (bodyMediaType === "video" ? "video" : "image")
       : null;

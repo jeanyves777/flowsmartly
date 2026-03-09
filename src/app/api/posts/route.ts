@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { presignAllUrls } from "@/lib/utils/s3-client";
+import { presignAllUrls, extractS3Key } from "@/lib/utils/s3-client";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 
 // GET /api/posts - Get feed posts
@@ -243,7 +243,9 @@ export async function POST(request: NextRequest) {
 
     // Support both single mediaUrl and array of mediaUrls
     const allMediaUrls: string[] = mediaUrls?.length ? mediaUrls : mediaUrl ? [mediaUrl] : [];
-    const primaryMediaUrl = allMediaUrls[0] || null;
+    // Store raw S3 keys (not presigned URLs) so they don't expire
+    const allMediaKeys = allMediaUrls.map((url: string) => extractS3Key(url));
+    const primaryMediaKey = allMediaKeys[0] || null;
     const resolvedMediaType = allMediaUrls.length > 0 ? (mediaType || "image") : null;
 
     // Extract hashtags from content if not provided
@@ -257,9 +259,9 @@ export async function POST(request: NextRequest) {
       data: {
         userId: session.userId,
         caption: content,
-        mediaUrl: primaryMediaUrl,
+        mediaUrl: primaryMediaKey,
         mediaType: resolvedMediaType,
-        mediaMeta: allMediaUrls.length > 0 ? JSON.stringify(allMediaUrls) : null,
+        mediaMeta: allMediaKeys.length > 0 ? JSON.stringify(allMediaKeys) : null,
         hashtags: JSON.stringify(allHashtags),
         mentions: JSON.stringify(mentions),
         status: scheduledAt ? "SCHEDULED" : "PUBLISHED",

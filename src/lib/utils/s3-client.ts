@@ -85,6 +85,17 @@ export function resolveToLocalPath(urlOrPath: string): string {
 }
 
 /**
+ * Check if a string looks like a bare S3 key (not a full URL or path).
+ * Matches patterns like "media/abc.png", "cartoons/xyz.mp4", "uploads/foo.jpg"
+ */
+function isS3Key(str: string): boolean {
+  // Must not be a URL, path, or empty
+  if (!str || str.startsWith("http") || str.startsWith("/") || str.startsWith("data:")) return false;
+  // Must contain a slash (folder/file) and have a file extension
+  return /^[a-zA-Z0-9_-]+\/.+\.[a-zA-Z0-9]+$/.test(str);
+}
+
+/**
  * Extract the S3 key from a full S3 URL or local /uploads/ path.
  * Handles both old local URLs and new S3 URLs for backwards compatibility.
  */
@@ -163,6 +174,10 @@ export async function presignAllUrls<T>(data: T): Promise<T> {
 
   if (typeof data === "string") {
     if (data.startsWith(STORAGE_URL)) {
+      return (await getPresignedUrl(data)) as T;
+    }
+    // Also handle bare S3 keys (e.g. "media/abc.png") stored in mediaMeta
+    if (isS3Key(data)) {
       return (await getPresignedUrl(data)) as T;
     }
     return data;

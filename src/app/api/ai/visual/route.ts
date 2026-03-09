@@ -434,10 +434,19 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
     refBuffer = await resolveImageToBuffer(refUrl);
   }
 
+  // Determine if we should use hybrid compositing (exact image mode)
+  // For exact images: generate background only, then composite user's image on top
+  const useHybridComposite = !!refBuffer && !!params.referenceImageUrl;
+
   const refPrompt = refBuffer
     ? params.referenceImageUrl
       ? `ABSOLUTE REQUIREMENT — READ THIS FIRST:\nThe attached image is a REAL photograph/image provided by the user. You MUST use the EXACT subject/content from this image as the main hero visual in the design — preserve every detail of the subject (person, product, object, logo) exactly as it appears: same pose, same colors, same features, same proportions. Do NOT redraw, recreate, or generate a similar-looking version of the subject.\n\nHowever, you MUST naturally BLEND and INTEGRATE the subject into the design's background. Remove or replace the image's original background and seamlessly composite the subject into the new design environment. The subject should look like it naturally belongs in the scene — with proper lighting, shadows, color grading, and perspective that match the overall design. Do NOT simply paste the image on top with a visible rectangular boundary or its own separate background. The integration should be seamless and professional, as if the subject was photographed specifically for this design.\n\nPOSITIONING — VERY IMPORTANT:\n- If the subject is a PERSON: their feet MUST be anchored to the BOTTOM EDGE of the canvas. The person should stand firmly grounded with feet touching or nearly touching the bottom of the image. Head should have natural headroom above. Never float the person in the middle of the canvas.\n- If the subject is a PRODUCT: place it in the lower third or center-bottom area, resting on an implied surface or shadow, so it looks naturally grounded — not floating in mid-air.\n- If the subject is a LOGO or ICON: center it or place it according to the layout described below.\n- The subject should occupy a significant portion of the right half of the design (50-60% of the width), sized proportionally to fill the space without being cropped.\n\n${designPrompt}`
       : `IMPORTANT: Use the provided image as a DESIGN TEMPLATE REFERENCE. Recreate a very similar design following the same layout, composition, visual style, color scheme, and arrangement of elements — but customize it with the specific content, branding, and details described below.\n\n${designPrompt}`
+    : null;
+
+  // For hybrid mode: generate background-only design, then composite the user's exact image
+  const bgOnlyPrompt = useHybridComposite
+    ? `${designPrompt}\n\nCRITICAL LAYOUT INSTRUCTION: Leave the RIGHT HALF of the design (from center to right edge) as a clean, uncluttered area — this is a PLACEHOLDER ZONE where the user's real photograph will be composited later. Do NOT place any text, graphics, or busy patterns in this zone. Use a subtle gradient, solid color, or minimal abstract shapes that blend with the overall design. All text, headlines, descriptions, call-to-action elements, and branding must be placed in the LEFT HALF of the design. The right half should have a visually clean background that will look good behind a composited photo.`
     : null;
 
   // ── Generate image via selected provider ──
@@ -446,18 +455,22 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
   let model: string;
   const hasRef = !!refBuffer;
 
+  // Choose prompt: hybrid bg-only, reference edit, or direct generation
+  const generationPrompt = bgOnlyPrompt || refPrompt || designPrompt;
+  const useEditApi = hasRef && !useHybridComposite; // Only use edit API for template reference, not hybrid
+
   switch (provider) {
     case "openai": {
       const gptSize = getGptImageSize(width, height);
-      console.log(`[Visual] OpenAI gpt-image-1 @ ${gptSize}${hasRef ? " (with reference)" : ""}`);
+      console.log(`[Visual] OpenAI gpt-image-1 @ ${gptSize}${useHybridComposite ? " (hybrid composite)" : hasRef ? " (with reference)" : ""}`);
 
-      if (refBuffer) {
+      if (useEditApi && refBuffer) {
         base64 = await openaiClient.editImage(refPrompt!, refBuffer, {
           size: gptSize,
           quality: "high",
         });
       } else {
-        base64 = await openaiClient.generateImage(designPrompt, {
+        base64 = await openaiClient.generateImage(generationPrompt, {
           size: gptSize,
           quality: "high",
         });
@@ -468,16 +481,16 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
 
     case "xai": {
       const aspectRatio = sizeToAspectRatio(width, height);
-      console.log(`[Visual] xAI grok-imagine-image @ ${aspectRatio}${hasRef ? " (with reference)" : ""}`);
+      console.log(`[Visual] xAI grok-imagine-image @ ${aspectRatio}${useHybridComposite ? " (hybrid composite)" : hasRef ? " (with reference)" : ""}`);
 
       if (!xaiClient.isAvailable()) {
         throw new Error("xAI provider is not configured. Please set XAI_API_KEY.");
       }
-      if (refBuffer) {
+      if (useEditApi && refBuffer) {
         const refBase64 = refBuffer.toString("base64");
         base64 = await xaiClient.editImage(refPrompt!, refBase64, { aspectRatio });
       } else {
-        base64 = await xaiClient.generateImage(designPrompt, { aspectRatio });
+        base64 = await xaiClient.generateImage(generationPrompt, { aspectRatio });
       }
       model = "grok-imagine-image";
       break;
@@ -485,18 +498,18 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
 
     case "gemini": {
       const aspectRatio = sizeToAspectRatioGemini(width, height);
-      console.log(`[Visual] Gemini imagen-4 @ ${aspectRatio}${hasRef ? " (with reference)" : ""}`);
+      console.log(`[Visual] Gemini imagen-4 @ ${aspectRatio}${useHybridComposite ? " (hybrid composite)" : hasRef ? " (with reference)" : ""}`);
 
       if (!geminiImageClient.isAvailable()) {
         throw new Error("Gemini provider is not configured. Please set GEMINI_API_KEY.");
       }
-      if (refBuffer) {
+      if (useEditApi && refBuffer) {
         const refBase64 = refBuffer.toString("base64");
         base64 = await geminiImageClient.editImage(refPrompt!, refBase64, { aspectRatio });
       } else {
-        base64 = await geminiImageClient.generateImage(designPrompt, { aspectRatio });
+        base64 = await geminiImageClient.generateImage(generationPrompt, { aspectRatio });
       }
-      model = hasRef ? "gemini-2.5-flash" : "imagen-4.0-generate-001";
+      model = useEditApi ? "gemini-2.5-flash" : "imagen-4.0-generate-001";
       break;
     }
 
@@ -521,6 +534,48 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
     console.log(`[Visual] Generated image: ${finalW}x${finalH} (target was ${width}x${height})`);
   } catch {
     console.warn("[Visual] Could not read image metadata, using target dimensions");
+  }
+
+  // ── Hybrid composite: place user's exact image on the generated background ──
+  if (useHybridComposite && refBuffer) {
+    try {
+      console.log("[Visual] Hybrid compositing: placing user's exact image on generated design...");
+      const bgBuffer = Buffer.from(finalBase64, "base64");
+      const bgMeta = await sharp(bgBuffer).metadata();
+      const bgW = bgMeta.width || finalW;
+      const bgH = bgMeta.height || finalH;
+
+      // Resize user image to fit the right half of the design (with padding)
+      const subjectW = Math.round(bgW * 0.45);
+      const subjectH = Math.round(bgH * 0.85);
+      const resizedSubject = await sharp(refBuffer)
+        .resize(subjectW, subjectH, { fit: "inside", withoutEnlargement: false })
+        .png()
+        .toBuffer();
+
+      // Get actual resized dimensions
+      const subMeta = await sharp(resizedSubject).metadata();
+      const actualW = subMeta.width || subjectW;
+      const actualH = subMeta.height || subjectH;
+
+      // Position: right half, vertically centered towards bottom
+      const left = Math.round(bgW * 0.52);
+      const top = Math.round(bgH - actualH - bgH * 0.05); // 5% from bottom
+
+      const composited = await sharp(bgBuffer)
+        .composite([{
+          input: resizedSubject,
+          left: Math.min(left, bgW - actualW),
+          top: Math.max(0, top),
+        }])
+        .png()
+        .toBuffer();
+
+      finalBase64 = composited.toString("base64");
+      console.log(`[Visual] Hybrid composite done: subject ${actualW}x${actualH} placed at (${left}, ${top})`);
+    } catch (compErr) {
+      console.error("[Visual] Hybrid composite failed, using AI-generated image as-is:", compErr);
+    }
   }
 
   // ── Auto-trim white/light borders AI models often add ──
