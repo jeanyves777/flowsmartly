@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { presignAllUrls, extractS3Key } from "@/lib/utils/s3-client";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
+import { publishToSocialPlatforms } from "@/lib/social/publisher";
 
 // GET /api/posts - Get feed posts
 export async function GET(request: NextRequest) {
@@ -232,7 +233,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { content, mediaUrl, mediaUrls, mediaType, hashtags = [], scheduledAt } = body;
+    const { content, mediaUrl, mediaUrls, mediaType, hashtags = [], scheduledAt, platforms } = body;
 
     if (!content?.trim()) {
       return NextResponse.json(
@@ -255,6 +256,8 @@ export async function POST(request: NextRequest) {
     // Extract mentions from content
     const mentions = content.match(/@\w+/g) || [];
 
+    const platformsList: string[] = Array.isArray(platforms) ? platforms : ["feed"];
+
     const post = await prisma.post.create({
       data: {
         userId: session.userId,
@@ -264,6 +267,7 @@ export async function POST(request: NextRequest) {
         mediaMeta: allMediaKeys.length > 0 ? JSON.stringify(allMediaKeys) : null,
         hashtags: JSON.stringify(allHashtags),
         mentions: JSON.stringify(mentions),
+        platforms: JSON.stringify(platformsList),
         status: scheduledAt ? "SCHEDULED" : "PUBLISHED",
         scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
         publishedAt: scheduledAt ? null : new Date(),
@@ -280,6 +284,18 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Publish to external social platforms if selected
+    const hasExternalPlatforms = platformsList.some((p) => p !== "feed");
+    let publishResults: Record<string, { success: boolean; postId?: string; error?: string }> = {};
+
+    if (!scheduledAt && hasExternalPlatforms) {
+      try {
+        publishResults = await publishToSocialPlatforms(post.id, session.userId);
+      } catch (err) {
+        console.error("[Feed Posts] Social publish error:", err);
+      }
+    }
 
     // Fire-and-forget: sync strategy tasks when user publishes a post
     if (!scheduledAt) {
@@ -312,9 +328,10 @@ export async function POST(request: NextRequest) {
         post: {
           id: post.id,
           content: post.caption,
-          mediaUrls: allMediaUrls,
+          mediaUrls: allMediaKeys,
           mediaType: resolvedMediaType,
           hashtags: allHashtags,
+          platforms: platformsList,
           author: {
             id: post.user.id,
             name: post.user.name,
@@ -330,6 +347,7 @@ export async function POST(request: NextRequest) {
           isBookmarked: false,
           createdAt: post.createdAt.toISOString(),
         },
+        publishResults,
       }),
     });
   } catch (error) {

@@ -66,6 +66,14 @@ import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { TrendingTopics } from "@/components/shared/trending-topics";
 import { SponsoredSidebar } from "@/components/shared/sponsored-sidebar";
 import { TrendingPosts } from "@/components/shared/trending-posts";
+import { useSocialPlatforms } from "@/hooks/use-social-platforms";
+import { PLATFORM_META, PLATFORM_ORDER } from "@/components/shared/social-platform-icons";
+import {
+  Tooltip as SocialTooltip,
+  TooltipContent as SocialTooltipContent,
+  TooltipProvider as SocialTooltipProvider,
+  TooltipTrigger as SocialTooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -232,6 +240,7 @@ interface MediaFile {
 
 export default function FeedPage() {
   const { toast } = useToast();
+  const { isConnected } = useSocialPlatforms();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [posts, setPosts] = useState<Post[]>([]);
@@ -241,6 +250,7 @@ export default function FeedPage() {
   const [newPostContent, setNewPostContent] = useState("");
   const [isPosting, setIsPosting] = useState(false);
   const [isComposerExpanded, setIsComposerExpanded] = useState(false);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["feed"]);
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -1136,6 +1146,7 @@ export default function FeedPage() {
           content: newPostContent,
           mediaUrls,
           mediaType: hasVideo ? "video" : mediaUrls.length > 0 ? "image" : undefined,
+          platforms: selectedPlatforms,
         }),
       });
       const data = await response.json();
@@ -1156,9 +1167,28 @@ export default function FeedPage() {
       setPosts(prev => [newPost, ...prev]);
       setNewPostContent("");
       setSelectedMedia([]);
+      setSelectedPlatforms(["feed"]);
       setIsComposerExpanded(false);
       setShowAIAssistant(false);
-      toast({ title: "Post published successfully!" });
+
+      // Show publish results if social platforms were selected
+      const publishResults = data.data.publishResults;
+      if (publishResults && Object.keys(publishResults).length > 0) {
+        const succeeded = Object.entries(publishResults).filter(([, r]: [string, any]) => r.success).map(([p]) => p);
+        const failed = Object.entries(publishResults).filter(([, r]: [string, any]) => !r.success);
+        if (failed.length > 0) {
+          const failedMsg = failed.map(([p, r]: [string, any]) => `${PLATFORM_META[p]?.label || p}: ${r.error}`).join("\n");
+          toast({
+            title: `Published to feed${succeeded.length > 0 ? ` + ${succeeded.map(p => PLATFORM_META[p]?.label || p).join(", ")}` : ""}. ${failed.length} failed.`,
+            description: failedMsg,
+            variant: "destructive",
+          });
+        } else {
+          toast({ title: `Published to feed + ${succeeded.map(p => PLATFORM_META[p]?.label || p).join(", ")}!` });
+        }
+      } else {
+        toast({ title: "Post published successfully!" });
+      }
     } catch (err) {
       toast({ title: err instanceof Error ? err.message : "Failed to create post", variant: "destructive" });
     } finally {
@@ -1628,6 +1658,62 @@ export default function FeedPage() {
                     }}
                     onClose={() => setShowAIAssistant(false)}
                   />
+                </div>
+              )}
+
+              {/* Publish to — Social platform selector */}
+              {isComposerExpanded && (
+                <div className="mt-3 pl-[52px]">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-xs font-medium text-muted-foreground">Publish to</span>
+                    <SocialTooltipProvider delayDuration={200}>
+                      <div className="flex items-center gap-1.5">
+                        {PLATFORM_ORDER.map((platformId) => {
+                          const meta = PLATFORM_META[platformId];
+                          if (!meta) return null;
+                          const Icon = meta.icon;
+                          const isSelected = selectedPlatforms.includes(platformId);
+                          const enabled = platformId === "feed" || isConnected(platformId);
+                          return (
+                            <SocialTooltip key={platformId}>
+                              <SocialTooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (platformId === "feed") return;
+                                    if (!enabled) return;
+                                    setSelectedPlatforms((prev) =>
+                                      prev.includes(platformId)
+                                        ? prev.filter((p) => p !== platformId)
+                                        : [...prev, platformId]
+                                    );
+                                  }}
+                                  className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all ${
+                                    isSelected
+                                      ? "border-brand-500 bg-brand-500/10 text-brand-600"
+                                      : enabled
+                                        ? "border-border text-muted-foreground hover:border-brand-500/50 hover:text-foreground"
+                                        : "border-border/50 text-muted-foreground/30 cursor-not-allowed"
+                                  }`}
+                                >
+                                  <Icon className="w-4 h-4" />
+                                </button>
+                              </SocialTooltipTrigger>
+                              <SocialTooltipContent side="bottom" className="text-xs">
+                                {meta.label}{!enabled && platformId !== "feed" ? " (not connected)" : ""}
+                              </SocialTooltipContent>
+                            </SocialTooltip>
+                          );
+                        })}
+                      </div>
+                    </SocialTooltipProvider>
+                    <Link
+                      href="/settings/social-accounts"
+                      className="text-[11px] text-brand-600 hover:underline ml-1"
+                    >
+                      Connect accounts
+                    </Link>
+                  </div>
                 </div>
               )}
 
