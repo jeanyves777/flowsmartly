@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { ai } from "@/lib/ai/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { publishToSocialPlatforms } from "@/lib/social/publisher";
-import { extractS3Key } from "@/lib/utils/s3-client";
+import { extractS3Key, presignAllUrls } from "@/lib/utils/s3-client";
 
 // GET /api/content/posts - Fetch user's own posts (all statuses)
 export async function GET(request: NextRequest) {
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: {
+      data: await presignAllUrls({
         posts: formattedPosts,
         pagination: {
           total,
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
           limit,
           hasMore,
         },
-      },
+      }),
     });
   } catch (error) {
     console.error("Get content posts error:", error);
@@ -310,11 +310,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: {
+      data: await presignAllUrls({
         post: {
           id: post.id,
           caption: post.caption,
-          mediaUrls: allMediaUrls,
+          mediaUrls: allMediaKeys,
           mediaType: post.mediaType,
           hashtags,
           mentions,
@@ -332,7 +332,7 @@ export async function POST(request: NextRequest) {
         },
         aiGenerated: !!aiGenerate,
         publishResults,
-      },
+      }),
     });
   } catch (error) {
     console.error("Create content post error:", error);

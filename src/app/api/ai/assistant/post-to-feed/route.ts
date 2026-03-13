@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { extractS3Key } from "@/lib/utils/s3-client";
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,12 +32,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Message has no media to post" }, { status: 400 });
     }
 
-    // Create the post
+    // Create the post — store raw S3 keys (not presigned URLs)
+    const mediaKey = extractS3Key(message.mediaUrl);
     const post = await prisma.post.create({
       data: {
         userId: session.userId,
         caption: caption || "Created with FlowAI",
-        mediaUrl: message.mediaUrl,
+        mediaUrl: mediaKey,
+        mediaMeta: JSON.stringify([mediaKey]),
         mediaType: message.mediaType,
         status: "PUBLISHED",
         publishedAt: new Date(),

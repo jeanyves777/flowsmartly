@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { presignAllUrls } from "@/lib/utils/s3-client";
 
 // GET /api/content/schedule - Fetch all scheduled posts for a given month
 export async function GET(request: NextRequest) {
@@ -60,6 +61,10 @@ export async function GET(request: NextRequest) {
       id: post.id,
       caption: post.caption,
       mediaUrl: post.mediaUrl,
+      mediaUrls: post.mediaMeta
+        ? (() => { try { return JSON.parse(post.mediaMeta); } catch { return post.mediaUrl ? [post.mediaUrl] : []; } })()
+        : post.mediaUrl ? [post.mediaUrl] : [],
+      mediaType: post.mediaType,
       platforms: (() => {
         try {
           return JSON.parse(post.platforms || "[]");
@@ -79,11 +84,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: {
+      data: await presignAllUrls({
         posts: formattedPosts,
         month,
         totalScheduled: formattedPosts.length,
-      },
+      }),
     });
   } catch (error) {
     console.error("Get scheduled posts error:", error);

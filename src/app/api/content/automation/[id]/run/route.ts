@@ -132,10 +132,11 @@ export async function POST(
           if (base64Image) {
             const imageBuffer = Buffer.from(base64Image, "base64");
             const s3Key = `automation/${automation.id}/${Date.now()}.png`;
-            mediaUrl = await uploadToS3(s3Key, imageBuffer, "image/png");
-            mediaMeta = JSON.stringify([{ url: mediaUrl, type: "image" }]);
+            await uploadToS3(s3Key, imageBuffer, "image/png");
+            mediaUrl = s3Key;
+            mediaMeta = JSON.stringify([s3Key]);
             postMediaType = "image";
-            console.log(`[AutomationRun] Image uploaded: ${mediaUrl}`);
+            console.log(`[AutomationRun] Image uploaded: ${s3Key}`);
           }
         } else if (automation.mediaType === "video") {
           // Use OpenAI Sora for best quality video
@@ -148,12 +149,11 @@ export async function POST(
 
           if (result?.videoBuffer) {
             const s3Key = `automation/${automation.id}/${Date.now()}.mp4`;
-            mediaUrl = await uploadToS3(s3Key, result.videoBuffer, "video/mp4");
-            mediaMeta = JSON.stringify([
-              { url: mediaUrl, type: "video", duration: result.duration },
-            ]);
+            await uploadToS3(s3Key, result.videoBuffer, "video/mp4");
+            mediaUrl = s3Key;
+            mediaMeta = JSON.stringify([s3Key]);
             postMediaType = "video";
-            console.log(`[AutomationRun] Video uploaded: ${mediaUrl}`);
+            console.log(`[AutomationRun] Video uploaded: ${s3Key}`);
           }
         }
       } catch (mediaError) {

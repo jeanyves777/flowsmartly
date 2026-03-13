@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { presignAllUrls } from "@/lib/utils/s3-client";
+import { presignAllUrls, extractS3Key } from "@/lib/utils/s3-client";
 
 // GET /api/posts/[postId] - Get a single post
 export async function GET(
@@ -98,7 +98,9 @@ export async function GET(
         post: {
           id: post.id,
           content: post.caption,
-          mediaUrls: post.mediaUrl ? [post.mediaUrl] : [],
+          mediaUrls: post.mediaMeta
+            ? (() => { try { return JSON.parse(post.mediaMeta); } catch { return post.mediaUrl ? [post.mediaUrl] : []; } })()
+            : post.mediaUrl ? [post.mediaUrl] : [],
           mediaType: post.mediaType,
           hashtags: JSON.parse(post.hashtags || "[]"),
           author: {
@@ -231,16 +233,22 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { content, mediaUrl, mediaType } = body;
+    const { content, mediaUrl, mediaUrls, mediaType } = body;
 
     const extractedHashtags = content?.match(/#\w+/g) || [];
     const mentions = content?.match(/@\w+/g) || [];
+
+    // Store raw S3 keys (not presigned URLs)
+    const allMediaUrls: string[] = Array.isArray(mediaUrls) ? mediaUrls : mediaUrl ? [mediaUrl] : [];
+    const allMediaKeys = allMediaUrls.length > 0 ? allMediaUrls.map((url: string) => extractS3Key(url)) : undefined;
+    const primaryMediaKey = allMediaKeys?.[0] ?? undefined;
 
     const updatedPost = await prisma.post.update({
       where: { id: postId },
       data: {
         ...(content && { caption: content }),
-        ...(mediaUrl !== undefined && { mediaUrl }),
+        ...(primaryMediaKey !== undefined && { mediaUrl: primaryMediaKey }),
+        ...(allMediaKeys !== undefined && { mediaMeta: JSON.stringify(allMediaKeys) }),
         ...(mediaType !== undefined && { mediaType }),
         ...(content && {
           hashtags: JSON.stringify(extractedHashtags),
@@ -266,7 +274,9 @@ export async function PATCH(
         post: {
           id: updatedPost.id,
           content: updatedPost.caption,
-          mediaUrls: updatedPost.mediaUrl ? [updatedPost.mediaUrl] : [],
+          mediaUrls: updatedPost.mediaMeta
+            ? (() => { try { return JSON.parse(updatedPost.mediaMeta); } catch { return updatedPost.mediaUrl ? [updatedPost.mediaUrl] : []; } })()
+            : updatedPost.mediaUrl ? [updatedPost.mediaUrl] : [],
           updatedAt: updatedPost.updatedAt.toISOString(),
         },
       }),

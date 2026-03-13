@@ -178,8 +178,9 @@ export async function POST(request: NextRequest) {
             if (base64Image) {
               const imageBuffer = Buffer.from(base64Image, "base64");
               const s3Key = `automation/${automation.id}/${Date.now()}.png`;
-              mediaUrl = await uploadToS3(s3Key, imageBuffer, "image/png");
-              mediaMeta = JSON.stringify([{ url: mediaUrl, type: "image" }]);
+              await uploadToS3(s3Key, imageBuffer, "image/png");
+              mediaUrl = s3Key;
+              mediaMeta = JSON.stringify([s3Key]);
               postMediaType = "image";
             }
           } catch (mediaError) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { publishToSocialPlatforms } from "@/lib/social/publisher";
+import { presignAllUrls } from "@/lib/utils/s3-client";
 
 // POST /api/posts/schedule - Schedule a post for future publishing
 export async function POST(request: NextRequest) {
@@ -235,7 +236,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: { posts: scheduledPosts },
+      data: await presignAllUrls({ posts: scheduledPosts }),
     });
   } catch (error) {
     console.error("Get scheduled posts error:", error);
