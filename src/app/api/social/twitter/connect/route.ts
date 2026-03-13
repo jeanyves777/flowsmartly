@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
       "tweet.read",
       "tweet.write",
       "users.read",
+      "media.write",    // Required for media uploads via v1.1 upload API
       "offline.access", // For refresh token
     ];
 

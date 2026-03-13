@@ -346,15 +346,31 @@ async function publishToInstagram(
       if (createData.error) return { success: false, error: createData.error.message };
       if (!createData.id) return { success: false, error: "Instagram did not return a media container ID — image may not be publicly accessible" };
 
+      // Poll for container to be ready (Instagram needs time to fetch & process the image)
+      const containerId = createData.id;
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const statusRes = await fetch(
+          `https://graph.facebook.com/v21.0/${containerId}?fields=status_code&access_token=${token}`
+        );
+        const statusData = await statusRes.json();
+        console.log(`[Instagram] Container ${containerId} status: ${statusData.status_code} (attempt ${i + 1})`);
+        if (statusData.status_code === "FINISHED") break;
+        if (statusData.status_code === "ERROR") {
+          return { success: false, error: `Instagram image processing failed: ${statusData.status || "unknown error"}` };
+        }
+      }
+
       const publishRes = await fetch(
         `https://graph.facebook.com/v21.0/${igUserId}/media_publish`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ creation_id: createData.id, access_token: token }),
+          body: JSON.stringify({ creation_id: containerId, access_token: token }),
         }
       );
       const publishData = await publishRes.json();
+      console.log("[Instagram] Publish response:", JSON.stringify(publishData).slice(0, 300));
       if (publishData.error) return { success: false, error: publishData.error.message };
       return { success: true, postId: publishData.id };
     }
@@ -555,30 +571,8 @@ async function publishToTwitter(
         const isVideo = isVideoUrl(url);
         const mimeType = isVideo ? "video/mp4" : "image/jpeg";
 
-        // Twitter media upload — simple (non-chunked) for images, chunked for videos
-        if (!isVideo && mediaBuffer.length < 5 * 1024 * 1024) {
-          // Simple upload for images < 5MB
-          const formData = new FormData();
-          formData.append("media_data", mediaBuffer.toString("base64"));
-          formData.append("media_category", "tweet_image");
-
-          const uploadRes = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body: formData,
-          });
-          const uploadText = await uploadRes.text();
-          console.log("[Twitter] Simple upload response:", uploadRes.status, uploadText.slice(0, 300));
-          try {
-            const uploadData = JSON.parse(uploadText);
-            if (uploadData.media_id_string) {
-              mediaIds.push(uploadData.media_id_string);
-            }
-          } catch {
-            // Upload failed
-          }
-        } else {
-          // Chunked upload for videos and large files
+        // Twitter media upload — always use chunked (INIT/APPEND/FINALIZE) which works with OAuth 2.0
+        {
           const initRes = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
             method: "POST",
             headers: {
@@ -594,9 +588,29 @@ async function publishToTwitter(
           });
           const initText = await initRes.text();
           console.log("[Twitter] Media INIT response:", initRes.status, initText.slice(0, 300));
+
+          // 403 = missing media.write scope — user needs to reconnect Twitter
+          if (initRes.status === 403) {
+            console.log("[Twitter] Media upload 403 — missing media.write scope, posting text-only");
+            // Post text-only instead of failing entirely
+            const textRes = await fetch("https://api.twitter.com/2/tweets", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ text: post.caption || "" }),
+            });
+            const textData = await textRes.json();
+            if (textData.data?.id) {
+              return { success: true, postId: textData.data.id, error: "Posted text-only. Reconnect Twitter to enable media uploads." };
+            }
+            return { success: false, error: "Twitter media upload requires reconnecting your account (missing media.write permission). Go to Social Accounts and reconnect Twitter." };
+          }
+
           let initData: any;
           try { initData = JSON.parse(initText); } catch { continue; }
-          if (!initData.media_id_string) continue;
+          if (!initData.media_id_string) {
+            console.log("[Twitter] No media_id_string in INIT response, skipping");
+            continue;
+          }
 
           const mediaId = initData.media_id_string;
 
@@ -604,17 +618,18 @@ async function publishToTwitter(
           const chunkSize = 5 * 1024 * 1024;
           for (let i = 0; i < mediaBuffer.length; i += chunkSize) {
             const chunk = mediaBuffer.subarray(i, Math.min(i + chunkSize, mediaBuffer.length));
-            const formData = new FormData();
-            formData.append("command", "APPEND");
-            formData.append("media_id", mediaId);
-            formData.append("segment_index", String(Math.floor(i / chunkSize)));
-            formData.append("media_data", chunk.toString("base64"));
+            const appendForm = new FormData();
+            appendForm.append("command", "APPEND");
+            appendForm.append("media_id", mediaId);
+            appendForm.append("segment_index", String(Math.floor(i / chunkSize)));
+            appendForm.append("media", new Blob([chunk], { type: mimeType }), `media.${isVideo ? "mp4" : "jpg"}`);
 
-            await fetch("https://upload.twitter.com/1.1/media/upload.json", {
+            const appendRes = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
               method: "POST",
               headers: { Authorization: `Bearer ${token}` },
-              body: formData,
+              body: appendForm,
             });
+            console.log(`[Twitter] APPEND segment ${Math.floor(i / chunkSize)} response: ${appendRes.status}`);
           }
 
           // FINALIZE
@@ -629,7 +644,10 @@ async function publishToTwitter(
               media_id: mediaId,
             }),
           });
-          const finalData = await finalRes.json();
+          const finalText = await finalRes.text();
+          console.log("[Twitter] FINALIZE response:", finalRes.status, finalText.slice(0, 300));
+          let finalData: any;
+          try { finalData = JSON.parse(finalText); } catch { continue; }
 
           // If video, wait for processing
           if (finalData.processing_info) {
@@ -646,7 +664,11 @@ async function publishToTwitter(
             }
           }
 
-          mediaIds.push(mediaId);
+          if (finalData.media_id_string) {
+            mediaIds.push(finalData.media_id_string);
+          } else {
+            mediaIds.push(mediaId);
+          }
         }
       }
 
