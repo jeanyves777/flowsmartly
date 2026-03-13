@@ -49,30 +49,55 @@ function hasVideo(post: PostData): boolean {
 async function refreshOAuthToken(
   account: SocialAccount,
   tokenUrl: string,
-  params: Record<string, string>
+  params: Record<string, string>,
+  extraHeaders?: Record<string, string>
 ): Promise<string | null> {
   if (!account.refreshToken) return null;
 
   try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/x-www-form-urlencoded",
+      ...extraHeaders,
+    };
+
+    console.log(`[Publisher] Refreshing token for ${account.platform} (${account.platformDisplayName})`);
     const res = await fetch(tokenUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers,
       body: new URLSearchParams(params),
     });
 
     const data = await res.json();
+    if (!res.ok) {
+      console.error(`[Publisher] Token refresh HTTP ${res.status} for ${account.platform}:`, JSON.stringify(data).slice(0, 300));
+      return null;
+    }
+
     const newToken = data.access_token;
-    if (!newToken) return null;
+    if (!newToken) {
+      console.error(`[Publisher] No access_token in refresh response for ${account.platform}:`, JSON.stringify(data).slice(0, 300));
+      return null;
+    }
 
     const expiresAt = data.expires_in
       ? new Date(Date.now() + data.expires_in * 1000)
       : null;
 
+    // Some platforms (Twitter) rotate refresh tokens — save the new one if provided
+    const updateData: Record<string, unknown> = {
+      accessToken: newToken,
+      tokenExpiresAt: expiresAt,
+    };
+    if (data.refresh_token) {
+      updateData.refreshToken = data.refresh_token;
+    }
+
     await prisma.socialAccount.update({
       where: { id: account.id },
-      data: { accessToken: newToken, tokenExpiresAt: expiresAt },
+      data: updateData,
     });
 
+    console.log(`[Publisher] Token refreshed for ${account.platform}, expires: ${expiresAt?.toISOString()}`);
     return newToken;
   } catch (err) {
     console.error(`[Publisher] Token refresh failed for ${account.platform}:`, err);
@@ -92,10 +117,36 @@ async function getValidToken(
     account.tokenExpiresAt &&
     new Date(account.tokenExpiresAt).getTime() < Date.now() + 60000;
 
-  if (isExpired && account.refreshToken) {
+  // Also try refresh if token is null/empty (may have been cleared)
+  if ((isExpired || !token) && account.refreshToken) {
     let refreshed: string | null = null;
 
-    if (platform === "youtube") {
+    if (platform === "instagram" || platform === "facebook") {
+      // Facebook/Instagram long-lived tokens: exchange for a new one
+      // Long-lived tokens last 60 days, can be refreshed if not expired > 24h
+      if (token) {
+        try {
+          const res = await fetch(
+            `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${process.env.FACEBOOK_APP_ID}&client_secret=${process.env.FACEBOOK_APP_SECRET}&fb_exchange_token=${token}`
+          );
+          const data = await res.json();
+          if (data.access_token) {
+            const expiresAt = data.expires_in
+              ? new Date(Date.now() + data.expires_in * 1000)
+              : null;
+            await prisma.socialAccount.update({
+              where: { id: account.id },
+              data: { accessToken: data.access_token, tokenExpiresAt: expiresAt },
+            });
+            console.log(`[Publisher] Facebook/Instagram token refreshed, expires: ${expiresAt?.toISOString()}`);
+            return data.access_token;
+          }
+        } catch (err) {
+          console.error(`[Publisher] Facebook/Instagram token refresh failed:`, err);
+        }
+      }
+      return token; // Return existing token even if "expired" — FB tokens sometimes work past expiry
+    } else if (platform === "youtube") {
       refreshed = await refreshOAuthToken(account, "https://oauth2.googleapis.com/token", {
         client_id: process.env.GOOGLE_CLIENT_ID!,
         client_secret: process.env.GOOGLE_CLIENT_SECRET!,
@@ -103,11 +154,20 @@ async function getValidToken(
         grant_type: "refresh_token",
       });
     } else if (platform === "twitter") {
-      refreshed = await refreshOAuthToken(account, "https://api.twitter.com/2/oauth2/token", {
-        client_id: process.env.TWITTER_CLIENT_ID!,
-        refresh_token: account.refreshToken,
-        grant_type: "refresh_token",
-      });
+      refreshed = await refreshOAuthToken(
+        account,
+        "https://api.twitter.com/2/oauth2/token",
+        {
+          client_id: process.env.TWITTER_CLIENT_ID!,
+          refresh_token: account.refreshToken,
+          grant_type: "refresh_token",
+        },
+        {
+          Authorization: `Basic ${Buffer.from(
+            `${process.env.TWITTER_CLIENT_ID}:${process.env.TWITTER_CLIENT_SECRET}`
+          ).toString("base64")}`,
+        }
+      );
     } else if (platform === "linkedin") {
       refreshed = await refreshOAuthToken(account, "https://www.linkedin.com/oauth/v2/accessToken", {
         client_id: process.env.LINKEDIN_CLIENT_ID!,
@@ -126,9 +186,11 @@ async function getValidToken(
 
     if (refreshed) {
       token = refreshed;
-    } else {
+    } else if (!token) {
+      // No token and refresh failed — can't proceed
       return null;
     }
+    // If refresh failed but we still have a token, try using it anyway
   }
 
   return token;
@@ -141,7 +203,7 @@ async function publishToFacebook(
   account: SocialAccount
 ): Promise<PublishResult> {
   const pageId = account.platformUserId;
-  const token = account.accessToken;
+  const token = await getValidToken(account, "facebook");
 
   if (!pageId || !token) {
     return { success: false, error: "Missing page ID or access token" };
@@ -251,7 +313,7 @@ async function publishToInstagram(
   account: SocialAccount
 ): Promise<PublishResult> {
   const igUserId = account.platformUserId;
-  const token = account.accessToken;
+  const token = await getValidToken(account, "instagram");
 
   if (!igUserId || !token) {
     return { success: false, error: "Missing Instagram user ID or access token" };
@@ -825,7 +887,7 @@ async function publishToThreads(
   post: PostData,
   account: SocialAccount
 ): Promise<PublishResult> {
-  const token = account.accessToken;
+  const token = await getValidToken(account, "threads");
   const threadsUserId = account.platformUserId;
 
   if (!token || !threadsUserId) {
@@ -889,7 +951,7 @@ async function publishToPinterest(
   post: PostData,
   account: SocialAccount
 ): Promise<PublishResult> {
-  const token = account.accessToken;
+  const token = await getValidToken(account, "pinterest");
 
   if (!token) {
     return { success: false, error: "Missing Pinterest token. Please reconnect." };
@@ -965,17 +1027,26 @@ export async function publishToSocialPlatforms(
 
   let mediaKeys: string[] = [];
   try {
-    mediaKeys = post.mediaMeta ? JSON.parse(post.mediaMeta) : [];
+    const parsed = post.mediaMeta ? JSON.parse(post.mediaMeta) : [];
+    // Handle both string arrays ["key1"] and legacy object arrays [{url: "...", type: "..."}]
+    mediaKeys = parsed.map((item: string | { url?: string }) =>
+      typeof item === "string" ? item : item?.url || ""
+    ).filter(Boolean);
   } catch {
     mediaKeys = post.mediaUrl ? [extractS3Key(post.mediaUrl)] : [];
   }
   // Generate fresh presigned URLs from stored S3 keys (or use as-is if already full URLs)
-  const mediaUrls: string[] = await Promise.all(
-    mediaKeys.map(async (key) => {
+  const mediaUrls: string[] = (await Promise.all(
+    mediaKeys.map(async (key: string) => {
+      if (!key) return "";
       if (key.startsWith("http")) return key; // Already a full URL (legacy)
-      return getPresignedUrl(key);
+      // Convert /uploads/ paths to S3 keys
+      const s3Key = extractS3Key(key);
+      if (!s3Key) return "";
+      return getPresignedUrl(s3Key);
     })
-  );
+  )).filter(Boolean);
+  console.log(`[Publisher] Post ${postId}: ${mediaKeys.length} media keys → ${mediaUrls.length} presigned URLs`);
 
   const postData: PostData = {
     id: post.id,
