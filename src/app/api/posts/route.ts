@@ -242,9 +242,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Support both single mediaUrl and array of mediaUrls
-    const allMediaUrls: string[] = mediaUrls?.length ? mediaUrls : mediaUrl ? [mediaUrl] : [];
+    const allMediaUrls: string[] = (mediaUrls?.length ? mediaUrls : mediaUrl ? [mediaUrl] : []).filter(Boolean);
     // Store raw S3 keys (not presigned URLs) so they don't expire
-    const allMediaKeys = allMediaUrls.map((url: string) => extractS3Key(url));
+    const allMediaKeys = allMediaUrls.map((url: string) => extractS3Key(url)).filter(Boolean);
     const primaryMediaKey = allMediaKeys[0] || null;
     const resolvedMediaType = allMediaUrls.length > 0 ? (mediaType || "image") : null;
 

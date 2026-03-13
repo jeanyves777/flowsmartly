@@ -235,7 +235,7 @@ export default function ContentPostsPage() {
           toast(messages[action]);
         }
       } else {
-        throw new Error(data.error || "Failed to save post");
+        throw new Error(data.error?.message || data.error || "Failed to save post");
       }
     } catch (err) {
       toast({

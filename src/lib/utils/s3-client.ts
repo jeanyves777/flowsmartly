@@ -100,6 +100,7 @@ function isS3Key(str: string): boolean {
  * Handles both old local URLs and new S3 URLs for backwards compatibility.
  */
 export function extractS3Key(url: string): string {
+  if (!url) return "";
   // Strip query params first (presigned URLs have ?X-Amz-Algorithm=... etc.)
   const urlWithoutParams = url.split("?")[0];
   if (urlWithoutParams.startsWith(STORAGE_URL)) {
