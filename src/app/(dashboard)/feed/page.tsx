@@ -1332,15 +1332,16 @@ export default function FeedPage() {
         formData.append("file", file);
         const res = await fetch("/api/media", { method: "POST", body: formData });
         const data = await res.json();
-        if (data.success && data.data) {
+        const fileData = data.data?.file || data.data;
+        if (data.success && fileData) {
           const uploaded: MediaFile = {
-            id: data.data.id,
-            url: data.data.url,
-            originalName: data.data.originalName || file.name,
+            id: fileData.id,
+            url: fileData.url,
+            originalName: fileData.originalName || file.name,
             type: file.type.startsWith("video/") ? "video" : "image",
             mimeType: file.type,
-            width: data.data.width || null,
-            height: data.data.height || null,
+            width: fileData.width || null,
+            height: fileData.height || null,
           };
           setMediaFiles(prev => [uploaded, ...prev]);
           setSelectedMedia(prev => [...prev, uploaded]);
