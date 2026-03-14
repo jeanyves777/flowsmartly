@@ -66,14 +66,8 @@ import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { TrendingTopics } from "@/components/shared/trending-topics";
 import { SponsoredSidebar } from "@/components/shared/sponsored-sidebar";
 import { TrendingPosts } from "@/components/shared/trending-posts";
-import { useSocialPlatforms } from "@/hooks/use-social-platforms";
-import { PLATFORM_META, PLATFORM_ORDER } from "@/components/shared/social-platform-icons";
-import {
-  Tooltip as SocialTooltip,
-  TooltipContent as SocialTooltipContent,
-  TooltipProvider as SocialTooltipProvider,
-  TooltipTrigger as SocialTooltipTrigger,
-} from "@/components/ui/tooltip";
+import { PLATFORM_META } from "@/components/shared/social-platform-icons";
+import { SocialPlatformSelector } from "@/components/shared/social-platform-selector";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -240,7 +234,6 @@ interface MediaFile {
 
 export default function FeedPage() {
   const { toast } = useToast();
-  const { isConnected } = useSocialPlatforms();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [posts, setPosts] = useState<Post[]>([]);
@@ -1665,56 +1658,11 @@ export default function FeedPage() {
               {/* Publish to — Social platform selector */}
               {isComposerExpanded && (
                 <div className="mt-3 pl-[52px]">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-xs font-medium text-muted-foreground">Publish to</span>
-                    <SocialTooltipProvider delayDuration={200}>
-                      <div className="flex items-center gap-1.5">
-                        {PLATFORM_ORDER.map((platformId) => {
-                          const meta = PLATFORM_META[platformId];
-                          if (!meta) return null;
-                          const Icon = meta.icon;
-                          const isSelected = selectedPlatforms.includes(platformId);
-                          const enabled = platformId === "feed" || isConnected(platformId);
-                          return (
-                            <SocialTooltip key={platformId}>
-                              <SocialTooltipTrigger asChild>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (platformId === "feed") return;
-                                    if (!enabled) return;
-                                    setSelectedPlatforms((prev) =>
-                                      prev.includes(platformId)
-                                        ? prev.filter((p) => p !== platformId)
-                                        : [...prev, platformId]
-                                    );
-                                  }}
-                                  className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all ${
-                                    isSelected
-                                      ? "border-brand-500 bg-brand-500/10 text-brand-600"
-                                      : enabled
-                                        ? "border-border text-muted-foreground hover:border-brand-500/50 hover:text-foreground"
-                                        : "border-border/50 text-muted-foreground/30 cursor-not-allowed"
-                                  }`}
-                                >
-                                  <Icon className="w-4 h-4" />
-                                </button>
-                              </SocialTooltipTrigger>
-                              <SocialTooltipContent side="bottom" className="text-xs">
-                                {meta.label}{!enabled && platformId !== "feed" ? " (not connected)" : ""}
-                              </SocialTooltipContent>
-                            </SocialTooltip>
-                          );
-                        })}
-                      </div>
-                    </SocialTooltipProvider>
-                    <Link
-                      href="/settings/social-accounts"
-                      className="text-[11px] text-brand-600 hover:underline ml-1"
-                    >
-                      Connect accounts
-                    </Link>
-                  </div>
+                  <SocialPlatformSelector
+                    selectedPlatforms={selectedPlatforms}
+                    onPlatformsChange={setSelectedPlatforms}
+                    variant="icons"
+                  />
                 </div>
               )}
 

@@ -1,24 +1,16 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, Share2, Check, LinkIcon, X, ImageIcon, Plus, Upload, Loader2 } from "lucide-react";
+import { Send, Sparkles, Share2, Check, X, ImageIcon, Plus, Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
-import { PLATFORM_META, PLATFORM_ORDER } from "@/components/shared/social-platform-icons";
+import { SocialPlatformSelector } from "@/components/shared/social-platform-selector";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -47,7 +39,6 @@ const MAX_MEDIA = 10;
 export function PostSharePanel({ mediaUrl, mediaUrls: initialMediaUrls, mediaType, prompt, bare }: PostSharePanelProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const { isConnected } = useSocialPlatforms();
 
   // Merge legacy single URL with array prop
   const initialUrls = initialMediaUrls ?? (mediaUrl ? [mediaUrl] : []);
@@ -61,26 +52,6 @@ export function PostSharePanel({ mediaUrl, mediaUrls: initialMediaUrls, mediaTyp
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [isUploadingMore, setIsUploadingMore] = useState(false);
-
-  // Build the platform list with enabled/disabled state
-  const platforms = useMemo(() => {
-    return PLATFORM_ORDER
-      .filter((id) => PLATFORM_META[id])
-      .map((id) => ({
-        id,
-        ...PLATFORM_META[id],
-        enabled: id === "feed" || isConnected(id),
-      }));
-  }, [isConnected]);
-
-  const togglePlatform = (platformId: string) => {
-    if (platformId === "feed") return; // Feed is always selected
-    setSelectedPlatforms((prev) =>
-      prev.includes(platformId)
-        ? prev.filter((p) => p !== platformId)
-        : [...prev, platformId]
-    );
-  };
 
   // ─── Media Management ─────────────────────────────────────────────────
 
@@ -396,65 +367,11 @@ export function PostSharePanel({ mediaUrl, mediaUrls: initialMediaUrls, mediaTyp
                 </div>
 
                 {/* 2. Platform Selector */}
-                <div className="space-y-2.5">
-                  <Label className="text-sm font-semibold">Publish to</Label>
-                  <TooltipProvider delayDuration={300}>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {platforms.map((platform) => {
-                        const Icon = platform.icon;
-                        const isSelected = selectedPlatforms.includes(platform.id);
-                        const isFeed = platform.id === "feed";
-                        const isDisabled = !platform.enabled && !isFeed;
-
-                        const button = (
-                          <button
-                            key={platform.id}
-                            onClick={() => !isDisabled && togglePlatform(platform.id)}
-                            disabled={isDisabled}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all border ${
-                              isSelected
-                                ? "bg-brand-500/10 border-brand-500/30 text-brand-600 dark:text-brand-400"
-                                : isDisabled
-                                ? "opacity-40 cursor-not-allowed border-border bg-muted/30"
-                                : "border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-                            } ${isFeed ? "cursor-default" : ""}`}
-                          >
-                            <Icon className="w-4 h-4" />
-                            <span className="text-xs font-medium">{platform.label}</span>
-                            {isSelected && (
-                              <Check className="w-3 h-3 text-brand-500" />
-                            )}
-                            {isDisabled && (
-                              <LinkIcon className="w-3 h-3" />
-                            )}
-                          </button>
-                        );
-
-                        if (isDisabled) {
-                          return (
-                            <Tooltip key={platform.id}>
-                              <TooltipTrigger asChild>{button}</TooltipTrigger>
-                              <TooltipContent>
-                                <p className="text-xs">Connect {platform.label} in Settings</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          );
-                        }
-
-                        return button;
-                      })}
-                    </div>
-                  </TooltipProvider>
-
-                  {selectedPlatforms.length > 1 && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Badge variant="secondary" className="text-[10px] px-1.5">
-                        {selectedPlatforms.length}
-                      </Badge>
-                      platforms selected
-                    </p>
-                  )}
-                </div>
+                <SocialPlatformSelector
+                  selectedPlatforms={selectedPlatforms}
+                  onPlatformsChange={setSelectedPlatforms}
+                  variant="pills"
+                />
 
                 {/* 3. Publish Button */}
                 <Button
