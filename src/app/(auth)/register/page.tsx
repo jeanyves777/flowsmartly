@@ -114,7 +114,7 @@ function RegisterPageContent() {
         description: "Welcome to FlowSmartly. Let's get started.",
       });
 
-      router.push(redirectTo || data.data?.redirectTo || "/dashboard");
+      router.push(redirectTo || "/select-plan");
     } catch {
       toast({
         title: "Error",

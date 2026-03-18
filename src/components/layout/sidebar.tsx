@@ -69,6 +69,15 @@ interface DelegationMode {
   allowedRoutes: string[];
 }
 
+interface UserFeature {
+  slug: string;
+  name: string;
+  category: string;
+  icon: string;
+  route: string | null;
+  routes: string[];
+}
+
 interface SidebarProps {
   isCollapsed: boolean;
   onToggle: () => void;
@@ -81,6 +90,7 @@ interface SidebarProps {
   hasEcommerce?: boolean;
   storeRegion?: string | null;
   hasDelegations?: boolean;
+  userFeatures?: UserFeature[];
 }
 
 // Plans that have access to marketing features
@@ -146,10 +156,68 @@ const secondaryNavigation = [
   { name: "Help", href: "/help", icon: HelpCircle },
 ];
 
-export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = false, delegationMode, onExitDelegation, storeMode, onToggleStoreMode, hasEcommerce, storeRegion, hasDelegations = false }: SidebarProps) {
+export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = false, delegationMode, onExitDelegation, storeMode, onToggleStoreMode, hasEcommerce, storeRegion, hasDelegations = false, userFeatures = [] }: SidebarProps) {
   const pathname = usePathname();
   const hasMarketingAccess = MARKETING_PLANS.includes(userPlan.toUpperCase());
   const isDelegating = delegationMode?.active === true;
+
+  // Build a set of activated feature slugs for fast lookup
+  const activatedSlugs = new Set(userFeatures.map((f) => f.slug));
+  const hasActivatedFeatures = userFeatures.length > 0;
+
+  // Filter nav items based on activated features (slug-to-route mapping)
+  const SLUG_ROUTE_MAP: Record<string, string[]> = {
+    "feed": ["/feed"],
+    "content-posts": ["/content/posts"],
+    "content-schedule": ["/content/schedule"],
+    "content-automation": ["/content/automation"],
+    "content-strategy": ["/content/strategy"],
+    "image-studio": ["/studio"],
+    "video-editor": ["/video-editor"],
+    "voice-studio": ["/voice-studio"],
+    "logo-generator": ["/logo-generator"],
+    "media-library": ["/media"],
+    "cartoon-maker": ["/cartoon-maker"],
+    "flow-ai": ["/flow-ai"],
+    "bg-remover": ["/tools/background-remover"],
+    "contacts": ["/contacts"],
+    "campaigns": ["/campaigns"],
+    "email-marketing": ["/email-marketing"],
+    "sms-marketing": ["/sms-marketing"],
+    "whatsapp": ["/whatsapp"],
+    "ads": ["/ads"],
+    "landing-pages": ["/landing-pages"],
+    "pitch-board": ["/pitch-board"],
+    "follow-ups": ["/tools/follow-ups"],
+    "data-collection": ["/tools/data-collection"],
+    "surveys": ["/tools/surveys"],
+    "events": ["/tools/events"],
+    "domains": ["/domains"],
+    "my-designs": ["/designs"],
+    "brand-identity": ["/brand"],
+    "teams": ["/teams"],
+    "projects": ["/projects"],
+    "messages": ["/messages"],
+    "referrals": ["/referrals"],
+    "earnings": ["/earnings"],
+    "agent-marketplace": ["/hire-agent", "/agent/profile", "/agent/clients"],
+    "social-accounts": ["/social-accounts"],
+    "social-analytics": ["/analytics"],
+    "ecommerce-store": ["/ecommerce"],
+  };
+
+  // Build set of activated routes
+  const activatedRoutes = new Set<string>();
+  for (const slug of activatedSlugs) {
+    const routes = SLUG_ROUTE_MAP[slug];
+    if (routes) routes.forEach((r) => activatedRoutes.add(r));
+  }
+
+  // Filter function: only show nav items whose route is activated (or if no features activated, show all)
+  const filterByActivated = (items: { name: string; href: string; icon: React.ElementType; premium?: boolean }[]) => {
+    if (!hasActivatedFeatures) return items; // No features set yet — show all (admin/legacy)
+    return items.filter((item) => activatedRoutes.has(item.href));
+  };
 
   // In delegation mode, filter navigation items to only show allowed routes
   const filterByAllowed = (items: { name: string; href: string; icon: React.ElementType; premium?: boolean }[]) => {
@@ -454,12 +522,27 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
           </>
         ) : (
           <>
-            {/* Normal mode: full navigation */}
-            {/* Dashboard + Feed (always visible) */}
-            {topNavigation.map((item) => {
+            {/* Normal mode: feature-based navigation */}
+            {/* Dashboard is always visible */}
+            {renderNavItem(
+              { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+              pathname === "/dashboard" || pathname.startsWith("/dashboard/")
+            )}
+
+            {/* Top items filtered by features */}
+            {filterByActivated([
+              { name: "Feed", href: "/feed", icon: Rss },
+              { name: "My Designs", href: "/designs", icon: FolderKanban },
+            ]).map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return renderNavItem(item, isActive);
             })}
+
+            {/* Analytics — only if activated */}
+            {(!hasActivatedFeatures || activatedSlugs.has("social-analytics")) && renderNavItem(
+              { name: "Analytics", href: "/analytics", icon: BarChart3 },
+              pathname === "/analytics" || pathname.startsWith("/analytics/")
+            )}
 
             {/* Team Projects — only visible when user has delegated projects */}
             {hasDelegations && renderNavItem(
@@ -468,89 +551,108 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             )}
 
             {/* Content Section */}
-            {renderCollapsibleSection("Content", PenSquare, contentOpen, setContentOpen, pathname.startsWith("/content"), contentNavigation)}
+            {(() => {
+              const items = filterByActivated(contentNavigation);
+              return items.length > 0 && renderCollapsibleSection("Content", PenSquare, contentOpen, setContentOpen, pathname.startsWith("/content"), items);
+            })()}
 
-            {/* FlowAI — below My Projects */}
-            {renderNavItem(
+            {/* FlowAI */}
+            {(!hasActivatedFeatures || activatedSlugs.has("flow-ai")) && renderNavItem(
               { name: "FlowAI", href: "/flow-ai", icon: Sparkles },
               pathname.startsWith("/flow-ai")
             )}
 
             {/* AI Creatives Section */}
-            {renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-editor", "/voice-studio", "/logo-generator", "/media"].some(p => pathname.startsWith(p)), aiCreativesNavigation)}
+            {(() => {
+              const items = filterByActivated(aiCreativesNavigation);
+              return items.length > 0 && renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-editor", "/voice-studio", "/logo-generator", "/media"].some(p => pathname.startsWith(p)), items);
+            })()}
 
             {/* Marketing Section */}
-            {renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/whatsapp", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), marketingNavigation, true)}
+            {(() => {
+              const items = filterByActivated(marketingNavigation);
+              return items.length > 0 && renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/whatsapp", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), items, true);
+            })()}
 
             {/* Tools & Insights Section */}
-            {renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics", "/pitch-board"].some(p => pathname.startsWith(p)), toolsNavigation)}
+            {(() => {
+              const items = filterByActivated(toolsNavigation);
+              return items.length > 0 && renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics", "/pitch-board"].some(p => pathname.startsWith(p)), items);
+            })()}
 
             {/* Money Section */}
-            {renderCollapsibleSection("Money", DollarSign, moneyOpen, setMoneyOpen, ["/earnings", "/referrals"].some(p => pathname.startsWith(p)), moneyNavigation)}
+            {(() => {
+              const items = filterByActivated(moneyNavigation);
+              return items.length > 0 && renderCollapsibleSection("Money", DollarSign, moneyOpen, setMoneyOpen, ["/earnings", "/referrals"].some(p => pathname.startsWith(p)), items);
+            })()}
 
             {/* Teams Section */}
-            <div className="pt-3">
-              {!isCollapsed && (
-                <div className="px-3 pb-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Teams
-                  </span>
-                </div>
-              )}
-              {isCollapsed && (
-                <div className="flex justify-center py-2">
-                  <UsersRound className={cn("h-4 w-4", pathname.startsWith("/teams") ? "text-brand-500" : "text-muted-foreground")} />
-                </div>
-              )}
-              {renderNavItem(
-                { name: "My Teams", href: "/teams", icon: UsersRound },
-                pathname.startsWith("/teams")
-              )}
-            </div>
-
-            {/* Agent / Marketplace Section */}
-            {isAgent ? (
+            {(!hasActivatedFeatures || activatedSlugs.has("teams")) && (
               <div className="pt-3">
                 {!isCollapsed && (
                   <div className="px-3 pb-2">
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Agent
+                      Teams
                     </span>
                   </div>
                 )}
                 {isCollapsed && (
                   <div className="flex justify-center py-2">
-                    <Briefcase className={cn("h-4 w-4", pathname.startsWith("/agent") ? "text-brand-500" : "text-muted-foreground")} />
+                    <UsersRound className={cn("h-4 w-4", pathname.startsWith("/teams") ? "text-brand-500" : "text-muted-foreground")} />
                   </div>
                 )}
                 {renderNavItem(
-                  { name: "My Profile", href: "/agent/profile", icon: Users },
-                  pathname === "/agent/profile"
-                )}
-                {renderNavItem(
-                  { name: "My Clients", href: "/agent/clients", icon: Briefcase },
-                  pathname.startsWith("/agent/clients")
-                )}
-                {renderNavItem(
-                  { name: "Messages", href: "/messages", icon: MessageCircle },
-                  pathname.startsWith("/messages")
-                )}
-                {renderNavItem(
-                  { name: "Marketplace", href: "/hire-agent", icon: Store },
-                  pathname.startsWith("/hire-agent")
+                  { name: "My Teams", href: "/teams", icon: UsersRound },
+                  pathname.startsWith("/teams")
                 )}
               </div>
-            ) : (
-              <div className="pt-3">
-                {renderNavItem(
-                  { name: "Messages", href: "/messages", icon: MessageCircle },
-                  pathname.startsWith("/messages")
-                )}
-                {renderNavItem(
-                  { name: "Hire Agent", href: "/hire-agent", icon: Store },
-                  pathname.startsWith("/hire-agent")
-                )}
-              </div>
+            )}
+
+            {/* Agent / Marketplace Section */}
+            {(!hasActivatedFeatures || activatedSlugs.has("agent-marketplace")) && (
+              isAgent ? (
+                <div className="pt-3">
+                  {!isCollapsed && (
+                    <div className="px-3 pb-2">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Agent
+                      </span>
+                    </div>
+                  )}
+                  {isCollapsed && (
+                    <div className="flex justify-center py-2">
+                      <Briefcase className={cn("h-4 w-4", pathname.startsWith("/agent") ? "text-brand-500" : "text-muted-foreground")} />
+                    </div>
+                  )}
+                  {renderNavItem(
+                    { name: "My Profile", href: "/agent/profile", icon: Users },
+                    pathname === "/agent/profile"
+                  )}
+                  {renderNavItem(
+                    { name: "My Clients", href: "/agent/clients", icon: Briefcase },
+                    pathname.startsWith("/agent/clients")
+                  )}
+                  {renderNavItem(
+                    { name: "Messages", href: "/messages", icon: MessageCircle },
+                    pathname.startsWith("/messages")
+                  )}
+                  {renderNavItem(
+                    { name: "Marketplace", href: "/hire-agent", icon: Store },
+                    pathname.startsWith("/hire-agent")
+                  )}
+                </div>
+              ) : (
+                <div className="pt-3">
+                  {(!hasActivatedFeatures || activatedSlugs.has("messages")) && renderNavItem(
+                    { name: "Messages", href: "/messages", icon: MessageCircle },
+                    pathname.startsWith("/messages")
+                  )}
+                  {renderNavItem(
+                    { name: "Hire Agent", href: "/hire-agent", icon: Store },
+                    pathname.startsWith("/hire-agent")
+                  )}
+                </div>
+              )
             )}
           </>
         )}
@@ -599,6 +701,24 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             {!isCollapsed && (
               <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 Start Store
+              </motion.span>
+            )}
+          </Link>
+        )}
+
+        {/* Manage Features */}
+        {hasActivatedFeatures && (
+          <Link
+            href="/onboarding/features"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+              "text-muted-foreground hover:bg-accent hover:text-foreground"
+            )}
+          >
+            <Sparkles className="h-5 w-5 shrink-0" />
+            {!isCollapsed && (
+              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                Manage Features
               </motion.span>
             )}
           </Link>

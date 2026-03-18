@@ -129,6 +129,10 @@ model User {
   whatsappAutomations    WhatsAppAutomation[]
   pitches                Pitch[]
   leadSearches           LeadSearch[]
+  userFeatures           UserFeature[]
+
+  // Onboarding
+  onboardingComplete Boolean @default(false)
 
   @@index([email])
   @@index([username])
@@ -3767,4 +3771,63 @@ model LeadSearch {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+// ============================================
+// FEATURE ACTIVATION SYSTEM
+// ============================================
+
+model Feature {
+  id          String   @id @default(cuid())
+  slug        String   @unique   // e.g. "feed", "sms-marketing", "image-studio"
+  name        String              // Display name
+  description String?
+  category    String              // "content", "ai-creatives", "marketing", "tools", "ecommerce", "team", "monetization", "analytics"
+  icon        String   @default("Sparkles") // Lucide icon name
+  route       String?             // Primary route, e.g. "/feed", "/sms-marketing"
+  routes      String   @default("[]") // JSON array of all routes this feature covers
+
+  // Display
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  planFeatures PlanFeature[]
+  userFeatures UserFeature[]
+
+  @@index([category, sortOrder])
+  @@index([isActive])
+}
+
+model PlanFeature {
+  id        String   @id @default(cuid())
+  planId    String   // STARTER, NON_PROFIT, PRO, BUSINESS, ENTERPRISE
+  featureId String
+  limitValue String?  // Optional limit, e.g. "2" for max social accounts, null = unlimited
+
+  feature   Feature  @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([planId, featureId])
+  @@index([planId])
+  @@index([featureId])
+}
+
+model UserFeature {
+  id          String   @id @default(cuid())
+  userId      String
+  featureId   String
+  isActive    Boolean  @default(true)
+
+  activatedAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, featureId])
+  @@index([userId, isActive])
+  @@index([featureId])
 }

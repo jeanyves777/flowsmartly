@@ -12,6 +12,26 @@ export const PLANS = {
     priceCentsMonthly: 0,
     priceCentsYearly: 0,
     features: ["100 credits/month", "Email marketing", "Basic design tools", "FlowSocial feed access"],
+    color: "#6b7280",
+    icon: "Sparkles",
+  },
+  NON_PROFIT: {
+    name: "Non-Profit",
+    monthlyCredits: 300,
+    priceCentsMonthly: 900,
+    priceCentsYearly: 9900,
+    stripePriceIdMonthly: process.env.STRIPE_NONPROFIT_MONTHLY_PRICE_ID || "",
+    stripePriceIdYearly: process.env.STRIPE_NONPROFIT_YEARLY_PRICE_ID || "",
+    features: [
+      "300 credits/month",
+      "FlowAI assistant",
+      "Logo generator",
+      "Campaigns & surveys",
+      "Brand identity",
+      "Social analytics",
+    ],
+    color: "#10b981",
+    icon: "Heart",
   },
   PRO: {
     name: "Pro",
@@ -28,6 +48,8 @@ export const PLANS = {
       "SMS & MMS marketing",
       "Ad campaigns",
     ],
+    color: "#8b5cf6",
+    icon: "Zap",
   },
   BUSINESS: {
     name: "Business",
@@ -43,6 +65,8 @@ export const PLANS = {
       "Analytics dashboard",
       "Priority support",
     ],
+    color: "#f59e0b",
+    icon: "Briefcase",
   },
   ENTERPRISE: {
     name: "Enterprise",
@@ -59,6 +83,8 @@ export const PLANS = {
       "Custom integrations",
       "Dedicated support",
     ],
+    color: "#ef4444",
+    icon: "Crown",
   },
 } as const;
 

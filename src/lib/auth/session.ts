@@ -34,6 +34,7 @@ export interface Session {
     aiCredits: number;
     balanceCents: number;
     emailVerified: boolean;
+    onboardingComplete: boolean;
   };
 }
 
@@ -72,6 +73,7 @@ export async function getSession(): Promise<Session | null> {
           aiCredits: true,
           balanceCents: true,
           emailVerified: true,
+          onboardingComplete: true,
           deletedAt: true,
         },
       });
@@ -90,6 +92,7 @@ export async function getSession(): Promise<Session | null> {
             aiCredits: user.aiCredits,
             balanceCents: user.balanceCents,
             emailVerified: user.emailVerified,
+            onboardingComplete: user.onboardingComplete,
           },
         };
       }
@@ -164,6 +167,7 @@ async function getAgentAsClientSession(token: string): Promise<Session | null> {
         aiCredits: true,
         balanceCents: true,
         emailVerified: true,
+        onboardingComplete: true,
         deletedAt: true,
       },
     });
@@ -188,6 +192,7 @@ async function getAgentAsClientSession(token: string): Promise<Session | null> {
         aiCredits: clientUser.aiCredits,
         balanceCents: clientUser.balanceCents,
         emailVerified: clientUser.emailVerified,
+        onboardingComplete: clientUser.onboardingComplete,
       },
     };
   } catch (error) {
@@ -245,6 +250,7 @@ async function getAdminAsUserSession(token: string): Promise<Session | null> {
           aiCredits: 10000,
           emailVerified: true,
           emailVerifiedAt: new Date(),
+          onboardingComplete: true,
         },
       });
     }
@@ -264,6 +270,7 @@ async function getAdminAsUserSession(token: string): Promise<Session | null> {
         aiCredits: linkedUser.aiCredits,
         balanceCents: linkedUser.balanceCents,
         emailVerified: linkedUser.emailVerified,
+        onboardingComplete: linkedUser.onboardingComplete,
       },
     };
   } catch (error) {
@@ -303,6 +310,7 @@ async function tryRefreshSession(): Promise<Session | null> {
           aiCredits: true,
           balanceCents: true,
           emailVerified: true,
+          onboardingComplete: true,
           deletedAt: true,
         },
       },
@@ -341,6 +349,7 @@ async function tryRefreshSession(): Promise<Session | null> {
       aiCredits: session.user.aiCredits,
       balanceCents: session.user.balanceCents,
       emailVerified: session.user.emailVerified,
+      onboardingComplete: session.user.onboardingComplete,
     },
   };
 }

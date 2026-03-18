@@ -25,6 +25,7 @@ interface User {
   aiCredits: number;
   balanceCents: number;
   emailVerified: boolean;
+  onboardingComplete: boolean;
 }
 
 interface AdminUser {
@@ -61,6 +62,7 @@ export default function DashboardLayout({
   const [hasEcommerce, setHasEcommerce] = useState(false);
   const [storeRegion, setStoreRegion] = useState<string | null>(null);
   const [hasDelegations, setHasDelegations] = useState(false);
+  const [userFeatures, setUserFeatures] = useState<{ slug: string; name: string; category: string; icon: string; route: string | null; routes: string[] }[]>([]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -70,11 +72,27 @@ export default function DashboardLayout({
         const userData = await userResponse.json();
 
         if (userData.success && userData.data?.user) {
-          setUser(userData.data.user);
+          const u = userData.data.user;
+          setUser(u);
+
+          // Redirect to onboarding if not completed (skip for admins and agent impersonation)
+          if (!u.onboardingComplete && !userData.data.isImpersonating && u.plan !== "ADMIN") {
+            router.push("/select-plan");
+            return;
+          }
+
           if (userData.data.isImpersonating && userData.data.agentInfo) {
             setIsAgentImpersonating(true);
             setAgentInfo(userData.data.agentInfo);
           }
+          // Fetch user's activated features (for sidebar nav)
+          try {
+            const featRes = await fetch("/api/user/features");
+            const featData = await featRes.json();
+            if (featData.success && featData.data?.features) {
+              setUserFeatures(featData.data.features);
+            }
+          } catch {}
           // Check if user has an approved agent profile (for sidebar nav)
           try {
             const agentRes = await fetch("/api/agent/profile");
@@ -131,6 +149,7 @@ export default function DashboardLayout({
             aiCredits: 9999,
             balanceCents: 0,
             emailVerified: true,
+            onboardingComplete: true,
           });
           setIsAdmin(true);
           setIsLoading(false);
@@ -317,6 +336,7 @@ export default function DashboardLayout({
             hasEcommerce={hasEcommerce}
             storeRegion={storeRegion}
             hasDelegations={hasDelegations}
+            userFeatures={userFeatures}
           />
         </div>
 

@@ -64,6 +64,7 @@ const navItems = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/admin/users", icon: Users, label: "Users" },
   { href: "/admin/plans", icon: CreditCard, label: "Plans" },
+  { href: "/admin/features", icon: Sparkles, label: "Features" },
   { href: "/admin/credits", icon: Coins, label: "Credits" },
   { href: "/admin/credit-pricing", icon: DollarSign, label: "Credit Pricing" },
   { href: "/admin/content", icon: FileText, label: "Content" },

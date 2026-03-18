@@ -225,7 +225,7 @@ export async function POST(request: NextRequest) {
             username: user.username,
             plan: user.plan,
           },
-          redirectTo: "/dashboard",
+          redirectTo: "/select-plan",
         },
       },
       { status: 201 }
