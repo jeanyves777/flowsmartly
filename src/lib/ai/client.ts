@@ -46,10 +46,11 @@ class ClaudeAI {
     return false;
   }
 
-  /** Check if error warrants failover (auth errors, billing, not rate limits) */
+  /** Check if error warrants failover to backup key */
   private shouldFailover(error: unknown): boolean {
     const status = (error as { status?: number }).status;
-    return status === 401 || status === 403;
+    // Failover on auth errors, overloaded, rate limits, server errors
+    return status === 401 || status === 403 || status === 429 || status === 500 || status === 503 || status === 529;
   }
 
   static getInstance(): ClaudeAI {
@@ -74,6 +75,7 @@ class ClaudeAI {
     } = options;
 
     const maxRetries = 3;
+    let lastError: unknown;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const response = await this.client.messages.create({
@@ -87,23 +89,31 @@ class ClaudeAI {
         const textBlock = response.content.find((block) => block.type === "text");
         return textBlock?.type === "text" ? textBlock.text : "";
       } catch (error: unknown) {
-        // Failover to backup on auth/billing errors
-        if (this.shouldFailover(error) && this.switchToBackup()) {
-          continue; // Retry immediately with backup client
-        }
+        lastError = error;
         const status = (error as { status?: number }).status;
         const isRetryable = status === 429 || status === 529 || status === 500 || status === 503;
+
+        // For auth errors, failover immediately
+        if ((status === 401 || status === 403) && this.switchToBackup()) {
+          continue;
+        }
+
         if (isRetryable && attempt < maxRetries - 1) {
           const delay = Math.min(1000 * 2 ** attempt, 8000);
           console.warn(`AI request failed (${status}), retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`);
           await new Promise((r) => setTimeout(r, delay));
           continue;
         }
-        throw error;
       }
     }
 
-    return ""; // unreachable but satisfies TS
+    // All retries exhausted — try backup before giving up
+    if (lastError && this.shouldFailover(lastError) && this.switchToBackup()) {
+      console.warn("All retries exhausted on primary key — retrying with backup key");
+      return this.generate(prompt, options);
+    }
+
+    throw lastError;
   }
 
   /**

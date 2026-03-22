@@ -925,7 +925,7 @@ async function logoContainsBrandName(
     });
     } catch (primaryErr: unknown) {
       const status = (primaryErr as { status?: number }).status;
-      if ((status === 401 || status === 403) && process.env.ANTHROPIC_BACKUP_API_KEY) {
+      if ((status === 401 || status === 403 || status === 429 || status === 500 || status === 503 || status === 529) && process.env.ANTHROPIC_BACKUP_API_KEY) {
         console.warn("[Visual] Primary Anthropic key failed, using backup");
         const backupClient = new Anthropic({ apiKey: process.env.ANTHROPIC_BACKUP_API_KEY });
         response = await backupClient.messages.create({
