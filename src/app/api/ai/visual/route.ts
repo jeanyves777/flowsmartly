@@ -909,7 +909,9 @@ async function logoContainsBrandName(
     const base64Data = logoDataUri.replace(/^data:image\/[^;]+;base64,/, "");
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const response = await anthropic.messages.create({
+    let response;
+    try {
+      response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 10,
       temperature: 0,
@@ -921,6 +923,27 @@ async function logoContainsBrandName(
         ],
       }],
     });
+    } catch (primaryErr: unknown) {
+      const status = (primaryErr as { status?: number }).status;
+      if ((status === 401 || status === 403) && process.env.ANTHROPIC_BACKUP_API_KEY) {
+        console.warn("[Visual] Primary Anthropic key failed, using backup");
+        const backupClient = new Anthropic({ apiKey: process.env.ANTHROPIC_BACKUP_API_KEY });
+        response = await backupClient.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 10,
+          temperature: 0,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } },
+              { type: "text", text: `Does this logo contain the text "${brandName}" (or a very similar spelling)? Answer ONLY "yes" or "no".` },
+            ],
+          }],
+        });
+      } else {
+        throw primaryErr;
+      }
+    }
 
     const answer = response.content[0]?.type === "text" ? response.content[0].text.toLowerCase().trim() : "";
     console.log(`[Visual] Logo name analysis: "${answer}" for brand "${brandName}"`);

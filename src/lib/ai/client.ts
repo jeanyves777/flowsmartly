@@ -1,9 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-// Initialize Anthropic client
-const anthropic = new Anthropic({
+// Initialize primary and backup Anthropic clients
+const primaryClient = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+const backupClient = process.env.ANTHROPIC_BACKUP_API_KEY
+  ? new Anthropic({ apiKey: process.env.ANTHROPIC_BACKUP_API_KEY })
+  : null;
 
 export interface AIGenerationOptions {
   maxTokens?: number;
@@ -18,14 +22,34 @@ export interface AIStreamOptions extends AIGenerationOptions {
 
 /**
  * Claude AI Client for FlowSmartly
- * Singleton pattern to ensure consistent API usage
+ * Singleton pattern with automatic failover to backup API key
  */
 class ClaudeAI {
   private static instance: ClaudeAI;
   private client: Anthropic;
+  private backup: Anthropic | null;
+  private usingBackup = false;
 
   private constructor() {
-    this.client = anthropic;
+    this.client = primaryClient;
+    this.backup = backupClient;
+  }
+
+  /** Switch to backup client if available, returns true if switched */
+  private switchToBackup(): boolean {
+    if (this.backup && !this.usingBackup) {
+      console.warn("Anthropic primary API failed — switching to backup key");
+      this.client = this.backup;
+      this.usingBackup = true;
+      return true;
+    }
+    return false;
+  }
+
+  /** Check if error warrants failover (auth errors, billing, not rate limits) */
+  private shouldFailover(error: unknown): boolean {
+    const status = (error as { status?: number }).status;
+    return status === 401 || status === 403;
   }
 
   static getInstance(): ClaudeAI {
@@ -63,6 +87,10 @@ class ClaudeAI {
         const textBlock = response.content.find((block) => block.type === "text");
         return textBlock?.type === "text" ? textBlock.text : "";
       } catch (error: unknown) {
+        // Failover to backup on auth/billing errors
+        if (this.shouldFailover(error) && this.switchToBackup()) {
+          continue; // Retry immediately with backup client
+        }
         const status = (error as { status?: number }).status;
         const isRetryable = status === 429 || status === 529 || status === 500 || status === 503;
         if (isRetryable && attempt < maxRetries - 1) {
@@ -91,20 +119,28 @@ class ClaudeAI {
       systemPrompt = "You are a helpful marketing and content creation assistant. Be concise, creative, and professional.",
     } = options;
 
-    const stream = this.client.messages.stream({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: maxTokens,
-      temperature,
-      system: systemPrompt,
-      messages: [{ role: "user", content: prompt }],
-    });
+    try {
+      const stream = this.client.messages.stream({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: maxTokens,
+        temperature,
+        system: systemPrompt,
+        messages: [{ role: "user", content: prompt }],
+      });
 
-    for await (const event of stream) {
-      if (
-        event.type === "content_block_delta" &&
-        event.delta.type === "text_delta"
-      ) {
-        yield event.delta.text;
+      for await (const event of stream) {
+        if (
+          event.type === "content_block_delta" &&
+          event.delta.type === "text_delta"
+        ) {
+          yield event.delta.text;
+        }
+      }
+    } catch (error: unknown) {
+      if (this.shouldFailover(error) && this.switchToBackup()) {
+        yield* this.stream(prompt, options);
+      } else {
+        throw error;
       }
     }
   }
@@ -122,20 +158,28 @@ class ClaudeAI {
       systemPrompt = "You are a helpful marketing and content creation assistant. Be concise, creative, and professional.",
     } = options;
 
-    const stream = this.client.messages.stream({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: maxTokens,
-      temperature,
-      system: systemPrompt,
-      messages,
-    });
+    try {
+      const stream = this.client.messages.stream({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: maxTokens,
+        temperature,
+        system: systemPrompt,
+        messages,
+      });
 
-    for await (const event of stream) {
-      if (
-        event.type === "content_block_delta" &&
-        event.delta.type === "text_delta"
-      ) {
-        yield event.delta.text;
+      for await (const event of stream) {
+        if (
+          event.type === "content_block_delta" &&
+          event.delta.type === "text_delta"
+        ) {
+          yield event.delta.text;
+        }
+      }
+    } catch (error: unknown) {
+      if (this.shouldFailover(error) && this.switchToBackup()) {
+        yield* this.streamConversation(messages, options);
+      } else {
+        throw error;
       }
     }
   }
