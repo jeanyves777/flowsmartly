@@ -25,7 +25,7 @@ export function SectionCanvas({ sections, onReorder, onUpdate, onDelete, onDupli
     }
   }
 
-  if (sections.length === 0) {
+  if (!sections || sections.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-center p-8 border-2 border-dashed rounded-lg">
         <div>
@@ -38,7 +38,7 @@ export function SectionCanvas({ sections, onReorder, onUpdate, onDelete, onDupli
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={sections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext items={(sections || []).map((s) => s.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-2 flex-1">
           {sections.map((section, idx) => (
             <SectionBlock

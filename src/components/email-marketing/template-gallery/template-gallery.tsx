@@ -61,7 +61,7 @@ export function TemplateGallery({ onSelect, onCreateBlank, onGenerateAI }: Templ
       if (search) params.set("search", search);
       const res = await fetch(`/api/email-templates?${params}`);
       const data = await res.json();
-      if (data.success) setTemplates(data.data);
+      if (data.success) setTemplates(Array.isArray(data.data) ? data.data : []);
     } catch (err) {
       console.error("Failed to fetch templates:", err);
     } finally {

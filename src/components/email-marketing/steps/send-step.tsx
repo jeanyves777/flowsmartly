@@ -55,7 +55,7 @@ export function SendStep(props: SendStepProps) {
   useEffect(() => {
     fetch("/api/contact-lists")
       .then((r) => r.json())
-      .then((d) => { if (d.success) setContactLists(d.data || []); })
+      .then((d) => { if (d.success) setContactLists(Array.isArray(d.data) ? d.data : []); })
       .catch(() => {});
   }, []);
 
@@ -65,7 +65,7 @@ export function SendStep(props: SendStepProps) {
     setLoadingContacts(true);
     fetch(`/api/contacts?listId=${props.selectedContactListId}&limit=500`)
       .then((r) => r.json())
-      .then((d) => { if (d.success) setContacts(d.data || []); })
+      .then((d) => { if (d.success) setContacts(Array.isArray(d.data) ? d.data : []); })
       .catch(() => {})
       .finally(() => setLoadingContacts(false));
   }, [props.selectedContactListId]);

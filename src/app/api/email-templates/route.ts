@@ -16,17 +16,18 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search");
   const source = searchParams.get("source");
 
+  // Build filters that combine with the ownership check via AND
+  const conditions: Record<string, unknown>[] = [];
+  if (category && category !== "all") conditions.push({ category });
+  if (source) conditions.push({ source });
+  if (search) conditions.push({ name: { contains: search } });
+
   const where: Record<string, unknown> = {
-    OR: [
-      { userId: session.userId },
-      { isDefault: true },
+    AND: [
+      { OR: [{ userId: session.userId }, { isDefault: true }] },
+      ...conditions,
     ],
   };
-  if (category && category !== "all") (where as Record<string, unknown>).category = category;
-  if (source) (where as Record<string, unknown>).source = source;
-  if (search) {
-    (where as Record<string, unknown>).name = { contains: search, mode: "insensitive" };
-  }
 
   const templates = await prisma.emailTemplate.findMany({
     where,
