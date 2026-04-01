@@ -209,6 +209,18 @@ class AIHub {
       phone: brandKit.phone,
       website: brandKit.website,
       address: brandKit.address,
+      // Visual identity
+      logo: brandKit.logo,
+      iconLogo: brandKit.iconLogo,
+      colors: (() => {
+        try { const c = JSON.parse(brandKit.colors); return c.primary ? c : undefined; } catch { return undefined; }
+      })(),
+      fonts: (() => {
+        try { const f = JSON.parse(brandKit.fonts); return f.heading ? f : undefined; } catch { return undefined; }
+      })(),
+      handles: (() => {
+        try { return JSON.parse(brandKit.handles); } catch { return undefined; }
+      })(),
     };
   }
 

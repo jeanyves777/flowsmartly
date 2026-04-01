@@ -42,6 +42,12 @@ export interface BrandContext {
   phone?: string | null;
   website?: string | null;
   address?: string | null;
+  // Visual identity (for email rendering & AI design)
+  logo?: string | null;
+  iconLogo?: string | null;
+  colors?: { primary: string; secondary: string; accent: string };
+  fonts?: { heading: string; body: string };
+  handles?: Record<string, string>;
 }
 
 // Generation settings

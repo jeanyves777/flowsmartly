@@ -60,25 +60,36 @@ export async function POST(
       );
     }
 
-    // Must have a contact list
-    if (!campaign.contactListId) {
+    const body = await request.json();
+    const { action, scheduledAt, customEmails, excludedContactIds } = body;
+
+    // Parse custom recipients and exclusions from campaign or request body
+    const reqCustomEmails: string[] = customEmails || (() => {
+      try { return campaign.customRecipients ? JSON.parse(campaign.customRecipients) : []; } catch { return []; }
+    })();
+    const reqExcludedIds: string[] = excludedContactIds || (() => {
+      try { return campaign.excludedRecipients ? JSON.parse(campaign.excludedRecipients) : []; } catch { return []; }
+    })();
+    const excludedSet = new Set(reqExcludedIds);
+
+    // Must have a contact list or custom emails
+    if (!campaign.contactListId && reqCustomEmails.length === 0) {
       return NextResponse.json(
-        { success: false, error: { message: "No contact list selected for this campaign" } },
+        { success: false, error: { message: "No recipients for this campaign" } },
         { status: 400 }
       );
     }
 
-    const body = await request.json();
-    const { action, scheduledAt } = body;
-
-    if (!action || !["send", "schedule"].includes(action)) {
+    // Default action to "send" if not specified (new wizard flow)
+    const sendAction = action || "send";
+    if (!["send", "schedule"].includes(sendAction)) {
       return NextResponse.json(
         { success: false, error: { message: "Invalid action. Use 'send' or 'schedule'." } },
         { status: 400 }
       );
     }
 
-    if (action === "schedule") {
+    if (sendAction === "schedule") {
       if (!scheduledAt) {
         return NextResponse.json(
           { success: false, error: { message: "Scheduled time is required" } },
@@ -192,8 +203,8 @@ export async function POST(
       fromAddress = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
     }
 
-    // Get contacts from the list
-    const listMembers = await prisma.contactListMember.findMany({
+    // Get contacts from the list (if a list is selected)
+    const listMembers = campaign.contactListId ? await prisma.contactListMember.findMany({
       where: { contactListId: campaign.contactListId },
       include: {
         contact: {
@@ -210,17 +221,18 @@ export async function POST(
           },
         },
       },
-    });
+    }) : [];
 
-    // Filter active contacts with proper opt-in
+    // Filter active contacts with proper opt-in, excluding excluded contacts
     const validContacts = listMembers.filter((m) => {
+      if (excludedSet.has(m.contact.id)) return false;
       if (m.contact.status !== "ACTIVE") return false;
       if (campaign.type === "EMAIL" && (!m.contact.email || !m.contact.emailOptedIn)) return false;
       if (campaign.type === "SMS" && (!m.contact.phone || !m.contact.smsOptedIn)) return false;
       return true;
     });
 
-    if (validContacts.length === 0) {
+    if (validContacts.length === 0 && reqCustomEmails.length === 0) {
       return NextResponse.json(
         { success: false, error: { message: "No valid contacts to send to" } },
         { status: 400 }
@@ -276,7 +288,8 @@ export async function POST(
     if (campaign.type === "EMAIL" && marketingConfig) {
       // Check credit balance before sending emails
       const emailCreditCost = await getDynamicCreditCost("EMAIL_SEND");
-      const totalEmailCost = emailCreditCost * newContacts.length;
+      const totalRecipientCount = newContacts.length + reqCustomEmails.length;
+      const totalEmailCost = emailCreditCost * totalRecipientCount;
       const emailCreditBalance = await creditService.getBalance(session.userId);
 
       if (emailCreditBalance < totalEmailCost) {
@@ -289,7 +302,7 @@ export async function POST(
           {
             success: false,
             error: {
-              message: `Insufficient credits. You need ${totalEmailCost} credits to send ${newContacts.length} emails. Current balance: ${emailCreditBalance}.`,
+              message: `Insufficient credits. You need ${totalEmailCost} credits to send ${totalRecipientCount} emails. Current balance: ${emailCreditBalance}.`,
             },
           },
           { status: 402 }
@@ -426,6 +439,40 @@ export async function POST(
         // Small delay between batches to avoid rate limiting
         if (i + BATCH_SIZE < newContacts.length) {
           await sleep(BATCH_DELAY_MS);
+        }
+      }
+
+      // Send to custom email recipients (not in contact list)
+      if (reqCustomEmails.length > 0) {
+        for (const customEmail of reqCustomEmails) {
+          try {
+            // Basic merge tag replacement for custom emails (no contact data)
+            const customHtml = campaign.contentHtml
+              ? campaign.contentHtml
+                  .replace(/\{\{email\}\}/g, customEmail)
+                  .replace(/\{\{firstName\}\}/g, "")
+                  .replace(/\{\{lastName\}\}/g, "")
+              : "";
+            const customText = campaign.content
+              .replace(/\{\{email\}\}/g, customEmail)
+              .replace(/\{\{firstName\}\}/g, "")
+              .replace(/\{\{lastName\}\}/g, "");
+
+            await sendMarketingEmail({
+              provider: emailProvider,
+              emailConfig,
+              from: fromAddress,
+              to: customEmail,
+              replyTo,
+              subject: campaign.subject || "No Subject",
+              text: customText,
+              html: customHtml || "",
+            });
+            successCount++;
+          } catch (err) {
+            console.error(`[Custom Email] Failed to send to ${customEmail}:`, err);
+            failureCount++;
+          }
         }
       }
 

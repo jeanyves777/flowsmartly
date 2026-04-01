@@ -130,6 +130,7 @@ model User {
   pitches                Pitch[]
   leadSearches           LeadSearch[]
   userFeatures           UserFeature[]
+  emailTemplates         EmailTemplate[]
 
   // Onboarding
   onboardingComplete Boolean @default(false)
@@ -570,10 +571,17 @@ model Campaign {
   content       String
   contentHtml   String?
 
+  // Template reference
+  templateId    String?
+
   // MMS image
   imageUrl         String?
   imageSource      String?   // "upload" | "media" | "ai" | "contact_photo"
   imageOverlayText String?   // Text to composite on image (supports merge tags)
+
+  // Custom recipients & exclusions
+  customRecipients   String?   // JSON string[] — manually added email addresses
+  excludedRecipients String?   // JSON string[] — excluded contact IDs
 
   contactListId String?
   segmentRules  String?
@@ -595,10 +603,12 @@ model Campaign {
 
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   contactList   ContactList? @relation(fields: [contactListId], references: [id])
+  template      EmailTemplate? @relation(fields: [templateId], references: [id])
   sends         CampaignSend[]
 
   @@index([userId])
   @@index([type, status])
+  @@index([templateId])
 }
 
 model CampaignSend {
@@ -1155,9 +1165,62 @@ model BrandKit {
   updatedAt   DateTime @updatedAt
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailTemplates EmailTemplate[]
 
   @@index([userId])
   @@index([isDefault])
+}
+
+// ============================================
+// EMAIL TEMPLATES (Reusable, Brand-Aware)
+// ============================================
+
+model EmailTemplate {
+  id            String    @id @default(cuid())
+  userId        String
+
+  name          String
+  description   String?
+  category      String    @default("custom")  // lifecycle, birthday, holiday, promotional, content, transactional, custom
+
+  // Content
+  subject       String?
+  preheader     String?
+  content       String    @default("")        // Plain text version
+  contentHtml   String?                       // Rendered HTML (cached from sections + brand)
+
+  // Structure — canonical source of truth for the drag-and-drop builder
+  sections      String    @default("[]")      // JSON: EmailSection[]
+
+  // Brand binding
+  brandKitId    String?                       // Lock to specific brand kit
+
+  // Source tracking
+  source        String    @default("manual")  // manual, ai_generated, system_default, cloned
+  sourcePrompt  String?                       // If AI-generated, the prompt used
+
+  // Usage tracking
+  isDefault     Boolean   @default(false)     // System-seeded template
+  usageCount    Int       @default(0)
+  lastUsedAt    DateTime?
+
+  // Display
+  thumbnailUrl  String?
+  tags          String    @default("[]")      // JSON array of user tags
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandKit      BrandKit?     @relation(fields: [brandKitId], references: [id])
+  campaigns     Campaign[]
+  automations   Automation[]
+
+  @@index([userId])
+  @@index([userId, category])
+  @@index([isDefault])
+  @@index([brandKitId])
 }
 
 // ============================================
@@ -2495,6 +2558,7 @@ model Automation {
 
   // Campaign template
   campaignType  String    // EMAIL or SMS
+  templateId    String?
   subject       String?
   content       String    @default("")
   contentHtml   String?
@@ -2521,10 +2585,12 @@ model Automation {
 
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   contactList   ContactList?  @relation(fields: [contactListId], references: [id])
+  template      EmailTemplate? @relation(fields: [templateId], references: [id])
   logs          AutomationLog[]
 
   @@index([userId])
   @@index([enabled, type])
+  @@index([templateId])
 }
 
 model AutomationLog {
