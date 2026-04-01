@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Sparkles, Save, Wand } from "lucide-react";
+import { Save, Wand } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EmailBuilder } from "../builder/email-builder";
-import { useToast } from "@/hooks/use-toast";
+import { OptimizationPanel, type OptimizationData } from "../builder/optimization-panel";
 import type { EmailSection, EmailBrand } from "@/lib/marketing/email-renderer";
 
 interface EditorStepProps {
@@ -19,6 +18,7 @@ interface EditorStepProps {
   logoSize: "normal" | "large" | "big";
   campaignName: string;
   isGenerating: boolean;
+  optimizationData: OptimizationData | null;
   onSubjectChange: (v: string) => void;
   onPreheaderChange: (v: string) => void;
   onCampaignNameChange: (v: string) => void;
@@ -31,12 +31,11 @@ interface EditorStepProps {
   onToggleBrandName: (v: boolean) => void;
   onLogoSize: (v: "normal" | "large" | "big") => void;
   onOptimize: () => Promise<void>;
+  onClearOptimization: () => void;
   onSaveAsTemplate: () => Promise<void>;
 }
 
 export function EditorStep(props: EditorStepProps) {
-  const { toast } = useToast();
-
   return (
     <div className="space-y-4">
       {/* Campaign name + actions bar */}
@@ -57,7 +56,7 @@ export function EditorStep(props: EditorStepProps) {
           disabled={props.isGenerating || props.sections.length === 0}
         >
           <Wand className="w-3.5 h-3.5 mr-1" />
-          Optimize
+          {props.isGenerating ? "Optimizing..." : "Optimize"}
         </Button>
         <Button
           variant="outline"
@@ -70,6 +69,16 @@ export function EditorStep(props: EditorStepProps) {
           Save as Template
         </Button>
       </div>
+
+      {/* Optimization panel (shown inline after clicking Optimize) */}
+      {props.optimizationData && (
+        <OptimizationPanel
+          data={props.optimizationData}
+          currentSubject={props.subject}
+          onApplySubject={props.onSubjectChange}
+          onClose={props.onClearOptimization}
+        />
+      )}
 
       {/* Email builder */}
       <EmailBuilder

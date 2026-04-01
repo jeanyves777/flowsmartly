@@ -14,10 +14,14 @@ interface EmailPreviewProps {
 export function EmailPreview({ html, subject, preheader }: EmailPreviewProps) {
   const [view, setView] = useState<"desktop" | "mobile">("desktop");
 
-  const srcDoc = useMemo(() => {
+  // For mobile: inject a viewport meta and scale the content
+  const mobileSrcDoc = useMemo(() => {
     if (!html) return "";
-    // Wrap in a container that handles mobile scaling
-    return html;
+    // Force the email to render at 375px width inside the iframe
+    return html.replace(
+      "<head>",
+      `<head><meta name="viewport" content="width=375, initial-scale=1"><style>body{max-width:375px!important;margin:0 auto!important;}table[style*="width: 600px"]{width:100%!important;max-width:375px!important;}</style>`
+    );
   }, [html]);
 
   return (
@@ -56,38 +60,41 @@ export function EmailPreview({ html, subject, preheader }: EmailPreviewProps) {
       {/* Email content */}
       <div className="flex-1 flex justify-center p-4 overflow-auto">
         {html ? (
-          <div className={cn(
-            "transition-all duration-200",
-            view === "mobile" ? "w-[375px]" : "w-full max-w-[620px]"
-          )}>
-            {view === "mobile" && (
-              <div className="relative mx-auto" style={{ width: 375 }}>
-                {/* Phone frame */}
-                <div className="rounded-[2rem] border-4 border-gray-800 dark:border-gray-600 bg-white overflow-hidden shadow-xl">
-                  {/* Notch */}
-                  <div className="h-6 bg-gray-800 dark:bg-gray-600 flex justify-center items-end pb-1">
-                    <div className="w-20 h-1 bg-gray-900 dark:bg-gray-700 rounded-full" />
-                  </div>
+          view === "mobile" ? (
+            /* Mobile phone frame */
+            <div className="mx-auto" style={{ width: 320 }}>
+              <div className="rounded-[2.5rem] border-[6px] border-gray-800 dark:border-gray-600 bg-gray-800 dark:bg-gray-600 overflow-hidden shadow-2xl">
+                {/* Dynamic island / notch */}
+                <div className="h-7 bg-gray-800 dark:bg-gray-600 flex justify-center items-center">
+                  <div className="w-24 h-5 bg-black rounded-full" />
+                </div>
+                {/* Screen */}
+                <div className="bg-white overflow-hidden" style={{ width: 308 }}>
                   <iframe
-                    srcDoc={srcDoc}
-                    className="w-full border-0"
-                    style={{ height: 500 }}
+                    srcDoc={mobileSrcDoc}
+                    style={{ width: 308, height: 540, border: "none", display: "block" }}
                     sandbox="allow-same-origin"
                     title="Mobile email preview"
                   />
                 </div>
+                {/* Home bar */}
+                <div className="h-5 bg-gray-800 dark:bg-gray-600 flex justify-center items-center">
+                  <div className="w-28 h-1 bg-gray-600 dark:bg-gray-400 rounded-full" />
+                </div>
               </div>
-            )}
-            {view === "desktop" && (
+            </div>
+          ) : (
+            /* Desktop preview */
+            <div className="w-full max-w-[620px]">
               <iframe
-                srcDoc={srcDoc}
+                srcDoc={html}
                 className="w-full border rounded-lg bg-white"
                 style={{ minHeight: 500 }}
                 sandbox="allow-same-origin"
                 title="Desktop email preview"
               />
-            )}
-          </div>
+            </div>
+          )
         ) : (
           <div className="flex items-center justify-center text-muted-foreground text-sm h-64">
             Add content to see a live preview

@@ -11,6 +11,7 @@ import { EditorStep } from "./steps/editor-step";
 import { SendStep } from "./steps/send-step";
 import { renderEmailHtml, sectionsToPlainText } from "@/lib/marketing/email-renderer";
 import type { EmailSection, EmailBrand } from "@/lib/marketing/email-renderer";
+import type { OptimizationData } from "./builder/optimization-panel";
 
 const STEPS = [
   { id: "template" as const, label: "Choose Template" },
@@ -28,6 +29,7 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
   );
   const { toast } = useToast();
   const [creditCost, setCreditCost] = useState<number | null>(null);
+  const [optimizationData, setOptimizationData] = useState<OptimizationData | null>(null);
 
   // Fetch brand kit
   useEffect(() => {
@@ -120,7 +122,7 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
     }
   }, [dispatch, toast]);
 
-  // Optimize handler
+  // Optimize handler — shows results in an inline panel, not a toast
   const handleOptimize = useCallback(async () => {
     dispatch({ type: "SET_GENERATING", value: true });
     try {
@@ -130,13 +132,10 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
         body: JSON.stringify({ mode: "optimize", subject: state.subject, sections: state.sections }),
       });
       const data = await res.json();
-      if (data.success && data.data.subjectVariants) {
-        const suggestions = [
-          ...data.data.subjectVariants.map((s: string) => `Subject: ${s}`),
-          ...(data.data.contentSuggestions || []),
-          data.data.suggestedSendTime ? `Best send time: ${data.data.suggestedSendTime}` : "",
-        ].filter(Boolean);
-        toast({ title: "Optimization Suggestions", description: suggestions.join(" | ") });
+      if (data.success && data.data) {
+        setOptimizationData(data.data);
+      } else {
+        toast({ title: "Optimization failed", variant: "destructive" });
       }
     } catch {
       toast({ title: "Optimization failed", variant: "destructive" });
@@ -319,6 +318,7 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
           logoSize={state.logoSize}
           campaignName={state.campaignName}
           isGenerating={state.isGenerating}
+          optimizationData={optimizationData}
           onSubjectChange={(v) => dispatch({ type: "SET_SUBJECT", value: v })}
           onPreheaderChange={(v) => dispatch({ type: "SET_PREHEADER", value: v })}
           onCampaignNameChange={(v) => dispatch({ type: "SET_CAMPAIGN_NAME", value: v })}
@@ -331,6 +331,7 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
           onToggleBrandName={(v) => dispatch({ type: "SET_BRAND_OPTIONS", showBrandName: v })}
           onLogoSize={(v) => dispatch({ type: "SET_BRAND_OPTIONS", logoSize: v })}
           onOptimize={handleOptimize}
+          onClearOptimization={() => setOptimizationData(null)}
           onSaveAsTemplate={handleSaveAsTemplate}
         />
       )}
