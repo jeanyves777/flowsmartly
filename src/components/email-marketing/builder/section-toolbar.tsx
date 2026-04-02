@@ -6,6 +6,7 @@ import { generateSectionId } from "@/lib/marketing/email-renderer";
 import type { EmailSection, EmailSectionType } from "@/lib/marketing/email-renderer";
 
 const SECTION_OPTIONS: { type: EmailSectionType; label: string; icon: React.ElementType; defaults: Partial<EmailSection> }[] = [
+  { type: "header", label: "Logo", icon: ImageIcon, defaults: { imageUrl: "", logoPosition: "center", logoSize: 48 } },
   { type: "heading", label: "Heading", icon: Heading, defaults: { content: "Your Heading", level: "h1" } },
   { type: "text", label: "Text", icon: Type, defaults: { content: "Write your content here..." } },
   { type: "button", label: "Button", icon: MousePointerClick, defaults: { content: "Click Here", href: "https://", align: "center" } },
@@ -15,6 +16,7 @@ const SECTION_OPTIONS: { type: EmailSectionType; label: string; icon: React.Elem
   { type: "highlight", label: "Callout", icon: Star, defaults: { content: "Important message here..." } },
   { type: "columns", label: "Columns", icon: Columns, defaults: { content: "", columns: [[{ id: "", type: "text", content: "Column 1" }], [{ id: "", type: "text", content: "Column 2" }]] } },
   { type: "coupon", label: "Coupon", icon: Ticket, defaults: { content: "", couponCode: "SAVE20" } },
+  { type: "footer", label: "Footer", icon: Type, defaults: { content: "You received this email because you are a valued customer. {{unsubscribeLink}}", contactStyle: "minimal" } },
 ];
 
 interface SectionToolbarProps {
