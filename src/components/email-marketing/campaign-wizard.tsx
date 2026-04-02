@@ -100,6 +100,19 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
           let excludedContactIds: string[] = [];
           try { excludedContactIds = c.excludedRecipients ? JSON.parse(c.excludedRecipients) : []; } catch { /* */ }
 
+          // If no sections from template but campaign has HTML, create a text section from content
+          if (sections.length === 0 && c.content) {
+            const { generateSectionId } = await import("@/lib/marketing/email-renderer");
+            // Split plain text content into heading + text sections
+            const lines = (c.content as string).split("\n\n").filter(Boolean);
+            if (lines.length > 0) {
+              sections.push({ id: generateSectionId(), type: "heading", content: lines[0], level: "h1" });
+              for (let i = 1; i < lines.length; i++) {
+                sections.push({ id: generateSectionId(), type: "text", content: lines[i] });
+              }
+            }
+          }
+
           dispatch({
             type: "LOAD_CAMPAIGN",
             state: {
@@ -112,7 +125,7 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
               sections,
               customEmails,
               excludedContactIds,
-              step: sections.length > 0 ? "editor" : "template",
+              step: "editor",  // Always go to editor for drafts
             },
           });
         }
