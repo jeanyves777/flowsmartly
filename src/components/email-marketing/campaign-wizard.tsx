@@ -75,9 +75,31 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
     if (!editCampaignId) return;
     fetch(`/api/campaigns/${editCampaignId}`)
       .then((r) => r.json())
-      .then((d) => {
+      .then(async (d) => {
         if (d.success && d.data) {
-          const c = d.data;
+          const c = d.data.campaign || d.data;
+
+          // Load sections from linked template
+          let sections: EmailSection[] = [];
+          const templateId = c.templateId || null;
+          if (templateId) {
+            try {
+              const tplRes = await fetch(`/api/email-templates/${templateId}`);
+              const tplData = await tplRes.json();
+              if (tplData.success && tplData.data?.sections) {
+                sections = typeof tplData.data.sections === "string"
+                  ? JSON.parse(tplData.data.sections)
+                  : tplData.data.sections;
+              }
+            } catch { /* template may have been deleted */ }
+          }
+
+          // Parse custom recipients
+          let customEmails: string[] = [];
+          try { customEmails = c.customRecipients ? JSON.parse(c.customRecipients) : []; } catch { /* */ }
+          let excludedContactIds: string[] = [];
+          try { excludedContactIds = c.excludedRecipients ? JSON.parse(c.excludedRecipients) : []; } catch { /* */ }
+
           dispatch({
             type: "LOAD_CAMPAIGN",
             state: {
@@ -86,7 +108,11 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
               subject: c.subject || "",
               preheader: c.preheaderText || "",
               selectedContactListId: c.contactListId || "",
-              step: "editor",
+              selectedTemplateId: templateId,
+              sections,
+              customEmails,
+              excludedContactIds,
+              step: sections.length > 0 ? "editor" : "template",
             },
           });
         }
@@ -167,7 +193,7 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
     }
   }, [state, toast]);
 
-  // Save draft
+  // Save draft — also saves/updates a linked template to preserve sections
   const handleSaveDraft = useCallback(async () => {
     dispatch({ type: "SET_SAVING", value: true });
     try {
@@ -176,6 +202,36 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
         showBrandName: state.showBrandName,
         logoSize: state.logoSize,
       });
+
+      // Save or update the linked template to preserve sections for re-editing
+      let templateId = state.selectedTemplateId || null;
+      if (state.sections.length > 0) {
+        if (templateId) {
+          // Update existing template sections
+          await fetch(`/api/email-templates/${templateId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sections: state.sections, subject: state.subject, preheader: state.preheader }),
+          });
+        } else {
+          // Create a new template to hold the sections
+          const tplRes = await fetch("/api/email-templates", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: `Draft: ${state.campaignName || state.subject || "Untitled"}`,
+              category: "custom",
+              subject: state.subject,
+              preheader: state.preheader,
+              sections: state.sections,
+              source: "manual",
+            }),
+          });
+          const tplData = await tplRes.json();
+          if (tplData.success) templateId = tplData.data.id;
+        }
+      }
+
       const body = {
         name: state.campaignName || "Untitled",
         type: "EMAIL",
@@ -184,7 +240,7 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
         content: sectionsToPlainText(state.sections),
         contentHtml,
         contactListId: state.selectedContactListId || null,
-        templateId: state.selectedTemplateId || null,
+        templateId,
         customRecipients: state.customEmails.length > 0 ? JSON.stringify(state.customEmails) : null,
         excludedRecipients: state.excludedContactIds.length > 0 ? JSON.stringify(state.excludedContactIds) : null,
         status: "DRAFT",
@@ -196,7 +252,8 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || "Save failed");
 
-      if (!state.editCampaignId) dispatch({ type: "LOAD_CAMPAIGN", state: { editCampaignId: data.data.id } });
+      if (!state.editCampaignId) dispatch({ type: "LOAD_CAMPAIGN", state: { editCampaignId: data.data.id || data.data.campaign?.id } });
+      if (templateId && !state.selectedTemplateId) dispatch({ type: "LOAD_CAMPAIGN", state: { selectedTemplateId: templateId } });
       toast({ title: "Draft saved!" });
     } catch (err) {
       toast({ title: err instanceof Error ? err.message : "Save failed", variant: "destructive" });
