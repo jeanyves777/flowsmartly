@@ -47,6 +47,12 @@ export interface EmailSection {
   fontSize?: number;       // px
   fontStyle?: "normal" | "italic";
   fontWeight?: "normal" | "bold";
+  // Callout/highlight styles
+  highlightStyle?: "left-border" | "top-border" | "full-bg" | "outline" | "quote";
+  // Footer — which brand info to show
+  showSocials?: boolean;
+  showAddress?: boolean;
+  showContact?: boolean;
 }
 
 export interface EmailBrand {
@@ -175,9 +181,44 @@ function renderSection(section: EmailSection, brand: EmailBrand): string {
       const hlBg = section.bgColor || secondary;
       const hlBorder = section.shapeColor || accent;
       const color = txtColor || "#374151";
+      const hlSize = section.fontSize || 15;
+      const hlWeight = section.fontWeight || "normal";
+      const hlFontStyle = section.fontStyle || "normal";
+      const hlStyle = section.highlightStyle || "left-border";
+      const textCss = `margin: 0; font-size: ${hlSize}px; line-height: 1.5; color: ${color}; font-weight: ${hlWeight}; font-style: ${hlFontStyle}; font-family: ${bodyFont};`;
+
+      if (hlStyle === "top-border") {
+        return `<tr><td style="padding: 8px 40px;">
+          <div style="padding: 16px 20px; background-color: ${hlBg}; border-radius: 8px; border-top: 4px solid ${hlBorder};">
+            <p style="${textCss}">${section.content}</p>
+          </div>
+        </td></tr>`;
+      }
+      if (hlStyle === "full-bg") {
+        return `<tr><td style="padding: 8px 40px;">
+          <div style="padding: 20px 24px; background-color: ${hlBorder}; border-radius: 8px;">
+            <p style="margin: 0; font-size: ${hlSize}px; line-height: 1.5; color: #ffffff; font-weight: ${hlWeight}; font-style: ${hlFontStyle}; font-family: ${bodyFont};">${section.content}</p>
+          </div>
+        </td></tr>`;
+      }
+      if (hlStyle === "outline") {
+        return `<tr><td style="padding: 8px 40px;">
+          <div style="padding: 16px 20px; border: 2px solid ${hlBorder}; border-radius: 8px;">
+            <p style="${textCss}">${section.content}</p>
+          </div>
+        </td></tr>`;
+      }
+      if (hlStyle === "quote") {
+        return `<tr><td style="padding: 8px 40px;">
+          <div style="padding: 16px 24px; border-left: 4px solid ${hlBorder}; background-color: ${hlBg};">
+            <p style="margin: 0; font-size: ${hlSize + 2}px; line-height: 1.5; color: ${color}; font-weight: ${hlWeight}; font-style: italic; font-family: ${headingFont};">&ldquo;${section.content}&rdquo;</p>
+          </div>
+        </td></tr>`;
+      }
+      // default: left-border
       return `<tr><td style="padding: 8px 40px;">
         <div style="padding: 16px 20px; background-color: ${hlBg}; border-radius: 8px; border-left: 4px solid ${hlBorder};">
-          <p style="margin: 0; font-size: 15px; line-height: 1.5; color: ${color}; font-family: ${bodyFont};">${section.content}</p>
+          <p style="${textCss}">${section.content}</p>
         </div>
       </td></tr>`;
     }
@@ -244,35 +285,69 @@ function renderSection(section: EmailSection, brand: EmailBrand): string {
       const contactClr = section.contactColor || primary;
       const footerBg = section.bgColor || "#f9fafb";
       const footerTxt = section.textColor || "#9ca3af";
-      const style = section.contactStyle || "minimal";
+      const fStyle = section.contactStyle || "minimal";
+      const showContact = section.showContact !== false;
+      const showAddress = section.showAddress !== false;
+      const showSocials = section.showSocials !== false;
+
+      // Contact info
       const parts: string[] = [];
-      if (brand.website) parts.push(`<a href="${brand.website}" style="color: ${contactClr}; text-decoration: none;">${brand.website.replace(/^https?:\/\//, "")}</a>`);
-      if (brand.email) parts.push(brand.email);
-      if (brand.phone) parts.push(brand.phone);
-      const addressHtml = brand.address ? esc(brand.address) : "";
+      if (showContact) {
+        if (brand.website) parts.push(`<a href="${brand.website}" style="color: ${contactClr}; text-decoration: none;">${brand.website.replace(/^https?:\/\//, "")}</a>`);
+        if (brand.email) parts.push(`<a href="mailto:${brand.email}" style="color: ${contactClr}; text-decoration: none;">${brand.email}</a>`);
+        if (brand.phone) parts.push(`<a href="tel:${brand.phone}" style="color: ${contactClr}; text-decoration: none;">${brand.phone}</a>`);
+      }
+      const addressStr = showAddress && brand.address ? esc(brand.address) : "";
+
+      // Social links
+      let socialBlock = "";
+      if (showSocials && brand.socials) {
+        const sLinks: string[] = [];
+        const sMap: [string, string, string][] = [
+          ["instagram", "Instagram", "https://instagram.com/"],
+          ["twitter", "Twitter/X", "https://twitter.com/"],
+          ["facebook", "Facebook", "https://facebook.com/"],
+          ["linkedin", "LinkedIn", "https://linkedin.com/in/"],
+          ["youtube", "YouTube", "https://youtube.com/"],
+          ["tiktok", "TikTok", "https://tiktok.com/@"],
+        ];
+        for (const [key, label, prefix] of sMap) {
+          if (brand.socials[key]) {
+            sLinks.push(`<a href="${prefix}${brand.socials[key]}" style="color: ${contactClr}; text-decoration: none; margin: 0 6px;">${label}</a>`);
+          }
+        }
+        if (sLinks.length > 0) {
+          socialBlock = `<p style="margin: 0 0 10px; font-size: 12px; text-align: center; font-family: ${bodyFont};">${sLinks.join(" &middot; ")}</p>`;
+        }
+      }
+
       const footerContent = section.content || "You received this email because you are a valued customer. {{unsubscribeLink}}";
 
-      if (style === "card") {
-        const contactBlock = parts.length > 0
-          ? `<div style="padding: 12px 20px; background-color: ${contactClr}10; border: 1px solid ${contactClr}30; border-radius: 8px; margin-bottom: 12px; text-align: center;">
-              <p style="margin: 0 0 4px; font-size: 12px; font-weight: 600; color: ${contactClr}; font-family: ${bodyFont};">${brand.name || "Contact Us"}</p>
-              <p style="margin: 0; font-size: 11px; color: ${footerTxt}; font-family: ${bodyFont};">${parts.join(" &middot; ")}</p>
-              ${addressHtml ? `<p style="margin: 4px 0 0; font-size: 11px; color: ${footerTxt}; font-family: ${bodyFont};">${addressHtml}</p>` : ""}
+      if (fStyle === "card") {
+        const hasInfo = parts.length > 0 || addressStr;
+        const contactBlock = hasInfo
+          ? `<div style="padding: 16px 24px; background-color: ${contactClr}10; border: 1px solid ${contactClr}30; border-radius: 8px; margin-bottom: 12px; text-align: center;">
+              ${brand.name ? `<p style="margin: 0 0 6px; font-size: 14px; font-weight: 700; color: ${contactClr}; font-family: ${bodyFont};">${esc(brand.name)}</p>` : ""}
+              ${parts.length > 0 ? `<p style="margin: 0 0 4px; font-size: 12px; color: ${footerTxt}; font-family: ${bodyFont};">${parts.join(" &middot; ")}</p>` : ""}
+              ${addressStr ? `<p style="margin: 4px 0 0; font-size: 11px; color: ${footerTxt}; font-family: ${bodyFont};">${addressStr}</p>` : ""}
             </div>`
           : "";
         return `<tr><td style="padding: 20px 40px; background-color: ${footerBg}; border-radius: 0 0 12px 12px;">
-          ${contactBlock}
+          ${socialBlock}${contactBlock}
           <p style="margin: 0; font-size: 11px; line-height: 1.5; color: ${footerTxt}; text-align: center; font-family: ${bodyFont};">${footerContent}</p>
         </td></tr>`;
       }
 
-      if (style === "banner") {
+      if (fStyle === "banner") {
+        const hasInfo = parts.length > 0 || addressStr;
         return `<tr><td style="padding: 0;">
-          ${parts.length > 0 ? `<div style="padding: 16px 40px; background-color: ${contactClr}; text-align: center;">
-            <p style="margin: 0; font-size: 13px; color: #ffffff; font-family: ${bodyFont};">${parts.join(" &nbsp;|&nbsp; ")}</p>
-            ${addressHtml ? `<p style="margin: 4px 0 0; font-size: 11px; color: rgba(255,255,255,0.8); font-family: ${bodyFont};">${addressHtml}</p>` : ""}
+          ${hasInfo ? `<div style="padding: 16px 40px; background-color: ${contactClr}; text-align: center;">
+            ${brand.name ? `<p style="margin: 0 0 4px; font-size: 14px; font-weight: 700; color: #ffffff; font-family: ${bodyFont};">${esc(brand.name)}</p>` : ""}
+            ${parts.length > 0 ? `<p style="margin: 0 0 4px; font-size: 12px; color: rgba(255,255,255,0.9); font-family: ${bodyFont};">${parts.join(" &nbsp;|&nbsp; ")}</p>` : ""}
+            ${addressStr ? `<p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.7); font-family: ${bodyFont};">${addressStr}</p>` : ""}
           </div>` : ""}
           <div style="padding: 12px 40px; background-color: ${footerBg}; border-radius: 0 0 12px 12px;">
+            ${showSocials && brand.socials ? `<p style="margin: 0 0 8px; font-size: 12px; text-align: center; font-family: ${bodyFont};">${(() => { const ls: string[] = []; const sm: [string, string, string][] = [["instagram","Instagram","https://instagram.com/"],["twitter","Twitter/X","https://twitter.com/"],["facebook","Facebook","https://facebook.com/"],["linkedin","LinkedIn","https://linkedin.com/in/"],["youtube","YouTube","https://youtube.com/"],["tiktok","TikTok","https://tiktok.com/@"]]; for (const [k,l,p] of sm) { if (brand.socials![k]) ls.push(`<a href="${p}${brand.socials![k]}" style="color:${contactClr};text-decoration:none;margin:0 4px;">${l}</a>`); } return ls.join(" &middot; "); })()}</p>` : ""}
             <p style="margin: 0; font-size: 11px; line-height: 1.5; color: ${footerTxt}; text-align: center; font-family: ${bodyFont};">${footerContent}</p>
           </div>
         </td></tr>`;
@@ -282,11 +357,11 @@ function renderSection(section: EmailSection, brand: EmailBrand): string {
       const contactHtml = parts.length > 0
         ? `<p style="margin: 0 0 8px; font-size: 11px; line-height: 1.5; color: ${footerTxt}; text-align: center; font-family: ${bodyFont};">${parts.join(" &middot; ")}</p>`
         : "";
-      const addrHtml = addressHtml
-        ? `<p style="margin: 0 0 8px; font-size: 11px; color: ${footerTxt}; text-align: center; font-family: ${bodyFont};">${addressHtml}</p>`
+      const addrHtml = addressStr
+        ? `<p style="margin: 0 0 8px; font-size: 11px; color: ${footerTxt}; text-align: center; font-family: ${bodyFont};">${addressStr}</p>`
         : "";
       return `<tr><td style="padding: 20px 40px; background-color: ${footerBg}; border-radius: 0 0 12px 12px;">
-        ${contactHtml}${addrHtml}
+        ${socialBlock}${contactHtml}${addrHtml}
         <p style="margin: 0; font-size: 11px; line-height: 1.5; color: ${footerTxt}; text-align: center; font-family: ${bodyFont};">${footerContent}</p>
       </td></tr>`;
     }

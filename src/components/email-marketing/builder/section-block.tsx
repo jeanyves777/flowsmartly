@@ -128,7 +128,19 @@ export function SectionBlock({ section, onUpdate, onDelete, onDuplicate, onMoveU
               <ColorPicker label="Background" value={section.bgColor} onChange={(v) => onUpdate({ bgColor: v })} />
             )}
             {section.type === "highlight" && (
-              <ColorPicker label="Border Color" value={section.shapeColor} onChange={(v) => onUpdate({ shapeColor: v })} />
+              <>
+                <ColorPicker label="Border/Accent Color" value={section.shapeColor} onChange={(v) => onUpdate({ shapeColor: v })} />
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Callout Style</Label>
+                  <div className="flex flex-wrap gap-1">
+                    {(["left-border", "top-border", "full-bg", "outline", "quote"] as const).map((s) => (
+                      <Button key={s} variant={(section.highlightStyle || "left-border") === s ? "default" : "outline"} size="sm" className="h-5 text-[9px] capitalize px-1.5" onClick={() => onUpdate({ highlightStyle: s })}>
+                        {s.replace("-", " ")}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
             {section.type === "footer" && (
               <>
@@ -219,17 +231,28 @@ function SectionPreview({ section }: { section: EmailSection }) {
       );
     case "divider":
       return <hr className="border-t border-border" />;
-    case "highlight":
-      return <div className="border-l-4 p-2 text-sm rounded-r" style={{ borderColor: section.shapeColor || "#f59e0b", backgroundColor: section.bgColor || "#fffbeb", color: section.textColor || undefined }}>{section.content || "Callout..."}</div>;
+    case "highlight": {
+      const hs = section.highlightStyle || "left-border";
+      if (hs === "full-bg") return <div className="p-3 rounded-lg text-sm text-white" style={{ backgroundColor: section.shapeColor || "#f59e0b" }}>{section.content || "Callout..."}</div>;
+      if (hs === "outline") return <div className="p-3 rounded-lg text-sm border-2" style={{ borderColor: section.shapeColor || "#f59e0b", color: section.textColor || undefined }}>{section.content || "Callout..."}</div>;
+      if (hs === "quote") return <div className="border-l-4 p-3 italic" style={{ borderColor: section.shapeColor || "#f59e0b", backgroundColor: section.bgColor || "#f9fafb", color: section.textColor || undefined }}>&ldquo;{section.content || "Quote..."}&rdquo;</div>;
+      if (hs === "top-border") return <div className="border-t-4 p-3 rounded-b text-sm" style={{ borderColor: section.shapeColor || "#f59e0b", backgroundColor: section.bgColor || "#fffbeb", color: section.textColor || undefined }}>{section.content || "Callout..."}</div>;
+      return <div className="border-l-4 p-3 rounded-r text-sm" style={{ borderColor: section.shapeColor || "#f59e0b", backgroundColor: section.bgColor || "#fffbeb", color: section.textColor || undefined }}>{section.content || "Callout..."}</div>;
+    }
     case "coupon":
       return <div className="text-center p-2 border-2 border-dashed border-brand-300 rounded-lg"><span className="font-mono font-bold text-lg">{section.couponCode || "CODE"}</span></div>;
     case "columns":
       return <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">{(section.columns || []).map((col, i) => <div key={i} className="bg-muted p-2 rounded">Column {i + 1}</div>)}</div>;
     case "footer":
       return (
-        <div className="text-center text-xs text-muted-foreground space-y-0.5">
-          <p>Footer — {section.contactStyle || "minimal"} style</p>
-          {section.contactColor && <div className="flex justify-center"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: section.contactColor }} /></div>}
+        <div className="text-center text-xs text-muted-foreground space-y-1 p-2 bg-muted/30 rounded">
+          <p className="font-medium text-foreground text-[11px]">Footer — {section.contactStyle || "minimal"} style</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {section.showContact !== false && <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[9px]">Contact</span>}
+            {section.showAddress !== false && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[9px]">Address</span>}
+            {section.showSocials !== false && <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[9px]">Socials</span>}
+          </div>
+          {section.contactColor && <div className="flex justify-center"><div className="w-3 h-3 rounded-full border" style={{ backgroundColor: section.contactColor }} /></div>}
         </div>
       );
     default:
@@ -412,6 +435,28 @@ function SectionEditor({ section, onUpdate, onDone }: { section: EmailSection; o
             placeholder="Callout message..."
             className="min-h-[60px] text-sm"
           />
+          {/* Callout style */}
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Style</Label>
+            <div className="flex flex-wrap gap-1">
+              {(["left-border", "top-border", "full-bg", "outline", "quote"] as const).map((s) => (
+                <Button key={s} variant={(section.highlightStyle || "left-border") === s ? "default" : "outline"} size="sm" className="h-5 text-[9px] capitalize px-2" onClick={() => onUpdate({ highlightStyle: s })}>
+                  {s.replace("-", " ")}
+                </Button>
+              ))}
+            </div>
+          </div>
+          {/* Font controls */}
+          <div className="flex flex-wrap gap-2">
+            <div className="flex gap-1">
+              <Button variant={section.fontWeight === "bold" ? "default" : "outline"} size="sm" className="h-6 text-[10px] font-bold px-2" onClick={() => onUpdate({ fontWeight: section.fontWeight === "bold" ? "normal" : "bold" })}>B</Button>
+              <Button variant={section.fontStyle === "italic" ? "default" : "outline"} size="sm" className="h-6 text-[10px] italic px-2" onClick={() => onUpdate({ fontStyle: section.fontStyle === "italic" ? "normal" : "italic" })}>I</Button>
+            </div>
+            <div className="flex items-center gap-1">
+              <Label className="text-[10px] text-muted-foreground">{section.fontSize || 15}px</Label>
+              <input type="range" min={11} max={28} value={section.fontSize || 15} onChange={(e) => onUpdate({ fontSize: parseInt(e.target.value) })} className="w-20" />
+            </div>
+          </div>
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onDone}>Done</Button>
         </div>
       );
@@ -426,14 +471,49 @@ function SectionEditor({ section, onUpdate, onDone }: { section: EmailSection; o
 
     case "footer":
       return (
-        <div className="space-y-2" onKeyDown={handleKeyDown}>
-          <Textarea
-            autoFocus
-            value={section.content}
-            onChange={(e) => onUpdate({ content: e.target.value })}
-            placeholder="Unsubscribe text... e.g. You received this email because {{unsubscribeLink}}"
-            className="min-h-[40px] text-xs"
-          />
+        <div className="space-y-3" onKeyDown={handleKeyDown}>
+          {/* Brand info toggles */}
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-semibold">Show from Brand Identity</Label>
+            <div className="flex flex-wrap gap-3">
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" checked={section.showContact !== false} onChange={(e) => onUpdate({ showContact: e.target.checked })} className="rounded border-gray-300" />
+                <span className="text-xs">Contact Info</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" checked={section.showAddress !== false} onChange={(e) => onUpdate({ showAddress: e.target.checked })} className="rounded border-gray-300" />
+                <span className="text-xs">Address</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" checked={section.showSocials !== false} onChange={(e) => onUpdate({ showSocials: e.target.checked })} className="rounded border-gray-300" />
+                <span className="text-xs">Social Media</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Footer style */}
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Layout Style</Label>
+            <div className="flex gap-1">
+              {(["minimal", "card", "banner"] as const).map((s) => (
+                <Button key={s} variant={(section.contactStyle || "minimal") === s ? "default" : "outline"} size="sm" className="h-6 text-[10px] capitalize px-3" onClick={() => onUpdate({ contactStyle: s })}>
+                  {s}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Unsubscribe text */}
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Unsubscribe Text</Label>
+            <Textarea
+              value={section.content}
+              onChange={(e) => onUpdate({ content: e.target.value })}
+              placeholder="You received this email because... {{unsubscribeLink}}"
+              className="min-h-[40px] text-xs"
+            />
+          </div>
+
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onDone}>Done</Button>
         </div>
       );
