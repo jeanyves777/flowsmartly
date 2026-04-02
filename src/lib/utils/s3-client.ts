@@ -160,10 +160,29 @@ export async function getPresignedUploadUrl(
  * Generate a presigned URL for reading an S3 object.
  * Accepts either a full S3 URL or a bare key.
  */
-export async function getPresignedUrl(urlOrKey: string): Promise<string> {
+export async function getPresignedUrl(urlOrKey: string, expiresIn?: number): Promise<string> {
   const key = extractS3Key(urlOrKey);
   const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
-  return getSignedUrl(s3, command, { expiresIn: PRESIGN_EXPIRES });
+  return getSignedUrl(s3, command, { expiresIn: expiresIn || PRESIGN_EXPIRES });
+}
+
+/**
+ * Sign all S3 URLs in an HTML string with long-lived presigned URLs (7 days).
+ * Used for email sending where images must remain accessible.
+ */
+export async function presignHtmlImages(html: string): Promise<string> {
+  const s3UrlPattern = new RegExp(`(${STORAGE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^"'\\s<>]+)`, 'g');
+  const matches = html.match(s3UrlPattern);
+  if (!matches) return html;
+
+  const unique = [...new Set(matches)];
+  const sevenDays = 7 * 24 * 3600; // Max presign for S3 is 7 days
+  let result = html;
+  for (const url of unique) {
+    const signed = await getPresignedUrl(url, sevenDays);
+    result = result.split(url).join(signed);
+  }
+  return result;
 }
 
 /**

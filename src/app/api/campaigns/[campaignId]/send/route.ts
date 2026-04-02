@@ -13,7 +13,7 @@ import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 import { compositeImageWithText } from "@/lib/media/image-compositor";
-import { uploadToS3 } from "@/lib/utils/s3-client";
+import { uploadToS3, presignHtmlImages } from "@/lib/utils/s3-client";
 
 const BATCH_SIZE = 50;
 const BATCH_DELAY_MS = 1000; // 1 second between batches
@@ -285,6 +285,15 @@ export async function POST(
     // ------------------------------------------------------------------
     // EMAIL campaigns: actually deliver each email through the provider
     // ------------------------------------------------------------------
+    // Pre-sign all S3 image URLs in the HTML so they work in email clients (7-day expiry)
+    if (campaign.contentHtml) {
+      try {
+        campaign.contentHtml = await presignHtmlImages(campaign.contentHtml);
+      } catch (err) {
+        console.error("[Email Send] Failed to presign HTML images:", err);
+      }
+    }
+
     if (campaign.type === "EMAIL" && marketingConfig) {
       // Check credit balance before sending emails
       const emailCreditCost = await getDynamicCreditCost("EMAIL_SEND");

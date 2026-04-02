@@ -16,7 +16,7 @@ const SECTION_OPTIONS: { type: EmailSectionType; label: string; icon: React.Elem
   { type: "highlight", label: "Callout", icon: Star, defaults: { content: "Important message here..." } },
   { type: "columns", label: "Columns", icon: Columns, defaults: { content: "", columns: [[{ id: "", type: "text", content: "Column 1" }], [{ id: "", type: "text", content: "Column 2" }]] } },
   { type: "coupon", label: "Coupon", icon: Ticket, defaults: { content: "", couponCode: "SAVE20" } },
-  { type: "footer", label: "Footer", icon: Type, defaults: { content: "You received this email because you are a valued customer. {{unsubscribeLink}}", contactStyle: "minimal" } },
+  { type: "footer", label: "Footer", icon: Type, defaults: { content: "You received this email because you are a valued customer. {{unsubscribeLink}}", contactStyle: "minimal", showContact: true, showAddress: true, showSocials: true } },
 ];
 
 interface SectionToolbarProps {
