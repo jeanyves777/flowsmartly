@@ -19,7 +19,13 @@ interface Contact {
 interface ContactList {
   id: string;
   name: string;
+  contactCount?: number;
   _count?: { contacts: number };
+}
+
+interface CustomRecipient {
+  email: string;
+  name: string;
 }
 
 interface SendStepProps {
@@ -47,6 +53,7 @@ export function SendStep(props: SendStepProps) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [customEmailInput, setCustomEmailInput] = useState("");
+  const [customNameInput, setCustomNameInput] = useState("");
   const [contactSearch, setContactSearch] = useState("");
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkInput, setBulkInput] = useState("");
@@ -94,11 +101,31 @@ export function SendStep(props: SendStepProps) {
   const activeContactCount = contacts.length - props.excludedContactIds.length;
   const totalRecipients = activeContactCount + props.customEmails.length;
 
+  // Parse "Name <email>" or just "email" format
+  function parseCustomEntry(entry: string): { name: string; email: string } | null {
+    const match = entry.match(/^(.+?)\s*<([^>]+)>$/);
+    if (match) return { name: match[1].trim(), email: match[2].trim() };
+    const email = entry.trim();
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { name: "", email };
+    return null;
+  }
+
+  function formatCustomEntry(name: string, email: string): string {
+    return name ? `${name} <${email}>` : email;
+  }
+
+  function getCustomDisplay(entry: string): { name: string; email: string } {
+    const parsed = parseCustomEntry(entry);
+    return parsed || { name: "", email: entry };
+  }
+
   function handleAddCustomEmail() {
     const email = customEmailInput.trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
-    props.onAddCustomEmail(email);
+    const name = customNameInput.trim();
+    props.onAddCustomEmail(formatCustomEntry(name, email));
     setCustomEmailInput("");
+    setCustomNameInput("");
   }
 
   function handleBulkAdd() {
@@ -134,7 +161,7 @@ export function SendStep(props: SendStepProps) {
                 )}
               >
                 <p className="text-sm font-medium truncate">{list.name}</p>
-                <p className="text-xs text-muted-foreground">{list._count?.contacts || 0} contacts</p>
+                <p className="text-xs text-muted-foreground">{list.contactCount || list._count?.contacts || 0} contacts</p>
               </button>
             ))}
           </div>
@@ -152,11 +179,17 @@ export function SendStep(props: SendStepProps) {
         <CardContent className="space-y-3">
           <div className="flex gap-2">
             <Input
+              value={customNameInput}
+              onChange={(e) => setCustomNameInput(e.target.value)}
+              placeholder="Name (optional)"
+              className="h-9 w-36"
+            />
+            <Input
               value={customEmailInput}
               onChange={(e) => setCustomEmailInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAddCustomEmail()}
               placeholder="email@example.com"
-              className="h-9"
+              className="h-9 flex-1"
             />
             <Button size="sm" className="shrink-0" onClick={handleAddCustomEmail}>Add</Button>
             <Button size="sm" variant="outline" className="shrink-0" onClick={() => setBulkMode(!bulkMode)}>Bulk</Button>
@@ -176,14 +209,17 @@ export function SendStep(props: SendStepProps) {
 
           {props.customEmails.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
-              {props.customEmails.map((email) => (
-                <Badge key={email} variant="secondary" className="text-xs gap-1">
-                  {email}
-                  <button onClick={() => props.onRemoveCustomEmail(email)} className="hover:text-destructive">
-                    <X className="w-3 h-3" />
-                  </button>
-                </Badge>
-              ))}
+              {props.customEmails.map((entry) => {
+                const { name, email } = getCustomDisplay(entry);
+                return (
+                  <Badge key={entry} variant="secondary" className="text-xs gap-1">
+                    {name ? <><span className="font-medium">{name}</span> {email}</> : email}
+                    <button onClick={() => props.onRemoveCustomEmail(entry)} className="hover:text-destructive">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -217,17 +253,21 @@ export function SendStep(props: SendStepProps) {
 
             <div className="max-h-48 overflow-y-auto border rounded-lg divide-y">
               {/* Custom emails */}
-              {props.customEmails.map((email) => (
-                <div key={email} className="flex items-center justify-between px-3 py-1.5 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span>{email}</span>
-                    <Badge variant="secondary" className="text-[9px]">Manual</Badge>
+              {props.customEmails.map((entry) => {
+                const { name, email } = getCustomDisplay(entry);
+                return (
+                  <div key={entry} className="flex items-center justify-between px-3 py-1.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      {name && <span className="font-medium">{name}</span>}
+                      <span className="text-muted-foreground">{email}</span>
+                      <Badge variant="secondary" className="text-[9px]">Manual</Badge>
+                    </div>
+                    <button onClick={() => props.onRemoveCustomEmail(entry)} className="text-muted-foreground hover:text-destructive">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <button onClick={() => props.onRemoveCustomEmail(email)} className="text-muted-foreground hover:text-destructive">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
 
               {/* Contact list contacts */}
               {loadingContacts ? (
