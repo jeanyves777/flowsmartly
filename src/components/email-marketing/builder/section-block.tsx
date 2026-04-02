@@ -291,11 +291,11 @@ function SectionEditor({ section, onUpdate, onDone }: { section: EmailSection; o
             autoFocus
             value={section.content}
             onChange={(e) => onUpdate({ content: e.target.value })}
-            onBlur={onDone}
             placeholder="Heading text..."
             className="text-lg font-bold"
           />
-          <div className="flex gap-2">
+          {/* Size & Level */}
+          <div className="flex flex-wrap gap-2">
             <div className="flex gap-1">
               {(["h1", "h2"] as const).map((lvl) => (
                 <Button key={lvl} variant={section.level === lvl ? "default" : "outline"} size="sm" className="h-6 text-[10px]" onClick={() => onUpdate({ level: lvl })}>
@@ -310,7 +310,17 @@ function SectionEditor({ section, onUpdate, onDone }: { section: EmailSection; o
                 </Button>
               ))}
             </div>
+            <div className="flex gap-1">
+              <Button variant={section.fontWeight === "bold" || !section.fontWeight ? "default" : "outline"} size="sm" className="h-6 text-[10px] font-bold px-2" onClick={() => onUpdate({ fontWeight: section.fontWeight === "bold" || !section.fontWeight ? "normal" : "bold" })}>B</Button>
+              <Button variant={section.fontStyle === "italic" ? "default" : "outline"} size="sm" className="h-6 text-[10px] italic px-2" onClick={() => onUpdate({ fontStyle: section.fontStyle === "italic" ? "normal" : "italic" })}>I</Button>
+            </div>
           </div>
+          {/* Font size slider */}
+          <div className="flex items-center gap-2">
+            <Label className="text-[10px] text-muted-foreground shrink-0">Size {section.fontSize || (section.level === "h2" ? 20 : 24)}px</Label>
+            <input type="range" min={14} max={48} value={section.fontSize || (section.level === "h2" ? 20 : 24)} onChange={(e) => onUpdate({ fontSize: parseInt(e.target.value) })} className="flex-1" />
+          </div>
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onDone}>Done</Button>
         </div>
       );
 
@@ -321,17 +331,29 @@ function SectionEditor({ section, onUpdate, onDone }: { section: EmailSection; o
             autoFocus
             value={section.content}
             onChange={(e) => onUpdate({ content: e.target.value })}
-            onBlur={onDone}
             placeholder="Write your content... Use {{firstName}} for personalization"
             className="min-h-[80px] text-sm"
           />
-          <div className="flex gap-1">
-            {(["left", "center", "right"] as const).map((a) => (
-              <Button key={a} variant={section.align === a ? "default" : "outline"} size="sm" className="h-6 text-[10px] capitalize" onClick={() => onUpdate({ align: a })}>
-                {a}
-              </Button>
-            ))}
+          {/* Alignment + Style */}
+          <div className="flex flex-wrap gap-2">
+            <div className="flex gap-1">
+              {(["left", "center", "right"] as const).map((a) => (
+                <Button key={a} variant={section.align === a ? "default" : "outline"} size="sm" className="h-6 text-[10px] capitalize" onClick={() => onUpdate({ align: a })}>
+                  {a}
+                </Button>
+              ))}
+            </div>
+            <div className="flex gap-1">
+              <Button variant={section.fontWeight === "bold" ? "default" : "outline"} size="sm" className="h-6 text-[10px] font-bold px-2" onClick={() => onUpdate({ fontWeight: section.fontWeight === "bold" ? "normal" : "bold" })}>B</Button>
+              <Button variant={section.fontStyle === "italic" ? "default" : "outline"} size="sm" className="h-6 text-[10px] italic px-2" onClick={() => onUpdate({ fontStyle: section.fontStyle === "italic" ? "normal" : "italic" })}>I</Button>
+            </div>
           </div>
+          {/* Font size */}
+          <div className="flex items-center gap-2">
+            <Label className="text-[10px] text-muted-foreground shrink-0">Size {section.fontSize || 16}px</Label>
+            <input type="range" min={10} max={36} value={section.fontSize || 16} onChange={(e) => onUpdate({ fontSize: parseInt(e.target.value) })} className="flex-1" />
+          </div>
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onDone}>Done</Button>
         </div>
       );
 
@@ -382,13 +404,11 @@ function SectionEditor({ section, onUpdate, onDone }: { section: EmailSection; o
 
     case "highlight":
       return (
-        <div className="space-y-2">
+        <div className="space-y-2" onKeyDown={handleKeyDown}>
           <Textarea
             autoFocus
             value={section.content}
             onChange={(e) => onUpdate({ content: e.target.value })}
-            onBlur={onDone}
-            onKeyDown={handleKeyDown}
             placeholder="Callout message..."
             className="min-h-[60px] text-sm"
           />

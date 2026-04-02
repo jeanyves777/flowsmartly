@@ -43,6 +43,10 @@ export interface EmailSection {
   // Shape text
   shape?: "rounded" | "pill" | "banner" | "circle";
   shapeColor?: string;
+  // Typography
+  fontSize?: number;       // px
+  fontStyle?: "normal" | "italic";
+  fontWeight?: "normal" | "bold";
 }
 
 export interface EmailBrand {
@@ -121,15 +125,22 @@ function renderSection(section: EmailSection, brand: EmailBrand): string {
 
     case "heading": {
       const tag = section.level === "h2" ? "h2" : "h1";
-      const size = tag === "h1" ? "24px" : "20px";
+      const defaultSize = tag === "h1" ? 24 : 20;
+      const hSize = section.fontSize || defaultSize;
       const color = txtColor || "#111827";
+      const hWeight = section.fontWeight || "700";
+      const hStyle = section.fontStyle || "normal";
       return `<tr><td style="padding: 8px 40px;${bgStyle}">
-        <${tag} style="margin: 0; font-size: ${size}; font-weight: 700; color: ${color}; line-height: 1.3; text-align: ${align}; font-family: ${headingFont};">${section.content}</${tag}>
+        <${tag} style="margin: 0; font-size: ${hSize}px; font-weight: ${hWeight}; font-style: ${hStyle}; color: ${color}; line-height: 1.3; text-align: ${align}; font-family: ${headingFont};">${section.content}</${tag}>
       </td></tr>`;
     }
 
     case "text": {
       const color = txtColor || "#374151";
+      const tSize = section.fontSize || 16;
+      const tWeight = section.fontWeight || "normal";
+      const tStyle = section.fontStyle || "normal";
+      const textStyle = `font-size: ${tSize}px; font-weight: ${tWeight}; font-style: ${tStyle};`;
       // Shape text support
       if (section.shape) {
         const shapeColor = section.shapeColor || secondary;
@@ -137,12 +148,12 @@ function renderSection(section: EmailSection, brand: EmailBrand): string {
         const padding = section.shape === "circle" ? "32px" : section.shape === "banner" ? "16px 40px" : "16px 24px";
         return `<tr><td style="padding: 8px 40px;${bgStyle} text-align: ${align};">
           <div style="display: inline-block; padding: ${padding}; background-color: ${shapeColor}; border-radius: ${borderRadius}; text-align: center;">
-            <p style="margin: 0; font-size: 16px; line-height: 1.6; color: ${color}; font-family: ${bodyFont};">${section.content}</p>
+            <p style="margin: 0; ${textStyle} line-height: 1.6; color: ${color}; font-family: ${bodyFont};">${section.content}</p>
           </div>
         </td></tr>`;
       }
       return `<tr><td style="padding: 8px 40px;${bgStyle}">
-        <p style="margin: 0; font-size: 16px; line-height: 1.6; color: ${color}; text-align: ${align}; font-family: ${bodyFont};">${section.content}</p>
+        <p style="margin: 0; ${textStyle} line-height: 1.6; color: ${color}; text-align: ${align}; font-family: ${bodyFont};">${section.content}</p>
       </td></tr>`;
     }
 
