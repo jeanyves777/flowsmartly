@@ -265,7 +265,7 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || "Save failed");
 
-      if (!state.editCampaignId) dispatch({ type: "LOAD_CAMPAIGN", state: { editCampaignId: data.data.id || data.data.campaign?.id } });
+      if (!state.editCampaignId) dispatch({ type: "LOAD_CAMPAIGN", state: { editCampaignId: data.data?.campaign?.id || data.data?.id } });
       if (templateId && !state.selectedTemplateId) dispatch({ type: "LOAD_CAMPAIGN", state: { selectedTemplateId: templateId } });
       toast({ title: "Draft saved!" });
     } catch (err) {
@@ -277,7 +277,10 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
 
   // Send campaign
   const handleSend = useCallback(async () => {
-    // Save first if needed
+    // Auto-fill campaign name from subject if empty
+    if (!state.campaignName.trim() && state.subject.trim()) {
+      dispatch({ type: "SET_CAMPAIGN_NAME", value: state.subject });
+    }
     dispatch({ type: "SET_SENDING", value: true });
     try {
       const contentHtml = renderEmailHtml(state.sections, state.brandKit || undefined, {
@@ -285,8 +288,9 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
         showBrandName: state.showBrandName,
         logoSize: state.logoSize,
       });
+      const campaignName = state.campaignName.trim() || state.subject.trim() || "Untitled";
       const campaignBody = {
-        name: state.campaignName,
+        name: campaignName,
         type: "EMAIL",
         subject: state.subject,
         preheaderText: state.preheader,
@@ -296,8 +300,7 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
         templateId: state.selectedTemplateId || null,
         customRecipients: state.customEmails.length > 0 ? JSON.stringify(state.customEmails) : null,
         excludedRecipients: state.excludedContactIds.length > 0 ? JSON.stringify(state.excludedContactIds) : null,
-        status: state.scheduleType === "later" ? "SCHEDULED" : "DRAFT",
-        scheduledAt: state.scheduleType === "later" && state.scheduledDate ? new Date(`${state.scheduledDate}T${state.scheduledTime || "09:00"}`).toISOString() : null,
+        status: "DRAFT",
       };
 
       let campaignId = state.editCampaignId;
@@ -307,14 +310,18 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
         const createRes = await fetch("/api/campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(campaignBody) });
         const createData = await createRes.json();
         if (!createData.success) throw new Error(createData.error?.message || "Create failed");
-        campaignId = createData.data.id;
+        campaignId = createData.data?.campaign?.id || createData.data?.id;
       }
+
+      if (!campaignId) throw new Error("Failed to create campaign");
 
       // Send
       const sendRes = await fetch(`/api/campaigns/${campaignId}/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          action: state.scheduleType === "later" ? "schedule" : "send",
+          scheduledAt: state.scheduleType === "later" && state.scheduledDate ? new Date(`${state.scheduledDate}T${state.scheduledTime || "09:00"}`).toISOString() : undefined,
           customEmails: state.customEmails,
           excludedContactIds: state.excludedContactIds,
         }),

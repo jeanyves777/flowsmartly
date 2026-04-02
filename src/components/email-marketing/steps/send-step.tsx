@@ -362,7 +362,7 @@ export function SendStep(props: SendStepProps) {
               <Button
                 size="sm"
                 onClick={props.onSend}
-                disabled={props.isSending || totalRecipients === 0 || !props.subject.trim() || !props.campaignName.trim()}
+                disabled={props.isSending || totalRecipients === 0 || !props.subject.trim()}
                 className="bg-gradient-to-r from-brand-500 to-brand-600"
               >
                 {props.isSending ? "Sending..." : (

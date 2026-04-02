@@ -262,8 +262,8 @@ export function useCampaignForm(initial?: Partial<CampaignFormState>) {
     () =>
       canProceedToSend &&
       (state.selectedContactListId || state.customEmails.length > 0) &&
-      state.campaignName.trim().length > 0,
-    [canProceedToSend, state.selectedContactListId, state.customEmails, state.campaignName]
+      (state.campaignName.trim().length > 0 || state.subject.trim().length > 0),
+    [canProceedToSend, state.selectedContactListId, state.customEmails, state.campaignName, state.subject]
   );
 
   const goToStep = useCallback((step: CampaignFormState["step"]) => {
