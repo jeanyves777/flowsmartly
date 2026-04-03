@@ -69,6 +69,22 @@ export function TemplateGallery({ onSelect, onCreateBlank, onGenerateAI }: Templ
     }
   }
 
+  async function handleDeleteTemplate(id: string) {
+    if (!confirm("Delete this template? This cannot be undone.")) return;
+    try {
+      const res = await fetch(`/api/email-templates/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setTemplates((prev) => prev.filter((t) => t.id !== id));
+      } else {
+        alert(data.error ?? "Failed to delete template");
+      }
+    } catch (err) {
+      console.error("Failed to delete template:", err);
+      alert("Failed to delete template");
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Quick actions */}
@@ -146,6 +162,7 @@ export function TemplateGallery({ onSelect, onCreateBlank, onGenerateAI }: Templ
               template={tpl}
               onSelect={() => onSelect(tpl)}
               onPreview={() => setPreviewTemplate(tpl)}
+              onDelete={tpl.isDefault ? undefined : () => handleDeleteTemplate(tpl.id)}
             />
           ))}
         </div>

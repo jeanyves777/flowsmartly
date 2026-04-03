@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Sparkles, Copy, Clock } from "lucide-react";
+import { Eye, Sparkles, Copy, Clock, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { TemplateItem } from "./template-gallery";
@@ -9,6 +9,7 @@ interface TemplateCardProps {
   template: TemplateItem;
   onSelect: () => void;
   onPreview: () => void;
+  onDelete?: () => void;
 }
 
 const SOURCE_BADGES: Record<string, { label: string; color: string }> = {
@@ -18,7 +19,7 @@ const SOURCE_BADGES: Record<string, { label: string; color: string }> = {
   manual: { label: "Custom", color: "text-green-600 bg-green-100 dark:bg-green-900/30" },
 };
 
-export function TemplateCard({ template, onSelect, onPreview }: TemplateCardProps) {
+export function TemplateCard({ template, onSelect, onPreview, onDelete }: TemplateCardProps) {
   const sourceBadge = SOURCE_BADGES[template.source] || SOURCE_BADGES.manual;
 
   return (
@@ -48,10 +49,21 @@ export function TemplateCard({ template, onSelect, onPreview }: TemplateCardProp
       <div className="p-2.5 space-y-1.5">
         <div className="flex items-start justify-between gap-1">
           <p className="text-xs font-semibold line-clamp-1 flex-1">{template.name}</p>
-          <Badge variant="secondary" className={`text-[9px] shrink-0 ${sourceBadge.color}`}>
-            {template.source === "ai_generated" && <Sparkles className="w-2.5 h-2.5 mr-0.5" />}
-            {sourceBadge.label}
-          </Badge>
+          <div className="flex items-center gap-1 shrink-0">
+            <Badge variant="secondary" className={`text-[9px] ${sourceBadge.color}`}>
+              {template.source === "ai_generated" && <Sparkles className="w-2.5 h-2.5 mr-0.5" />}
+              {sourceBadge.label}
+            </Badge>
+            {!template.isDefault && onDelete && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                title="Delete template"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
+          </div>
         </div>
         {template.description && (
           <p className="text-[10px] text-muted-foreground line-clamp-1">{template.description}</p>
