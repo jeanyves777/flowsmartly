@@ -198,7 +198,7 @@ function StudioPageInner() {
             }
           } else if (design.imageUrl) {
             // No canvasData saved yet — load the generated imageUrl onto the canvas
-            const fabric = (await import("fabric")).fabric;
+            const fabric = await import("fabric");
             await addImageToCanvas(canvas, design.imageUrl, fabric, { left: 0, top: 0, selectable: true });
             // Scale image to fit canvas
             const img = canvas.getObjects()[canvas.getObjects().length - 1];
