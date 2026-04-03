@@ -609,8 +609,8 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             )}
 
             {/* Agent / Marketplace Section */}
-            {(!hasActivatedFeatures || activatedSlugs.has("agent-marketplace")) && (
-              isAgent ? (
+            {isAgent ? (
+              (!hasActivatedFeatures || activatedSlugs.has("agent-marketplace")) && (
                 <div className="pt-3">
                   {!isCollapsed && (
                     <div className="px-3 pb-2">
@@ -641,18 +641,18 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
                     pathname.startsWith("/hire-agent")
                   )}
                 </div>
-              ) : (
-                <div className="pt-3">
-                  {(!hasActivatedFeatures || activatedSlugs.has("messages")) && renderNavItem(
-                    { name: "Messages", href: "/messages", icon: MessageCircle },
-                    pathname.startsWith("/messages")
-                  )}
-                  {renderNavItem(
-                    { name: "Hire Agent", href: "/hire-agent", icon: Store },
-                    pathname.startsWith("/hire-agent")
-                  )}
-                </div>
               )
+            ) : (
+              <div className="pt-3">
+                {(!hasActivatedFeatures || activatedSlugs.has("messages")) && renderNavItem(
+                  { name: "Messages", href: "/messages", icon: MessageCircle },
+                  pathname.startsWith("/messages")
+                )}
+                {renderNavItem(
+                  { name: "Agent Marketplace", href: "/hire-agent", icon: Store },
+                  pathname.startsWith("/hire-agent")
+                )}
+              </div>
             )}
           </>
         )}
