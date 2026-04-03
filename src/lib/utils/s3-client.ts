@@ -219,27 +219,116 @@ export async function presignAllUrls<T>(data: T): Promise<T> {
 }
 
 /**
+ * Sanitize canvas JSON before storing to DB.
+ * Strips /api/image-proxy?url=... wrappers and presign query params so only
+ * bare S3 base URLs are stored. This allows presignCanvasJson to re-presign
+ * them fresh on each load without relying on stored (expired) signatures.
+ */
+export function sanitizeCanvasJsonForStorage(canvasJson: string): string {
+  if (!canvasJson) return canvasJson;
+  try {
+    const parsed = JSON.parse(canvasJson);
+    _walkAndSanitize(parsed);
+    return JSON.stringify(parsed);
+  } catch {
+    return canvasJson;
+  }
+}
+
+function _sanitizeSrc(src: string): string {
+  // Strip /api/image-proxy?url=<encoded> wrapper
+  if (src.startsWith("/api/image-proxy?url=")) {
+    try {
+      const decoded = decodeURIComponent(src.slice("/api/image-proxy?url=".length));
+      const base = decoded.split("?")[0];
+      // Only keep if it's actually an S3 URL we manage
+      if (base.startsWith(STORAGE_URL) || isS3Key(base)) return base;
+    } catch {
+      /* ignore malformed encoding */
+    }
+  }
+  // Strip presign query params from bare S3 URLs
+  if (src.startsWith(STORAGE_URL)) return src.split("?")[0];
+  return src;
+}
+
+function _walkAndSanitize(obj: unknown): void {
+  if (!obj || typeof obj !== "object") return;
+  if (Array.isArray(obj)) { (obj as unknown[]).forEach(_walkAndSanitize); return; }
+  const record = obj as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    const val = record[key];
+    if (typeof val === "string") {
+      // canvasJSON is a nested JSON string — recurse into it
+      if (key === "canvasJSON") {
+        record[key] = sanitizeCanvasJsonForStorage(val);
+      } else {
+        record[key] = _sanitizeSrc(val);
+      }
+    } else if (typeof val === "object") {
+      _walkAndSanitize(val);
+    }
+  }
+}
+
+/**
  * Re-presign all S3 URLs embedded inside a canvas JSON string.
- * Canvas data stores fabric.js JSON which may contain S3 URLs in image `src` fields.
- * These expire (presigned tokens), so we re-presign them fresh on every load.
+ * Handles bare S3 URLs (after sanitize-on-save) AND legacy proxy-wrapped
+ * encoded URLs (backward compat for designs saved before sanitization).
+ * Returns proxy-wrapped fresh presigned URLs so the browser can load them CORS-free.
  */
 export async function presignCanvasJson(canvasJson: string): Promise<string> {
   if (!canvasJson) return canvasJson;
-  // Match any string that looks like an S3 URL for our bucket (with or without presign params)
-  const s3UrlPattern = new RegExp(
-    `${STORAGE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^"'\\s<>\\\\]+`,
-    'g'
-  );
-  const matches = canvasJson.match(s3UrlPattern);
-  if (!matches) return canvasJson;
-  const unique = [...new Set(matches)];
-  let result = canvasJson;
-  for (const url of unique) {
-    // Strip any existing presign query params to get the clean URL/key
-    const cleanUrl = url.split('?')[0];
-    const signed = await getPresignedUrl(cleanUrl);
-    // Replace all occurrences of this URL (with any query string variant)
-    result = result.replace(new RegExp(url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), signed);
+  try {
+    const parsed = JSON.parse(canvasJson);
+    await _walkAndPresign(parsed);
+    return JSON.stringify(parsed);
+  } catch {
+    return canvasJson;
   }
-  return result;
+}
+
+async function _presignSrc(src: string): Promise<string> {
+  // Bare S3 URL (clean, stored after sanitize-on-save)
+  if (src.startsWith(STORAGE_URL)) {
+    const cleanUrl = src.split("?")[0];
+    const signed = await getPresignedUrl(cleanUrl);
+    return `/api/image-proxy?url=${encodeURIComponent(signed)}`;
+  }
+  // Legacy: /api/image-proxy?url=<encoded expired presigned url>
+  if (src.startsWith("/api/image-proxy?url=")) {
+    try {
+      const decoded = decodeURIComponent(src.slice("/api/image-proxy?url=".length));
+      const cleanUrl = decoded.split("?")[0];
+      if (cleanUrl.startsWith(STORAGE_URL) || isS3Key(cleanUrl)) {
+        const signed = await getPresignedUrl(cleanUrl);
+        return `/api/image-proxy?url=${encodeURIComponent(signed)}`;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return src;
+}
+
+async function _walkAndPresign(obj: unknown): Promise<void> {
+  if (!obj || typeof obj !== "object") return;
+  if (Array.isArray(obj)) {
+    for (const item of obj) await _walkAndPresign(item);
+    return;
+  }
+  const record = obj as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    const val = record[key];
+    if (typeof val === "string") {
+      if (key === "canvasJSON") {
+        // Nested JSON string — recursively presign
+        record[key] = await presignCanvasJson(val);
+      } else {
+        record[key] = await _presignSrc(val);
+      }
+    } else if (typeof val === "object") {
+      await _walkAndPresign(val);
+    }
+  }
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { presignAllUrls } from "@/lib/utils/s3-client";
+import { presignAllUrls, sanitizeCanvasJsonForStorage } from "@/lib/utils/s3-client";
 
 // GET /api/designs - Fetch user's design history
 export async function GET(request: NextRequest) {
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
         style: style || null,
         imageUrl: imageUrl || null,
         name: name || "Untitled Design",
-        canvasData: canvasData || null,
+        canvasData: canvasData ? sanitizeCanvasJsonForStorage(canvasData) : null,
         status: canvasData || imageUrl ? "COMPLETED" : "PENDING",
       },
     });
@@ -190,7 +190,7 @@ export async function PUT(request: NextRequest) {
       where: { id },
       data: {
         ...(name !== undefined && { name }),
-        ...(canvasData !== undefined && { canvasData }),
+        ...(canvasData !== undefined && { canvasData: sanitizeCanvasJsonForStorage(canvasData) }),
         ...(imageUrl !== undefined && { imageUrl }),
         ...(category !== undefined && { category }),
         ...(size !== undefined && { size }),

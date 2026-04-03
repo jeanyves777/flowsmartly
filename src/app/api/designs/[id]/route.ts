@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { presignAllUrls, presignCanvasJson } from "@/lib/utils/s3-client";
+import { presignAllUrls, presignCanvasJson, sanitizeCanvasJsonForStorage } from "@/lib/utils/s3-client";
 import {
   checkDesignAccess,
   checkShareTokenAccess,
@@ -137,7 +137,7 @@ export async function PUT(
       where: { id },
       data: {
         ...(name !== undefined && { name }),
-        ...(canvasData !== undefined && { canvasData }),
+        ...(canvasData !== undefined && { canvasData: sanitizeCanvasJsonForStorage(canvasData) }),
         ...(imageUrl !== undefined && { imageUrl }),
         ...(category !== undefined && { category }),
         ...(size !== undefined && { size }),
