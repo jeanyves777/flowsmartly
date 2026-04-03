@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import NextImage from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FolderOpen,
@@ -171,6 +172,7 @@ export default function DesignsPage() {
         if (activeFolderId) params.set("folderId", activeFolderId);
         if (searchQuery) params.set("search", searchQuery);
         if (categoryFilter) params.set("category", categoryFilter);
+        params.set("type", "image"); // only show image studio designs, not video projects
         params.set("limit", "20");
         if (cursor) params.set("cursor", cursor);
 
@@ -796,12 +798,11 @@ export default function DesignsPage() {
                   </div>
                   {/* Thumbnail — preserves actual design aspect ratio */}
                   <div
-                    className="bg-muted/50 flex items-center justify-center overflow-hidden"
+                    className="bg-muted/50 flex items-center justify-center overflow-hidden relative"
                     style={{
                       aspectRatio: (() => {
                         const [w, h] = design.size.split("x").map(Number);
                         if (w && h) {
-                          // Clamp extreme ratios for reasonable grid layout (min 3:4, max 2:1)
                           const ratio = w / h;
                           const clamped = Math.max(0.75, Math.min(2, ratio));
                           return `${clamped}`;
@@ -811,10 +812,13 @@ export default function DesignsPage() {
                     }}
                   >
                     {design.imageUrl ? (
-                      <img
+                      <NextImage
                         src={design.imageUrl}
                         alt={design.name}
-                        className="w-full h-full object-contain"
+                        fill
+                        sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                        className="object-cover"
+                        unoptimized
                       />
                     ) : (
                       <div
@@ -909,12 +913,15 @@ export default function DesignsPage() {
                   </div>
                 )}
                 {/* Thumbnail */}
-                <div className="w-10 h-10 rounded-lg bg-muted/50 flex items-center justify-center shrink-0 overflow-hidden">
+                <div className="w-10 h-10 rounded-lg bg-muted/50 flex items-center justify-center shrink-0 overflow-hidden relative">
                   {design.imageUrl ? (
-                    <img
+                    <NextImage
                       src={design.imageUrl}
                       alt=""
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="40px"
+                      className="object-cover"
+                      unoptimized
                     />
                   ) : (
                     <div
