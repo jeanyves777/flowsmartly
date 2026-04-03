@@ -117,6 +117,14 @@ function StudioPageInner() {
   useEffect(() => {
     if (!designId || !canvas) return;
 
+    // Clear stale pages/activePageIndex before loading so the canvas-editor
+    // page-switch effect (which fires on canvas mount) finds no pages and
+    // bails out, preventing stale content from a previous session overwriting
+    // the newly loaded design.
+    const storeRef = useCanvasStore.getState();
+    storeRef.setPages([]);
+    storeRef.setActivePageIndex(0);
+
     (async () => {
       try {
         const res = await fetch(`/api/designs/${designId}`);
