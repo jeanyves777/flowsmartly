@@ -62,6 +62,7 @@ export async function GET(
           bounced: campaign.bounceCount,
           unsubscribed: campaign.unsubCount,
           templateId: campaign.templateId,
+          sectionsJson: campaign.sectionsJson,
           contactListId: campaign.contactListId,
           customRecipients: campaign.customRecipients,
           excludedRecipients: campaign.excludedRecipients,
@@ -130,6 +131,7 @@ export async function PATCH(
       contentHtml,
       contactListId,
       templateId,
+      sectionsJson,
       customRecipients,
       excludedRecipients,
       scheduledAt,
@@ -148,6 +150,7 @@ export async function PATCH(
     if (replyTo !== undefined) updateData.replyTo = replyTo;
     if (content !== undefined) updateData.content = content;
     if (contentHtml !== undefined) updateData.contentHtml = contentHtml;
+    if (sectionsJson !== undefined) updateData.sectionsJson = sectionsJson;
     if (contactListId !== undefined) updateData.contactListId = contactListId;
     if (templateId !== undefined) updateData.templateId = templateId;
     if (customRecipients !== undefined) updateData.customRecipients = customRecipients;

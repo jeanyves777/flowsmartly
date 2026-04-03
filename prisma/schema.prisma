@@ -570,6 +570,7 @@ model Campaign {
 
   content       String
   contentHtml   String?
+  sectionsJson  String?   // JSON EmailSection[] — source of truth for re-editing
 
   // Template reference
   templateId    String?

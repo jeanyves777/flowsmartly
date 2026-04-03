@@ -79,10 +79,19 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
         if (d.success && d.data) {
           const c = d.data.campaign || d.data;
 
-          // Load sections from linked template
+          // 1. Try sectionsJson on the campaign first (new format)
           let sections: EmailSection[] = [];
+          if (c.sectionsJson) {
+            try {
+              sections = typeof c.sectionsJson === "string"
+                ? JSON.parse(c.sectionsJson)
+                : c.sectionsJson;
+            } catch { /* fall through */ }
+          }
+
+          // 2. Fall back to linked template sections (legacy campaigns)
           const templateId = c.templateId || null;
-          if (templateId) {
+          if (sections.length === 0 && templateId) {
             try {
               const tplRes = await fetch(`/api/email-templates/${templateId}`);
               const tplData = await tplRes.json();
@@ -183,7 +192,7 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
     }
   }, [dispatch, state.subject, state.sections, toast]);
 
-  // Save as template
+  // Save as new template (explicit user action)
   const handleSaveAsTemplate = useCallback(async () => {
     try {
       const res = await fetch("/api/email-templates", {
@@ -199,14 +208,37 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
         }),
       });
       const data = await res.json();
-      if (data.success) toast({ title: "Template saved!" });
-      else throw new Error(data.error);
+      if (data.success) {
+        toast({ title: "New template saved!" });
+        dispatch({ type: "LOAD_CAMPAIGN", state: { selectedTemplateId: data.data.id } });
+      } else throw new Error(data.error);
     } catch {
       toast({ title: "Failed to save template", variant: "destructive" });
     }
+  }, [state, dispatch, toast]);
+
+  // Overwrite the currently linked template (explicit user action)
+  const handleOverwriteTemplate = useCallback(async () => {
+    if (!state.selectedTemplateId) return;
+    try {
+      const res = await fetch(`/api/email-templates/${state.selectedTemplateId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sections: state.sections,
+          subject: state.subject,
+          preheader: state.preheader,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) toast({ title: "Template updated!" });
+      else throw new Error(data.error);
+    } catch {
+      toast({ title: "Failed to update template", variant: "destructive" });
+    }
   }, [state, toast]);
 
-  // Save draft — also saves/updates a linked template to preserve sections
+  // Save draft — sections stored in sectionsJson on the campaign (no auto-template creation)
   const handleSaveDraft = useCallback(async () => {
     dispatch({ type: "SET_SAVING", value: true });
     try {
@@ -216,35 +248,6 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
         logoSize: state.logoSize,
       });
 
-      // Save or update the linked template to preserve sections for re-editing
-      let templateId = state.selectedTemplateId || null;
-      if (state.sections.length > 0) {
-        if (templateId) {
-          // Update existing template sections
-          await fetch(`/api/email-templates/${templateId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sections: state.sections, subject: state.subject, preheader: state.preheader }),
-          });
-        } else {
-          // Create a new template to hold the sections
-          const tplRes = await fetch("/api/email-templates", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: `Draft: ${state.campaignName || state.subject || "Untitled"}`,
-              category: "custom",
-              subject: state.subject,
-              preheader: state.preheader,
-              sections: state.sections,
-              source: "manual",
-            }),
-          });
-          const tplData = await tplRes.json();
-          if (tplData.success) templateId = tplData.data.id;
-        }
-      }
-
       const body = {
         name: state.campaignName || "Untitled",
         type: "EMAIL",
@@ -252,12 +255,12 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
         preheaderText: state.preheader,
         content: sectionsToPlainText(state.sections),
         contentHtml,
+        sectionsJson: state.sections.length > 0 ? JSON.stringify(state.sections) : null,
         contactListId: state.selectedContactListId || null,
-        templateId,
+        templateId: state.selectedTemplateId || null,
         customRecipients: state.customEmails.length > 0 ? JSON.stringify(state.customEmails) : null,
         excludedRecipients: state.excludedContactIds.length > 0 ? JSON.stringify(state.excludedContactIds) : null,
         status: "DRAFT",
-        // Images are embedded in sections/contentHtml — clear legacy inject fields to prevent duplication
         imageUrl: null,
         imageSource: null,
         imageOverlayText: null,
@@ -270,7 +273,6 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
       if (!data.success) throw new Error(data.error?.message || "Save failed");
 
       if (!state.editCampaignId) dispatch({ type: "LOAD_CAMPAIGN", state: { editCampaignId: data.data?.campaign?.id || data.data?.id } });
-      if (templateId && !state.selectedTemplateId) dispatch({ type: "LOAD_CAMPAIGN", state: { selectedTemplateId: templateId } });
       toast({ title: "Draft saved!" });
     } catch (err) {
       toast({ title: err instanceof Error ? err.message : "Save failed", variant: "destructive" });
@@ -300,12 +302,12 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
         preheaderText: state.preheader,
         content: sectionsToPlainText(state.sections),
         contentHtml,
+        sectionsJson: state.sections.length > 0 ? JSON.stringify(state.sections) : null,
         contactListId: state.selectedContactListId || null,
         templateId: state.selectedTemplateId || null,
         customRecipients: state.customEmails.length > 0 ? JSON.stringify(state.customEmails) : null,
         excludedRecipients: state.excludedContactIds.length > 0 ? JSON.stringify(state.excludedContactIds) : null,
         status: "DRAFT",
-        // Images are embedded in sections/contentHtml — clear legacy inject fields to prevent duplication
         imageUrl: null,
         imageSource: null,
         imageOverlayText: null,
@@ -418,6 +420,9 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
           onOptimize={handleOptimize}
           onClearOptimization={() => setOptimizationData(null)}
           onSaveAsTemplate={handleSaveAsTemplate}
+          onOverwriteTemplate={handleOverwriteTemplate}
+          selectedTemplateId={state.selectedTemplateId || null}
+          selectedTemplateName={state.templateName || undefined}
         />
       )}
 

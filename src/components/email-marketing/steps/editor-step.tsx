@@ -1,9 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { Save, Wand } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { EmailBuilder } from "../builder/email-builder";
 import { OptimizationPanel, type OptimizationData } from "../builder/optimization-panel";
 import type { EmailSection, EmailBrand } from "@/lib/marketing/email-renderer";
@@ -19,6 +27,8 @@ interface EditorStepProps {
   campaignName: string;
   isGenerating: boolean;
   optimizationData: OptimizationData | null;
+  selectedTemplateId: string | null;
+  selectedTemplateName?: string;
   onSubjectChange: (v: string) => void;
   onPreheaderChange: (v: string) => void;
   onCampaignNameChange: (v: string) => void;
@@ -33,9 +43,37 @@ interface EditorStepProps {
   onOptimize: () => Promise<void>;
   onClearOptimization: () => void;
   onSaveAsTemplate: () => Promise<void>;
+  onOverwriteTemplate: () => Promise<void>;
 }
 
 export function EditorStep(props: EditorStepProps) {
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const hasLinkedTemplate = !!props.selectedTemplateId;
+
+  const handleSaveTemplateClick = () => {
+    if (hasLinkedTemplate) {
+      setShowTemplateDialog(true);
+    } else {
+      props.onSaveAsTemplate();
+    }
+  };
+
+  const handleOverwrite = async () => {
+    setIsSaving(true);
+    await props.onOverwriteTemplate();
+    setIsSaving(false);
+    setShowTemplateDialog(false);
+  };
+
+  const handleSaveNew = async () => {
+    setIsSaving(true);
+    await props.onSaveAsTemplate();
+    setIsSaving(false);
+    setShowTemplateDialog(false);
+  };
+
   return (
     <div className="space-y-4">
       {/* Campaign name + actions bar */}
@@ -62,13 +100,46 @@ export function EditorStep(props: EditorStepProps) {
           variant="outline"
           size="sm"
           className="shrink-0"
-          onClick={props.onSaveAsTemplate}
+          onClick={handleSaveTemplateClick}
           disabled={props.sections.length === 0}
         >
           <Save className="w-3.5 h-3.5 mr-1" />
-          Save as Template
+          Save Template
         </Button>
       </div>
+
+      {/* Save Template dialog — overwrite vs new */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Save Template</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This campaign is based on{" "}
+            <span className="font-medium text-foreground">
+              {props.selectedTemplateName || "an existing template"}
+            </span>
+            . What would you like to do?
+          </p>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              className="w-full"
+              onClick={handleOverwrite}
+              disabled={isSaving}
+            >
+              Overwrite current template
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={handleSaveNew}
+              disabled={isSaving}
+            >
+              Save as new template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Optimization panel (shown inline after clicking Optimize) */}
       {props.optimizationData && (
