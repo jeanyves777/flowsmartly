@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");
     const type = searchParams.get("type");
+    const canvasOnly = searchParams.get("canvasOnly");
     const folderId = searchParams.get("folderId");
     const search = searchParams.get("search");
     const limit = parseInt(searchParams.get("limit") || "20");
@@ -40,6 +41,7 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = { ...accessFilter };
     if (category) where.category = category;
     if (type) where.type = type;
+    if (canvasOnly === "true") where.canvasData = { not: null };
     if (folderId) {
       where.folderId = folderId === "root" ? null : folderId;
     }

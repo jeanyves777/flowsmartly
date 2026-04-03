@@ -173,6 +173,7 @@ export default function DesignsPage() {
         if (searchQuery) params.set("search", searchQuery);
         if (categoryFilter) params.set("category", categoryFilter);
         params.set("type", "image"); // only show image studio designs, not video projects
+        params.set("canvasOnly", "true"); // only studio canvas composites, not AI-only images
         params.set("limit", "20");
         if (cursor) params.set("cursor", cursor);
 
