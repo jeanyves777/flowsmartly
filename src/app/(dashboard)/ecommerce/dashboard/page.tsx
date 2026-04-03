@@ -16,6 +16,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { ORDER_STATUSES } from "@/lib/constants/ecommerce";
+import { formatPrice } from "@/lib/store/currency";
 
 interface Store {
   id: string;
@@ -79,14 +80,6 @@ export default function EcommerceDashboardPage() {
     load();
   }, []);
 
-  function formatCurrency(cents: number, currency = "USD") {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      minimumFractionDigits: 2,
-    }).format(cents / 100);
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -125,7 +118,7 @@ export default function EcommerceDashboardPage() {
     },
     {
       label: "Revenue",
-      value: formatCurrency(store.totalRevenueCents, store.currency),
+      value: formatPrice(store.totalRevenueCents, store.currency),
       icon: DollarSign,
       color: "text-green-600 bg-green-100",
     },
@@ -291,7 +284,7 @@ export default function EcommerceDashboardPage() {
                         <p className="font-medium">{order.customerName}</p>
                       </td>
                       <td className="p-3 font-medium">
-                        {formatCurrency(order.totalCents, order.currency)}
+                        {formatPrice(order.totalCents, order.currency)}
                       </td>
                       <td className="p-3">
                         <span

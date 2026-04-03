@@ -187,15 +187,17 @@ export default function VideoStudioPage() {
 
   const { toast } = useToast();
 
-  // Dynamic pricing from DB (fetched on load)
-  const [veoCostPerClip, setVeoCostPerClip] = useState(60);
-  const [slideshowCost, setSlideshowCost] = useState(25);
+  // Dynamic pricing from DB (fetched on load) — null until loaded
+  const [veoCostPerClip, setVeoCostPerClip] = useState<number | null>(null);
+  const [slideshowCost, setSlideshowCost] = useState<number | null>(null);
 
-  // Credit cost based on provider and duration
+  // Credit cost based on provider and duration — null until costs loaded
   const extCount = selectedProvider === "veo3" ? getExtensionCount(selectedDuration.seconds) : 0;
   const creditCost =
-    selectedProvider === "slideshow" ? slideshowCost :
-    Math.round(veoCostPerClip * (1 + extCount));
+    selectedProvider === "slideshow"
+      ? slideshowCost
+      : veoCostPerClip != null ? Math.round(veoCostPerClip * (1 + extCount)) : null;
+  const costsLoaded = creditCost != null;
 
   // Auto-lock resolution to 720p for extended Veo videos
   useEffect(() => {
@@ -582,7 +584,7 @@ export default function VideoStudioPage() {
                       <p className="text-xs text-muted-foreground">Google &middot; Up to 8s &middot; Native voice &amp; audio</p>
                     </div>
                     {selectedProvider === "veo3" && (
-                      <Badge className="absolute top-2 right-2 text-[10px] bg-brand-500 text-white">{veoCostPerClip} cr</Badge>
+                      <Badge className="absolute top-2 right-2 text-[10px] bg-brand-500 text-white">{veoCostPerClip ?? "..."} cr</Badge>
                     )}
                   </button>
                   <button
@@ -603,7 +605,7 @@ export default function VideoStudioPage() {
                       <p className="text-xs text-muted-foreground">AI Images &middot; Up to 45s &middot; Narrated</p>
                     </div>
                     {selectedProvider === "slideshow" && (
-                      <Badge className="absolute top-2 right-2 text-[10px] bg-emerald-500 text-white">{slideshowCost} cr</Badge>
+                      <Badge className="absolute top-2 right-2 text-[10px] bg-emerald-500 text-white">{slideshowCost ?? "..."} cr</Badge>
                     )}
                   </button>
                 </div>
@@ -1000,7 +1002,7 @@ export default function VideoStudioPage() {
                 <div className="flex items-center gap-4">
                   <Button
                     onClick={handleGenerate}
-                    disabled={isGenerating || !prompt.trim()}
+                    disabled={isGenerating || !prompt.trim() || !costsLoaded}
                     className="flex-1 bg-brand-500 hover:bg-brand-600 h-12 rounded-2xl text-base font-semibold"
                     size="lg"
                   >
@@ -1014,7 +1016,7 @@ export default function VideoStudioPage() {
                         <Wand2 className="w-5 h-5 mr-2" />
                         Generate Video
                         <Badge variant="secondary" className="ml-2 bg-white/20 text-white border-0 text-xs">
-                          {creditCost} credits
+                          {creditCost ?? "..."} credits
                         </Badge>
                       </>
                     )}

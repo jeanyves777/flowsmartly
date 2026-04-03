@@ -81,6 +81,13 @@ const statusConfig: Record<CampaignStatus, { label: string; color: string; icon:
   failed: { label: "Failed", color: "bg-red-500/10 text-red-500", icon: XCircle },
 };
 
+const statColorClasses: Record<string, { bg: string; text: string }> = {
+  blue: { bg: "bg-blue-500/10", text: "text-blue-500" },
+  green: { bg: "bg-green-500/10", text: "text-green-500" },
+  purple: { bg: "bg-purple-500/10", text: "text-purple-500" },
+  emerald: { bg: "bg-emerald-500/10", text: "text-emerald-500" },
+};
+
 export default function SmsMarketingPage() {
   const { toast } = useToast();
   const router = useRouter();
@@ -93,6 +100,7 @@ export default function SmsMarketingPage() {
   const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [smsReady, setSmsReady] = useState(false);
+  const [setupCheckError, setSetupCheckError] = useState(false);
 
   // Calculate stats from campaigns
   const smsStats = {
@@ -140,18 +148,27 @@ export default function SmsMarketingPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [numRes, compRes, a2pRes, tfRes] = await Promise.all([
+        const results = await Promise.allSettled([
           fetch("/api/sms/numbers?action=current"),
           fetch("/api/sms/compliance"),
           fetch("/api/sms/numbers/a2p-status"),
           fetch("/api/sms/numbers/verify"),
         ]);
-        const numData = await numRes.json();
-        const compData = compRes.ok ? await compRes.json() : null;
-        const a2pData = a2pRes.ok ? await a2pRes.json() : null;
-        const tfData = tfRes.ok ? await tfRes.json() : null;
 
-        const phone = numData.data?.phoneNumber as string | undefined;
+        const anyFailed = results.some((r) => r.status === "rejected");
+        if (anyFailed) setSetupCheckError(true);
+
+        const numRes = results[0].status === "fulfilled" ? results[0].value : null;
+        const compRes = results[1].status === "fulfilled" ? results[1].value : null;
+        const a2pRes = results[2].status === "fulfilled" ? results[2].value : null;
+        const tfRes = results[3].status === "fulfilled" ? results[3].value : null;
+
+        const numData = numRes?.ok ? await numRes.json() : null;
+        const compData = compRes?.ok ? await compRes.json() : null;
+        const a2pData = a2pRes?.ok ? await a2pRes.json() : null;
+        const tfData = tfRes?.ok ? await tfRes.json() : null;
+
+        const phone = numData?.data?.phoneNumber as string | undefined;
         if (!phone) return;
 
         const complianceOk = compData?.data?.status === "APPROVED";
@@ -162,7 +179,7 @@ export default function SmsMarketingPage() {
 
         setSmsReady(complianceOk && regOk);
       } catch {
-        // Non-critical — buttons stay disabled by default
+        setSetupCheckError(true);
       }
     })();
   }, []);
@@ -301,6 +318,25 @@ export default function SmsMarketingPage() {
         </div>
       </div>
 
+      {!smsReady && (
+        <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
+          <p className="text-sm font-medium text-amber-600">SMS Setup Required</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Complete your SMS setup to start sending campaigns.
+          </p>
+          <Button size="sm" variant="outline" className="mt-2" asChild>
+            <Link href="/settings?tab=sms">Go to SMS Settings</Link>
+          </Button>
+        </div>
+      )}
+
+      {setupCheckError && (
+        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+          <p className="text-sm text-red-600">Some setup checks failed. Try refreshing the page.</p>
+        </div>
+      )}
+
       {/* Number Registration Status Banner */}
       <NumberStatusBanner />
 
@@ -315,8 +351,8 @@ export default function SmsMarketingPage() {
           <Card key={stat.label}>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg bg-${stat.color}-500/10 flex items-center justify-center`}>
-                  <stat.icon className={`w-5 h-5 text-${stat.color}-500`} />
+                <div className={`w-10 h-10 rounded-lg ${statColorClasses[stat.color]?.bg} flex items-center justify-center`}>
+                  <stat.icon className={`w-5 h-5 ${statColorClasses[stat.color]?.text}`} />
                 </div>
                 <div>
                   <p className="text-xl font-bold">{stat.value}</p>

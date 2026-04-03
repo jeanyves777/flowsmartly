@@ -469,12 +469,12 @@ export default function LogoGeneratorPage() {
                 {/* Generate Button */}
                 <Button
                   onClick={handleGenerate}
-                  disabled={!brandName.trim()}
+                  disabled={!brandName.trim() || !costs.AI_LOGO_GENERATION}
                   className="w-full h-14 text-lg bg-brand-500 hover:bg-brand-600"
                   size="lg"
                 >
                   <Sparkles className="w-5 h-5 mr-2" />
-                  Generate 3 Logo Concepts ({costs.AI_LOGO_GENERATION ?? 30} credits)
+                  Generate 3 Logo Concepts ({costs.AI_LOGO_GENERATION ?? "..."} credits)
                 </Button>
 
                 <p className="text-center text-xs text-muted-foreground">

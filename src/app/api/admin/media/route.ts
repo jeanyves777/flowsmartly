@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { getSession } from "@/lib/auth/session";
+import { getAdminSession } from "@/lib/admin/auth";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 
 // GET /api/admin/media - List all media (admin only)
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session?.adminId) {
-      return NextResponse.json({ success: false, error: { message: "Admin access required" } }, { status: 403 });
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);

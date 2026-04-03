@@ -129,7 +129,7 @@ export default function SmsMarketingPage() {
             Manage and track your SMS marketing campaigns
           </p>
         </div>
-        <Button className="bg-brand-500 hover:bg-brand-600 text-white">
+        <Button className="bg-brand-500 hover:bg-brand-600 text-white" onClick={() => window.open('/sms-marketing', '_blank')}>
           <Plus className="w-4 h-4 mr-2" />
           Create SMS Campaign
         </Button>
@@ -241,7 +241,7 @@ export default function SmsMarketingPage() {
           <CardContent className="text-center py-12 text-muted-foreground">
             <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>No SMS campaigns found</p>
-            <Button className="mt-4 bg-brand-500 hover:bg-brand-600 text-white">
+            <Button className="mt-4 bg-brand-500 hover:bg-brand-600 text-white" onClick={() => window.open('/sms-marketing', '_blank')}>
               <Plus className="w-4 h-4 mr-2" />
               Create SMS Campaign
             </Button>

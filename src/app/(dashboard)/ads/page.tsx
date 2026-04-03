@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
@@ -93,6 +94,7 @@ const statusConfig: Record<AdStatus, { label: string; color: string }> = {
 
 export default function AdsPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
   const [stats, setStats] = useState<AdStats | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -354,7 +356,10 @@ export default function AdsPage() {
 
       {/* Quick Actions */}
       <div className="grid sm:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-brand-500/10 to-purple-500/5 border-brand-500/20 cursor-pointer hover:shadow-md transition-shadow">
+        <Card
+          className="bg-gradient-to-br from-brand-500/10 to-purple-500/5 border-brand-500/20 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => router.push('/ads/create')}
+        >
           <CardContent className="p-4 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-brand-500/20 flex items-center justify-center">
               <Zap className="w-6 h-6 text-brand-500" />
@@ -366,7 +371,10 @@ export default function AdsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-blue-500/10 to-cyan-500/5 border-blue-500/20 cursor-pointer hover:shadow-md transition-shadow">
+        <Card
+          className="bg-gradient-to-br from-blue-500/10 to-cyan-500/5 border-blue-500/20 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => router.push('/contacts')}
+        >
           <CardContent className="p-4 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
               <Users className="w-6 h-6 text-blue-500" />
@@ -378,7 +386,10 @@ export default function AdsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-500/10 to-emerald-500/5 border-green-500/20 cursor-pointer hover:shadow-md transition-shadow">
+        <Card
+          className="bg-gradient-to-br from-green-500/10 to-emerald-500/5 border-green-500/20 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => router.push('/analytics')}
+        >
           <CardContent className="p-4 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
               <BarChart3 className="w-6 h-6 text-green-500" />

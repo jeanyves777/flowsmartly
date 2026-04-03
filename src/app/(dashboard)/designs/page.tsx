@@ -288,11 +288,16 @@ export default function DesignsPage() {
       return;
     }
     try {
-      await fetch(`/api/designs/folders/${folderId}`, {
+      const res = await fetch(`/api/designs/folders/${folderId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: folderRenameValue.trim() }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast({ title: "Failed to rename folder", description: data.error?.message || "Please try again", variant: "destructive" });
+        return;
+      }
       setFolders((prev) =>
         prev.map((f) => (f.id === folderId ? { ...f, name: folderRenameValue.trim() } : f))
       );

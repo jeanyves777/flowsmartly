@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Users,
   Search,
@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Loader2,
   AlertTriangle,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -69,6 +70,8 @@ export default function AdminUsersPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [viewingUser, setViewingUser] = useState<User | null>(null);
+  const [confirmBan, setConfirmBan] = useState<string | null>(null);
   const itemsPerPage = 20;
 
   const fetchUsers = async (showRefreshing = false) => {
@@ -129,11 +132,33 @@ export default function AdminUsersPage() {
       }
 
       fetchUsers();
+      setConfirmBan(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Action failed");
+      setError(err instanceof Error ? err.message : "Action failed");
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const handleExport = () => {
+    const headers = ["Name", "Email", "Plan", "Credits", "Status", "Last Login", "Created"];
+    const rows = users.map((u) => [
+      u.name,
+      u.email,
+      u.plan,
+      u.aiCredits.toString(),
+      u.isDeleted ? "Deleted" : "Active",
+      u.lastLoginAt ? new Date(u.lastLoginAt).toISOString() : "Never",
+      new Date(u.createdAt).toISOString(),
+    ]);
+    const csv = [headers, ...rows].map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `users-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const formatDate = (dateString: string | null) => {
@@ -181,7 +206,7 @@ export default function AdminUsersPage() {
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExport} disabled={users.length === 0}>
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
@@ -298,6 +323,17 @@ export default function AdminUsersPage() {
         </CardContent>
       </Card>
 
+      {/* Error Banner */}
+      {error && users.length > 0 && (
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button onClick={() => setError(null)} className="hover:text-red-300">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Users Table */}
       <Card>
         <CardContent className="p-0">
@@ -371,6 +407,8 @@ export default function AdminUsersPage() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            title="View User"
+                            onClick={() => setViewingUser(user)}
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
@@ -378,6 +416,8 @@ export default function AdminUsersPage() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            title="Email User"
+                            onClick={() => { window.location.href = `mailto:${user.email}`; }}
                           >
                             <Mail className="w-4 h-4" />
                           </Button>
@@ -386,6 +426,7 @@ export default function AdminUsersPage() {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-muted-foreground hover:text-green-400"
+                              title="Unban User"
                               onClick={() => handleUserAction(user.id, "unban")}
                               disabled={actionLoading === user.id}
                             >
@@ -395,19 +436,41 @@ export default function AdminUsersPage() {
                                 <UserCheck className="w-4 h-4" />
                               )}
                             </Button>
+                          ) : confirmBan === user.id ? (
+                            <div className="flex items-center gap-1 text-xs">
+                              <span className="text-red-400 whitespace-nowrap">Ban?</span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                                onClick={() => handleUserAction(user.id, "ban")}
+                                disabled={actionLoading === user.id}
+                              >
+                                {actionLoading === user.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <UserCheck className="w-3 h-3" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                onClick={() => setConfirmBan(null)}
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
                           ) : (
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-muted-foreground hover:text-red-400"
-                              onClick={() => handleUserAction(user.id, "ban")}
+                              title="Ban User"
+                              onClick={() => setConfirmBan(user.id)}
                               disabled={actionLoading === user.id}
                             >
-                              {actionLoading === user.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Ban className="w-4 h-4" />
-                              )}
+                              <Ban className="w-4 h-4" />
                             </Button>
                           )}
                         </div>
@@ -449,6 +512,83 @@ export default function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+      {/* User Detail Modal */}
+      <AnimatePresence>
+        {viewingUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+            onClick={() => setViewingUser(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-card border border-border rounded-xl shadow-xl w-full max-w-lg mx-4 p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-semibold">User Details</h2>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewingUser(null)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-4 mb-6">
+                <Avatar className="w-14 h-14">
+                  <AvatarImage src={viewingUser.avatarUrl || undefined} />
+                  <AvatarFallback className="text-lg bg-muted text-foreground">
+                    {viewingUser.name?.charAt(0) || viewingUser.email.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="text-lg font-medium">{viewingUser.name}</p>
+                  <p className="text-sm text-muted-foreground">{viewingUser.email}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Plan</p>
+                  <Badge className={`mt-1 ${planColors[viewingUser.plan] || planColors.STARTER}`}>
+                    {viewingUser.plan}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Status</p>
+                  <Badge className={`mt-1 ${viewingUser.isDeleted ? "bg-red-500/20 text-red-400" : "bg-green-500/20 text-green-400"}`}>
+                    {viewingUser.isDeleted ? "Deleted" : "Active"}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">AI Credits</p>
+                  <p className="font-medium mt-1">{viewingUser.aiCredits}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Balance</p>
+                  <p className="font-medium mt-1">${(viewingUser.balanceCents / 100).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Posts</p>
+                  <p className="font-medium mt-1">{viewingUser.postsCount}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Campaigns</p>
+                  <p className="font-medium mt-1">{viewingUser.campaignsCount}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Created</p>
+                  <p className="font-medium mt-1">{formatDate(viewingUser.createdAt)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Last Login</p>
+                  <p className="font-medium mt-1">{formatDate(viewingUser.lastLoginAt)}</p>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

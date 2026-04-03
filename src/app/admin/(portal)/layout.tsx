@@ -57,37 +57,45 @@ interface AdminUser {
   email: string;
   name: string;
   role: string;
+  permissions: string[];
   isSuperAdmin: boolean;
 }
 
-const navItems = [
+type NavItem = {
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  permission?: string; // If set, only show when admin has this permission
+};
+
+const navItems: NavItem[] = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/admin/users", icon: Users, label: "Users" },
-  { href: "/admin/plans", icon: CreditCard, label: "Plans" },
-  { href: "/admin/features", icon: Sparkles, label: "Features" },
-  { href: "/admin/credits", icon: Coins, label: "Credits" },
-  { href: "/admin/credit-pricing", icon: DollarSign, label: "Credit Pricing" },
-  { href: "/admin/content", icon: FileText, label: "Content" },
-  { href: "/admin/moderation", icon: ShieldCheck, label: "Moderation" },
-  { href: "/admin/media", icon: FolderOpen, label: "Media" },
-  { href: "/admin/analytics", icon: BarChart3, label: "Analytics" },
-  { href: "/admin/visitors", icon: MousePointerClick, label: "Visitors" },
-  { href: "/admin/audit", icon: Activity, label: "Audit Logs" },
-  { href: "/admin/earnings", icon: DollarSign, label: "Earnings" },
-  { href: "/admin/agents", icon: Briefcase, label: "Agents" },
-  { href: "/admin/referrals", icon: Gift, label: "Referrals" },
-  { href: "/admin/system", icon: Server, label: "System" },
-  { href: "/admin/settings", icon: Settings, label: "Settings" },
+  { href: "/admin/users", icon: Users, label: "Users", permission: "VIEW_USERS" },
+  { href: "/admin/plans", icon: CreditCard, label: "Plans", permission: "EDIT_SETTINGS" },
+  { href: "/admin/features", icon: Sparkles, label: "Features", permission: "EDIT_SETTINGS" },
+  { href: "/admin/credits", icon: Coins, label: "Credits", permission: "EDIT_USERS" },
+  { href: "/admin/credit-pricing", icon: DollarSign, label: "Credit Pricing", permission: "EDIT_SETTINGS" },
+  { href: "/admin/content", icon: FileText, label: "Content", permission: "VIEW_CONTENT" },
+  { href: "/admin/moderation", icon: ShieldCheck, label: "Moderation", permission: "MODERATE_CONTENT" },
+  { href: "/admin/media", icon: FolderOpen, label: "Media", permission: "VIEW_CONTENT" },
+  { href: "/admin/analytics", icon: BarChart3, label: "Analytics", permission: "VIEW_ANALYTICS" },
+  { href: "/admin/visitors", icon: MousePointerClick, label: "Visitors", permission: "VIEW_ANALYTICS" },
+  { href: "/admin/audit", icon: Activity, label: "Audit Logs", permission: "VIEW_AUDIT_LOGS" },
+  { href: "/admin/earnings", icon: DollarSign, label: "Earnings", permission: "VIEW_ANALYTICS" },
+  { href: "/admin/agents", icon: Briefcase, label: "Agents", permission: "VIEW_USERS" },
+  { href: "/admin/referrals", icon: Gift, label: "Referrals", permission: "VIEW_ANALYTICS" },
+  { href: "/admin/system", icon: Server, label: "System", permission: "EDIT_SETTINGS" },
+  { href: "/admin/settings", icon: Settings, label: "Settings", permission: "VIEW_SETTINGS" },
 ];
 
 // Marketing section
-const marketingItems = [
-  { href: "/admin/campaigns", icon: Megaphone, label: "Campaigns" },
-  { href: "/admin/ads", icon: Megaphone, label: "Ad Review" },
-  { href: "/admin/email-marketing", icon: Mail, label: "Email Marketing" },
-  { href: "/admin/sms-marketing", icon: MessageSquare, label: "SMS Marketing" },
-  { href: "/admin/sms-marketing/compliance", icon: ShieldCheck, label: "SMS Compliance" },
-  { href: "/admin/sms-marketing/numbers", icon: Phone, label: "Number Status" },
+const marketingItems: NavItem[] = [
+  { href: "/admin/campaigns", icon: Megaphone, label: "Campaigns", permission: "VIEW_CONTENT" },
+  { href: "/admin/ads", icon: Megaphone, label: "Ad Review", permission: "MODERATE_CONTENT" },
+  { href: "/admin/email-marketing", icon: Mail, label: "Email Marketing", permission: "VIEW_CONTENT" },
+  { href: "/admin/sms-marketing", icon: MessageSquare, label: "SMS Marketing", permission: "VIEW_CONTENT" },
+  { href: "/admin/sms-marketing/compliance", icon: ShieldCheck, label: "SMS Compliance", permission: "VIEW_CONTENT" },
+  { href: "/admin/sms-marketing/numbers", icon: Phone, label: "Number Status", permission: "VIEW_CONTENT" },
 ];
 
 // User experience menu - allows admins to test user interface
@@ -105,6 +113,17 @@ const userExperienceItems = [
   { href: "/settings", icon: Settings, label: "User Settings" },
 ];
 
+function formatTimeAgo(dateStr: string): string {
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 export default function AdminPortalLayout({
   children,
 }: {
@@ -118,6 +137,9 @@ export default function AdminPortalLayout({
   const [isLoading, setIsLoading] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [notifications, setNotifications] = useState<Array<{ id: string; action: string; createdAt: string }>>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -132,7 +154,10 @@ export default function AdminPortalLayout({
           return;
         }
         const data = await response.json();
-        setAdmin(data.data.admin);
+        setAdmin({
+          ...data.data.admin,
+          permissions: data.data.admin.permissions || [],
+        });
       } catch {
         router.push("/admin/login");
       } finally {
@@ -161,9 +186,23 @@ export default function AdminPortalLayout({
   }, [mobileMenuOpen]);
 
   const handleLogout = async () => {
-    await fetch("/api/admin/auth/logout", { method: "POST" });
-    router.push("/admin/login");
+    try {
+      await fetch("/api/admin/auth/logout", { method: "POST" });
+    } finally {
+      router.push("/admin/login");
+    }
   };
+
+  // Filter nav items by admin permissions
+  const canAccess = (item: NavItem) => {
+    if (!item.permission) return true;
+    if (!admin) return false;
+    if (admin.isSuperAdmin) return true;
+    return admin.permissions.includes(item.permission);
+  };
+
+  const filteredNavItems = navItems.filter(canAccess);
+  const filteredMarketingItems = marketingItems.filter(canAccess);
 
   const toggleTheme = () => {
     setTheme(resolvedTheme === "dark" ? "light" : "dark");
@@ -177,7 +216,7 @@ export default function AdminPortalLayout({
     );
   }
 
-  const renderNavItems = (items: typeof navItems, onItemClick?: () => void) => {
+  const renderNavItems = (items: NavItem[], onItemClick?: () => void, collapsed?: boolean) => {
     return items.map((item) => {
       const isActive = pathname === item.href ||
         (item.href !== "/admin" && pathname.startsWith(item.href));
@@ -193,13 +232,13 @@ export default function AdminPortalLayout({
           }`}
         >
           <item.icon className="w-5 h-5 shrink-0" />
-          <span className="text-sm font-medium">{item.label}</span>
+          {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
         </Link>
       );
     });
   };
 
-  const renderUserExperienceItems = (onItemClick?: () => void) => {
+  const renderUserExperienceItems = (onItemClick?: () => void, collapsed?: boolean) => {
     return userExperienceItems.map((item) => {
       const isActive = pathname === item.href ||
         (item.href !== "/dashboard" && pathname.startsWith(item.href));
@@ -215,7 +254,7 @@ export default function AdminPortalLayout({
           }`}
         >
           <item.icon className="w-5 h-5 shrink-0" />
-          <span className="text-sm font-medium">{item.label}</span>
+          {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
         </Link>
       );
     });
@@ -272,110 +311,47 @@ export default function AdminPortalLayout({
         {/* Scrollable Navigation */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {/* Admin Section Header */}
-          {!sidebarCollapsed && (
+          {!sidebarCollapsed ? (
             <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
               Admin Panel
             </div>
-          )}
-
-          {sidebarCollapsed && (
+          ) : (
             <div className="flex justify-center py-2">
               <Shield className="w-4 h-4 text-muted-foreground/70" />
             </div>
           )}
 
-          {navItems.map((item) => {
-            const isActive = pathname === item.href ||
-              (item.href !== "/admin" && pathname.startsWith(item.href));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
-                  isActive
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
-                }`}
-              >
-                <item.icon className="w-5 h-5 shrink-0" />
-                {!sidebarCollapsed && (
-                  <span className="text-sm font-medium">{item.label}</span>
-                )}
-              </Link>
-            );
-          })}
+          {renderNavItems(filteredNavItems, undefined, sidebarCollapsed)}
 
           {/* Marketing Section */}
-          <div className="my-3 border-t border-border" />
-
-          {!sidebarCollapsed && (
-            <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-              Marketing
-            </div>
+          {filteredMarketingItems.length > 0 && (
+            <>
+              <div className="my-3 border-t border-border" />
+              {!sidebarCollapsed ? (
+                <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  Marketing
+                </div>
+              ) : (
+                <div className="flex justify-center py-2">
+                  <Mail className="w-4 h-4 text-muted-foreground/70" />
+                </div>
+              )}
+              {renderNavItems(filteredMarketingItems, undefined, sidebarCollapsed)}
+            </>
           )}
-
-          {sidebarCollapsed && (
-            <div className="flex justify-center py-2">
-              <Mail className="w-4 h-4 text-muted-foreground/70" />
-            </div>
-          )}
-
-          {marketingItems.map((item) => {
-            const isActive = pathname === item.href ||
-              (pathname.startsWith(item.href + "/") && !marketingItems.some((other) => other.href !== item.href && pathname.startsWith(other.href)));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
-                  isActive
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
-                }`}
-              >
-                <item.icon className="w-5 h-5 shrink-0" />
-                {!sidebarCollapsed && (
-                  <span className="text-sm font-medium">{item.label}</span>
-                )}
-              </Link>
-            );
-          })}
 
           {/* User Experience Section */}
           <div className="my-3 border-t border-border" />
-
-          {!sidebarCollapsed && (
+          {!sidebarCollapsed ? (
             <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
               User Experience
             </div>
-          )}
-
-          {sidebarCollapsed && (
+          ) : (
             <div className="flex justify-center py-2">
               <Eye className="w-4 h-4 text-muted-foreground/70" />
             </div>
           )}
-
-          {userExperienceItems.map((item) => {
-            const isActive = pathname === item.href ||
-              (item.href !== "/dashboard" && pathname.startsWith(item.href));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
-                  isActive
-                    ? "bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-purple-500 border border-purple-500/20"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
-                }`}
-              >
-                <item.icon className="w-5 h-5 shrink-0" />
-                {!sidebarCollapsed && (
-                  <span className="text-sm font-medium">{item.label}</span>
-                )}
-              </Link>
-            );
-          })}
+          {renderUserExperienceItems(undefined, sidebarCollapsed)}
         </nav>
 
         {/* Footer - Fixed at bottom */}
@@ -457,13 +433,17 @@ export default function AdminPortalLayout({
                 <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
                   Admin Panel
                 </div>
-                {renderNavItems(navItems, () => setMobileMenuOpen(false))}
+                {renderNavItems(filteredNavItems, () => setMobileMenuOpen(false))}
 
-                <div className="my-3 border-t border-border" />
-                <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  Marketing
-                </div>
-                {renderNavItems(marketingItems, () => setMobileMenuOpen(false))}
+                {filteredMarketingItems.length > 0 && (
+                  <>
+                    <div className="my-3 border-t border-border" />
+                    <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+                      Marketing
+                    </div>
+                    {renderNavItems(filteredMarketingItems, () => setMobileMenuOpen(false))}
+                  </>
+                )}
 
                 <div className="my-3 border-t border-border" />
                 <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
@@ -512,6 +492,13 @@ export default function AdminPortalLayout({
                 type="text"
                 placeholder="Search users, content, logs..."
                 className="w-full pl-10 pr-4 py-2 border border-input rounded-lg text-sm bg-muted/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-orange-500"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && searchQuery.trim()) {
+                    router.push(`/admin/users?search=${encodeURIComponent(searchQuery.trim())}`);
+                  }
+                }}
               />
             </div>
           </div>
@@ -528,13 +515,48 @@ export default function AdminPortalLayout({
             </Button>
 
             {/* Notifications */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <Bell className="w-5 h-5" />
-            </Button>
+            <DropdownMenu onOpenChange={(open) => {
+              if (open && notifications.length === 0) {
+                setNotificationsLoading(true);
+                fetch("/api/admin/audit?limit=5")
+                  .then((res) => res.json())
+                  .then((data) => setNotifications(data.logs || data || []))
+                  .catch(() => setNotifications([]))
+                  .finally(() => setNotificationsLoading(false));
+              }
+            }}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <Bell className="w-5 h-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {notificationsLoading ? (
+                  <div className="px-4 py-3 text-sm text-muted-foreground">Loading...</div>
+                ) : notifications.length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-muted-foreground">No recent activity</div>
+                ) : (
+                  notifications.map((n) => (
+                    <DropdownMenuItem key={n.id} className="flex flex-col items-start gap-1 py-2">
+                      <span className="text-sm">{n.action}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatTimeAgo(n.createdAt)}
+                      </span>
+                    </DropdownMenuItem>
+                  ))
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild className="cursor-pointer justify-center text-orange-500">
+                  <Link href="/admin/audit">View all</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* View site */}
             <Button

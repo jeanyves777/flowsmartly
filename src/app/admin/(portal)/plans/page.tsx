@@ -66,9 +66,10 @@ export default function AdminPlansPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Edit modal
+  // Edit/Create modal
   const [editPlan, setEditPlan] = useState<PlanAdmin | null>(null);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [newFeature, setNewFeature] = useState("");
@@ -125,49 +126,81 @@ export default function AdminPlansPage() {
     setSaveMessage(null);
   };
 
+  const openCreate = () => {
+    setEditPlan(null);
+    setIsCreating(true);
+    setEditForm({
+      name: "",
+      description: "",
+      monthlyCredits: "0",
+      priceCentsMonthly: "0",
+      priceCentsYearly: "0",
+      stripePriceIdMonthly: "",
+      stripePriceIdYearly: "",
+      stripeProductId: "",
+      features: [],
+      isPopular: false,
+      isActive: true,
+      sortOrder: String(plans.length + 1),
+      color: "#f97316",
+    });
+    setSaveMessage(null);
+  };
+
   const closeEdit = () => {
     setEditPlan(null);
     setEditForm(null);
+    setIsCreating(false);
     setSaveMessage(null);
     setNewFeature("");
   };
 
   const handleSave = async () => {
-    if (!editPlan || !editForm) return;
+    if (!editForm) return;
+    if (!editPlan && !isCreating) return;
+
+    if (!editForm.name.trim()) {
+      setSaveMessage("Plan name is required");
+      return;
+    }
+
     setIsSaving(true);
     setSaveMessage(null);
 
     try {
+      const payload = {
+        ...(editPlan ? { id: editPlan.id } : {}),
+        ...(isCreating ? { planId: editForm.name.toUpperCase().replace(/\s+/g, "_") } : {}),
+        name: editForm.name,
+        description: editForm.description || null,
+        monthlyCredits: parseInt(editForm.monthlyCredits, 10),
+        priceCentsMonthly: parseInt(editForm.priceCentsMonthly, 10),
+        priceCentsYearly: parseInt(editForm.priceCentsYearly, 10),
+        stripePriceIdMonthly: editForm.stripePriceIdMonthly || null,
+        stripePriceIdYearly: editForm.stripePriceIdYearly || null,
+        stripeProductId: editForm.stripeProductId || null,
+        features: editForm.features,
+        isPopular: editForm.isPopular,
+        isActive: editForm.isActive,
+        sortOrder: parseInt(editForm.sortOrder, 10),
+        color: editForm.color,
+      };
+
       const res = await fetch("/api/admin/plans", {
-        method: "PUT",
+        method: isCreating ? "POST" : "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: editPlan.id,
-          name: editForm.name,
-          description: editForm.description || null,
-          monthlyCredits: parseInt(editForm.monthlyCredits, 10),
-          priceCentsMonthly: parseInt(editForm.priceCentsMonthly, 10),
-          priceCentsYearly: parseInt(editForm.priceCentsYearly, 10),
-          stripePriceIdMonthly: editForm.stripePriceIdMonthly || null,
-          stripePriceIdYearly: editForm.stripePriceIdYearly || null,
-          stripeProductId: editForm.stripeProductId || null,
-          features: editForm.features,
-          isPopular: editForm.isPopular,
-          isActive: editForm.isActive,
-          sortOrder: parseInt(editForm.sortOrder, 10),
-          color: editForm.color,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (json.success) {
-        setSaveMessage("Plan updated successfully!");
+        setSaveMessage(isCreating ? "Plan created successfully!" : "Plan updated successfully!");
         fetchPlans(true);
         setTimeout(() => closeEdit(), 1000);
       } else {
-        setSaveMessage(json.error?.message || "Failed to update plan");
+        setSaveMessage(json.error?.message || `Failed to ${isCreating ? "create" : "update"} plan`);
       }
     } catch {
-      setSaveMessage("Failed to update plan");
+      setSaveMessage(`Failed to ${isCreating ? "create" : "update"} plan`);
     } finally {
       setIsSaving(false);
     }
@@ -231,15 +264,25 @@ export default function AdminPlansPage() {
             Manage subscription plans, credits, pricing, and Stripe integration
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => fetchPlans(true)}
-          disabled={isRefreshing}
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchPlans(true)}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+          <Button
+            size="sm"
+            className="bg-orange-500 hover:bg-orange-600 text-white"
+            onClick={openCreate}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Create Plan
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -384,13 +427,13 @@ export default function AdminPlansPage() {
       </div>
 
       {/* Edit Modal */}
-      {editPlan && editForm && (
+      {(editPlan || isCreating) && editForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-background rounded-xl border shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto m-4">
             <div className="flex items-center justify-between px-5 py-3 border-b">
               <h2 className="font-semibold flex items-center gap-2">
                 <Edit2 className="w-4 h-4 text-brand-500" />
-                Edit {editPlan.name} Plan
+                {isCreating ? "Create New Plan" : `Edit ${editPlan?.name} Plan`}
               </h2>
               <button onClick={closeEdit} className="p-1 rounded hover:bg-muted">
                 <X className="w-4 h-4" />
@@ -614,7 +657,7 @@ export default function AdminPlansPage() {
                 {isSaving ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
                 ) : (
-                  <><Save className="w-4 h-4 mr-2" /> Save Changes</>
+                  <><Save className="w-4 h-4 mr-2" /> {isCreating ? "Create Plan" : "Save Changes"}</>
                 )}
               </Button>
             </div>

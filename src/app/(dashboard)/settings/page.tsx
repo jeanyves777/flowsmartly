@@ -343,7 +343,6 @@ export default function SettingsPage() {
         setPaymentMethods(data.data.paymentMethods || []);
       }
     } catch (err) {
-      console.error("Failed to fetch payment methods:", err);
     } finally {
       setPaymentMethodsLoading(false);
     }
@@ -360,8 +359,7 @@ export default function SettingsPage() {
         return methods;
       }
       return [];
-    } catch (err) {
-      console.error("Failed to fetch payment methods:", err);
+    } catch {
       return [];
     }
   }, []);
@@ -383,7 +381,7 @@ export default function SettingsPage() {
           setCreditPackages(data.data.creditPackages);
         }
       } catch (err) {
-        console.error("Failed to fetch packages:", err);
+        // Silently fail - UI shows loading state
       } finally {
         setPackagesLoading(false);
       }
@@ -534,8 +532,6 @@ export default function SettingsPage() {
       const brandRes = await fetch("/api/brand");
       const brandData = await brandRes.json();
 
-      console.log("Brand API response:", JSON.stringify(brandData, null, 2));
-
       if (!brandData.success || !brandData.data?.brandKit) {
         toast({
           title: "No Brand Identity Found",
@@ -546,9 +542,6 @@ export default function SettingsPage() {
       }
 
       const brandKit = brandData.data.brandKit;
-      console.log("Brand Kit - description:", brandKit.description);
-      console.log("Brand Kit - website:", brandKit.website);
-      console.log("Brand Kit - logo:", brandKit.logo, "iconLogo:", brandKit.iconLogo);
 
       const updates: { bio?: string; website?: string; avatarUrl?: string } = {};
 
@@ -564,10 +557,6 @@ export default function SettingsPage() {
         updates.avatarUrl = brandKit.iconLogo || brandKit.logo;
       }
 
-      console.log("Updates to apply - bio:", updates.bio);
-      console.log("Updates to apply - website:", updates.website);
-      console.log("Updates to apply - avatarUrl:", updates.avatarUrl);
-
       if (Object.keys(updates).length === 0) {
         toast({
           title: "Nothing to Sync",
@@ -578,7 +567,6 @@ export default function SettingsPage() {
       }
 
       // Save to database
-      console.log("Saving to profile - bio:", updates.bio, "website:", updates.website);
       const saveRes = await fetch("/api/users/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -586,14 +574,12 @@ export default function SettingsPage() {
       });
 
       const saveData = await saveRes.json();
-      console.log("Save response success:", saveData.success);
 
       if (!saveData.success) {
         throw new Error(saveData.error?.message || "Failed to save");
       }
 
       // Update local state
-      console.log("Updating local profile state with:", updates);
       setProfile((prev) => ({
         ...prev,
         bio: updates.bio || prev.bio,

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Metadata } from "next";
 import { prisma } from "@/lib/db/client";
 import { resolveTheme, type ResolvedTheme } from "@/lib/store/theme-utils";
+import { formatPrice } from "@/lib/store/currency";
 import { ProductCard, type ProductCardData } from "@/components/store/product-card";
 import { HeroSlideshow, HeroVideo } from "@/components/store/hero-media";
 
@@ -688,13 +689,6 @@ export default async function StorePage({ params, searchParams }: StorePageProps
     .filter((p) => p.comparePriceCents !== null && p.comparePriceCents > p.priceCents)
     .slice(0, 8);
 
-  function formatPrice(cents: number, currency: string) {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      minimumFractionDigits: 2,
-    }).format(cents / 100);
-  }
 
   // Spacing classes based on theme
   const spacingGap = theme.layout.spacing === "compact" ? "gap-4" : theme.layout.spacing === "spacious" ? "gap-8" : "gap-6";

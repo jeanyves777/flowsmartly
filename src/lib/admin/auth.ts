@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { cookies } from "next/headers";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
@@ -6,6 +7,59 @@ import { auditAdmin, AuditAction, AuditCategory, AuditSeverity, auditLog } from 
 
 // Cookie name for admin session
 const ADMIN_TOKEN_COOKIE = "admin_token";
+
+// Login rate limiting (in-memory, resets on server restart)
+const loginAttempts = new Map<string, { count: number; lastAttempt: number; lockedUntil?: number }>();
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const ATTEMPT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkRateLimit(key: string): { allowed: boolean; retryAfterSeconds?: number } {
+  const now = Date.now();
+  const entry = loginAttempts.get(key);
+
+  if (!entry) return { allowed: true };
+
+  // Check lockout
+  if (entry.lockedUntil && now < entry.lockedUntil) {
+    return { allowed: false, retryAfterSeconds: Math.ceil((entry.lockedUntil - now) / 1000) };
+  }
+
+  // Reset if window expired
+  if (now - entry.lastAttempt > ATTEMPT_WINDOW_MS) {
+    loginAttempts.delete(key);
+    return { allowed: true };
+  }
+
+  if (entry.count >= MAX_LOGIN_ATTEMPTS) {
+    entry.lockedUntil = now + LOCKOUT_DURATION_MS;
+    return { allowed: false, retryAfterSeconds: Math.ceil(LOCKOUT_DURATION_MS / 1000) };
+  }
+
+  return { allowed: true };
+}
+
+function recordFailedAttempt(key: string): void {
+  const now = Date.now();
+  const entry = loginAttempts.get(key) || { count: 0, lastAttempt: now };
+  entry.count += 1;
+  entry.lastAttempt = now;
+  loginAttempts.set(key, entry);
+}
+
+function clearAttempts(key: string): void {
+  loginAttempts.delete(key);
+}
+
+/** Clean expired entries periodically (every 30 min) */
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of loginAttempts.entries()) {
+    if (now - entry.lastAttempt > ATTEMPT_WINDOW_MS) {
+      loginAttempts.delete(key);
+    }
+  }
+}, 30 * 60 * 1000);
 
 // Cookie options
 const COOKIE_OPTIONS = {
@@ -152,14 +206,32 @@ export async function adminLogin(
   password: string,
   ipAddress?: string,
   userAgent?: string
-): Promise<{ success: boolean; error?: string; admin?: AdminSession["admin"] }> {
+): Promise<{ success: boolean; error?: string; retryAfterSeconds?: number; admin?: AdminSession["admin"] }> {
   try {
+    // Rate limit by IP and email
+    const rateLimitKey = ipAddress || email.toLowerCase();
+    const rateCheck = checkRateLimit(rateLimitKey);
+    if (!rateCheck.allowed) {
+      await auditLog({
+        action: AuditAction.LOGIN_FAILED,
+        category: AuditCategory.ADMIN,
+        severity: AuditSeverity.WARNING,
+        metadata: { email, reason: "Rate limited", ipAddress },
+      });
+      return {
+        success: false,
+        error: `Too many login attempts. Try again in ${Math.ceil((rateCheck.retryAfterSeconds || 900) / 60)} minutes.`,
+        retryAfterSeconds: rateCheck.retryAfterSeconds,
+      };
+    }
+
     // Find admin
     const admin = await prisma.adminUser.findUnique({
       where: { email: email.toLowerCase() },
     });
 
     if (!admin) {
+      recordFailedAttempt(rateLimitKey);
       await auditLog({
         action: AuditAction.LOGIN_FAILED,
         category: AuditCategory.ADMIN,
@@ -170,6 +242,7 @@ export async function adminLogin(
     }
 
     if (!admin.isActive) {
+      recordFailedAttempt(rateLimitKey);
       await auditLog({
         action: AuditAction.LOGIN_FAILED,
         category: AuditCategory.ADMIN,
@@ -183,6 +256,7 @@ export async function adminLogin(
     // Verify password
     const isValid = await verifyPassword(password, admin.passwordHash);
     if (!isValid) {
+      recordFailedAttempt(rateLimitKey);
       await auditLog({
         action: AuditAction.LOGIN_FAILED,
         category: AuditCategory.ADMIN,
@@ -192,6 +266,9 @@ export async function adminLogin(
       });
       return { success: false, error: "Invalid credentials" };
     }
+
+    // Clear rate limit on success
+    clearAttempts(rateLimitKey);
 
     // Create session
     const token = nanoid(64);
@@ -329,6 +406,36 @@ export function hasPermission(session: AdminSession | null, permission: string):
   if (!session) return false;
   if (session.admin.isSuperAdmin) return true;
   return session.admin.permissions.includes(permission);
+}
+
+/**
+ * Require a specific permission, returning a 403 response if denied.
+ * Usage: const denied = requirePermission(session, "EDIT_USERS"); if (denied) return denied;
+ */
+export function requirePermission(session: AdminSession | null, permission: string): Response | null {
+  if (!session) {
+    return NextResponse.json(
+      { success: false, error: { message: "Unauthorized" } },
+      { status: 401 }
+    );
+  }
+  if (!hasPermission(session, permission)) {
+    return NextResponse.json(
+      { success: false, error: { message: "Insufficient permissions" } },
+      { status: 403 }
+    );
+  }
+  return null;
+}
+
+/**
+ * Clean up expired admin sessions from the database
+ */
+export async function cleanExpiredSessions(): Promise<number> {
+  const result = await prisma.adminSession.deleteMany({
+    where: { expiresAt: { lt: new Date() } },
+  });
+  return result.count;
 }
 
 /**

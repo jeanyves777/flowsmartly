@@ -164,9 +164,11 @@ export async function GET(request: NextRequest) {
       const date = new Date(pv.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" });
       const existing = dayMap.get(date) || { visitors: 0, pageViews: 0, sessions: 0 };
       existing.pageViews += pv._count.id;
-      // Estimate visitors as ~70% of page views (rough approximation)
-      existing.visitors = Math.round(existing.pageViews * 0.7);
-      existing.sessions = Math.round(existing.pageViews * 0.5);
+      // Estimate daily visitors proportionally from total visitors/pageViews ratio
+      const visitorRatio = totalPageViews > 0 ? totalVisitors / totalPageViews : 0.7;
+      const sessionRatio = totalPageViews > 0 ? totalSessions / totalPageViews : 0.5;
+      existing.visitors = Math.round(existing.pageViews * visitorRatio);
+      existing.sessions = Math.round(existing.pageViews * sessionRatio);
       dayMap.set(date, existing);
     });
 
@@ -200,9 +202,9 @@ export async function GET(request: NextRequest) {
       path: page.path,
       title: page.title || page.path,
       views: page._count.id,
-      uniqueVisitors: Math.round(page._count.id * 0.7), // Estimate unique visitors
+      uniqueVisitors: Math.round(page._count.id * (totalPageViews > 0 ? totalVisitors / totalPageViews : 0.7)),
       avgTime: Math.round(page._avg.timeOnPage || 0),
-      bounceRate: Math.round(Math.random() * 40 + 20), // Placeholder until proper calculation
+      bounceRate, // Use the overall calculated bounce rate
     }));
 
     // Process device stats

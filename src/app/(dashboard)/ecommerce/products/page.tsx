@@ -22,6 +22,7 @@ import { AIProductGeneratorModal } from "@/components/ecommerce/ai-product-gener
 import { PromoteProductModal } from "@/components/ecommerce/promote-product-modal";
 import { PageLoader } from "@/components/shared/page-loader";
 import { useToast } from "@/hooks/use-toast";
+import { formatPrice } from "@/lib/store/currency";
 
 // ── Types ──
 
@@ -55,10 +56,6 @@ interface CategoryOption {
 }
 
 // ── Helpers ──
-
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
@@ -100,6 +97,7 @@ export default function ProductsListPage() {
   // AI Product Generator
   const [showAIGenerator, setShowAIGenerator] = useState(false);
   const [promoteProductId, setPromoteProductId] = useState<string | null>(null);
+  const [storeCurrency, setStoreCurrency] = useState("USD");
 
   // Fetch stats
   const fetchStats = useCallback(async () => {
@@ -172,6 +170,18 @@ export default function ProductsListPage() {
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+
+  // Fetch store currency
+  useEffect(() => {
+    fetch("/api/ecommerce/store")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.data?.store?.currency) {
+          setStoreCurrency(json.data.store.currency);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetchStats();
@@ -391,9 +401,9 @@ export default function ProductsListPage() {
 
                       {/* Price */}
                       <td className="px-4 py-3">
-                        <p className="text-sm font-medium text-foreground">{formatPrice(product.priceCents)}</p>
+                        <p className="text-sm font-medium text-foreground">{formatPrice(product.priceCents, storeCurrency)}</p>
                         {product.comparePriceCents && (
-                          <p className="text-xs text-muted-foreground line-through">{formatPrice(product.comparePriceCents)}</p>
+                          <p className="text-xs text-muted-foreground line-through">{formatPrice(product.comparePriceCents, storeCurrency)}</p>
                         )}
                       </td>
 
@@ -525,7 +535,7 @@ export default function ProductsListPage() {
           fetchProducts();
           fetchStats();
         }}
-        storeCurrency="USD"
+        storeCurrency={storeCurrency}
       />
 
       {/* Promote Product Modal */}

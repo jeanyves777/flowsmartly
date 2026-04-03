@@ -24,6 +24,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { formatPrice } from "@/lib/store/currency";
 
 interface RevenuePoint {
   date: string;
@@ -81,14 +82,6 @@ const STATUS_COLORS: Record<string, string> = {
   REFUNDED: "#6b7280",
 };
 
-function formatCurrency(cents: number, currency = "USD") {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
-}
-
 function formatDateLabel(dateStr: string) {
   const d = new Date(dateStr);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -125,7 +118,7 @@ function RevenueTooltip({ active, payload, label }: any) {
     <div className="rounded-lg border bg-card p-3 shadow-md text-sm">
       <p className="font-medium mb-1">{formatDateLabel(label)}</p>
       <p className="text-blue-600">
-        Revenue: {formatCurrency(payload[0]?.value * 100 || 0)}
+        Revenue: {formatPrice(payload[0]?.value * 100 || 0)}
       </p>
       <p className="text-purple-600">
         Orders: {payload[1]?.value ?? 0}
@@ -211,7 +204,7 @@ export default function EcommerceAnalyticsPage() {
   const stats = [
     {
       label: "Total Revenue",
-      value: formatCurrency(summary.totalRevenueCents, currency),
+      value: formatPrice(summary.totalRevenueCents, currency),
       icon: DollarSign,
       color: "text-green-600 bg-green-100",
       change: summary.revenueChange,
@@ -225,7 +218,7 @@ export default function EcommerceAnalyticsPage() {
     },
     {
       label: "Avg Order Value",
-      value: formatCurrency(summary.averageOrderValueCents, currency),
+      value: formatPrice(summary.averageOrderValueCents, currency),
       icon: TrendingUp,
       color: "text-blue-600 bg-blue-100",
       change: null,
@@ -361,7 +354,7 @@ export default function EcommerceAnalyticsPage() {
                       </td>
                       <td className="p-3 text-right tabular-nums">{product.orderCount}</td>
                       <td className="p-3 text-right tabular-nums">
-                        {formatCurrency(product.revenueCents, currency)}
+                        {formatPrice(product.revenueCents, currency)}
                       </td>
                       <td className="p-3 text-right tabular-nums text-muted-foreground">
                         {product.viewCount}

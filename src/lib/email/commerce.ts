@@ -5,14 +5,7 @@
 
 import { sendEmail } from "./index";
 import { baseTemplate } from "./index";
-
-function formatCents(cents: number, currency: string): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
-}
+import { formatPrice as formatCents } from "@/lib/store/currency";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 

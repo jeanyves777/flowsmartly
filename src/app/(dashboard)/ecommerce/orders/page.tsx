@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { ORDER_STATUSES } from "@/lib/constants/ecommerce";
 import { PageLoader } from "@/components/shared/page-loader";
+import { formatPrice } from "@/lib/store/currency";
 
 interface Order {
   id: string;
@@ -43,14 +44,6 @@ interface Stats {
 
 const PAYMENT_STATUS_OPTIONS = ["pending", "paid", "failed", "refunded"];
 const PAYMENT_METHOD_OPTIONS = ["card", "mobile_money", "cod", "bank_transfer"];
-
-function formatCents(cents: number, currency = "USD"): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
-}
 
 function StatusBadge({ status, type = "order" }: { status: string; type?: "order" | "payment" }) {
   if (type === "order") {
@@ -89,6 +82,7 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [storeCurrency, setStoreCurrency] = useState("USD");
 
   // Filters
   const [statusFilter, setStatusFilter] = useState("");
@@ -127,6 +121,18 @@ export default function OrdersPage() {
     }
   }, [page, statusFilter, paymentStatusFilter, paymentMethodFilter, search, dateFrom, dateTo]);
 
+  // Fetch store currency
+  useEffect(() => {
+    fetch("/api/ecommerce/store")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.data?.store?.currency) {
+          setStoreCurrency(json.data.store.currency);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
@@ -163,7 +169,7 @@ export default function OrdersPage() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Revenue</p>
-              <p className="text-2xl font-bold text-foreground">{formatCents(stats.totalRevenueCents)}</p>
+              <p className="text-2xl font-bold text-foreground">{formatPrice(stats.totalRevenueCents, storeCurrency)}</p>
             </div>
           </div>
         </div>
@@ -300,7 +306,7 @@ export default function OrdersPage() {
                         {order.items.length} {order.items.length === 1 ? "item" : "items"}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-foreground">
-                        {formatCents(order.totalCents, order.currency)}
+                        {formatPrice(order.totalCents, order.currency)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <StatusBadge status={order.status} type="order" />

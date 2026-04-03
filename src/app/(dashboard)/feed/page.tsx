@@ -769,12 +769,22 @@ export default function FeedPage() {
   // Cleanup timers on unmount
   useEffect(() => {
     return () => {
-      if (adViewTimerRef.current) clearInterval(adViewTimerRef.current);
-      if (adRedirectTimerRef.current) clearInterval(adRedirectTimerRef.current);
+      if (adViewTimerRef.current) {
+        clearInterval(adViewTimerRef.current);
+        adViewTimerRef.current = null;
+      }
+      if (adRedirectTimerRef.current) {
+        clearInterval(adRedirectTimerRef.current);
+        adRedirectTimerRef.current = null;
+      }
       if (visibilityHandlerRef.current) {
         document.removeEventListener("visibilitychange", visibilityHandlerRef.current);
+        visibilityHandlerRef.current = null;
       }
       promotedTimersRef.current.forEach(timer => clearTimeout(timer));
+      promotedTimersRef.current.clear();
+      focusedTimeRef.current = 0;
+      focusPauseTimeRef.current = 0;
     };
   }, []);
 

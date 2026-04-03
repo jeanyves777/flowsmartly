@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 
     const store = await prisma.store.findUnique({
       where: { userId: session.userId },
-      select: { id: true },
+      select: { id: true, currency: true },
     });
     if (!store) {
       return NextResponse.json(
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Get AI suggestion
-        const suggestion = await getAIPricingSuggestion(productId);
+        const suggestion = await getAIPricingSuggestion(productId, store.currency);
         if (!suggestion) {
           return NextResponse.json(
             { success: false, error: { code: "SUGGESTION_FAILED", message: "Failed to generate pricing suggestion" } },

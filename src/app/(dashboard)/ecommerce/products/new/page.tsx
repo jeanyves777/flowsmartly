@@ -19,6 +19,7 @@ import {
   Scissors,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { toCents, fromCents } from "@/lib/store/currency";
 
 // ── Types ──
 
@@ -48,16 +49,6 @@ interface CategoryOption {
 }
 
 // ── Helpers ──
-
-function centsFromDollars(val: string): number {
-  const num = parseFloat(val);
-  if (isNaN(num) || num < 0) return 0;
-  return Math.round(num * 100);
-}
-
-function dollarsFromCents(cents: number): string {
-  return (cents / 100).toFixed(2);
-}
 
 let tempIdCounter = 0;
 function nextTempId(): string {
@@ -197,7 +188,7 @@ export default function NewProductPage() {
         tempId: nextTempId(),
         name: "",
         sku: "",
-        priceCents: centsFromDollars(priceStr),
+        priceCents: toCents(priceStr),
         comparePriceCents: null,
         options: {},
         quantity: 0,
@@ -397,7 +388,7 @@ export default function NewProductPage() {
       toast({ title: "Product name must be at least 2 characters", variant: "destructive" });
       return;
     }
-    const priceCents = centsFromDollars(priceStr);
+    const priceCents = toCents(priceStr);
     if (priceCents <= 0) {
       toast({ title: "Price must be greater than zero", variant: "destructive" });
       return;
@@ -405,8 +396,8 @@ export default function NewProductPage() {
 
     setSaving(true);
     try {
-      const comparePriceCents = comparePriceStr ? centsFromDollars(comparePriceStr) : undefined;
-      const costCents = costPriceStr ? centsFromDollars(costPriceStr) : undefined;
+      const comparePriceCents = comparePriceStr ? toCents(comparePriceStr) : undefined;
+      const costCents = costPriceStr ? toCents(costPriceStr) : undefined;
 
       const payload: Record<string, unknown> = {
         name: name.trim(),
@@ -859,8 +850,8 @@ export default function NewProductPage() {
                             type="number"
                             step="0.01"
                             min="0.01"
-                            value={dollarsFromCents(v.priceCents)}
-                            onChange={(e) => updateVariant(v.tempId, "priceCents", centsFromDollars(e.target.value))}
+                            value={fromCents(v.priceCents)}
+                            onChange={(e) => updateVariant(v.tempId, "priceCents", toCents(e.target.value))}
                             className="w-24 px-2 py-1.5 border border-border rounded text-sm outline-none focus:ring-1 focus:ring-brand-500"
                           />
                         </td>

@@ -25,7 +25,6 @@ export async function GET() {
       usersPreviousMonth,
       totalPosts,
       postsLastMonth,
-      totalPageViews,
       pageViewsLastMonth,
       pageViewsPreviousMonth,
       activeVisitors,
@@ -55,11 +54,9 @@ export async function GET() {
       prisma.post.count({
         where: { createdAt: { gte: thirtyDaysAgo }, deletedAt: null },
       }),
-      // Total page views (last 30 days)
-      prisma.pageView.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
       // Page views last 30 days
       prisma.pageView.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
-      // Page views previous 30 days
+      // Page views previous 30 days (for comparison)
       prisma.pageView.count({
         where: { createdAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
       }),
@@ -122,6 +119,17 @@ export async function GET() {
       ? ((pageViewsLastMonth - pageViewsPreviousMonth) / pageViewsPreviousMonth) * 100
       : pageViewsLastMonth > 0 ? 100 : 0;
 
+    // Posts growth: compare last 30 days vs previous 30 days
+    const postsPreviousMonth = await prisma.post.count({
+      where: {
+        createdAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
+        deletedAt: null,
+      },
+    });
+    const postsGrowth = postsPreviousMonth > 0
+      ? ((postsLastMonth - postsPreviousMonth) / postsPreviousMonth) * 100
+      : postsLastMonth > 0 ? 100 : 0;
+
     const currentRevenue = revenueLastMonth._sum.amountCents || 0;
     const previousRevenue = revenuePreviousMonth._sum.amountCents || 0;
     const revenueGrowth = previousRevenue > 0
@@ -175,9 +183,38 @@ export async function GET() {
         : 0,
     }));
 
+    // System health check
+    let dbStatus = "Connected";
+    let dbLatencyMs = 0;
+    try {
+      const dbStart = Date.now();
+      await prisma.$queryRaw`SELECT 1`;
+      dbLatencyMs = Date.now() - dbStart;
+      if (dbLatencyMs > 1000) dbStatus = "Slow";
+    } catch {
+      dbStatus = "Disconnected";
+    }
+
+    // Storage: count media files and total size
+    let storageUsed = 0;
+    let storageStatus = "OK";
+    try {
+      const storageAgg = await prisma.mediaFile.aggregate({ _sum: { size: true } });
+      storageUsed = storageAgg._sum.size || 0;
+      const storageGB = storageUsed / (1024 * 1024 * 1024);
+      if (storageGB > 50) storageStatus = "Warning";
+    } catch {
+      storageStatus = "Unknown";
+    }
+
     return NextResponse.json({
       success: true,
       data: {
+        systemHealth: {
+          database: { status: dbStatus, latencyMs: dbLatencyMs },
+          storage: { status: storageStatus, usedBytes: storageUsed },
+          api: { status: "Online" },
+        },
         stats: {
           totalUsers,
           userGrowth: Math.round(userGrowth * 10) / 10,
@@ -185,7 +222,7 @@ export async function GET() {
           totalPageViews: pageViewsLastMonth,
           pageViewGrowth: Math.round(pageViewGrowth * 10) / 10,
           totalPosts,
-          postsGrowth: 0,
+          postsGrowth: Math.round(postsGrowth * 10) / 10,
           totalRevenue: (totalRevenue._sum.amountCents || 0) / 100,
           revenueGrowth: Math.round(revenueGrowth * 10) / 10,
           activeVisitors,

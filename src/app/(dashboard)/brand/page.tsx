@@ -220,7 +220,6 @@ export default function BrandIdentityPage() {
         setHasSetup(data.data.hasSetup);
       }
     } catch (error) {
-      console.error("Failed to fetch brand identity:", error);
     } finally {
       setIsLoading(false);
     }
@@ -251,17 +250,6 @@ export default function BrandIdentityPage() {
         address: formData.address || null,
       };
 
-      // Debug: Log what we're saving
-      console.log("Saving brand data (cleaned):", {
-        name: cleanData.name,
-        description: cleanData.description,
-        website: cleanData.website,
-        logo: cleanData.logo,
-        iconLogo: cleanData.iconLogo,
-        industry: cleanData.industry,
-        voiceTone: cleanData.voiceTone,
-      });
-
       const response = await fetch("/api/brand", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -269,7 +257,6 @@ export default function BrandIdentityPage() {
       });
 
       const data = await response.json();
-      console.log("Brand save response:", data);
 
       if (data.success) {
         setHasSetup(data.data.brandKit.isComplete);
@@ -299,10 +286,8 @@ export default function BrandIdentityPage() {
           description: "Your brand settings have been updated. AI will now use these for content generation.",
         });
       } else {
-        console.error("Brand save failed:", data.error);
         // Show validation errors if available
         if (data.error?.details) {
-          console.error("Validation errors:", data.error.details);
           toast({
             title: "Validation Error",
             description: JSON.stringify(data.error.details),
@@ -312,7 +297,6 @@ export default function BrandIdentityPage() {
         throw new Error(data.error?.message || "Failed to save");
       }
     } catch (error) {
-      console.error("Brand save error:", error);
       toast({
         title: "Save failed",
         description: error instanceof Error ? error.message : "Please try again",

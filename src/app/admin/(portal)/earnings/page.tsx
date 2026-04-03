@@ -113,6 +113,18 @@ export default function EarningsPage() {
     }).format(amount);
   };
 
+  const exportCSV = (data: any[], filename: string) => {
+    if (!data.length) return;
+    const headers = Object.keys(data[0]).join(',');
+    const rows = data.map(row => Object.values(row).map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+    const csv = [headers, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (error && transactions.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -150,7 +162,7 @@ export default function EarningsPage() {
             <option value="90d">Last 90 days</option>
             <option value="1y">Last year</option>
           </select>
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => exportCSV(transactions, "earnings-transactions.csv")}>
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
@@ -405,10 +417,10 @@ export default function EarningsPage() {
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label: "Avg. Order Value", value: stats.totalRevenue > 0 && transactions.length > 0 ? formatCurrency(stats.totalRevenue / transactions.length) : "$0" },
-                  { label: "Conversion Rate", value: "N/A" },
-                  { label: "Churn Rate", value: "N/A" },
-                  { label: "LTV", value: "N/A" },
+                  { label: "Avg. Order Value", value: stats.activeSubscriptions > 0 ? formatCurrency(stats.totalRevenue / stats.activeSubscriptions) : "\u2014" },
+                  { label: "Conversion Rate", value: "\u2014" },
+                  { label: "Churn Rate", value: "\u2014" },
+                  { label: "LTV", value: "\u2014" },
                 ].map((item) => (
                   <div
                     key={item.label}

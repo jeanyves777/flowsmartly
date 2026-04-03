@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { getSession } from "@/lib/auth/session";
+import { getAdminSession } from "@/lib/admin/auth";
 import { clearPricingCache } from "@/lib/credits/costs";
 
 // Default credit pricing configuration (used to seed database)
@@ -50,8 +50,8 @@ const DEFAULT_PRICING: {
 // GET /api/admin/credit-pricing - List all credit pricing
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session?.adminId) {
+    const session = await getAdminSession();
+    if (!session) {
       return NextResponse.json(
         { success: false, error: { message: "Admin access required" } },
         { status: 403 }
@@ -94,8 +94,8 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/credit-pricing - Seed default pricing or create new
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session?.adminId) {
+    const session = await getAdminSession();
+    if (!session) {
       return NextResponse.json(
         { success: false, error: { message: "Admin access required" } },
         { status: 403 }
@@ -183,8 +183,8 @@ export async function POST(request: NextRequest) {
 // PUT /api/admin/credit-pricing - Update pricing
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session?.adminId) {
+    const session = await getAdminSession();
+    if (!session) {
       return NextResponse.json(
         { success: false, error: { message: "Admin access required" } },
         { status: 403 }
@@ -235,8 +235,8 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/admin/credit-pricing - Delete pricing (soft delete by setting isActive=false)
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session?.adminId) {
+    const session = await getAdminSession();
+    if (!session) {
       return NextResponse.json(
         { success: false, error: { message: "Admin access required" } },
         { status: 403 }

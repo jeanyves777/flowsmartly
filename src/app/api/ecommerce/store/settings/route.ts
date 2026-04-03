@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { presignAllUrls } from "@/lib/utils/s3-client";
+import { isValidCurrency } from "@/lib/store/currency";
 
 const updateSettingsSchema = z.object({
   name: z.string().min(2).max(100).optional(),
@@ -67,7 +68,15 @@ export async function PATCH(request: NextRequest) {
     if (data.logoUrl !== undefined) updateData.logoUrl = data.logoUrl;
     if (data.bannerUrl !== undefined) updateData.bannerUrl = data.bannerUrl;
     if (data.industry !== undefined) updateData.industry = data.industry;
-    if (data.currency !== undefined) updateData.currency = data.currency;
+    if (data.currency !== undefined) {
+      if (!isValidCurrency(data.currency)) {
+        return NextResponse.json(
+          { success: false, error: { message: "Invalid currency code" } },
+          { status: 400 }
+        );
+      }
+      updateData.currency = data.currency.toUpperCase();
+    }
     if (data.theme !== undefined) updateData.theme = JSON.stringify(data.theme);
     if (data.settings !== undefined) updateData.settings = JSON.stringify(data.settings);
 

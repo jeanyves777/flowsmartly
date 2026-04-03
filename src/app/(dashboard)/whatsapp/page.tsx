@@ -272,7 +272,7 @@ function WhatsAppPageContent() {
                       variant="outline"
                       size="sm"
                       className="w-full text-green-600 border-green-500/50 hover:bg-green-500/10"
-                      onClick={goToSocialAccounts}
+                      onClick={() => setShowReconnectModal(true)}
                     >
                       <RefreshCw className="w-4 h-4 mr-2" />
                       Reconnect to Refresh Token

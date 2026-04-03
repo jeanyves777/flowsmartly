@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
@@ -28,6 +28,7 @@ import {
   UserMinus,
   TrendingUp,
   Users,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +36,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 
 type CampaignType = "email" | "sms";
@@ -77,8 +85,19 @@ const statusConfig: Record<CampaignStatus, { label: string; color: string; icon:
   paused: { label: "Paused", color: "bg-yellow-500/10 text-yellow-500", icon: Pause },
 };
 
+const statColorClasses: Record<string, { bg: string; text: string }> = {
+  blue: { bg: "bg-blue-500/10", text: "text-blue-500" },
+  green: { bg: "bg-green-500/10", text: "text-green-500" },
+  purple: { bg: "bg-purple-500/10", text: "text-purple-500" },
+  orange: { bg: "bg-orange-500/10", text: "text-orange-500" },
+  red: { bg: "bg-red-500/10", text: "text-red-500" },
+  yellow: { bg: "bg-yellow-500/10", text: "text-yellow-500" },
+  emerald: { bg: "bg-emerald-500/10", text: "text-emerald-500" },
+};
+
 export default function CampaignsPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   // Get initial tab from URL query parameter
@@ -219,6 +238,27 @@ export default function CampaignsPage() {
     } catch (err) {
       toast({
         title: err instanceof Error ? err.message : "Failed to update campaign",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDuplicate = async (campaign: Campaign) => {
+    try {
+      const response = await fetch(`/api/campaigns/${campaign.id}/duplicate`, {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error?.message || "Failed to duplicate campaign");
+      }
+
+      fetchCampaigns();
+      toast({ title: "Campaign duplicated" });
+    } catch (err) {
+      toast({
+        title: err instanceof Error ? err.message : "Failed to duplicate campaign",
         variant: "destructive",
       });
     }
@@ -385,8 +425,8 @@ export default function CampaignsPage() {
               <Card key={stat.label}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg bg-${stat.color}-500/10 flex items-center justify-center`}>
-                      <stat.icon className={`w-5 h-5 text-${stat.color}-500`} />
+                    <div className={`w-10 h-10 rounded-lg ${statColorClasses[stat.color]?.bg} flex items-center justify-center`}>
+                      <stat.icon className={`w-5 h-5 ${statColorClasses[stat.color]?.text}`} />
                     </div>
                     <div>
                       <p className="text-xl font-bold">{stat.value}</p>
@@ -435,8 +475,8 @@ export default function CampaignsPage() {
               <Card key={stat.label}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg bg-${stat.color}-500/10 flex items-center justify-center`}>
-                      <stat.icon className={`w-5 h-5 text-${stat.color}-500`} />
+                    <div className={`w-10 h-10 rounded-lg ${statColorClasses[stat.color]?.bg} flex items-center justify-center`}>
+                      <stat.icon className={`w-5 h-5 ${statColorClasses[stat.color]?.text}`} />
                     </div>
                     <div>
                       <p className="text-xl font-bold">{stat.value}</p>
@@ -676,7 +716,16 @@ export default function CampaignsPage() {
                           </Button>
                         )}
                         {campaign.status === "draft" && (
-                          <Button variant="ghost" size="icon">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              const route = campaign.type === "email"
+                                ? `/email-marketing/create?edit=${campaign.id}`
+                                : `/sms-marketing/create?edit=${campaign.id}`;
+                              router.push(route);
+                            }}
+                          >
                             <Edit2 className="w-4 h-4" />
                           </Button>
                         )}
@@ -689,9 +738,37 @@ export default function CampaignsPage() {
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link href={campaign.type === "email" ? `/email-marketing/${campaign.id}` : `/sms-marketing/${campaign.id}`}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                View Details
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDuplicate(campaign)}>
+                              <Copy className="w-4 h-4 mr-2" />
+                              Duplicate
+                            </DropdownMenuItem>
+                            {!["active", "sent"].includes(campaign.status) && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onClick={() => handleDelete(campaign.id)}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   </CardContent>

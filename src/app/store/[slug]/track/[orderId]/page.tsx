@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Banknote,
 } from "lucide-react";
+import { formatPrice } from "@/lib/store/currency";
 
 interface DeliveryInfo {
   order: {
@@ -96,13 +97,6 @@ export default function OrderTrackingPage({
     return () => clearInterval(interval);
   }, [data?.delivery?.status, orderId]);
 
-  function formatCurrency(cents: number, currency = "USD") {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      minimumFractionDigits: 2,
-    }).format(cents / 100);
-  }
 
   function formatDate(dateStr: string) {
     return new Date(dateStr).toLocaleString();
@@ -148,7 +142,7 @@ export default function OrderTrackingPage({
       <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-900 mb-8">
         <span className="text-sm text-gray-600 dark:text-gray-400">Order Total</span>
         <span className="text-lg font-bold">
-          {formatCurrency(data.order.totalCents, data.order.currency)}
+          {formatPrice(data.order.totalCents, data.order.currency)}
         </span>
       </div>
 
@@ -278,7 +272,7 @@ export default function OrderTrackingPage({
                 </div>
                 <div>
                   <p className="text-sm font-medium">
-                    COD: {formatCurrency(data.delivery.codAmountCents, data.order.currency)}
+                    COD: {formatPrice(data.delivery.codAmountCents, data.order.currency)}
                   </p>
                   <p className="text-xs text-gray-500">
                     {data.delivery.codCollected ? "Collected" : "Pending collection"}

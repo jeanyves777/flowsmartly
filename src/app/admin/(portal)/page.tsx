@@ -58,11 +58,18 @@ interface TopCountry {
   percentage: number;
 }
 
+interface SystemHealth {
+  database: { status: string; latencyMs: number };
+  storage: { status: string; usedBytes: number };
+  api: { status: string };
+}
+
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [topPages, setTopPages] = useState<TopPage[]>([]);
   const [topCountries, setTopCountries] = useState<TopCountry[]>([]);
+  const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +88,7 @@ export default function AdminDashboardPage() {
       setRecentActivity(data.data.recentActivity);
       setTopPages(data.data.topPages);
       setTopCountries(data.data.topCountries);
+      if (data.data.systemHealth) setSystemHealth(data.data.systemHealth);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
@@ -319,10 +327,21 @@ export default function AdminDashboardPage() {
                   <Cpu className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">Database</span>
                 </div>
-                <span className="text-sm font-medium text-green-500">Connected</span>
+                <span className={`text-sm font-medium ${
+                  systemHealth?.database.status === "Connected" ? "text-green-500"
+                    : systemHealth?.database.status === "Slow" ? "text-yellow-500"
+                    : "text-red-500"
+                }`}>
+                  {systemHealth?.database.status || "Checking..."}
+                  {systemHealth?.database.latencyMs ? ` (${systemHealth.database.latencyMs}ms)` : ""}
+                </span>
               </div>
               <div className="h-2 rounded-full overflow-hidden bg-muted">
-                <div className="h-full w-full bg-green-500 rounded-full" />
+                <div className={`h-full w-full rounded-full ${
+                  systemHealth?.database.status === "Connected" ? "bg-green-500"
+                    : systemHealth?.database.status === "Slow" ? "bg-yellow-500"
+                    : "bg-red-500"
+                }`} />
               </div>
             </div>
 
@@ -332,10 +351,23 @@ export default function AdminDashboardPage() {
                   <HardDrive className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">Storage</span>
                 </div>
-                <span className="text-sm font-medium text-green-500">OK</span>
+                <span className={`text-sm font-medium ${
+                  systemHealth?.storage.status === "OK" ? "text-green-500"
+                    : systemHealth?.storage.status === "Warning" ? "text-yellow-500"
+                    : "text-muted-foreground"
+                }`}>
+                  {systemHealth?.storage.status || "Checking..."}
+                  {systemHealth?.storage.usedBytes
+                    ? ` (${(systemHealth.storage.usedBytes / (1024 * 1024)).toFixed(1)} MB)`
+                    : ""}
+                </span>
               </div>
               <div className="h-2 rounded-full overflow-hidden bg-muted">
-                <div className="h-full w-[34%] bg-green-500 rounded-full" />
+                <div className={`h-full rounded-full ${
+                  systemHealth?.storage.status === "OK" ? "bg-green-500" : "bg-yellow-500"
+                }`} style={{ width: systemHealth?.storage.usedBytes
+                  ? `${Math.min(100, (systemHealth.storage.usedBytes / (50 * 1024 * 1024 * 1024)) * 100)}%`
+                  : "0%" }} />
               </div>
             </div>
 
@@ -345,14 +377,24 @@ export default function AdminDashboardPage() {
                   <Wifi className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">API Status</span>
                 </div>
-                <span className="text-sm font-medium text-green-500">Online</span>
+                <span className="text-sm font-medium text-green-500">
+                  {systemHealth?.api.status || "Checking..."}
+                </span>
               </div>
             </div>
 
             <div className="pt-4 border-t border-border">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">All systems operational</span>
-                <span className="w-2 h-2 rounded-full bg-green-500" />
+                <span className="text-sm text-muted-foreground">
+                  {systemHealth?.database.status === "Connected" &&
+                   systemHealth?.storage.status === "OK" &&
+                   systemHealth?.api.status === "Online"
+                    ? "All systems operational"
+                    : "Some systems need attention"}
+                </span>
+                <span className={`w-2 h-2 rounded-full ${
+                  systemHealth?.database.status === "Connected" ? "bg-green-500" : "bg-yellow-500"
+                }`} />
               </div>
             </div>
           </CardContent>

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db/client";
 import { resolveTheme } from "@/lib/store/theme-utils";
+import { formatPrice } from "@/lib/store/currency";
 import { CheckCircle, Package, Clock, ArrowRight } from "lucide-react";
 
 interface OrderConfirmationProps {
@@ -91,13 +92,6 @@ export default async function OrderConfirmationPage({
     }
   })();
 
-  function formatPrice(cents: number) {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: o.currency,
-      minimumFractionDigits: 2,
-    }).format(cents / 100);
-  }
 
   const isPaid = o.paymentStatus === "paid";
   const isCOD = o.paymentMethod === "cod";
@@ -155,7 +149,7 @@ export default async function OrderConfirmationPage({
                   )}
                 </div>
                 <span className="font-medium">
-                  {formatPrice(item.priceCents * item.quantity)}
+                  {formatPrice(item.priceCents * item.quantity, o.currency)}
                 </span>
               </div>
             ))}
@@ -168,22 +162,22 @@ export default async function OrderConfirmationPage({
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="opacity-60">Subtotal</span>
-              <span>{formatPrice(o.subtotalCents)}</span>
+              <span>{formatPrice(o.subtotalCents, o.currency)}</span>
             </div>
             <div className="flex justify-between">
               <span className="opacity-60">Shipping</span>
-              <span>{o.shippingCents > 0 ? formatPrice(o.shippingCents) : "Free"}</span>
+              <span>{o.shippingCents > 0 ? formatPrice(o.shippingCents, o.currency) : "Free"}</span>
             </div>
             {o.taxCents > 0 && (
               <div className="flex justify-between">
                 <span className="opacity-60">Tax</span>
-                <span>{formatPrice(o.taxCents)}</span>
+                <span>{formatPrice(o.taxCents, o.currency)}</span>
               </div>
             )}
             <div className="border-t pt-2 mt-2" style={{ borderColor: `${theme.colors.text}10` }}>
               <div className="flex justify-between font-semibold text-base">
                 <span>Total</span>
-                <span style={{ color: primaryColor }}>{formatPrice(o.totalCents)}</span>
+                <span style={{ color: primaryColor }}>{formatPrice(o.totalCents, o.currency)}</span>
               </div>
             </div>
           </div>
@@ -215,7 +209,7 @@ export default async function OrderConfirmationPage({
                 <div>
                   <p className="font-medium text-sm text-amber-700">Cash on Delivery</p>
                   <p className="text-xs opacity-50">
-                    Please have {formatPrice(o.totalCents)} ready at delivery
+                    Please have {formatPrice(o.totalCents, o.currency)} ready at delivery
                   </p>
                 </div>
               </>

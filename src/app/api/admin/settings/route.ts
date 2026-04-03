@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { prisma } from "@/lib/db/client";
 import { getAdminSession } from "@/lib/admin/auth";
 import { auditAdmin, AuditAction } from "@/lib/audit/logger";
@@ -216,7 +217,7 @@ export async function PUT(request: NextRequest) {
     if (action === "generateKey") {
       // Generate new API key
       const keyPrefix = process.env.NODE_ENV === "production" ? "fs_live_" : "fs_test_";
-      const apiKey = keyPrefix + [...Array(32)].map(() => Math.random().toString(36)[2]).join("");
+      const apiKey = keyPrefix + crypto.randomBytes(32).toString("hex");
 
       const keyData = {
         name: name || "API Key",

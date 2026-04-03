@@ -116,10 +116,5 @@ export function calculateShipping(
   return config.flatRateCents || 0;
 }
 
-export function formatCents(cents: number, currency: string): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
-}
+// Re-export from shared currency module for backward compatibility
+export { formatPrice as formatCents } from "@/lib/store/currency";

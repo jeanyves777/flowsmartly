@@ -34,13 +34,18 @@ export async function POST(request: NextRequest) {
     const result = await adminLogin(email, password, ipAddress, userAgent);
 
     if (!result.success) {
-      return NextResponse.json(
+      const status = result.retryAfterSeconds ? 429 : 401;
+      const response = NextResponse.json(
         {
           success: false,
           error: { message: result.error },
         },
-        { status: 401 }
+        { status }
       );
+      if (result.retryAfterSeconds) {
+        response.headers.set("Retry-After", String(result.retryAfterSeconds));
+      }
+      return response;
     }
 
     return NextResponse.json({

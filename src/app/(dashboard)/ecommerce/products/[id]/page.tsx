@@ -19,6 +19,7 @@ import {
   Scissors,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { toCents, fromCents } from "@/lib/store/currency";
 
 // ── Types ──
 
@@ -50,16 +51,6 @@ interface CategoryOption {
 }
 
 // ── Helpers ──
-
-function centsFromDollars(val: string): number {
-  const num = parseFloat(val);
-  if (isNaN(num) || num < 0) return 0;
-  return Math.round(num * 100);
-}
-
-function dollarsFromCents(cents: number): string {
-  return (cents / 100).toFixed(2);
-}
 
 let tempIdCounter = 0;
 function nextTempId(): string {
@@ -134,9 +125,9 @@ export default function EditProductPage() {
       setName(p.name);
       setDescription(p.description || "");
       setShortDescription(p.shortDescription || "");
-      setPriceStr(dollarsFromCents(p.priceCents));
-      setComparePriceStr(p.comparePriceCents ? dollarsFromCents(p.comparePriceCents) : "");
-      setCostPriceStr(p.costCents ? dollarsFromCents(p.costCents) : "");
+      setPriceStr(fromCents(p.priceCents));
+      setComparePriceStr(p.comparePriceCents ? fromCents(p.comparePriceCents) : "");
+      setCostPriceStr(p.costCents ? fromCents(p.costCents) : "");
       setImages((p.images || []).map((img: ImageItem) => ({ ...img, file: undefined, preview: undefined })));
       setTrackInventory(p.trackInventory);
       setQuantity(p.quantity);
@@ -260,7 +251,7 @@ export default function EditProductPage() {
         tempId: nextTempId(),
         name: "",
         sku: "",
-        priceCents: centsFromDollars(priceStr),
+        priceCents: toCents(priceStr),
         comparePriceCents: null,
         options: {},
         quantity: 0,
@@ -459,7 +450,7 @@ export default function EditProductPage() {
       toast({ title: "Product name must be at least 2 characters", variant: "destructive" });
       return;
     }
-    const priceCents = centsFromDollars(priceStr);
+    const priceCents = toCents(priceStr);
     if (priceCents <= 0) {
       toast({ title: "Price must be greater than zero", variant: "destructive" });
       return;
@@ -473,8 +464,8 @@ export default function EditProductPage() {
         await uploadNewImages();
       }
 
-      const comparePriceCents = comparePriceStr ? centsFromDollars(comparePriceStr) : null;
-      const costCents = costPriceStr ? centsFromDollars(costPriceStr) : null;
+      const comparePriceCents = comparePriceStr ? toCents(comparePriceStr) : null;
+      const costCents = costPriceStr ? toCents(costPriceStr) : null;
 
       // Build images array for existing (already uploaded) images only
       const existingImages = images
@@ -962,8 +953,8 @@ export default function EditProductPage() {
                             type="number"
                             step="0.01"
                             min="0.01"
-                            value={dollarsFromCents(v.priceCents)}
-                            onChange={(e) => updateVariant(v.tempId, "priceCents", centsFromDollars(e.target.value))}
+                            value={fromCents(v.priceCents)}
+                            onChange={(e) => updateVariant(v.tempId, "priceCents", toCents(e.target.value))}
                             className="w-24 px-2 py-1.5 border border-border rounded text-sm outline-none focus:ring-1 focus:ring-brand-500"
                           />
                         </td>

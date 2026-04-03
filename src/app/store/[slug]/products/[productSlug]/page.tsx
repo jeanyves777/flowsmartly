@@ -8,6 +8,7 @@ import { ProductRecommendations } from "@/components/store/product-recommendatio
 import { ImageGallery } from "@/components/store/image-gallery";
 import { deriveProductBadges } from "@/lib/store/product-badges";
 import { resolveTheme } from "@/lib/store/theme-utils";
+import { formatPrice } from "@/lib/store/currency";
 import { generateProductJsonLd, generateBreadcrumbJsonLd } from "@/lib/store/seo-utils";
 
 interface ProductPageProps {
@@ -109,14 +110,6 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   const theme = resolveTheme(store.theme);
 
   const images = JSON.parse(product.images || "[]") as { url: string; alt?: string }[];
-
-  function formatPrice(cents: number, currency: string) {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      minimumFractionDigits: 2,
-    }).format(cents / 100);
-  }
 
   const variants = product.variants.map((v) => ({
     ...v,

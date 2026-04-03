@@ -30,6 +30,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { PageLoader } from "@/components/shared/page-loader";
+import { formatPrice } from "@/lib/store/currency";
 
 // ── Types ──
 
@@ -136,14 +137,6 @@ interface MarketResearchResult {
 }
 
 // ── Helpers ──
-
-function formatCurrency(cents: number, currency = "USD") {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
-}
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("en-US", {
@@ -952,7 +945,7 @@ export default function IntelligencePage() {
                 <option value="">Choose a product...</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} - {formatCurrency(p.priceCents, storeCurrency)}
+                    {p.name} - {formatPrice(p.priceCents, storeCurrency)}
                   </option>
                 ))}
               </select>
@@ -1014,13 +1007,13 @@ export default function IntelligencePage() {
                     <div className="rounded-lg bg-blue-50 p-4 text-center">
                       <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">Your Price</p>
                       <p className="text-2xl font-bold text-blue-700 mt-1">
-                        {formatCurrency(priceAnalysis.myPrice, storeCurrency)}
+                        {formatPrice(priceAnalysis.myPrice, storeCurrency)}
                       </p>
                     </div>
                     <div className="rounded-lg bg-muted/50 p-4 text-center">
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Market Avg</p>
                       <p className="text-2xl font-bold text-foreground mt-1">
-                        {formatCurrency(priceAnalysis.averageCompetitorPrice, storeCurrency)}
+                        {formatPrice(priceAnalysis.averageCompetitorPrice, storeCurrency)}
                       </p>
                     </div>
                     <div className="rounded-lg bg-muted/50 p-4 text-center">
@@ -1033,8 +1026,8 @@ export default function IntelligencePage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
-                    <span>Min: {formatCurrency(priceAnalysis.lowestCompetitorPrice, storeCurrency)}</span>
-                    <span>Max: {formatCurrency(priceAnalysis.highestCompetitorPrice, storeCurrency)}</span>
+                    <span>Min: {formatPrice(priceAnalysis.lowestCompetitorPrice, storeCurrency)}</span>
+                    <span>Max: {formatPrice(priceAnalysis.highestCompetitorPrice, storeCurrency)}</span>
                     <span>{priceAnalysis.competitorCount} competitor{priceAnalysis.competitorCount !== 1 ? "s" : ""}</span>
                   </div>
                 </div>
@@ -1156,7 +1149,7 @@ export default function IntelligencePage() {
                               )}
                             </td>
                             <td className="p-3 font-medium">
-                              {formatCurrency(comp.priceCents, storeCurrency)}
+                              {formatPrice(comp.priceCents, storeCurrency)}
                             </td>
                             <td className="p-3">
                               {comp.inStock ? (
@@ -1224,7 +1217,7 @@ export default function IntelligencePage() {
                       <div className="rounded-lg bg-blue-50 p-4 text-center">
                         <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">Suggested Price</p>
                         <p className="text-2xl font-bold text-blue-700 mt-1">
-                          {formatCurrency(aiSuggestion.suggestedPriceCents, storeCurrency)}
+                          {formatPrice(aiSuggestion.suggestedPriceCents, storeCurrency)}
                         </p>
                       </div>
                       <div className="rounded-lg bg-muted/50 p-4 text-center">

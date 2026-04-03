@@ -111,8 +111,12 @@ export default function SettingsPage() {
 
       setProfile({
         ...data.data.admin,
-        lastLogin: new Date().toLocaleDateString(),
-        createdAt: "2025-01-01",
+        lastLogin: data.data.admin.lastLoginAt
+          ? new Date(data.data.admin.lastLoginAt).toLocaleDateString()
+          : "N/A",
+        createdAt: data.data.admin.createdAt
+          ? new Date(data.data.admin.createdAt).toLocaleDateString()
+          : "N/A",
       });
       setError(null);
     } catch (err) {
@@ -151,9 +155,17 @@ export default function SettingsPage() {
   const handleSaveProfile = async () => {
     setIsSaving(true);
     setSaveSuccess(false);
+    setError(null);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await fetch("/api/admin/auth/me", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: profile.name, email: profile.email }),
+      });
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error?.message || "Failed to save profile");
+      }
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
@@ -168,12 +180,27 @@ export default function SettingsPage() {
       setError("Passwords do not match");
       return;
     }
+    if (passwordForm.newPassword.length < 8) {
+      setError("New password must be at least 8 characters");
+      return;
+    }
 
     setIsSaving(true);
     setSaveSuccess(false);
+    setError(null);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await fetch("/api/admin/auth/me", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+        }),
+      });
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error?.message || "Failed to change password");
+      }
       setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);

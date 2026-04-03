@@ -654,20 +654,23 @@ export default function MarketplacePage() {
             Previous
           </Button>
           <div className="flex items-center gap-1">
-            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-              const pageNum = i + 1;
-              return (
-                <Button
-                  key={pageNum}
-                  variant={page === pageNum ? "default" : "ghost"}
-                  size="sm"
-                  className={`w-8 h-8 ${page === pageNum ? "bg-violet-600 hover:bg-violet-700" : ""}`}
-                  onClick={() => setPage(pageNum)}
-                >
-                  {pageNum}
-                </Button>
-              );
-            })}
+            {(() => {
+              const pages: number[] = [];
+              const start = Math.max(1, page - 2);
+              const end = Math.min(totalPages, page + 2);
+              for (let i = start; i <= end; i++) pages.push(i);
+              return pages;
+            })().map((pageNum) => (
+              <Button
+                key={pageNum}
+                variant={page === pageNum ? "default" : "ghost"}
+                size="sm"
+                className={`w-8 h-8 ${page === pageNum ? "bg-violet-600 hover:bg-violet-700" : ""}`}
+                onClick={() => setPage(pageNum)}
+              >
+                {pageNum}
+              </Button>
+            ))}
           </div>
           <Button
             variant="outline"

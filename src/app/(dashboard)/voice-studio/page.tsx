@@ -157,9 +157,9 @@ export default function VoiceStudioPage() {
   const [creditsRemaining, setCreditsRemaining] = useState(0);
   const [voiceProfiles, setVoiceProfiles] = useState<VoiceProfile[]>([]);
   const [recentGenerations, setRecentGenerations] = useState<VoiceGenItem[]>([]);
-  const [voiceGenCost, setVoiceGenCost] = useState(5);
-  const [voiceScriptCost, setVoiceScriptCost] = useState(3);
-  const [voiceCloneCost, setVoiceCloneCost] = useState(15);
+  const [voiceGenCost, setVoiceGenCost] = useState<number | null>(null);
+  const [voiceScriptCost, setVoiceScriptCost] = useState<number | null>(null);
+  const [voiceCloneCost, setVoiceCloneCost] = useState<number | null>(null);
   const [isVoiceCloningAvailable, setIsVoiceCloningAvailable] = useState(false);
   const [cloningProvider, setCloningProvider] = useState<"elevenlabs" | "openai" | null>(null);
 
@@ -653,7 +653,7 @@ export default function VoiceStudioPage() {
             {/* Generate Button */}
             <button
               onClick={handleGenerate}
-              disabled={!script.trim() || isGenerating}
+              disabled={!script.trim() || isGenerating || voiceGenCost == null}
               className="w-full h-12 rounded-2xl bg-brand-500 text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-500/25"
             >
               {isGenerating ? (
@@ -666,7 +666,7 @@ export default function VoiceStudioPage() {
                   <Sparkles className="w-4 h-4" />
                   Generate Voice
                   <Badge variant="secondary" className="ml-1 text-xs">
-                    {voiceGenCost} credits
+                    {voiceGenCost ?? "..."} credits
                   </Badge>
                 </>
               )}
@@ -877,7 +877,8 @@ export default function VoiceStudioPage() {
                     onClick={handleCloneVoice}
                     disabled={
                       !cloneFile || !cloneName.trim() || isCloning ||
-                      (cloningProvider === "openai" && !consentFile)
+                      (cloningProvider === "openai" && !consentFile) ||
+                      voiceCloneCost == null
                     }
                     className="w-full"
                     size="sm"
@@ -891,7 +892,7 @@ export default function VoiceStudioPage() {
                       <>
                         Clone Voice
                         <Badge variant="secondary" className="ml-1 text-xs">
-                          {voiceCloneCost} credits
+                          {voiceCloneCost ?? "..."} credits
                         </Badge>
                       </>
                     )}

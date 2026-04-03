@@ -18,6 +18,7 @@ import {
   Navigation,
 } from "lucide-react";
 import { ORDER_STATUSES } from "@/lib/constants/ecommerce";
+import { formatPrice } from "@/lib/store/currency";
 
 interface OrderItem {
   productId?: string;
@@ -90,14 +91,6 @@ interface Order {
   createdAt: string;
   updatedAt: string;
   deliveryAssignment: DeliveryAssignment | null;
-}
-
-function formatCents(cents: number, currency = "USD"): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
 }
 
 function formatAddress(addr: Address): string {
@@ -397,7 +390,7 @@ export default function OrderDetailPage() {
                     <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
                   </div>
                   <p className="text-sm font-medium text-foreground">
-                    {formatCents(item.priceCents * item.quantity, order.currency)}
+                    {formatPrice(item.priceCents * item.quantity, order.currency)}
                   </p>
                 </div>
               ))}
@@ -464,7 +457,7 @@ export default function OrderDetailPage() {
                   <div className="flex items-center gap-2 text-sm">
                     <DollarSign className="w-4 h-4 text-muted-foreground" />
                     <span className="text-muted-foreground">
-                      COD: {formatCents(order.deliveryAssignment.codAmountCents, order.currency)}
+                      COD: {formatPrice(order.deliveryAssignment.codAmountCents, order.currency)}
                     </span>
                     <span className={`text-xs font-medium ${order.deliveryAssignment.codCollected ? "text-green-600" : "text-yellow-600"}`}>
                       {order.deliveryAssignment.codCollected ? "Collected" : "Pending collection"}
@@ -541,19 +534,19 @@ export default function OrderDetailPage() {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span className="text-foreground">{formatCents(order.subtotalCents, order.currency)}</span>
+                <span className="text-foreground">{formatPrice(order.subtotalCents, order.currency)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Shipping</span>
-                <span className="text-foreground">{formatCents(order.shippingCents, order.currency)}</span>
+                <span className="text-foreground">{formatPrice(order.shippingCents, order.currency)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Tax</span>
-                <span className="text-foreground">{formatCents(order.taxCents, order.currency)}</span>
+                <span className="text-foreground">{formatPrice(order.taxCents, order.currency)}</span>
               </div>
               <div className="pt-2 border-t border-border flex justify-between text-sm font-semibold">
                 <span className="text-foreground">Total</span>
-                <span className="text-foreground">{formatCents(order.totalCents, order.currency)}</span>
+                <span className="text-foreground">{formatPrice(order.totalCents, order.currency)}</span>
               </div>
             </div>
           </div>

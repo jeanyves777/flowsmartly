@@ -83,11 +83,11 @@ interface LeadSearchResult {
 
 function StatusBadge({ status }: { status: Pitch["status"] }) {
   const map = {
-    PENDING: { label: "Pending", color: "bg-gray-100 text-gray-600", icon: <Clock className="w-3 h-3" /> },
-    RESEARCHING: { label: "Researching…", color: "bg-blue-100 text-blue-700", icon: <Loader2 className="w-3 h-3 animate-spin" /> },
-    READY: { label: "Ready", color: "bg-green-100 text-green-700", icon: <CheckCircle2 className="w-3 h-3" /> },
-    FAILED: { label: "Failed", color: "bg-red-100 text-red-700", icon: <AlertCircle className="w-3 h-3" /> },
-    SENT: { label: "Sent", color: "bg-purple-100 text-purple-700", icon: <Send className="w-3 h-3" /> },
+    PENDING: { label: "Pending", color: "bg-muted text-muted-foreground", icon: <Clock className="w-3 h-3" /> },
+    RESEARCHING: { label: "Researching…", color: "bg-blue-500/10 text-blue-600 dark:text-blue-400", icon: <Loader2 className="w-3 h-3 animate-spin" /> },
+    READY: { label: "Ready", color: "bg-green-500/10 text-green-600 dark:text-green-400", icon: <CheckCircle2 className="w-3 h-3" /> },
+    FAILED: { label: "Failed", color: "bg-red-500/10 text-red-600 dark:text-red-400", icon: <AlertCircle className="w-3 h-3" /> },
+    SENT: { label: "Sent", color: "bg-purple-500/10 text-purple-600 dark:text-purple-400", icon: <Send className="w-3 h-3" /> },
   };
   const s = map[status];
   return (
@@ -117,6 +117,7 @@ export default function PitchBoardPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Lead Finder tab state
@@ -229,7 +230,7 @@ export default function PitchBoardPage() {
   }
 
   async function handleDeletePitch(id: string) {
-    if (!confirm("Delete this pitch? This cannot be undone.")) return;
+    setDeleteConfirmId(null);
     setDeletingId(id);
     try {
       await fetch(`/api/pitch/${id}`, { method: "DELETE" });
@@ -350,9 +351,9 @@ export default function PitchBoardPage() {
       : "250 credits per search (free trial used)";
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex-1 flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="bg-card border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between py-5">
             <div className="flex items-center gap-3">
@@ -360,8 +361,8 @@ export default function PitchBoardPage() {
                 <Briefcase className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Pitch Board</h1>
-                <p className="text-sm text-gray-500">AI-powered business development & lead generation</p>
+                <h1 className="text-xl font-bold text-foreground">Pitch Board</h1>
+                <p className="text-sm text-muted-foreground">AI-powered business development & lead generation</p>
               </div>
             </div>
             {activeTab === "pitches" && (
@@ -385,8 +386,8 @@ export default function PitchBoardPage() {
                 className={cn(
                   "pb-3 text-sm font-medium border-b-2 transition-colors capitalize",
                   activeTab === tab
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
                 )}
               >
                 {tab === "pitches" ? "My Pitches" : "Lead Finder"}
@@ -398,13 +399,13 @@ export default function PitchBoardPage() {
 
       {/* Brand identity required banner */}
       {hasBrand === false && (
-        <div className="bg-amber-50 border-b border-amber-200">
+        <div className="bg-amber-500/10 border-b border-amber-500/20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
-            <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0" />
-            <p className="text-sm text-amber-800 flex-1">
+            <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+            <p className="text-sm text-amber-800 dark:text-amber-300 flex-1">
               <strong>Brand identity required.</strong> Set up your brand kit so pitches go out under your brand name with your services and colors.
             </p>
-            <a href="/brand" className="text-sm font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-900 whitespace-nowrap">
+            <a href="/brand" className="text-sm font-semibold text-amber-700 dark:text-amber-400 underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-200 whitespace-nowrap">
               Set up Brand Kit →
             </a>
           </div>
@@ -418,14 +419,14 @@ export default function PitchBoardPage() {
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
-                { label: "Total", value: stats.total, color: "text-gray-900" },
-                { label: "Ready", value: stats.ready, color: "text-green-600" },
-                { label: "Sent", value: stats.sent, color: "text-purple-600" },
-                { label: "Failed", value: stats.failed, color: "text-red-600" },
+                { label: "Total", value: stats.total, color: "text-foreground" },
+                { label: "Ready", value: stats.ready, color: "text-green-600 dark:text-green-400" },
+                { label: "Sent", value: stats.sent, color: "text-purple-600 dark:text-purple-400" },
+                { label: "Failed", value: stats.failed, color: "text-red-600 dark:text-red-400" },
               ].map(s => (
-                <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4">
+                <div key={s.label} className="bg-card rounded-xl border border-border p-4">
                   <div className={cn("text-2xl font-bold", s.color)}>{s.value}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
                 </div>
               ))}
             </div>
@@ -436,10 +437,10 @@ export default function PitchBoardPage() {
                 <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
               </div>
             ) : pitches.length === 0 ? (
-              <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
-                <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <h3 className="text-base font-semibold text-gray-700 mb-1">No pitches yet</h3>
-                <p className="text-sm text-gray-500 mb-4">Enter a business URL and our AI will research, analyze, and generate a personalized pitch proposal.</p>
+              <div className="bg-card rounded-xl border border-dashed border-border p-12 text-center">
+                <Briefcase className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                <h3 className="text-base font-semibold text-foreground mb-1">No pitches yet</h3>
+                <p className="text-sm text-muted-foreground mb-4">Enter a business URL and our AI will research, analyze, and generate a personalized pitch proposal.</p>
                 <Button
                   onClick={() => hasBrand ? setShowCreateDialog(true) : null}
                   disabled={hasBrand === false}
@@ -454,33 +455,44 @@ export default function PitchBoardPage() {
                 {pitches.map(pitch => (
                   <div
                     key={pitch.id}
-                    className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow cursor-pointer group relative"
+                    className="bg-card rounded-xl border border-border p-5 hover:shadow-md transition-shadow cursor-pointer group relative"
                     onClick={() => router.push(`/pitch-board/${pitch.id}`)}
                   >
                     {/* Delete button */}
-                    <button
-                      onClick={e => { e.stopPropagation(); handleDeletePitch(pitch.id); }}
-                      className="absolute top-3 right-3 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
-                      disabled={deletingId === pitch.id}
-                    >
-                      {deletingId === pitch.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                    </button>
+                    {deleteConfirmId === pitch.id ? (
+                      <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10 bg-card rounded-lg border border-border p-1.5 shadow-md" onClick={e => e.stopPropagation()}>
+                        <span className="text-xs text-red-400 px-1">Delete?</span>
+                        <Button size="sm" variant="destructive" className="h-6 px-2 text-xs" disabled={deletingId === pitch.id} onClick={() => handleDeletePitch(pitch.id)}>
+                          {deletingId === pitch.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirm"}
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => setDeleteConfirmId(null)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={e => { e.stopPropagation(); setDeleteConfirmId(pitch.id); }}
+                        className="absolute top-3 right-3 p-1.5 rounded-lg text-muted-foreground/30 hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
 
                     <div className="flex items-start gap-3 mb-3">
-                      <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                        <Building2 className="w-4 h-4 text-blue-600" />
+                      <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                        <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold text-gray-900 text-sm leading-tight truncate pr-6">{pitch.businessName}</h3>
+                        <h3 className="font-semibold text-foreground text-sm leading-tight truncate pr-6">{pitch.businessName}</h3>
                         {pitch.businessUrl && (
-                          <p className="text-xs text-gray-400 truncate mt-0.5">{pitch.businessUrl}</p>
+                          <p className="text-xs text-muted-foreground/60 truncate mt-0.5">{pitch.businessUrl}</p>
                         )}
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between">
                       <StatusBadge status={pitch.status} />
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-muted-foreground/60">
                         {new Date(pitch.createdAt).toLocaleDateString()}
                       </span>
                     </div>
@@ -510,13 +522,13 @@ export default function PitchBoardPage() {
         {activeTab === "leads" && (
           <div className="space-y-6">
             {/* Search form */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-1">Find Local Businesses</h2>
-              <p className="text-sm text-gray-500 mb-5">Search Google Business listings by industry and location. <span className={leadIsFreeRun ? "text-green-600 font-medium" : ""}>{leadCreditLabel}.</span></p>
+            <div className="bg-card rounded-xl border border-border p-6">
+              <h2 className="text-base font-semibold text-foreground mb-1">Find Local Businesses</h2>
+              <p className="text-sm text-muted-foreground mb-5">Search Google Business listings by industry and location. <span className={leadIsFreeRun ? "text-green-600 dark:text-green-400 font-medium" : ""}>{leadCreditLabel}.</span></p>
 
               <form onSubmit={handleLeadSearch} className="flex flex-col sm:flex-row gap-3">
                 <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     placeholder="Industry or keyword (e.g. dental clinic, gym, restaurant)"
                     value={leadQuery}
@@ -525,7 +537,7 @@ export default function PitchBoardPage() {
                   />
                 </div>
                 <div className="relative sm:w-56">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     placeholder="Location (e.g. Miami, FL)"
                     value={leadLocation}
@@ -550,15 +562,15 @@ export default function PitchBoardPage() {
             {leadResults.length > 0 && (
               <div className="space-y-3">
                 {/* Bulk actions bar */}
-                <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+                <div className="bg-card rounded-xl border border-border px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-3">
                     <input
                       type="checkbox"
                       checked={selectedLeads.size === leadResults.length}
                       onChange={toggleAllLeads}
-                      className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                      className="w-4 h-4 rounded border-border text-blue-600"
                     />
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm text-muted-foreground">
                       {selectedLeads.size > 0 ? `${selectedLeads.size} selected` : `${leadResults.length} results`}
                     </span>
                   </div>
@@ -577,24 +589,24 @@ export default function PitchBoardPage() {
                 </div>
 
                 {leadResults.map((lead, idx) => (
-                  <div key={idx} className="bg-white rounded-xl border border-gray-200 p-5">
+                  <div key={idx} className="bg-card rounded-xl border border-border p-5">
                     <div className="flex items-start gap-3">
                       <input
                         type="checkbox"
                         checked={selectedLeads.has(idx)}
                         onChange={() => toggleLead(idx)}
-                        className="w-4 h-4 mt-1 rounded border-gray-300 text-blue-600 flex-shrink-0"
+                        className="w-4 h-4 mt-1 rounded border-border text-blue-600 flex-shrink-0"
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 flex-wrap">
                           <div>
-                            <h3 className="font-semibold text-gray-900">{lead.name}</h3>
+                            <h3 className="font-semibold text-foreground">{lead.name}</h3>
                             {lead.rating !== undefined && (
                               <div className="flex items-center gap-1 mt-0.5">
                                 <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                                <span className="text-sm font-medium text-gray-700">{lead.rating}</span>
+                                <span className="text-sm font-medium text-foreground">{lead.rating}</span>
                                 {lead.reviewCount !== undefined && (
-                                  <span className="text-xs text-gray-400">({lead.reviewCount} reviews)</span>
+                                  <span className="text-xs text-muted-foreground/60">({lead.reviewCount} reviews)</span>
                                 )}
                               </div>
                             )}
@@ -605,7 +617,7 @@ export default function PitchBoardPage() {
                                 href={lead.googleMapsUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500"
+                                className="p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground"
                                 onClick={e => e.stopPropagation()}
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
@@ -626,22 +638,22 @@ export default function PitchBoardPage() {
                           </div>
                         </div>
 
-                        <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-sm text-gray-600">
+                        <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-sm text-muted-foreground">
                           {lead.address && (
                             <div className="flex items-start gap-1.5">
-                              <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-gray-400" />
+                              <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-muted-foreground/60" />
                               <span>{lead.address}</span>
                             </div>
                           )}
                           {lead.phone && (
                             <div className="flex items-center gap-1.5">
-                              <Phone className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+                              <Phone className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground/60" />
                               <a href={`tel:${lead.phone}`} className="hover:text-blue-600">{lead.phone}</a>
                             </div>
                           )}
                           {lead.website && (
                             <div className="flex items-center gap-1.5">
-                              <Globe className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+                              <Globe className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground/60" />
                               <a
                                 href={lead.website.startsWith("http") ? lead.website : `https://${lead.website}`}
                                 target="_blank"
@@ -663,7 +675,7 @@ export default function PitchBoardPage() {
                         {lead.types && lead.types.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2.5">
                             {lead.types.slice(0, 4).map(t => (
-                              <span key={t} className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs capitalize">
+                              <span key={t} className="px-2 py-0.5 bg-muted text-muted-foreground rounded text-xs capitalize">
                                 {t.replace(/_/g, " ")}
                               </span>
                             ))}
@@ -678,24 +690,24 @@ export default function PitchBoardPage() {
 
             {/* Past searches */}
             {pastSearches.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="bg-card rounded-xl border border-border overflow-hidden">
                 <button
                   onClick={() => setShowPastSearches(v => !v)}
-                  className="w-full flex items-center justify-between px-5 py-4 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="w-full flex items-center justify-between px-5 py-4 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors"
                 >
                   <span>Past Searches ({pastSearches.length})</span>
                   {showPastSearches ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
                 {showPastSearches && (
-                  <div className="border-t border-gray-100 divide-y divide-gray-100">
+                  <div className="border-t border-border divide-y divide-border">
                     {pastSearches.map(s => (
                       <div key={s.id} className="px-5 py-3 flex items-center justify-between text-sm">
                         <div>
-                          <span className="font-medium text-gray-800">{s.query}</span>
-                          {s.location && <span className="text-gray-500"> · {s.location}</span>}
-                          <span className="text-gray-400 ml-2">{s.resultCount} results</span>
+                          <span className="font-medium text-foreground">{s.query}</span>
+                          {s.location && <span className="text-muted-foreground"> · {s.location}</span>}
+                          <span className="text-muted-foreground/60 ml-2">{s.resultCount} results</span>
                         </div>
-                        <span className="text-gray-400 text-xs">{new Date(s.createdAt).toLocaleDateString()}</span>
+                        <span className="text-muted-foreground/60 text-xs">{new Date(s.createdAt).toLocaleDateString()}</span>
                       </div>
                     ))}
                   </div>
@@ -733,7 +745,7 @@ export default function PitchBoardPage() {
                 value={createForm.businessUrl}
                 onChange={e => setCreateForm(f => ({ ...f, businessUrl: e.target.value }))}
               />
-              <p className="text-xs text-gray-500">Our AI will analyze the website to personalize the pitch.</p>
+              <p className="text-xs text-muted-foreground">Our AI will analyze the website to personalize the pitch.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -757,7 +769,7 @@ export default function PitchBoardPage() {
               </div>
             </div>
 
-            <div className={cn("rounded-lg px-4 py-3 text-sm", pitchIsFreeRun ? "bg-green-50 border border-green-100 text-green-700" : "bg-blue-50 border border-blue-100 text-blue-700")}>
+            <div className={cn("rounded-lg px-4 py-3 text-sm", pitchIsFreeRun ? "bg-green-500/10 border border-green-500/20 text-green-700 dark:text-green-400" : "bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-400")}>
               {pitchCreditLabel}. AI will research the business and generate a personalized pitch proposal.
             </div>
 
@@ -787,7 +799,7 @@ export default function PitchBoardPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               {selectedLeads.size} lead{selectedLeads.size !== 1 ? "s" : ""} will be saved as contacts.
             </p>
             <div className="space-y-1.5">

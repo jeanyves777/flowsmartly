@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db/client";
 import { ai } from "@/lib/ai/client";
 import { SYSTEM_PROMPTS } from "@/lib/ai/prompts/index";
 import { getCompetitorPrices, getPriceHistory } from "./competitor-pricing";
+import { formatPrice } from "@/lib/store/currency";
 import type { PricingRule } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
@@ -86,7 +87,8 @@ function applyConstraints(
  * Ask Claude to analyse a product and suggest an optimal price.
  */
 export async function getAIPricingSuggestion(
-  productId: string
+  productId: string,
+  currency: string = "USD"
 ): Promise<PricingSuggestion | null> {
   // Fetch product
   const product = await prisma.product.findUnique({
@@ -121,7 +123,7 @@ export async function getAIPricingSuggestion(
       ? competitors
           .map(
             (c) =>
-              `- ${c.competitorName}: $${(c.priceCents / 100).toFixed(2)} (${c.inStock ? "In Stock" : "Out of Stock"})`
+              `- ${c.competitorName}: ${formatPrice(c.priceCents, currency)} (${c.inStock ? "In Stock" : "Out of Stock"})`
           )
           .join("\n")
       : "No competitor data available.";
@@ -132,14 +134,14 @@ export async function getAIPricingSuggestion(
       ? history
           .map(
             (h) =>
-              `- ${new Date(h.createdAt).toLocaleDateString()}: $${(h.priceCents / 100).toFixed(2)} (${h.source})`
+              `- ${new Date(h.createdAt).toLocaleDateString()}: ${formatPrice(h.priceCents, currency)} (${h.source})`
           )
           .join("\n")
       : "No price history available.";
 
   const costDisplay =
     product.costCents != null
-      ? `$${(product.costCents / 100).toFixed(2)}`
+      ? formatPrice(product.costCents, currency)
       : "Unknown";
 
   const prompt = `Analyze this product and suggest an optimal price.
@@ -147,7 +149,7 @@ export async function getAIPricingSuggestion(
 PRODUCT:
 - Name: ${product.name}
 - Category: ${product.category || "uncategorized"}
-- Current Price: $${(product.priceCents / 100).toFixed(2)}
+- Current Price: ${formatPrice(product.priceCents, currency)}
 - Cost Price: ${costDisplay}
 - Views (all time): ${product.viewCount}
 - Orders (all time): ${product.orderCount}

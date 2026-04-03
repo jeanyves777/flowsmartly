@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Metadata } from "next";
 import { prisma } from "@/lib/db/client";
 import { resolveTheme } from "@/lib/store/theme-utils";
+import { formatPrice } from "@/lib/store/currency";
 import { ProductCard, type ProductCardData } from "@/components/store/product-card";
 
 interface ProductsPageProps {
@@ -127,14 +128,6 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
   const selectedCategory = categoryFilter
     ? categories.find(c => c.id === categoryFilter)
     : undefined;
-
-  function formatPrice(cents: number, currency: string) {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      minimumFractionDigits: 2,
-    }).format(cents / 100);
-  }
 
   function buildUrl(overrides: Record<string, string | undefined>) {
     const p = new URLSearchParams();

@@ -103,6 +103,7 @@ export default function AdminCreditsPage() {
   const [adjustmentAmount, setAdjustmentAmount] = useState("");
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Fetch overview data
   const fetchOverview = async () => {
@@ -228,7 +229,7 @@ export default function AdminCreditsPage() {
       setAdjustmentReason("");
       handleRefresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to adjust credits");
+      setActionError(err instanceof Error ? err.message : "Failed to adjust credits");
     } finally {
       setIsSubmitting(false);
     }
@@ -242,6 +243,28 @@ export default function AdminCreditsPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const exportCSV = (data: any[], filename: string) => {
+    if (!data.length) return;
+    const headers = Object.keys(data[0]).join(',');
+    const rows = data.map(row => Object.values(row).map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+    const csv = [headers, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExport = () => {
+    if (activeTab === "users" && users.length) {
+      exportCSV(users, "credit-users.csv");
+    } else if (activeTab === "transactions" && transactions.length) {
+      exportCSV(transactions, "credit-transactions.csv");
+    } else if (activeTab === "overview" && recentTransactions.length) {
+      exportCSV(recentTransactions, "credit-recent-transactions.csv");
+    }
   };
 
   const formatNumber = (num: number) => {
@@ -284,7 +307,7 @@ export default function AdminCreditsPage() {
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExport}>
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
@@ -562,7 +585,7 @@ export default function AdminCreditsPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => setAdjustmentModal({ open: true, user, type: "add" })}
+                                onClick={() => { setActionError(null); setAdjustmentModal({ open: true, user, type: "add" }); }}
                                 className="h-8"
                               >
                                 <Plus className="w-3 h-3 mr-1" />
@@ -571,7 +594,7 @@ export default function AdminCreditsPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => setAdjustmentModal({ open: true, user, type: "deduct" })}
+                                onClick={() => { setActionError(null); setAdjustmentModal({ open: true, user, type: "deduct" }); }}
                                 className="h-8"
                               >
                                 <Minus className="w-3 h-3 mr-1" />
@@ -790,6 +813,16 @@ export default function AdminCreditsPage() {
                   </div>
                 </div>
               </div>
+
+              {actionError && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500 text-sm mb-4">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{actionError}</span>
+                  <button onClick={() => setActionError(null)} className="ml-auto">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div>

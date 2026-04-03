@@ -133,7 +133,7 @@ export default function EmailMarketingPage() {
             Manage and track your email marketing campaigns
           </p>
         </div>
-        <Button className="bg-brand-500 hover:bg-brand-600 text-white">
+        <Button className="bg-brand-500 hover:bg-brand-600 text-white" onClick={() => window.open('/email-marketing/create', '_blank')}>
           <Plus className="w-4 h-4 mr-2" />
           Create Email Campaign
         </Button>
@@ -248,7 +248,7 @@ export default function EmailMarketingPage() {
           <CardContent className="text-center py-12 text-muted-foreground">
             <Mail className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>No email campaigns found</p>
-            <Button className="mt-4 bg-brand-500 hover:bg-brand-600 text-white">
+            <Button className="mt-4 bg-brand-500 hover:bg-brand-600 text-white" onClick={() => window.open('/email-marketing/create', '_blank')}>
               <Plus className="w-4 h-4 mr-2" />
               Create Email Campaign
             </Button>

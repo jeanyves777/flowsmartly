@@ -16,10 +16,18 @@ import {
   AlertTriangle,
   Heart,
   MessageCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ContentItem {
   id: string;
@@ -63,6 +71,11 @@ export default function ContentPage() {
   const [stats, setStats] = useState<ContentStats>({ total: 0, published: 0, drafts: 0, scheduled: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const limit = 20;
 
   const fetchContent = useCallback(async () => {
     try {
@@ -70,6 +83,8 @@ export default function ContentPage() {
       const params = new URLSearchParams();
       if (searchQuery) params.set("search", searchQuery);
       if (filterStatus !== "all") params.set("status", filterStatus);
+      params.set("page", String(currentPage));
+      params.set("limit", String(limit));
 
       const response = await fetch(`/api/admin/content?${params}`);
       const data = await response.json();
@@ -80,17 +95,58 @@ export default function ContentPage() {
 
       setContent(data.data.content);
       setStats(data.data.stats);
+      setTotalPages(data.data.totalPages || 1);
+      setTotalCount(data.data.stats?.total || data.data.content.length);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load content");
     } finally {
       setIsLoading(false);
     }
-  }, [searchQuery, filterStatus]);
+  }, [searchQuery, filterStatus, currentPage]);
+
+  const handleToggleStatus = async (item: ContentItem) => {
+    try {
+      const response = await fetch("/api/admin/content", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, action: "toggleStatus" }),
+      });
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error?.message || "Failed to toggle status");
+      }
+      fetchContent();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to toggle status");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const response = await fetch(`/api/admin/content?id=${id}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error?.message || "Failed to delete content");
+      }
+      setDeleteConfirm(null);
+      fetchContent();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete content");
+      setDeleteConfirm(null);
+    }
+  };
 
   useEffect(() => {
     fetchContent();
   }, [fetchContent]);
+
+  // Reset to page 1 when search or filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterStatus]);
 
   // Debounce search
   useEffect(() => {
@@ -283,23 +339,103 @@ export default function ContentPage() {
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-muted-foreground" />
                           <span className="text-sm text-muted-foreground">
-                            {item.updatedAt}
+                            {new Date(item.updatedAt).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}
                           </span>
                         </div>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
+                        {deleteConfirm === item.id ? (
+                          <div className="flex items-center gap-2 justify-end">
+                            <span className="text-sm text-red-400">Delete?</span>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDelete(item.id)}
+                              className="h-7 text-xs"
+                            >
+                              Confirm
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setDeleteConfirm(null)}
+                              className="h-7 text-xs"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                              >
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => window.open(`/admin/content/${item.id}`, "_self")}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                View
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleToggleStatus(item)}>
+                                <Edit className="w-4 h-4 mr-2" />
+                                {item.status === "published" ? "Unpublish" : "Publish"}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setDeleteConfirm(item.id)}
+                                className="text-red-400 focus:text-red-400"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {!isLoading && content.length > 0 && (
+            <div className="flex items-center justify-between pt-4 border-t border-border mt-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {(currentPage - 1) * limit + 1} to{" "}
+                {Math.min(currentPage * limit, totalCount)} of {totalCount}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground px-2">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

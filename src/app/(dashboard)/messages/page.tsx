@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
-import { MessageCircle, Mail, ClipboardCheck, Search } from "lucide-react";
+import { MessageCircle, Mail, Search } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -111,8 +111,6 @@ export default function MessagesPage() {
     (sum, conv) => sum + conv.unreadCount,
     0
   );
-  const pendingApprovals = 0; // Placeholder — computed from separate source if needed
-
   // -------------------------------------------------------------------------
   // Stats cards config
   // -------------------------------------------------------------------------
@@ -129,12 +127,6 @@ export default function MessagesPage() {
       value: totalUnread,
       icon: Mail,
       color: "amber",
-    },
-    {
-      label: "Pending Approvals",
-      value: pendingApprovals,
-      icon: ClipboardCheck,
-      color: "purple",
     },
   ] as const;
 
@@ -155,7 +147,7 @@ export default function MessagesPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {statCards.map((stat) => (
           <Card key={stat.label}>
             <CardContent className="p-4">
@@ -164,16 +156,14 @@ export default function MessagesPage() {
                   className={cn(
                     "p-2 rounded-lg",
                     stat.color === "blue" && "bg-blue-500/10",
-                    stat.color === "amber" && "bg-amber-500/10",
-                    stat.color === "purple" && "bg-purple-500/10"
+                    stat.color === "amber" && "bg-amber-500/10"
                   )}
                 >
                   <stat.icon
                     className={cn(
                       "h-5 w-5",
                       stat.color === "blue" && "text-blue-500",
-                      stat.color === "amber" && "text-amber-500",
-                      stat.color === "purple" && "text-purple-500"
+                      stat.color === "amber" && "text-amber-500"
                     )}
                   />
                 </div>
