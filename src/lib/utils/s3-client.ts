@@ -217,3 +217,29 @@ export async function presignAllUrls<T>(data: T): Promise<T> {
 
   return data; // numbers, booleans, etc.
 }
+
+/**
+ * Re-presign all S3 URLs embedded inside a canvas JSON string.
+ * Canvas data stores fabric.js JSON which may contain S3 URLs in image `src` fields.
+ * These expire (presigned tokens), so we re-presign them fresh on every load.
+ */
+export async function presignCanvasJson(canvasJson: string): Promise<string> {
+  if (!canvasJson) return canvasJson;
+  // Match any string that looks like an S3 URL for our bucket (with or without presign params)
+  const s3UrlPattern = new RegExp(
+    `${STORAGE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^"'\\s<>\\\\]+`,
+    'g'
+  );
+  const matches = canvasJson.match(s3UrlPattern);
+  if (!matches) return canvasJson;
+  const unique = [...new Set(matches)];
+  let result = canvasJson;
+  for (const url of unique) {
+    // Strip any existing presign query params to get the clean URL/key
+    const cleanUrl = url.split('?')[0];
+    const signed = await getPresignedUrl(cleanUrl);
+    // Replace all occurrences of this URL (with any query string variant)
+    result = result.replace(new RegExp(url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), signed);
+  }
+  return result;
+}

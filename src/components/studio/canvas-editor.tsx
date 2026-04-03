@@ -254,7 +254,9 @@ export function CanvasEditor({
 
     const handleMouseMove = (opt: any) => {
       if (!cursorRef.current) return;
-      const pointer = canvas.getPointer(opt.e);
+      // Fabric.js v7: mouse:move event carries opt.pointer (Point) directly
+      const pointer = opt.pointer || (canvas.getPointer ? canvas.getPointer(opt.e) : null);
+      if (!pointer) return;
       cursorRef.current(pointer.x, pointer.y, useCanvasStore.getState().activePageIndex);
     };
 

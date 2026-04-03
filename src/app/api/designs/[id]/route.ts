@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { presignAllUrls } from "@/lib/utils/s3-client";
+import { presignAllUrls, presignCanvasJson } from "@/lib/utils/s3-client";
 import {
   checkDesignAccess,
   checkShareTokenAccess,
@@ -73,6 +73,11 @@ export async function GET(
       );
     }
 
+    // Re-presign S3 URLs embedded inside canvas JSON (they expire)
+    const freshCanvasData = design.canvasData
+      ? await presignCanvasJson(design.canvasData)
+      : null;
+
     return NextResponse.json({
       success: true,
       data: await presignAllUrls({
@@ -84,7 +89,7 @@ export async function GET(
           style: design.style,
           imageUrl: design.imageUrl,
           name: design.name,
-          canvasData: design.canvasData,
+          canvasData: freshCanvasData,
           status: design.status,
           metadata: design.metadata || "{}",
           createdAt: design.createdAt.toISOString(),
