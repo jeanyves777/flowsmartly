@@ -1,11 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Plus, Sparkles, FileText, Filter } from "lucide-react";
+import { Search, Sparkles, FileText, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { TemplateCard } from "./template-card";
 import { TemplatePreviewModal } from "./template-preview-modal";
 import type { EmailSection } from "@/lib/marketing/email-renderer";
@@ -48,6 +55,9 @@ export function TemplateGallery({ onSelect, onCreateBlank, onGenerateAI }: Templ
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [previewTemplate, setPreviewTemplate] = useState<TemplateItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TemplateItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTemplates();
@@ -70,18 +80,28 @@ export function TemplateGallery({ onSelect, onCreateBlank, onGenerateAI }: Templ
   }
 
   async function handleDeleteTemplate(id: string) {
-    if (!confirm("Delete this template? This cannot be undone.")) return;
+    const tpl = templates.find((t) => t.id === id);
+    if (tpl) { setDeleteTarget(tpl); setDeleteError(null); }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    setDeleteError(null);
     try {
-      const res = await fetch(`/api/email-templates/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/email-templates/${deleteTarget.id}`, { method: "DELETE" });
       const data = await res.json();
       if (data.success) {
-        setTemplates((prev) => prev.filter((t) => t.id !== id));
+        setTemplates((prev) => prev.filter((t) => t.id !== deleteTarget.id));
+        setDeleteTarget(null);
       } else {
-        alert(data.error ?? "Failed to delete template");
+        setDeleteError(data.error ?? "Failed to delete template");
       }
     } catch (err) {
       console.error("Failed to delete template:", err);
-      alert("Failed to delete template");
+      setDeleteError("Failed to delete template");
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -179,6 +199,32 @@ export function TemplateGallery({ onSelect, onCreateBlank, onGenerateAI }: Templ
           }}
         />
       )}
+
+      {/* Delete confirmation modal */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open && !isDeleting) setDeleteTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-destructive" />
+              Delete Template
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <span className="font-semibold">&quot;{deleteTarget?.name}&quot;</span>? This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <p className="text-sm text-destructive">{deleteError}</p>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" size="sm" onClick={confirmDelete} disabled={isDeleting}>
+              {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
