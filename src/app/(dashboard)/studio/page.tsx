@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useCanvasStore } from "@/components/studio/hooks/use-canvas-store";
-import { safeLoadFromJSON } from "@/components/studio/utils/canvas-helpers";
+import { safeLoadFromJSON, addImageToCanvas } from "@/components/studio/utils/canvas-helpers";
 import { Loader2 } from "lucide-react";
 
 // Dynamic import to avoid SSR issues with Fabric.js
@@ -121,79 +121,104 @@ function StudioPageInner() {
       try {
         const res = await fetch(`/api/designs/${designId}`);
         const data = await res.json();
-        if (data.success && data.data?.design?.canvasData) {
+        if (data.success && data.data?.design) {
           const store = useCanvasStore.getState();
           const design = data.data.design;
-          const rawData = design.canvasData;
 
-          // Restore canvas dimensions from saved size (e.g. "1080x1350")
+          // Restore canvas dimensions first
           if (design.size) {
             const [w, h] = design.size.split("x").map(Number);
-            if (w && h) {
-              store.setCanvasDimensions(w, h);
-            }
+            if (w && h) store.setCanvasDimensions(w, h);
           }
 
-          // Parse the stored data to check if it's multi-page
-          let parsed: Record<string, unknown> | null = null;
-          try {
-            parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-          } catch {
-            parsed = rawData;
-          }
+          if (design.canvasData) {
+            const rawData = design.canvasData;
 
-          if (parsed && (parsed as any)._multiPage === true) {
-            // Multi-page design: restore pages array and load the active page
-            const multiPageData = parsed as {
-              pages: Array<{ id: string; canvasJSON: string; width: number; height: number }>;
-              activePageIndex: number;
-            };
-            const restoredPages = multiPageData.pages.map((p) => ({
-              id: p.id,
-              canvasJSON: typeof p.canvasJSON === "string" ? p.canvasJSON : JSON.stringify(p.canvasJSON),
-              thumbnailDataUrl: null as string | null,
-              width: p.width,
-              height: p.height,
-            }));
-
-            const activeIdx = Math.min(
-              multiPageData.activePageIndex || 0,
-              restoredPages.length - 1
-            );
-
-            // Restore per-page dimensions from the active page
-            const activePage = restoredPages[activeIdx];
-            if (activePage?.width && activePage?.height) {
-              store.setCanvasDimensions(activePage.width, activePage.height);
+            // Parse the stored data to check if it's multi-page
+            let parsed: Record<string, unknown> | null = null;
+            try {
+              parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
+            } catch {
+              parsed = rawData;
             }
 
-            store.setPages(restoredPages);
-            store.setActivePageIndex(activeIdx);
+            if (parsed && (parsed as any)._multiPage === true) {
+              // Multi-page design: restore pages array and load the active page
+              const multiPageData = parsed as {
+                pages: Array<{ id: string; canvasJSON: string; width: number; height: number }>;
+                activePageIndex: number;
+              };
+              const restoredPages = multiPageData.pages.map((p) => ({
+                id: p.id,
+                canvasJSON: typeof p.canvasJSON === "string" ? p.canvasJSON : JSON.stringify(p.canvasJSON),
+                thumbnailDataUrl: null as string | null,
+                width: p.width,
+                height: p.height,
+              }));
 
-            // Load the active page canvas content
-            if (activePage) {
-              await safeLoadFromJSON(canvas, activePage.canvasJSON);
+              const activeIdx = Math.min(
+                multiPageData.activePageIndex || 0,
+                restoredPages.length - 1
+              );
+
+              // Restore per-page dimensions from the active page
+              const activePage = restoredPages[activeIdx];
+              if (activePage?.width && activePage?.height) {
+                store.setCanvasDimensions(activePage.width, activePage.height);
+              }
+
+              store.setPages(restoredPages);
+              store.setActivePageIndex(activeIdx);
+
+              // Load the active page canvas content
+              if (activePage) {
+                await safeLoadFromJSON(canvas, activePage.canvasJSON);
+              }
+            } else {
+              // Single-page design (backward compatible): load directly
+              const canvasJSON = typeof rawData === "string" ? rawData : JSON.stringify(rawData);
+              await safeLoadFromJSON(canvas, canvasJSON);
+
+              // Initialize single-page pages array using the restored dimensions
+              const currentW = store.canvasWidth;
+              const currentH = store.canvasHeight;
+              const initialJSON = JSON.stringify(
+                canvas.toJSON(["id", "customName", "selectable", "visible"])
+              );
+              store.setPages([
+                {
+                  id: `page-${Date.now()}`,
+                  canvasJSON: initialJSON,
+                  thumbnailDataUrl: null,
+                  width: currentW,
+                  height: currentH,
+                },
+              ]);
+              store.setActivePageIndex(0);
             }
-          } else {
-            // Single-page design (backward compatible): load directly
-            const canvasJSON = typeof rawData === "string" ? rawData : JSON.stringify(rawData);
-            await safeLoadFromJSON(canvas, canvasJSON);
-
-            // Initialize single-page pages array using the restored dimensions
+          } else if (design.imageUrl) {
+            // No canvasData saved yet — load the generated imageUrl onto the canvas
+            const fabric = (await import("fabric")).fabric;
+            await addImageToCanvas(canvas, design.imageUrl, fabric, { left: 0, top: 0, selectable: true });
+            // Scale image to fit canvas
+            const img = canvas.getObjects()[canvas.getObjects().length - 1];
+            if (img) {
+              const scaleX = canvas.width / (img.width || canvas.width);
+              const scaleY = canvas.height / (img.height || canvas.height);
+              const scale = Math.min(scaleX, scaleY);
+              img.set({
+                scaleX: scale,
+                scaleY: scale,
+                left: (canvas.width - (img.width || 0) * scale) / 2,
+                top: (canvas.height - (img.height || 0) * scale) / 2,
+              });
+              img.setCoords();
+            }
+            canvas.renderAll();
             const currentW = store.canvasWidth;
             const currentH = store.canvasHeight;
-            const initialJSON = JSON.stringify(
-              canvas.toJSON(["id", "customName", "selectable", "visible"])
-            );
-            store.setPages([
-              {
-                id: `page-${Date.now()}`,
-                canvasJSON: initialJSON,
-                thumbnailDataUrl: null,
-                width: currentW,
-                height: currentH,
-              },
-            ]);
+            const initialJSON = JSON.stringify(canvas.toJSON(["id", "customName", "selectable", "visible"]));
+            store.setPages([{ id: `page-${Date.now()}`, canvasJSON: initialJSON, thumbnailDataUrl: null, width: currentW, height: currentH }]);
             store.setActivePageIndex(0);
           }
 
