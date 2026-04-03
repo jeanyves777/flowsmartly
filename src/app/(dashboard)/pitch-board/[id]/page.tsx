@@ -194,7 +194,7 @@ function computeDigitalScore(r: ResearchData): { overall: number; categories: Sc
 }
 
 function scoreColor(score: number): string {
-  if (score >= 80) return "text-green-600";
+  if (score >= 80) return "text-green-600 dark:text-green-400";
   if (score >= 60) return "text-amber-500";
   if (score >= 40) return "text-orange-500";
   return "text-red-500";
@@ -230,7 +230,7 @@ function CircularScore({ score, size = 120 }: { score: number; size?: number }) 
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-2xl font-bold" style={{ color }}>{score}</span>
-        <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">/100</span>
+        <span className="text-[10px] text-muted-foreground/60 font-medium uppercase tracking-wide">/100</span>
       </div>
     </div>
   );
@@ -247,7 +247,7 @@ function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
         return (
           <Star
             key={i}
-            className={cn("w-4 h-4", filled || half ? "text-amber-400 fill-amber-400" : "text-gray-200 fill-gray-200")}
+            className={cn("w-4 h-4", filled || half ? "text-amber-400 fill-amber-400" : "text-muted fill-muted")}
           />
         );
       })}
@@ -259,11 +259,11 @@ function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
 
 function StatusBadge({ status }: { status: Pitch["status"] }) {
   const map: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
-    PENDING:     { label: "Pending",      cls: "bg-gray-100 text-gray-600",   icon: <Clock className="w-3.5 h-3.5" /> },
-    RESEARCHING: { label: "Researching…", cls: "bg-blue-100 text-blue-700",   icon: <Loader2 className="w-3.5 h-3.5 animate-spin" /> },
-    READY:       { label: "Ready",        cls: "bg-green-100 text-green-700", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
-    FAILED:      { label: "Failed",       cls: "bg-red-100 text-red-700",     icon: <AlertCircle className="w-3.5 h-3.5" /> },
-    SENT:        { label: "Sent",         cls: "bg-purple-100 text-purple-700", icon: <Send className="w-3.5 h-3.5" /> },
+    PENDING:     { label: "Pending",      cls: "bg-muted text-muted-foreground",   icon: <Clock className="w-3.5 h-3.5" /> },
+    RESEARCHING: { label: "Researching…", cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400",   icon: <Loader2 className="w-3.5 h-3.5 animate-spin" /> },
+    READY:       { label: "Ready",        cls: "bg-green-500/10 text-green-600 dark:text-green-400", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+    FAILED:      { label: "Failed",       cls: "bg-red-500/10 text-red-600 dark:text-red-400",     icon: <AlertCircle className="w-3.5 h-3.5" /> },
+    SENT:        { label: "Sent",         cls: "bg-purple-500/10 text-purple-600 dark:text-purple-400", icon: <Send className="w-3.5 h-3.5" /> },
   };
   const s = map[status];
   return (
@@ -375,15 +375,15 @@ export default function PitchDetailPage() {
   }
 
   if (isLoading) {
-    return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>;
+    return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>;
   }
 
   if (error || !pitch) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
-          <p className="text-gray-600">{error || "Pitch not found."}</p>
+          <p className="text-muted-foreground">{error || "Pitch not found."}</p>
           <Button className="mt-4" onClick={() => router.push("/pitch-board")}>Back to Pitch Board</Button>
         </div>
       </div>
@@ -398,21 +398,21 @@ export default function PitchDetailPage() {
   const { overall, categories } = isReady ? computeDigitalScore(research) : { overall: 0, categories: [] };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <div className="bg-card border-b border-border sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between py-4">
             <div className="flex items-center gap-3 min-w-0">
-              <button onClick={() => router.push("/pitch-board")} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 flex-shrink-0">
+              <button onClick={() => router.push("/pitch-board")} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground flex-shrink-0">
                 <ArrowLeft className="w-4 h-4" />
               </button>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-lg font-bold text-gray-900 truncate">{pitch.businessName}</h1>
+                  <h1 className="text-lg font-bold text-foreground truncate">{pitch.businessName}</h1>
                   <StatusBadge status={pitch.status} />
                   {isReady && research.industry && (
-                    <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium">{research.industry}</span>
+                    <span className="px-2 py-0.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-medium">{research.industry}</span>
                   )}
                 </div>
                 {pitch.businessUrl && (
@@ -441,20 +441,20 @@ export default function PitchDetailPage() {
       {isProcessing && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
           <div className="w-20 h-20 rounded-3xl bg-blue-50 flex items-center justify-center mx-auto mb-5">
-            <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
+            <Loader2 className="w-10 h-10 animate-spin text-blue-600 dark:text-blue-400" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+          <h2 className="text-xl font-semibold text-foreground mb-2">
             {pitch.status === "PENDING" ? "Queued for research…" : "AI is deeply analyzing this business"}
           </h2>
-          <p className="text-gray-500 max-w-md mx-auto leading-relaxed">
+          <p className="text-muted-foreground max-w-md mx-auto leading-relaxed">
             {pitch.status === "RESEARCHING"
               ? "Scanning the website, pulling Google Business data, checking reviews, analyzing digital presence, and crafting a personalized pitch. This takes 30–90 seconds."
               : "Your pitch is queued and will begin shortly."}
           </p>
-          <div className="mt-8 flex justify-center gap-6 text-sm text-gray-400">
+          <div className="mt-8 flex justify-center gap-6 text-sm text-muted-foreground/60">
             {["Fetching website", "Google Places lookup", "Analyzing gaps", "Generating pitch"].map((step, i) => (
               <div key={i} className="flex flex-col items-center gap-1.5">
-                <div className={cn("w-2 h-2 rounded-full", pitch.status === "RESEARCHING" ? "bg-blue-500 animate-pulse" : "bg-gray-200")} />
+                <div className={cn("w-2 h-2 rounded-full", pitch.status === "RESEARCHING" ? "bg-blue-500 animate-pulse" : "bg-muted")} />
                 {step}
               </div>
             ))}
@@ -468,8 +468,8 @@ export default function PitchDetailPage() {
           <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="w-8 h-8 text-red-500" />
           </div>
-          <h2 className="text-lg font-semibold text-gray-800 mb-2">Research Failed</h2>
-          <p className="text-gray-500 max-w-md mx-auto">{pitch.errorMessage || "An error occurred."}</p>
+          <h2 className="text-lg font-semibold text-foreground mb-2">Research Failed</h2>
+          <p className="text-muted-foreground max-w-md mx-auto">{pitch.errorMessage || "An error occurred."}</p>
         </div>
       )}
 
@@ -481,64 +481,64 @@ export default function PitchDetailPage() {
             {/* ═══ LEFT: Research & Analytics Panel ═══════════════════════ */}
             <div className="space-y-5">
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-semibold text-gray-700">Digital Presence Audit</h2>
-                <span className="px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700 font-medium">Internal Only</span>
+                <h2 className="text-base font-semibold text-foreground">Digital Presence Audit</h2>
+                <span className="px-2 py-0.5 rounded text-xs bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 font-medium">Internal Only</span>
               </div>
 
               {/* ── Overall Score Card ── */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <div className="bg-card rounded-2xl border border-border p-6">
                 <div className="flex items-center justify-between mb-5">
                   <div>
-                    <h3 className="font-bold text-gray-900 text-lg">Digital Health Score</h3>
-                    <p className="text-sm text-gray-500 mt-0.5">Overall online presence assessment</p>
+                    <h3 className="font-bold text-foreground text-lg">Digital Health Score</h3>
+                    <p className="text-sm text-muted-foreground mt-0.5">Overall online presence assessment</p>
                   </div>
                   <div className="text-right">
                     <div className={cn("text-3xl font-black", scoreColor(overall))}>{overall}</div>
-                    <div className="text-xs text-gray-400">out of 100</div>
+                    <div className="text-xs text-muted-foreground/60">out of 100</div>
                   </div>
                 </div>
 
                 {/* Main progress bar */}
                 <div className="mb-5">
-                  <div className="flex justify-between text-xs text-gray-500 mb-1.5">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
                     <span className={cn("font-semibold", scoreColor(overall))}>{scoreLabel(overall)}</span>
                     <span>Industry top: 85</span>
                   </div>
-                  <div className="relative h-4 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="relative h-4 bg-muted rounded-full overflow-hidden">
                     <div
                       className={cn("h-full rounded-full transition-all duration-700", scoreBg(overall))}
                       style={{ width: `${overall}%` }}
                     />
                     {/* Benchmark marker */}
-                    <div className="absolute top-0 h-full w-0.5 bg-gray-400 opacity-60" style={{ left: "85%" }} />
+                    <div className="absolute top-0 h-full w-0.5 bg-muted-foreground/40" style={{ left: "85%" }} />
                   </div>
-                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                  <div className="flex justify-between text-xs text-muted-foreground/60 mt-1">
                     <span>0</span>
                     <span style={{ marginLeft: `calc(${overall}% - 10px)` }} className={cn("font-bold", scoreColor(overall))}>{overall}</span>
-                    <span className="text-gray-400">100</span>
+                    <span className="text-muted-foreground/60">100</span>
                   </div>
                 </div>
 
                 {/* Comparison with industry */}
-                <div className="grid grid-cols-3 gap-3 pt-4 border-t border-gray-100">
+                <div className="grid grid-cols-3 gap-3 pt-4 border-t border-border">
                   <div className="text-center">
                     <div className={cn("text-xl font-black", scoreColor(overall))}>{overall}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">{pitch.businessName.split(" ")[0]}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{pitch.businessName.split(" ")[0]}</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-xl font-black text-gray-400">52</div>
-                    <div className="text-xs text-gray-500 mt-0.5">Industry Avg</div>
+                    <div className="text-xl font-black text-muted-foreground/60">52</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Industry Avg</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-xl font-black text-green-600">85</div>
-                    <div className="text-xs text-gray-500 mt-0.5">Top Performers</div>
+                    <div className="text-xl font-black text-green-600 dark:text-green-400">85</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Top Performers</div>
                   </div>
                 </div>
               </div>
 
               {/* ── Category Scores ── */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <div className="bg-card rounded-2xl border border-border p-5">
+                <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-blue-500" /> Score Breakdown
                 </h3>
                 <div className="space-y-3">
@@ -549,16 +549,16 @@ export default function PitchDetailPage() {
                         className="w-full"
                       >
                         <div className="flex items-center gap-3 mb-1.5">
-                          <span className={cn("text-gray-500", scoreColor(cat.score))}>{cat.icon}</span>
-                          <span className="text-sm font-medium text-gray-700 flex-1 text-left">{cat.name}</span>
+                          <span className={cn("text-muted-foreground", scoreColor(cat.score))}>{cat.icon}</span>
+                          <span className="text-sm font-medium text-foreground flex-1 text-left">{cat.name}</span>
                           <span className={cn("text-sm font-bold w-10 text-right", scoreColor(cat.score))}>{cat.score}</span>
-                          <span className="text-xs text-gray-400 w-8 text-right">{cat.weight}%</span>
+                          <span className="text-xs text-muted-foreground/60 w-8 text-right">{cat.weight}%</span>
                           {expandedCategory === cat.name
-                            ? <ChevronUp className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                            : <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                            ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
+                            : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
                           }
                         </div>
-                        <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-2.5 bg-muted rounded-full overflow-hidden">
                           <div
                             className={cn("h-full rounded-full transition-all duration-700", scoreBg(cat.score))}
                             style={{ width: `${cat.score}%` }}
@@ -574,8 +574,8 @@ export default function PitchDetailPage() {
                                 : <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
                               }
                               <div>
-                                <span className={cn("font-medium", item.ok ? "text-gray-700" : "text-gray-600")}>{item.label}</span>
-                                {item.detail && <span className="text-gray-400 ml-1">— {item.detail}</span>}
+                                <span className={cn("font-medium", item.ok ? "text-foreground" : "text-muted-foreground")}>{item.label}</span>
+                                {item.detail && <span className="text-muted-foreground/60 ml-1">— {item.detail}</span>}
                               </div>
                             </div>
                           ))}
@@ -587,17 +587,17 @@ export default function PitchDetailPage() {
               </div>
 
               {/* ── Google Business Profile ── */}
-              <div className={cn("bg-white rounded-2xl border p-5", gp ? "border-gray-200" : "border-red-100 bg-red-50/30")}>
-                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <div className={cn("bg-card rounded-2xl border p-5", gp ? "border-border" : "border-red-500/20 bg-red-500/5")}>
+                <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
                   <Star className="w-4 h-4 text-amber-500" /> Google Business Profile
                   {gp
-                    ? <span className="ml-auto px-2 py-0.5 rounded text-xs bg-green-100 text-green-700 font-medium">Found</span>
-                    : <span className="ml-auto px-2 py-0.5 rounded text-xs bg-red-100 text-red-700 font-medium">Not Found</span>
+                    ? <span className="ml-auto px-2 py-0.5 rounded text-xs bg-green-500/10 text-green-600 dark:text-green-400 font-medium">Found</span>
+                    : <span className="ml-auto px-2 py-0.5 rounded text-xs bg-red-500/10 text-red-600 dark:text-red-400 font-medium">Not Found</span>
                   }
                 </h3>
 
                 {!gp && (
-                  <div className="flex items-start gap-2 text-sm text-red-600">
+                  <div className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
                     <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                     <span>No Google Business listing found. This means they are essentially invisible to local search.</span>
                   </div>
@@ -609,26 +609,26 @@ export default function PitchDetailPage() {
                     {gp.rating !== undefined && (
                       <div className="flex items-center gap-4">
                         <div className="text-center">
-                          <div className={cn("text-4xl font-black", gp.rating >= 4.5 ? "text-green-600" : gp.rating >= 4.0 ? "text-amber-500" : "text-red-500")}>
+                          <div className={cn("text-4xl font-black", gp.rating >= 4.5 ? "text-green-600 dark:text-green-400" : gp.rating >= 4.0 ? "text-amber-500" : "text-red-500")}>
                             {gp.rating.toFixed(1)}
                           </div>
-                          <div className="text-xs text-gray-500 mt-0.5">out of 5.0</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">out of 5.0</div>
                         </div>
                         <div className="flex-1">
                           <StarRating rating={gp.rating} />
-                          <div className="text-sm text-gray-600 mt-1">
+                          <div className="text-sm text-muted-foreground mt-1">
                             <strong>{gp.reviewCount ?? 0}</strong> Google reviews
                           </div>
                           {/* Rating bar */}
-                          <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
                             <div
                               className={cn("h-full rounded-full", gp.rating >= 4.5 ? "bg-green-500" : gp.rating >= 4.0 ? "bg-amber-500" : "bg-red-500")}
                               style={{ width: `${(gp.rating / 5) * 100}%` }}
                             />
                           </div>
-                          <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+                          <div className="flex justify-between text-xs text-muted-foreground/60 mt-0.5">
                             <span>0</span>
-                            <span className="text-gray-400">Benchmark: 4.5</span>
+                            <span className="text-muted-foreground/60">Benchmark: 4.5</span>
                             <span>5.0</span>
                           </div>
                         </div>
@@ -638,14 +638,14 @@ export default function PitchDetailPage() {
                     {/* Details */}
                     <div className="grid grid-cols-1 gap-2 text-sm">
                       {gp.address && (
-                        <div className="flex items-start gap-2 text-gray-600">
-                          <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex items-start gap-2 text-muted-foreground">
+                          <MapPin className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0 mt-0.5" />
                           <span>{gp.address}</span>
                         </div>
                       )}
                       {gp.phone && (
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Phone className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
                           <a href={`tel:${gp.phone}`} className="hover:text-blue-600">{gp.phone}</a>
                         </div>
                       )}
@@ -656,7 +656,7 @@ export default function PitchDetailPage() {
                         </a>
                       )}
                       {gp.isOpenNow !== undefined && (
-                        <div className={cn("flex items-center gap-2 text-sm font-medium", gp.isOpenNow ? "text-green-600" : "text-red-500")}>
+                        <div className={cn("flex items-center gap-2 text-sm font-medium", gp.isOpenNow ? "text-green-600 dark:text-green-400" : "text-red-500")}>
                           <div className={cn("w-2 h-2 rounded-full", gp.isOpenNow ? "bg-green-500" : "bg-red-500")} />
                           {gp.isOpenNow ? "Open now" : "Closed now"}
                         </div>
@@ -668,7 +668,7 @@ export default function PitchDetailPage() {
                       <div>
                         <button
                           onClick={() => setShowReviews(v => !v)}
-                          className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                          className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
                         >
                           {showReviews ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                           {showReviews ? "Hide hours" : "Show hours"}
@@ -676,7 +676,7 @@ export default function PitchDetailPage() {
                         {showReviews && (
                           <div className="mt-2 space-y-0.5">
                             {gp.hours.map((h, i) => (
-                              <div key={i} className="text-xs text-gray-500">{h}</div>
+                              <div key={i} className="text-xs text-muted-foreground">{h}</div>
                             ))}
                           </div>
                         )}
@@ -686,8 +686,8 @@ export default function PitchDetailPage() {
                     {/* Recent reviews */}
                     {gp.recentReviews && gp.recentReviews.length > 0 && (
                       <div>
-                        <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
-                          <Users className="w-3.5 h-3.5 text-gray-400" /> Recent Customer Reviews
+                        <div className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5 text-muted-foreground/60" /> Recent Customer Reviews
                         </div>
                         <div className="space-y-2.5">
                           {gp.recentReviews.map((rv, i) => (
@@ -695,12 +695,12 @@ export default function PitchDetailPage() {
                               <div className="flex items-center gap-2 mb-1">
                                 <div className="flex">
                                   {Array.from({ length: 5 }).map((_, si) => (
-                                    <Star key={si} className={cn("w-3 h-3", si < rv.rating ? "text-amber-400 fill-amber-400" : "text-gray-200 fill-gray-200")} />
+                                    <Star key={si} className={cn("w-3 h-3", si < rv.rating ? "text-amber-400 fill-amber-400" : "text-muted fill-muted")} />
                                   ))}
                                 </div>
-                                <span className="text-gray-400">{rv.timeAgo}</span>
+                                <span className="text-muted-foreground/60">{rv.timeAgo}</span>
                               </div>
-                              <p className="text-gray-700 leading-relaxed line-clamp-3">&ldquo;{rv.text}&rdquo;</p>
+                              <p className="text-foreground leading-relaxed line-clamp-3">&ldquo;{rv.text}&rdquo;</p>
                             </div>
                           ))}
                         </div>
@@ -712,13 +712,13 @@ export default function PitchDetailPage() {
 
               {/* ── Tech Stack ── */}
               {research.techStack && research.techStack.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <Code2 className="w-4 h-4 text-gray-400" /> Detected Tech Stack
+                <div className="bg-card rounded-2xl border border-border p-5">
+                  <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+                    <Code2 className="w-4 h-4 text-muted-foreground/60" /> Detected Tech Stack
                   </h3>
                   <div className="flex flex-wrap gap-2">
                     {research.techStack.map((t, i) => (
-                      <span key={i} className="px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 text-xs font-medium">{t}</span>
+                      <span key={i} className="px-2.5 py-1 rounded-lg bg-muted text-muted-foreground text-xs font-medium">{t}</span>
                     ))}
                   </div>
                 </div>
@@ -726,15 +726,15 @@ export default function PitchDetailPage() {
 
               {/* ── Pain Points ── */}
               {research.painPoints && research.painPoints.length > 0 && (
-                <div className="bg-white rounded-2xl border border-red-100 p-5">
-                  <h3 className="font-semibold text-red-700 mb-3 flex items-center gap-2">
+                <div className="bg-card rounded-2xl border border-red-500/20 p-5">
+                  <h3 className="font-semibold text-red-600 dark:text-red-400 mb-3 flex items-center gap-2">
                     <ShieldAlert className="w-4 h-4" /> Identified Issues ({research.painPoints.length})
                   </h3>
                   <div className="space-y-2">
                     {research.painPoints.map((p, i) => (
                       <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg bg-red-50 border border-red-100">
                         <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
-                        <span className="text-sm text-gray-700">{p}</span>
+                        <span className="text-sm text-foreground">{p}</span>
                       </div>
                     ))}
                   </div>
@@ -743,15 +743,15 @@ export default function PitchDetailPage() {
 
               {/* ── Opportunities ── */}
               {research.opportunities && research.opportunities.length > 0 && (
-                <div className="bg-white rounded-2xl border border-green-100 p-5">
-                  <h3 className="font-semibold text-green-700 mb-3 flex items-center gap-2">
+                <div className="bg-card rounded-2xl border border-green-500/20 p-5">
+                  <h3 className="font-semibold text-green-600 dark:text-green-400 mb-3 flex items-center gap-2">
                     <TrendingUp className="w-4 h-4" /> Growth Opportunities ({research.opportunities.length})
                   </h3>
                   <div className="space-y-2">
                     {research.opportunities.map((o, i) => (
                       <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg bg-green-50 border border-green-100">
                         <Zap className="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" />
-                        <span className="text-sm text-gray-700">{o}</span>
+                        <span className="text-sm text-foreground">{o}</span>
                       </div>
                     ))}
                   </div>
@@ -762,11 +762,11 @@ export default function PitchDetailPage() {
             {/* ═══ RIGHT: Client Pitch Preview ════════════════════════════ */}
             <div className="space-y-5">
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-semibold text-gray-700">Pitch Preview</h2>
-                <span className="px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-700 font-medium">Client Sees This</span>
+                <h2 className="text-base font-semibold text-foreground">Pitch Preview</h2>
+                <span className="px-2 py-0.5 rounded text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">Client Sees This</span>
               </div>
 
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+              <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
                 {/* Header bar */}
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-6 text-white">
                   <div className="text-xs font-bold tracking-widest opacity-75 mb-2 uppercase">{brandName || "Confidential Proposal"}</div>
@@ -777,32 +777,32 @@ export default function PitchDetailPage() {
                 <div className="p-6 space-y-6">
                   {/* Subject line */}
                   {pc.subject && (
-                    <div className="bg-gray-50 rounded-xl px-4 py-3 border border-gray-200">
-                      <div className="text-[10px] text-gray-400 mb-1 font-bold tracking-widest uppercase">Email Subject</div>
-                      <div className="text-sm font-semibold text-gray-800">{pc.subject}</div>
+                    <div className="bg-muted/50 rounded-xl px-4 py-3 border border-border">
+                      <div className="text-[10px] text-muted-foreground/60 mb-1 font-bold tracking-widest uppercase">Email Subject</div>
+                      <div className="text-sm font-semibold text-foreground">{pc.subject}</div>
                     </div>
                   )}
 
                   {/* Hook */}
                   {pc.personalizedHook && (
-                    <p className="text-gray-700 text-sm leading-relaxed">{pc.personalizedHook}</p>
+                    <p className="text-foreground text-sm leading-relaxed">{pc.personalizedHook}</p>
                   )}
 
                   {/* Score snapshot in pitch — mini version */}
                   <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl border border-blue-100 p-4">
-                    <div className="text-[10px] font-bold tracking-widest text-blue-600 mb-3 uppercase">Digital Presence Score</div>
+                    <div className="text-[10px] font-bold tracking-widest text-blue-600 dark:text-blue-400 mb-3 uppercase">Digital Presence Score</div>
                     <div className="flex items-center gap-4 mb-3">
                       <CircularScore score={overall} size={72} />
                       <div className="flex-1">
-                        <div className="text-sm font-bold text-gray-800 mb-0.5">{scoreLabel(overall)} Digital Presence</div>
-                        <div className="text-xs text-gray-500">vs. 85 for top performers in {research.industry || "your industry"}</div>
+                        <div className="text-sm font-bold text-foreground mb-0.5">{scoreLabel(overall)} Digital Presence</div>
+                        <div className="text-xs text-muted-foreground">vs. 85 for top performers in {research.industry || "your industry"}</div>
                         <div className="mt-2 grid grid-cols-2 gap-1.5">
                           {categories.slice(0, 4).map(cat => (
                             <div key={cat.name} className="flex items-center gap-1.5">
-                              <div className="w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
+                              <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden flex-shrink-0">
                                 <div className={cn("h-full rounded-full", scoreBg(cat.score))} style={{ width: `${cat.score}%` }} />
                               </div>
-                              <span className="text-[10px] text-gray-500 truncate">{cat.name.split(" ")[0]}</span>
+                              <span className="text-[10px] text-muted-foreground truncate">{cat.name.split(" ")[0]}</span>
                             </div>
                           ))}
                         </div>
@@ -812,18 +812,18 @@ export default function PitchDetailPage() {
 
                   {/* Key Findings */}
                   {pc.keyFindings && pc.keyFindings.length > 0 && (
-                    <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">
-                      <div className="text-[10px] font-bold tracking-widest text-blue-600 mb-3 uppercase">What We Discovered</div>
+                    <div className="bg-muted/50 rounded-xl border border-border p-5">
+                      <div className="text-[10px] font-bold tracking-widest text-blue-600 dark:text-blue-400 mb-3 uppercase">What We Discovered</div>
                       <div className="space-y-2.5">
                         {pc.keyFindings.map((f, i) => (
                           <div key={i} className="flex items-start gap-2.5">
                             <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
-                            <span className="text-sm text-gray-700">{f}</span>
+                            <span className="text-sm text-foreground">{f}</span>
                           </div>
                         ))}
                       </div>
                       {(pc.hiddenFindingsCount || 0) > 0 && (
-                        <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-2 text-xs text-gray-400 italic">
+                        <div className="mt-3 pt-3 border-t border-border flex items-center gap-2 text-xs text-muted-foreground/60 italic">
                           <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
                           + {pc.hiddenFindingsCount} more insights we&apos;d love to discuss with you.
                         </div>
@@ -834,20 +834,20 @@ export default function PitchDetailPage() {
                   {/* Opportunity */}
                   {pc.opportunityParagraph && (
                     <div>
-                      <div className="text-[10px] font-bold tracking-widest text-blue-600 mb-2 uppercase">The Opportunity</div>
-                      <p className="text-sm text-gray-700 leading-relaxed">{pc.opportunityParagraph}</p>
+                      <div className="text-[10px] font-bold tracking-widest text-blue-600 dark:text-blue-400 mb-2 uppercase">The Opportunity</div>
+                      <p className="text-sm text-foreground leading-relaxed">{pc.opportunityParagraph}</p>
                     </div>
                   )}
 
                   {/* Solution Bullets */}
                   {pc.solutionBullets && pc.solutionBullets.length > 0 && (
                     <div>
-                      <div className="text-[10px] font-bold tracking-widest text-blue-600 mb-3 uppercase">How {brandName || "We"} Can Help</div>
+                      <div className="text-[10px] font-bold tracking-widest text-blue-600 dark:text-blue-400 mb-3 uppercase">How {brandName || "We"} Can Help</div>
                       <div className="space-y-2.5">
                         {pc.solutionBullets.map((b, i) => (
                           <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
                             <Zap className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-                            <span className="text-sm text-gray-700">{b}</span>
+                            <span className="text-sm text-foreground">{b}</span>
                           </div>
                         ))}
                       </div>
@@ -857,10 +857,10 @@ export default function PitchDetailPage() {
                   {/* Impact */}
                   {pc.impactParagraph && (
                     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 p-5">
-                      <div className="text-[10px] font-bold tracking-widest text-blue-600 mb-2 uppercase flex items-center gap-1.5">
+                      <div className="text-[10px] font-bold tracking-widest text-blue-600 dark:text-blue-400 mb-2 uppercase flex items-center gap-1.5">
                         <TrendingUp className="w-3.5 h-3.5" /> Expected Impact
                       </div>
-                      <p className="text-sm text-gray-700 leading-relaxed">{pc.impactParagraph}</p>
+                      <p className="text-sm text-foreground leading-relaxed">{pc.impactParagraph}</p>
                     </div>
                   )}
 
@@ -875,11 +875,11 @@ export default function PitchDetailPage() {
 
                   {/* Closing */}
                   {pc.closingLine && (
-                    <p className="text-sm text-gray-600 italic">{pc.closingLine}</p>
+                    <p className="text-sm text-muted-foreground italic">{pc.closingLine}</p>
                   )}
 
-                  <div className="border-t border-gray-100 pt-4 text-center">
-                    <p className="text-xs text-gray-400">{brandName || "Powered by FlowSmartly AI"}</p>
+                  <div className="border-t border-border pt-4 text-center">
+                    <p className="text-xs text-muted-foreground/60">{brandName || "Powered by FlowSmartly AI"}</p>
                   </div>
                 </div>
               </div>
@@ -887,8 +887,8 @@ export default function PitchDetailPage() {
               {/* Sent info */}
               {pitch.status === "SENT" && pitch.sentAt && (
                 <div className="bg-purple-50 rounded-xl border border-purple-100 px-4 py-3 flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                  <span className="text-purple-700">
+                  <CheckCircle2 className="w-4 h-4 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                  <span className="text-purple-600 dark:text-purple-400">
                     Sent to <strong>{pitch.recipientEmail}</strong> on {new Date(pitch.sentAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
                   </span>
                 </div>
@@ -903,14 +903,14 @@ export default function PitchDetailPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Send className="w-5 h-5 text-blue-600" /> Send Pitch
+              <Send className="w-5 h-5 text-blue-600 dark:text-blue-400" /> Send Pitch
             </DialogTitle>
           </DialogHeader>
           {sendSuccess ? (
             <div className="py-8 text-center">
               <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
-              <p className="font-semibold text-gray-800">Pitch sent successfully!</p>
-              <p className="text-sm text-gray-500 mt-1">The proposal PDF has been delivered.</p>
+              <p className="font-semibold text-foreground">Pitch sent successfully!</p>
+              <p className="text-sm text-muted-foreground mt-1">The proposal PDF has been delivered.</p>
             </div>
           ) : (
             <form onSubmit={handleSend} className="space-y-4 mt-2">
@@ -928,7 +928,7 @@ export default function PitchDetailPage() {
                 <Label>Personal Message (Optional)</Label>
                 <Textarea placeholder="Add a personal note…" rows={3} value={sendForm.message} onChange={e => setSendForm(f => ({ ...f, message: e.target.value }))} />
               </div>
-              {sendError && <p className="text-sm text-red-600 flex items-center gap-1.5"><AlertCircle className="w-4 h-4 flex-shrink-0" /> {sendError}</p>}
+              {sendError && <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1.5"><AlertCircle className="w-4 h-4 flex-shrink-0" /> {sendError}</p>}
               <div className="flex justify-end gap-3 pt-1">
                 <Button type="button" variant="outline" onClick={() => setShowSendDialog(false)}>Cancel</Button>
                 <Button type="submit" disabled={isSending} className="gap-2">

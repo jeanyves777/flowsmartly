@@ -552,7 +552,7 @@ export default function PitchBoardPage() {
               </form>
 
               {leadError && (
-                <p className="text-sm text-red-600 mt-3 flex items-center gap-1.5">
+                <p className="text-sm text-red-600 dark:text-red-400 mt-3 flex items-center gap-1.5">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" /> {leadError}
                 </p>
               )}
@@ -568,7 +568,7 @@ export default function PitchBoardPage() {
                       type="checkbox"
                       checked={selectedLeads.size === leadResults.length}
                       onChange={toggleAllLeads}
-                      className="w-4 h-4 rounded border-border text-blue-600"
+                      className="w-4 h-4 rounded border-border accent-blue-500"
                     />
                     <span className="text-sm text-muted-foreground">
                       {selectedLeads.size > 0 ? `${selectedLeads.size} selected` : `${leadResults.length} results`}
@@ -595,7 +595,7 @@ export default function PitchBoardPage() {
                         type="checkbox"
                         checked={selectedLeads.has(idx)}
                         onChange={() => toggleLead(idx)}
-                        className="w-4 h-4 mt-1 rounded border-border text-blue-600 flex-shrink-0"
+                        className="w-4 h-4 mt-1 rounded border-border accent-blue-500 flex-shrink-0"
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 flex-wrap">
@@ -648,7 +648,7 @@ export default function PitchBoardPage() {
                           {lead.phone && (
                             <div className="flex items-center gap-1.5">
                               <Phone className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground/60" />
-                              <a href={`tel:${lead.phone}`} className="hover:text-blue-600">{lead.phone}</a>
+                              <a href={`tel:${lead.phone}`} className="hover:text-blue-500">{lead.phone}</a>
                             </div>
                           )}
                           {lead.website && (
@@ -658,7 +658,7 @@ export default function PitchBoardPage() {
                                 href={lead.website.startsWith("http") ? lead.website : `https://${lead.website}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="hover:text-blue-600 truncate"
+                                className="hover:text-blue-500 truncate"
                               >
                                 {lead.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
                               </a>
@@ -667,7 +667,7 @@ export default function PitchBoardPage() {
                           {lead.businessStatus && lead.businessStatus !== "OPERATIONAL" && (
                             <div className="flex items-center gap-1.5">
                               <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 text-amber-400" />
-                              <span className="capitalize text-amber-600">{lead.businessStatus.toLowerCase().replace(/_/g, " ")}</span>
+                              <span className="capitalize text-amber-600 dark:text-amber-400">{lead.businessStatus.toLowerCase().replace(/_/g, " ")}</span>
                             </div>
                           )}
                         </div>
@@ -723,7 +723,7 @@ export default function PitchBoardPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Briefcase className="w-5 h-5 text-blue-600" /> Create AI Pitch
+              <Briefcase className="w-5 h-5 text-blue-600 dark:text-blue-400" /> Create AI Pitch
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreatePitch} className="space-y-4 mt-2">
@@ -774,7 +774,7 @@ export default function PitchBoardPage() {
             </div>
 
             {createError && (
-              <p className="text-sm text-red-600 flex items-center gap-1.5">
+              <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1.5">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" /> {createError}
               </p>
             )}
@@ -795,7 +795,7 @@ export default function PitchBoardPage() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-blue-600" /> Save to Contact List
+              <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" /> Save to Contact List
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
