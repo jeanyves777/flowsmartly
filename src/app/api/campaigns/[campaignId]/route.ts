@@ -129,6 +129,9 @@ export async function PATCH(
       content,
       contentHtml,
       contactListId,
+      templateId,
+      customRecipients,
+      excludedRecipients,
       scheduledAt,
       status,
       imageUrl,
@@ -146,6 +149,9 @@ export async function PATCH(
     if (content !== undefined) updateData.content = content;
     if (contentHtml !== undefined) updateData.contentHtml = contentHtml;
     if (contactListId !== undefined) updateData.contactListId = contactListId;
+    if (templateId !== undefined) updateData.templateId = templateId;
+    if (customRecipients !== undefined) updateData.customRecipients = customRecipients;
+    if (excludedRecipients !== undefined) updateData.excludedRecipients = excludedRecipients;
     if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
     if (imageSource !== undefined) updateData.imageSource = imageSource;
     if (imageOverlayText !== undefined) updateData.imageOverlayText = imageOverlayText;

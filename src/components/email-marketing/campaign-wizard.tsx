@@ -257,6 +257,10 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
         customRecipients: state.customEmails.length > 0 ? JSON.stringify(state.customEmails) : null,
         excludedRecipients: state.excludedContactIds.length > 0 ? JSON.stringify(state.excludedContactIds) : null,
         status: "DRAFT",
+        // Images are embedded in sections/contentHtml — clear legacy inject fields to prevent duplication
+        imageUrl: null,
+        imageSource: null,
+        imageOverlayText: null,
       };
 
       const method = state.editCampaignId ? "PATCH" : "POST";
@@ -301,6 +305,10 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
         customRecipients: state.customEmails.length > 0 ? JSON.stringify(state.customEmails) : null,
         excludedRecipients: state.excludedContactIds.length > 0 ? JSON.stringify(state.excludedContactIds) : null,
         status: "DRAFT",
+        // Images are embedded in sections/contentHtml — clear legacy inject fields to prevent duplication
+        imageUrl: null,
+        imageSource: null,
+        imageOverlayText: null,
       };
 
       let campaignId = state.editCampaignId;
