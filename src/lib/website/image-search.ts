@@ -143,7 +143,6 @@ export async function downloadToMediaLibrary(
         type: "image",
         width: 0,
         height: 0,
-        alt: alt || safeName,
       },
     });
 
