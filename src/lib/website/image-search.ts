@@ -118,7 +118,7 @@ export async function downloadToMediaLibrary(
     const key = `media/${userId}/website-images/${safeName}-${Date.now()}.${ext}`;
 
     // Upload to S3
-    const s3Url = await uploadToS3(buffer, key, contentType);
+    const s3Url = await uploadToS3(key, buffer, contentType);
 
     // Get or create "Website Images" folder
     let folder = await prisma.mediaFolder.findFirst({
