@@ -260,6 +260,16 @@ export const FEATURE_CATALOG: FeatureDefinition[] = [
     routes: ["/landing-pages"],
     plans: { PRO: true, BUSINESS: true, ENTERPRISE: true },
   },
+  {
+    slug: "websites",
+    name: "Website Builder",
+    description: "AI-powered website builder with visual editor, custom domains, and member login",
+    category: "marketing",
+    icon: "Globe",
+    route: "/websites",
+    routes: ["/websites"],
+    plans: { PRO: true, BUSINESS: true, ENTERPRISE: true },
+  },
 
   // ─── Tools & Productivity ─────────────────────────
   {
