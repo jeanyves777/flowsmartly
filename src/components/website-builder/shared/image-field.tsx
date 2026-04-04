@@ -55,16 +55,13 @@ export function ImageField({ label, value, onChange, aspectRatio = "16/9", class
 
       {showPicker && (
         <MediaLibraryPicker
-          isOpen={showPicker}
+          open={showPicker}
           onClose={() => setShowPicker(false)}
-          onSelect={(files) => {
-            if (files.length > 0) {
-              onChange(files[0].url);
-            }
+          onSelect={(url) => {
+            onChange(url);
             setShowPicker(false);
           }}
-          accept="image"
-          maxSelect={1}
+          filterTypes={["image"]}
         />
       )}
     </div>
