@@ -96,6 +96,13 @@ interface BusinessInfo {
   country: string;
 }
 
+interface ReviewSnippet {
+  rating: number;
+  text: string;
+  timeAgo: string;
+  author: string;
+}
+
 interface ListingFinding {
   directoryName: string;
   tier: number;
@@ -108,6 +115,9 @@ interface ListingFinding {
   phone?: string;
   website?: string;
   businessName?: string;
+  recentReviews?: ReviewSnippet[];
+  hours?: string[];
+  isOpenNow?: boolean;
 }
 
 interface ScanResults {
@@ -343,19 +353,26 @@ export default function ListSmartlyOnboardingPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const findings: ListingFinding[] = allListings
         .map((l: any) => {
-          const isGoogle = l.directory?.slug === "google-business";
+          // Parse rich data stored in aiDescription (JSON from Google Places)
+          let richData: any = {};
+          try {
+            if (l.aiDescription) richData = JSON.parse(l.aiDescription);
+          } catch { /* not JSON */ }
+
           return {
             directoryName: l.directory?.name || "Unknown",
             tier: l.directory?.tier || 7,
             status: l.status,
             listingUrl: l.listingUrl || undefined,
-            // For Google, inject profile-level rating/reviews
-            rating: isGoogle ? profileData.averageRating : undefined,
-            reviewCount: isGoogle ? profileData.totalReviews : undefined,
+            rating: richData.rating || undefined,
+            reviewCount: richData.reviewCount || undefined,
             address: l.address || undefined,
             phone: l.phone || undefined,
             website: l.website || undefined,
             businessName: l.businessName || undefined,
+            recentReviews: richData.recentReviews || undefined,
+            hours: richData.hours || undefined,
+            isOpenNow: richData.isOpenNow,
           };
         })
         .sort((a: { status: string; tier: number }, b: { status: string; tier: number }) => {
@@ -904,7 +921,7 @@ export default function ListSmartlyOnboardingPage() {
                                   </div>
                                 )}
 
-                                {/* Address, Phone, Website */}
+                                {/* Address, Phone, Open Status */}
                                 <div className="space-y-1.5 text-sm">
                                   {f.address && (
                                     <div className="flex items-start gap-2 text-muted-foreground">
@@ -921,17 +938,54 @@ export default function ListSmartlyOnboardingPage() {
                                   {f.listingUrl && (
                                     <div className="flex items-center gap-2">
                                       <ExternalLink className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
-                                      <a
-                                        href={f.listingUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-sm text-blue-500 hover:underline"
-                                      >
+                                      <a href={f.listingUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:underline">
                                         View on Google Maps
                                       </a>
                                     </div>
                                   )}
+                                  {f.isOpenNow !== undefined && (
+                                    <div className={`flex items-center gap-2 text-sm font-medium ${f.isOpenNow ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
+                                      <div className={`w-2 h-2 rounded-full ${f.isOpenNow ? "bg-green-500" : "bg-red-500"}`} />
+                                      {f.isOpenNow ? "Open now" : "Closed now"}
+                                    </div>
+                                  )}
                                 </div>
+
+                                {/* Show hours */}
+                                {f.hours && f.hours.length > 0 && (
+                                  <details className="text-xs">
+                                    <summary className="text-muted-foreground hover:text-foreground cursor-pointer">Show hours</summary>
+                                    <div className="mt-1.5 space-y-0.5 pl-2">
+                                      {f.hours.map((h, hi) => (
+                                        <div key={hi} className="text-muted-foreground">{h}</div>
+                                      ))}
+                                    </div>
+                                  </details>
+                                )}
+
+                                {/* Recent Customer Reviews */}
+                                {f.recentReviews && f.recentReviews.length > 0 && (
+                                  <div>
+                                    <div className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                                      <MessageSquare className="w-3.5 h-3.5 text-muted-foreground/60" /> Recent Customer Reviews
+                                    </div>
+                                    <div className="space-y-2">
+                                      {f.recentReviews.map((rv, ri) => (
+                                        <div key={ri} className={`rounded-lg p-3 text-xs ${rv.rating >= 4 ? "bg-green-500/5 border border-green-500/20" : "bg-red-500/5 border border-red-500/20"}`}>
+                                          <div className="flex items-center gap-2 mb-1">
+                                            <div className="flex">
+                                              {Array.from({ length: 5 }).map((_, si) => (
+                                                <Star key={si} className={`w-3 h-3 ${si < rv.rating ? "text-amber-400 fill-amber-400" : "text-muted fill-muted"}`} />
+                                              ))}
+                                            </div>
+                                            <span className="text-muted-foreground/60">{rv.timeAgo}</span>
+                                          </div>
+                                          <p className="text-foreground leading-relaxed line-clamp-3">&ldquo;{rv.text}&rdquo;</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </CardContent>

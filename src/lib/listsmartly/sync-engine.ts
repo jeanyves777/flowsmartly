@@ -146,7 +146,7 @@ export async function detectExistingPresence(profileId: string): Promise<{ detec
         // Also fetch details to enrich the profile
         const detailUrl = new URL("https://maps.googleapis.com/maps/api/place/details/json");
         detailUrl.searchParams.set("place_id", placeId);
-        detailUrl.searchParams.set("fields", "name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,url");
+        detailUrl.searchParams.set("fields", "name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,url,reviews,opening_hours,business_status");
         detailUrl.searchParams.set("key", apiKey);
 
         const detailRes = await fetch(detailUrl.toString(), { signal: AbortSignal.timeout(8000) });
@@ -154,7 +154,19 @@ export async function detectExistingPresence(profileId: string): Promise<{ detec
 
         if (detailData.status === "OK" && detailData.result) {
           const r = detailData.result;
-          // Update listing with verified data from Google
+          // Extract reviews and hours
+          const reviews = (r.reviews as Array<{ rating: number; text: string; relative_time_description: string; author_name: string }>) || [];
+          const hours = (r.opening_hours as { weekday_text?: string[]; open_now?: boolean }) || {};
+          const isOpenNow = hours.open_now;
+
+          // Store rich data: reviews in aiDescription (JSON), hours in description
+          const recentReviews = reviews.slice(0, 3).map(rv => ({
+            rating: rv.rating,
+            text: rv.text,
+            timeAgo: rv.relative_time_description,
+            author: rv.author_name,
+          }));
+
           await prisma.businessListing.update({
             where: { id: googleListing.id },
             data: {
@@ -163,8 +175,18 @@ export async function detectExistingPresence(profileId: string): Promise<{ detec
               phone: r.formatted_phone_number as string || undefined,
               address: r.formatted_address as string || undefined,
               website: r.website as string || undefined,
+              // Store rich Google data as JSON
+              aiDescription: JSON.stringify({
+                rating: r.rating,
+                reviewCount: r.user_ratings_total,
+                recentReviews,
+                hours: hours.weekday_text || [],
+                isOpenNow,
+                businessStatus: r.business_status,
+              }),
             },
           });
+
           // Store review data on profile
           if (r.rating || r.user_ratings_total) {
             await prisma.listSmartlyProfile.update({
