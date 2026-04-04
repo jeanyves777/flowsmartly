@@ -98,6 +98,12 @@ interface ScanResults {
   relevant: number;
   alreadySubmitted: number;
   missing: number;
+  findings: Array<{
+    directoryName: string;
+    tier: number;
+    status: string;
+    listingUrl?: string;
+  }>;
 }
 
 // ── Component ──
@@ -242,17 +248,37 @@ export default function ListSmartlyOnboardingPage() {
         throw new Error(err.error?.message || "Scan failed");
       }
 
-      // Get actual listing counts
-      const analyticsRes = await fetch("/api/listsmartly/analytics");
-      const analyticsJson = analyticsRes.ok ? await analyticsRes.json() : null;
-      const statusCounts = analyticsJson?.data?.listings?.statusCounts || {};
-      const total = analyticsJson?.data?.listings?.total || 161;
+      // Wait for the scan to complete (fire-and-forget runs in background)
+      await new Promise((r) => setTimeout(r, 3000));
+
+      // Get actual listing data with directory details
+      const listingsRes = await fetch("/api/listsmartly/listings?limit=200");
+      const listingsJson = listingsRes.ok ? await listingsRes.json() : null;
+      const allListings = listingsJson?.data?.listings || [];
+
+      const liveCount = allListings.filter((l: { status: string }) => l.status === "live" || l.status === "submitted").length;
+      const missingCount = allListings.filter((l: { status: string }) => l.status === "missing").length;
+
+      // Build findings list sorted by tier then status (live first)
+      const findings = allListings
+        .map((l: { directory?: { name: string; tier: number }; status: string; listingUrl?: string }) => ({
+          directoryName: l.directory?.name || "Unknown",
+          tier: l.directory?.tier || 7,
+          status: l.status,
+          listingUrl: l.listingUrl || undefined,
+        }))
+        .sort((a: { status: string; tier: number }, b: { status: string; tier: number }) => {
+          if (a.status === "live" && b.status !== "live") return -1;
+          if (a.status !== "live" && b.status === "live") return 1;
+          return a.tier - b.tier;
+        });
 
       setScanResults({
-        totalDirectories: total,
-        relevant: total,
-        alreadySubmitted: statusCounts.live || statusCounts.submitted || 0,
-        missing: statusCounts.missing || total,
+        totalDirectories: allListings.length,
+        relevant: allListings.length,
+        alreadySubmitted: liveCount,
+        missing: missingCount,
+        findings,
       });
     } catch (err: unknown) {
       clearInterval(interval);
@@ -627,6 +653,140 @@ export default function ListSmartlyOnboardingPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Detailed Findings List */}
+            {scanResults.findings && scanResults.findings.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">Detailed Findings</h3>
+
+                {/* Live / Found listings */}
+                {scanResults.findings.filter(f => f.status === "live").length > 0 && (
+                  <Card>
+                    <CardContent className="py-3">
+                      <p className="text-xs font-semibold text-green-500 uppercase tracking-wider mb-2">
+                        Found ({scanResults.findings.filter(f => f.status === "live").length})
+                      </p>
+                      <div className="space-y-1.5">
+                        {scanResults.findings.filter(f => f.status === "live").map((f, i) => (
+                          <div key={i} className="flex items-center justify-between text-sm py-1 border-b border-border last:border-0">
+                            <div className="flex items-center gap-2">
+                              <Check className="w-3.5 h-3.5 text-green-500" />
+                              <span className="text-foreground">{f.directoryName}</span>
+                              <Badge variant="outline" className="text-[10px] h-4">Tier {f.tier}</Badge>
+                            </div>
+                            {f.listingUrl ? (
+                              <a href={f.listingUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline truncate max-w-[200px]">
+                                View Listing →
+                              </a>
+                            ) : (
+                              <span className="text-xs text-green-500">Verified</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Missing listings (show top 20 by tier importance) */}
+                <Card>
+                  <CardContent className="py-3">
+                    <p className="text-xs font-semibold text-red-500 uppercase tracking-wider mb-2">
+                      Missing — Priority Directories ({Math.min(20, scanResults.findings.filter(f => f.status === "missing").length)} of {scanResults.findings.filter(f => f.status === "missing").length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {scanResults.findings.filter(f => f.status === "missing").slice(0, 20).map((f, i) => (
+                        <div key={i} className="flex items-center justify-between text-sm py-1 border-b border-border last:border-0">
+                          <div className="flex items-center gap-2">
+                            <X className="w-3.5 h-3.5 text-red-400" />
+                            <span className="text-muted-foreground">{f.directoryName}</span>
+                            <Badge variant="outline" className="text-[10px] h-4">Tier {f.tier}</Badge>
+                          </div>
+                          <span className="text-xs text-muted-foreground/60">Not listed</span>
+                        </div>
+                      ))}
+                    </div>
+                    {scanResults.findings.filter(f => f.status === "missing").length > 20 && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        + {scanResults.findings.filter(f => f.status === "missing").length - 20} more missing directories (view all in dashboard)
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* AI Analysis & Score — the selling pitch */}
+                <Card className="border-teal-500/30 bg-gradient-to-br from-teal-500/5 to-cyan-500/5">
+                  <CardContent className="py-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Sparkles className="w-5 h-5 text-teal-500" />
+                      <h3 className="font-semibold text-foreground">AI Presence Analysis</h3>
+                    </div>
+
+                    {/* Citation Score */}
+                    <div className="flex items-center gap-6 mb-5">
+                      <div className="relative w-20 h-20">
+                        <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                          <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted/50" />
+                          <circle
+                            cx="50" cy="50" r="42" fill="none" strokeWidth="8"
+                            strokeDasharray={`${((scanResults.alreadySubmitted / Math.max(scanResults.totalDirectories, 1)) * 264)} 264`}
+                            strokeLinecap="round"
+                            className={scanResults.alreadySubmitted > 0 ? "text-yellow-500" : "text-red-500"}
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className={`text-lg font-bold ${scanResults.alreadySubmitted > 0 ? "text-yellow-500" : "text-red-500"}`}>
+                            {Math.round((scanResults.alreadySubmitted / Math.max(scanResults.totalDirectories, 1)) * 100)}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          {scanResults.alreadySubmitted === 0
+                            ? "Critical: No Online Presence Detected"
+                            : scanResults.alreadySubmitted < 10
+                            ? "Poor: Minimal Online Presence"
+                            : scanResults.alreadySubmitted < 30
+                            ? "Below Average: Room for Growth"
+                            : "Growing: Good Foundation"}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          Your business is listed on {scanResults.alreadySubmitted} of {scanResults.totalDirectories} directories
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Key Insights */}
+                    <div className="space-y-2.5 text-sm">
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-5 h-5 rounded-full bg-red-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <X className="w-3 h-3 text-red-500" />
+                        </div>
+                        <p className="text-muted-foreground">
+                          <strong className="text-foreground">{scanResults.findings?.filter(f => f.status === "missing" && f.tier === 1).length || 0} critical directories</strong> (Google, Yelp, Apple Maps) are missing — these drive 80% of local search traffic
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-5 h-5 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <BarChart3 className="w-3 h-3 text-yellow-500" />
+                        </div>
+                        <p className="text-muted-foreground">
+                          Competitors with <strong className="text-foreground">50+ citations</strong> rank significantly higher in local search results
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-5 h-5 rounded-full bg-teal-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <Sparkles className="w-3 h-3 text-teal-500" />
+                        </div>
+                        <p className="text-muted-foreground">
+                          ListSmartly can <strong className="text-foreground">submit your business to all {scanResults.missing} missing directories</strong> and monitor them with AI autopilot
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
         )}
       </div>
