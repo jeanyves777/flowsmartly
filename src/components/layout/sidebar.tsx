@@ -131,7 +131,7 @@ const marketingNavigation = [
   { name: "WhatsApp", href: "/whatsapp", icon: MessageCircle, premium: true },
   { name: "Ads", href: "/ads", icon: Megaphone },
   { name: "Landing Pages", href: "/landing-pages", icon: Globe },
-  { name: "Websites", href: "/websites", icon: Globe },
+  { name: "Website Builder", href: "/websites", icon: Globe },
 ];
 
 // Tools & Insights

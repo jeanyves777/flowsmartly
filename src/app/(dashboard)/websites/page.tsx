@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Globe, Edit3, Trash2, Eye, MoreVertical, FileText, ExternalLink } from "lucide-react";
+import { Plus, Globe, Edit3, Trash2, Eye, FileText, ExternalLink } from "lucide-react";
 
 interface Website {
   id: string;
@@ -38,8 +38,8 @@ export default function WebsitesPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Websites</h1>
-          <p className="text-muted-foreground text-sm mt-1">Build and manage your websites</p>
+          <h1 className="text-2xl font-bold">Website Builder</h1>
+          <p className="text-muted-foreground text-sm mt-1">Build and manage your websites with AI</p>
         </div>
         <button
           onClick={() => router.push("/websites/create")}
@@ -51,8 +51,8 @@ export default function WebsitesPage() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-48 rounded-xl bg-muted animate-pulse" />
           ))}
         </div>
@@ -71,7 +71,7 @@ export default function WebsitesPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {websites.map((site) => (
             <div key={site.id} className="group relative rounded-xl border border-border bg-card overflow-hidden hover:shadow-md transition-shadow">
               {/* Preview Area */}
