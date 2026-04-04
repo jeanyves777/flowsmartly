@@ -181,7 +181,7 @@ export default function ListSmartlyEntryPage() {
       } else {
         toast({
           title: "Activation failed",
-          description: json.error || "Something went wrong. Please try again.",
+          description: json.error?.message || "Something went wrong. Please try again.",
           variant: "destructive",
         });
       }

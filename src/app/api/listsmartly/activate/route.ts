@@ -28,21 +28,32 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { businessName, industry, plan } = body;
 
-    if (!businessName) {
-      return NextResponse.json(
-        { success: false, error: { message: "Business name is required" } },
-        { status: 400 }
-      );
+    // If no businessName provided, try to get from brand kit or user name
+    let name = businessName;
+    if (!name) {
+      const brandKit = await prisma.brandKit.findFirst({
+        where: { userId: session.userId },
+        select: { name: true },
+      });
+      name = brandKit?.name || null;
+    }
+    if (!name) {
+      const user = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { name: true },
+      });
+      name = user?.name || "My Business";
     }
 
+    const trialDays = plan === "pro" ? 14 : 30;
     const now = new Date();
     const trialEnd = new Date(now);
-    trialEnd.setDate(trialEnd.getDate() + 14); // 14-day trial
+    trialEnd.setDate(trialEnd.getDate() + trialDays);
 
     const profile = await prisma.listSmartlyProfile.create({
       data: {
         userId: session.userId,
-        businessName,
+        businessName: name,
         industry: industry || null,
         lsPlan: plan || "basic",
         lsSubscriptionStatus: "trialing",
