@@ -39,11 +39,33 @@ export async function GET(request: NextRequest) {
     });
 
     if (storeByCustomDomain) {
-      return NextResponse.json({ slug: storeByCustomDomain.slug });
+      return NextResponse.json({ slug: storeByCustomDomain.slug, type: "store" });
+    }
+
+    // Check WebsiteDomain table
+    const websiteDomain = await prisma.websiteDomain.findUnique({
+      where: { domainName: domain.toLowerCase() },
+      select: {
+        website: { select: { slug: true, status: true } },
+      },
+    });
+
+    if (websiteDomain?.website.status === "PUBLISHED") {
+      return NextResponse.json({ slug: websiteDomain.website.slug, type: "website" });
+    }
+
+    // Check Website.customDomain field directly
+    const websiteByDomain = await prisma.website.findFirst({
+      where: { customDomain: domain.toLowerCase(), status: "PUBLISHED", deletedAt: null },
+      select: { slug: true },
+    });
+
+    if (websiteByDomain) {
+      return NextResponse.json({ slug: websiteByDomain.slug, type: "website" });
     }
 
     return NextResponse.json({ error: "Domain not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ slug: storeDomain.store.slug });
+  return NextResponse.json({ slug: storeDomain.store.slug, type: "store" });
 }

@@ -55,21 +55,24 @@ export async function middleware(request: NextRequest) {
 
     const data = await res.json();
     const slug = data.slug;
+    const type = data.type || "store"; // "store" or "website"
 
     if (!slug) {
       return NextResponse.redirect(new URL("/", "https://flowsmartly.com"));
     }
 
-    // Rewrite to the store page, preserving the path
-    const storePath = path === "/" ? `/store/${slug}` : `/store/${slug}${path}`;
-    const rewriteUrl = new URL(storePath, request.url);
+    // Rewrite to the appropriate page based on type
+    const basePath = type === "website" ? `/sites/${slug}` : `/store/${slug}`;
+    const rewritePath = path === "/" ? basePath : `${basePath}${path}`;
+    const rewriteUrl = new URL(rewritePath, request.url);
     rewriteUrl.search = request.nextUrl.search;
 
     const response = NextResponse.rewrite(rewriteUrl);
 
-    // Set a header so the store page knows it's being served on a custom domain
+    // Set headers so the page knows it's being served on a custom domain
     response.headers.set("x-custom-domain", hostname);
     response.headers.set("x-store-slug", slug);
+    response.headers.set("x-domain-type", type);
 
     return response;
   } catch (error) {

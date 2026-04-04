@@ -134,6 +134,11 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_AUTO_FIX: 2,               // AI auto-fix listing inconsistency
   AI_LISTING_SCAN: 10,          // AI listing scan across directories
   AI_PITCH_LOCAL_PRESENCE: 5,   // AI pitch for local presence
+
+  // --- AI Website Builder ---
+  AI_WEBSITE_GENERATE: 50,      // Full multi-page site generation (~$0.30 Claude)
+  AI_WEBSITE_PAGE_GENERATE: 15, // Single page generation (~$0.10)
+  AI_WEBSITE_BLOCK_REFINE: 5,   // Refine single block content (~$0.03)
 } as const;
 
 /**
@@ -197,6 +202,9 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_AUTO_FIX: "AI listing auto-fix",
   AI_LISTING_SCAN: "AI listing scan",
   AI_PITCH_LOCAL_PRESENCE: "AI local presence pitch",
+  AI_WEBSITE_GENERATE: "AI website generation",
+  AI_WEBSITE_PAGE_GENERATE: "AI website page generation",
+  AI_WEBSITE_BLOCK_REFINE: "AI website block refinement",
 };
 
 /**

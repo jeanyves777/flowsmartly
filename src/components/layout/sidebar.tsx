@@ -131,6 +131,7 @@ const marketingNavigation = [
   { name: "WhatsApp", href: "/whatsapp", icon: MessageCircle, premium: true },
   { name: "Ads", href: "/ads", icon: Megaphone },
   { name: "Landing Pages", href: "/landing-pages", icon: Globe },
+  { name: "Websites", href: "/websites", icon: Globe },
 ];
 
 // Tools & Insights
@@ -188,6 +189,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
     "whatsapp": ["/whatsapp"],
     "ads": ["/ads"],
     "landing-pages": ["/landing-pages"],
+    "websites": ["/websites"],
     "pitch-board": ["/pitch-board"],
     "follow-ups": ["/tools/follow-ups"],
     "data-collection": ["/tools/data-collection"],
@@ -518,7 +520,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
 
             {/* Filtered Marketing */}
             {filterByAllowed(marketingNavigation).length > 0 &&
-              renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/whatsapp", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), filterByAllowed(marketingNavigation))}
+              renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/whatsapp", "/ads", "/landing-pages", "/websites"].some(p => pathname.startsWith(p)), filterByAllowed(marketingNavigation))}
 
             {/* Filtered Tools */}
             {filterByAllowed(toolsNavigation).length > 0 &&
@@ -575,7 +577,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             {/* Marketing Section */}
             {(() => {
               const items = filterByActivated(marketingNavigation);
-              return items.length > 0 && renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/whatsapp", "/ads", "/landing-pages"].some(p => pathname.startsWith(p)), items, true);
+              return items.length > 0 && renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/whatsapp", "/ads", "/landing-pages", "/websites"].some(p => pathname.startsWith(p)), items, true);
             })()}
 
             {/* Tools & Insights Section */}

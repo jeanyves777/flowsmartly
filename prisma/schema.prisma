@@ -132,6 +132,8 @@ model User {
   leadSearches           LeadSearch[]
   userFeatures           UserFeature[]
   emailTemplates         EmailTemplate[]
+  websites               Website[]
+  websiteDomains         WebsiteDomain[]
 
   // Onboarding
   onboardingComplete Boolean @default(false)
@@ -1172,6 +1174,7 @@ model BrandKit {
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   emailTemplates EmailTemplate[]
+  websites    Website[]
 
   @@index([userId])
   @@index([isDefault])
@@ -4141,4 +4144,185 @@ model PresenceReport {
   profile         ListSmartlyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@index([profileId, periodStart])
+}
+
+// ============================================
+// WEBSITE BUILDER
+// ============================================
+
+model Website {
+  id              String    @id @default(cuid())
+  userId          String
+  brandKitId      String?
+
+  // Identity
+  name            String
+  slug            String    @unique
+  customDomain    String?
+
+  // Theme & Global Styles (JSON)
+  // { colors: {primary, secondary, accent, background, text}, fonts: {heading, body},
+  //   borderRadius, spacing, maxWidth, headerStyle, footerStyle }
+  theme           String    @default("{}")
+
+  // Global SEO defaults
+  seoTitle        String?
+  seoDescription  String?
+  seoImage        String?
+  favicon         String?
+
+  // Navigation config (JSON)
+  // { header: { logo, logoPosition, items: [{label, href, children}], style, sticky },
+  //   footer: { columns: [{title, links}], copyright, socials, style } }
+  navigation      String    @default("{}")
+
+  // Settings (JSON)
+  // { analytics: {gaId, pixelId}, customHead, customCss, memberLoginEnabled,
+  //   gatedDefault, maintenanceMode }
+  settings        String    @default("{}")
+
+  // Status
+  status          String    @default("DRAFT")
+  publishedAt     DateTime?
+  publishedVersion Int      @default(0)
+
+  // Stats
+  pageCount       Int       @default(0)
+  totalViews      Int       @default(0)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandKit        BrandKit? @relation(fields: [brandKitId], references: [id], onDelete: SetNull)
+  pages           WebsitePage[]
+  members         WebsiteMember[]
+  domains         WebsiteDomain[]
+  formSubmissions WebsiteFormSubmission[]
+
+  @@index([userId])
+  @@index([slug])
+  @@index([customDomain])
+  @@index([status])
+}
+
+model WebsitePage {
+  id            String    @id @default(cuid())
+  websiteId     String
+
+  // Page identity
+  title         String
+  slug          String
+  description   String?
+
+  // Content — JSON array of WebsiteBlock objects
+  blocks        String    @default("[]")
+
+  // Page-level SEO overrides
+  seoTitle      String?
+  seoDescription String?
+  seoImage      String?
+  noIndex       Boolean   @default(false)
+
+  // Page settings (JSON)
+  // { transition, customCss, customHead, gated, memberOnly, password }
+  settings      String    @default("{}")
+
+  // Ordering & status
+  sortOrder     Int       @default(0)
+  isHomePage    Boolean   @default(false)
+  status        String    @default("DRAFT")
+
+  // Stats
+  views         Int       @default(0)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  website       Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, slug])
+  @@index([websiteId, sortOrder])
+  @@index([status])
+}
+
+model WebsiteDomain {
+  id                String    @id @default(cuid())
+  websiteId         String
+  userId            String
+  domainName        String    @unique
+  tld               String
+
+  // OpenSRS
+  registrarOrderId  String?
+  registrarStatus   String    @default("pending")
+
+  // Cloudflare
+  cloudflareZoneId  String?
+  sslStatus         String    @default("pending")
+
+  // Billing
+  isFree            Boolean   @default(false)
+  purchasePriceCents Int      @default(0)
+  renewalPriceCents  Int      @default(0)
+  costCents          Int      @default(0)
+
+  // Config
+  whoisPrivacy      Boolean   @default(true)
+  autoRenew         Boolean   @default(true)
+  nameservers       String    @default("[]")
+  dnsRecords        String    @default("[]")
+
+  // Status
+  isPrimary         Boolean   @default(false)
+  isConnected       Boolean   @default(false)
+  expiresAt         DateTime?
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  website           Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId])
+  @@index([userId])
+  @@index([domainName])
+}
+
+model WebsiteMember {
+  id            String    @id @default(cuid())
+  websiteId     String
+  email         String
+  passwordHash  String
+  name          String?
+  avatarUrl     String?
+  role          String    @default("member")
+  status        String    @default("active")
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  website       Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, email])
+  @@index([websiteId])
+  @@index([email])
+}
+
+model WebsiteFormSubmission {
+  id          String    @id @default(cuid())
+  websiteId   String
+  pageSlug    String?
+  blockId     String?
+  data        String    @default("{}")
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  website     Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId])
+  @@index([createdAt])
 }
