@@ -61,7 +61,7 @@ IMPORTANT RULES:
 - Apply entrance animations sparingly (fade-in, slide-up for key sections)
 - Choose colors that match the industry and style preference
 - Use appropriate Google Fonts for the style
-- Generate 3-8 blocks per page (not too many, not too few)
+- Generate 3-6 blocks per page (keep it concise — users can add more in the editor)
 - Each block ID must be unique (use random 8-char alphanumeric strings)
 - Match the content tone to the requested tone (professional, casual, friendly, luxury, playful)
 - For pricing blocks, create realistic plans that match the business type
@@ -113,7 +113,7 @@ export async function generateWebsite(
 
   const response = await ai.generate(userPrompt, {
     systemPrompt: SYSTEM_PROMPT,
-    maxTokens: 8000,
+    maxTokens: 16000,
     temperature: 0.7,
     model: "claude-sonnet-4-20250514",
   });
@@ -121,14 +121,21 @@ export async function generateWebsite(
   // Parse the JSON response
   let parsed: AIGeneratedSite;
   try {
-    // Strip potential markdown code fences
     let text = response.trim();
+    // Strip markdown code fences
     if (text.startsWith("```")) {
-      text = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+      text = text.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?\s*```\s*$/, "");
+    }
+    // Find JSON object boundaries if there's extra text
+    const jsonStart = text.indexOf("{");
+    const jsonEnd = text.lastIndexOf("}");
+    if (jsonStart !== -1 && jsonEnd > jsonStart) {
+      text = text.substring(jsonStart, jsonEnd + 1);
     }
     parsed = JSON.parse(text);
   } catch (err) {
-    console.error("Failed to parse AI response:", response.substring(0, 200));
+    console.error("Failed to parse AI response (first 500 chars):", response.substring(0, 500));
+    console.error("Response length:", response.length, "Last 100 chars:", response.substring(response.length - 100));
     throw new Error("AI generation produced invalid JSON. Please try again.");
   }
 

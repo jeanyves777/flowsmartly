@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, ArrowLeft, ArrowRight, Loader2, Check, Palette, Globe, Target, Settings, CheckCircle2 } from "lucide-react";
+import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import type { SiteQuestionnaire } from "@/types/website-builder";
 
 interface BrandKit {
@@ -65,6 +66,8 @@ export default function CreateWebsitePage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [generating, setGenerating] = useState(false);
+  const [genStep, setGenStep] = useState("");
+  const [genProgress, setGenProgress] = useState(0);
   const [error, setError] = useState("");
   const [brandKits, setBrandKits] = useState<BrandKit[]>([]);
   const [selectedBrandKitId, setSelectedBrandKitId] = useState<string>("");
@@ -195,15 +198,38 @@ export default function CreateWebsitePage() {
   const handleGenerate = async () => {
     if (!form.businessName.trim()) { setError("Business name is required"); return; }
     setGenerating(true);
+    setGenStep("Setting up your website...");
+    setGenProgress(5);
     setError("");
 
     try {
+      // Step 1: Create website
+      setGenStep("Creating your website project...");
+      setGenProgress(10);
       const createRes = await fetch("/api/websites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: form.businessName, brandKitId: selectedBrandKitId || undefined }),
       });
       const { website } = await createRes.json();
+      if (!website?.id) throw new Error("Failed to create website");
+
+      // Step 2: Generate with AI
+      setGenStep("Analyzing your brand identity...");
+      setGenProgress(20);
+
+      // Simulate intermediate steps while AI generates
+      const progressTimer = setInterval(() => {
+        setGenProgress((p) => {
+          if (p >= 85) return p;
+          if (p < 40) { setGenStep("Designing your site layout..."); return p + 2; }
+          if (p < 55) { setGenStep("Writing page content with AI..."); return p + 1.5; }
+          if (p < 70) { setGenStep("Creating pages and sections..."); return p + 1; }
+          if (p < 80) { setGenStep("Applying styles and animations..."); return p + 0.5; }
+          setGenStep("Finalizing your website...");
+          return p + 0.3;
+        });
+      }, 800);
 
       const genRes = await fetch(`/api/websites/${website.id}/generate`, {
         method: "POST",
@@ -211,15 +237,23 @@ export default function CreateWebsitePage() {
         body: JSON.stringify({ questionnaire: form }),
       });
 
+      clearInterval(progressTimer);
+
       if (!genRes.ok) {
         const data = await genRes.json();
         throw new Error(data.error || "Generation failed");
       }
 
+      // Step 3: Done
+      setGenStep("Your website is ready!");
+      setGenProgress(100);
+      await new Promise((r) => setTimeout(r, 800));
+
       router.push(`/websites/${website.id}/editor`);
     } catch (err: any) {
       setError(err.message || "Something went wrong");
       setGenerating(false);
+      setGenProgress(0);
     }
   };
 
@@ -234,6 +268,20 @@ export default function CreateWebsitePage() {
       <CheckCircle2 className="w-3 h-3" /> From Brand Kit
     </span>
   ) : null;
+
+  // Show full-page loader when generating
+  if (generating) {
+    return (
+      <div className="max-w-2xl mx-auto py-12">
+        <AIGenerationLoader
+          currentStep={genStep}
+          progress={genProgress}
+          subtitle="AI is building your complete website"
+          showProgressBar
+        />
+      </div>
+    );
+  }
 
   return (
     <div>
