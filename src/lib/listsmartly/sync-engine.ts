@@ -204,62 +204,146 @@ export async function detectExistingPresence(profileId: string): Promise<{ detec
     }
   }
 
-  // ── Step 2: Check other directories via Google Search site: operator ──
-  const otherListings = listings.filter(
-    (l) => l.directory.slug !== "google-business" && l.directory.tier <= 3
-  );
+  // ── Step 2: Crawl business website for social links ──
+  // Reuses the same technique as Pitch Board researcher (extractSocialLinks)
+  const websiteUrl = profile.website;
+  const discoveredSocials: Record<string, string> = {}; // slug → URL
 
-  // Batch search: combine multiple site: queries into one Google search
-  const BATCH_SIZE = 5;
-  const DELAY_MS = 1000;
+  if (websiteUrl) {
+    try {
+      const fullUrl = websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`;
+      const res = await fetch(fullUrl, {
+        signal: AbortSignal.timeout(10000),
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; FlowSmartlyBot/1.0)" },
+      });
+      if (res.ok) {
+        const html = await res.text();
 
-  for (let i = 0; i < otherListings.length; i += BATCH_SIZE) {
-    const batch = otherListings.slice(i, i + BATCH_SIZE);
+        // Extract social links using same regex as pitch board researcher.ts
+        const socialPatterns: Array<{ slug: string; pattern: RegExp }> = [
+          { slug: "facebook", pattern: /href=["'](https?:\/\/(?:www\.)?facebook\.com\/(?!share|sharer|tr\?|login)[^"'\s?#]+)/gi },
+          { slug: "instagram", pattern: /href=["'](https?:\/\/(?:www\.)?instagram\.com\/[^"'\s?#/][^"'\s?#]*)/gi },
+          { slug: "twitter-x", pattern: /href=["'](https?:\/\/(?:www\.)?(?:twitter|x)\.com\/(?!intent|share)[^"'\s?#/][^"'\s?#]*)/gi },
+          { slug: "linkedin", pattern: /href=["'](https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/[^"'\s?#]*)/gi },
+          { slug: "youtube", pattern: /href=["'](https?:\/\/(?:www\.)?youtube\.com\/@?[^"'\s?#/][^"'\s?#]*)/gi },
+          { slug: "tiktok", pattern: /href=["'](https?:\/\/(?:www\.)?tiktok\.com\/@[^"'\s?#]*)/gi },
+          { slug: "pinterest", pattern: /href=["'](https?:\/\/(?:www\.)?pinterest\.com\/[^"'\s?#/][^"'\s?#]*)/gi },
+        ];
 
-    for (const listing of batch) {
-      try {
-        const domain = extractDomain(listing.directory.url);
-        const query = `site:${domain} "${businessName}"`;
-
-        // Use Google Custom Search JSON API (uses GOOGLE_API_KEY)
-        const searchUrl = new URL("https://www.googleapis.com/customsearch/v1");
-        searchUrl.searchParams.set("key", apiKey);
-        searchUrl.searchParams.set("cx", process.env.GOOGLE_SEARCH_CX || "");
-        searchUrl.searchParams.set("q", query);
-        searchUrl.searchParams.set("num", "3");
-
-        // If no CX, try Places text search as fallback for the directory name
-        if (!process.env.GOOGLE_SEARCH_CX) {
-          // Use Places text search to find business on the directory
-          const placesUrl = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
-          placesUrl.searchParams.set("query", `${businessName} ${domain}`);
-          placesUrl.searchParams.set("key", apiKey);
-
-          const placesRes = await fetch(placesUrl.toString(), { signal: AbortSignal.timeout(6000) });
-          const placesData = await placesRes.json() as { results: Array<{ name: string; place_id: string }>; status: string };
-
-          // This just confirms the business exists, doesn't prove it's on this directory
-          // Skip — we can't verify directory-specific presence without Custom Search
-          continue;
+        for (const { slug, pattern } of socialPatterns) {
+          const matches = [...html.matchAll(pattern)];
+          if (matches.length > 0) {
+            const url = matches[0][1]?.split(/['"]/)[0];
+            if (url && url.length < 200) {
+              discoveredSocials[slug] = url;
+            }
+          }
         }
-
-        const res = await fetch(searchUrl.toString(), { signal: AbortSignal.timeout(8000) });
-        if (!res.ok) continue;
-
-        const data = await res.json() as { items?: Array<{ link: string; title: string }>; searchInformation?: { totalResults: string } };
-
-        if (data.items && data.items.length > 0) {
-          const foundUrl = data.items[0].link;
-          await markListingLive(listing.id, foundUrl, "google_custom_search");
-          detected++;
-        }
-      } catch {
-        // Skip this directory on error
+        console.log(`ListSmartly: crawled website, found ${Object.keys(discoveredSocials).length} social links`);
       }
+    } catch (err) {
+      console.error("ListSmartly: website crawl failed:", err);
+    }
+  }
+
+  // ── Step 3: Check social media — website crawl + BrandKit handles ──
+  const brandKit = await prisma.brandKit.findFirst({
+    where: { userId: profile.userId },
+    select: { handles: true },
+  });
+
+  const handles: Record<string, string> = {};
+  try {
+    if (brandKit?.handles) Object.assign(handles, JSON.parse(brandKit.handles as string));
+  } catch { /* not JSON */ }
+
+  // Merge: website-discovered links take priority (real verified URLs),
+  // then BrandKit handles as fallback
+  const socialMapping: Record<string, string> = {
+    facebook: "facebook",
+    instagram: "instagram",
+    twitter: "twitter-x",
+    linkedin: "linkedin",
+    youtube: "youtube",
+    tiktok: "tiktok",
+  };
+
+  for (const [platform, slug] of Object.entries(socialMapping)) {
+    const listing = listings.find((l) => l.directory.slug === slug);
+    if (!listing || listing.status !== "missing") continue;
+
+    // Priority 1: URL discovered from website crawl (real verified link)
+    if (discoveredSocials[slug]) {
+      await markListingLive(listing.id, discoveredSocials[slug], `website_crawl_${platform}`);
+      detected++;
+      continue;
     }
 
-    if (i + BATCH_SIZE < otherListings.length) {
-      await new Promise((r) => setTimeout(r, DELAY_MS));
+    // Priority 2: BrandKit handle — build URL and verify with HEAD request
+    const handle = handles[platform];
+    if (!handle) continue;
+
+    const profileUrls: Record<string, string> = {
+      facebook: `https://facebook.com/${handle}`,
+      instagram: `https://instagram.com/${handle}`,
+      "twitter-x": `https://x.com/${handle}`,
+      linkedin: handle.startsWith("http") ? handle : `https://linkedin.com/company/${handle}`,
+      youtube: handle.startsWith("http") ? handle : `https://youtube.com/@${handle}`,
+      tiktok: `https://tiktok.com/@${handle}`,
+    };
+
+    const url = profileUrls[slug];
+    if (!url) continue;
+
+    try {
+      const res = await fetch(url, {
+        method: "HEAD",
+        redirect: "follow",
+        signal: AbortSignal.timeout(6000),
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; FlowSmartlyBot/1.0)" },
+      });
+      if (res.ok || res.status === 302 || res.status === 301) {
+        await markListingLive(listing.id, url, `verified_handle_${platform}`);
+        detected++;
+      }
+    } catch {
+      // HEAD failed — do NOT mark as live, leave as "missing"
+      // User can manually verify and update later
+    }
+  }
+
+  // ── Step 4: Google Custom Search for remaining directories (if CX is set) ──
+  if (process.env.GOOGLE_SEARCH_CX) {
+    const remainingListings = await prisma.businessListing.findMany({
+      where: { profileId, status: "missing" },
+      include: { directory: { select: { id: true, slug: true, url: true, tier: true } } },
+    });
+    const searchable = remainingListings.filter((l) => l.directory.tier <= 2);
+
+    const BATCH_SIZE = 5;
+    const DELAY_MS = 1000;
+
+    for (let i = 0; i < searchable.length; i += BATCH_SIZE) {
+      const batch = searchable.slice(i, i + BATCH_SIZE);
+      for (const listing of batch) {
+        try {
+          const domain = extractDomain(listing.directory.url);
+          const searchUrl = new URL("https://www.googleapis.com/customsearch/v1");
+          searchUrl.searchParams.set("key", apiKey);
+          searchUrl.searchParams.set("cx", process.env.GOOGLE_SEARCH_CX!);
+          searchUrl.searchParams.set("q", `site:${domain} "${businessName}"`);
+          searchUrl.searchParams.set("num", "3");
+
+          const res = await fetch(searchUrl.toString(), { signal: AbortSignal.timeout(8000) });
+          if (!res.ok) continue;
+          const data = await res.json() as { items?: Array<{ link: string }> };
+          if (data.items?.length) {
+            await markListingLive(listing.id, data.items[0].link, "google_custom_search");
+            detected++;
+          }
+        } catch { /* skip */ }
+      }
+      if (i + BATCH_SIZE < searchable.length) await new Promise((r) => setTimeout(r, DELAY_MS));
     }
   }
 

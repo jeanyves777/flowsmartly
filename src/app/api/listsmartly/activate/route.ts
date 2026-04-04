@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { initializeListings, detectExistingPresence } from "@/lib/listsmartly/sync-engine";
+import { initializeListings } from "@/lib/listsmartly/sync-engine";
 import { seedDirectories } from "@/lib/listsmartly/directories";
 
 // POST /api/listsmartly/activate - Create profile and start trial
@@ -63,22 +63,18 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Ensure directories are seeded, initialize listings, then run AI presence detection
-    (async () => {
-      try {
-        const dirCount = await prisma.listingDirectory.count();
-        if (dirCount === 0) {
-          console.log("Seeding ListSmartly directories...");
-          await seedDirectories();
-        }
-        await initializeListings(profile.id, industry);
-        // AI scans web to detect which directories the business already exists on
-        const detection = await detectExistingPresence(profile.id);
-        console.log(`ListSmartly: detected ${detection.detected} existing listings for ${name}`);
-      } catch (err) {
-        console.error("Failed to initialize listings:", err);
+    // Seed directories + initialize listings (synchronous — wait for it)
+    try {
+      const dirCount = await prisma.listingDirectory.count();
+      if (dirCount === 0) {
+        await seedDirectories();
       }
-    })();
+      await initializeListings(profile.id, industry);
+    } catch (err) {
+      console.error("Failed to initialize listings:", err);
+    }
+    // Detection happens when user triggers scan from onboarding — NOT here
+    // This avoids duplicate API calls and race conditions
 
     return NextResponse.json({
       success: true,

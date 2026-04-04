@@ -38,7 +38,17 @@ export async function POST() {
       await initializeListings(profile.id, profile.industry || undefined);
     }
 
-    // Run real web presence detection (Google Places API + Custom Search)
+    // Create sync job record BEFORE scan starts
+    const job = await prisma.listingSyncJob.create({
+      data: {
+        profileId: profile.id,
+        type: "full_scan",
+        status: "running",
+        startedAt: new Date(),
+      },
+    });
+
+    // Run real web presence detection (Google Places API + website crawl)
     const detection = await detectExistingPresence(profile.id);
 
     // Run consistency check on found listings
@@ -50,7 +60,7 @@ export async function POST() {
     // Recalculate citation score
     const listings = await prisma.businessListing.findMany({
       where: { profileId: profile.id },
-      include: { directory: { select: { tier: true } } },
+      include: { directory: { select: { tier: true, name: true, slug: true } } },
     });
 
     const reviews = await prisma.listingReview.findMany({
@@ -86,9 +96,58 @@ export async function POST() {
       },
     });
 
+    // Build full scan report with every finding
+    const findings = listings.map((l) => ({
+      directorySlug: l.directory.slug,
+      directoryName: l.directory.name,
+      tier: l.directory.tier,
+      status: l.status,
+      listingUrl: l.listingUrl,
+      isConsistent: l.isConsistent,
+    }));
+
+    const liveCount = findings.filter((f) => ["live", "submitted", "claimed"].includes(f.status)).length;
+    const missingCount = findings.filter((f) => f.status === "missing").length;
+    const inconsistentCount = findings.filter((f) => !f.isConsistent && f.status === "live").length;
+
+    // Save complete scan report to ListingSyncJob
+    await prisma.listingSyncJob.update({
+      where: { id: job.id },
+      data: {
+        status: "completed",
+        totalDirectories: listings.length,
+        checkedCount: listings.length,
+        fixedCount: detection.detected,
+        errorCount: 0,
+        completedAt: new Date(),
+        details: JSON.stringify({
+          findings,
+          scores: {
+            citationScore: scoreResult.citationScore,
+            coverageScore: scoreResult.coverageScore,
+            consistencyScore: scoreResult.consistencyScore,
+            reviewScore: scoreResult.reviewScore,
+          },
+          summary: {
+            total: listings.length,
+            live: liveCount,
+            missing: missingCount,
+            inconsistent: inconsistentCount,
+            detected: detection.detected,
+            averageRating,
+            totalReviews,
+          },
+          scannedAt: new Date().toISOString(),
+          businessName: profile.businessName,
+          industry: profile.industry,
+        }),
+      },
+    });
+
     return NextResponse.json({
       success: true,
       data: {
+        jobId: job.id,
         scan: scanResult,
         detected: detection.detected,
         scores: {
@@ -97,6 +156,12 @@ export async function POST() {
           consistencyScore: scoreResult.consistencyScore,
           reviewScore: scoreResult.reviewScore,
           breakdown: scoreResult.breakdown,
+        },
+        summary: {
+          total: listings.length,
+          live: liveCount,
+          missing: missingCount,
+          inconsistent: inconsistentCount,
         },
       },
     });

@@ -272,6 +272,39 @@ export default function ListSmartlyOnboardingPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { syncFromBrandKit(); }, []);
 
+  // Check for previous scan results on mount
+  useEffect(() => {
+    async function loadPreviousScan() {
+      try {
+        const res = await fetch("/api/listsmartly/sync");
+        if (!res.ok) return;
+        const json = await res.json();
+        if (json.success && json.data && json.data.status === "completed" && json.data.details) {
+          const details = typeof json.data.details === "string" ? JSON.parse(json.data.details) : json.data.details;
+          if (details.findings?.length > 0) {
+            // We have previous scan results — load them
+            const allFindings = details.findings || [];
+            const liveCount = allFindings.filter((f: { status: string }) => ["live", "submitted", "claimed"].includes(f.status)).length;
+            const missingCount = allFindings.filter((f: { status: string }) => f.status === "missing").length;
+            setScanResults({
+              totalDirectories: allFindings.length,
+              relevant: allFindings.length,
+              alreadySubmitted: liveCount,
+              missing: missingCount,
+              findings: allFindings.map((f: { directoryName: string; tier: number; status: string; listingUrl?: string }) => ({
+                directoryName: f.directoryName,
+                tier: f.tier,
+                status: f.status,
+                listingUrl: f.listingUrl || undefined,
+              })),
+            });
+          }
+        }
+      } catch { /* no previous scan */ }
+    }
+    loadPreviousScan();
+  }, []);
+
   // ── Handlers ──
 
   function updateBusiness(field: keyof BusinessInfo, value: string) {
@@ -727,16 +760,27 @@ export default function ListSmartlyOnboardingPage() {
           <div className="space-y-4">
             <Card className="border-green-500/30 bg-green-500/5">
               <CardContent className="py-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                    <Check className="h-5 w-5 text-green-500" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                      <Check className="h-5 w-5 text-green-500" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">Scan Complete!</p>
+                      <p className="text-sm text-muted-foreground">
+                        Scanned {scanResults.totalDirectories} directories
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold text-foreground">Scan Complete!</p>
-                    <p className="text-sm text-muted-foreground">
-                      Scanned {scanResults.totalDirectories} directories
-                    </p>
-                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setScanResults(null); runScan(); }}
+                    disabled={scanning}
+                  >
+                    <Search className="w-3.5 h-3.5 mr-1.5" />
+                    Re-scan
+                  </Button>
                 </div>
               </CardContent>
             </Card>
