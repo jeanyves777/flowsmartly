@@ -249,6 +249,7 @@ export default function ListSmartlyDashboardPage() {
   const fetchStats = useCallback(async () => {
     try {
       const res = await fetch("/api/listsmartly/analytics");
+      if (res.status === 404) return; // No profile yet — use defaults
       if (!res.ok) throw new Error("Failed to fetch stats");
       const json = await res.json();
       if (json.success) {
@@ -286,6 +287,7 @@ export default function ListSmartlyDashboardPage() {
       if (listingsSearch) params.set("search", listingsSearch);
 
       const res = await fetch(`/api/listsmartly/listings?${params}`);
+      if (res.status === 404) { setListingsLoading(false); return; }
       if (!res.ok) throw new Error("Failed to fetch listings");
       const data = await res.json();
       setListings(data.listings || []);
@@ -306,6 +308,7 @@ export default function ListSmartlyDashboardPage() {
       if (reviewResponseFilter !== "all") params.set("responded", reviewResponseFilter);
 
       const res = await fetch(`/api/listsmartly/reviews?${params}`);
+      if (res.status === 404) { setReviewsLoading(false); return; }
       if (!res.ok) throw new Error("Failed to fetch reviews");
       const data = await res.json();
       setReviews(data.reviews || []);
