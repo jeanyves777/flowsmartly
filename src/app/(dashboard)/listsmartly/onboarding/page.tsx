@@ -137,34 +137,48 @@ export default function ListSmartlyOnboardingPage() {
 
   // ── Pre-fill from brand kit ──
 
-  const fetchBrand = useCallback(async () => {
+  const [hasBrandKit, setHasBrandKit] = useState(false);
+
+  const syncFromBrandKit = useCallback(async () => {
+    setBrandLoading(true);
     try {
       const res = await fetch("/api/brand");
-      if (res.ok) {
-        const data = await res.json();
-        setBusiness((prev) => ({
-          ...prev,
-          businessName: data.businessName || data.name || prev.businessName,
-          phone: data.phone || prev.phone,
-          email: data.email || prev.email,
-          website: data.website || prev.website,
-          address: data.address || prev.address,
-          city: data.city || prev.city,
-          state: data.state || prev.state,
-          zip: data.zip || prev.zip,
-          country: data.country || prev.country || "US",
-        }));
+      if (!res.ok) return;
+      const json = await res.json();
+      const bk = json.data?.brandKit;
+      if (!bk) return;
+
+      setHasBrandKit(true);
+      setBusiness((prev) => ({
+        ...prev,
+        businessName: bk.name || prev.businessName,
+        phone: bk.phone || prev.phone,
+        email: bk.email || prev.email,
+        website: bk.website || prev.website,
+        address: bk.address || prev.address,
+        city: prev.city,
+        state: prev.state,
+        zip: prev.zip,
+        country: prev.country || "US",
+      }));
+      if (bk.industry && !industry) {
+        // Try to match industry to our list
+        const match = INDUSTRIES.find(
+          (ind) => ind.toLowerCase().includes(bk.industry.toLowerCase()) ||
+                   bk.industry.toLowerCase().includes(ind.toLowerCase())
+        );
+        if (match) setIndustry(match);
       }
+      toast({ title: "Synced!", description: "Business info loaded from your Brand Kit." });
     } catch {
-      // Brand kit not available, that's fine
+      // Brand kit not available
     } finally {
       setBrandLoading(false);
     }
-  }, []);
+  }, [industry, toast]);
 
-  useEffect(() => {
-    fetchBrand();
-  }, [fetchBrand]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { syncFromBrandKit(); }, []);
 
   // ── Handlers ──
 
@@ -303,11 +317,27 @@ export default function ListSmartlyOnboardingPage() {
 
     return (
       <div className="space-y-6">
-        <div>
-          <h2 className="text-xl font-semibold text-foreground mb-1">Tell us about your business</h2>
-          <p className="text-sm text-muted-foreground">
-            This info will be used across all your directory listings.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground mb-1">Tell us about your business</h2>
+            <p className="text-sm text-muted-foreground">
+              This info will be used across all your directory listings.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={syncFromBrandKit}
+            disabled={brandLoading}
+            className="shrink-0 gap-2"
+          >
+            {brandLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4 text-teal-500" />
+            )}
+            Sync from Brand Kit
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
