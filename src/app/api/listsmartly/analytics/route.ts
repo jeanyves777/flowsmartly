@@ -83,6 +83,22 @@ export async function GET() {
       }
     }
 
+    // Tier breakdown
+    const tierCounts: Record<number, { live: number; total: number }> = {};
+    for (const listing of listings) {
+      const tier = listing.directory.tier;
+      if (!tierCounts[tier]) tierCounts[tier] = { live: 0, total: 0 };
+      tierCounts[tier].total++;
+      if (["live", "submitted", "claimed"].includes(listing.status)) {
+        tierCounts[tier].live++;
+      }
+    }
+    const listingsByTier = Object.entries(tierCounts).map(([tier, counts]) => ({
+      tier: Number(tier),
+      ...counts,
+      percentage: counts.total > 0 ? Math.round((counts.live / counts.total) * 100) : 0,
+    })).sort((a, b) => a.tier - b.tier);
+
     return NextResponse.json({
       success: true,
       data: {
@@ -97,6 +113,7 @@ export async function GET() {
           total: listings.length,
           statusCounts,
         },
+        listingsByTier,
         reviews: {
           total: totalReviews,
           averageRating: Math.round(averageRating * 10) / 10,

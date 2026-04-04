@@ -248,10 +248,27 @@ export default function ListSmartlyDashboardPage() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch("/api/listsmartly/stats");
+      const res = await fetch("/api/listsmartly/analytics");
       if (!res.ok) throw new Error("Failed to fetch stats");
-      const data = await res.json();
-      setStats(data);
+      const json = await res.json();
+      if (json.success) {
+        const sc = json.data.scores || {};
+        const lc = json.data.listings?.statusCounts || {};
+        const rv = json.data.reviews || {};
+        setStats((prev) => ({
+          ...(prev || {}),
+          citationScore: sc.citationScore ?? 0,
+          coveragePercent: sc.coverageScore ?? 0,
+          consistencyPercent: sc.consistencyScore ?? 0,
+          reviewScorePercent: sc.reviewScore ?? 0,
+          liveListings: lc.live ?? 0,
+          missingListings: lc.missing ?? 0,
+          totalReviews: rv.total ?? 0,
+          averageRating: rv.averageRating ?? 0,
+          responseRate: rv.responseRate ?? 0,
+          plan: prev?.plan || "basic",
+        } as ProfileStats));
+      }
     } catch {
       toast({ title: "Error", description: "Failed to load stats", variant: "destructive" });
     }
@@ -301,10 +318,17 @@ export default function ListSmartlyDashboardPage() {
 
   const fetchActivities = useCallback(async () => {
     try {
-      const res = await fetch("/api/listsmartly/activities");
+      const res = await fetch("/api/listsmartly/sync");
       if (!res.ok) return;
-      const data = await res.json();
-      setActivities(data.activities || []);
+      const json = await res.json();
+      if (json.success && json.data) {
+        setActivities([{
+          id: json.data.id,
+          type: json.data.type,
+          message: `${json.data.type} — checked ${json.data.checkedCount}, fixed ${json.data.fixedCount}`,
+          createdAt: json.data.createdAt,
+        }]);
+      }
     } catch {
       // Non-critical
     }
@@ -312,10 +336,12 @@ export default function ListSmartlyDashboardPage() {
 
   const fetchTierBreakdown = useCallback(async () => {
     try {
-      const res = await fetch("/api/listsmartly/analytics/tiers");
+      const res = await fetch("/api/listsmartly/analytics");
       if (!res.ok) return;
-      const data = await res.json();
-      setTierBreakdown(data.tiers || []);
+      const json = await res.json();
+      if (json.success && json.data.listingsByTier) {
+        setTierBreakdown(json.data.listingsByTier);
+      }
     } catch {
       // Non-critical
     }
@@ -323,7 +349,7 @@ export default function ListSmartlyDashboardPage() {
 
   const fetchAutopilotSettings = useCallback(async () => {
     try {
-      const res = await fetch("/api/listsmartly/autopilot");
+      const res = await fetch("/api/listsmartly/profile");
       if (!res.ok) return;
       const data = await res.json();
       setAutoFixEnabled(data.autoFix || false);
