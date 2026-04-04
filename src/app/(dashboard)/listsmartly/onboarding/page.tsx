@@ -841,14 +841,30 @@ export default function ListSmartlyOnboardingPage() {
                   </div>
                 </div>
                 <div className="space-y-2.5 text-sm">
-                  <div className="flex items-start gap-2.5">
-                    <div className="w-5 h-5 rounded-full bg-red-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <X className="w-3 h-3 text-red-500" />
-                    </div>
-                    <p className="text-muted-foreground">
-                      <strong className="text-foreground">{scanResults.findings?.filter(f => f.status === "missing" && f.tier === 1).length || 0} critical directories</strong> (Google, Yelp, Apple Maps) are missing — these drive 80% of local search traffic
-                    </p>
-                  </div>
+                  {(() => {
+                    const missingCritical = scanResults.findings?.filter(f => f.status === "missing" && f.tier === 1) || [];
+                    const foundCritical = scanResults.findings?.filter(f => f.status === "live" && f.tier === 1) || [];
+                    const missingNames = missingCritical.slice(0, 3).map(f => f.directoryName).join(", ");
+                    return missingCritical.length > 0 ? (
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-5 h-5 rounded-full bg-red-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <X className="w-3 h-3 text-red-500" />
+                        </div>
+                        <p className="text-muted-foreground">
+                          <strong className="text-foreground">{missingCritical.length} critical directories</strong> ({missingNames}{missingCritical.length > 3 ? "..." : ""}) are missing — these drive 80% of local search traffic
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <Check className="w-3 h-3 text-green-500" />
+                        </div>
+                        <p className="text-muted-foreground">
+                          All <strong className="text-foreground">{foundCritical.length} critical directories</strong> found — great foundation for local search
+                        </p>
+                      </div>
+                    );
+                  })()}
                   <div className="flex items-start gap-2.5">
                     <div className="w-5 h-5 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0 mt-0.5">
                       <BarChart3 className="w-3 h-3 text-yellow-500" />
