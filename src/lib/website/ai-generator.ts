@@ -57,16 +57,16 @@ Your output must be a valid JSON object matching this schema:
 IMPORTANT RULES:
 - Generate REAL, compelling content specific to the business (not placeholder/lorem ipsum)
 - Use proper block types: hero, features, pricing, testimonials, gallery, contact, text, team, faq, stats, cta, header, footer, blog, portfolio, logo-cloud, video, divider, spacer, image
-- Each page should start with a header block and end with a footer block
-- Apply entrance animations sparingly (fade-in, slide-up for key sections)
+- Do NOT include header or footer blocks — those are handled separately by the site navigation config
+- Apply entrance animations sparingly (use "fade-in" or "slide-up" on 2-3 key sections, "none" for the rest)
 - Choose colors that match the industry and style preference
-- Use appropriate Google Fonts for the style
-- Generate 3-6 blocks per page (keep it concise — users can add more in the editor)
-- Each block ID must be unique (use random 8-char alphanumeric strings)
-- Match the content tone to the requested tone (professional, casual, friendly, luxury, playful)
-- For pricing blocks, create realistic plans that match the business type
-- For testimonials, create realistic (but fictional) reviews
-- Keep text concise and impactful — web visitors skim`;
+- Use appropriate Google Fonts for the style (e.g. "Inter", "Poppins", "Playfair Display")
+- Generate 3-5 blocks per page MAXIMUM — keep it concise, users add more in the editor
+- Each block ID must be unique (use random 8-char alphanumeric strings like "a1b2c3d4")
+- Match the content tone to the requested tone
+- Keep ALL text short and punchy — no long paragraphs
+- For style/animation objects, use empty {} if no overrides needed
+- Output ONLY valid JSON — no trailing commas, no comments`;
 
 export async function generateWebsite(
   questionnaire: SiteQuestionnaire,
@@ -118,6 +118,8 @@ export async function generateWebsite(
     model: "claude-sonnet-4-20250514",
   });
 
+  console.log("[WebsiteAI] Response received, length:", response.length);
+
   // Parse the JSON response
   let parsed: AIGeneratedSite;
   try {
@@ -132,10 +134,42 @@ export async function generateWebsite(
     if (jsonStart !== -1 && jsonEnd > jsonStart) {
       text = text.substring(jsonStart, jsonEnd + 1);
     }
-    parsed = JSON.parse(text);
+
+    // Try to parse — if truncated, try to fix common issues
+    try {
+      parsed = JSON.parse(text);
+    } catch (firstErr) {
+      console.warn("[WebsiteAI] First parse failed, attempting JSON repair...");
+      // Common fix: truncated response missing closing brackets
+      // Count open/close braces and brackets
+      let openBraces = 0, openBrackets = 0;
+      let inString = false, escape = false;
+      for (const ch of text) {
+        if (escape) { escape = false; continue; }
+        if (ch === "\\") { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (ch === "{") openBraces++;
+        if (ch === "}") openBraces--;
+        if (ch === "[") openBrackets++;
+        if (ch === "]") openBrackets--;
+      }
+      // Add missing closers
+      let repaired = text;
+      for (let i = 0; i < openBrackets; i++) repaired += "]";
+      for (let i = 0; i < openBraces; i++) repaired += "}";
+
+      // Remove trailing comma before closer
+      repaired = repaired.replace(/,\s*([\]}])/g, "$1");
+
+      parsed = JSON.parse(repaired);
+      console.log("[WebsiteAI] JSON repair succeeded");
+    }
   } catch (err) {
-    console.error("Failed to parse AI response (first 500 chars):", response.substring(0, 500));
-    console.error("Response length:", response.length, "Last 100 chars:", response.substring(response.length - 100));
+    console.error("[WebsiteAI] Failed to parse AI response.");
+    console.error("[WebsiteAI] First 500 chars:", response.substring(0, 500));
+    console.error("[WebsiteAI] Last 200 chars:", response.substring(response.length - 200));
+    console.error("[WebsiteAI] Response length:", response.length);
     throw new Error("AI generation produced invalid JSON. Please try again.");
   }
 
