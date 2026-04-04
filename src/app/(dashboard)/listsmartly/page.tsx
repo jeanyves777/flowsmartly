@@ -139,17 +139,19 @@ export default function ListSmartlyEntryPage() {
         const json = await res.json();
         if (json.success && json.data) {
           const profile = json.data;
-          const isSubscribed = ["active", "trialing", "free_trial"].includes(
-            profile.subscriptionStatus
-          );
+          const status = profile.lsSubscriptionStatus || profile.subscriptionStatus || "inactive";
+          const isSubscribed = ["active", "trialing", "free_trial"].includes(status);
+
           if (isSubscribed && profile.setupComplete) {
             router.replace("/listsmartly/dashboard");
             return;
           }
-          if (isSubscribed && !profile.setupComplete) {
+          // Profile exists but onboarding not complete — resume
+          if (isSubscribed || status !== "inactive") {
             router.replace("/listsmartly/onboarding");
             return;
           }
+          // Profile exists with inactive status — show landing but handle activate gracefully
         }
       }
     } catch (error) {
@@ -169,6 +171,13 @@ export default function ListSmartlyEntryPage() {
         body: JSON.stringify({ plan }),
       });
       const json = await res.json();
+
+      // Profile already exists (409) — just resume onboarding
+      if (res.status === 409) {
+        router.push("/listsmartly/onboarding");
+        return;
+      }
+
       if (json.success) {
         toast({
           title: "ListSmartly activated!",
@@ -201,7 +210,7 @@ export default function ListSmartlyEntryPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-16 pb-20">
+    <div className="space-y-16 pb-20 px-4 md:px-6 lg:px-8">
       {/* ── Hero Section ── */}
       <section className="relative text-center pt-8">
         {/* Animated background gradient */}

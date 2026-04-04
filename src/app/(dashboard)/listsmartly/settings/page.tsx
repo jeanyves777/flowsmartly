@@ -279,7 +279,7 @@ export default function ListSmartlySettingsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-64" />
         <Skeleton className="h-40" />
@@ -290,7 +290,7 @@ export default function ListSmartlySettingsPage() {
   // ── Render ──
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => router.push("/listsmartly/dashboard")}>
