@@ -48,8 +48,8 @@ interface BrandKitFonts {
 export function brandKitToTheme(brandKit: {
   colors?: string;
   fonts?: string;
-  logo?: string;
-  name?: string;
+  logo?: string | null;
+  name?: string | null;
 }): Partial<WebsiteTheme> {
   const theme: Partial<WebsiteTheme> = {};
 
@@ -83,7 +83,7 @@ export function brandKitToTheme(brandKit: {
 
 export function resolveTheme(
   websiteThemeJson?: string,
-  brandKit?: { colors?: string; fonts?: string; logo?: string; name?: string } | null
+  brandKit?: { colors?: string; fonts?: string; logo?: string | null; name?: string | null } | null
 ): WebsiteTheme {
   let theme = { ...DEFAULT_THEME, colors: { ...DEFAULT_THEME.colors }, fonts: { ...DEFAULT_THEME.fonts } };
 

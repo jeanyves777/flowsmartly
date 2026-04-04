@@ -52,3 +52,6 @@ prisma/*.db-journal
 
 # User-generated uploads (videos, images)
 public/uploads/
+
+.next-build.tar.gz
+next-build.zip
