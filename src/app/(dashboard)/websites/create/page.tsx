@@ -95,11 +95,24 @@ export default function CreateWebsitePage() {
         const kit = data.data?.brandKit;
         if (kit) {
           // Normalize: the API returns parsed JSON objects, but our interface expects raw strings
+          const safeStringify = (val: unknown): string => {
+            if (typeof val === "string") return val;
+            if (val === null || val === undefined) return "{}";
+            return JSON.stringify(val);
+          };
           const normalized: BrandKit = {
-            ...kit,
-            colors: typeof kit.colors === "string" ? kit.colors : JSON.stringify(kit.colors || {}),
-            fonts: typeof kit.fonts === "string" ? kit.fonts : JSON.stringify(kit.fonts || {}),
-            products: typeof kit.products === "string" ? kit.products : JSON.stringify(kit.products || []),
+            id: kit.id,
+            name: kit.name || "",
+            description: kit.description || undefined,
+            industry: kit.industry || undefined,
+            niche: kit.niche || undefined,
+            targetAudience: kit.targetAudience || undefined,
+            voiceTone: kit.voiceTone || undefined,
+            colors: safeStringify(kit.colors),
+            fonts: safeStringify(kit.fonts),
+            logo: kit.logo || undefined,
+            products: safeStringify(kit.products),
+            uniqueValue: kit.uniqueValue || undefined,
             isDefault: true,
           };
           setBrandKits([normalized]);
@@ -108,7 +121,10 @@ export default function CreateWebsitePage() {
         }
         setBrandKitLoaded(true);
       })
-      .catch(() => setBrandKitLoaded(true));
+      .catch((err) => {
+        console.error("Failed to load brand kit:", err);
+        setBrandKitLoaded(true);
+      });
   }, []);
 
   const applyBrandKit = (kit: BrandKit) => {
@@ -149,7 +165,10 @@ export default function CreateWebsitePage() {
     // Build existing content from products
     if (kit.products) {
       try {
-        const products = JSON.parse(kit.products);
+        let products = kit.products;
+        if (typeof products === "string") {
+          products = JSON.parse(products);
+        }
         if (Array.isArray(products) && products.length > 0) {
           updates.existingContent = `Products/Services: ${products.join(", ")}`;
           filled.add("existingContent");
@@ -211,8 +230,11 @@ export default function CreateWebsitePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: form.businessName, brandKitId: selectedBrandKitId || undefined }),
       });
-      const { website } = await createRes.json();
-      if (!website?.id) throw new Error("Failed to create website");
+      const createData = await createRes.json();
+      if (!createRes.ok || !createData.website?.id) {
+        throw new Error(createData.error || "Failed to create website");
+      }
+      const website = createData.website;
 
       // Step 2: Generate with AI
       setGenStep("Analyzing your brand identity...");
