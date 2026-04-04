@@ -208,7 +208,8 @@ export default function ListSmartlyOnboardingPage() {
     }, 200);
 
     try {
-      const res = await fetch("/api/listsmartly/activate", {
+      // Try to activate (create profile + seed directories + initialize listings)
+      let res = await fetch("/api/listsmartly/activate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -218,20 +219,40 @@ export default function ListSmartlyOnboardingPage() {
         }),
       });
 
+      // If profile already exists (409), update it instead
+      if (res.status === 409) {
+        res = await fetch("/api/listsmartly/profile", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...business,
+            industry,
+            categories: JSON.stringify(categories),
+          }),
+        });
+        // Then trigger a scan to initialize any missing listings
+        await fetch("/api/listsmartly/listings/scan", { method: "POST" });
+      }
+
       clearInterval(interval);
       setScanProgress(100);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Scan failed");
+        throw new Error(err.error?.message || "Scan failed");
       }
 
-      const data = await res.json();
+      // Get actual listing counts
+      const analyticsRes = await fetch("/api/listsmartly/analytics");
+      const analyticsJson = analyticsRes.ok ? await analyticsRes.json() : null;
+      const statusCounts = analyticsJson?.data?.listings?.statusCounts || {};
+      const total = analyticsJson?.data?.listings?.total || 161;
+
       setScanResults({
-        totalDirectories: data.totalDirectories || 161,
-        relevant: data.relevant || 0,
-        alreadySubmitted: data.alreadySubmitted || 0,
-        missing: data.missing || 0,
+        totalDirectories: total,
+        relevant: total,
+        alreadySubmitted: statusCounts.live || statusCounts.submitted || 0,
+        missing: statusCounts.missing || total,
       });
     } catch (err: unknown) {
       clearInterval(interval);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { initializeListings } from "@/lib/listsmartly/sync-engine";
+import { seedDirectories } from "@/lib/listsmartly/directories";
 
 // POST /api/listsmartly/activate - Create profile and start trial
 export async function POST(request: NextRequest) {
@@ -62,10 +63,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Initialize listings for matching directories (fire-and-forget)
-    initializeListings(profile.id, industry).catch((err) =>
-      console.error("Failed to initialize listings:", err)
-    );
+    // Ensure directories are seeded, then initialize listings
+    (async () => {
+      try {
+        const dirCount = await prisma.listingDirectory.count();
+        if (dirCount === 0) {
+          console.log("Seeding ListSmartly directories...");
+          await seedDirectories();
+        }
+        await initializeListings(profile.id, industry);
+      } catch (err) {
+        console.error("Failed to initialize listings:", err);
+      }
+    })();
 
     return NextResponse.json({
       success: true,

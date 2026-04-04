@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { runConsistencyCheck, refreshProfileStats } from "@/lib/listsmartly/sync-engine";
+import { runConsistencyCheck, refreshProfileStats, initializeListings } from "@/lib/listsmartly/sync-engine";
+import { seedDirectories } from "@/lib/listsmartly/directories";
 import { calculateCitationScore } from "@/lib/listsmartly/citation-scorer";
 
 // POST /api/listsmartly/listings/scan - Trigger a full consistency scan
@@ -23,6 +24,18 @@ export async function POST() {
         { success: false, error: { message: "ListSmartly profile not found" } },
         { status: 404 }
       );
+    }
+
+    // Ensure directories are seeded
+    const dirCount = await prisma.listingDirectory.count();
+    if (dirCount === 0) {
+      await seedDirectories();
+    }
+
+    // Ensure listings are initialized
+    const listingCount = await prisma.businessListing.count({ where: { profileId: profile.id } });
+    if (listingCount === 0) {
+      await initializeListings(profile.id, profile.industry || undefined);
     }
 
     // Run consistency check
