@@ -77,7 +77,7 @@ function sanitizeBlock(block: WebsiteBlock): WebsiteBlock {
 
   return {
     ...block,
-    content: content as typeof block.content,
+    content: content as unknown as typeof block.content,
     style: block.style || {},
     animation: block.animation || { entrance: "none", scroll: "none", hover: "none" },
     responsive: block.responsive || {},
