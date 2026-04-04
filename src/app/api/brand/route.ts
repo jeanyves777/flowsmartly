@@ -50,6 +50,10 @@ const brandKitSchema = z.object({
   phone: optionalString(50),
   website: optionalString(300),
   address: optionalString(500),
+  city: optionalString(100),
+  state: optionalString(50),
+  zip: optionalString(20),
+  country: optionalString(10),
 });
 
 // GET /api/brand - Get user's brand identity
@@ -171,6 +175,10 @@ export async function POST(request: NextRequest) {
       phone: data.phone || null,
       website: data.website || null,
       address: data.address || null,
+      city: data.city || null,
+      state: data.state || null,
+      zip: data.zip || null,
+      country: data.country || null,
       isDefault: true,
       isComplete: !!(data.name && data.industry && data.targetAudience && data.voiceTone),
     };

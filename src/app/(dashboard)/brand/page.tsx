@@ -128,6 +128,10 @@ interface BrandKit {
   phone: string | null;
   website: string | null;
   address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  country: string | null;
   isComplete: boolean;
 }
 
@@ -177,6 +181,10 @@ export default function BrandIdentityPage() {
     phone: "",
     website: "",
     address: "",
+    city: "",
+    state: "",
+    zip: "",
+    country: "US",
   });
 
   // Input states for adding items
@@ -248,6 +256,10 @@ export default function BrandIdentityPage() {
         phone: formData.phone || null,
         website: formData.website || null,
         address: formData.address || null,
+        city: formData.city || null,
+        state: formData.state || null,
+        zip: formData.zip || null,
+        country: formData.country || null,
       };
 
       const response = await fetch("/api/brand", {
@@ -702,17 +714,57 @@ export default function BrandIdentityPage() {
               <div className="space-y-2">
                 <Label htmlFor="address" className="flex items-center gap-2">
                   <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                  Address
+                  Street Address
                 </Label>
                 <Input
                   id="address"
-                  placeholder="123 Main St, City, State"
+                  placeholder="123 Main St"
                   value={formData.address || ""}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    placeholder="Albany"
+                    value={formData.city || ""}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="state">State</Label>
+                  <Input
+                    id="state"
+                    placeholder="NY"
+                    value={formData.state || ""}
+                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="zip">ZIP Code</Label>
+                  <Input
+                    id="zip"
+                    placeholder="12206"
+                    value={formData.zip || ""}
+                    onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="country">Country</Label>
+                  <Input
+                    id="country"
+                    placeholder="US"
+                    value={formData.country || ""}
+                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  />
+                </div>
+              </div>
               <p className="text-xs text-muted-foreground">
-                These details can be included in AI-generated visual designs from the Studio
+                Used in AI designs, listings, and local search optimization
               </p>
             </CardContent>
           </Card>

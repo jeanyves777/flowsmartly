@@ -200,12 +200,15 @@ export default function ListSmartlyOnboardingPage() {
 
       setHasBrandKit(true);
 
-      // Parse address into components if it's a full address string
+      // Use separate address fields if available, otherwise parse the single address
       let street = bk.address || "";
-      let city = "";
-      let state = "";
-      let zip = "";
-      if (street && street.includes(",")) {
+      let city = bk.city || "";
+      let state = bk.state || "";
+      let zip = bk.zip || "";
+      let country = bk.country || "US";
+
+      // Fallback: parse combined address if separate fields are empty
+      if (street && !city && !state && street.includes(",")) {
         const parsed = parseAddress(street);
         street = parsed.street;
         city = parsed.city;
@@ -223,7 +226,7 @@ export default function ListSmartlyOnboardingPage() {
         city: city || prev.city,
         state: state || prev.state,
         zip: zip || prev.zip,
-        country: prev.country || "US",
+        country: country || prev.country || "US",
       }));
       if (bk.industry && !industry) {
         // Try to match industry to our list
