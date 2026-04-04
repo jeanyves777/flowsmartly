@@ -106,6 +106,50 @@ interface ScanResults {
   }>;
 }
 
+// ── Address Parser ──
+
+function parseAddress(fullAddress: string): { street: string; city: string; state: string; zip: string } {
+  // Handle formats like:
+  // "255 N. ALLEN STREET, Albany, NY"
+  // "255 N. Allen St, Albany, NY 12206"
+  // "123 Main St, Suite 4, Springfield, IL 62701"
+  const parts = fullAddress.split(",").map((p) => p.trim());
+
+  if (parts.length >= 2) {
+    const street = parts[0];
+    // Last part often has "State ZIP" or just "State"
+    const lastPart = parts[parts.length - 1].trim();
+    const cityPart = parts.length >= 3 ? parts[parts.length - 2].trim() : parts[1].trim();
+
+    // Extract state and zip from last part: "NY 12206" or "NY"
+    const stateZipMatch = lastPart.match(/^([A-Z]{2})\s*(\d{5}(?:-\d{4})?)?$/i);
+    if (stateZipMatch) {
+      return {
+        street,
+        city: cityPart,
+        state: stateZipMatch[1].toUpperCase(),
+        zip: stateZipMatch[2] || "",
+      };
+    }
+
+    // If last part is a city+state like "Albany NY"
+    const cityStateMatch = lastPart.match(/^(.+?)\s+([A-Z]{2})$/i);
+    if (cityStateMatch) {
+      return {
+        street,
+        city: cityStateMatch[1],
+        state: cityStateMatch[2].toUpperCase(),
+        zip: "",
+      };
+    }
+
+    // Fallback: treat second part as city, look for state in remaining
+    return { street, city: cityPart, state: "", zip: "" };
+  }
+
+  return { street: fullAddress, city: "", state: "", zip: "" };
+}
+
 // ── Component ──
 
 export default function ListSmartlyOnboardingPage() {
@@ -155,16 +199,30 @@ export default function ListSmartlyOnboardingPage() {
       if (!bk) return;
 
       setHasBrandKit(true);
+
+      // Parse address into components if it's a full address string
+      let street = bk.address || "";
+      let city = "";
+      let state = "";
+      let zip = "";
+      if (street && street.includes(",")) {
+        const parsed = parseAddress(street);
+        street = parsed.street;
+        city = parsed.city;
+        state = parsed.state;
+        zip = parsed.zip;
+      }
+
       setBusiness((prev) => ({
         ...prev,
         businessName: bk.name || prev.businessName,
         phone: bk.phone || prev.phone,
         email: bk.email || prev.email,
         website: bk.website || prev.website,
-        address: bk.address || prev.address,
-        city: prev.city,
-        state: prev.state,
-        zip: prev.zip,
+        address: street || prev.address,
+        city: city || prev.city,
+        state: state || prev.state,
+        zip: zip || prev.zip,
         country: prev.country || "US",
       }));
       if (bk.industry && !industry) {
