@@ -24,6 +24,9 @@ import {
   MessageSquare,
   FileText,
   Star,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -93,17 +96,26 @@ interface BusinessInfo {
   country: string;
 }
 
+interface ListingFinding {
+  directoryName: string;
+  tier: number;
+  status: string;
+  listingUrl?: string;
+  // Rich data from Google Places
+  rating?: number;
+  reviewCount?: number;
+  address?: string;
+  phone?: string;
+  website?: string;
+  businessName?: string;
+}
+
 interface ScanResults {
   totalDirectories: number;
   relevant: number;
   alreadySubmitted: number;
   missing: number;
-  findings: Array<{
-    directoryName: string;
-    tier: number;
-    status: string;
-    listingUrl?: string;
-  }>;
+  findings: ListingFinding[];
 }
 
 // ── Address Parser ──
@@ -181,6 +193,9 @@ export default function ListSmartlyOnboardingPage() {
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [scanResults, setScanResults] = useState<ScanResults | null>(null);
+
+  // Step 3 - expanded findings
+  const [expandedFindings, setExpandedFindings] = useState<Set<number>>(new Set());
 
   // Step 4
   const [selectedPlan, setSelectedPlan] = useState<"basic" | "pro" | null>(null);
@@ -311,22 +326,38 @@ export default function ListSmartlyOnboardingPage() {
       clearInterval(interval);
       setScanProgress(100);
 
-      // Get actual listing data with directory details
-      const listingsRes = await fetch("/api/listsmartly/listings?limit=200");
+      // Get actual listing data with directory details + profile for rating
+      const [listingsRes, profileRes] = await Promise.all([
+        fetch("/api/listsmartly/listings?limit=200"),
+        fetch("/api/listsmartly/profile"),
+      ]);
       const listingsJson = listingsRes.ok ? await listingsRes.json() : null;
+      const profileJson = profileRes.ok ? await profileRes.json() : null;
       const allListings = listingsJson?.data?.listings || [];
+      const profileData = profileJson?.data || {};
 
       const liveCount = allListings.filter((l: { status: string }) => l.status === "live" || l.status === "submitted").length;
       const missingCount = allListings.filter((l: { status: string }) => l.status === "missing").length;
 
       // Build findings list sorted by tier then status (live first)
-      const findings = allListings
-        .map((l: { directory?: { name: string; tier: number }; status: string; listingUrl?: string }) => ({
-          directoryName: l.directory?.name || "Unknown",
-          tier: l.directory?.tier || 7,
-          status: l.status,
-          listingUrl: l.listingUrl || undefined,
-        }))
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const findings: ListingFinding[] = allListings
+        .map((l: any) => {
+          const isGoogle = l.directory?.slug === "google-business";
+          return {
+            directoryName: l.directory?.name || "Unknown",
+            tier: l.directory?.tier || 7,
+            status: l.status,
+            listingUrl: l.listingUrl || undefined,
+            // For Google, inject profile-level rating/reviews
+            rating: isGoogle ? profileData.averageRating : undefined,
+            reviewCount: isGoogle ? profileData.totalReviews : undefined,
+            address: l.address || undefined,
+            phone: l.phone || undefined,
+            website: l.website || undefined,
+            businessName: l.businessName || undefined,
+          };
+        })
         .sort((a: { status: string; tier: number }, b: { status: string; tier: number }) => {
           if (a.status === "live" && b.status !== "live") return -1;
           if (a.status !== "live" && b.status === "live") return 1;
@@ -782,33 +813,132 @@ export default function ListSmartlyOnboardingPage() {
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">Detailed Findings</h3>
 
-                {/* Live / Found listings */}
+                {/* Live / Found listings — rich collapsible cards */}
                 {scanResults.findings.filter(f => f.status === "live").length > 0 && (
-                  <Card>
-                    <CardContent className="py-3">
-                      <p className="text-xs font-semibold text-green-500 uppercase tracking-wider mb-2">
-                        Found ({scanResults.findings.filter(f => f.status === "live").length})
-                      </p>
-                      <div className="space-y-1.5">
-                        {scanResults.findings.filter(f => f.status === "live").map((f, i) => (
-                          <div key={i} className="flex items-center justify-between text-sm py-1 border-b border-border last:border-0">
-                            <div className="flex items-center gap-2">
-                              <Check className="w-3.5 h-3.5 text-green-500" />
-                              <span className="text-foreground">{f.directoryName}</span>
-                              <Badge variant="outline" className="text-[10px] h-4">Tier {f.tier}</Badge>
-                            </div>
-                            {f.listingUrl ? (
-                              <a href={f.listingUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline truncate max-w-[200px]">
-                                View Listing →
-                              </a>
-                            ) : (
-                              <span className="text-xs text-green-500">Verified</span>
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-green-500 uppercase tracking-wider">
+                      Found ({scanResults.findings.filter(f => f.status === "live").length})
+                    </p>
+                    {scanResults.findings.filter(f => f.status === "live").map((f, i) => {
+                      const isExpanded = expandedFindings.has(i);
+                      const hasDetails = f.rating || f.address || f.phone;
+                      return (
+                        <Card key={i} className="border-green-500/20 bg-green-500/5 overflow-hidden">
+                          <CardContent className="p-0">
+                            {/* Header — always visible */}
+                            <button
+                              onClick={() => {
+                                if (!hasDetails) return;
+                                setExpandedFindings(prev => {
+                                  const next = new Set(prev);
+                                  next.has(i) ? next.delete(i) : next.add(i);
+                                  return next;
+                                });
+                              }}
+                              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-green-500/5 transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <Star className="w-4 h-4 text-green-500" />
+                                <span className="font-semibold text-foreground">{f.directoryName}</span>
+                                <Badge className="bg-green-500/10 text-green-600 dark:text-green-400 text-[10px] border-green-500/20">Found</Badge>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {f.listingUrl && (
+                                  <a
+                                    href={f.listingUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-xs text-blue-500 hover:underline flex items-center gap-1"
+                                  >
+                                    <ExternalLink className="w-3 h-3" /> View
+                                  </a>
+                                )}
+                                {hasDetails && (
+                                  isExpanded
+                                    ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                                    : <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                                )}
+                              </div>
+                            </button>
+
+                            {/* Expanded details */}
+                            {isExpanded && hasDetails && (
+                              <div className="px-4 pb-4 pt-1 border-t border-green-500/10 space-y-3">
+                                {/* Rating + Reviews */}
+                                {f.rating && (
+                                  <div className="flex items-center gap-4">
+                                    <div>
+                                      <div className="text-3xl font-black text-foreground">{f.rating}</div>
+                                      <div className="text-xs text-muted-foreground">out of 5.0</div>
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-0.5 mb-1">
+                                        {Array.from({ length: 5 }).map((_, si) => (
+                                          <Star
+                                            key={si}
+                                            className={`w-4 h-4 ${si < Math.round(f.rating!) ? "text-amber-400 fill-amber-400" : "text-muted fill-muted"}`}
+                                          />
+                                        ))}
+                                      </div>
+                                      {f.reviewCount !== undefined && (
+                                        <p className="text-sm text-muted-foreground">
+                                          <strong className="text-foreground">{f.reviewCount}</strong> Google reviews
+                                        </p>
+                                      )}
+                                      {/* Rating bar */}
+                                      <div className="mt-2 w-48">
+                                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                                          <div
+                                            className="h-full bg-green-500 rounded-full"
+                                            style={{ width: `${((f.rating || 0) / 5) * 100}%` }}
+                                          />
+                                        </div>
+                                        <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                                          <span>0</span>
+                                          <span>Benchmark: 4.5</span>
+                                          <span>5.0</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Address, Phone, Website */}
+                                <div className="space-y-1.5 text-sm">
+                                  {f.address && (
+                                    <div className="flex items-start gap-2 text-muted-foreground">
+                                      <MapPin className="w-3.5 h-3.5 text-muted-foreground/60 mt-0.5 shrink-0" />
+                                      <span>{f.address}</span>
+                                    </div>
+                                  )}
+                                  {f.phone && (
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                      <Phone className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+                                      <a href={`tel:${f.phone}`} className="hover:text-blue-500">{f.phone}</a>
+                                    </div>
+                                  )}
+                                  {f.listingUrl && (
+                                    <div className="flex items-center gap-2">
+                                      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+                                      <a
+                                        href={f.listingUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm text-blue-500 hover:underline"
+                                      >
+                                        View on Google Maps
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
                             )}
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
                 )}
 
                 {/* Missing listings (show top 20 by tier importance) */}
