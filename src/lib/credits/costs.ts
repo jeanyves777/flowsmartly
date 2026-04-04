@@ -124,6 +124,16 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_VOICE_GENERATION: 5,       // TTS generation (~$0.015 OpenAI gpt-4o-mini-tts)
   AI_VOICE_SCRIPT: 3,           // AI script generation (GPT-4o-mini ~$0.01)
   AI_VOICE_CLONE: 15,           // Voice cloning via ElevenLabs (~$0.10)
+
+  // --- ListSmartly ---
+  AI_LISTING_DESCRIPTION: 3,    // AI listing description generation
+  AI_LISTING_BULK_DESCRIBE: 2,  // AI bulk listing descriptions (per listing)
+  AI_REVIEW_RESPONSE: 3,        // AI review response draft
+  AI_REVIEW_SENTIMENT_BATCH: 5, // AI review sentiment analysis batch
+  AI_PRESENCE_REPORT: 15,       // AI presence/citation report
+  AI_AUTO_FIX: 2,               // AI auto-fix listing inconsistency
+  AI_LISTING_SCAN: 10,          // AI listing scan across directories
+  AI_PITCH_LOCAL_PRESENCE: 5,   // AI pitch for local presence
 } as const;
 
 /**
@@ -179,6 +189,14 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_VOICE_GENERATION: "AI voice generation",
   AI_VOICE_SCRIPT: "AI voice script generation",
   AI_VOICE_CLONE: "AI voice cloning",
+  AI_LISTING_DESCRIPTION: "AI listing description generation",
+  AI_LISTING_BULK_DESCRIBE: "AI bulk listing description",
+  AI_REVIEW_RESPONSE: "AI review response draft",
+  AI_REVIEW_SENTIMENT_BATCH: "AI review sentiment analysis",
+  AI_PRESENCE_REPORT: "AI presence report",
+  AI_AUTO_FIX: "AI listing auto-fix",
+  AI_LISTING_SCAN: "AI listing scan",
+  AI_PITCH_LOCAL_PRESENCE: "AI local presence pitch",
 };
 
 /**

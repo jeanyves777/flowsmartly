@@ -113,7 +113,7 @@ export default function PitchBoardPage() {
   const [userPlan, setUserPlan] = useState<string>("STARTER");
   const [leadSearchCount, setLeadSearchCount] = useState(0);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [createForm, setCreateForm] = useState({ businessName: "", businessUrl: "", recipientEmail: "", recipientName: "" });
+  const [createForm, setCreateForm] = useState({ businessName: "", businessUrl: "", recipientEmail: "", recipientName: "", includeLocalPresence: false });
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -207,7 +207,13 @@ export default function PitchBoardPage() {
       const res = await fetch("/api/pitch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createForm),
+        body: JSON.stringify({
+          businessName: createForm.businessName,
+          businessUrl: createForm.businessUrl,
+          recipientEmail: createForm.recipientEmail,
+          recipientName: createForm.recipientName,
+          includeLocalPresence: createForm.includeLocalPresence,
+        }),
       });
       const data = await res.json();
       if (!data.success) {
@@ -220,7 +226,7 @@ export default function PitchBoardPage() {
         return;
       }
       setShowCreateDialog(false);
-      setCreateForm({ businessName: "", businessUrl: "", recipientEmail: "", recipientName: "" });
+      setCreateForm({ businessName: "", businessUrl: "", recipientEmail: "", recipientName: "", includeLocalPresence: false });
       loadPitches();
     } catch {
       setCreateError("Network error. Please try again.");
@@ -339,11 +345,12 @@ export default function PitchBoardPage() {
   const isSubscriber = userPlan !== "STARTER";
   const pitchIsFreeRun = !isSubscriber && stats.total === 0;
   const leadIsFreeRun  = !isSubscriber && leadSearchCount === 0;
-  const pitchCreditLabel = pitchIsFreeRun
+  const pitchCreditLabel = (pitchIsFreeRun
     ? "First pitch is FREE — no credits needed"
     : isSubscriber
       ? "15 credits will be deducted"
-      : "500 credits required (free trial used)";
+      : "500 credits required (free trial used)")
+    + (createForm.includeLocalPresence ? " + 5 credits for presence audit" : "");
   const leadCreditLabel = leadIsFreeRun
     ? "First search is FREE — no credits needed"
     : isSubscriber
@@ -768,6 +775,17 @@ export default function PitchBoardPage() {
                 />
               </div>
             </div>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={createForm.includeLocalPresence}
+                onChange={e => setCreateForm(f => ({ ...f, includeLocalPresence: e.target.checked }))}
+                className="w-4 h-4 rounded accent-blue-500"
+              />
+              <span className="text-sm text-foreground">Include Local Presence Audit</span>
+              <span className="text-xs text-muted-foreground">(+5 credits)</span>
+            </label>
 
             <div className={cn("rounded-lg px-4 py-3 text-sm", pitchIsFreeRun ? "bg-green-500/10 border border-green-500/20 text-green-700 dark:text-green-400" : "bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-400")}>
               {pitchCreditLabel}. AI will research the business and generate a personalized pitch proposal.

@@ -135,6 +135,7 @@ const marketingNavigation = [
 
 // Tools & Insights
 const toolsNavigation = [
+  { name: "ListSmartly", href: "/listsmartly", icon: MapPin },
   { name: "Pitch Board", href: "/pitch-board", icon: Briefcase },
   { name: "Follow-Ups", href: "/tools/follow-ups", icon: ClipboardList },
   { name: "Data Collection", href: "/tools/data-collection", icon: FormInput },
@@ -204,6 +205,9 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
     "social-accounts": ["/social-accounts"],
     "social-analytics": ["/analytics"],
     "ecommerce-store": ["/ecommerce"],
+    "listsmartly": ["/listsmartly"],
+    "listsmartly-autopilot": ["/listsmartly/autopilot"],
+    "listsmartly-reviews": ["/listsmartly/reviews"],
   };
 
   // Build set of activated routes
@@ -518,7 +522,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
 
             {/* Filtered Tools */}
             {filterByAllowed(toolsNavigation).length > 0 &&
-              renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics", "/pitch-board"].some(p => pathname.startsWith(p)), filterByAllowed(toolsNavigation))}
+              renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics", "/pitch-board", "/listsmartly"].some(p => pathname.startsWith(p)), filterByAllowed(toolsNavigation))}
           </>
         ) : (
           <>
@@ -577,7 +581,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             {/* Tools & Insights Section */}
             {(() => {
               const items = filterByActivated(toolsNavigation);
-              return items.length > 0 && renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics", "/pitch-board"].some(p => pathname.startsWith(p)), items);
+              return items.length > 0 && renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/analytics", "/pitch-board", "/listsmartly"].some(p => pathname.startsWith(p)), items);
             })()}
 
             {/* Money Section */}

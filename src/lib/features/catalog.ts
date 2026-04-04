@@ -29,7 +29,8 @@ export type FeatureCategory =
   | "ecommerce"
   | "team"
   | "monetization"
-  | "analytics";
+  | "analytics"
+  | "local-presence";
 
 export const FEATURE_CATEGORIES: { id: FeatureCategory; label: string; icon: string }[] = [
   { id: "content", label: "Content & Social", icon: "PenSquare" },
@@ -40,6 +41,7 @@ export const FEATURE_CATEGORIES: { id: FeatureCategory; label: string; icon: str
   { id: "team", label: "Team & Collaboration", icon: "UsersRound" },
   { id: "monetization", label: "Monetization & Marketplace", icon: "DollarSign" },
   { id: "analytics", label: "Analytics", icon: "BarChart3" },
+  { id: "local-presence", label: "Local Presence", icon: "MapPin" },
 ];
 
 export const FEATURE_CATALOG: FeatureDefinition[] = [
@@ -457,6 +459,38 @@ export const FEATURE_CATALOG: FeatureDefinition[] = [
     route: "/analytics",
     routes: ["/analytics"],
     plans: { NON_PROFIT: true, PRO: true, BUSINESS: true, ENTERPRISE: true },
+  },
+
+  // ─── Local Presence ──────────────────────────────
+  {
+    slug: "listsmartly",
+    name: "ListSmartly",
+    description: "AI-powered business listing management across 150+ directories",
+    category: "local-presence",
+    icon: "MapPin",
+    route: "/listsmartly",
+    routes: ["/listsmartly", "/listsmartly/dashboard", "/listsmartly/listings", "/listsmartly/reviews", "/listsmartly/analytics", "/listsmartly/settings", "/listsmartly/onboarding"],
+    plans: { PRO: true, BUSINESS: true, ENTERPRISE: true },
+  },
+  {
+    slug: "listsmartly-autopilot",
+    name: "ListSmartly AI Autopilot",
+    description: "AI auto-fix listing inconsistencies and generate optimized descriptions",
+    category: "local-presence",
+    icon: "Sparkles",
+    route: "/listsmartly/autopilot",
+    routes: ["/listsmartly/autopilot"],
+    plans: { BUSINESS: true, ENTERPRISE: true },
+  },
+  {
+    slug: "listsmartly-reviews",
+    name: "Review Command Center",
+    description: "Aggregate reviews, AI-draft responses, and sentiment analysis",
+    category: "local-presence",
+    icon: "MessageSquare",
+    route: "/listsmartly/reviews",
+    routes: ["/listsmartly/reviews"],
+    plans: { BUSINESS: true, ENTERPRISE: true },
   },
 ];
 
