@@ -438,14 +438,14 @@ export default function ListSmartlyOnboardingPage() {
     setSelectedPlan(plan);
     setLoading(true);
     try {
-      const res = await fetch("/api/listsmartly/plan", {
-        method: "POST",
+      const res = await fetch("/api/listsmartly/profile", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ lsPlan: plan }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to select plan");
+        throw new Error(err.error?.message || "Failed to select plan");
       }
       toast({ title: "Plan selected", description: `${plan === "pro" ? "Pro" : "Basic"} plan activated with free trial.` });
       setStep(4);

@@ -99,7 +99,7 @@ export async function PUT(request: NextRequest) {
       "businessName", "phone", "email", "website", "address",
       "city", "state", "zip", "country", "industry", "categories",
       "description", "shortDescription", "hours", "serviceArea",
-      "yearFounded", "socialLinks",
+      "yearFounded", "socialLinks", "lsPlan", "setupComplete",
     ];
 
     const updateData: Record<string, unknown> = {};
