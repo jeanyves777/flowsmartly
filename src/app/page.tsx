@@ -3,6 +3,7 @@ import { PublicFooter } from "@/components/layout/public-footer";
 import { HeroSection } from "@/components/home/hero-section";
 import { FeaturesSection } from "@/components/home/features-section";
 import { FlowShopSection } from "@/components/home/flowshop-section";
+import { ListSmartlySection } from "@/components/home/listsmartly-section";
 import { PlatformSection } from "@/components/home/platform-section";
 import { SmsBlasterSection } from "@/components/home/sms-blaster-section";
 import { MarketplaceSection } from "@/components/home/marketplace-section";
@@ -16,6 +17,7 @@ export default function HomePage() {
       <HeroSection />
       <FeaturesSection />
       <FlowShopSection />
+      <ListSmartlySection />
       <PlatformSection />
       <SmsBlasterSection />
       <MarketplaceSection />
