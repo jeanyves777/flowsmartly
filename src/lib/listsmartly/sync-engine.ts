@@ -246,7 +246,52 @@ export async function detectExistingPresence(profileId: string): Promise<{ detec
     }
   }
 
-  // ── Step 3: Check social media — website crawl + BrandKit handles ──
+  // ── Step 3: Check connected social accounts (SocialAccount table) ──
+  const connectedAccounts = await prisma.socialAccount.findMany({
+    where: { userId: profile.userId, isActive: true },
+    select: { platform: true, platformUsername: true },
+  });
+
+  // Map connected platform to directory slug + build URL
+  const platformToSlug: Record<string, string> = {
+    facebook: "facebook",
+    instagram: "instagram",
+    twitter: "twitter-x",
+    linkedin: "linkedin",
+    youtube: "youtube",
+    tiktok: "tiktok",
+  };
+
+  for (const account of connectedAccounts) {
+    // Platform field can be "facebook_107144437295885" or just "facebook"
+    const basePlatform = account.platform.split("_")[0].toLowerCase();
+    const slug = platformToSlug[basePlatform];
+    if (!slug) continue;
+
+    const listing = listings.find((l) => l.directory.slug === slug && l.status === "missing");
+    if (!listing) continue;
+
+    // Build URL from username
+    const username = (account.platformUsername || "").replace(/^@/, "");
+    if (!username) continue;
+
+    const urlMap: Record<string, string> = {
+      facebook: `https://facebook.com/${username}`,
+      instagram: `https://instagram.com/${username}`,
+      "twitter-x": `https://x.com/${username}`,
+      linkedin: `https://linkedin.com/in/${username}`,
+      youtube: `https://youtube.com/@${username}`,
+      tiktok: `https://tiktok.com/@${username}`,
+    };
+
+    const url = urlMap[slug];
+    if (url) {
+      await markListingLive(listing.id, url, `connected_account_${basePlatform}`);
+      detected++;
+    }
+  }
+
+  // ── Step 4: Check BrandKit handles + website crawl results ──
   const brandKit = await prisma.brandKit.findFirst({
     where: { userId: profile.userId },
     select: { handles: true },
@@ -257,8 +302,7 @@ export async function detectExistingPresence(profileId: string): Promise<{ detec
     if (brandKit?.handles) Object.assign(handles, JSON.parse(brandKit.handles as string));
   } catch { /* not JSON */ }
 
-  // Merge: website-discovered links take priority (real verified URLs),
-  // then BrandKit handles as fallback
+  // Website-discovered links take priority, then BrandKit handles as fallback
   const socialMapping: Record<string, string> = {
     facebook: "facebook",
     instagram: "instagram",
