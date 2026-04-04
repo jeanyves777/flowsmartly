@@ -4,7 +4,7 @@
  */
 import { prisma } from "@/lib/db/client";
 import { checkConsistency } from "./consistency-checker";
-// No AI guessing — only verified web results
+// Real web verification only — no guessing
 
 /** Create listing records for all directories matching a profile's industry. */
 export async function initializeListings(profileId: string, industry?: string): Promise<number> {
@@ -99,10 +99,9 @@ export async function refreshProfileStats(profileId: string): Promise<void> {
 }
 
 /**
- * Real web presence detection — NO guessing, NO AI assumptions.
- * Performs actual Google searches using `site:directory.com "business name"`
- * to verify whether the business has a real listing on each directory.
- * Only marks "live" when a real URL is found.
+ * Real web presence detection using Google Places API + Google Search.
+ * Same APIs used by the Pitch Board lead finder (src/lib/pitch/researcher.ts).
+ * Only marks listings as "live" when verified with a real URL.
  */
 export async function detectExistingPresence(profileId: string): Promise<{ detected: number }> {
   const profile = await prisma.listSmartlyProfile.findUnique({ where: { id: profileId } });
@@ -115,124 +114,168 @@ export async function detectExistingPresence(profileId: string): Promise<{ detec
 
   if (listings.length === 0) return { detected: 0 };
 
-  const businessName = profile.businessName;
-  const location = [profile.city, profile.state].filter(Boolean).join(" ");
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    console.error("ListSmartly: No Google API key available for presence detection");
+    return { detected: 0 };
+  }
 
-  // Focus on Tier 1-3 for real web search (most important + feasible to check)
-  const checkable = listings.filter((l) => l.directory.tier <= 3);
+  const businessName = profile.businessName;
+  const location = [profile.city, profile.state].filter(Boolean).join(", ");
   let detected = 0;
 
-  // Search Google for the business on each directory using site: operator
-  // Process in small batches to avoid rate limits
-  const BATCH_SIZE = 5;
-  const DELAY_MS = 1500;
+  // ── Step 1: Verify Google Business Profile via Places API ──
+  const googleListing = listings.find((l) => l.directory.slug === "google-business");
+  if (googleListing) {
+    try {
+      const searchQuery = `${businessName}${location ? ` ${location}` : ""}`;
+      const textSearchUrl = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
+      textSearchUrl.searchParams.set("query", searchQuery);
+      textSearchUrl.searchParams.set("key", apiKey);
 
-  for (let i = 0; i < checkable.length; i += BATCH_SIZE) {
-    const batch = checkable.slice(i, i + BATCH_SIZE);
+      const searchRes = await fetch(textSearchUrl.toString(), { signal: AbortSignal.timeout(8000) });
+      const searchData = await searchRes.json() as { results: Array<{ place_id: string; name: string }>; status: string };
 
-    const results = await Promise.allSettled(
-      batch.map(async (listing) => {
-        const domain = extractDomain(listing.directory.url);
-        const query = encodeURIComponent(`site:${domain} "${businessName}"${location ? ` ${location}` : ""}`);
+      if (searchData.status === "OK" && searchData.results?.length > 0) {
+        const placeId = searchData.results[0].place_id;
+        const mapsUrl = `https://www.google.com/maps/place/?q=place_id:${placeId}`;
 
-        try {
-          // Use Google Custom Search API if available, otherwise use fetch with user-agent
-          const searchUrl = process.env.GOOGLE_SEARCH_API_KEY && process.env.GOOGLE_SEARCH_CX
-            ? `https://www.googleapis.com/customsearch/v1?key=${process.env.GOOGLE_SEARCH_API_KEY}&cx=${process.env.GOOGLE_SEARCH_CX}&q=${query}&num=3`
-            : null;
-
-          if (searchUrl) {
-            const res = await fetch(searchUrl, { signal: AbortSignal.timeout(10000) });
-            if (!res.ok) return null;
-            const data = await res.json();
-            if (data.items && data.items.length > 0) {
-              // Found a real result — extract the URL
-              const foundUrl = data.items[0].link;
-              return { listingId: listing.id, url: foundUrl, source: "google_api" };
-            }
-          }
-
-          // Fallback: try direct fetch to common listing URL patterns
-          const directUrl = buildDirectCheckUrl(listing.directory.slug, businessName);
-          if (directUrl) {
-            const res = await fetch(directUrl, {
-              method: "HEAD",
-              redirect: "follow",
-              signal: AbortSignal.timeout(8000),
-              headers: { "User-Agent": "Mozilla/5.0 (compatible; FlowSmartlyBot/1.0)" },
-            });
-            if (res.ok) {
-              return { listingId: listing.id, url: directUrl, source: "direct_check" };
-            }
-          }
-
-          return null;
-        } catch {
-          return null;
-        }
-      })
-    );
-
-    // Process results — only mark as live when we have a REAL verified URL
-    for (const result of results) {
-      if (result.status === "fulfilled" && result.value) {
-        const { listingId, url, source } = result.value;
-        await prisma.businessListing.update({
-          where: { id: listingId },
-          data: {
-            status: "live",
-            listingUrl: url,
-            isConsistent: true,
-            verifiedAt: new Date(),
-            lastCheckedAt: new Date(),
-          },
-        });
-        await prisma.listingChange.create({
-          data: {
-            listingId,
-            changeType: "web_scan",
-            fieldChanged: "status",
-            oldValue: "missing",
-            newValue: "live",
-            changedBy: `verified_scan (${source})`,
-          },
-        });
+        await markListingLive(googleListing.id, mapsUrl, "google_places_api");
         detected++;
+
+        // Also fetch details to enrich the profile
+        const detailUrl = new URL("https://maps.googleapis.com/maps/api/place/details/json");
+        detailUrl.searchParams.set("place_id", placeId);
+        detailUrl.searchParams.set("fields", "name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,url");
+        detailUrl.searchParams.set("key", apiKey);
+
+        const detailRes = await fetch(detailUrl.toString(), { signal: AbortSignal.timeout(8000) });
+        const detailData = await detailRes.json() as { result: Record<string, unknown>; status: string };
+
+        if (detailData.status === "OK" && detailData.result) {
+          const r = detailData.result;
+          // Update listing with verified data from Google
+          await prisma.businessListing.update({
+            where: { id: googleListing.id },
+            data: {
+              listingUrl: (r.url as string) || mapsUrl,
+              businessName: r.name as string || undefined,
+              phone: r.formatted_phone_number as string || undefined,
+              address: r.formatted_address as string || undefined,
+              website: r.website as string || undefined,
+            },
+          });
+          // Store review data on profile
+          if (r.rating || r.user_ratings_total) {
+            await prisma.listSmartlyProfile.update({
+              where: { id: profileId },
+              data: {
+                averageRating: (r.rating as number) || 0,
+                totalReviews: (r.user_ratings_total as number) || 0,
+              },
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error("ListSmartly: Google Places check failed:", err);
+    }
+  }
+
+  // ── Step 2: Check other directories via Google Search site: operator ──
+  const otherListings = listings.filter(
+    (l) => l.directory.slug !== "google-business" && l.directory.tier <= 3
+  );
+
+  // Batch search: combine multiple site: queries into one Google search
+  const BATCH_SIZE = 5;
+  const DELAY_MS = 1000;
+
+  for (let i = 0; i < otherListings.length; i += BATCH_SIZE) {
+    const batch = otherListings.slice(i, i + BATCH_SIZE);
+
+    for (const listing of batch) {
+      try {
+        const domain = extractDomain(listing.directory.url);
+        const query = `site:${domain} "${businessName}"`;
+
+        // Use Google Custom Search JSON API (uses GOOGLE_API_KEY)
+        const searchUrl = new URL("https://www.googleapis.com/customsearch/v1");
+        searchUrl.searchParams.set("key", apiKey);
+        searchUrl.searchParams.set("cx", process.env.GOOGLE_SEARCH_CX || "");
+        searchUrl.searchParams.set("q", query);
+        searchUrl.searchParams.set("num", "3");
+
+        // If no CX, try Places text search as fallback for the directory name
+        if (!process.env.GOOGLE_SEARCH_CX) {
+          // Use Places text search to find business on the directory
+          const placesUrl = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
+          placesUrl.searchParams.set("query", `${businessName} ${domain}`);
+          placesUrl.searchParams.set("key", apiKey);
+
+          const placesRes = await fetch(placesUrl.toString(), { signal: AbortSignal.timeout(6000) });
+          const placesData = await placesRes.json() as { results: Array<{ name: string; place_id: string }>; status: string };
+
+          // This just confirms the business exists, doesn't prove it's on this directory
+          // Skip — we can't verify directory-specific presence without Custom Search
+          continue;
+        }
+
+        const res = await fetch(searchUrl.toString(), { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) continue;
+
+        const data = await res.json() as { items?: Array<{ link: string; title: string }>; searchInformation?: { totalResults: string } };
+
+        if (data.items && data.items.length > 0) {
+          const foundUrl = data.items[0].link;
+          await markListingLive(listing.id, foundUrl, "google_custom_search");
+          detected++;
+        }
+      } catch {
+        // Skip this directory on error
       }
     }
 
-    // Delay between batches to avoid rate limits
-    if (i + BATCH_SIZE < checkable.length) {
+    if (i + BATCH_SIZE < otherListings.length) {
       await new Promise((r) => setTimeout(r, DELAY_MS));
     }
   }
 
   await refreshProfileStats(profileId);
-  console.log(`ListSmartly web scan: verified ${detected} existing listings for "${businessName}"`);
+  console.log(`ListSmartly: verified ${detected} existing listings for "${businessName}"`);
 
   return { detected };
 }
 
-/** Extract clean domain from a URL. */
+/** Mark a listing as live with verified URL and audit trail. */
+async function markListingLive(listingId: string, url: string, source: string): Promise<void> {
+  await prisma.businessListing.update({
+    where: { id: listingId },
+    data: {
+      status: "live",
+      listingUrl: url,
+      isConsistent: true,
+      verifiedAt: new Date(),
+      lastCheckedAt: new Date(),
+    },
+  });
+  await prisma.listingChange.create({
+    data: {
+      listingId,
+      changeType: "web_scan",
+      fieldChanged: "status",
+      oldValue: "missing",
+      newValue: "live",
+      changedBy: `verified: ${source}`,
+    },
+  });
+}
+
+/** Extract domain from URL. */
 function extractDomain(url: string): string {
   try {
     return new URL(url).hostname.replace("www.", "");
   } catch {
     return url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0];
   }
-}
-
-/** Build a direct-check URL for common directory patterns. */
-function buildDirectCheckUrl(slug: string, businessName: string): string | null {
-  const nameSlug = businessName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-
-  const patterns: Record<string, string> = {
-    "facebook": `https://www.facebook.com/search/pages/?q=${encodeURIComponent(businessName)}`,
-    "yelp": `https://www.yelp.com/search?find_desc=${encodeURIComponent(businessName)}`,
-    "yellowpages": `https://www.yellowpages.com/search?search_terms=${encodeURIComponent(businessName)}`,
-    "bbb": `https://www.bbb.org/search?find_text=${encodeURIComponent(businessName)}`,
-    "manta": `https://www.manta.com/search?search=${encodeURIComponent(businessName)}`,
-  };
-
-  return patterns[slug] || null;
 }
