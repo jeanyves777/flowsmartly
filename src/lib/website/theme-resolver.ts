@@ -127,7 +127,7 @@ export function themeToCSS(theme: WebsiteTheme): string {
   const maxWidthMap = { sm: "640px", md: "768px", lg: "1024px", xl: "1280px", full: "100%" };
   const borderRadiusMap: Record<string, string> = { rounded: `${theme.borderRadius}px`, pill: "9999px", square: "0px" };
 
-  return `
+  let css = `
 :root {
   --wb-primary: ${theme.colors.primary};
   --wb-primary-rgb: ${hexToRgb(theme.colors.primary)};
