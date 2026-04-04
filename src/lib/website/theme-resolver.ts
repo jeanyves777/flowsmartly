@@ -164,7 +164,29 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: var(--wb-font-heading-weight);
   line-height: 1.2;
 }
+
+a { color: var(--wb-primary); }
+::selection { background: rgba(var(--wb-primary-rgb), 0.15); }
 `;
+
+  // Dark mode CSS if dark colors exist
+  if (theme.darkColors) {
+    css += `
+[data-theme="dark"] {
+  --wb-primary: ${theme.darkColors.primary || theme.colors.primary};
+  --wb-primary-rgb: ${hexToRgb(theme.darkColors.primary || theme.colors.primary)};
+  --wb-secondary: ${theme.darkColors.secondary || theme.colors.secondary};
+  --wb-accent: ${theme.darkColors.accent || theme.colors.accent};
+  --wb-background: ${theme.darkColors.background || "#0f172a"};
+  --wb-surface: ${theme.darkColors.surface || "#1e293b"};
+  --wb-text: ${theme.darkColors.text || "#f1f5f9"};
+  --wb-text-muted: ${theme.darkColors.textMuted || "#94a3b8"};
+  --wb-border: ${theme.darkColors.border || "#334155"};
+}
+`;
+  }
+
+  return css;
 }
 
 // --- Block-Level Style Overrides → inline style ---
@@ -210,6 +232,43 @@ export function getMaxWidthClass(maxWidth?: BlockStyle["maxWidth"]): string {
     full: "max-w-full",
   };
   return map[maxWidth || "lg"] || "max-w-screen-lg";
+}
+
+// --- Typography style helpers ---
+
+export function headlineStyleFromBlock(style: BlockStyle): React.CSSProperties {
+  const css: React.CSSProperties = {};
+  if (style.headlineFont) css.fontFamily = `'${style.headlineFont}', system-ui, sans-serif`;
+  if (style.headlineFontSize) css.fontSize = style.headlineFontSize;
+  if (style.headlineFontWeight) css.fontWeight = style.headlineFontWeight;
+  if (style.headlineColor) css.color = style.headlineColor;
+  if (style.headlineTransform && style.headlineTransform !== "none") css.textTransform = style.headlineTransform;
+  if (style.headlineLetterSpacing) css.letterSpacing = style.headlineLetterSpacing;
+  return css;
+}
+
+export function bodyStyleFromBlock(style: BlockStyle): React.CSSProperties {
+  const css: React.CSSProperties = {};
+  if (style.bodyFont) css.fontFamily = `'${style.bodyFont}', system-ui, sans-serif`;
+  if (style.bodyFontSize) css.fontSize = style.bodyFontSize;
+  if (style.bodyColor) css.color = style.bodyColor;
+  if (style.bodyLineHeight) css.lineHeight = style.bodyLineHeight;
+  return css;
+}
+
+export function buttonStyleFromCTA(cta: { bgColor?: string; textColor?: string; borderRadius?: number; fontSize?: number; fontWeight?: string; paddingH?: number; paddingV?: number; borderColor?: string; borderWidth?: number; style?: string }): React.CSSProperties {
+  const css: React.CSSProperties = {};
+  if (cta.bgColor) css.backgroundColor = cta.bgColor;
+  if (cta.textColor) css.color = cta.textColor;
+  if (cta.borderRadius !== undefined) css.borderRadius = cta.borderRadius;
+  if (cta.fontSize) css.fontSize = cta.fontSize;
+  if (cta.fontWeight) css.fontWeight = cta.fontWeight;
+  if (cta.paddingH || cta.paddingV) {
+    css.padding = `${cta.paddingV || 12}px ${cta.paddingH || 24}px`;
+  }
+  if (cta.borderColor) css.borderColor = cta.borderColor;
+  if (cta.borderWidth) css.borderWidth = cta.borderWidth;
+  return css;
 }
 
 // --- Google Fonts URL ---

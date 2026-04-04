@@ -4230,6 +4230,9 @@ model WebsitePage {
   // { transition, customCss, customHead, gated, memberOnly, password }
   settings      String    @default("{}")
 
+  // Translations (JSON) — { "fr": { "blockId": { "headline": "..." } } }
+  translations  String    @default("{}")
+
   // Ordering & status
   sortOrder     Int       @default(0)
   isHomePage    Boolean   @default(false)

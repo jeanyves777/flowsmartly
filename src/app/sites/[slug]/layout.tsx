@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { resolveTheme, themeToCSS, getGoogleFontsUrl } from "@/lib/website/theme-resolver";
 import { generateAnimationCSS, generateAnimationScript } from "@/lib/website/animation-css";
 import type { WebsiteBlock } from "@/types/website-builder";
+import { DarkModeToggle } from "@/components/website-builder/shared/dark-mode-toggle";
 import type { Metadata } from "next";
 
 async function getWebsite(slug: string) {
@@ -66,6 +67,7 @@ export default async function WebsiteLayout({
       </head>
       <body className="min-h-screen">
         {children}
+        <DarkModeToggle />
         {animScript && <div dangerouslySetInnerHTML={{ __html: animScript }} />}
       </body>
     </html>

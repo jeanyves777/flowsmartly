@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, ArrowLeft, ArrowRight, Loader2, Check, Palette, Globe, Target, Settings, CheckCircle2 } from "lucide-react";
+import { Sparkles, ArrowLeft, ArrowRight, Loader2, Check, Palette, Globe, Target, Settings, CheckCircle2, Languages } from "lucide-react";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { SUPPORTED_LANGUAGES } from "@/lib/website/i18n";
 import type { SiteQuestionnaire } from "@/types/website-builder";
 
 interface BrandKit {
@@ -27,6 +28,7 @@ const STEPS = [
   { title: "Goals & Pages", icon: Target },
   { title: "Style & Tone", icon: Palette },
   { title: "Features", icon: Settings },
+  { title: "Languages", icon: Languages },
 ];
 
 const INDUSTRY_OPTIONS = [
@@ -85,6 +87,8 @@ export default function CreateWebsitePage() {
     contentTone: "professional",
     features: ["animations", "contact-form"],
     existingContent: "",
+    languages: ["en"],
+    primaryLanguage: "en",
   });
 
   // Fetch brand kit on mount
@@ -236,22 +240,33 @@ export default function CreateWebsitePage() {
       }
       const website = createData.website;
 
-      // Step 2: Generate with AI
-      setGenStep("Analyzing your brand identity...");
-      setGenProgress(20);
+      // Step 2: AI Agent builds the website
+      setGenStep("AI Agent is analyzing your brand...");
+      setGenProgress(15);
 
-      // Simulate intermediate steps while AI generates
+      // Simulate agent tool call steps
+      const agentSteps = [
+        { at: 20, text: "Reading your brand identity..." },
+        { at: 30, text: "Choosing colors and fonts for your brand..." },
+        { at: 38, text: "Searching for matching stock images..." },
+        { at: 48, text: "Downloading images to your library..." },
+        { at: 55, text: "Writing personalized homepage content..." },
+        { at: 65, text: "Building additional pages..." },
+        { at: 75, text: "Creating navigation and footer..." },
+        { at: 82, text: "Applying animations and effects..." },
+        { at: 88, text: "Finalizing your website..." },
+      ];
+      let stepIdx = 0;
       const progressTimer = setInterval(() => {
         setGenProgress((p) => {
-          if (p >= 85) return p;
-          if (p < 40) { setGenStep("Designing your site layout..."); return p + 2; }
-          if (p < 55) { setGenStep("Writing page content with AI..."); return p + 1.5; }
-          if (p < 70) { setGenStep("Creating pages and sections..."); return p + 1; }
-          if (p < 80) { setGenStep("Applying styles and animations..."); return p + 0.5; }
-          setGenStep("Finalizing your website...");
-          return p + 0.3;
+          if (p >= 90) return p;
+          if (stepIdx < agentSteps.length && p >= agentSteps[stepIdx].at) {
+            setGenStep(agentSteps[stepIdx].text);
+            stepIdx++;
+          }
+          return p + 0.4;
         });
-      }, 800);
+      }, 1000);
 
       const genRes = await fetch(`/api/websites/${website.id}/generate`, {
         method: "POST",
@@ -450,6 +465,35 @@ export default function CreateWebsitePage() {
                     Existing Content (optional) {prefilledLabel("existingContent")}
                   </label>
                   <textarea value={form.existingContent} onChange={(e) => updateForm("existingContent", e.target.value)} rows={4} placeholder="Paste any existing copy, taglines, descriptions, or information you want to include..." className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
+                </div>
+              </div>
+            )}
+
+            {step === 4 && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold">Languages</h2>
+                <p className="text-sm text-muted-foreground">Select the languages your website should support. English is always included.</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {SUPPORTED_LANGUAGES.map((lang) => {
+                    const isSelected = (form.languages || ["en"]).includes(lang.code);
+                    const isEnglish = lang.code === "en";
+                    return (
+                      <button
+                        key={lang.code}
+                        onClick={() => {
+                          if (isEnglish) return;
+                          const current = form.languages || ["en"];
+                          updateForm("languages", isSelected ? current.filter((c) => c !== lang.code) : [...current, lang.code]);
+                        }}
+                        disabled={isEnglish}
+                        className={`px-3 py-2 text-sm rounded-lg border transition-colors text-left ${
+                          isSelected ? "bg-primary/10 border-primary text-primary" : "border-border hover:border-primary/50"
+                        } ${isEnglish ? "opacity-60" : ""}`}
+                      >
+                        {lang.label} {isEnglish && <span className="text-xs">(default)</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

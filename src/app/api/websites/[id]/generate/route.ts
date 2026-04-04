@@ -3,9 +3,9 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
-import { generateWebsite } from "@/lib/website/ai-generator";
+import { runWebsiteAgent } from "@/lib/website/website-agent";
 
-// POST /api/websites/[id]/generate — AI-generate site content
+// POST /api/websites/[id]/generate — AI agent builds the website
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession();
@@ -14,7 +14,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const website = await prisma.website.findFirst({
       where: { id, userId: session.userId, deletedAt: null },
-      include: { brandKit: { select: { colors: true, fonts: true, logo: true, name: true, voiceTone: true, industry: true, targetAudience: true } } },
     });
     if (!website) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -22,7 +21,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const cost = await getDynamicCreditCost("AI_WEBSITE_GENERATE");
     const check = await checkCreditsForFeature(session.userId, "AI_WEBSITE_GENERATE");
     if (check) {
-      // check is non-null means insufficient credits
       return NextResponse.json({ error: check.message, required: cost }, { status: 402 });
     }
 
@@ -30,49 +28,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const questionnaire = body.questionnaire;
     if (!questionnaire) return NextResponse.json({ error: "Questionnaire data required" }, { status: 400 });
 
-    // Generate website with AI
-    const brandKit = website.brandKit ? {
-      colors: website.brandKit.colors ?? undefined,
-      fonts: website.brandKit.fonts ?? undefined,
-      logo: website.brandKit.logo ?? undefined,
-      name: website.brandKit.name ?? undefined,
-      voiceTone: website.brandKit.voiceTone ?? undefined,
-      industry: website.brandKit.industry ?? undefined,
-      targetAudience: website.brandKit.targetAudience ?? undefined,
-    } : null;
+    // Run the agent (autonomous tool-calling loop)
+    console.log(`[WebsiteGen] Starting agent for website ${id}, user ${session.userId}`);
 
-    const generated = await generateWebsite(questionnaire, brandKit);
+    const result = await runWebsiteAgent(
+      id,
+      session.userId,
+      questionnaire,
+      (progress) => {
+        console.log(`[WebsiteGen] ${progress.step}${progress.detail ? ` — ${progress.detail}` : ""} (${progress.toolCalls} calls)`);
+      }
+    );
 
-    // Update website theme + navigation
-    await prisma.website.update({
-      where: { id },
-      data: {
-        theme: JSON.stringify(generated.theme),
-        navigation: JSON.stringify(generated.navigation),
-        name: generated.name || website.name,
-      },
-    });
-
-    // Delete existing pages and create new ones
-    await prisma.websitePage.deleteMany({ where: { websiteId: id } });
-
-    for (let i = 0; i < generated.pages.length; i++) {
-      const page = generated.pages[i];
-      await prisma.websitePage.create({
-        data: {
-          websiteId: id,
-          title: page.title,
-          slug: page.slug,
-          description: page.description || null,
-          isHomePage: page.isHomePage,
-          sortOrder: i,
-          blocks: JSON.stringify(page.blocks),
-          status: "DRAFT",
-        },
-      });
+    if (!result.success) {
+      console.error(`[WebsiteGen] Agent failed:`, result.error);
+      return NextResponse.json({ error: result.error || "Generation failed" }, { status: 500 });
     }
-
-    await prisma.website.update({ where: { id }, data: { pageCount: generated.pages.length } });
 
     // Deduct credits
     await creditService.deductCredits({
@@ -82,7 +53,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       description: `AI website generation: ${website.name}`,
     });
 
-    return NextResponse.json({ success: true, pages: generated.pages.length });
+    console.log(`[WebsiteGen] Website ${id} generated successfully`);
+    return NextResponse.json({ success: true });
   } catch (err) {
     console.error("POST /api/websites/[id]/generate error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

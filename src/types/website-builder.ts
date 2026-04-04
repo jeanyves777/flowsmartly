@@ -82,6 +82,17 @@ export interface BlockStyle {
   border?: string;
   shadow?: string;
   customCss?: string;
+  // Typography overrides
+  headlineFont?: string;
+  headlineFontSize?: number;
+  headlineFontWeight?: string;
+  headlineColor?: string;
+  headlineTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
+  headlineLetterSpacing?: number;
+  bodyFont?: string;
+  bodyFontSize?: number;
+  bodyColor?: string;
+  bodyLineHeight?: number;
 }
 
 // --- Responsive ---
@@ -107,8 +118,18 @@ export interface BlockVisibility {
 export interface CTAButton {
   text: string;
   href: string;
-  style?: "solid" | "outline" | "ghost";
+  style?: "solid" | "outline" | "ghost" | "gradient";
   icon?: string;
+  // Button styling overrides
+  bgColor?: string;
+  textColor?: string;
+  borderRadius?: number;
+  fontSize?: number;
+  fontWeight?: string;
+  paddingH?: number;
+  paddingV?: number;
+  borderColor?: string;
+  borderWidth?: number;
 }
 
 export interface SocialLink {
@@ -461,6 +482,7 @@ export interface WebsiteTheme {
   headerStyle: "solid" | "transparent" | "gradient";
   footerStyle: "simple" | "columns" | "minimal";
   buttonStyle: "rounded" | "pill" | "square";
+  darkColors?: WebsiteThemeColors;
 }
 
 // --- Navigation ---
@@ -512,6 +534,9 @@ export interface WebsiteSettings {
   password?: string;
   notFoundPage?: string;
   redirects?: Array<{ from: string; to: string; permanent: boolean }>;
+  darkMode?: "auto" | "toggle" | "light-only";
+  languages?: Array<{ code: string; label: string }>;
+  primaryLanguage?: string;
 }
 
 // --- Page Settings ---
@@ -541,6 +566,8 @@ export interface SiteQuestionnaire {
   existingContent?: string;
   brandKitId?: string;
   referenceUrls?: string[];
+  languages?: string[];
+  primaryLanguage?: string;
 }
 
 export interface AIGeneratedSite {
