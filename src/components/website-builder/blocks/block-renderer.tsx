@@ -65,8 +65,8 @@ function sanitizeBlock(block: WebsiteBlock): WebsiteBlock {
   const defaults = BLOCK_DEFAULT_CONTENT[block.type];
   if (!defaults) return block;
 
-  const content = block.content as Record<string, unknown>;
-  const defaultContent = defaults as Record<string, unknown>;
+  const content = block.content as unknown as Record<string, unknown>;
+  const defaultContent = defaults as unknown as Record<string, unknown>;
 
   // Ensure all array fields from defaults exist in content
   for (const [key, defaultVal] of Object.entries(defaultContent)) {
