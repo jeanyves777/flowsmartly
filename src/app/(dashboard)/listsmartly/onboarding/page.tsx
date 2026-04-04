@@ -276,7 +276,7 @@ export default function ListSmartlyOnboardingPage() {
 
     try {
       // Try to activate (create profile + seed directories + initialize listings)
-      let res = await fetch("/api/listsmartly/activate", {
+      const activateRes = await fetch("/api/listsmartly/activate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -286,9 +286,9 @@ export default function ListSmartlyOnboardingPage() {
         }),
       });
 
-      // If profile already exists (409), update it instead
-      if (res.status === 409) {
-        res = await fetch("/api/listsmartly/profile", {
+      // If profile already exists (409), update it and continue
+      if (activateRes.status === 409) {
+        await fetch("/api/listsmartly/profile", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -297,20 +297,19 @@ export default function ListSmartlyOnboardingPage() {
             categories: JSON.stringify(categories),
           }),
         });
-        // Then trigger a scan to initialize any missing listings
-        await fetch("/api/listsmartly/listings/scan", { method: "POST" });
+      } else if (!activateRes.ok) {
+        const err = await activateRes.json().catch(() => ({}));
+        throw new Error(err.error?.message || "Activation failed");
       }
+
+      // Run the REAL scan — this calls Google Places API + Custom Search
+      // and WAITS for it to complete (not fire-and-forget)
+      setScanProgress(50);
+      const scanRes = await fetch("/api/listsmartly/listings/scan", { method: "POST" });
+      const scanJson = scanRes.ok ? await scanRes.json() : null;
 
       clearInterval(interval);
       setScanProgress(100);
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || "Scan failed");
-      }
-
-      // Wait for the scan to complete (fire-and-forget runs in background)
-      await new Promise((r) => setTimeout(r, 3000));
 
       // Get actual listing data with directory details
       const listingsRes = await fetch("/api/listsmartly/listings?limit=200");
@@ -715,6 +714,69 @@ export default function ListSmartlyOnboardingPage() {
               </Card>
             </div>
 
+            {/* AI Analysis & Score — FIRST (selling pitch) */}
+            <Card className="border-teal-500/30 bg-gradient-to-br from-teal-500/5 to-cyan-500/5">
+              <CardContent className="py-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="w-5 h-5 text-teal-500" />
+                  <h3 className="font-semibold text-foreground">AI Presence Analysis</h3>
+                </div>
+                <div className="flex items-center gap-6 mb-5">
+                  <div className="relative w-20 h-20">
+                    <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                      <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted/50" />
+                      <circle cx="50" cy="50" r="42" fill="none" strokeWidth="8"
+                        strokeDasharray={`${((scanResults.alreadySubmitted / Math.max(scanResults.totalDirectories, 1)) * 264)} 264`}
+                        strokeLinecap="round"
+                        className={scanResults.alreadySubmitted > 0 ? "text-yellow-500" : "text-red-500"} />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className={`text-lg font-bold ${scanResults.alreadySubmitted > 0 ? "text-yellow-500" : "text-red-500"}`}>
+                        {Math.round((scanResults.alreadySubmitted / Math.max(scanResults.totalDirectories, 1)) * 100)}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground">
+                      {scanResults.alreadySubmitted === 0 ? "Critical: No Online Presence Detected"
+                        : scanResults.alreadySubmitted < 10 ? "Poor: Minimal Online Presence"
+                        : scanResults.alreadySubmitted < 30 ? "Below Average: Room for Growth"
+                        : "Growing: Good Foundation"}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Your business is listed on {scanResults.alreadySubmitted} of {scanResults.totalDirectories} directories
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-2.5 text-sm">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-5 h-5 rounded-full bg-red-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <X className="w-3 h-3 text-red-500" />
+                    </div>
+                    <p className="text-muted-foreground">
+                      <strong className="text-foreground">{scanResults.findings?.filter(f => f.status === "missing" && f.tier === 1).length || 0} critical directories</strong> (Google, Yelp, Apple Maps) are missing — these drive 80% of local search traffic
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-5 h-5 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <BarChart3 className="w-3 h-3 text-yellow-500" />
+                    </div>
+                    <p className="text-muted-foreground">
+                      Competitors with <strong className="text-foreground">50+ citations</strong> rank significantly higher in local search results
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-5 h-5 rounded-full bg-teal-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <Sparkles className="w-3 h-3 text-teal-500" />
+                    </div>
+                    <p className="text-muted-foreground">
+                      ListSmartly can <strong className="text-foreground">submit your business to all {scanResults.missing} missing directories</strong> and monitor them with AI autopilot
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Detailed Findings List */}
             {scanResults.findings && scanResults.findings.length > 0 && (
               <div className="space-y-3">
@@ -775,77 +837,7 @@ export default function ListSmartlyOnboardingPage() {
                   </CardContent>
                 </Card>
 
-                {/* AI Analysis & Score — the selling pitch */}
-                <Card className="border-teal-500/30 bg-gradient-to-br from-teal-500/5 to-cyan-500/5">
-                  <CardContent className="py-5">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Sparkles className="w-5 h-5 text-teal-500" />
-                      <h3 className="font-semibold text-foreground">AI Presence Analysis</h3>
-                    </div>
-
-                    {/* Citation Score */}
-                    <div className="flex items-center gap-6 mb-5">
-                      <div className="relative w-20 h-20">
-                        <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                          <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted/50" />
-                          <circle
-                            cx="50" cy="50" r="42" fill="none" strokeWidth="8"
-                            strokeDasharray={`${((scanResults.alreadySubmitted / Math.max(scanResults.totalDirectories, 1)) * 264)} 264`}
-                            strokeLinecap="round"
-                            className={scanResults.alreadySubmitted > 0 ? "text-yellow-500" : "text-red-500"}
-                          />
-                        </svg>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className={`text-lg font-bold ${scanResults.alreadySubmitted > 0 ? "text-yellow-500" : "text-red-500"}`}>
-                            {Math.round((scanResults.alreadySubmitted / Math.max(scanResults.totalDirectories, 1)) * 100)}
-                          </span>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-foreground">
-                          {scanResults.alreadySubmitted === 0
-                            ? "Critical: No Online Presence Detected"
-                            : scanResults.alreadySubmitted < 10
-                            ? "Poor: Minimal Online Presence"
-                            : scanResults.alreadySubmitted < 30
-                            ? "Below Average: Room for Growth"
-                            : "Growing: Good Foundation"}
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-0.5">
-                          Your business is listed on {scanResults.alreadySubmitted} of {scanResults.totalDirectories} directories
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Key Insights */}
-                    <div className="space-y-2.5 text-sm">
-                      <div className="flex items-start gap-2.5">
-                        <div className="w-5 h-5 rounded-full bg-red-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                          <X className="w-3 h-3 text-red-500" />
-                        </div>
-                        <p className="text-muted-foreground">
-                          <strong className="text-foreground">{scanResults.findings?.filter(f => f.status === "missing" && f.tier === 1).length || 0} critical directories</strong> (Google, Yelp, Apple Maps) are missing — these drive 80% of local search traffic
-                        </p>
-                      </div>
-                      <div className="flex items-start gap-2.5">
-                        <div className="w-5 h-5 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                          <BarChart3 className="w-3 h-3 text-yellow-500" />
-                        </div>
-                        <p className="text-muted-foreground">
-                          Competitors with <strong className="text-foreground">50+ citations</strong> rank significantly higher in local search results
-                        </p>
-                      </div>
-                      <div className="flex items-start gap-2.5">
-                        <div className="w-5 h-5 rounded-full bg-teal-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                          <Sparkles className="w-3 h-3 text-teal-500" />
-                        </div>
-                        <p className="text-muted-foreground">
-                          ListSmartly can <strong className="text-foreground">submit your business to all {scanResults.missing} missing directories</strong> and monitor them with AI autopilot
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                {/* AI Analysis moved to top */}
               </div>
             )}
           </div>

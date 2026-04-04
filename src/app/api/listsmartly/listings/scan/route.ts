@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { runConsistencyCheck, refreshProfileStats, initializeListings } from "@/lib/listsmartly/sync-engine";
+import { runConsistencyCheck, refreshProfileStats, initializeListings, detectExistingPresence } from "@/lib/listsmartly/sync-engine";
 import { seedDirectories } from "@/lib/listsmartly/directories";
 import { calculateCitationScore } from "@/lib/listsmartly/citation-scorer";
 
@@ -38,7 +38,10 @@ export async function POST() {
       await initializeListings(profile.id, profile.industry || undefined);
     }
 
-    // Run consistency check
+    // Run real web presence detection (Google Places API + Custom Search)
+    const detection = await detectExistingPresence(profile.id);
+
+    // Run consistency check on found listings
     const scanResult = await runConsistencyCheck(profile.id);
 
     // Refresh profile stats
@@ -87,6 +90,7 @@ export async function POST() {
       success: true,
       data: {
         scan: scanResult,
+        detected: detection.detected,
         scores: {
           citationScore: scoreResult.citationScore,
           coverageScore: scoreResult.coverageScore,
