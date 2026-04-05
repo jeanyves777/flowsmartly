@@ -43,6 +43,7 @@ interface ExistingFieldInfo {
   key: string;
   label: string;
   value: string;
+  fromSibling?: boolean;
 }
 
 // ─── STANDARD FORM ───────────────────────────────────────────────────
@@ -213,7 +214,14 @@ function StandardForm({
 }
 
 // ─── SMART COLLECT FORM ──────────────────────────────────────────────
-type SmartStep = "search" | "loading" | "form" | "complete" | "already_complete";
+type SmartStep = "search" | "loading" | "confirm" | "form" | "complete" | "already_complete";
+
+interface SiblingInfo {
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+}
 
 function SmartCollectForm({
   formData,
@@ -235,6 +243,7 @@ function SmartCollectForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [siblingInfo, setSiblingInfo] = useState<SiblingInfo[]>([]);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
   // Debounced search
@@ -278,7 +287,13 @@ function SmartCollectForm({
             prefilled[f.key] = f.value;
           }
           setValues(prefilled);
-          setStep("form");
+          // If sibling data was merged, show confirmation first
+          if (json.data.hasSiblingData) {
+            setSiblingInfo(json.data.siblingInfo || []);
+            setStep("confirm");
+          } else {
+            setStep("form");
+          }
         }
       } else {
         setSubmitError("Could not load your information. Please try again.");
@@ -430,6 +445,77 @@ function SmartCollectForm({
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
         <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4" style={{ color: primaryColor }} />
         <p className="text-gray-500 font-medium">Checking your info, {selectedContact?.firstName}...</p>
+      </motion.div>
+    );
+  }
+
+  // ── CONFIRM STEP — verify sibling data belongs to this person ──
+  if (step === "confirm") {
+    const siblingFields = existingFields.filter((f) => f.fromSibling);
+    return (
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+        <div className="text-center mb-2">
+          <div className="w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center text-white font-bold text-xl" style={{ backgroundColor: primaryColor }}>
+            {(selectedContact?.firstName || "?")[0].toUpperCase()}
+          </div>
+          <h2 className="text-xl font-bold">
+            Hi {selectedContact?.firstName}!
+          </h2>
+          <p className="text-gray-500 text-sm mt-1">
+            We found additional info that might be yours. Please confirm.
+          </p>
+        </div>
+
+        <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-5 space-y-3">
+          <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Is this information yours?</p>
+          {siblingFields.map((f) => (
+            <div key={f.key} className="flex items-center justify-between text-sm">
+              <span className="text-blue-600 dark:text-blue-400">{f.label}</span>
+              <span className="font-medium text-blue-900 dark:text-blue-200">{f.value}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => setStep("form")}
+            className="flex-1 py-3.5 rounded-xl text-white font-semibold text-base transition-all hover:opacity-90 flex items-center justify-center gap-2"
+            style={{ backgroundColor: primaryColor }}
+          >
+            <Check className="h-5 w-5" /> Yes, that&apos;s me
+          </button>
+          <button
+            onClick={() => {
+              // Remove sibling data — keep only own data
+              const ownOnly: Record<string, string> = {};
+              const ownExisting: ExistingFieldInfo[] = [];
+              const newMissing: MissingFieldInfo[] = [];
+              for (const f of existingFields) {
+                if (!f.fromSibling) {
+                  ownOnly[f.key] = f.value;
+                  ownExisting.push(f);
+                } else {
+                  newMissing.push({ key: f.key, label: f.label, type: "text" });
+                }
+              }
+              setExistingFields(ownExisting);
+              setMissingFields([...missingFields, ...newMissing]);
+              setValues(ownOnly);
+              setSiblingInfo([]);
+              setStep("form");
+            }}
+            className="flex-1 py-3.5 rounded-xl border-2 border-gray-300 dark:border-gray-600 font-semibold text-base text-gray-600 dark:text-gray-300 transition-all hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-2"
+          >
+            No, not me
+          </button>
+        </div>
+
+        <button
+          onClick={() => { setStep("search"); setSelectedContact(null); setQuery(""); setResults([]); setMissingFields([]); setExistingFields([]); setValues({}); setSiblingInfo([]); }}
+          className="text-sm text-gray-400 hover:text-gray-600 transition-colors mx-auto block"
+        >
+          Search again
+        </button>
       </motion.div>
     );
   }

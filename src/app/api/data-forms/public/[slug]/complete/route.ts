@@ -259,19 +259,21 @@ export async function GET(
       );
     }
 
-    // Merge data from other contacts with the same first name
-    // (handles duplicates like birthday-list-only records vs full contacts)
-    const merged: Record<string, string> = {};
+    // Collect data from this contact
+    const ownData: Record<string, string> = {};
     for (const field of SMART_COLLECT_FIELDS) {
       const val = contact[field.key as keyof typeof contact];
       if (val && String(val).trim()) {
-        merged[field.key] = String(val);
+        ownData[field.key] = String(val);
       }
     }
 
-    // Check if any fields are still missing — look for matches by name
-    const missingKeys = SMART_COLLECT_FIELDS.filter((f) => !merged[f.key]).map((f) => f.key);
-    if (missingKeys.length > 0 && contact.firstName) {
+    // Look for sibling contacts with the same first name to merge data
+    const siblingData: Record<string, string> = {};
+    let hasSiblingData = false;
+    const siblingInfo: { firstName: string | null; lastName: string | null; email: string | null; phone: string | null }[] = [];
+
+    if (contact.firstName) {
       const siblings = await prisma.contact.findMany({
         where: {
           userId: form.userId,
@@ -280,6 +282,7 @@ export async function GET(
           firstName: { equals: contact.firstName, mode: "insensitive" },
         },
         select: {
+          firstName: true,
           lastName: true,
           email: true,
           phone: true,
@@ -291,22 +294,40 @@ export async function GET(
       });
 
       for (const sibling of siblings) {
-        for (const key of missingKeys) {
-          if (merged[key]) continue;
-          const val = sibling[key as keyof typeof sibling];
+        let sibContributed = false;
+        for (const field of SMART_COLLECT_FIELDS) {
+          if (ownData[field.key] || siblingData[field.key]) continue;
+          const val = sibling[field.key as keyof typeof sibling];
           if (val && String(val).trim()) {
-            merged[key] = String(val);
+            siblingData[field.key] = String(val);
+            sibContributed = true;
           }
+        }
+        if (sibContributed) {
+          hasSiblingData = true;
+          siblingInfo.push({
+            firstName: sibling.firstName,
+            lastName: sibling.lastName,
+            email: sibling.email,
+            phone: sibling.phone,
+          });
         }
       }
     }
 
+    const merged = { ...ownData, ...siblingData };
+
     const missingFields: { key: string; label: string; type: string }[] = [];
-    const existingFields: { key: string; label: string; value: string }[] = [];
+    const existingFields: { key: string; label: string; value: string; fromSibling?: boolean }[] = [];
 
     for (const field of SMART_COLLECT_FIELDS) {
       if (merged[field.key]) {
-        existingFields.push({ key: field.key, label: field.label, value: merged[field.key] });
+        existingFields.push({
+          key: field.key,
+          label: field.label,
+          value: merged[field.key],
+          fromSibling: !!siblingData[field.key],
+        });
       } else {
         missingFields.push({ key: field.key, label: field.label, type: field.type });
       }
@@ -323,6 +344,9 @@ export async function GET(
         missingFields,
         existingFields,
         isComplete: missingFields.length === 0,
+        // If sibling data was found, frontend should show confirmation step
+        hasSiblingData,
+        siblingInfo: hasSiblingData ? siblingInfo : undefined,
       },
     });
   } catch (error) {
