@@ -8,24 +8,25 @@ export const TEMPLATE_PACKAGE_JSON = `{
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start"
   },
   "dependencies": {
-    "next": "^15.3.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "framer-motion": "^12.0.0",
-    "lucide-react": "^0.450.0"
+    "next": "15.1.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "framer-motion": "11.15.0",
+    "lucide-react": "0.460.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "typescript": "^5.7.0",
-    "tailwindcss": "^4.0.0",
-    "@tailwindcss/postcss": "^4.0.0"
+    "@types/node": "22.10.0",
+    "@types/react": "19.0.0",
+    "@types/react-dom": "19.0.0",
+    "typescript": "5.7.2",
+    "tailwindcss": "3.4.17",
+    "postcss": "8.4.49",
+    "autoprefixer": "10.4.20"
   }
 }`;
 
@@ -64,8 +65,21 @@ export default nextConfig
 export const TEMPLATE_POSTCSS_CONFIG = `/** @type {import('postcss-load-config').Config} */
 const config = {
   plugins: {
-    "@tailwindcss/postcss": {},
+    tailwindcss: {},
+    autoprefixer: {},
   },
+};
+
+export default config;
+`;
+
+export const TEMPLATE_TAILWIND_CONFIG = `import type { Config } from "tailwindcss";
+
+const config: Config = {
+  content: ["./src/**/*.{js,ts,jsx,tsx}"],
+  darkMode: "class",
+  theme: { extend: {} },
+  plugins: [],
 };
 
 export default config;

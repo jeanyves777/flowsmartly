@@ -11,6 +11,7 @@ import {
   TEMPLATE_TSCONFIG,
   TEMPLATE_NEXT_CONFIG,
   TEMPLATE_POSTCSS_CONFIG,
+  TEMPLATE_TAILWIND_CONFIG,
   TEMPLATE_THEME_PROVIDER,
   TEMPLATE_THEME_TOGGLE,
 } from "./templates";
@@ -65,6 +66,7 @@ export function initSiteDir(websiteId: string): string {
   writeFileSync(join(siteDir, "tsconfig.json"), TEMPLATE_TSCONFIG);
   writeFileSync(join(siteDir, "next.config.ts"), TEMPLATE_NEXT_CONFIG);
   writeFileSync(join(siteDir, "postcss.config.mjs"), TEMPLATE_POSTCSS_CONFIG);
+  writeFileSync(join(siteDir, "tailwind.config.ts"), TEMPLATE_TAILWIND_CONFIG);
   writeFileSync(join(siteDir, "src", "components", "ThemeProvider.tsx"), TEMPLATE_THEME_PROVIDER);
   writeFileSync(join(siteDir, "src", "components", "ThemeToggle.tsx"), TEMPLATE_THEME_TOGGLE);
 

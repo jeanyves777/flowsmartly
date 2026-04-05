@@ -118,18 +118,23 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - Smooth animations on scroll (useInView with once: true)
 
 ### Technical:
-- Use Tailwind CSS v4 syntax (@import "tailwindcss" in globals.css, NOT @tailwind directives)
-- Use @custom-variant dark (\\&:is(.dark *)) for dark mode in globals.css
+- Use Tailwind CSS v3 syntax (@tailwind base; @tailwind components; @tailwind utilities; in globals.css)
+- Dark mode via "class" strategy (darkMode: "class" in tailwind.config.ts — already configured)
+- Use dark: prefix for dark mode classes (e.g. dark:bg-neutral-950, dark:text-white)
 - Components are "use client" when using hooks/motion
 - Import icons from lucide-react
 - Images use standard <img> tags (static export, no next/image optimization)
 - The contact form should submit to: FLOWSMARTLY_API_URL/api/websites/WEBSITE_ID/form-submissions
+- Next.js 15 with React 19
 
 ### File Writing:
 - Write COMPLETE files — never partial content
 - Include all imports at the top
 - Include proper TypeScript types
-- Use @/ path alias for imports`;
+- Use @/ path alias for imports
+- DO NOT write package.json, tsconfig.json, postcss.config.mjs, or tailwind.config.ts — these are already provided
+- DO NOT write next.config.ts — already provided
+- DO NOT write ThemeProvider.tsx or ThemeToggle.tsx — already provided as templates`;
 
 // --- Tool Execution ---
 
@@ -215,6 +220,12 @@ async function executeTool(name: string, input: Record<string, unknown>, ctx: Ag
       const path = input.path as string;
       const content = input.content as string;
       ctx.onProgress?.("Writing file...", path);
+
+      // Prevent overwriting template files
+      const protectedFiles = ["package.json", "tsconfig.json", "postcss.config.mjs", "tailwind.config.ts", "next.config.ts", "src/components/ThemeProvider.tsx", "src/components/ThemeToggle.tsx"];
+      if (protectedFiles.includes(path)) {
+        return JSON.stringify({ skipped: true, reason: `${path} is a template file — already provided, do not overwrite` });
+      }
 
       try {
         writeSiteFile(ctx.websiteId, path, content);
