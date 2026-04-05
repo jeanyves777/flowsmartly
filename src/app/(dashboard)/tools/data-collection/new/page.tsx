@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ArrowLeft, Plus, Trash2, GripVertical, Eye, Save, Send, ChevronDown, ChevronUp, X, Search, Sparkles, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +34,7 @@ export default function NewFormPage() {
       fetch("/api/contact-lists?limit=100")
         .then((r) => r.json())
         .then((json) => {
-          if (json.success) setContactLists(json.data || []);
+          if (json.success) setContactLists(json.data?.lists || []);
         })
         .catch(() => {})
         .finally(() => setListsLoading(false));
@@ -516,6 +517,3 @@ export default function NewFormPage() {
     </div>
   );
 }
-
-// Need Link import
-import Link from "next/link";
