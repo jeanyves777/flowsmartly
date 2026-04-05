@@ -440,157 +440,194 @@ export default function DataFormDetailPage() {
               </div>
             </div>
 
-            {/* Fields List */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold">Form Fields</h3>
-              {fields.length === 0 && (
-                <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
-                  <p className="text-muted-foreground mb-4">No fields yet. Add your first field to get started.</p>
-                </div>
-              )}
-              {fields.map((field, index) => (
-                <div key={field.id} className="border border-border rounded-lg p-4 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <button className="mt-2 text-muted-foreground hover:text-foreground cursor-move">
-                      <GripVertical className="h-5 w-5" />
-                    </button>
-                    <div className="flex-1 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={field.label}
-                          onChange={e => updateField(field.id, { label: e.target.value })}
-                          placeholder="Field label"
-                          className="flex-1"
-                        />
-                        <button
-                          onClick={() => setExpandedField(expandedField === field.id ? null : field.id)}
-                          className="text-muted-foreground hover:text-foreground"
-                        >
-                          {expandedField === field.id ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="px-2 py-1 bg-muted rounded text-xs font-medium">
-                          {FIELD_TYPES.find(t => t.value === field.type)?.label}
-                        </span>
-                        <label className="flex items-center gap-1.5">
-                          <input
-                            type="checkbox"
-                            checked={field.required}
-                            onChange={e => updateField(field.id, { required: e.target.checked })}
-                            className="rounded"
-                          />
-                          <span className="text-xs">Required</span>
-                        </label>
-                      </div>
-                      {expandedField === field.id && (
-                        <div className="space-y-3 pt-2 border-t border-border">
-                          <div>
-                            <label className="block text-xs font-medium mb-1">Placeholder</label>
-                            <Input
-                              value={field.placeholder || ""}
-                              onChange={e => updateField(field.id, { placeholder: e.target.value })}
-                              placeholder="Placeholder text"
-                              size={32}
-                            />
-                          </div>
-                          {(field.type === "select" || field.type === "radio" || field.type === "checkbox") && (
-                            <div>
-                              <label className="block text-xs font-medium mb-1">Options</label>
-                              <div className="space-y-2">
-                                {(field.options || []).map((opt, i) => (
-                                  <div key={i} className="flex gap-2">
-                                    <Input
-                                      value={opt}
-                                      onChange={e => {
-                                        const newOpts = [...(field.options || [])];
-                                        newOpts[i] = e.target.value;
-                                        updateField(field.id, { options: newOpts });
-                                      }}
-                                      size={32}
-                                    />
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        const newOpts = (field.options || []).filter((_, idx) => idx !== i);
-                                        updateField(field.id, { options: newOpts });
-                                      }}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                ))}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    const newOpts = [...(field.options || []), `Option ${(field.options?.length || 0) + 1}`];
-                                    updateField(field.id, { options: newOpts });
-                                  }}
-                                >
-                                  <Plus className="h-4 w-4 mr-1" />
-                                  Add Option
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
+            {/* Smart Collect info OR Fields List */}
+            {form?.type === "SMART_COLLECT" ? (
+              <div className="space-y-4">
+                <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
+                      <Search className="h-4 w-4 text-purple-600" />
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => moveField(index, "up")}
-                        disabled={index === 0}
-                      >
-                        <ChevronUp className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => moveField(index, "down")}
-                        disabled={index === fields.length - 1}
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteField(field.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
-                    </div>
+                    <h3 className="font-semibold text-purple-800 dark:text-purple-300">Smart Collect Form</h3>
                   </div>
+                  <p className="text-sm text-purple-700 dark:text-purple-400 mb-3">
+                    This form automatically shows a search bar where contacts find themselves by name, then only asks for missing information.
+                  </p>
+                  {form.contactListName && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Users className="h-4 w-4 text-purple-500" />
+                      <span className="text-purple-700 dark:text-purple-400">
+                        Linked to: <strong>{form.contactListName}</strong>
+                      </span>
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-
-            {/* Add Field Button */}
-            <div className="relative">
-              <Button onClick={() => setShowTypeSelector(!showTypeSelector)} variant="outline" className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Field
-              </Button>
-              {showTypeSelector && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-lg shadow-lg p-4 z-10">
+                <div className="border border-border rounded-lg p-4">
+                  <h4 className="text-sm font-semibold mb-3">Fields checked automatically</h4>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {FIELD_TYPES.map(type => (
-                      <button
-                        key={type.value}
-                        onClick={() => addField(type.value)}
-                        className="flex items-center gap-2 p-3 rounded-lg border border-border hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left"
-                      >
-                        <span className="text-xs font-mono text-muted-foreground uppercase w-5 text-center">{type.value.charAt(0)}</span>
-                        <span className="text-sm font-medium">{type.label}</span>
-                      </button>
+                    {["Last Name", "Email", "Phone", "Birthday", "Address", "City", "State"].map((f) => (
+                      <div key={f} className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                        {f}
+                      </div>
                     ))}
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold">Form Fields</h3>
+                  {fields.length === 0 && (
+                    <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
+                      <p className="text-muted-foreground mb-4">No fields yet. Add your first field to get started.</p>
+                    </div>
+                  )}
+                  {fields.map((field, index) => (
+                    <div key={field.id} className="border border-border rounded-lg p-4 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <button className="mt-2 text-muted-foreground hover:text-foreground cursor-move">
+                          <GripVertical className="h-5 w-5" />
+                        </button>
+                        <div className="flex-1 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={field.label}
+                              onChange={e => updateField(field.id, { label: e.target.value })}
+                              placeholder="Field label"
+                              className="flex-1"
+                            />
+                            <button
+                              onClick={() => setExpandedField(expandedField === field.id ? null : field.id)}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              {expandedField === field.id ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="px-2 py-1 bg-muted rounded text-xs font-medium">
+                              {FIELD_TYPES.find(t => t.value === field.type)?.label}
+                            </span>
+                            <label className="flex items-center gap-1.5">
+                              <input
+                                type="checkbox"
+                                checked={field.required}
+                                onChange={e => updateField(field.id, { required: e.target.checked })}
+                                className="rounded"
+                              />
+                              <span className="text-xs">Required</span>
+                            </label>
+                          </div>
+                          {expandedField === field.id && (
+                            <div className="space-y-3 pt-2 border-t border-border">
+                              <div>
+                                <label className="block text-xs font-medium mb-1">Placeholder</label>
+                                <Input
+                                  value={field.placeholder || ""}
+                                  onChange={e => updateField(field.id, { placeholder: e.target.value })}
+                                  placeholder="Placeholder text"
+                                  size={32}
+                                />
+                              </div>
+                              {(field.type === "select" || field.type === "radio" || field.type === "checkbox") && (
+                                <div>
+                                  <label className="block text-xs font-medium mb-1">Options</label>
+                                  <div className="space-y-2">
+                                    {(field.options || []).map((opt, i) => (
+                                      <div key={i} className="flex gap-2">
+                                        <Input
+                                          value={opt}
+                                          onChange={e => {
+                                            const newOpts = [...(field.options || [])];
+                                            newOpts[i] = e.target.value;
+                                            updateField(field.id, { options: newOpts });
+                                          }}
+                                          size={32}
+                                        />
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            const newOpts = (field.options || []).filter((_, idx) => idx !== i);
+                                            updateField(field.id, { options: newOpts });
+                                          }}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    ))}
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        const newOpts = [...(field.options || []), `Option ${(field.options?.length || 0) + 1}`];
+                                        updateField(field.id, { options: newOpts });
+                                      }}
+                                    >
+                                      <Plus className="h-4 w-4 mr-1" />
+                                      Add Option
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => moveField(index, "up")}
+                            disabled={index === 0}
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => moveField(index, "down")}
+                            disabled={index === fields.length - 1}
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteField(field.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add Field Button */}
+                <div className="relative">
+                  <Button onClick={() => setShowTypeSelector(!showTypeSelector)} variant="outline" className="w-full">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Field
+                  </Button>
+                  {showTypeSelector && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-lg shadow-lg p-4 z-10">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {FIELD_TYPES.map(type => (
+                          <button
+                            key={type.value}
+                            onClick={() => addField(type.value)}
+                            className="flex items-center gap-2 p-3 rounded-lg border border-border hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left"
+                          >
+                            <span className="text-xs font-mono text-muted-foreground uppercase w-5 text-center">{type.value.charAt(0)}</span>
+                            <span className="text-sm font-medium">{type.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Thank You Message */}
             <div>
