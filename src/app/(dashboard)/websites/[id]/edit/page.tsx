@@ -23,6 +23,7 @@ export default function WebsiteEditPage() {
   const [website, setWebsite] = useState<Website | null>(null);
   const [loading, setLoading] = useState(true);
   const [rebuilding, setRebuilding] = useState(false);
+  const [fixingLinks, setFixingLinks] = useState(false);
   const [activeTab, setActiveTab] = useState("preview");
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -50,6 +51,26 @@ export default function WebsiteEditPage() {
       }, 3000);
     } catch {
       setRebuilding(false);
+    }
+  };
+
+  const handleFixLinks = async () => {
+    setFixingLinks(true);
+    try {
+      await fetch(`/api/websites/${id}/fix-links`, { method: "POST" });
+      // Poll for rebuild completion
+      const poll = setInterval(async () => {
+        const res = await fetch(`/api/websites/${id}`);
+        const data = await res.json();
+        setWebsite(data.website);
+        if (data.website.buildStatus !== "building") {
+          clearInterval(poll);
+          setFixingLinks(false);
+          if (iframeRef.current) iframeRef.current.src = iframeRef.current.src;
+        }
+      }, 3000);
+    } catch {
+      setFixingLinks(false);
     }
   };
 
@@ -90,8 +111,16 @@ export default function WebsiteEditPage() {
             </a>
           )}
           <button
+            onClick={handleFixLinks}
+            disabled={fixingLinks || rebuilding}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted disabled:opacity-50 transition-colors"
+            title="Fix internal links to stay within your site (free, no credits)"
+          >
+            {fixingLinks ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Fixing...</> : "Fix Links"}
+          </button>
+          <button
             onClick={handleRebuild}
-            disabled={rebuilding}
+            disabled={rebuilding || fixingLinks}
             className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50 transition-all"
           >
             {rebuilding ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rebuilding...</> : <><RefreshCw className="w-3.5 h-3.5" /> Rebuild</>}
