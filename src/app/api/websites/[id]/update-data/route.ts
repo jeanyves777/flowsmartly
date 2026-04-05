@@ -124,6 +124,39 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         );
       }
 
+      // Update blog posts
+      if (data.blogPosts) {
+        const blogCode = data.blogPosts.map((b: any) => `  {
+    id: '${escapeStr(b.id || "")}',
+    title: '${escapeStr(b.title)}',
+    excerpt: '${escapeStr(b.excerpt || "")}',
+    content: '${escapeStr(b.content || "")}',
+    category: '${escapeStr(b.category || "")}',
+    date: '${escapeStr(b.date || "")}',
+    author: '${escapeStr(b.author || "")}',
+    image: '${escapeStr(b.image || "")}',
+  }`).join(",\n");
+
+        content = content.replace(
+          /export const blogPosts\s*=\s*\[[\s\S]*?\n\]/,
+          `export const blogPosts = [\n${blogCode}\n]`
+        );
+      }
+
+      // Update gallery images
+      if (data.galleryImages) {
+        const galleryCode = data.galleryImages.map((g: any) => `  {
+    src: '${escapeStr(g.src || "")}',
+    alt: '${escapeStr(g.alt || "")}',
+    category: '${escapeStr(g.category || "")}',
+  }`).join(",\n");
+
+        content = content.replace(
+          /export const galleryImages\s*=\s*\[[\s\S]*?\n\]/,
+          `export const galleryImages = [\n${galleryCode}\n]`
+        );
+      }
+
       writeFileSync(dataPath, content);
       console.log(`[UpdateData] Updated data.ts for ${website.slug}`);
     } catch (err) {

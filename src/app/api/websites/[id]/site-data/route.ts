@@ -126,6 +126,37 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         if (imgPaths.length > 0) data.heroImages = imgPaths;
       }
 
+      // Extract blog posts
+      const blogMatch = content.match(/export const blogPosts\s*=\s*(\[[\s\S]*?\n\])/);
+      if (blogMatch) {
+        try {
+          const bBlocks = blogMatch[1].split(/\},\s*\{/);
+          data.blogPosts = bBlocks.map((block: string) => ({
+            id: extractString(block, "id"),
+            title: extractString(block, "title"),
+            excerpt: extractString(block, "excerpt"),
+            content: extractString(block, "content"),
+            category: extractString(block, "category"),
+            date: extractString(block, "date"),
+            author: extractString(block, "author"),
+            image: extractString(block, "image"),
+          })).filter((b: any) => b.title);
+        } catch {}
+      }
+
+      // Extract gallery images
+      const galleryMatch = content.match(/export const galleryImages\s*=\s*(\[[\s\S]*?\n\])/);
+      if (galleryMatch) {
+        try {
+          const gBlocks = galleryMatch[1].split(/\},\s*\{/);
+          data.galleryImages = gBlocks.map((block: string) => ({
+            src: extractString(block, "src"),
+            alt: extractString(block, "alt"),
+            category: extractString(block, "category"),
+          })).filter((g: any) => g.src || g.alt);
+        } catch {}
+      }
+
       if (testimonialsMatch) {
         try {
           const tText = testimonialsMatch[1];

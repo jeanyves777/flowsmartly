@@ -23,6 +23,8 @@ interface SiteData {
   team?: Array<Record<string, any>>;
   testimonials?: Array<Record<string, any>>;
   faq?: Array<{ question: string; answer: string }>;
+  blogPosts?: Array<Record<string, any>>;
+  galleryImages?: Array<Record<string, any>>;
   expertise?: string[];
 }
 
@@ -120,17 +122,20 @@ export default function WebsiteEditPage() {
   if (!website) return <div className="text-center py-20"><p className="text-muted-foreground">Website not found</p></div>;
 
   const busy = rebuilding || fixingLinks || saving;
-  const tabs = [
+  // Build tabs dynamically from detected pages + data sections
+  const tabs: Array<{ id: string; label: string; icon: any }> = [
     { id: "preview", label: "Preview", icon: Globe },
     { id: "hero", label: "Hero & Branding", icon: ImageIcon },
     { id: "company", label: "Company", icon: FileText },
-    { id: "services", label: "Services", icon: Star },
-    { id: "team", label: "Team", icon: Users },
-    { id: "reviews", label: "Reviews", icon: MessageSquare },
-    { id: "faq", label: "FAQ", icon: HelpCircle },
-    { id: "domains", label: "Domains", icon: Link2 },
-    { id: "build", label: "Build", icon: RefreshCw },
   ];
+  if (data?.services?.length) tabs.push({ id: "services", label: "Services", icon: Star });
+  if (data?.team?.length || pages.some((p) => p.slug === "team")) tabs.push({ id: "team", label: "Team", icon: Users });
+  if (data?.testimonials?.length || pages.some((p) => p.slug === "testimonials")) tabs.push({ id: "reviews", label: "Reviews", icon: MessageSquare });
+  if (data?.faq?.length || pages.some((p) => p.slug === "faq")) tabs.push({ id: "faq", label: "FAQ", icon: HelpCircle });
+  if (data?.blogPosts?.length || pages.some((p) => p.slug === "blog")) tabs.push({ id: "blog", label: "Blog", icon: FileText });
+  if (data?.galleryImages?.length || pages.some((p) => p.slug === "gallery")) tabs.push({ id: "gallery", label: "Gallery", icon: ImageIcon });
+  tabs.push({ id: "domains", label: "Domains", icon: Link2 });
+  tabs.push({ id: "build", label: "Build", icon: RefreshCw });
 
   return (
     <div className="pb-20">
@@ -348,6 +353,66 @@ export default function WebsiteEditPage() {
               <div className="mt-3"><Field label="Answer" value={item.answer} onChange={(v) => { const f = [...(data.faq || [])]; f[i] = { ...f[i], answer: v }; update("faq", f); }} multiline /></div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Blog */}
+      {activeTab === "blog" && data && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Blog Posts ({data.blogPosts?.length || 0})</h2>
+            <button onClick={() => update("blogPosts", [...(data.blogPosts || []), { id: `post-${Date.now()}`, title: "", excerpt: "", content: "", category: "", date: new Date().toISOString().split("T")[0], author: "", image: "" }])} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add Post</button>
+          </div>
+          {(data.blogPosts || []).map((post, i) => (
+            <div key={i} className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-start gap-4">
+                <ImagePicker label="" value={post.image} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], image: v }; update("blogPosts", p); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "blog")} compact />
+                <div className="flex-1 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">Post {i + 1}</span>
+                    <button onClick={() => update("blogPosts", (data.blogPosts || []).filter((_, j) => j !== i))} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Field label="Title" value={post.title} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], title: v }; update("blogPosts", p); }} />
+                    <Field label="Category" value={post.category} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], category: v }; update("blogPosts", p); }} />
+                    <Field label="Author" value={post.author} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], author: v }; update("blogPosts", p); }} />
+                    <Field label="Date" value={post.date} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], date: v }; update("blogPosts", p); }} />
+                  </div>
+                  <Field label="Excerpt" value={post.excerpt} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], excerpt: v }; update("blogPosts", p); }} />
+                  <Field label="Content" value={post.content} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], content: v }; update("blogPosts", p); }} multiline />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Gallery */}
+      {activeTab === "gallery" && data && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Gallery Images ({data.galleryImages?.length || 0})</h2>
+            <button onClick={() => openPicker((url) => update("galleryImages", [...(data.galleryImages || []), { src: url, alt: "", category: "" }]))} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add Image</button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {(data.galleryImages || []).map((img, i) => (
+              <div key={i} className="relative group">
+                <div className="aspect-square rounded-lg overflow-hidden border border-border bg-muted">
+                  {img.src ? (
+                    <img src={img.src} alt={img.alt} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground"><ImageIcon className="w-8 h-8" /></div>
+                  )}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <button onClick={() => openPicker((url) => { const g = [...(data.galleryImages || [])]; g[i] = { ...g[i], src: url }; update("galleryImages", g); })} className="p-1.5 bg-white/20 backdrop-blur rounded-lg text-white"><ImageIcon className="w-4 h-4" /></button>
+                    <button onClick={() => update("galleryImages", (data.galleryImages || []).filter((_, j) => j !== i))} className="p-1.5 bg-white/20 backdrop-blur rounded-lg text-white hover:bg-red-500/50"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                </div>
+                <input type="text" value={img.alt || ""} onChange={(e) => { const g = [...(data.galleryImages || [])]; g[i] = { ...g[i], alt: e.target.value }; update("galleryImages", g); }} placeholder="Alt text" className="w-full mt-1 px-2 py-1 text-xs border border-border rounded bg-background" />
+                <input type="text" value={img.category || ""} onChange={(e) => { const g = [...(data.galleryImages || [])]; g[i] = { ...g[i], category: e.target.value }; update("galleryImages", g); }} placeholder="Category" className="w-full mt-1 px-2 py-1 text-xs border border-border rounded bg-background" />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
