@@ -10,7 +10,6 @@ import { FIELD_TYPES, type DataFormField, type DataFormFieldType, type DataFormT
 
 export default function NewFormPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [formType, setFormType] = useState<DataFormType>("STANDARD");
   const [title, setTitle] = useState("");
