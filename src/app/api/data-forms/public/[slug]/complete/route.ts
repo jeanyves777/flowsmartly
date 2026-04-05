@@ -65,18 +65,47 @@ export async function POST(
       );
     }
 
-    // Only update fields that are currently empty on the contact
+    // Merge: collect all known data from this contact + siblings with same name
     const allowedKeys = SMART_COLLECT_FIELDS.map((f) => f.key) as string[];
+    const knownData: Record<string, string> = {};
+    for (const key of allowedKeys) {
+      const val = contact[key as keyof typeof contact];
+      if (val && String(val).trim()) knownData[key] = String(val);
+    }
+
+    // Pull data from sibling contacts with the same first name
+    if (contact.firstName) {
+      const siblings = await prisma.contact.findMany({
+        where: {
+          userId: form.userId,
+          status: "ACTIVE",
+          id: { not: contactId },
+          firstName: { equals: contact.firstName, mode: "insensitive" },
+        },
+        select: { lastName: true, email: true, phone: true, birthday: true, address: true, city: true, state: true },
+      });
+      for (const sib of siblings) {
+        for (const key of allowedKeys) {
+          if (knownData[key]) continue;
+          const val = sib[key as keyof typeof sib];
+          if (val && String(val).trim()) knownData[key] = String(val);
+        }
+      }
+    }
+
+    // Build update: use submitted data + sibling-merged data for empty fields
     const updateData: Record<string, unknown> = {};
 
-    for (const [key, value] of Object.entries(data)) {
-      if (!allowedKeys.includes(key)) continue;
-      const strVal = String(value).trim();
-      if (!strVal) continue;
-
-      // Only fill in if currently empty
+    for (const key of allowedKeys) {
+      // Already on this contact record — skip
       const currentVal = contact[key as keyof typeof contact];
       if (currentVal && String(currentVal).trim()) continue;
+
+      // Try submitted value first, then sibling-merged value
+      const submittedVal = data[key] ? String(data[key]).trim() : "";
+      const mergedVal = knownData[key] || "";
+      const strVal = submittedVal || mergedVal;
+      if (!strVal) continue;
 
       // Validate birthday format
       if (key === "birthday") {
@@ -203,7 +232,7 @@ export async function GET(
       );
     }
 
-    // Find any contact belonging to this user (not limited to a list)
+    // Find the selected contact
     const contact = await prisma.contact.findFirst({
       where: {
         id: contactId,
@@ -230,13 +259,54 @@ export async function GET(
       );
     }
 
+    // Merge data from other contacts with the same first name
+    // (handles duplicates like birthday-list-only records vs full contacts)
+    const merged: Record<string, string> = {};
+    for (const field of SMART_COLLECT_FIELDS) {
+      const val = contact[field.key as keyof typeof contact];
+      if (val && String(val).trim()) {
+        merged[field.key] = String(val);
+      }
+    }
+
+    // Check if any fields are still missing — look for matches by name
+    const missingKeys = SMART_COLLECT_FIELDS.filter((f) => !merged[f.key]).map((f) => f.key);
+    if (missingKeys.length > 0 && contact.firstName) {
+      const siblings = await prisma.contact.findMany({
+        where: {
+          userId: form.userId,
+          status: "ACTIVE",
+          id: { not: contactId },
+          firstName: { equals: contact.firstName, mode: "insensitive" },
+        },
+        select: {
+          lastName: true,
+          email: true,
+          phone: true,
+          birthday: true,
+          address: true,
+          city: true,
+          state: true,
+        },
+      });
+
+      for (const sibling of siblings) {
+        for (const key of missingKeys) {
+          if (merged[key]) continue;
+          const val = sibling[key as keyof typeof sibling];
+          if (val && String(val).trim()) {
+            merged[key] = String(val);
+          }
+        }
+      }
+    }
+
     const missingFields: { key: string; label: string; type: string }[] = [];
     const existingFields: { key: string; label: string; value: string }[] = [];
 
     for (const field of SMART_COLLECT_FIELDS) {
-      const val = contact[field.key as keyof typeof contact];
-      if (val && String(val).trim()) {
-        existingFields.push({ key: field.key, label: field.label, value: String(val) });
+      if (merged[field.key]) {
+        existingFields.push({ key: field.key, label: field.label, value: merged[field.key] });
       } else {
         missingFields.push({ key: field.key, label: field.label, type: field.type });
       }
