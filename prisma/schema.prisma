@@ -4186,6 +4186,14 @@ model Website {
   publishedAt     DateTime?
   publishedVersion Int      @default(0)
 
+  // V2: File-based generation
+  generatorVersion String   @default("v2")
+  generatedPath    String?                      // Path to generated site files on disk
+  buildStatus      String   @default("idle")    // idle, building, built, error
+  lastBuildAt      DateTime?
+  lastBuildError   String?
+  siteData         String   @default("{}")      // Structured business data (company, services, etc.)
+
   // Stats
   pageCount       Int       @default(0)
   totalViews      Int       @default(0)

@@ -1,195 +1,75 @@
 /**
- * Website Builder Agent — Claude autonomously builds sites using tools
+ * Website Builder Agent V3 — Claude writes real Next.js files
  *
- * Agent loop pattern: Claude gets tools, calls them step by step to:
- * 1. Fetch brand identity
- * 2. Set theme with brand colors
- * 3. Search & download stock images from Pexels
- * 4. Create pages with personalized content + real images
- * 5. Set navigation
- * 6. Finish
+ * Claude gets tools to read reference components, write .tsx files,
+ * download images, build the site, and deploy it.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/db/client";
-import { searchPexels, downloadToMediaLibrary } from "./image-search";
-import { DEFAULT_THEME } from "./theme-resolver";
-import type { SiteQuestionnaire, WebsiteTheme, WebsiteNavigation } from "@/types/website-builder";
+import { readReferenceComponent, getAvailableReferences } from "./reference-reader";
+import { initSiteDir, writeSiteFile, buildSite, deploySite } from "./site-builder";
+import { downloadImageToDir } from "./image-search";
+import type { SiteQuestionnaire, AgentProgress } from "@/types/website-builder";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// --- Tool Definitions (JSON Schema for Claude) ---
+// --- Tool Definitions ---
 
 const TOOLS: Anthropic.Tool[] = [
   {
     name: "get_brand_identity",
-    description: "Retrieve the user's complete brand identity including business name, description, industry, colors, fonts, logo, products, voice tone, target audience, and guidelines. Call this FIRST to understand the business before building anything.",
-    input_schema: {
-      type: "object" as const,
-      properties: {},
-      required: [],
-    },
+    description: "Get the user's complete brand identity (name, colors, fonts, logo, services, contact info, etc.). Call this FIRST.",
+    input_schema: { type: "object" as const, properties: {}, required: [] },
   },
   {
-    name: "search_stock_images",
-    description: "Search Pexels for stock photos matching a query. Returns up to 6 image results with preview URLs. Use descriptive queries related to the business and section context.",
+    name: "read_reference",
+    description: "Read a reference component to study its code patterns, animations, and quality level. ALWAYS read the reference before writing a component. Available: Header, Hero, Stats, About, Services, Footer, ContactSection, GoogleReviews, Partners, Logo, Data, GlobalCSS, Layout, HomePage, ServicesPage, AboutPage, ContactPage",
     input_schema: {
       type: "object" as const,
       properties: {
-        query: { type: "string", description: "Search query for images (e.g. 'modern office team meeting', 'restaurant food plating')" },
-        count: { type: "number", description: "Number of images to return (1-6)", default: 3 },
-        orientation: { type: "string", enum: ["landscape", "portrait"], description: "Image orientation preference" },
+        component: { type: "string", description: "Component name (e.g. 'Hero', 'Header', 'Data', 'GlobalCSS')" },
       },
-      required: ["query"],
+      required: ["component"],
+    },
+  },
+  {
+    name: "write_file",
+    description: "Write a file to the website project. Use for .tsx components, .css files, data files, page files, etc. The path is relative to the project root (e.g. 'src/components/Hero.tsx', 'src/app/globals.css', 'src/lib/data.ts').",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        path: { type: "string", description: "File path relative to project root" },
+        content: { type: "string", description: "Complete file content" },
+      },
+      required: ["path", "content"],
     },
   },
   {
     name: "download_image",
-    description: "Download a stock image and save it to the user's media library. Returns the permanent S3 URL to use in website blocks. Call this for each image you want to include in the website.",
+    description: "Download an image from a URL and save it to the website's public/images/ directory. Returns the local path to use in components (e.g. '/images/hero/banner.jpg').",
     input_schema: {
       type: "object" as const,
       properties: {
-        imageUrl: { type: "string", description: "The download URL of the image from search results" },
-        filename: { type: "string", description: "A descriptive filename (e.g. 'hero-team-photo', 'service-consulting')" },
-        alt: { type: "string", description: "Alt text description for the image" },
+        url: { type: "string", description: "Image URL to download" },
+        category: { type: "string", description: "Image category folder (hero, services, team, gallery)" },
+        filename: { type: "string", description: "Filename without extension (e.g. 'banner', 'service-1')" },
       },
-      required: ["imageUrl", "filename"],
+      required: ["url", "category", "filename"],
     },
   },
   {
-    name: "set_website_theme",
-    description: "Set the website's visual theme including colors, fonts, border radius, spacing, and button style. Use the brand's colors. Include dark mode colors for automatic dark/light mode support.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        theme: {
-          type: "object",
-          description: "Complete theme object",
-          properties: {
-            colors: {
-              type: "object",
-              properties: {
-                primary: { type: "string", description: "Primary brand color (hex)" },
-                secondary: { type: "string", description: "Secondary color (hex)" },
-                accent: { type: "string", description: "Accent/highlight color (hex)" },
-                background: { type: "string", description: "Page background color (hex)" },
-                surface: { type: "string", description: "Card/section surface color (hex)" },
-                text: { type: "string", description: "Main text color (hex)" },
-                textMuted: { type: "string", description: "Muted/secondary text color (hex)" },
-                border: { type: "string", description: "Border color (hex)" },
-              },
-            },
-            fonts: {
-              type: "object",
-              properties: {
-                heading: { type: "string", description: "Heading font family (Google Font name)" },
-                body: { type: "string", description: "Body font family (Google Font name)" },
-              },
-            },
-            borderRadius: { type: "number", description: "Default border radius in px (e.g. 8, 12, 16)" },
-            spacing: { type: "string", enum: ["compact", "normal", "relaxed"] },
-            maxWidth: { type: "string", enum: ["md", "lg", "xl"] },
-            buttonStyle: { type: "string", enum: ["rounded", "pill", "square"] },
-          },
-        },
-        darkColors: {
-          type: "object",
-          description: "Dark mode color overrides",
-          properties: {
-            background: { type: "string" },
-            surface: { type: "string" },
-            text: { type: "string" },
-            textMuted: { type: "string" },
-            border: { type: "string" },
-          },
-        },
-      },
-      required: ["theme"],
-    },
+    name: "build_site",
+    description: "Run npm install and next build to compile the website. Returns build output or errors. If there are errors, fix the files and rebuild.",
+    input_schema: { type: "object" as const, properties: {}, required: [] },
   },
   {
-    name: "create_page",
-    description: "Create a website page with blocks. Each block has a type, variant, content, style overrides, and animation settings. Use downloaded image S3 URLs for imageUrl fields. Apply brand colors in style overrides: gradient heroes, colored CTA backgrounds, tinted section backgrounds. Make ALL text content specific to THIS business.",
+    name: "finish",
+    description: "Deploy the built website and finalize. Call this LAST after a successful build.",
     input_schema: {
       type: "object" as const,
       properties: {
-        title: { type: "string", description: "Page title (e.g. 'Home', 'About Us', 'Services')" },
-        slug: { type: "string", description: "URL slug (empty string for home page, e.g. 'about', 'services')" },
-        isHomePage: { type: "boolean", description: "Whether this is the home page" },
-        blocks: {
-          type: "array",
-          description: "Array of content blocks for this page",
-          items: {
-            type: "object",
-            properties: {
-              type: { type: "string", enum: ["hero", "features", "pricing", "testimonials", "gallery", "contact", "text", "team", "faq", "stats", "cta", "blog", "portfolio", "logo-cloud", "video", "divider", "spacer", "image"] },
-              variant: { type: "string", description: "Visual variant (e.g. 'centered', 'split-left', 'grid-icons')" },
-              content: { type: "object", description: "Block-specific content (headlines, items, CTAs, imageUrls, etc.)" },
-              style: {
-                type: "object",
-                description: "Visual overrides: bgColor, bgGradient, textColor, padding {top,bottom,left,right}, shadow, borderRadius",
-              },
-              animation: {
-                type: "object",
-                description: "Animation settings: entrance (fade-in, slide-up, zoom-in, none), entranceDuration, entranceDelay",
-              },
-            },
-            required: ["type", "content"],
-          },
-        },
-      },
-      required: ["title", "slug", "isHomePage", "blocks"],
-    },
-  },
-  {
-    name: "set_navigation",
-    description: "Set the website's header and footer navigation. Include the brand logo, nav links matching the created pages, CTA button, and footer with social links and columns.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        header: {
-          type: "object",
-          properties: {
-            logo: { type: "string", description: "Logo URL (use brand logo if available)" },
-            logoText: { type: "string", description: "Text logo fallback (brand name)" },
-            logoPosition: { type: "string", enum: ["left", "center"] },
-            items: { type: "array", items: { type: "object", properties: { label: { type: "string" }, href: { type: "string" } } } },
-            cta: { type: "object", properties: { text: { type: "string" }, href: { type: "string" }, style: { type: "string" } } },
-            sticky: { type: "boolean" },
-            transparent: { type: "boolean" },
-            style: { type: "string", enum: ["solid", "transparent", "glass"] },
-          },
-        },
-        footer: {
-          type: "object",
-          properties: {
-            logo: { type: "string" },
-            description: { type: "string" },
-            columns: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  title: { type: "string" },
-                  links: { type: "array", items: { type: "object", properties: { label: { type: "string" }, href: { type: "string" } } } },
-                },
-              },
-            },
-            copyright: { type: "string" },
-            socials: { type: "array", items: { type: "object", properties: { platform: { type: "string" }, url: { type: "string" } } } },
-          },
-        },
-      },
-      required: ["header", "footer"],
-    },
-  },
-  {
-    name: "finish_website",
-    description: "Call this when you have finished creating all pages, setting the theme and navigation. This finalizes the website.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        summary: { type: "string", description: "Brief summary of what was created" },
+        summary: { type: "string", description: "Summary of what was built" },
       },
       required: ["summary"],
     },
@@ -198,92 +78,89 @@ const TOOLS: Anthropic.Tool[] = [
 
 // --- System Prompt ---
 
-const SYSTEM_PROMPT = `You are a professional website builder agent. You build complete, beautiful websites by calling tools step by step.
+const SYSTEM_PROMPT = `You are a professional Next.js website developer. You build REAL, production-quality websites by writing actual React component code with Framer Motion animations, Tailwind CSS, and proper dark mode support.
 
-## Your Process:
-1. FIRST: Call get_brand_identity to learn everything about the business
-2. THEN: Call set_website_theme with colors derived from the brand (or choose perfect colors for the industry)
-3. THEN: For each page the user wants, search for relevant stock images and download them
-4. THEN: Create each page with create_page, using the downloaded image URLs and personalized content
-5. THEN: Set navigation with set_navigation (matching all created pages)
-6. FINALLY: Call finish_website
+## YOUR PROCESS (follow this order strictly):
+
+1. Call get_brand_identity to learn about the business
+2. Call read_reference for "Data" to see the reference data structure, then write src/lib/data.ts
+3. Call read_reference for "GlobalCSS" to see styles, then write src/app/globals.css with the brand's colors
+4. Call read_reference for "Layout" then write src/app/layout.tsx
+5. For each component (Header, Hero, Stats, Services, About, ContactSection, Reviews, Footer):
+   a. Call read_reference to see the reference component
+   b. Write an ADAPTED version for THIS business — same quality, same animations, different content
+6. Write src/app/page.tsx (home page composing all sections)
+7. Write additional pages (about/page.tsx, services/page.tsx, contact/page.tsx) if requested
+8. Call build_site to build
+9. If errors, fix the files and rebuild
+10. Call finish to deploy
 
 ## CRITICAL RULES:
 
-### Content Personalization (MOST IMPORTANT):
-- EVERY piece of text must be written specifically for THIS business. NEVER use generic text.
-- Headlines must mention the business name or its core value proposition
-- Feature descriptions must describe THIS business's actual services/products
-- Testimonials must reference the specific industry and services
-- Stats/numbers must be realistic for the industry
-- CTA text must be specific: "Book a Consultation", "Order Now", "Get a Free Quote" — not just "Get Started"
-- FAQ answers must address real questions about THIS business
-- The about/text sections must tell THIS company's story
+### Quality Standard:
+- Every component MUST use Framer Motion (useInView, AnimatePresence, motion.div)
+- Every component MUST have dark: Tailwind variants
+- Every component MUST be 100+ lines (major components 200+)
+- Import data from '@/lib/data' — NEVER hardcode content in components
+- Follow the reference patterns EXACTLY for animation timings, easing, stagger delays
 
-### Visual Design Quality:
-- Hero section: ALWAYS use a gradient background (bgGradient) with the brand's primary→secondary colors, white text
-- Hero padding: at least 96px top and bottom
-- Alternate section backgrounds: white → surface → primary at 5% opacity → white
-- CTA blocks: gradient background (primary→secondary) with white text
-- Feature cards: add shadow "0 1px 3px rgba(0,0,0,0.1)" and rounded corners
-- Stats numbers: should appear in the primary color
-- Generous section padding: 80px top/bottom minimum
-- Use the brand fonts for a unique look
+### Content:
+- ALL text must be written specifically for THIS business — ZERO generic placeholders
+- Company name, services, stats must all come from the brand identity data
+- Write testimonials/reviews relevant to the industry
+- Stats must be realistic for the business type
 
-### Images:
-- Search for images relevant to each section's content
-- For hero: search for images matching the industry/business
-- For team: search "professional headshot" or "business team"
-- For features: search images matching each feature/service
-- For testimonials: search "professional portrait"
-- Download each image you want to use, then use the S3 URL in the block content
+### Design:
+- Use the brand's actual colors as the primary color (replace orange-500 from reference)
+- Choose appropriate Google Fonts for the brand's personality
+- Proper responsive design (mobile-first)
+- Full dark mode support
+- Smooth animations on scroll (useInView with once: true)
 
-### Animations:
-- Hero: entrance "fade-in" with duration 800ms
-- Features: entrance "slide-up" with staggered delays (0, 100, 200ms)
-- Stats: entrance "zoom-in"
-- CTA: entrance "fade-in"
-- Other sections: "fade-in" or "slide-up" with delay
-- Keep most sections "none" — don't over-animate
+### Technical:
+- Use Tailwind CSS v4 syntax (@import "tailwindcss" in globals.css, NOT @tailwind directives)
+- Use @custom-variant dark (\\&:is(.dark *)) for dark mode in globals.css
+- Components are "use client" when using hooks/motion
+- Import icons from lucide-react
+- Images use standard <img> tags (static export, no next/image optimization)
+- The contact form should submit to: FLOWSMARTLY_API_URL/api/websites/WEBSITE_ID/form-submissions
 
-### Block Counts:
-- Home page: 5-8 blocks (hero, features/services, stats, testimonials, CTA minimum)
-- About page: 3-5 blocks (text intro, team, stats)
-- Services page: 4-6 blocks (hero, feature list, pricing, CTA)
-- Contact page: 2-3 blocks (contact form, map/info)
-- Other pages: 3-5 blocks each`;
+### File Writing:
+- Write COMPLETE files — never partial content
+- Include all imports at the top
+- Include proper TypeScript types
+- Use @/ path alias for imports`;
 
 // --- Tool Execution ---
 
 interface AgentContext {
   websiteId: string;
+  websiteSlug: string;
   userId: string;
   questionnaire: SiteQuestionnaire;
+  siteDir: string;
   onProgress?: (step: string, detail?: string) => void;
 }
 
-async function executeTool(
-  name: string,
-  input: Record<string, unknown>,
-  ctx: AgentContext
-): Promise<string> {
+async function executeTool(name: string, input: Record<string, unknown>, ctx: AgentContext): Promise<string> {
   switch (name) {
     case "get_brand_identity": {
-      ctx.onProgress?.("Analyzing your brand identity...");
+      ctx.onProgress?.("Reading brand identity...");
       const brandKit = await prisma.brandKit.findFirst({
         where: { userId: ctx.userId },
         orderBy: { isDefault: "desc" },
       });
 
       if (!brandKit) {
-        // Return questionnaire data as fallback
         return JSON.stringify({
           name: ctx.questionnaire.businessName,
           description: ctx.questionnaire.description,
           industry: ctx.questionnaire.industry,
           targetAudience: ctx.questionnaire.targetAudience,
           contentTone: ctx.questionnaire.contentTone,
-          noExistingBrandKit: true,
+          goals: ctx.questionnaire.goals,
+          pages: ctx.questionnaire.pages,
+          noBrandKit: true,
         });
       }
 
@@ -295,14 +172,14 @@ async function executeTool(
         niche: brandKit.niche,
         targetAudience: brandKit.targetAudience,
         voiceTone: brandKit.voiceTone,
-        personality: JSON.parse(brandKit.personality || "[]"),
-        keywords: JSON.parse(brandKit.keywords || "[]"),
-        products: JSON.parse(brandKit.products || "[]"),
+        personality: safeParseJSON(brandKit.personality),
+        keywords: safeParseJSON(brandKit.keywords),
+        products: safeParseJSON(brandKit.products),
         uniqueValue: brandKit.uniqueValue,
-        colors: JSON.parse(brandKit.colors || "{}"),
-        fonts: JSON.parse(brandKit.fonts || "{}"),
+        colors: safeParseJSON(brandKit.colors),
+        fonts: safeParseJSON(brandKit.fonts),
         logo: brandKit.logo,
-        handles: JSON.parse(brandKit.handles || "{}"),
+        handles: safeParseJSON(brandKit.handles),
         guidelines: brandKit.guidelines,
         email: brandKit.email,
         phone: brandKit.phone,
@@ -311,132 +188,80 @@ async function executeTool(
         city: brandKit.city,
         state: brandKit.state,
         country: brandKit.country,
+        // From questionnaire
+        questionnaire: {
+          goals: ctx.questionnaire.goals,
+          pages: ctx.questionnaire.pages,
+          stylePreference: ctx.questionnaire.stylePreference,
+          contentTone: ctx.questionnaire.contentTone,
+          features: ctx.questionnaire.features,
+          existingContent: ctx.questionnaire.existingContent,
+        },
+        // Constants for the generated site
+        websiteId: ctx.websiteId,
+        apiBaseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com",
       });
     }
 
-    case "search_stock_images": {
-      const query = input.query as string;
-      const count = (input.count as number) || 3;
-      const orientation = input.orientation as "landscape" | "portrait" | undefined;
-      ctx.onProgress?.("Searching images...", query);
+    case "read_reference": {
+      const component = input.component as string;
+      ctx.onProgress?.("Reading reference...", component);
+      const source = readReferenceComponent(component);
+      if (!source) return JSON.stringify({ error: `Could not read reference: ${component}` });
+      return source;
+    }
 
-      const results = await searchPexels(query, count, orientation);
-      return JSON.stringify(results.map((r) => ({
-        downloadUrl: r.downloadUrl,
-        thumbnailUrl: r.thumbnailUrl,
-        photographer: r.photographer,
-        alt: r.alt,
-      })));
+    case "write_file": {
+      const path = input.path as string;
+      const content = input.content as string;
+      ctx.onProgress?.("Writing file...", path);
+
+      try {
+        writeSiteFile(ctx.websiteId, path, content);
+        return JSON.stringify({ success: true, path });
+      } catch (err: any) {
+        return JSON.stringify({ error: err.message });
+      }
     }
 
     case "download_image": {
-      const imageUrl = input.imageUrl as string;
+      const url = input.url as string;
+      const category = input.category as string;
       const filename = input.filename as string;
-      const alt = input.alt as string | undefined;
       ctx.onProgress?.("Downloading image...", filename);
 
-      const s3Url = await downloadToMediaLibrary(imageUrl, ctx.userId, filename, alt);
-      if (!s3Url) return JSON.stringify({ error: "Failed to download image", fallback: "" });
-      return JSON.stringify({ s3Url });
+      try {
+        const localPath = await downloadImageToDir(url, ctx.siteDir, category, filename);
+        return JSON.stringify({ success: true, localPath });
+      } catch (err: any) {
+        return JSON.stringify({ error: err.message, localPath: `/images/${category}/placeholder.jpg` });
+      }
     }
 
-    case "set_website_theme": {
-      const theme = input.theme as Record<string, unknown>;
-      const darkColors = input.darkColors as Record<string, unknown> | undefined;
-      ctx.onProgress?.("Applying brand theme...");
-
-      const mergedTheme = {
-        ...DEFAULT_THEME,
-        ...theme,
-        colors: { ...DEFAULT_THEME.colors, ...(theme.colors as Record<string, unknown> || {}) },
-        fonts: { ...DEFAULT_THEME.fonts, ...(theme.fonts as Record<string, unknown> || {}) },
-        ...(darkColors && { darkColors }),
-      };
-
-      await prisma.website.update({
-        where: { id: ctx.websiteId },
-        data: { theme: JSON.stringify(mergedTheme) },
-      });
-
-      return JSON.stringify({ success: true, theme: mergedTheme });
+    case "build_site": {
+      ctx.onProgress?.("Building website...");
+      const result = await buildSite(ctx.websiteId);
+      if (result.success) {
+        return JSON.stringify({ success: true, message: "Build succeeded" });
+      }
+      return JSON.stringify({ success: false, error: result.error?.substring(0, 3000) });
     }
 
-    case "create_page": {
-      const title = input.title as string;
-      const slug = input.slug as string;
-      const isHomePage = input.isHomePage as boolean;
-      const blocks = input.blocks as Array<Record<string, unknown>>;
-      ctx.onProgress?.("Creating page...", title);
-
-      // Sanitize blocks: ensure IDs, required fields
-      const sanitizedBlocks = (blocks || []).map((block, i) => ({
-        id: Math.random().toString(36).substring(2, 10),
-        type: block.type || "text",
-        variant: block.variant || "default",
-        content: block.content || {},
-        style: block.style || {},
-        animation: block.animation || { entrance: "none", scroll: "none", hover: "none" },
-        responsive: {},
-        visibility: { enabled: true },
-        sortOrder: i,
-      }));
-
-      // Delete existing page with same slug if exists
-      await prisma.websitePage.deleteMany({
-        where: { websiteId: ctx.websiteId, slug },
-      });
-
-      const page = await prisma.websitePage.create({
-        data: {
-          websiteId: ctx.websiteId,
-          title,
-          slug,
-          isHomePage,
-          sortOrder: isHomePage ? 0 : 99,
-          blocks: JSON.stringify(sanitizedBlocks),
-          status: "DRAFT",
-        },
-      });
-
-      return JSON.stringify({ success: true, pageId: page.id, blockCount: sanitizedBlocks.length });
-    }
-
-    case "set_navigation": {
-      ctx.onProgress?.("Setting up navigation...");
-      const nav = { header: input.header, footer: input.footer };
-
-      await prisma.website.update({
-        where: { id: ctx.websiteId },
-        data: { navigation: JSON.stringify(nav) },
-      });
-
-      return JSON.stringify({ success: true });
-    }
-
-    case "finish_website": {
-      ctx.onProgress?.("Finalizing website...", input.summary as string);
+    case "finish": {
+      ctx.onProgress?.("Deploying website...");
+      const deployResult = await deploySite(ctx.websiteId, ctx.websiteSlug);
+      if (!deployResult.success) {
+        return JSON.stringify({ error: deployResult.error });
+      }
 
       // Update page count
       const pageCount = await prisma.websitePage.count({ where: { websiteId: ctx.websiteId } });
-
-      // Fix sort orders
-      const pages = await prisma.websitePage.findMany({
-        where: { websiteId: ctx.websiteId },
-        orderBy: [{ isHomePage: "desc" }, { sortOrder: "asc" }],
-      });
-      for (let i = 0; i < pages.length; i++) {
-        await prisma.websitePage.update({
-          where: { id: pages[i].id },
-          data: { sortOrder: i },
-        });
-      }
-
       await prisma.website.update({
         where: { id: ctx.websiteId },
-        data: { pageCount },
+        data: { pageCount, generatedPath: ctx.siteDir },
       });
 
-      return JSON.stringify({ success: true, pageCount, summary: input.summary });
+      return JSON.stringify({ success: true, url: `/sites/${ctx.websiteSlug}`, summary: input.summary });
     }
 
     default:
@@ -446,42 +271,41 @@ async function executeTool(
 
 // --- Agent Loop ---
 
-export interface AgentProgress {
-  step: string;
-  detail?: string;
-  toolCalls: number;
-  done: boolean;
-}
-
 export async function runWebsiteAgent(
   websiteId: string,
+  websiteSlug: string,
   userId: string,
   questionnaire: SiteQuestionnaire,
   onProgress?: (progress: AgentProgress) => void
 ): Promise<{ success: boolean; error?: string }> {
+  // Initialize site directory with template files
+  const siteDir = initSiteDir(websiteId);
+
   const ctx: AgentContext = {
     websiteId,
+    websiteSlug,
     userId,
     questionnaire,
+    siteDir,
     onProgress: (step, detail) => {
       onProgress?.({ step, detail, toolCalls, done: false });
     },
   };
 
   let toolCalls = 0;
-  const maxIterations = 30; // Safety limit
+  const maxIterations = 50; // Agent needs many iterations to write all files
 
-  // Build the user prompt from questionnaire
   const userPrompt = buildUserPrompt(questionnaire);
-
-  // Start the conversation
-  let messages: Anthropic.MessageParam[] = [
-    { role: "user", content: userPrompt },
-  ];
+  let messages: Anthropic.MessageParam[] = [{ role: "user", content: userPrompt }];
 
   try {
+    await prisma.website.update({
+      where: { id: websiteId },
+      data: { buildStatus: "building", generatedPath: siteDir },
+    });
+
     for (let iteration = 0; iteration < maxIterations; iteration++) {
-      console.log(`[WebsiteAgent] Iteration ${iteration + 1}, sending ${messages.length} messages`);
+      console.log(`[Agent] Iteration ${iteration + 1}, messages: ${messages.length}, tools: ${toolCalls}`);
 
       const response = await client.messages.create({
         model: "claude-sonnet-4-20250514",
@@ -491,92 +315,81 @@ export async function runWebsiteAgent(
         messages,
       });
 
-      // Process response content
-      const assistantContent = response.content;
-      const toolUseBlocks = assistantContent.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-      const textBlocks = assistantContent.filter((b): b is Anthropic.TextBlock => b.type === "text");
+      const toolUseBlocks = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
 
-      // If no tool calls, Claude is done
       if (toolUseBlocks.length === 0) {
-        console.log("[WebsiteAgent] No more tool calls, agent finished");
+        console.log("[Agent] No more tool calls, done");
         onProgress?.({ step: "Website ready!", toolCalls, done: true });
         return { success: true };
       }
 
-      // Execute all tool calls
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
 
       for (const toolUse of toolUseBlocks) {
         toolCalls++;
-        console.log(`[WebsiteAgent] Tool call #${toolCalls}: ${toolUse.name}`);
+        console.log(`[Agent] Tool #${toolCalls}: ${toolUse.name}${toolUse.name === "write_file" ? ` (${(toolUse.input as any).path})` : ""}`);
 
         try {
           const result = await executeTool(toolUse.name, toolUse.input as Record<string, unknown>, ctx);
 
-          // Check if finish_website was called
-          if (toolUse.name === "finish_website") {
-            onProgress?.({ step: "Website ready!", toolCalls, done: true });
-
-            // Still need to add to messages for proper completion
-            messages.push({ role: "assistant", content: assistantContent });
-            messages.push({
-              role: "user",
-              content: [{ type: "tool_result", tool_use_id: toolUse.id, content: result }],
-            });
-
+          if (toolUse.name === "finish") {
+            onProgress?.({ step: "Website deployed!", toolCalls, done: true });
+            messages.push({ role: "assistant", content: response.content });
+            messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, content: result }] });
             return { success: true };
           }
 
+          toolResults.push({ type: "tool_result", tool_use_id: toolUse.id, content: result });
+        } catch (err: any) {
+          console.error(`[Agent] Tool ${toolUse.name} failed:`, err.message);
           toolResults.push({
             type: "tool_result",
             tool_use_id: toolUse.id,
-            content: result,
-          });
-        } catch (err) {
-          console.error(`[WebsiteAgent] Tool ${toolUse.name} failed:`, err);
-          toolResults.push({
-            type: "tool_result",
-            tool_use_id: toolUse.id,
-            content: JSON.stringify({ error: `Tool failed: ${(err as Error).message}` }),
+            content: JSON.stringify({ error: err.message }),
             is_error: true,
           });
         }
       }
 
-      // Add assistant response and tool results to conversation
-      messages.push({ role: "assistant", content: assistantContent });
+      messages.push({ role: "assistant", content: response.content });
       messages.push({ role: "user", content: toolResults });
     }
 
-    console.warn("[WebsiteAgent] Reached max iterations");
+    console.warn("[Agent] Max iterations reached");
     onProgress?.({ step: "Website ready!", toolCalls, done: true });
     return { success: true };
-  } catch (err) {
-    console.error("[WebsiteAgent] Agent failed:", err);
-    return { success: false, error: (err as Error).message };
+  } catch (err: any) {
+    console.error("[Agent] Fatal error:", err.message);
+    await prisma.website.update({
+      where: { id: websiteId },
+      data: { buildStatus: "error", lastBuildError: err.message },
+    });
+    return { success: false, error: err.message };
   }
 }
 
-// --- Build User Prompt ---
+// --- Helpers ---
 
 function buildUserPrompt(q: SiteQuestionnaire): string {
-  const parts: string[] = [
-    `Build a professional website for this business:`,
+  return [
+    `Build a complete, production-quality website for:`,
     ``,
-    `Business Name: ${q.businessName}`,
+    `Business: ${q.businessName}`,
     `Industry: ${q.industry}`,
     `Description: ${q.description}`,
-  ];
+    q.targetAudience && `Target Audience: ${q.targetAudience}`,
+    `Goals: ${q.goals.join(", ")}`,
+    `Pages needed: ${q.pages.join(", ")}`,
+    `Style: ${q.stylePreference}`,
+    `Tone: ${q.contentTone}`,
+    `Features: ${q.features.join(", ")}`,
+    q.existingContent && `\nExisting content:\n${q.existingContent}`,
+    ``,
+    `Start by calling get_brand_identity, then read the reference components, then build the site step by step.`,
+  ].filter(Boolean).join("\n");
+}
 
-  if (q.targetAudience) parts.push(`Target Audience: ${q.targetAudience}`);
-  parts.push(`Goals: ${q.goals.join(", ")}`);
-  parts.push(`Pages to create: ${q.pages.join(", ")}`);
-  parts.push(`Visual Style: ${q.stylePreference}`);
-  parts.push(`Content Tone: ${q.contentTone}`);
-  parts.push(`Features: ${q.features.join(", ")}`);
-  if (q.existingContent) parts.push(`\nExisting Content:\n${q.existingContent}`);
-
-  parts.push(`\nStart by calling get_brand_identity, then build the complete website step by step.`);
-
-  return parts.join("\n");
+function safeParseJSON(str: string | null): unknown {
+  if (!str) return null;
+  try { return JSON.parse(str); } catch { return str; }
 }

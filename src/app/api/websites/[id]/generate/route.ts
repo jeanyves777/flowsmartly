@@ -5,7 +5,7 @@ import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/cost
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { runWebsiteAgent } from "@/lib/website/website-agent";
 
-// POST /api/websites/[id]/generate — AI agent builds the website
+// POST /api/websites/[id]/generate — Claude Agent builds the website
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession();
@@ -28,11 +28,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const questionnaire = body.questionnaire;
     if (!questionnaire) return NextResponse.json({ error: "Questionnaire data required" }, { status: 400 });
 
-    // Run the agent (autonomous tool-calling loop)
-    console.log(`[WebsiteGen] Starting agent for website ${id}, user ${session.userId}`);
+    console.log(`[WebsiteGen] Starting V3 agent for website ${id}`);
 
+    // Run the agent (writes real .tsx files to disk)
     const result = await runWebsiteAgent(
       id,
+      website.slug,
       session.userId,
       questionnaire,
       (progress) => {
@@ -41,7 +42,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
 
     if (!result.success) {
-      console.error(`[WebsiteGen] Agent failed:`, result.error);
       return NextResponse.json({ error: result.error || "Generation failed" }, { status: 500 });
     }
 
@@ -53,7 +53,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       description: `AI website generation: ${website.name}`,
     });
 
-    console.log(`[WebsiteGen] Website ${id} generated successfully`);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("POST /api/websites/[id]/generate error:", err);
