@@ -42,12 +42,14 @@ export async function GET(
       where: { slug },
       select: {
         id: true,
+        type: true,
         title: true,
         description: true,
         fields: true,
         thankYouMessage: true,
         status: true,
         userId: true,
+        contactListId: true,
       },
     });
 
@@ -102,6 +104,7 @@ export async function GET(
     return NextResponse.json({
       success: true,
       data: {
+        type: form.type || "STANDARD",
         title: form.title,
         description: form.description,
         fields: form.fields ? JSON.parse(form.fields) : [],

@@ -72,10 +72,28 @@ export async function POST(request: NextRequest) {
     if (!session) return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
 
     const body = await request.json();
-    const { title, description, fields, thankYouMessage, settings } = body;
+    const { title, description, fields, thankYouMessage, settings, type, contactListId } = body;
 
     if (!title?.trim()) {
       return NextResponse.json({ success: false, error: { message: "Title is required" } }, { status: 400 });
+    }
+
+    const formType = type === "SMART_COLLECT" ? "SMART_COLLECT" : "STANDARD";
+
+    // Smart Collect requires a linked contact list
+    if (formType === "SMART_COLLECT" && !contactListId) {
+      return NextResponse.json({ success: false, error: { message: "Smart Collect forms require a linked contact list" } }, { status: 400 });
+    }
+
+    // Validate contactListId ownership if provided
+    if (contactListId) {
+      const list = await prisma.contactList.findFirst({
+        where: { id: contactListId, userId: session.userId },
+        select: { id: true },
+      });
+      if (!list) {
+        return NextResponse.json({ success: false, error: { message: "Contact list not found" } }, { status: 404 });
+      }
     }
 
     let slug = generateSlug();
@@ -84,17 +102,21 @@ export async function POST(request: NextRequest) {
     }
 
     const hasFields = fields && Array.isArray(fields) && fields.length > 0;
+    // Smart Collect forms are ACTIVE immediately (they don't need custom fields)
+    const initialStatus = formType === "SMART_COLLECT" ? "ACTIVE" : (hasFields ? "ACTIVE" : "DRAFT");
 
     const dataForm = await prisma.dataForm.create({
       data: {
         userId: session.userId,
+        type: formType,
         title: title.trim(),
         description: description?.trim() || null,
         fields: hasFields ? JSON.stringify(fields) : "[]",
         slug,
-        status: hasFields ? "ACTIVE" : "DRAFT",
+        status: initialStatus,
         thankYouMessage: thankYouMessage?.trim() || "Thank you for your submission!",
         settings: settings ? JSON.stringify(settings) : "{}",
+        contactListId: contactListId || null,
       },
     });
 

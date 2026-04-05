@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Search, Copy, Trash2, ExternalLink, MoreVertical, FileText, Eye, ToggleLeft, ToggleRight } from "lucide-react";
+import { Plus, Search, Copy, Trash2, ExternalLink, MoreVertical, FileText, Eye, ToggleLeft, ToggleRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FORM_STATUS_CONFIG, type DataFormData, type DataFormStatus } from "@/types/data-form";
@@ -225,6 +225,11 @@ export default function DataCollectionPage() {
                       </span>
                     </div>
                     <div className="mt-3 flex items-center gap-4 text-sm text-muted-foreground">
+                      {form.type === "SMART_COLLECT" && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                          <Sparkles className="w-3 h-3" /> Smart
+                        </span>
+                      )}
                       <span>{form.responseCount || 0} responses</span>
                       <span>{new Date(form.createdAt).toLocaleDateString()}</span>
                     </div>

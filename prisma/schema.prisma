@@ -2909,6 +2909,7 @@ model SurveyResponse {
 model DataForm {
   id              String    @id @default(cuid())
   userId          String
+  type            String    @default("STANDARD") // STANDARD | SMART_COLLECT
   title           String
   description     String?
   fields          String    @default("[]")   // JSON: DataFormField[]

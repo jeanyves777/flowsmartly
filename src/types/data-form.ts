@@ -35,6 +35,8 @@ export const FIELD_TYPES: { value: DataFormFieldType; label: string; icon: strin
   { value: "address", label: "Address", icon: "MapPin" },
 ];
 
+export type DataFormType = "STANDARD" | "SMART_COLLECT";
+
 export type DataFormStatus = "DRAFT" | "ACTIVE" | "CLOSED";
 
 export const FORM_STATUS_CONFIG: Record<
@@ -49,6 +51,7 @@ export const FORM_STATUS_CONFIG: Record<
 export interface DataFormData {
   id: string;
   userId: string;
+  type: DataFormType;
   title: string;
   description: string | null;
   fields: DataFormField[];
@@ -64,6 +67,17 @@ export interface DataFormData {
   createdAt: string;
   updatedAt: string;
 }
+
+// Fields that Smart Collect checks on a contact for completeness
+export const SMART_COLLECT_FIELDS = [
+  { key: "lastName", label: "Last Name", type: "text" as const },
+  { key: "email", label: "Email", type: "email" as const },
+  { key: "phone", label: "Phone", type: "phone" as const },
+  { key: "birthday", label: "Birthday (MM-DD)", type: "text" as const },
+  { key: "address", label: "Address", type: "text" as const },
+  { key: "city", label: "City", type: "text" as const },
+  { key: "state", label: "State", type: "text" as const },
+] as const;
 
 export interface DataFormSubmissionData {
   id: string;
