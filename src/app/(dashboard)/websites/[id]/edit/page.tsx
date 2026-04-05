@@ -198,7 +198,7 @@ export default function WebsiteEditPage() {
       {activeTab === "hero" && data && (
         <div className="space-y-6">
           <Section title="Logo">
-            <ImagePicker label="Site Logo" value={data.logo} onChange={(v) => { update("logo", v); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "brand")} />
+            <ImagePicker label="Site Logo" value={data.logo} onChange={(v) => { update("logo", v); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "brand")} compact square />
           </Section>
           <Section title="Hero Slideshow Images">
             <p className="text-sm text-muted-foreground mb-3">Add images for the hero section slideshow. Upload your own photos or pick from your media library.</p>
