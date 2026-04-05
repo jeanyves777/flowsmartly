@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { buildSite, deploySite } from "@/lib/website/site-builder";
+import { readFileSync, writeFileSync } from "fs";
+import { join } from "path";
+import { buildSite, deploySite, getSiteDir } from "@/lib/website/site-builder";
+import { getPresignedUrl } from "@/lib/utils/s3-client";
 
-// POST /api/websites/[id]/rebuild — Rebuild the static site
+/**
+ * POST /api/websites/[id]/rebuild
+ *
+ * Updates data.ts with latest brand kit info, then rebuilds and deploys.
+ * Does NOT re-run the AI agent — just syncs data and rebuilds.
+ * Free — no credits charged.
+ */
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession();
@@ -12,12 +21,88 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     const website = await prisma.website.findFirst({
       where: { id, userId: session.userId, deletedAt: null },
-      select: { id: true, slug: true, generatedPath: true },
+      select: { id: true, slug: true, generatedPath: true, brandKitId: true },
     });
     if (!website) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (!website.generatedPath) return NextResponse.json({ error: "No generated files found" }, { status: 400 });
 
-    // Build in background (fire-and-forget)
+    const siteDir = website.generatedPath || getSiteDir(id);
+
+    // Sync brand kit data into data.ts if brand kit exists
+    if (website.brandKitId) {
+      const brandKit = await prisma.brandKit.findUnique({ where: { id: website.brandKitId } });
+      if (brandKit) {
+        const dataPath = join(siteDir, "src", "lib", "data.ts");
+        try {
+          let dataContent = readFileSync(dataPath, "utf-8");
+
+          // Update company name
+          if (brandKit.name) {
+            dataContent = dataContent.replace(
+              /name:\s*['"].*?['"]/,
+              `name: '${brandKit.name.replace(/'/g, "\\'")}'`
+            );
+          }
+
+          // Update phone numbers
+          if (brandKit.phone) {
+            dataContent = dataContent.replace(
+              /phones:\s*\[.*?\]/s,
+              `phones: ['${brandKit.phone.replace(/'/g, "\\'")}']`
+            );
+          }
+
+          // Update emails
+          if (brandKit.email) {
+            dataContent = dataContent.replace(
+              /emails:\s*\[.*?\]/s,
+              `emails: ['${brandKit.email.replace(/'/g, "\\'")}']`
+            );
+          }
+
+          // Update address
+          if (brandKit.address) {
+            const fullAddress = [brandKit.address, brandKit.city, brandKit.state, brandKit.country].filter(Boolean).join(", ");
+            dataContent = dataContent.replace(
+              /address:\s*['"].*?['"]/,
+              `address: '${fullAddress.replace(/'/g, "\\'")}'`
+            );
+          }
+
+          // Update tagline
+          if (brandKit.tagline) {
+            dataContent = dataContent.replace(
+              /tagline:\s*['"].*?['"]/,
+              `tagline: '${brandKit.tagline.replace(/'/g, "\\'")}'`
+            );
+          }
+
+          writeFileSync(dataPath, dataContent);
+          console.log(`[Rebuild] Updated data.ts from brand kit for ${website.slug}`);
+        } catch (err) {
+          console.log(`[Rebuild] Could not update data.ts:`, err);
+        }
+
+        // Update logo if changed
+        if (brandKit.logo) {
+          try {
+            const logoUrl = await getPresignedUrl(brandKit.logo);
+            const res = await fetch(logoUrl);
+            if (res.ok) {
+              const buffer = Buffer.from(await res.arrayBuffer());
+              const ext = brandKit.logo.includes(".png") ? "png" : brandKit.logo.includes(".webp") ? "webp" : "jpg";
+              const { mkdirSync } = await import("fs");
+              mkdirSync(join(siteDir, "public", "images", "brand"), { recursive: true });
+              writeFileSync(join(siteDir, "public", "images", "brand", `logo.${ext}`), buffer);
+              console.log(`[Rebuild] Updated logo for ${website.slug}`);
+            }
+          } catch (err) {
+            console.log(`[Rebuild] Could not update logo:`, err);
+          }
+        }
+      }
+    }
+
+    // Build and deploy in background
     (async () => {
       const buildResult = await buildSite(id);
       if (buildResult.success) {
@@ -25,7 +110,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       }
     })().catch((err) => console.error("[Rebuild] Failed:", err));
 
-    return NextResponse.json({ success: true, message: "Build started" });
+    return NextResponse.json({ success: true, message: "Syncing data and rebuilding..." });
   } catch (err) {
     console.error("POST rebuild error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
