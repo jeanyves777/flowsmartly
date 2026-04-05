@@ -244,7 +244,9 @@ function SmartCollectForm({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [siblingInfo, setSiblingInfo] = useState<SiblingInfo[]>([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Debounced search
   useEffect(() => {
@@ -588,9 +590,6 @@ function SmartCollectForm({
   allFields.sort((a, b) => fieldOrder.indexOf(a.key) - fieldOrder.indexOf(b.key));
 
   // Photo upload handler
-  const photoInputRef = useRef<HTMLInputElement>(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-
   const handlePhotoUpload = async (file: File) => {
     if (!file.type.startsWith("image/")) return;
     if (file.size > 5 * 1024 * 1024) {
