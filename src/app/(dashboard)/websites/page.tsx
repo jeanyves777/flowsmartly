@@ -93,7 +93,7 @@ export default function WebsitesPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">{site.customDomain || `/sites/${site.slug}`}</p>
 
-                {site.lastBuildError && (
+                {site.buildStatus === "error" && site.lastBuildError && (
                   <p className="text-xs text-red-500 mt-2 line-clamp-2">{site.lastBuildError}</p>
                 )}
 

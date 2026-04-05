@@ -65,6 +65,7 @@ export default function WebsiteEditPage() {
     { id: "preview", label: "Preview", icon: Globe },
     { id: "info", label: "Business Info", icon: FileText },
     { id: "design", label: "Design", icon: Palette },
+    { id: "domains", label: "Domains", icon: Globe },
     { id: "media", label: "Media", icon: ImageIcon },
     { id: "status", label: "Build Status", icon: Check },
   ];
@@ -214,6 +215,33 @@ export default function WebsiteEditPage() {
         </div>
       )}
 
+      {activeTab === "domains" && (
+        <div className="bg-card border border-border rounded-xl p-6">
+          <h2 className="text-lg font-semibold mb-4">Custom Domains</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Connect your own domain or purchase a new one. Your site is currently accessible at:
+          </p>
+          <div className="p-3 bg-muted/30 rounded-lg border border-border mb-6">
+            <code className="text-sm">flowsmartly.com/sites/{website.slug}</code>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <a href="/domains" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-center">
+              <Globe className="w-8 h-8 text-primary mx-auto mb-2" />
+              <p className="text-sm font-medium">Connect Existing Domain</p>
+              <p className="text-xs text-muted-foreground mt-1">Point your domain's DNS to FlowSmartly</p>
+            </a>
+            <a href="/domains" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-center">
+              <Globe className="w-8 h-8 text-primary mx-auto mb-2" />
+              <p className="text-sm font-medium">Purchase New Domain</p>
+              <p className="text-xs text-muted-foreground mt-1">Search and buy a domain through us</p>
+            </a>
+          </div>
+          <p className="text-xs text-muted-foreground mt-4">
+            SSL certificates are automatically provisioned via Cloudflare. Custom domains include DNS management and HTTPS.
+          </p>
+        </div>
+      )}
+
       {activeTab === "media" && (
         <div className="bg-card border border-border rounded-xl p-6">
           <h2 className="text-lg font-semibold mb-4">Site Media</h2>
@@ -242,7 +270,7 @@ export default function WebsiteEditPage() {
             {website.lastBuildAt && (
               <p className="text-sm text-muted-foreground">Last built: {new Date(website.lastBuildAt).toLocaleString()}</p>
             )}
-            {website.lastBuildError && (
+            {website.buildStatus === "error" && website.lastBuildError && (
               <div>
                 <p className="text-sm font-medium text-red-600 mb-2">Error Details:</p>
                 <pre className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-xs rounded-lg overflow-auto max-h-60">

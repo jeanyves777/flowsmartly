@@ -118,6 +118,21 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - Full dark mode support
 - Smooth animations on scroll (useInView with once: true)
 
+### Internal Links (CRITICAL — read carefully):
+- The site is served at a subpath, NOT at the root domain
+- The brand identity response includes a "siteBasePath" value (e.g. "/sites/my-business-abc123")
+- In data.ts, you MUST include:
+  export const SITE_BASE = "{siteBasePath from brand identity}";
+  export function siteUrl(path: string): string { return SITE_BASE + path; }
+- ALL internal navigation links MUST use siteUrl(): e.g. siteUrl("/contact"), siteUrl("/about"), siteUrl("/services")
+- navLinks in data.ts MUST use siteUrl() for href values
+- Header nav items MUST use siteUrl() for href
+- Footer links MUST use siteUrl() for href
+- CTA buttons linking to internal pages MUST use siteUrl()
+- NEVER write bare "/contact" or "/about" — ALWAYS siteUrl("/contact")
+- NEVER use Next.js <Link> component — use <a> tags with siteUrl() for static export
+- External links (https://, mailto:, tel:) stay unchanged — do NOT wrap them in siteUrl()
+
 ### Technical:
 - Use Tailwind CSS v3 syntax (@tailwind base; @tailwind components; @tailwind utilities; in globals.css)
 - Dark mode via "class" strategy (darkMode: "class" in tailwind.config.ts — already configured)
@@ -217,6 +232,7 @@ async function executeTool(name: string, input: Record<string, unknown>, ctx: Ag
         },
         // Constants for the generated site
         websiteId: ctx.websiteId,
+        siteBasePath: `/sites/${ctx.websiteSlug}`,
         apiBaseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com",
       });
     }

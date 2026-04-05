@@ -528,10 +528,11 @@ export default function CreateWebsitePage() {
                   disabled={generating}
                   className="flex items-center gap-2 px-6 py-2.5 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50 transition-all"
                 >
-                  {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Sparkles className="w-4 h-4" /> Generate Website</>}
+                  {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Sparkles className="w-4 h-4" /> Generate Website (500 credits)</>}
                 </button>
               )}
             </div>
+            <p className="text-[10px] text-muted-foreground text-center mt-2">Website generation costs 500 credits ($5.00). Paid plan users get free hosting.</p>
           </div>
         </div>
 

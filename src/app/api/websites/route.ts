@@ -40,6 +40,20 @@ export async function POST(request: NextRequest) {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    // Check plan — free users need to upgrade for website hosting
+    const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { plan: true, aiCredits: true, freeCredits: true } });
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    const isFreePlan = user.plan === "STARTER" || user.plan === "FREE";
+    const hasPurchasedCredits = user.aiCredits > (user.freeCredits || 0);
+
+    if (isFreePlan && !hasPurchasedCredits) {
+      return NextResponse.json({
+        error: "Website hosting requires a paid plan or purchased credits. Upgrade your plan or buy credits to get started.",
+        code: "PLAN_REQUIRED",
+      }, { status: 403 });
+    }
+
     const body = await request.json();
     const { name, brandKitId, theme, navigation, settings } = body;
 
