@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, GripVertical, Eye, Save, Send, ChevronDown, ChevronUp, X, Search, Sparkles, FileText } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, GripVertical, Eye, Save, Send, ChevronDown, ChevronUp, X, Search, Sparkles, FileText, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FIELD_TYPES, type DataFormField, type DataFormFieldType, type DataFormType } from "@/types/data-form";
@@ -26,9 +26,9 @@ export default function NewFormPage() {
   const [selectedListId, setSelectedListId] = useState("");
   const [listsLoading, setListsLoading] = useState(false);
 
-  // Fetch contact lists when Smart Collect is selected
+  // Fetch contact lists when Smart Collect or Attendance is selected
   useEffect(() => {
-    if (formType === "SMART_COLLECT") {
+    if (formType === "SMART_COLLECT" || formType === "ATTENDANCE") {
       setListsLoading(true);
       fetch("/api/contact-lists?limit=100")
         .then((r) => r.json())
@@ -74,8 +74,8 @@ export default function NewFormPage() {
       alert("Title is required");
       return;
     }
-    if (formType === "SMART_COLLECT" && !selectedListId) {
-      alert("Please select a contact list for Smart Collect");
+    if ((formType === "SMART_COLLECT" || formType === "ATTENDANCE") && !selectedListId) {
+      alert("Please select a contact list");
       return;
     }
     setSaving(true);
@@ -90,7 +90,7 @@ export default function NewFormPage() {
         body.fields = fields;
         body.status = publish && fields.length > 0 ? "ACTIVE" : "DRAFT";
       } else {
-        // Smart Collect — no custom fields needed, always ACTIVE
+        // Smart Collect / Attendance — no custom fields, always ACTIVE
         body.fields = [];
         body.status = "ACTIVE";
         body.contactListId = selectedListId;
@@ -167,7 +167,7 @@ export default function NewFormPage() {
     }
   };
 
-  const canPublish = formType === "SMART_COLLECT"
+  const canPublish = (formType === "SMART_COLLECT" || formType === "ATTENDANCE")
     ? !!title.trim() && !!selectedListId
     : !!title.trim() && fields.length > 0;
 
@@ -213,7 +213,7 @@ export default function NewFormPage() {
         {/* Form Type Selector */}
         <div className="mb-8">
           <label className="block text-sm font-medium text-muted-foreground mb-3">Form Type</label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl">
             <button
               onClick={() => setFormType("STANDARD")}
               className={`p-5 rounded-xl border-2 text-left transition-all ${
@@ -251,6 +251,26 @@ export default function NewFormPage() {
                 <div>
                   <h3 className="font-semibold text-foreground">Smart Collect</h3>
                   <p className="text-xs text-muted-foreground">Search existing contacts, fill missing info</p>
+                </div>
+              </div>
+            </button>
+            <button
+              onClick={() => setFormType("ATTENDANCE")}
+              className={`p-5 rounded-xl border-2 text-left transition-all ${
+                formType === "ATTENDANCE"
+                  ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                  : "border-border hover:border-gray-300 dark:hover:border-gray-600"
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  formType === "ATTENDANCE" ? "bg-emerald-100 dark:bg-emerald-900" : "bg-muted"
+                }`}>
+                  <ClipboardCheck className={`h-5 w-5 ${formType === "ATTENDANCE" ? "text-emerald-600" : "text-muted-foreground"}`} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground">Attendance</h3>
+                  <p className="text-xs text-muted-foreground">Quick check-in with device recognition</p>
                 </div>
               </div>
             </button>
@@ -293,8 +313,8 @@ export default function NewFormPage() {
               </div>
             </div>
 
-            {/* Smart Collect: Contact List Picker */}
-            {formType === "SMART_COLLECT" && (
+            {/* Smart Collect / Attendance: Contact List Picker */}
+            {(formType === "SMART_COLLECT" || formType === "ATTENDANCE") && (
               <div className="bg-card border border-border rounded-lg p-6 space-y-4">
                 <div>
                   <h2 className="text-lg font-semibold text-foreground mb-1">Contact List</h2>
@@ -335,17 +355,31 @@ export default function NewFormPage() {
                   )}
                 </div>
 
-                {/* Info about how Smart Collect works */}
-                <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-2">How Smart Collect Works</h3>
-                  <ul className="text-sm text-purple-700 dark:text-purple-400 space-y-1">
-                    <li>1. Contact types their first name in the search bar</li>
-                    <li>2. Matching contacts from your list are displayed</li>
-                    <li>3. They select their name and see what info is already on file</li>
-                    <li>4. Only missing fields are shown for them to complete</li>
-                    <li>5. If everything is already filled, they see a thank you</li>
-                  </ul>
-                </div>
+                {/* Info box */}
+                {formType === "SMART_COLLECT" && (
+                  <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-2">How Smart Collect Works</h3>
+                    <ul className="text-sm text-purple-700 dark:text-purple-400 space-y-1">
+                      <li>1. Contact types their first name in the search bar</li>
+                      <li>2. Matching contacts from your list are displayed</li>
+                      <li>3. They select their name and see what info is already on file</li>
+                      <li>4. Only missing fields are shown for them to complete</li>
+                      <li>5. If everything is already filled, they see a thank you</li>
+                    </ul>
+                  </div>
+                )}
+                {formType === "ATTENDANCE" && (
+                  <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300 mb-2">How Attendance Works</h3>
+                    <ul className="text-sm text-emerald-700 dark:text-emerald-400 space-y-1">
+                      <li>1. Returning users are auto-recognized by their device</li>
+                      <li>2. One-tap &quot;Yes, that&apos;s me&quot; to check in instantly</li>
+                      <li>3. New users search by name and fill in info once</li>
+                      <li>4. Date and time are recorded automatically</li>
+                      <li>5. Each check-in is logged in submissions</li>
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
 

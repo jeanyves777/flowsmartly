@@ -21,7 +21,7 @@ export async function POST(
       select: { id: true, type: true, status: true, userId: true },
     });
 
-    if (!form || form.status !== "ACTIVE" || form.type !== "SMART_COLLECT") {
+    if (!form || form.status !== "ACTIVE" || !['SMART_COLLECT','ATTENDANCE'].includes(form.type)) {
       return NextResponse.json(
         { success: false, error: { message: "Form not found" } },
         { status: 404 }

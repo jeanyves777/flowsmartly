@@ -214,7 +214,7 @@ function StandardForm({
 }
 
 // ─── SMART COLLECT FORM ──────────────────────────────────────────────
-type SmartStep = "search" | "loading" | "confirm" | "form" | "complete" | "already_complete";
+type SmartStep = "detecting" | "welcome_back" | "search" | "loading" | "confirm" | "form" | "complete" | "already_complete";
 
 interface SiblingInfo {
   firstName: string | null;
@@ -232,7 +232,7 @@ function SmartCollectForm({
   slug: string;
   primaryColor: string;
 }) {
-  const [step, setStep] = useState<SmartStep>("search");
+  const [step, setStep] = useState<SmartStep>("detecting");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -245,8 +245,41 @@ function SmartCollectForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [siblingInfo, setSiblingInfo] = useState<SiblingInfo[]>([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [deviceFP, setDeviceFP] = useState<{ hash: string; deviceLabel: string } | null>(null);
+  const [detectedContact, setDetectedContact] = useState<{ id: string; firstName: string | null; lastName: string | null; imageUrl: string | null } | null>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-detect returning user on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { generateFingerprint } = await import("@/lib/utils/device-fingerprint");
+        const fp = await generateFingerprint();
+        if (cancelled) return;
+        setDeviceFP(fp);
+
+        const res = await fetch(`/api/data-forms/public/${slug}/detect`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fingerprint: fp.hash }),
+        });
+        const json = await res.json();
+        if (cancelled) return;
+
+        if (json.success && json.data?.detected) {
+          setDetectedContact(json.data.contact);
+          setStep("welcome_back");
+        } else {
+          setStep("search");
+        }
+      } catch {
+        if (!cancelled) setStep("search");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [slug]);
 
   // Debounced search
   useEffect(() => {
@@ -335,7 +368,12 @@ function SmartCollectForm({
       const res = await fetch(`/api/data-forms/public/${slug}/complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId: selectedContact.id, data: values }),
+        body: JSON.stringify({
+          contactId: selectedContact.id,
+          data: values,
+          fingerprint: deviceFP?.hash,
+          deviceLabel: deviceFP?.deviceLabel,
+        }),
       });
       const json = await res.json();
       if (json.success) {
@@ -349,6 +387,100 @@ function SmartCollectForm({
       setSubmitting(false);
     }
   };
+
+  // ── DETECTING STEP ──
+  if (step === "detecting") {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" style={{ color: primaryColor }} />
+        <p className="text-gray-400 text-sm">Checking this device...</p>
+      </motion.div>
+    );
+  }
+
+  // ── WELCOME BACK STEP ──
+  if (step === "welcome_back" && detectedContact) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+        <div className="text-center mb-4">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", delay: 0.1 }}
+            className="w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center overflow-hidden border-4 border-white dark:border-gray-800 shadow-lg"
+            style={{ backgroundColor: primaryColor }}
+          >
+            {detectedContact.imageUrl ? (
+              <img src={detectedContact.imageUrl} alt="" className="w-20 h-20 object-cover" />
+            ) : (
+              <span className="text-white font-bold text-3xl">
+                {(detectedContact.firstName || "?")[0].toUpperCase()}
+              </span>
+            )}
+          </motion.div>
+          <motion.h2
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="text-2xl font-bold mb-1"
+          >
+            Welcome back, {detectedContact.firstName}!
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="text-gray-500 text-sm"
+          >
+            We recognized this device. Is this you?
+          </motion.p>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+          className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-5 text-center"
+        >
+          <p className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+            {detectedContact.firstName} {detectedContact.lastName || ""}
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="flex gap-3"
+        >
+          <button
+            onClick={() => {
+              // Treat as if they selected this contact from search
+              handleSelectContact({
+                id: detectedContact.id,
+                firstName: detectedContact.firstName,
+                lastName: detectedContact.lastName,
+                birthday: null,
+              });
+            }}
+            className="flex-1 py-3.5 rounded-xl text-white font-semibold text-base transition-all hover:opacity-90 flex items-center justify-center gap-2"
+            style={{ backgroundColor: primaryColor }}
+          >
+            <Check className="h-5 w-5" /> Yes, that&apos;s me
+          </button>
+          <button
+            onClick={() => {
+              setDetectedContact(null);
+              setStep("search");
+            }}
+            className="flex-1 py-3.5 rounded-xl border-2 border-gray-300 dark:border-gray-600 font-semibold text-base text-gray-600 dark:text-gray-300 transition-all hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-2"
+          >
+            Not me
+          </button>
+        </motion.div>
+      </motion.div>
+    );
+  }
 
   // ── SEARCH STEP ──
   if (step === "search") {
@@ -852,7 +984,7 @@ function PublicFormClient({ slug }: { slug: string }) {
       {/* Form content */}
       <div className="max-w-2xl mx-auto px-4 py-8">
         <AnimatePresence mode="wait">
-          {formData.type === "SMART_COLLECT" ? (
+          {(formData.type === "SMART_COLLECT" || formData.type === "ATTENDANCE") ? (
             <SmartCollectForm key="smart" formData={formData} slug={slug} primaryColor={primaryColor} />
           ) : (
             <StandardForm key="standard" formData={formData} slug={slug} primaryColor={primaryColor} />

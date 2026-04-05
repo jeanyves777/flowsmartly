@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Search, Copy, Trash2, ExternalLink, MoreVertical, FileText, Eye, ToggleLeft, ToggleRight, Sparkles } from "lucide-react";
+import { Plus, Search, Copy, Trash2, ExternalLink, MoreVertical, FileText, Eye, ToggleLeft, ToggleRight, Sparkles, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FORM_STATUS_CONFIG, type DataFormData, type DataFormStatus } from "@/types/data-form";
@@ -228,6 +228,11 @@ export default function DataCollectionPage() {
                       {form.type === "SMART_COLLECT" && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
                           <Sparkles className="w-3 h-3" /> Smart
+                        </span>
+                      )}
+                      {form.type === "ATTENDANCE" && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+                          <ClipboardCheck className="w-3 h-3" /> Attendance
                         </span>
                       )}
                       <span>{form.responseCount || 0} responses</span>

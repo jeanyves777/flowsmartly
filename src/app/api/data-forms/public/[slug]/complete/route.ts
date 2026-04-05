@@ -11,7 +11,12 @@ export async function POST(
   try {
     const { slug } = await params;
     const body = await request.json();
-    const { contactId, data } = body as { contactId: string; data: Record<string, string> };
+    const { contactId, data, fingerprint, deviceLabel } = body as {
+      contactId: string;
+      data: Record<string, string>;
+      fingerprint?: string;
+      deviceLabel?: string;
+    };
 
     if (!contactId || !data || typeof data !== "object") {
       return NextResponse.json(
@@ -31,7 +36,7 @@ export async function POST(
       },
     });
 
-    if (!form || form.status !== "ACTIVE" || form.type !== "SMART_COLLECT") {
+    if (!form || form.status !== "ACTIVE" || !['SMART_COLLECT','ATTENDANCE'].includes(form.type)) {
       return NextResponse.json(
         { success: false, error: { message: "Form not found or not configured" } },
         { status: 404 }
@@ -202,6 +207,29 @@ export async function POST(
       data: { responseCount: { increment: 1 } },
     });
 
+    // Save device fingerprint for returning user detection
+    if (fingerprint && fingerprint.length >= 16) {
+      await prisma.deviceFingerprint.upsert({
+        where: {
+          userId_fingerprint: {
+            userId: form.userId,
+            fingerprint,
+          },
+        },
+        update: {
+          contactId,
+          deviceLabel: deviceLabel || null,
+          lastSeenAt: new Date(),
+        },
+        create: {
+          userId: form.userId,
+          contactId,
+          fingerprint,
+          deviceLabel: deviceLabel || null,
+        },
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data: { updated: Object.keys(updateData).length },
@@ -243,7 +271,7 @@ export async function GET(
       },
     });
 
-    if (!form || form.status !== "ACTIVE" || form.type !== "SMART_COLLECT") {
+    if (!form || form.status !== "ACTIVE" || !['SMART_COLLECT','ATTENDANCE'].includes(form.type)) {
       return NextResponse.json(
         { success: false, error: { message: "Form not found" } },
         { status: 404 }

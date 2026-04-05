@@ -701,6 +701,7 @@ model Contact {
   referralsGiven  Referral[]   @relation("ReferrerContact")
   referralsUsed   Referral[]   @relation("ReferredContact")
   followUpEntries FollowUpEntry[]
+  deviceFingerprints DeviceFingerprint[]
 
   @@unique([userId, email])
   @@unique([userId, phone])
@@ -2909,7 +2910,7 @@ model SurveyResponse {
 model DataForm {
   id              String    @id @default(cuid())
   userId          String
-  type            String    @default("STANDARD") // STANDARD | SMART_COLLECT
+  type            String    @default("STANDARD") // STANDARD | SMART_COLLECT | ATTENDANCE
   title           String
   description     String?
   fields          String    @default("[]")   // JSON: DataFormField[]
@@ -2950,6 +2951,22 @@ model DataFormSubmission {
 
   @@index([formId])
   @@index([createdAt])
+}
+
+model DeviceFingerprint {
+  id            String    @id @default(cuid())
+  userId        String    // form owner
+  contactId     String
+  fingerprint   String    // browser fingerprint hash
+  deviceLabel   String?   // e.g. "Chrome on Windows"
+  lastSeenAt    DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+
+  contact       Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fingerprint])
+  @@index([userId, fingerprint])
+  @@index([contactId])
 }
 
 // ============================================

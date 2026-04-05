@@ -35,7 +35,7 @@ export const FIELD_TYPES: { value: DataFormFieldType; label: string; icon: strin
   { value: "address", label: "Address", icon: "MapPin" },
 ];
 
-export type DataFormType = "STANDARD" | "SMART_COLLECT";
+export type DataFormType = "STANDARD" | "SMART_COLLECT" | "ATTENDANCE";
 
 export type DataFormStatus = "DRAFT" | "ACTIVE" | "CLOSED";
 

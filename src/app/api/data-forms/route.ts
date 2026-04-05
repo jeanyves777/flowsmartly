@@ -78,11 +78,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: { message: "Title is required" } }, { status: 400 });
     }
 
-    const formType = type === "SMART_COLLECT" ? "SMART_COLLECT" : "STANDARD";
+    const validTypes = ["STANDARD", "SMART_COLLECT", "ATTENDANCE"];
+    const formType = validTypes.includes(type) ? type : "STANDARD";
 
-    // Smart Collect requires a linked contact list
-    if (formType === "SMART_COLLECT" && !contactListId) {
-      return NextResponse.json({ success: false, error: { message: "Smart Collect forms require a linked contact list" } }, { status: 400 });
+    // Smart Collect and Attendance require a linked contact list
+    if ((formType === "SMART_COLLECT" || formType === "ATTENDANCE") && !contactListId) {
+      return NextResponse.json({ success: false, error: { message: `${formType === "ATTENDANCE" ? "Attendance" : "Smart Collect"} forms require a linked contact list` } }, { status: 400 });
     }
 
     // Validate contactListId ownership if provided
@@ -102,8 +103,8 @@ export async function POST(request: NextRequest) {
     }
 
     const hasFields = fields && Array.isArray(fields) && fields.length > 0;
-    // Smart Collect forms are ACTIVE immediately (they don't need custom fields)
-    const initialStatus = formType === "SMART_COLLECT" ? "ACTIVE" : (hasFields ? "ACTIVE" : "DRAFT");
+    // Smart Collect and Attendance forms are ACTIVE immediately
+    const initialStatus = (formType === "SMART_COLLECT" || formType === "ATTENDANCE") ? "ACTIVE" : (hasFields ? "ACTIVE" : "DRAFT");
 
     const dataForm = await prisma.dataForm.create({
       data: {
