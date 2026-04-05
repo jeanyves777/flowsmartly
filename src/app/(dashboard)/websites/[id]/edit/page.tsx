@@ -37,6 +37,8 @@ export default function WebsiteEditPage() {
   const [activeTab, setActiveTab] = useState("preview");
   const [data, setData] = useState<SiteData | null>(null);
   const [changed, setChanged] = useState(false);
+  const [pages, setPages] = useState<Array<{ slug: string; label: string }>>([]);
+  const [previewPage, setPreviewPage] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerCallback, setPickerCallback] = useState<((url: string) => void) | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -48,7 +50,7 @@ export default function WebsiteEditPage() {
 
   useEffect(() => {
     if (!id) return;
-    fetch(`/api/websites/${id}/site-data`).then((r) => r.json()).then((d) => { if (d.data) setData(d.data); }).catch(() => {});
+    fetch(`/api/websites/${id}/site-data`).then((r) => r.json()).then((d) => { if (d.data) setData(d.data); if (d.pages) setPages(d.pages); }).catch(() => {});
   }, [id]);
 
   const save = async () => {
@@ -163,9 +165,23 @@ export default function WebsiteEditPage() {
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30">
             <div className="flex gap-1.5"><div className="w-3 h-3 rounded-full bg-red-400" /><div className="w-3 h-3 rounded-full bg-yellow-400" /><div className="w-3 h-3 rounded-full bg-green-400" /></div>
-            <span className="text-xs text-muted-foreground flex-1 text-center">flowsmartly.com/sites/{website.slug}/</span>
+            <span className="text-xs text-muted-foreground flex-1 text-center">flowsmartly.com/sites/{website.slug}/{previewPage}</span>
           </div>
-          {website.buildStatus === "built" ? <iframe ref={iframeRef} src={`/sites/${website.slug}/`} className="w-full h-[78vh] border-0" /> : (
+          {/* Page navigation */}
+          {pages.length > 1 && (
+            <div className="flex gap-1 px-3 py-2 border-b border-border bg-muted/10 overflow-x-auto">
+              {pages.map((p) => (
+                <button
+                  key={p.slug}
+                  onClick={() => { setPreviewPage(p.slug); if (iframeRef.current) iframeRef.current.src = `/sites/${website.slug}/${p.slug}`; }}
+                  className={`px-3 py-1 text-xs rounded-full whitespace-nowrap transition-colors ${previewPage === p.slug ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80 text-muted-foreground"}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {website.buildStatus === "built" ? <iframe ref={iframeRef} src={`/sites/${website.slug}/${previewPage}`} className="w-full h-[75vh] border-0" /> : (
             <div className="text-center py-20"><p className="text-muted-foreground mb-4">{website.buildStatus === "building" ? "Building..." : "Not built yet"}</p>
               {website.buildStatus !== "building" && <button onClick={rebuild} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm">Build Now</button>}
             </div>

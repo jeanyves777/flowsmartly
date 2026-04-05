@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { getSiteDir } from "@/lib/website/site-builder";
 
@@ -21,15 +21,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     });
     if (!website) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+    const siteDir = website.generatedPath || getSiteDir(id);
+
+    // Detect pages from the generated site
+    const pages = detectPages(siteDir);
+
     // Try siteData from DB first
     if (website.siteData && website.siteData !== "{}") {
       try {
-        return NextResponse.json({ data: JSON.parse(website.siteData) });
+        return NextResponse.json({ data: JSON.parse(website.siteData), pages });
       } catch {}
     }
 
     // Parse data.ts from generated files
-    const siteDir = website.generatedPath || getSiteDir(id);
     const dataPath = join(siteDir, "src", "lib", "data.ts");
 
     try {
@@ -145,14 +149,41 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         data: { siteData: JSON.stringify(data) },
       });
 
-      return NextResponse.json({ data });
+      return NextResponse.json({ data, pages });
     } catch {
-      return NextResponse.json({ data: null });
+      return NextResponse.json({ data: null, pages });
     }
   } catch (err) {
     console.error("GET site-data error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
+}
+
+function detectPages(siteDir: string): Array<{ slug: string; label: string }> {
+  const appDir = join(siteDir, "src", "app");
+  const pages: Array<{ slug: string; label: string }> = [];
+
+  // Home page
+  try {
+    statSync(join(appDir, "page.tsx"));
+    pages.push({ slug: "", label: "Home" });
+  } catch {}
+
+  // Sub-pages
+  try {
+    for (const entry of readdirSync(appDir)) {
+      const full = join(appDir, entry);
+      try {
+        if (statSync(full).isDirectory() && !entry.startsWith("_") && !entry.startsWith(".")) {
+          if (statSync(join(full, "page.tsx")).isFile()) {
+            pages.push({ slug: entry, label: entry.charAt(0).toUpperCase() + entry.slice(1).replace(/-/g, " ") });
+          }
+        }
+      } catch {}
+    }
+  } catch {}
+
+  return pages;
 }
 
 function extractString(text: string, key: string): string {
