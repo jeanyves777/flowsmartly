@@ -41,11 +41,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
       // Extract companyInfo
       const companyMatch = content.match(/export const companyInfo\s*=\s*(\{[\s\S]*?\n\})/);
-      const servicesMatch = content.match(/export const services\s*=\s*(\[[\s\S]*?\n\])/);
-      const testimonialsMatch = content.match(/export const testimonials\s*=\s*(\[[\s\S]*?\n\])/);
 
-      // Simple extraction — parse the stats from companyInfo
-      const data: Record<string, unknown> = {};
+      const data: Record<string, any> = {};
 
       if (companyMatch) {
         // Extract key fields from companyInfo using regex
@@ -74,104 +71,22 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         }
       }
 
-      if (servicesMatch) {
-        try {
-          const svcText = servicesMatch[1];
-          const services: Array<Record<string, string>> = [];
-          const svcBlocks = svcText.split(/\},\s*\{/);
-          for (const block of svcBlocks) {
-            services.push({
-              id: extractString(block, "id"),
-              title: extractString(block, "title"),
-              shortDescription: extractString(block, "shortDescription"),
-              description: extractString(block, "description"),
-              icon: extractString(block, "icon"),
-              image: extractString(block, "image"),
-            });
-          }
-          data.services = services.filter((s) => s.title);
-        } catch {}
-      }
+      // Extract all arrays using robust method
+      data.services = extractObjectArray(content, "services", ["id", "title", "shortDescription", "description", "icon", "image"]);
+      data.testimonials = extractObjectArray(content, "testimonials", ["name", "role", "text"]);
+      data.team = extractObjectArray(content, "team", ["name", "role", "bio", "image"]);
+      if (!data.team?.length) data.team = extractObjectArray(content, "teamMembers", ["name", "role", "bio", "image"]);
+      data.faq = extractObjectArray(content, "faqItems", ["question", "answer"]);
+      if (!data.faq?.length) data.faq = extractObjectArray(content, "faqs", ["question", "answer"]);
+      if (!data.faq?.length) data.faq = extractObjectArray(content, "faq", ["question", "answer"]);
+      data.blogPosts = extractObjectArray(content, "blogPosts", ["id", "title", "excerpt", "content", "category", "date", "author", "image"]);
+      data.galleryImages = extractObjectArray(content, "galleryImages", ["src", "alt", "category"]);
 
-      // Extract team members
-      const teamMatch = content.match(/export const (?:teamMembers|team)\s*=\s*(\[[\s\S]*?\n\])/);
-      if (teamMatch) {
-        try {
-          const tBlocks = teamMatch[1].split(/\},\s*\{/);
-          data.team = tBlocks.map((block: string) => ({
-            name: extractString(block, "name"),
-            role: extractString(block, "role"),
-            bio: extractString(block, "bio"),
-            image: extractString(block, "image"),
-          })).filter((t: any) => t.name);
-        } catch {}
-      }
-
-      // Extract FAQ
-      const faqMatch = content.match(/export const (?:faqItems|faqs?)\s*=\s*(\[[\s\S]*?\n\])/);
-      if (faqMatch) {
-        try {
-          const fBlocks = faqMatch[1].split(/\},\s*\{/);
-          data.faq = fBlocks.map((block: string) => ({
-            question: extractString(block, "question"),
-            answer: extractString(block, "answer"),
-          })).filter((f: any) => f.question);
-        } catch {}
-      }
-
-      // Extract hero images (slides array)
+      // Extract hero images
       const slidesMatch = content.match(/(?:slides|heroImages|heroSlides)\s*=\s*\[([\s\S]*?)\]/);
       if (slidesMatch) {
         const imgPaths = [...slidesMatch[1].matchAll(/src:\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
         if (imgPaths.length > 0) data.heroImages = imgPaths;
-      }
-
-      // Extract blog posts
-      const blogMatch = content.match(/export const blogPosts\s*=\s*(\[[\s\S]*?\n\])/);
-      if (blogMatch) {
-        try {
-          const bBlocks = blogMatch[1].split(/\},\s*\{/);
-          data.blogPosts = bBlocks.map((block: string) => ({
-            id: extractString(block, "id"),
-            title: extractString(block, "title"),
-            excerpt: extractString(block, "excerpt"),
-            content: extractString(block, "content"),
-            category: extractString(block, "category"),
-            date: extractString(block, "date"),
-            author: extractString(block, "author"),
-            image: extractString(block, "image"),
-          })).filter((b: any) => b.title);
-        } catch {}
-      }
-
-      // Extract gallery images
-      const galleryMatch = content.match(/export const galleryImages\s*=\s*(\[[\s\S]*?\n\])/);
-      if (galleryMatch) {
-        try {
-          const gBlocks = galleryMatch[1].split(/\},\s*\{/);
-          data.galleryImages = gBlocks.map((block: string) => ({
-            src: extractString(block, "src"),
-            alt: extractString(block, "alt"),
-            category: extractString(block, "category"),
-          })).filter((g: any) => g.src || g.alt);
-        } catch {}
-      }
-
-      if (testimonialsMatch) {
-        try {
-          const tText = testimonialsMatch[1];
-          const testimonials: Array<Record<string, string | number>> = [];
-          const tBlocks = tText.split(/\},\s*\{/);
-          for (const block of tBlocks) {
-            testimonials.push({
-              name: extractString(block, "name"),
-              role: extractString(block, "role"),
-              text: extractString(block, "text"),
-              rating: parseInt(extractString(block, "rating") || "5") || 5,
-            });
-          }
-          data.testimonials = testimonials.filter((t) => t.name);
-        } catch {}
       }
 
       // Save to DB for faster future loads
@@ -215,6 +130,42 @@ function detectPages(siteDir: string): Array<{ slug: string; label: string }> {
   } catch {}
 
   return pages;
+}
+
+/**
+ * Robustly extract an array of objects from data.ts exports.
+ * Finds `export const {name} = [...]` and extracts objects with the given fields.
+ */
+function extractObjectArray(content: string, exportName: string, fields: string[]): any[] {
+  // Find the start of the export
+  const startRegex = new RegExp(`export const ${exportName}\\s*=\\s*\\[`);
+  const startMatch = startRegex.exec(content);
+  if (!startMatch) return [];
+
+  // Find the matching closing bracket by counting brackets
+  let depth = 1;
+  let i = startMatch.index + startMatch[0].length;
+  while (i < content.length && depth > 0) {
+    if (content[i] === "[") depth++;
+    if (content[i] === "]") depth--;
+    i++;
+  }
+  const arrayContent = content.substring(startMatch.index + startMatch[0].length, i - 1);
+
+  // Split by `}, {` or `},\n  {` patterns (object boundaries)
+  const blocks = arrayContent.split(/\}\s*,\s*\{/);
+
+  return blocks.map((block) => {
+    const obj: Record<string, any> = {};
+    for (const field of fields) {
+      const val = extractString(block, field);
+      if (val) obj[field] = val;
+    }
+    // Also try to extract number fields (like rating)
+    const ratingMatch = block.match(/rating:\s*(\d+)/);
+    if (ratingMatch) obj.rating = parseInt(ratingMatch[1]);
+    return obj;
+  }).filter((obj) => Object.keys(obj).length > 0);
 }
 
 function extractString(text: string, key: string): string {
