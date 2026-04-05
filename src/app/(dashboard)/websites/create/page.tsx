@@ -93,7 +93,6 @@ export default function CreateWebsitePage() {
     features: ["animations", "contact-form"],
     existingContent: "",
     languages: ["en"],
-    primaryLanguage: "en",
   });
 
   // Fetch brand kit on mount
