@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Loader2, Send, AlertCircle, Search, UserCheck, Sparkles } from "lucide-react";
+import { Check, Loader2, Send, AlertCircle, Search, UserCheck, Sparkles, Camera } from "lucide-react";
 import type { DataFormField, DataFormType } from "@/types/data-form";
 
 interface BrandInfo {
@@ -309,9 +309,10 @@ function SmartCollectForm({
     e.preventDefault();
     if (!selectedContact) return;
 
-    // Validate missing fields — all are required
+    // Validate missing fields — all required except photo
     const newErrors: Record<string, string> = {};
     for (const field of missingFields) {
+      if (field.key === "imageUrl") continue; // photo is optional
       const val = values[field.key]?.trim();
       if (!val) {
         newErrors[field.key] = `${field.label} is required`;
@@ -578,35 +579,119 @@ function SmartCollectForm({
   const baseInputClass = "w-full px-4 py-3 rounded-xl border transition-all focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-base";
   const filledInputClass = "w-full px-4 py-3 rounded-xl border bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-base text-gray-700 dark:text-gray-300 cursor-not-allowed";
 
-  const existingKeys = new Set(existingFields.map((f) => f.key));
   const allFields = [
     ...existingFields.map((f) => ({ key: f.key, label: f.label, type: "text", filled: true })),
     ...missingFields.map((f) => ({ key: f.key, label: f.label, type: f.type, filled: false })),
   ];
-  // Sort by the SMART_COLLECT_FIELDS order
-  const fieldOrder = ["lastName", "email", "phone", "birthday", "address", "city", "state"];
+  // Sort by the SMART_COLLECT_FIELDS order, photo first
+  const fieldOrder = ["imageUrl", "lastName", "email", "phone", "birthday", "address", "city", "state"];
   allFields.sort((a, b) => fieldOrder.indexOf(a.key) - fieldOrder.indexOf(b.key));
+
+  // Photo upload handler
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const handlePhotoUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors((prev) => ({ ...prev, imageUrl: "Photo must be under 5MB" }));
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`/api/data-forms/public/${slug}/upload`, { method: "POST", body: fd });
+      const json = await res.json();
+      if (json.success) {
+        setValues((prev) => ({ ...prev, imageUrl: json.data.url }));
+        if (errors.imageUrl) setErrors((prev) => { const n = { ...prev }; delete n.imageUrl; return n; });
+      } else {
+        setErrors((prev) => ({ ...prev, imageUrl: json.error?.message || "Upload failed" }));
+      }
+    } catch {
+      setErrors((prev) => ({ ...prev, imageUrl: "Upload failed" }));
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  // Existing photo URL (from contact or sibling)
+  const currentPhotoUrl = values.imageUrl || "";
+  const photoField = allFields.find((f) => f.key === "imageUrl");
+  const textFields = allFields.filter((f) => f.key !== "imageUrl");
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      {/* Greeting */}
+      {/* Greeting + Photo */}
       <div className="text-center mb-2">
-        <div className="w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center text-white font-bold text-xl" style={{ backgroundColor: primaryColor }}>
-          {(selectedContact?.firstName || "?")[0].toUpperCase()}
-        </div>
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="relative w-24 h-24 mx-auto mb-3"
+        >
+          {currentPhotoUrl ? (
+            <img
+              src={currentPhotoUrl}
+              alt={selectedContact?.firstName || "Photo"}
+              className="w-24 h-24 rounded-full object-cover border-4 border-white dark:border-gray-800 shadow-lg"
+            />
+          ) : (
+            <div className="w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl border-4 border-white dark:border-gray-800 shadow-lg" style={{ backgroundColor: primaryColor }}>
+              {(selectedContact?.firstName || "?")[0].toUpperCase()}
+            </div>
+          )}
+          {/* Upload button overlay (only if photo is missing/editable) */}
+          {photoField && !photoField.filled && (
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={uploadingPhoto}
+              className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 shadow-md flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              {uploadingPhoto ? (
+                <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+              ) : (
+                <Camera className="h-4 w-4 text-gray-500" />
+              )}
+            </button>
+          )}
+          {photoField?.filled && (
+            <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
+              <Check className="h-3 w-3 text-white" />
+            </div>
+          )}
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handlePhotoUpload(file);
+              e.target.value = "";
+            }}
+          />
+        </motion.div>
         <h2 className="text-xl font-bold">
           Hi {selectedContact?.firstName}!
         </h2>
+        {photoField && !photoField.filled && !currentPhotoUrl && (
+          <p className="text-xs text-gray-400 mt-1">Tap the camera icon to add your photo</p>
+        )}
+        {errors.imageUrl && (
+          <p className="text-sm text-red-500 mt-1">{errors.imageUrl}</p>
+        )}
         <p className="text-gray-500 text-sm mt-1">
-          {missingFields.length > 0
+          {missingFields.filter(f => f.key !== "imageUrl").length > 0
             ? "Please verify your info and fill in any missing details."
             : "Your contact information is complete!"}
         </p>
       </div>
 
-      {/* Unified form: all fields with auto-fill */}
+      {/* Unified form: text fields with auto-fill */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        {allFields.map((field, i) => (
+        {textFields.map((field, i) => (
           <motion.div
             key={field.key}
             initial={{ opacity: 0, y: 15 }}

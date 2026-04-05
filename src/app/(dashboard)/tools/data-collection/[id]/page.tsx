@@ -465,7 +465,7 @@ export default function DataFormDetailPage() {
                 <div className="border border-border rounded-lg p-4">
                   <h4 className="text-sm font-semibold mb-3">Fields checked automatically</h4>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {["Last Name", "Email", "Phone", "Birthday", "Address", "City", "State"].map((f) => (
+                    {["Profile Photo", "Last Name", "Email", "Phone", "Birthday", "Address", "City", "State"].map((f) => (
                       <div key={f} className="flex items-center gap-2 text-sm text-muted-foreground">
                         <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
                         {f}

@@ -52,6 +52,7 @@ export async function POST(
         email: true,
         phone: true,
         birthday: true,
+        imageUrl: true,
         address: true,
         city: true,
         state: true,
@@ -82,7 +83,7 @@ export async function POST(
           id: { not: contactId },
           firstName: { equals: contact.firstName, mode: "insensitive" },
         },
-        select: { lastName: true, email: true, phone: true, birthday: true, address: true, city: true, state: true },
+        select: { lastName: true, email: true, phone: true, birthday: true, imageUrl: true, address: true, city: true, state: true },
       });
       for (const sib of siblings) {
         for (const key of allowedKeys) {
@@ -246,6 +247,7 @@ export async function GET(
         email: true,
         phone: true,
         birthday: true,
+        imageUrl: true,
         address: true,
         city: true,
         state: true,
@@ -287,6 +289,7 @@ export async function GET(
           email: true,
           phone: true,
           birthday: true,
+          imageUrl: true,
           address: true,
           city: true,
           state: true,

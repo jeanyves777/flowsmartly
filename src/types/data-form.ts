@@ -70,6 +70,7 @@ export interface DataFormData {
 
 // Fields that Smart Collect checks on a contact for completeness
 export const SMART_COLLECT_FIELDS = [
+  { key: "imageUrl", label: "Profile Photo", type: "photo" as const },
   { key: "lastName", label: "Last Name", type: "text" as const },
   { key: "email", label: "Email", type: "email" as const },
   { key: "phone", label: "Phone", type: "phone" as const },
