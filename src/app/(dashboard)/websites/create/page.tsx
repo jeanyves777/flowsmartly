@@ -290,7 +290,7 @@ export default function CreateWebsitePage() {
       setGenProgress(100);
       await new Promise((r) => setTimeout(r, 800));
 
-      router.push(`/websites/${website.id}/editor`);
+      router.push(`/websites/${website.id}/edit`);
     } catch (err: any) {
       setError(err.message || "Something went wrong");
       setGenerating(false);
