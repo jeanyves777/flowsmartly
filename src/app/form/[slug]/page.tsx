@@ -454,7 +454,7 @@ function SmartCollectForm({
 
   // ── CONFIRM STEP — verify sibling data belongs to this person ──
   if (step === "confirm") {
-    const siblingFields = existingFields.filter((f) => f.fromSibling);
+    const siblingFields = existingFields.filter((f) => f.fromSibling && f.key !== "imageUrl");
     return (
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         <div className="text-center mb-2">

@@ -123,6 +123,23 @@ export async function POST(
       updateData[key] = strVal;
     }
 
+    // Check uniqueness for email/phone before updating
+    // (another contact may already have this email/phone for the same user)
+    if (updateData.email) {
+      const emailExists = await prisma.contact.findFirst({
+        where: { userId: form.userId, email: updateData.email as string, id: { not: contactId } },
+        select: { id: true },
+      });
+      if (emailExists) delete updateData.email;
+    }
+    if (updateData.phone) {
+      const phoneExists = await prisma.contact.findFirst({
+        where: { userId: form.userId, phone: updateData.phone as string, id: { not: contactId } },
+        select: { id: true },
+      });
+      if (phoneExists) delete updateData.phone;
+    }
+
     // Set opt-in flags if email/phone provided
     if (updateData.email) {
       updateData.emailOptedIn = true;
