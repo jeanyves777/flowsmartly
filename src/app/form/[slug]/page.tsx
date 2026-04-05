@@ -622,65 +622,18 @@ function SmartCollectForm({
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      {/* Greeting + Photo */}
+      {/* Greeting */}
       <div className="text-center mb-2">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="relative w-24 h-24 mx-auto mb-3"
-        >
+        <div className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-white font-bold text-2xl" style={{ backgroundColor: primaryColor }}>
           {currentPhotoUrl ? (
-            <img
-              src={currentPhotoUrl}
-              alt={selectedContact?.firstName || "Photo"}
-              className="w-24 h-24 rounded-full object-cover border-4 border-white dark:border-gray-800 shadow-lg"
-            />
+            <img src={currentPhotoUrl} alt="" className="w-16 h-16 rounded-full object-cover" />
           ) : (
-            <div className="w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl border-4 border-white dark:border-gray-800 shadow-lg" style={{ backgroundColor: primaryColor }}>
-              {(selectedContact?.firstName || "?")[0].toUpperCase()}
-            </div>
+            (selectedContact?.firstName || "?")[0].toUpperCase()
           )}
-          {/* Upload button overlay (only if photo is missing/editable) */}
-          {photoField && !photoField.filled && (
-            <button
-              type="button"
-              onClick={() => photoInputRef.current?.click()}
-              disabled={uploadingPhoto}
-              className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 shadow-md flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              {uploadingPhoto ? (
-                <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-              ) : (
-                <Camera className="h-4 w-4 text-gray-500" />
-              )}
-            </button>
-          )}
-          {photoField?.filled && (
-            <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
-              <Check className="h-3 w-3 text-white" />
-            </div>
-          )}
-          <input
-            ref={photoInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/jpg,image/webp"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handlePhotoUpload(file);
-              e.target.value = "";
-            }}
-          />
-        </motion.div>
+        </div>
         <h2 className="text-xl font-bold">
           Hi {selectedContact?.firstName}!
         </h2>
-        {photoField && !photoField.filled && !currentPhotoUrl && (
-          <p className="text-xs text-gray-400 mt-1">Tap the camera icon to add your photo</p>
-        )}
-        {errors.imageUrl && (
-          <p className="text-sm text-red-500 mt-1">{errors.imageUrl}</p>
-        )}
         <p className="text-gray-500 text-sm mt-1">
           {missingFields.filter(f => f.key !== "imageUrl").length > 0
             ? "Please verify your info and fill in any missing details."
@@ -688,8 +641,83 @@ function SmartCollectForm({
         </p>
       </div>
 
-      {/* Unified form: text fields with auto-fill */}
+      {/* Hidden file input */}
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/jpg,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handlePhotoUpload(file);
+          e.target.value = "";
+        }}
+      />
+
+      {/* Unified form */}
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Profile Photo — first field */}
+        {photoField && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="space-y-1.5"
+          >
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2">
+              Profile Photo
+              {photoField.filled ? (
+                <Check className="h-3.5 w-3.5 text-emerald-500" />
+              ) : (
+                <span className="text-gray-400 text-xs font-normal">(optional)</span>
+              )}
+            </label>
+            {currentPhotoUrl ? (
+              <div className="flex items-center gap-4 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20">
+                <img src={currentPhotoUrl} alt="Your photo" className="w-14 h-14 rounded-full object-cover border-2 border-white shadow" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                    <Check className="h-4 w-4" /> Photo uploaded
+                  </p>
+                  {!photoField.filled && (
+                    <button type="button" onClick={() => photoInputRef.current?.click()} className="text-xs text-emerald-600 dark:text-emerald-400 underline mt-1">
+                      Change photo
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                disabled={uploadingPhoto}
+                className="w-full p-5 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 bg-gray-50 dark:bg-gray-800/50 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-all flex items-center gap-4"
+              >
+                {uploadingPhoto ? (
+                  <>
+                    <Loader2 className="h-10 w-10 animate-spin text-blue-500 flex-shrink-0" />
+                    <span className="text-sm text-gray-500">Uploading...</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                      <Camera className="h-6 w-6 text-gray-400" />
+                    </div>
+                    <div className="text-left">
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-300 block">Tap to upload your photo</span>
+                      <span className="text-xs text-gray-400">PNG, JPG or WebP, max 5MB</span>
+                    </div>
+                  </>
+                )}
+              </button>
+            )}
+            {errors.imageUrl && (
+              <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> {errors.imageUrl}</p>
+            )}
+          </motion.div>
+        )}
+
+        {/* Text fields */}
         {textFields.map((field, i) => (
           <motion.div
             key={field.key}
