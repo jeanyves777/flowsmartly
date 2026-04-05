@@ -111,7 +111,7 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
 
     // npm install
     console.log(`[SiteBuilder] Installing dependencies for ${websiteId}...`);
-    const installOutput = execSync("npm install --prefer-offline", {
+    const installOutput = execSync("npm install", {
       cwd: siteDir,
       timeout: 120000,
       encoding: "utf-8",

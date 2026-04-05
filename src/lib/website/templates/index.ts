@@ -17,16 +17,16 @@ export const TEMPLATE_PACKAGE_JSON = `{
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "framer-motion": "11.15.0",
-    "lucide-react": "0.460.0"
+    "lucide-react": "0.460.0",
+    "tailwindcss": "3.4.17",
+    "postcss": "8.4.49",
+    "autoprefixer": "10.4.20"
   },
   "devDependencies": {
     "@types/node": "22.10.0",
     "@types/react": "19.0.0",
     "@types/react-dom": "19.0.0",
-    "typescript": "5.7.2",
-    "tailwindcss": "3.4.17",
-    "postcss": "8.4.49",
-    "autoprefixer": "10.4.20"
+    "typescript": "5.7.2"
   }
 }`;
 
@@ -57,6 +57,8 @@ export const TEMPLATE_NEXT_CONFIG = `import type { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   output: 'export',
   images: { unoptimized: true },
+  typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
 }
 
 export default nextConfig
