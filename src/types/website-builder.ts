@@ -14,11 +14,16 @@ export interface SiteData {
     mission?: string;
     foundedYear?: number;
     address?: string;
+    city?: string;
+    state?: string;
+    country?: string;
     phones?: string[];
     emails?: string[];
     website?: string;
     socialLinks?: Record<string, string>;
   };
+  heroImages?: string[];
+  logo?: string;
   services: Array<{
     id: string;
     title: string;
@@ -40,11 +45,11 @@ export interface SiteData {
     bio?: string;
     image?: string;
   }>;
-  reviews?: Array<{
-    author: string;
+  testimonials?: Array<{
+    name: string;
+    role?: string;
     rating: number;
     text: string;
-    date?: string;
   }>;
   partners?: Array<{
     name: string;

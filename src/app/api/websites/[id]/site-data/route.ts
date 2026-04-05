@@ -72,7 +72,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
       if (servicesMatch) {
         try {
-          // Quick & dirty: eval-safe extraction of service objects
           const svcText = servicesMatch[1];
           const services: Array<Record<string, string>> = [];
           const svcBlocks = svcText.split(/\},\s*\{/);
@@ -83,10 +82,44 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
               shortDescription: extractString(block, "shortDescription"),
               description: extractString(block, "description"),
               icon: extractString(block, "icon"),
+              image: extractString(block, "image"),
             });
           }
           data.services = services.filter((s) => s.title);
         } catch {}
+      }
+
+      // Extract team members
+      const teamMatch = content.match(/export const (?:teamMembers|team)\s*=\s*(\[[\s\S]*?\n\])/);
+      if (teamMatch) {
+        try {
+          const tBlocks = teamMatch[1].split(/\},\s*\{/);
+          data.team = tBlocks.map((block: string) => ({
+            name: extractString(block, "name"),
+            role: extractString(block, "role"),
+            bio: extractString(block, "bio"),
+            image: extractString(block, "image"),
+          })).filter((t: any) => t.name);
+        } catch {}
+      }
+
+      // Extract FAQ
+      const faqMatch = content.match(/export const (?:faqItems|faqs?)\s*=\s*(\[[\s\S]*?\n\])/);
+      if (faqMatch) {
+        try {
+          const fBlocks = faqMatch[1].split(/\},\s*\{/);
+          data.faq = fBlocks.map((block: string) => ({
+            question: extractString(block, "question"),
+            answer: extractString(block, "answer"),
+          })).filter((f: any) => f.question);
+        } catch {}
+      }
+
+      // Extract hero images (slides array)
+      const slidesMatch = content.match(/(?:slides|heroImages|heroSlides)\s*=\s*\[([\s\S]*?)\]/);
+      if (slidesMatch) {
+        const imgPaths = [...slidesMatch[1].matchAll(/src:\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
+        if (imgPaths.length > 0) data.heroImages = imgPaths;
       }
 
       if (testimonialsMatch) {

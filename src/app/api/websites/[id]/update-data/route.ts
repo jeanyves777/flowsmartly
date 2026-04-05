@@ -79,6 +79,34 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
       }
 
+      // Update team members
+      if (data.team) {
+        const teamCode = data.team.map((t: { name: string; role: string; bio?: string; image?: string }) => `  {
+    name: '${escapeStr(t.name)}',
+    role: '${escapeStr(t.role)}',
+    bio: '${escapeStr(t.bio || "")}',
+    image: '${escapeStr(t.image || "")}',
+  }`).join(",\n");
+
+        content = content.replace(
+          /export const (?:teamMembers|team)\s*=\s*\[[\s\S]*?\n\]/,
+          `export const teamMembers = [\n${teamCode}\n]`
+        );
+      }
+
+      // Update FAQ
+      if (data.faq) {
+        const faqCode = data.faq.map((f: { question: string; answer: string }) => `  {
+    question: '${escapeStr(f.question)}',
+    answer: '${escapeStr(f.answer)}',
+  }`).join(",\n");
+
+        content = content.replace(
+          /export const (?:faqItems|faqs?)\s*=\s*\[[\s\S]*?\n\]/,
+          `export const faqItems = [\n${faqCode}\n]`
+        );
+      }
+
       // Update testimonials
       if (data.testimonials) {
         // Rebuild the testimonials array entirely
