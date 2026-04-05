@@ -4,7 +4,12 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, ArrowLeft, ArrowRight, Loader2, Check, Palette, Globe, Target, Settings, CheckCircle2, Languages } from "lucide-react";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
-import { SUPPORTED_LANGUAGES } from "@/lib/website/i18n";
+const SUPPORTED_LANGUAGES = [
+  { code: "en", label: "English" }, { code: "fr", label: "French" }, { code: "es", label: "Spanish" },
+  { code: "pt", label: "Portuguese" }, { code: "de", label: "German" }, { code: "it", label: "Italian" },
+  { code: "ar", label: "Arabic" }, { code: "zh", label: "Chinese" }, { code: "ja", label: "Japanese" },
+  { code: "nl", label: "Dutch" }, { code: "ko", label: "Korean" }, { code: "ru", label: "Russian" },
+];
 import type { SiteQuestionnaire } from "@/types/website-builder";
 
 interface BrandKit {
