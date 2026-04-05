@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 // GET /api/data-forms/public/[slug]/search?q=name
-// Searches contacts in the form's linked contact list by first name
+// Searches ALL contacts for this user by first name
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -15,7 +15,6 @@ export async function GET(
       return NextResponse.json({ success: true, data: [] });
     }
 
-    // Fetch the form and verify it's a SMART_COLLECT type with a linked list
     const form = await prisma.dataForm.findUnique({
       where: { slug },
       select: {
@@ -27,23 +26,19 @@ export async function GET(
       },
     });
 
-    if (!form || form.status !== "ACTIVE" || form.type !== "SMART_COLLECT" || !form.contactListId) {
+    if (!form || form.status !== "ACTIVE" || form.type !== "SMART_COLLECT") {
       return NextResponse.json(
         { success: false, error: { message: "Form not found or not configured" } },
         { status: 404 }
       );
     }
 
-    // Find contacts in this list matching the search query
-    // Use raw query for case-insensitive search (works on both SQLite and PostgreSQL)
+    // Search ALL contacts for this user (not just the linked list)
     const contacts = await prisma.contact.findMany({
       where: {
         userId: form.userId,
         status: "ACTIVE",
         firstName: { contains: q },
-        lists: {
-          some: { contactListId: form.contactListId },
-        },
       },
       select: {
         id: true,

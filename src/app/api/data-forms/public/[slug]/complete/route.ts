@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { SMART_COLLECT_FIELDS } from "@/types/data-form";
 
 // POST /api/data-forms/public/[slug]/complete
-// Updates a contact with missing fields submitted via Smart Collect form
+// Updates a contact with missing fields, then adds them to the linked list
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -20,7 +20,6 @@ export async function POST(
       );
     }
 
-    // Fetch form and verify
     const form = await prisma.dataForm.findUnique({
       where: { slug },
       select: {
@@ -32,38 +31,34 @@ export async function POST(
       },
     });
 
-    if (!form || form.status !== "ACTIVE" || form.type !== "SMART_COLLECT" || !form.contactListId) {
+    if (!form || form.status !== "ACTIVE" || form.type !== "SMART_COLLECT") {
       return NextResponse.json(
         { success: false, error: { message: "Form not found or not configured" } },
         { status: 404 }
       );
     }
 
-    // Verify contact belongs to this user and is in the linked list
-    const membership = await prisma.contactListMember.findFirst({
+    // Find the contact (any contact belonging to this user, not limited to a list)
+    const contact = await prisma.contact.findFirst({
       where: {
-        contactListId: form.contactListId,
-        contactId,
-        contact: { userId: form.userId, status: "ACTIVE" },
+        id: contactId,
+        userId: form.userId,
+        status: "ACTIVE",
       },
-      include: {
-        contact: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-            birthday: true,
-            address: true,
-            city: true,
-            state: true,
-          },
-        },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        birthday: true,
+        address: true,
+        city: true,
+        state: true,
       },
     });
 
-    if (!membership) {
+    if (!contact) {
       return NextResponse.json(
         { success: false, error: { message: "Contact not found" } },
         { status: 404 }
@@ -71,7 +66,6 @@ export async function POST(
     }
 
     // Only update fields that are currently empty on the contact
-    const contact = membership.contact;
     const allowedKeys = SMART_COLLECT_FIELDS.map((f) => f.key) as string[];
     const updateData: Record<string, unknown> = {};
 
@@ -114,6 +108,35 @@ export async function POST(
         where: { id: contactId },
         data: updateData,
       });
+    }
+
+    // Add contact to the linked list if not already a member
+    if (form.contactListId) {
+      const existingMember = await prisma.contactListMember.findFirst({
+        where: { contactListId: form.contactListId, contactId },
+      });
+      if (!existingMember) {
+        await prisma.contactListMember.create({
+          data: {
+            contactListId: form.contactListId,
+            contactId,
+          },
+        });
+        // Update list counts
+        const counts = await prisma.contactListMember.count({
+          where: { contactListId: form.contactListId },
+        });
+        const activeCounts = await prisma.contactListMember.count({
+          where: {
+            contactListId: form.contactListId,
+            contact: { status: "ACTIVE" },
+          },
+        });
+        await prisma.contactList.update({
+          where: { id: form.contactListId },
+          data: { totalCount: counts, activeCount: activeCounts },
+        });
+      }
     }
 
     // Record as a form submission for tracking
@@ -173,44 +196,40 @@ export async function GET(
       },
     });
 
-    if (!form || form.status !== "ACTIVE" || form.type !== "SMART_COLLECT" || !form.contactListId) {
+    if (!form || form.status !== "ACTIVE" || form.type !== "SMART_COLLECT") {
       return NextResponse.json(
         { success: false, error: { message: "Form not found" } },
         { status: 404 }
       );
     }
 
-    const membership = await prisma.contactListMember.findFirst({
+    // Find any contact belonging to this user (not limited to a list)
+    const contact = await prisma.contact.findFirst({
       where: {
-        contactListId: form.contactListId,
-        contactId,
-        contact: { userId: form.userId, status: "ACTIVE" },
+        id: contactId,
+        userId: form.userId,
+        status: "ACTIVE",
       },
-      include: {
-        contact: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-            birthday: true,
-            address: true,
-            city: true,
-            state: true,
-          },
-        },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        birthday: true,
+        address: true,
+        city: true,
+        state: true,
       },
     });
 
-    if (!membership) {
+    if (!contact) {
       return NextResponse.json(
         { success: false, error: { message: "Contact not found" } },
         { status: 404 }
       );
     }
 
-    const contact = membership.contact;
     const missingFields: { key: string; label: string; type: string }[] = [];
     const existingFields: { key: string; label: string; value: string }[] = [];
 
