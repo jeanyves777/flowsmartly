@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft, ExternalLink, RefreshCw, Loader2, Check, AlertCircle, Globe, Palette, FileText, Users, Star, Phone, Image as ImageIcon } from "lucide-react";
+import {
+  ArrowLeft, ExternalLink, RefreshCw, Loader2, Check, AlertCircle, Globe,
+  Palette, FileText, Image as ImageIcon, Save, Plus, Trash2, Link2, GripVertical,
+} from "lucide-react";
 
 interface Website {
   id: string;
@@ -16,24 +19,70 @@ interface Website {
   brandKit?: { name: string; colors: string; fonts: string; logo?: string };
 }
 
+interface SiteData {
+  company: {
+    name: string; shortName: string; tagline: string; description: string;
+    about: string; mission: string; address: string; city: string; state: string;
+    country: string; phones: string[]; emails: string[]; website: string;
+  };
+  services: Array<{ id: string; title: string; shortDescription: string; description: string; icon: string }>;
+  stats: Array<{ label: string; value: number }>;
+  testimonials: Array<{ name: string; role: string; text: string; rating: number }>;
+}
+
 export default function WebsiteEditPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
   const [website, setWebsite] = useState<Website | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
   const [fixingLinks, setFixingLinks] = useState(false);
   const [activeTab, setActiveTab] = useState("preview");
+  const [siteData, setSiteData] = useState<SiteData | null>(null);
+  const [dataChanged, setDataChanged] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     if (!id) return;
     fetch(`/api/websites/${id}`)
       .then((r) => r.json())
-      .then((d) => { setWebsite(d.website); setLoading(false); })
+      .then((d) => {
+        setWebsite(d.website);
+        // Parse siteData or fetch from generated data.ts
+        if (d.website?.siteData && d.website.siteData !== "{}") {
+          try { setSiteData(JSON.parse(d.website.siteData)); } catch {}
+        }
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, [id]);
+
+  // Fetch live data from the generated site's data.ts via API
+  useEffect(() => {
+    if (!id || siteData) return;
+    fetch(`/api/websites/${id}/site-data`)
+      .then((r) => r.json())
+      .then((d) => { if (d.data) setSiteData(d.data); })
+      .catch(() => {});
+  }, [id, siteData]);
+
+  const handleSaveData = async () => {
+    if (!siteData) return;
+    setSaving(true);
+    try {
+      await fetch(`/api/websites/${id}/update-data`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: siteData }),
+      });
+      setDataChanged(false);
+      // Auto-rebuild after save
+      handleRebuild();
+    } catch {}
+    setSaving(false);
+  };
 
   const handleRebuild = async () => {
     setRebuilding(true);
@@ -49,16 +98,13 @@ export default function WebsiteEditPage() {
           if (iframeRef.current) iframeRef.current.src = iframeRef.current.src;
         }
       }, 3000);
-    } catch {
-      setRebuilding(false);
-    }
+    } catch { setRebuilding(false); }
   };
 
   const handleFixLinks = async () => {
     setFixingLinks(true);
     try {
       await fetch(`/api/websites/${id}/fix-links`, { method: "POST" });
-      // Poll for rebuild completion
       const poll = setInterval(async () => {
         const res = await fetch(`/api/websites/${id}`);
         const data = await res.json();
@@ -69,187 +115,232 @@ export default function WebsiteEditPage() {
           if (iframeRef.current) iframeRef.current.src = iframeRef.current.src;
         }
       }, 3000);
-    } catch {
-      setFixingLinks(false);
-    }
+    } catch { setFixingLinks(false); }
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
-  }
+  const updateCompany = (field: string, value: string) => {
+    if (!siteData) return;
+    setSiteData({ ...siteData, company: { ...siteData.company, [field]: value } });
+    setDataChanged(true);
+  };
 
-  if (!website) {
-    return <div className="text-center py-20"><p className="text-muted-foreground">Website not found</p></div>;
-  }
+  const updateService = (index: number, field: string, value: string) => {
+    if (!siteData) return;
+    const services = [...siteData.services];
+    services[index] = { ...services[index], [field]: value };
+    setSiteData({ ...siteData, services });
+    setDataChanged(true);
+  };
+
+  const addService = () => {
+    if (!siteData) return;
+    setSiteData({ ...siteData, services: [...siteData.services, { id: `service-${Date.now()}`, title: "New Service", shortDescription: "", description: "", icon: "Star" }] });
+    setDataChanged(true);
+  };
+
+  const removeService = (index: number) => {
+    if (!siteData) return;
+    setSiteData({ ...siteData, services: siteData.services.filter((_, i) => i !== index) });
+    setDataChanged(true);
+  };
+
+  const updateStat = (index: number, field: string, value: string | number) => {
+    if (!siteData) return;
+    const stats = [...siteData.stats];
+    stats[index] = { ...stats[index], [field]: field === "value" ? Number(value) || 0 : value };
+    setSiteData({ ...siteData, stats });
+    setDataChanged(true);
+  };
+
+  const updateTestimonial = (index: number, field: string, value: string | number) => {
+    if (!siteData) return;
+    const testimonials = [...siteData.testimonials];
+    testimonials[index] = { ...testimonials[index], [field]: field === "rating" ? Number(value) || 5 : value };
+    setSiteData({ ...siteData, testimonials });
+    setDataChanged(true);
+  };
+
+  const addTestimonial = () => {
+    if (!siteData) return;
+    setSiteData({ ...siteData, testimonials: [...siteData.testimonials, { name: "", role: "", text: "", rating: 5 }] });
+    setDataChanged(true);
+  };
+
+  const removeTestimonial = (index: number) => {
+    if (!siteData) return;
+    setSiteData({ ...siteData, testimonials: siteData.testimonials.filter((_, i) => i !== index) });
+    setDataChanged(true);
+  };
+
+  if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  if (!website) return <div className="text-center py-20"><p className="text-muted-foreground">Website not found</p></div>;
 
   const tabs = [
     { id: "preview", label: "Preview", icon: Globe },
-    { id: "info", label: "Business Info", icon: FileText },
-    { id: "design", label: "Design", icon: Palette },
-    { id: "domains", label: "Domains", icon: Globe },
-    { id: "media", label: "Media", icon: ImageIcon },
-    { id: "status", label: "Build Status", icon: Check },
+    { id: "company", label: "Company Info", icon: FileText },
+    { id: "services", label: "Services", icon: Palette },
+    { id: "stats", label: "Stats & Reviews", icon: Check },
+    { id: "domains", label: "Domains", icon: Link2 },
+    { id: "status", label: "Build", icon: RefreshCw },
   ];
+
+  const isBuilding = rebuilding || fixingLinks || saving || website.buildStatus === "building";
 
   return (
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push("/websites")} className="p-2 rounded-lg hover:bg-muted transition-colors">
-            <ArrowLeft className="w-4 h-4" />
-          </button>
+          <button onClick={() => router.push("/websites")} className="p-2 rounded-lg hover:bg-muted transition-colors"><ArrowLeft className="w-4 h-4" /></button>
           <div>
             <h1 className="text-xl font-bold">{website.name}</h1>
             <p className="text-xs text-muted-foreground">/sites/{website.slug}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {dataChanged && (
+            <button onClick={handleSaveData} disabled={isBuilding} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 transition-all">
+              <Save className="w-3.5 h-3.5" /> Save & Rebuild
+            </button>
+          )}
           {website.buildStatus === "built" && (
             <a href={`/sites/${website.slug}/`} target="_blank" className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors">
               <ExternalLink className="w-3.5 h-3.5" /> View Site
             </a>
           )}
-          <button
-            onClick={handleFixLinks}
-            disabled={fixingLinks || rebuilding}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted disabled:opacity-50 transition-colors"
-            title="Fix internal links to stay within your site (free, no credits)"
-          >
-            {fixingLinks ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Fixing...</> : "Fix Links"}
+          <button onClick={handleFixLinks} disabled={isBuilding} className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted disabled:opacity-50 transition-colors">
+            {fixingLinks ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />} Fix Links
           </button>
-          <button
-            onClick={handleRebuild}
-            disabled={rebuilding || fixingLinks}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50 transition-all"
-          >
-            {rebuilding ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rebuilding...</> : <><RefreshCw className="w-3.5 h-3.5" /> Rebuild</>}
+          <button onClick={handleRebuild} disabled={isBuilding} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50 transition-all">
+            {rebuilding ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Building...</> : <><RefreshCw className="w-3.5 h-3.5" /> Rebuild</>}
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-border mb-4">
+      <div className="flex gap-1 border-b border-border mb-4 overflow-x-auto">
         {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <tab.icon className="w-3.5 h-3.5" />
-            {tab.label}
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <tab.icon className="w-3.5 h-3.5" />{tab.label}
           </button>
         ))}
       </div>
 
-      {/* Tab Content */}
+      {/* Preview */}
       {activeTab === "preview" && (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30">
-            <div className="flex gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-red-400" />
-              <div className="w-3 h-3 rounded-full bg-yellow-400" />
-              <div className="w-3 h-3 rounded-full bg-green-400" />
-            </div>
-            <span className="text-xs text-muted-foreground flex-1 text-center">
-              {website.buildStatus === "built" ? `flowsmartly.com/sites/${website.slug}/` : "Not built yet"}
-            </span>
+            <div className="flex gap-1.5"><div className="w-3 h-3 rounded-full bg-red-400" /><div className="w-3 h-3 rounded-full bg-yellow-400" /><div className="w-3 h-3 rounded-full bg-green-400" /></div>
+            <span className="text-xs text-muted-foreground flex-1 text-center">flowsmartly.com/sites/{website.slug}/</span>
           </div>
           {website.buildStatus === "built" ? (
-            <iframe ref={iframeRef} src={`/sites/${website.slug}/`} className="w-full h-[75vh] border-0" title="Website Preview" />
-          ) : website.buildStatus === "building" ? (
-            <div className="flex flex-col items-center justify-center py-32">
-              <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
-              <p className="text-muted-foreground">Building your website...</p>
-            </div>
+            <iframe ref={iframeRef} src={`/sites/${website.slug}/`} className="w-full h-[75vh] border-0" title="Preview" />
           ) : (
             <div className="text-center py-20">
-              <p className="text-muted-foreground mb-4">
-                {website.buildStatus === "error" ? "Build failed. Check the Build Status tab for details." : "Your website hasn't been built yet."}
-              </p>
-              <button onClick={handleRebuild} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
-                Build Now
-              </button>
+              <p className="text-muted-foreground mb-4">{website.buildStatus === "building" ? "Building..." : "Not built yet"}</p>
+              {website.buildStatus !== "building" && <button onClick={handleRebuild} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm">Build Now</button>}
             </div>
           )}
         </div>
       )}
 
-      {activeTab === "info" && (
-        <div className="bg-card border border-border rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Business Information</h2>
-          <p className="text-sm text-muted-foreground mb-6">
-            To edit your site content, update your <a href="/brand" className="text-primary hover:underline">Brand Identity</a> and rebuild the site. The AI agent uses your brand kit to generate all content.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-sm font-medium mb-2">Connected Brand Kit</h3>
-              {website.brandKit ? (
-                <div className="p-4 bg-muted/30 rounded-lg border border-border">
-                  <p className="font-medium">{website.brandKit.name}</p>
-                  {(() => {
-                    try {
-                      const colors = typeof website.brandKit!.colors === "string" ? JSON.parse(website.brandKit!.colors) : website.brandKit!.colors;
-                      return (
-                        <div className="flex gap-2 mt-2">
-                          {colors.primary && <div className="w-6 h-6 rounded border" style={{ backgroundColor: colors.primary }} title="Primary" />}
-                          {colors.secondary && <div className="w-6 h-6 rounded border" style={{ backgroundColor: colors.secondary }} title="Secondary" />}
-                          {colors.accent && <div className="w-6 h-6 rounded border" style={{ backgroundColor: colors.accent }} title="Accent" />}
-                        </div>
-                      );
-                    } catch { return null; }
-                  })()}
+      {/* Company Info Editor */}
+      {activeTab === "company" && siteData && (
+        <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+          <h2 className="text-lg font-semibold">Company Information</h2>
+          <p className="text-sm text-muted-foreground">Edit your business details. Click "Save & Rebuild" to update your site.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="Company Name" value={siteData.company.name} onChange={(v) => updateCompany("name", v)} />
+            <Field label="Short Name" value={siteData.company.shortName} onChange={(v) => updateCompany("shortName", v)} />
+            <Field label="Tagline" value={siteData.company.tagline} onChange={(v) => updateCompany("tagline", v)} className="md:col-span-2" />
+            <Field label="Description" value={siteData.company.description} onChange={(v) => updateCompany("description", v)} multiline className="md:col-span-2" />
+            <Field label="About" value={siteData.company.about} onChange={(v) => updateCompany("about", v)} multiline className="md:col-span-2" />
+            <Field label="Mission" value={siteData.company.mission} onChange={(v) => updateCompany("mission", v)} multiline className="md:col-span-2" />
+            <Field label="Address" value={siteData.company.address} onChange={(v) => updateCompany("address", v)} />
+            <Field label="City" value={siteData.company.city} onChange={(v) => updateCompany("city", v)} />
+            <Field label="State" value={siteData.company.state} onChange={(v) => updateCompany("state", v)} />
+            <Field label="Country" value={siteData.company.country} onChange={(v) => updateCompany("country", v)} />
+            <Field label="Phone" value={siteData.company.phones?.[0] || ""} onChange={(v) => { setSiteData({ ...siteData, company: { ...siteData.company, phones: [v] } }); setDataChanged(true); }} />
+            <Field label="Email" value={siteData.company.emails?.[0] || ""} onChange={(v) => { setSiteData({ ...siteData, company: { ...siteData.company, emails: [v] } }); setDataChanged(true); }} />
+            <Field label="Website" value={siteData.company.website} onChange={(v) => updateCompany("website", v)} className="md:col-span-2" />
+          </div>
+        </div>
+      )}
+
+      {/* Services Editor */}
+      {activeTab === "services" && siteData && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Services ({siteData.services.length})</h2>
+            <button onClick={addService} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add Service</button>
+          </div>
+          {siteData.services.map((service, i) => (
+            <div key={i} className="bg-card border border-border rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">Service {i + 1}</span>
+                <button onClick={() => removeService(i)} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Field label="Title" value={service.title} onChange={(v) => updateService(i, "title", v)} />
+                <Field label="Icon (Lucide name)" value={service.icon} onChange={(v) => updateService(i, "icon", v)} />
+                <Field label="Short Description" value={service.shortDescription} onChange={(v) => updateService(i, "shortDescription", v)} className="md:col-span-2" />
+                <Field label="Full Description" value={service.description} onChange={(v) => updateService(i, "description", v)} multiline className="md:col-span-2" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Stats & Reviews */}
+      {activeTab === "stats" && siteData && (
+        <div className="space-y-6">
+          {/* Stats */}
+          <div className="bg-card border border-border rounded-xl p-6">
+            <h2 className="text-lg font-semibold mb-4">Statistics</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {siteData.stats.map((stat, i) => (
+                <div key={i} className="space-y-2">
+                  <input type="number" value={stat.value} onChange={(e) => updateStat(i, "value", e.target.value)} className="w-full text-2xl font-bold text-center px-2 py-1 border border-border rounded-lg bg-background focus:ring-1 focus:ring-primary" />
+                  <input type="text" value={stat.label} onChange={(e) => updateStat(i, "label", e.target.value)} className="w-full text-xs text-center px-2 py-1 border border-border rounded-lg bg-background focus:ring-1 focus:ring-primary" />
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No brand kit connected</p>
-              )}
+              ))}
             </div>
-            <div>
-              <h3 className="text-sm font-medium mb-2">How to Edit</h3>
-              <ul className="text-sm text-muted-foreground space-y-2">
-                <li>1. Go to <a href="/brand" className="text-primary hover:underline">Brand Identity</a> and update your info</li>
-                <li>2. Come back here and click <strong>Rebuild</strong></li>
-                <li>3. The AI agent will regenerate your site with updated content</li>
-              </ul>
+          </div>
+
+          {/* Testimonials */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Testimonials ({siteData.testimonials.length})</h2>
+              <button onClick={addTestimonial} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add</button>
             </div>
+            {siteData.testimonials.map((t, i) => (
+              <div key={i} className="bg-card border border-border rounded-xl p-4 mb-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-muted-foreground">Review {i + 1}</span>
+                  <button onClick={() => removeTestimonial(i)} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <Field label="Name" value={t.name} onChange={(v) => updateTestimonial(i, "name", v)} />
+                  <Field label="Role" value={t.role} onChange={(v) => updateTestimonial(i, "role", v)} />
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Rating</label>
+                    <select value={t.rating} onChange={(e) => updateTestimonial(i, "rating", e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
+                      {[5,4,3,2,1].map((r) => <option key={r} value={r}>{r} Stars</option>)}
+                    </select>
+                  </div>
+                </div>
+                <Field label="Review Text" value={t.text} onChange={(v) => updateTestimonial(i, "text", v)} multiline />
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {activeTab === "design" && (
-        <div className="bg-card border border-border rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Design Settings</h2>
-          <p className="text-sm text-muted-foreground mb-6">
-            Your site's colors, fonts, and logo come from your Brand Kit. Update them there to change the design.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <a href="/brand" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-center">
-              <Palette className="w-8 h-8 text-primary mx-auto mb-2" />
-              <p className="text-sm font-medium">Colors & Fonts</p>
-              <p className="text-xs text-muted-foreground mt-1">Edit in Brand Kit</p>
-            </a>
-            <a href="/brand" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-center">
-              <ImageIcon className="w-8 h-8 text-primary mx-auto mb-2" />
-              <p className="text-sm font-medium">Logo & Favicon</p>
-              <p className="text-xs text-muted-foreground mt-1">Upload in Brand Kit</p>
-            </a>
-            <a href="/media" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-center">
-              <ImageIcon className="w-8 h-8 text-primary mx-auto mb-2" />
-              <p className="text-sm font-medium">Site Images</p>
-              <p className="text-xs text-muted-foreground mt-1">Manage in Media Library</p>
-            </a>
-          </div>
-        </div>
-      )}
-
+      {/* Domains */}
       {activeTab === "domains" && (
         <div className="bg-card border border-border rounded-xl p-6">
           <h2 className="text-lg font-semibold mb-4">Custom Domains</h2>
-          <p className="text-sm text-muted-foreground mb-6">
-            Connect your own domain or purchase a new one. Your site is currently accessible at:
-          </p>
+          <p className="text-sm text-muted-foreground mb-4">Your site is currently at:</p>
           <div className="p-3 bg-muted/30 rounded-lg border border-border mb-6">
             <code className="text-sm">flowsmartly.com/sites/{website.slug}</code>
           </div>
@@ -262,53 +353,52 @@ export default function WebsiteEditPage() {
             <a href="/domains" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-center">
               <Globe className="w-8 h-8 text-primary mx-auto mb-2" />
               <p className="text-sm font-medium">Purchase New Domain</p>
-              <p className="text-xs text-muted-foreground mt-1">Search and buy a domain through us</p>
+              <p className="text-xs text-muted-foreground mt-1">Search and buy through us</p>
             </a>
           </div>
-          <p className="text-xs text-muted-foreground mt-4">
-            SSL certificates are automatically provisioned via Cloudflare. Custom domains include DNS management and HTTPS.
-          </p>
         </div>
       )}
 
-      {activeTab === "media" && (
-        <div className="bg-card border border-border rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Site Media</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            Stock images were downloaded during site generation. View and manage them in your <a href="/media" className="text-primary hover:underline">Media Library</a> under the "Website Images" folder.
-          </p>
-        </div>
-      )}
-
+      {/* Build Status */}
       {activeTab === "status" && (
-        <div className="bg-card border border-border rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Build Status</h2>
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium">Current Status:</span>
-              {website.buildStatus === "built" ? (
-                <span className="flex items-center gap-1 text-sm text-green-600"><Check className="w-4 h-4" /> Built & Live</span>
-              ) : website.buildStatus === "building" ? (
-                <span className="flex items-center gap-1 text-sm text-blue-600"><Loader2 className="w-4 h-4 animate-spin" /> Building...</span>
-              ) : website.buildStatus === "error" ? (
-                <span className="flex items-center gap-1 text-sm text-red-600"><AlertCircle className="w-4 h-4" /> Build Error</span>
-              ) : (
-                <span className="text-sm text-muted-foreground">Idle</span>
-              )}
-            </div>
-            {website.lastBuildAt && (
-              <p className="text-sm text-muted-foreground">Last built: {new Date(website.lastBuildAt).toLocaleString()}</p>
-            )}
-            {website.buildStatus === "error" && website.lastBuildError && (
-              <div>
-                <p className="text-sm font-medium text-red-600 mb-2">Error Details:</p>
-                <pre className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-xs rounded-lg overflow-auto max-h-60">
-                  {website.lastBuildError}
-                </pre>
-              </div>
-            )}
+        <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+          <h2 className="text-lg font-semibold">Build Status</h2>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium">Status:</span>
+            {website.buildStatus === "built" ? <span className="flex items-center gap-1 text-sm text-green-600"><Check className="w-4 h-4" /> Live</span>
+             : website.buildStatus === "building" ? <span className="flex items-center gap-1 text-sm text-blue-600"><Loader2 className="w-4 h-4 animate-spin" /> Building...</span>
+             : website.buildStatus === "error" ? <span className="flex items-center gap-1 text-sm text-red-600"><AlertCircle className="w-4 h-4" /> Error</span>
+             : <span className="text-sm text-muted-foreground">Idle</span>}
           </div>
+          {website.lastBuildAt && <p className="text-sm text-muted-foreground">Last built: {new Date(website.lastBuildAt).toLocaleString()}</p>}
+          {website.buildStatus === "error" && website.lastBuildError && (
+            <pre className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-xs rounded-lg overflow-auto max-h-60">{website.lastBuildError}</pre>
+          )}
         </div>
+      )}
+
+      {/* Unsaved changes bar */}
+      {dataChanged && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-amber-50 dark:bg-amber-900/30 border-t border-amber-200 dark:border-amber-800 px-6 py-3 flex items-center justify-between">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-200">You have unsaved changes</p>
+          <button onClick={handleSaveData} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 disabled:opacity-50">
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save & Rebuild
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Reusable field component
+function Field({ label, value, onChange, multiline, className }: { label: string; value: string; onChange: (v: string) => void; multiline?: boolean; className?: string }) {
+  return (
+    <div className={className}>
+      <label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label>
+      {multiline ? (
+        <textarea value={value || ""} onChange={(e) => onChange(e.target.value)} rows={3} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+      ) : (
+        <input type="text" value={value || ""} onChange={(e) => onChange(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
       )}
     </div>
   );
