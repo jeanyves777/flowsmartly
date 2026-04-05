@@ -9,7 +9,6 @@ import { prisma } from "@/lib/db/client";
 import {
   TEMPLATE_PACKAGE_JSON,
   TEMPLATE_TSCONFIG,
-  TEMPLATE_NEXT_CONFIG,
   TEMPLATE_POSTCSS_CONFIG,
   TEMPLATE_TAILWIND_CONFIG,
   TEMPLATE_THEME_PROVIDER,
@@ -42,7 +41,7 @@ export function getOutputDir(slug: string): string {
 /**
  * Initialize a new site directory with template files
  */
-export function initSiteDir(websiteId: string): string {
+export function initSiteDir(websiteId: string, slug: string): string {
   const siteDir = getSiteDir(websiteId);
 
   // Create directory structure
@@ -64,7 +63,19 @@ export function initSiteDir(websiteId: string): string {
   // Write template files
   writeFileSync(join(siteDir, "package.json"), TEMPLATE_PACKAGE_JSON);
   writeFileSync(join(siteDir, "tsconfig.json"), TEMPLATE_TSCONFIG);
-  writeFileSync(join(siteDir, "next.config.ts"), TEMPLATE_NEXT_CONFIG);
+  // next.config.ts with basePath for correct asset paths under /sites/{slug}
+  writeFileSync(join(siteDir, "next.config.ts"), `import type { NextConfig } from 'next'
+
+const nextConfig: NextConfig = {
+  output: 'export',
+  basePath: '/sites/${slug}',
+  images: { unoptimized: true },
+  typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
+}
+
+export default nextConfig
+`);
   writeFileSync(join(siteDir, "postcss.config.mjs"), TEMPLATE_POSTCSS_CONFIG);
   writeFileSync(join(siteDir, "tailwind.config.ts"), TEMPLATE_TAILWIND_CONFIG);
   writeFileSync(join(siteDir, "src", "components", "ThemeProvider.tsx"), TEMPLATE_THEME_PROVIDER);

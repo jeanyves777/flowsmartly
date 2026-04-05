@@ -52,17 +52,8 @@ export const TEMPLATE_TSCONFIG = `{
   "exclude": ["node_modules"]
 }`;
 
-export const TEMPLATE_NEXT_CONFIG = `import type { NextConfig } from 'next'
-
-const nextConfig: NextConfig = {
-  output: 'export',
-  images: { unoptimized: true },
-  typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
-}
-
-export default nextConfig
-`;
+// next.config.ts is generated dynamically per site (needs basePath with slug)
+// See site-builder.ts initSiteDir()
 
 export const TEMPLATE_POSTCSS_CONFIG = `/** @type {import('postcss-load-config').Config} */
 const config = {

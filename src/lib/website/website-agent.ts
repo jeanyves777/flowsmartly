@@ -290,7 +290,7 @@ export async function runWebsiteAgent(
   onProgress?: (progress: AgentProgress) => void
 ): Promise<{ success: boolean; error?: string }> {
   // Initialize site directory with template files
-  const siteDir = initSiteDir(websiteId);
+  const siteDir = initSiteDir(websiteId, websiteSlug);
 
   const ctx: AgentContext = {
     websiteId,
