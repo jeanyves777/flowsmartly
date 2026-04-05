@@ -33,12 +33,12 @@ export async function GET(
       );
     }
 
-    // Search ALL contacts for this user (not just the linked list)
+    // Search ALL contacts for this user (case-insensitive)
     const contacts = await prisma.contact.findMany({
       where: {
         userId: form.userId,
         status: "ACTIVE",
-        firstName: { contains: q },
+        firstName: { contains: q, mode: "insensitive" },
       },
       select: {
         id: true,

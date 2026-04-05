@@ -272,6 +272,12 @@ function SmartCollectForm({
         } else {
           setMissingFields(json.data.missingFields);
           setExistingFields(json.data.existingFields);
+          // Auto-fill existing values into the form
+          const prefilled: Record<string, string> = {};
+          for (const f of json.data.existingFields) {
+            prefilled[f.key] = f.value;
+          }
+          setValues(prefilled);
           setStep("form");
         }
       } else {
@@ -288,7 +294,7 @@ function SmartCollectForm({
     e.preventDefault();
     if (!selectedContact) return;
 
-    // Validate required missing fields — all are required
+    // Validate missing fields — all are required
     const newErrors: Record<string, string> = {};
     for (const field of missingFields) {
       const val = values[field.key]?.trim();
@@ -482,8 +488,18 @@ function SmartCollectForm({
     );
   }
 
-  // ── FORM STEP — fill in missing fields ──
+  // ── FORM STEP — unified form with auto-filled existing + editable missing ──
   const baseInputClass = "w-full px-4 py-3 rounded-xl border transition-all focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-base";
+  const filledInputClass = "w-full px-4 py-3 rounded-xl border bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-base text-gray-700 dark:text-gray-300 cursor-not-allowed";
+
+  const existingKeys = new Set(existingFields.map((f) => f.key));
+  const allFields = [
+    ...existingFields.map((f) => ({ key: f.key, label: f.label, type: "text", filled: true })),
+    ...missingFields.map((f) => ({ key: f.key, label: f.label, type: f.type, filled: false })),
+  ];
+  // Sort by the SMART_COLLECT_FIELDS order
+  const fieldOrder = ["lastName", "email", "phone", "birthday", "address", "city", "state"];
+  allFields.sort((a, b) => fieldOrder.indexOf(a.key) - fieldOrder.indexOf(b.key));
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -496,53 +512,41 @@ function SmartCollectForm({
           Hi {selectedContact?.firstName}!
         </h2>
         <p className="text-gray-500 text-sm mt-1">
-          We just need a few more details from you.
+          {missingFields.length > 0
+            ? "Please verify your info and fill in any missing details."
+            : "Your contact information is complete!"}
         </p>
       </div>
 
-      {/* Existing fields (read-only display) */}
-      {existingFields.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
-          className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-4 space-y-2"
-        >
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Already on file</p>
-          {existingFields.map((f) => (
-            <div key={f.key} className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">{f.label}</span>
-              <span className="font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1">
-                <Check className="h-3.5 w-3.5 text-emerald-500" /> {f.value}
-              </span>
-            </div>
-          ))}
-        </motion.div>
-      )}
-
-      {/* Missing fields form */}
+      {/* Unified form: all fields with auto-fill */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Please complete</p>
-        {missingFields.map((field, i) => (
+        {allFields.map((field, i) => (
           <motion.div
             key={field.key}
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 + i * 0.06 }}
+            transition={{ delay: 0.1 + i * 0.04 }}
             className="space-y-1.5"
           >
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
-              {field.label} <span className="text-red-500">*</span>
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2">
+              {field.label}
+              {field.filled ? (
+                <Check className="h-3.5 w-3.5 text-emerald-500" />
+              ) : (
+                <span className="text-red-500">*</span>
+              )}
             </label>
             <input
               type={field.type === "email" ? "email" : field.type === "phone" ? "tel" : "text"}
               value={values[field.key] || ""}
+              disabled={field.filled}
               onChange={(e) => {
+                if (field.filled) return;
                 setValues((prev) => ({ ...prev, [field.key]: e.target.value }));
                 if (errors[field.key]) setErrors((prev) => { const n = { ...prev }; delete n[field.key]; return n; });
               }}
               placeholder={field.key === "birthday" ? "MM-DD (e.g. 08-15)" : `Enter your ${field.label.toLowerCase()}`}
-              className={baseInputClass}
+              className={field.filled ? filledInputClass : baseInputClass}
             />
             {errors[field.key] && (
               <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-red-500 flex items-center gap-1">
