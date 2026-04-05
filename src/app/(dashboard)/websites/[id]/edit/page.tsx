@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft, ExternalLink, RefreshCw, Loader2, Check, AlertCircle } from "lucide-react";
+import { ArrowLeft, ExternalLink, RefreshCw, Loader2, Check, AlertCircle, Globe, Palette, FileText, Users, Star, Phone, Image as ImageIcon } from "lucide-react";
 
 interface Website {
   id: string;
@@ -13,6 +13,7 @@ interface Website {
   lastBuildAt?: string;
   lastBuildError?: string;
   siteData: string;
+  brandKit?: { name: string; colors: string; fonts: string; logo?: string };
 }
 
 export default function WebsiteEditPage() {
@@ -22,6 +23,8 @@ export default function WebsiteEditPage() {
   const [website, setWebsite] = useState<Website | null>(null);
   const [loading, setLoading] = useState(true);
   const [rebuilding, setRebuilding] = useState(false);
+  const [activeTab, setActiveTab] = useState("preview");
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -35,7 +38,6 @@ export default function WebsiteEditPage() {
     setRebuilding(true);
     try {
       await fetch(`/api/websites/${id}/rebuild`, { method: "POST" });
-      // Poll for completion
       const poll = setInterval(async () => {
         const res = await fetch(`/api/websites/${id}`);
         const data = await res.json();
@@ -43,6 +45,7 @@ export default function WebsiteEditPage() {
         if (data.website.buildStatus !== "building") {
           clearInterval(poll);
           setRebuilding(false);
+          if (iframeRef.current) iframeRef.current.src = iframeRef.current.src;
         }
       }, 3000);
     } catch {
@@ -51,25 +54,25 @@ export default function WebsiteEditPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
 
   if (!website) {
-    return (
-      <div className="text-center py-20">
-        <p className="text-muted-foreground">Website not found</p>
-        <button onClick={() => router.push("/websites")} className="mt-4 text-sm text-primary hover:underline">Back to websites</button>
-      </div>
-    );
+    return <div className="text-center py-20"><p className="text-muted-foreground">Website not found</p></div>;
   }
+
+  const tabs = [
+    { id: "preview", label: "Preview", icon: Globe },
+    { id: "info", label: "Business Info", icon: FileText },
+    { id: "design", label: "Design", icon: Palette },
+    { id: "media", label: "Media", icon: ImageIcon },
+    { id: "status", label: "Build Status", icon: Check },
+  ];
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <button onClick={() => router.push("/websites")} className="p-2 rounded-lg hover:bg-muted transition-colors">
             <ArrowLeft className="w-4 h-4" />
@@ -81,7 +84,7 @@ export default function WebsiteEditPage() {
         </div>
         <div className="flex items-center gap-2">
           {website.buildStatus === "built" && (
-            <a href={`/sites/${website.slug}`} target="_blank" className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors">
+            <a href={`/sites/${website.slug}/`} target="_blank" className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors">
               <ExternalLink className="w-3.5 h-3.5" /> View Site
             </a>
           )}
@@ -95,34 +98,24 @@ export default function WebsiteEditPage() {
         </div>
       </div>
 
-      {/* Status */}
-      <div className="bg-card border border-border rounded-xl p-4 mb-6">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Status:</span>
-            {website.buildStatus === "built" ? (
-              <span className="flex items-center gap-1 text-sm text-green-600"><Check className="w-4 h-4" /> Built & Live</span>
-            ) : website.buildStatus === "building" ? (
-              <span className="flex items-center gap-1 text-sm text-blue-600"><Loader2 className="w-4 h-4 animate-spin" /> Building...</span>
-            ) : website.buildStatus === "error" ? (
-              <span className="flex items-center gap-1 text-sm text-red-600"><AlertCircle className="w-4 h-4" /> Build Error</span>
-            ) : (
-              <span className="text-sm text-muted-foreground">Draft</span>
-            )}
-          </div>
-          {website.lastBuildAt && (
-            <span className="text-xs text-muted-foreground">Last built: {new Date(website.lastBuildAt).toLocaleString()}</span>
-          )}
-        </div>
-        {website.lastBuildError && (
-          <pre className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-xs rounded-lg overflow-auto max-h-40">
-            {website.lastBuildError}
-          </pre>
-        )}
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-border mb-4">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <tab.icon className="w-3.5 h-3.5" />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* Preview */}
-      {website.buildStatus === "built" && (
+      {/* Tab Content */}
+      {activeTab === "preview" && (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30">
             <div className="flex gap-1.5">
@@ -130,22 +123,134 @@ export default function WebsiteEditPage() {
               <div className="w-3 h-3 rounded-full bg-yellow-400" />
               <div className="w-3 h-3 rounded-full bg-green-400" />
             </div>
-            <span className="text-xs text-muted-foreground flex-1 text-center">{website.name}</span>
+            <span className="text-xs text-muted-foreground flex-1 text-center">
+              {website.buildStatus === "built" ? `flowsmartly.com/sites/${website.slug}/` : "Not built yet"}
+            </span>
           </div>
-          <iframe
-            src={`/sites/${website.slug}`}
-            className="w-full h-[70vh] border-0"
-            title="Website Preview"
-          />
+          {website.buildStatus === "built" ? (
+            <iframe ref={iframeRef} src={`/sites/${website.slug}/`} className="w-full h-[75vh] border-0" title="Website Preview" />
+          ) : website.buildStatus === "building" ? (
+            <div className="flex flex-col items-center justify-center py-32">
+              <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground">Building your website...</p>
+            </div>
+          ) : (
+            <div className="text-center py-20">
+              <p className="text-muted-foreground mb-4">
+                {website.buildStatus === "error" ? "Build failed. Check the Build Status tab for details." : "Your website hasn't been built yet."}
+              </p>
+              <button onClick={handleRebuild} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
+                Build Now
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {website.buildStatus !== "built" && (
-        <div className="text-center py-20 bg-card border border-border rounded-xl">
-          <p className="text-muted-foreground mb-4">Your website hasn't been built yet.</p>
-          <button onClick={handleRebuild} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
-            Build Now
-          </button>
+      {activeTab === "info" && (
+        <div className="bg-card border border-border rounded-xl p-6">
+          <h2 className="text-lg font-semibold mb-4">Business Information</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            To edit your site content, update your <a href="/brand" className="text-primary hover:underline">Brand Identity</a> and rebuild the site. The AI agent uses your brand kit to generate all content.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="text-sm font-medium mb-2">Connected Brand Kit</h3>
+              {website.brandKit ? (
+                <div className="p-4 bg-muted/30 rounded-lg border border-border">
+                  <p className="font-medium">{website.brandKit.name}</p>
+                  {(() => {
+                    try {
+                      const colors = typeof website.brandKit!.colors === "string" ? JSON.parse(website.brandKit!.colors) : website.brandKit!.colors;
+                      return (
+                        <div className="flex gap-2 mt-2">
+                          {colors.primary && <div className="w-6 h-6 rounded border" style={{ backgroundColor: colors.primary }} title="Primary" />}
+                          {colors.secondary && <div className="w-6 h-6 rounded border" style={{ backgroundColor: colors.secondary }} title="Secondary" />}
+                          {colors.accent && <div className="w-6 h-6 rounded border" style={{ backgroundColor: colors.accent }} title="Accent" />}
+                        </div>
+                      );
+                    } catch { return null; }
+                  })()}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No brand kit connected</p>
+              )}
+            </div>
+            <div>
+              <h3 className="text-sm font-medium mb-2">How to Edit</h3>
+              <ul className="text-sm text-muted-foreground space-y-2">
+                <li>1. Go to <a href="/brand" className="text-primary hover:underline">Brand Identity</a> and update your info</li>
+                <li>2. Come back here and click <strong>Rebuild</strong></li>
+                <li>3. The AI agent will regenerate your site with updated content</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "design" && (
+        <div className="bg-card border border-border rounded-xl p-6">
+          <h2 className="text-lg font-semibold mb-4">Design Settings</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Your site's colors, fonts, and logo come from your Brand Kit. Update them there to change the design.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <a href="/brand" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-center">
+              <Palette className="w-8 h-8 text-primary mx-auto mb-2" />
+              <p className="text-sm font-medium">Colors & Fonts</p>
+              <p className="text-xs text-muted-foreground mt-1">Edit in Brand Kit</p>
+            </a>
+            <a href="/brand" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-center">
+              <ImageIcon className="w-8 h-8 text-primary mx-auto mb-2" />
+              <p className="text-sm font-medium">Logo & Favicon</p>
+              <p className="text-xs text-muted-foreground mt-1">Upload in Brand Kit</p>
+            </a>
+            <a href="/media" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-center">
+              <ImageIcon className="w-8 h-8 text-primary mx-auto mb-2" />
+              <p className="text-sm font-medium">Site Images</p>
+              <p className="text-xs text-muted-foreground mt-1">Manage in Media Library</p>
+            </a>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "media" && (
+        <div className="bg-card border border-border rounded-xl p-6">
+          <h2 className="text-lg font-semibold mb-4">Site Media</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Stock images were downloaded during site generation. View and manage them in your <a href="/media" className="text-primary hover:underline">Media Library</a> under the "Website Images" folder.
+          </p>
+        </div>
+      )}
+
+      {activeTab === "status" && (
+        <div className="bg-card border border-border rounded-xl p-6">
+          <h2 className="text-lg font-semibold mb-4">Build Status</h2>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium">Current Status:</span>
+              {website.buildStatus === "built" ? (
+                <span className="flex items-center gap-1 text-sm text-green-600"><Check className="w-4 h-4" /> Built & Live</span>
+              ) : website.buildStatus === "building" ? (
+                <span className="flex items-center gap-1 text-sm text-blue-600"><Loader2 className="w-4 h-4 animate-spin" /> Building...</span>
+              ) : website.buildStatus === "error" ? (
+                <span className="flex items-center gap-1 text-sm text-red-600"><AlertCircle className="w-4 h-4" /> Build Error</span>
+              ) : (
+                <span className="text-sm text-muted-foreground">Idle</span>
+              )}
+            </div>
+            {website.lastBuildAt && (
+              <p className="text-sm text-muted-foreground">Last built: {new Date(website.lastBuildAt).toLocaleString()}</p>
+            )}
+            {website.lastBuildError && (
+              <div>
+                <p className="text-sm font-medium text-red-600 mb-2">Error Details:</p>
+                <pre className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-xs rounded-lg overflow-auto max-h-60">
+                  {website.lastBuildError}
+                </pre>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

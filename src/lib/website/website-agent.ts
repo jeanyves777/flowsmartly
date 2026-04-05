@@ -7,6 +7,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/db/client";
+import { getPresignedUrl } from "@/lib/utils/s3-client";
 import { readReferenceComponent, getAvailableReferences } from "./reference-reader";
 import { initSiteDir, writeSiteFile, buildSite, deploySite } from "./site-builder";
 import { downloadImageToDir } from "./image-search";
@@ -127,6 +128,14 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - The contact form should submit to: FLOWSMARTLY_API_URL/api/websites/WEBSITE_ID/form-submissions
 - Next.js 15 with React 19
 
+### Logo & Favicon:
+- The brand identity includes a "logo" URL — this is the user's ACTUAL logo
+- Call download_image to save the logo to the site (category: "brand", filename: "logo")
+- Use the downloaded path in Header component: <img src="/images/brand/logo.png" /> — NOT an SVG Logo component
+- DO NOT create a Logo.tsx SVG component — use the real logo image
+- Also call download_image to save the logo as favicon (category: "brand", filename: "favicon")
+- In layout.tsx, set: <link rel="icon" href="/images/brand/favicon.png" />
+
 ### File Writing:
 - Write COMPLETE files — never partial content
 - Include all imports at the top
@@ -134,7 +143,8 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - Use @/ path alias for imports
 - DO NOT write package.json, tsconfig.json, postcss.config.mjs, or tailwind.config.ts — these are already provided
 - DO NOT write next.config.ts — already provided
-- DO NOT write ThemeProvider.tsx or ThemeToggle.tsx — already provided as templates`;
+- DO NOT write ThemeProvider.tsx or ThemeToggle.tsx — already provided as templates
+- DO NOT write a Logo.tsx component — use the real brand logo image instead`;
 
 // --- Tool Execution ---
 
@@ -183,7 +193,10 @@ async function executeTool(name: string, input: Record<string, unknown>, ctx: Ag
         uniqueValue: brandKit.uniqueValue,
         colors: safeParseJSON(brandKit.colors),
         fonts: safeParseJSON(brandKit.fonts),
-        logo: brandKit.logo,
+        logoUrl: brandKit.logo ? await getPresignedUrl(brandKit.logo) : null,
+        logoInstructions: brandKit.logo
+          ? "IMPORTANT: Download this logo using download_image with the logoUrl above, category 'brand' and filename 'logo'. Then use /images/brand/logo.png (or .jpg) in the Header — do NOT create an SVG Logo component. Also download it again as favicon with filename 'favicon'."
+          : "No logo available — use the brand name as text in the header.",
         handles: safeParseJSON(brandKit.handles),
         guidelines: brandKit.guidelines,
         email: brandKit.email,
@@ -222,7 +235,7 @@ async function executeTool(name: string, input: Record<string, unknown>, ctx: Ag
       ctx.onProgress?.("Writing file...", path);
 
       // Prevent overwriting template files
-      const protectedFiles = ["package.json", "tsconfig.json", "postcss.config.mjs", "tailwind.config.ts", "next.config.ts", "src/components/ThemeProvider.tsx", "src/components/ThemeToggle.tsx"];
+      const protectedFiles = ["package.json", "tsconfig.json", "postcss.config.mjs", "tailwind.config.ts", "next.config.ts", "src/components/ThemeProvider.tsx", "src/components/ThemeToggle.tsx", "src/components/Logo.tsx"];
       if (protectedFiles.includes(path)) {
         return JSON.stringify({ skipped: true, reason: `${path} is a template file — already provided, do not overwrite` });
       }
