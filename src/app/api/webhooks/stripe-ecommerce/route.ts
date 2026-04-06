@@ -102,7 +102,7 @@ async function handlePaymentSucceeded(
   const { type, orderId, storeId, userId, domainName, tld, sld } = paymentIntent.metadata ?? {};
 
   // ── Domain purchase ──
-  if (type === "domain_purchase" && storeId && userId && sld && tld) {
+  if (type === "domain_purchase" && userId && sld && tld) {
     try {
       // Check if domain was already registered (idempotency)
       const existing = await prisma.storeDomain.findUnique({
@@ -114,7 +114,7 @@ async function handlePaymentSucceeded(
       }
 
       const result = await purchaseDomain({
-        storeId,
+        storeId: storeId || null,
         userId,
         domainName: sld,
         tld,

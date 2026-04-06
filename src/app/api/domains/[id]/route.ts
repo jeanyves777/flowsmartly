@@ -99,8 +99,8 @@ export async function DELETE(
 
     await disconnectDomain(id);
 
-    // If this was a free domain, reset the store's freeDomainClaimed flag
-    if (domain.isFree) {
+    // If this was a free domain and linked to a store, reset freeDomainClaimed
+    if (domain.isFree && domain.storeId) {
       await prisma.store.update({
         where: { id: domain.storeId },
         data: { freeDomainClaimed: false },

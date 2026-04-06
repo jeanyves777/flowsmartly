@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/client";
 
 /**
  * GET /api/domains
- * List all domains for the authenticated user's store.
+ * List all domains for the authenticated user (from store + standalone).
  */
 export async function GET(_request: NextRequest) {
   try {
@@ -16,22 +16,15 @@ export async function GET(_request: NextRequest) {
       );
     }
 
-    // Find user's store with plan info
+    // Find user's store (optional — user may not have one)
     const store = await prisma.store.findUnique({
       where: { userId: session.userId },
       select: { id: true, ecomPlan: true, freeDomainClaimed: true },
     });
 
-    if (!store) {
-      return NextResponse.json({
-        success: true,
-        data: { domains: [], isPro: false, freeDomainClaimed: false },
-      });
-    }
-
-    // Fetch all domains for this store
+    // Fetch ALL domains belonging to this user (store-linked + standalone)
     const domains = await prisma.storeDomain.findMany({
-      where: { storeId: store.id },
+      where: { userId: session.userId },
       orderBy: [
         { isPrimary: "desc" },
         { createdAt: "asc" },
@@ -40,6 +33,7 @@ export async function GET(_request: NextRequest) {
         id: true,
         domainName: true,
         tld: true,
+        storeId: true,
         registrarStatus: true,
         sslStatus: true,
         isFree: true,
@@ -59,8 +53,8 @@ export async function GET(_request: NextRequest) {
       success: true,
       data: {
         domains,
-        isPro: store.ecomPlan === "pro",
-        freeDomainClaimed: store.freeDomainClaimed,
+        isPro: store?.ecomPlan === "pro",
+        freeDomainClaimed: store?.freeDomainClaimed ?? false,
       },
     });
   } catch (error) {

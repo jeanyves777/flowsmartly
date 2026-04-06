@@ -8,7 +8,8 @@ import { isFreeDomainEligible, getDomainRetailPrice } from "@/lib/domains/pricin
 
 /**
  * POST /api/domains/purchase
- * Purchase a new domain or claim a free domain (Pro plan).
+ * Purchase a new domain (any user) or claim a free domain (Pro plan).
+ * Domains are standalone — no store or subscription required for paid purchases.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -44,37 +45,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate user has a store
+    // Determine price
+    const retailPrice = getDomainRetailPrice(tld);
+    if (retailPrice === null) {
+      return NextResponse.json(
+        { success: false, error: { code: "UNSUPPORTED_TLD", message: `The .${tld} TLD is not supported` } },
+        { status: 400 }
+      );
+    }
+
+    // Optionally look up user's store (for free domain claims and store linking)
     const store = await prisma.store.findUnique({
       where: { userId: session.userId },
       select: {
         id: true,
         ecomPlan: true,
-        ecomSubscriptionId: true,
         ecomSubscriptionStatus: true,
         freeDomainClaimed: true,
       },
     });
 
-    if (!store) {
-      return NextResponse.json(
-        { success: false, error: { code: "NO_STORE", message: "You need an active FlowShop store to purchase a domain" } },
-        { status: 400 }
-      );
-    }
-
-    // Check for active subscription
-    const hasActiveSub = store.ecomSubscriptionStatus === "active" || store.ecomSubscriptionStatus === "trialing";
-    if (!hasActiveSub) {
-      return NextResponse.json(
-        { success: false, error: { code: "INACTIVE_SUBSCRIPTION", message: "An active FlowShop subscription is required" } },
-        { status: 400 }
-      );
-    }
-
-    // Free domain validation
+    // Free domain requires Pro plan with active subscription
     if (isFree) {
-      if (store.ecomPlan !== "pro") {
+      if (!store) {
+        return NextResponse.json(
+          { success: false, error: { code: "PRO_REQUIRED", message: "Free domain requires a FlowShop Pro subscription" } },
+          { status: 400 }
+        );
+      }
+
+      const hasActiveSub = store.ecomSubscriptionStatus === "active" || store.ecomSubscriptionStatus === "trialing";
+      if (!hasActiveSub || store.ecomPlan !== "pro") {
         return NextResponse.json(
           { success: false, error: { code: "PRO_REQUIRED", message: "Free domain is only available on the Pro plan" } },
           { status: 400 }
@@ -96,15 +97,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Determine price
-    const retailPrice = getDomainRetailPrice(tld);
-    if (retailPrice === null) {
-      return NextResponse.json(
-        { success: false, error: { code: "UNSUPPORTED_TLD", message: `The .${tld} TLD is not supported` } },
-        { status: 400 }
-      );
-    }
-
     const fullDomain = `${domain}.${tld}`;
 
     // For PAID domains: create PaymentIntent only, don't register yet.
@@ -117,7 +109,7 @@ export async function POST(request: NextRequest) {
         customerId,
         domainName: fullDomain,
         amountCents: retailPrice,
-        storeId: store.id,
+        storeId: store?.id || "",
         tld,
       });
 
@@ -134,7 +126,7 @@ export async function POST(request: NextRequest) {
 
     // For FREE domains (Pro plan): register immediately
     const result = await purchaseDomain({
-      storeId: store.id,
+      storeId: store!.id,
       userId: session.userId,
       domainName: domain,
       tld,

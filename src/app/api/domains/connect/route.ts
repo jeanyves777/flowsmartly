@@ -6,6 +6,7 @@ import { connectExistingDomain } from "@/lib/domains/manager";
 /**
  * POST /api/domains/connect
  * Connect a user's existing domain (BYOD — Bring Your Own Domain).
+ * Any authenticated user can connect a domain — no store required.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -38,27 +39,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate user has a store
-    const store = await prisma.store.findUnique({
-      where: { userId: session.userId },
-      select: { id: true, ecomSubscriptionStatus: true },
-    });
-
-    if (!store) {
-      return NextResponse.json(
-        { success: false, error: { code: "NO_STORE", message: "You need an active FlowShop store to connect a domain" } },
-        { status: 400 }
-      );
-    }
-
-    const hasActiveSub = store.ecomSubscriptionStatus === "active" || store.ecomSubscriptionStatus === "trialing";
-    if (!hasActiveSub) {
-      return NextResponse.json(
-        { success: false, error: { code: "INACTIVE_SUBSCRIPTION", message: "An active FlowShop subscription is required" } },
-        { status: 400 }
-      );
-    }
-
     // Check if domain is already registered in our system
     const existingDomain = await prisma.storeDomain.findUnique({
       where: { domainName: cleanDomain },
@@ -66,13 +46,19 @@ export async function POST(request: NextRequest) {
 
     if (existingDomain) {
       return NextResponse.json(
-        { success: false, error: { code: "DOMAIN_EXISTS", message: "This domain is already connected to a store" } },
+        { success: false, error: { code: "DOMAIN_EXISTS", message: "This domain is already connected to an account" } },
         { status: 409 }
       );
     }
 
+    // Optionally link to user's store if they have one
+    const store = await prisma.store.findUnique({
+      where: { userId: session.userId },
+      select: { id: true },
+    });
+
     const result = await connectExistingDomain({
-      storeId: store.id,
+      storeId: store?.id || null,
       userId: session.userId,
       domain: cleanDomain,
     });

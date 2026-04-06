@@ -3575,7 +3575,7 @@ model MarketResearchReport {
 
 model StoreDomain {
   id                String    @id @default(cuid())
-  storeId           String
+  storeId           String?            // Optional: linked store (null = standalone domain)
   userId            String
   domainName        String    @unique  // "mybrandstore.com"
   tld               String             // "com", "store", "shop", etc.
@@ -3608,7 +3608,7 @@ model StoreDomain {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  store             Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store             Store?    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([storeId])

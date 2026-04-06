@@ -19,7 +19,7 @@ export interface DomainSearchItem {
 }
 
 export interface PurchaseDomainParams {
-  storeId: string;
+  storeId: string | null;
   userId: string;
   domainName: string;
   tld: string;
@@ -27,7 +27,7 @@ export interface PurchaseDomainParams {
 }
 
 export interface ConnectDomainParams {
-  storeId: string;
+  storeId: string | null;
   userId: string;
   domain: string;
 }
@@ -182,7 +182,7 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
   }
 
   // Step 2: Register domain via OpenSRS
-  const { regUsername, regPassword } = generateRegCredentials(storeId, userId);
+  const { regUsername, regPassword } = generateRegCredentials(storeId || "standalone", userId);
   let orderId: string | null = null;
 
   try {
@@ -230,16 +230,19 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
   // Step 5: Determine pricing
   const pricing = DOMAIN_PRICING[tld] ?? { costCents: 0, retailCents: 0 };
 
-  // Check if this is the first domain for the store
-  const existingDomains = await prisma.storeDomain.count({
-    where: { storeId },
-  });
-  const isFirstDomain = existingDomains === 0;
+  // Check if this is the first domain for the store (if store exists)
+  let isFirstDomain = false;
+  if (storeId) {
+    const existingDomains = await prisma.storeDomain.count({
+      where: { storeId },
+    });
+    isFirstDomain = existingDomains === 0;
+  }
 
   // Step 6: Save StoreDomain record
   const storeDomain = await prisma.storeDomain.create({
     data: {
-      storeId,
+      storeId: storeId ?? null,
       userId,
       domainName: fullDomain,
       tld,
@@ -261,23 +264,24 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
     },
   });
 
-  // Step 7: Update store — set customDomain if first, set freeDomainClaimed if free
-  const storeUpdate: Record<string, unknown> = {};
-  if (isFirstDomain) {
-    storeUpdate.customDomain = fullDomain;
-  }
-  if (isFree) {
-    storeUpdate.freeDomainClaimed = true;
-  }
-  if (Object.keys(storeUpdate).length > 0) {
-    try {
-      await prisma.store.update({
-        where: { id: storeId },
-        data: storeUpdate,
-      });
-    } catch (error) {
-      console.error("Failed to update store after domain purchase:", error);
-      // Non-fatal: domain is registered, just the store pointer failed
+  // Step 7: Update store if linked — set customDomain if first, set freeDomainClaimed if free
+  if (storeId) {
+    const storeUpdate: Record<string, unknown> = {};
+    if (isFirstDomain) {
+      storeUpdate.customDomain = fullDomain;
+    }
+    if (isFree) {
+      storeUpdate.freeDomainClaimed = true;
+    }
+    if (Object.keys(storeUpdate).length > 0) {
+      try {
+        await prisma.store.update({
+          where: { id: storeId },
+          data: storeUpdate,
+        });
+      } catch (error) {
+        console.error("Failed to update store after domain purchase:", error);
+      }
     }
   }
 
@@ -330,7 +334,7 @@ export async function connectExistingDomain(
   // Step 3: Save StoreDomain record
   const storeDomain = await prisma.storeDomain.create({
     data: {
-      storeId,
+      storeId: storeId ?? null,
       userId,
       domainName: domain,
       tld,
@@ -490,8 +494,8 @@ export async function disconnectDomain(domainId: string): Promise<void> {
     where: { id: domainId },
   });
 
-  // Step 3: If was primary domain, clear store.customDomain
-  if (wasPrimary) {
+  // Step 3: If was primary domain and linked to a store, update store
+  if (wasPrimary && storeId) {
     try {
       // Check if there's another domain to promote
       const nextDomain = await prisma.storeDomain.findFirst({
@@ -544,10 +548,10 @@ export async function setPrimaryDomain(domainId: string): Promise<void> {
   }
 
   try {
-    await prisma.$transaction([
-      // Unset isPrimary on all domains for this store
+    const txOps = [
+      // Unset isPrimary on all domains for this user
       prisma.storeDomain.updateMany({
-        where: { storeId: storeDomain.storeId },
+        where: { userId: storeDomain.userId },
         data: { isPrimary: false },
       }),
       // Set the target domain as primary
@@ -555,12 +559,19 @@ export async function setPrimaryDomain(domainId: string): Promise<void> {
         where: { id: domainId },
         data: { isPrimary: true },
       }),
-      // Update the store's customDomain
-      prisma.store.update({
-        where: { id: storeDomain.storeId },
-        data: { customDomain: storeDomain.domainName },
-      }),
-    ]);
+    ];
+
+    // Update store's customDomain if domain is linked to a store
+    if (storeDomain.storeId) {
+      txOps.push(
+        prisma.store.update({
+          where: { id: storeDomain.storeId },
+          data: { customDomain: storeDomain.domainName },
+        }) as any
+      );
+    }
+
+    await prisma.$transaction(txOps);
   } catch (error) {
     console.error("Failed to set primary domain:", error);
     throw new Error(
