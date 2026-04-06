@@ -5,6 +5,11 @@
  * (A + CNAME pointing to our server), and check SSL provisioning status.
  */
 
+import dns from "dns";
+
+// Force IPv4 for all DNS lookups — Cloudflare API tokens may have IPv4-only restrictions
+dns.setDefaultResultOrder("ipv4first");
+
 const CF_BASE = "https://api.cloudflare.com/client/v4";
 const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || "";
 const SERVER_IP = process.env.DOMAIN_SERVER_IP || "187.77.29.88";
