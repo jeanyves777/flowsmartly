@@ -146,10 +146,19 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 ### Logo & Favicon:
 - The brand identity includes a "logo" URL — this is the user's ACTUAL logo
 - Call download_image to save the logo to the site (category: "brand", filename: "logo")
-- Use the downloaded path in Header component: <img src="/images/brand/logo.png" /> — NOT an SVG Logo component
+- The download returns a local path like "/images/brand/logo.jpg"
+- IMPORTANT: ALL image src paths MUST include the siteBasePath prefix!
+  Example: if siteBasePath is "/sites/my-business-abc", use src="/sites/my-business-abc/images/brand/logo.jpg"
+- Use the FULL prefixed path in Header AND Footer: <img src="{siteBasePath}/images/brand/logo.jpg" />
 - DO NOT create a Logo.tsx SVG component — use the real logo image
-- Also call download_image to save the logo as favicon (category: "brand", filename: "favicon")
-- In layout.tsx, set: <link rel="icon" href="/images/brand/favicon.png" />
+- In layout.tsx metadata, set icon with basePath: icons: { icon: '{siteBasePath}/images/brand/logo.jpg' }
+
+### Image Paths (CRITICAL):
+- Next.js basePath ONLY auto-prefixes /_next/ assets
+- All <img src="..."> paths MUST manually include the siteBasePath prefix
+- Example: src="/sites/my-business-abc/images/hero/banner.jpg" NOT src="/images/hero/banner.jpg"
+- The download_image tool returns paths WITHOUT the prefix — you must prepend siteBasePath yourself
+- This applies to: hero slides, service images, team photos, gallery, blog images, logo, favicon
 
 ### File Writing:
 - Write COMPLETE files — never partial content
