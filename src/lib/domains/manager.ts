@@ -4,7 +4,7 @@
 import { prisma } from "@/lib/db/client";
 import { searchDomain, registerDomain, getDomainInfo, isAvailable as isOpenSrsAvailable } from "./opensrs-client";
 import { searchDomainsRdap } from "./rdap-client";
-import { createZone, configureStoreDns, getZone, getSslStatus, deleteZone } from "./cloudflare-client";
+import { createZone, configureStoreDns, configureZoneSecurity, getZone, getSslStatus, deleteZone } from "./cloudflare-client";
 import { DOMAIN_PRICING, SUPPORTED_TLDS, FREE_DOMAIN_TLDS, isFreeDomainEligible } from "./pricing";
 
 // ── Types ──
@@ -237,6 +237,13 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
       } catch (dnsError) {
         console.error("DNS configuration failed (zone created, DNS pending):", dnsError);
       }
+
+      // Step 4b: Configure SSL and security settings
+      try {
+        await configureZoneSecurity(zone.zoneId);
+      } catch (secError) {
+        console.error("Zone security configuration failed (non-fatal):", secError);
+      }
     }
   } catch (cfError) {
     console.error("Cloudflare zone creation failed (domain registered, CF pending):", cfError);
@@ -335,6 +342,13 @@ export async function connectExistingDomain(
         await configureStoreDns(zone.zoneId, domain);
       } catch (dnsError) {
         console.error("DNS configuration failed for BYOD domain:", dnsError);
+      }
+
+      // Configure SSL and security settings
+      try {
+        await configureZoneSecurity(zone.zoneId);
+      } catch (secError) {
+        console.error("Zone security configuration failed for BYOD (non-fatal):", secError);
       }
     } else {
       throw new Error("Cloudflare zone creation returned null");

@@ -307,6 +307,114 @@ export async function getSslStatus(
 }
 
 /**
+ * Set the SSL/TLS encryption mode for a zone.
+ * "full" = encrypts between browser↔CF and CF↔origin (self-signed OK)
+ * "strict" = same but requires valid origin cert
+ * "flexible" = only browser↔CF encrypted (not recommended)
+ */
+export async function setSslMode(
+  zoneId: string,
+  mode: "off" | "flexible" | "full" | "strict" = "full"
+): Promise<boolean> {
+  const resp = await cfRequest<{ value: string }>(
+    `/zones/${zoneId}/settings/ssl`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ value: mode }),
+    }
+  );
+
+  if (!resp.success) {
+    console.error("Cloudflare API error: failed to set SSL mode for zone", zoneId, resp.errors);
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Enable "Always Use HTTPS" for a zone — redirects all HTTP to HTTPS.
+ */
+export async function setAlwaysUseHttps(
+  zoneId: string,
+  enabled: boolean = true
+): Promise<boolean> {
+  const resp = await cfRequest<{ value: string }>(
+    `/zones/${zoneId}/settings/always_use_https`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ value: enabled ? "on" : "off" }),
+    }
+  );
+
+  if (!resp.success) {
+    console.error("Cloudflare API error: failed to set always_use_https for zone", zoneId, resp.errors);
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Enable automatic HTTPS rewrites — fixes mixed content by rewriting HTTP URLs to HTTPS.
+ */
+export async function setAutoHttpsRewrites(
+  zoneId: string,
+  enabled: boolean = true
+): Promise<boolean> {
+  const resp = await cfRequest<{ value: string }>(
+    `/zones/${zoneId}/settings/automatic_https_rewrites`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ value: enabled ? "on" : "off" }),
+    }
+  );
+
+  if (!resp.success) {
+    console.error("Cloudflare API error: failed to set automatic_https_rewrites for zone", zoneId, resp.errors);
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Set minimum TLS version for a zone (default: 1.2).
+ */
+export async function setMinTlsVersion(
+  zoneId: string,
+  version: "1.0" | "1.1" | "1.2" | "1.3" = "1.2"
+): Promise<boolean> {
+  const resp = await cfRequest<{ value: string }>(
+    `/zones/${zoneId}/settings/min_tls_version`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ value: version }),
+    }
+  );
+
+  if (!resp.success) {
+    console.error("Cloudflare API error: failed to set min_tls_version for zone", zoneId, resp.errors);
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Apply recommended SSL/security settings to a zone.
+ * Called after zone creation to ensure domains are properly secured.
+ */
+export async function configureZoneSecurity(zoneId: string): Promise<void> {
+  await Promise.all([
+    setSslMode(zoneId, "full"),
+    setAlwaysUseHttps(zoneId, true),
+    setAutoHttpsRewrites(zoneId, true),
+    setMinTlsVersion(zoneId, "1.2"),
+  ]);
+}
+
+/**
  * Convenience function to configure DNS records for a store/site domain.
  *
  * Creates:
