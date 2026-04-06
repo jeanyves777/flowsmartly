@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
-import { getSiteDir } from "@/lib/website/site-builder";
+import { getSiteDir, getOutputDir } from "@/lib/website/site-builder";
 
 /**
  * POST /api/websites/[id]/upload-image
@@ -41,6 +41,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const filePath = join(imageDir, filename);
 
     writeFileSync(filePath, buffer);
+
+    // Also copy to output dir for immediate access
+    try {
+      const outputImgDir = join(getOutputDir(website.slug), "images", category);
+      mkdirSync(outputImgDir, { recursive: true });
+      writeFileSync(join(outputImgDir, filename), buffer);
+    } catch {}
 
     const imagePath = `/sites/${website.slug}/images/${category}/${filename}`;
     return NextResponse.json({ success: true, path: imagePath });

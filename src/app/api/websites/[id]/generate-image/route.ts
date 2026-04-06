@@ -3,9 +3,9 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync, cpSync } from "fs";
 import { join } from "path";
-import { getSiteDir } from "@/lib/website/site-builder";
+import { getSiteDir, getOutputDir } from "@/lib/website/site-builder";
 
 /**
  * POST /api/websites/[id]/generate-image
@@ -68,6 +68,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     writeFileSync(join(imgDir, filename), buffer);
 
     const imagePath = `/sites/${website.slug}/images/${imgCategory}/${filename}`;
+
+    // Also copy to output dir so it's immediately accessible without rebuild
+    try {
+      const outputImgDir = join(getOutputDir(website.slug), "images", imgCategory);
+      mkdirSync(outputImgDir, { recursive: true });
+      writeFileSync(join(outputImgDir, filename), buffer);
+    } catch {}
 
     // Deduct credits
     await creditService.deductCredits({
