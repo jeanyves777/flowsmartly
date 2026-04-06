@@ -289,15 +289,45 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           console.log(`[UpdateData] Header.tsx update error:`, err);
         }
 
-        // Also update favicon in layout.tsx
+        // Also update Footer.tsx logo (same pattern — may use <Logo /> component)
+        const footerPath = join(siteDir, "src", "components", "Footer.tsx");
+        try {
+          let footerContent = readFileSync(footerPath, "utf-8");
+          if (footerContent.includes("<Logo") || footerContent.includes("Logo />") || footerContent.includes("Logo size")) {
+            footerContent = footerContent.replace(/import Logo from ['"]@\/components\/Logo['"];?\n?/g, "");
+            footerContent = footerContent.replace(/<Logo\s[^>]*\/>/g, `<img src="${escapeStr(data.logo)}" alt="Logo" className="h-10 w-auto" />`);
+            footerContent = footerContent.replace(/<Logo\s*\/>/g, `<img src="${escapeStr(data.logo)}" alt="Logo" className="h-10 w-auto" />`);
+          } else {
+            footerContent = footerContent.replace(
+              /(<img[^>]*alt=["']Logo["'][^>]*src=["'])[^"']*(["'])/i,
+              `$1${escapeStr(data.logo)}$2`
+            );
+            footerContent = footerContent.replace(
+              /(<img[^>]*src=["'])[^"']*(["'][^>]*alt=["']Logo["'])/i,
+              `$1${escapeStr(data.logo)}$2`
+            );
+          }
+          writeFileSync(footerPath, footerContent);
+          console.log(`[UpdateData] Updated Footer.tsx logo`);
+        } catch (err) {
+          console.log(`[UpdateData] Footer.tsx update error:`, err);
+        }
+
+        // Update favicon in layout.tsx — needs basePath for static export
         const layoutPath = join(siteDir, "src", "app", "layout.tsx");
         try {
           let layoutContent = readFileSync(layoutPath, "utf-8");
+          // Replace icon/favicon references
+          layoutContent = layoutContent.replace(
+            /icon:\s*['"][^'"]*['"]/,
+            `icon: '${escapeStr(data.logo)}'`
+          );
           layoutContent = layoutContent.replace(
             /href=["'][^"']*favicon[^"']*["']/g,
             `href="${escapeStr(data.logo)}"`
           );
           writeFileSync(layoutPath, layoutContent);
+          console.log(`[UpdateData] Updated layout.tsx favicon`);
         } catch {}
       }
 
