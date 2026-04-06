@@ -282,6 +282,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       console.log(`[UpdateData] Logo updated in Header, Footer, favicon`);
     }
 
+    // --- NavLinks + FooterLinks ---
+    try {
+      let content = readFileSync(dataPath, "utf-8");
+      if (data.navLinks) {
+        const navCode = data.navLinks.map((l: any) => `  { href: '${escapeStr(l.href || "")}', label: '${escapeStr(l.label || "")}' }`).join(",\n");
+        content = content.replace(/export const navLinks\s*=\s*\[[\s\S]*?\n\]/, `export const navLinks = [\n${navCode}\n]`);
+      }
+      if (data.footerLinks) {
+        const fCode = data.footerLinks.map((l: any) => `  { href: '${escapeStr(l.href || "")}', label: '${escapeStr(l.label || "")}' }`).join(",\n");
+        if (content.includes("export const footerLinks")) {
+          content = content.replace(/export const footerLinks\s*=\s*\[[\s\S]*?\n\]/, `export const footerLinks = [\n${fCode}\n]`);
+        } else {
+          content += `\nexport const footerLinks = [\n${fCode}\n]\n`;
+        }
+      }
+      writeFileSync(dataPath, content);
+    } catch {}
+
     console.log(`[UpdateData] Complete for ${website.slug}`);
     return NextResponse.json({ success: true });
   } catch (err) {

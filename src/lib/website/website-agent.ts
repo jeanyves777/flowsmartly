@@ -92,9 +92,10 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
    b. Write an ADAPTED version for THIS business — same quality, same animations, different content
 6. Write src/app/page.tsx (home page composing all sections)
 7. Write additional pages (about/page.tsx, services/page.tsx, contact/page.tsx) if requested
-8. Call build_site to build
-9. If errors, fix the files and rebuild
-10. Call finish to deploy
+8. Write src/app/not-found.tsx (custom 404 page with brand styling, link back to home)
+9. Call build_site to build
+10. If errors, fix the files and rebuild
+11. Call finish to deploy
 
 ## CRITICAL RULES:
 
@@ -124,14 +125,19 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - In data.ts, you MUST include:
   export const SITE_BASE = "{siteBasePath from brand identity}";
   export function siteUrl(path: string): string { return SITE_BASE + path; }
-- ALL internal navigation links MUST use siteUrl(): e.g. siteUrl("/contact"), siteUrl("/about"), siteUrl("/services")
-- navLinks in data.ts MUST use siteUrl() for href values
-- Header nav items MUST use siteUrl() for href
-- Footer links MUST use siteUrl() for href
-- CTA buttons linking to internal pages MUST use siteUrl()
+- ALL internal navigation links MUST use siteUrl()
 - NEVER write bare "/contact" or "/about" — ALWAYS siteUrl("/contact")
 - NEVER use Next.js <Link> component — use <a> tags with siteUrl() for static export
-- External links (https://, mailto:, tel:) stay unchanged — do NOT wrap them in siteUrl()
+- External links (https://, mailto:, tel:) stay unchanged
+
+### Navigation (header nav vs footer links):
+- In data.ts, create TWO link arrays:
+  1. navLinks — MAIN pages for the header nav (Home, About, Services, Team, Blog, Contact)
+  2. footerLinks — SECONDARY pages for footer only (FAQ, Gallery, Testimonials, etc.)
+- Header.tsx imports and renders navLinks
+- Footer.tsx imports BOTH navLinks and footerLinks, renders all of them in the Quick Links section
+- ALL links in both arrays MUST use siteUrl() for href values
+- EVERY page you create MUST appear in either navLinks or footerLinks — no orphan pages
 
 ### Technical:
 - Use Tailwind CSS v3 syntax (@tailwind base; @tailwind components; @tailwind utilities; in globals.css)
