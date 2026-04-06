@@ -81,6 +81,37 @@ export default nextConfig
   writeFileSync(join(siteDir, "src", "components", "ThemeProvider.tsx"), TEMPLATE_THEME_PROVIDER);
   writeFileSync(join(siteDir, "src", "components", "ThemeToggle.tsx"), TEMPLATE_THEME_TOGGLE);
 
+  // 404 and error pages (brand-neutral defaults — agent can overwrite with branded versions)
+  writeFileSync(join(siteDir, "src", "app", "not-found.tsx"), `"use client";
+
+export default function NotFound() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
+      <h1 className="text-6xl font-bold text-neutral-900 dark:text-white mb-4">404</h1>
+      <p className="text-xl text-neutral-600 dark:text-neutral-400 mb-8">Page not found</p>
+      <a href="/" className="px-6 py-3 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg font-medium hover:opacity-90 transition-opacity">
+        Go Home
+      </a>
+    </div>
+  );
+}
+`);
+
+  writeFileSync(join(siteDir, "src", "app", "error.tsx"), `"use client";
+
+export default function ErrorPage({ error, reset }: { error: Error; reset: () => void }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
+      <h1 className="text-4xl font-bold text-neutral-900 dark:text-white mb-4">Something went wrong</h1>
+      <p className="text-lg text-neutral-600 dark:text-neutral-400 mb-8">{error.message || "An unexpected error occurred"}</p>
+      <button onClick={reset} className="px-6 py-3 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg font-medium hover:opacity-90 transition-opacity">
+        Try Again
+      </button>
+    </div>
+  );
+}
+`);
+
   return siteDir;
 }
 
