@@ -282,6 +282,57 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       console.log(`[UpdateData] Logo updated in Header, Footer, favicon`);
     }
 
+    // --- Page images (replace SVG illustrations with uploaded images) ---
+    if (data.pageImages) {
+      for (const [pageSlug, imageUrl] of Object.entries(data.pageImages)) {
+        if (!imageUrl) continue;
+        // Localize if external
+        let imgPath = imageUrl as string;
+        if (imgPath.startsWith("http")) {
+          imgPath = await localizeImage(imgPath, siteDir, pageSlug, basePath);
+          data.pageImages[pageSlug] = imgPath;
+        }
+
+        // Find the component that renders this page's illustration
+        // Common patterns: About.tsx has ChurchBuilding/SVG, Services page has illustrations
+        const componentNames = ["About", "Services", "Team", "Gallery"];
+        const capitalSlug = pageSlug.charAt(0).toUpperCase() + pageSlug.slice(1);
+        const filesToCheck = [
+          join(siteDir, "src", "components", `${capitalSlug}.tsx`),
+          join(siteDir, "src", "app", pageSlug, "page.tsx"),
+        ];
+
+        for (const filePath of filesToCheck) {
+          try {
+            let fileContent = readFileSync(filePath, "utf-8");
+            // Replace SVG component references with img tag
+            // Pattern: <SomeIllustration /> or <ChurchBuilding /> etc
+            const svgComponentRegex = /<(?:ChurchBuilding|OfficeBuildingSVG|WorkersSVG|Illustration|SvgIllustration|[A-Z]\w*SVG|[A-Z]\w*Illustration)\s*\/>/g;
+            if (svgComponentRegex.test(fileContent)) {
+              fileContent = fileContent.replace(svgComponentRegex, `<img src="${escapeStr(imgPath)}" alt="${capitalSlug}" className="w-full h-full object-cover rounded-2xl" />`);
+              writeFileSync(filePath, fileContent);
+              console.log(`[UpdateData] Replaced SVG illustration in ${filePath} with ${imgPath}`);
+            }
+          } catch {}
+        }
+      }
+    }
+    if (data.aboutImage) {
+      // Also handle aboutImage specifically for backward compat
+      const aboutPath = join(siteDir, "src", "components", "About.tsx");
+      try {
+        let c = readFileSync(aboutPath, "utf-8");
+        const svgRegex = /<(?:ChurchBuilding|OfficeBuildingSVG|WorkersSVG|[A-Z]\w*SVG|[A-Z]\w*Illustration)\s*\/>/g;
+        if (svgRegex.test(c)) {
+          let imgPath = data.aboutImage;
+          if (imgPath.startsWith("http")) imgPath = await localizeImage(imgPath, siteDir, "about", basePath);
+          c = c.replace(svgRegex, `<img src="${escapeStr(imgPath)}" alt="About" className="w-full h-full object-cover rounded-2xl" />`);
+          writeFileSync(aboutPath, c);
+          console.log(`[UpdateData] Replaced About SVG with image`);
+        }
+      } catch {}
+    }
+
     // --- NavLinks + FooterLinks ---
     try {
       let content = readFileSync(dataPath, "utf-8");

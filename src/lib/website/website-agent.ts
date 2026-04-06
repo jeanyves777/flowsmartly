@@ -163,8 +163,15 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - Next.js basePath ONLY auto-prefixes /_next/ assets
 - All <img src="..."> paths MUST manually include the siteBasePath prefix
 - Example: src="/sites/my-business-abc/images/hero/banner.jpg" NOT src="/images/hero/banner.jpg"
-- The download_image tool returns paths WITHOUT the prefix — you must prepend siteBasePath yourself
+- The download_image tool returns paths WITH the siteBasePath prefix already included
 - This applies to: hero slides, service images, team photos, gallery, blog images, logo, favicon
+
+### Page Illustrations (IMPORTANT for editability):
+- For the About section and other pages that need illustrations, prefer using <img> tags with downloaded images
+- Do NOT create complex inline SVG illustration components (e.g. ChurchBuilding, OfficeBuildingSVG) — these cannot be edited by users
+- Instead, download a relevant image via download_image and use <img src="...">
+- If you must use SVG for decorative elements, name the component with "SVG" or "Illustration" suffix (e.g. ChurchBuildingSVG) so the editor can detect and replace them
+- Store page illustration paths in data.ts as: export const pageImages = { about: '/sites/.../images/about/illustration.jpg', ... }
 
 ### File Writing:
 - Write COMPLETE files — never partial content

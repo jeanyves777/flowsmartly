@@ -24,6 +24,8 @@ export interface SiteData {
   };
   heroImages?: string[];
   logo?: string;
+  aboutImage?: string;
+  pageImages?: Record<string, string>; // page-level images: { about: "/path", services: "/path" }
   services: Array<{
     id: string;
     title: string;

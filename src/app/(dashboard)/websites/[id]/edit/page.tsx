@@ -19,6 +19,8 @@ interface SiteData {
   company: Record<string, any>;
   heroImages?: string[];
   logo?: string;
+  aboutImage?: string;
+  pageImages?: Record<string, string>;
   services: Array<Record<string, any>>;
   stats: Array<{ label: string; value: number }>;
   team?: Array<Record<string, any>>;
@@ -269,6 +271,28 @@ export default function WebsiteEditPage() {
         <div className="space-y-6">
           <Section title="Logo">
             <ImagePicker label="Site Logo" value={data.logo} onChange={(v) => { update("logo", v); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "brand")} onAiGenerate={aiGenerateImage} compact square />
+          </Section>
+          <Section title="Page Images">
+            <p className="text-sm text-muted-foreground mb-3">Replace SVG illustrations or placeholder images on specific pages with your own photos.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {pages.filter((p) => p.slug && p.slug !== "contact").map((page) => (
+                <div key={page.slug}>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">{page.label} Page Image</label>
+                  <ImagePicker
+                    value={data.pageImages?.[page.slug] || data.aboutImage && page.slug === "about" ? (data.aboutImage || "") : (data.pageImages?.[page.slug] || "")}
+                    onChange={(v) => {
+                      const pi = { ...(data.pageImages || {}), [page.slug]: v };
+                      if (page.slug === "about") update("aboutImage", v);
+                      update("pageImages", pi);
+                    }}
+                    onBrowse={openPicker}
+                    onUpload={(f) => uploadImageToSite(f, page.slug)}
+                    onAiGenerate={aiGenerateImage}
+                    compact
+                  />
+                </div>
+              ))}
+            </div>
           </Section>
           <Section title="Hero Slideshow Images">
             <p className="text-sm text-muted-foreground mb-3">Add images for the hero section slideshow. Upload your own photos or pick from your media library.</p>
