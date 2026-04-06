@@ -24,6 +24,7 @@ import {
   ToggleLeft,
   ToggleRight,
   ExternalLink,
+  ShoppingBag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -682,89 +683,244 @@ function SettingsTab({
         </div>
       </div>
 
-      {/* Link to FlowShop Store */}
-      <div className="rounded-xl border bg-card p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold">Link to FlowShop Store</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {settings.storeId
-                ? "This domain is linked to your FlowShop store"
-                : "Connect this domain to your FlowShop store as a custom domain"}
-            </p>
-          </div>
-          {settings.storeId ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => updateSetting({ linkToStore: false })}
-              disabled={saving}
-            >
-              <Unlink className="h-4 w-4" />
-              Unlink
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              onClick={() => updateSetting({ linkToStore: true })}
-              disabled={saving}
-            >
-              <LinkIcon className="h-4 w-4" />
-              Link Store
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Link to Website */}
-      <div className="rounded-xl border bg-card p-5 space-y-3">
+      {/* Domain Assignment — main domain points to ONE target */}
+      <div className="rounded-xl border bg-card p-5 space-y-4">
         <div>
-          <h3 className="text-sm font-semibold">Link to Website</h3>
+          <h3 className="text-sm font-semibold">Domain Assignment</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Use this domain as a custom domain for one of your websites
+            Your main domain (<span className="font-mono">{domainName}</span>) can point to one destination.
+            Use a <span className="font-mono">shop.</span> subdomain for your store if you want both.
           </p>
         </div>
-        {linkedWebsite ? (
-          <div className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Globe className="h-4 w-4 text-brand-600" />
-              <span className="text-sm font-medium">{linkedWebsite.name}</span>
-              <span className="text-xs text-muted-foreground">({linkedWebsite.slug})</span>
+
+        {/* Main domain target */}
+        <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+          <p className="text-xs font-medium text-muted-foreground uppercase">{domainName} points to:</p>
+
+          {linkedWebsite ? (
+            <div className="flex items-center justify-between bg-background rounded-lg px-4 py-3 border">
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-brand-600" />
+                <span className="text-sm font-medium">{linkedWebsite.name}</span>
+                <span className="text-xs text-muted-foreground">(Website)</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => updateSetting({ linkToWebsite: null })}
+                disabled={saving}
+              >
+                <Unlink className="h-4 w-4" />
+                Unlink
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => updateSetting({ linkToWebsite: null })}
-              disabled={saving}
-            >
-              <Unlink className="h-4 w-4" />
-              Unlink
-            </Button>
-          </div>
-        ) : websites.length > 0 ? (
-          <div className="space-y-2">
-            {websites.filter((w) => !w.customDomain).map((website) => (
-              <div key={website.id} className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-2.5">
-                <div className="flex items-center gap-2">
-                  <Globe className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{website.name}</span>
-                </div>
+          ) : settings.storeId ? (
+            <div className="flex items-center justify-between bg-background rounded-lg px-4 py-3 border">
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-brand-600" />
+                <span className="text-sm font-medium">FlowShop Store</span>
+                <span className="text-xs text-muted-foreground">(Store)</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => updateSetting({ linkToStore: false })}
+                disabled={saving}
+              >
+                <Unlink className="h-4 w-4" />
+                Unlink
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Not linked to anything yet. Choose a destination:</p>
+              <div className="flex flex-wrap gap-2">
+                {websites.filter((w) => !w.customDomain).map((website) => (
+                  <Button
+                    key={website.id}
+                    size="sm"
+                    variant="outline"
+                    onClick={() => updateSetting({ linkToWebsite: website.id })}
+                    disabled={saving}
+                  >
+                    <Globe className="h-3.5 w-3.5" />
+                    {website.name}
+                  </Button>
+                ))}
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => updateSetting({ linkToWebsite: website.id })}
+                  onClick={() => updateSetting({ linkToStore: true })}
                   disabled={saving}
                 >
                   <LinkIcon className="h-3.5 w-3.5" />
-                  Link
+                  FlowShop Store
                 </Button>
               </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">No websites available. Create a website first to link this domain.</p>
-        )}
+              {websites.length === 0 && (
+                <p className="text-[11px] text-muted-foreground">No websites yet. You can link to your FlowShop store, or create a website first.</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Shop subdomain for store */}
+        <ShopSubdomainSection
+          domainId={domainId}
+          domainName={domainName}
+          hasStoreOnMain={!!settings.storeId && !linkedWebsite}
+          saving={saving}
+          onUpdate={onUpdate}
+        />
       </div>
     </motion.div>
+  );
+}
+
+// ── Shop Subdomain Section ──
+
+function ShopSubdomainSection({
+  domainId,
+  domainName,
+  hasStoreOnMain,
+  saving: parentSaving,
+  onUpdate,
+}: {
+  domainId: string;
+  domainName: string;
+  hasStoreOnMain: boolean;
+  saving: boolean;
+  onUpdate: () => void;
+}) {
+  const { toast } = useToast();
+  const [shopSubdomain, setShopSubdomain] = useState<boolean | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [toggling, setToggling] = useState(false);
+
+  const shopHost = `shop.${domainName}`;
+
+  // Check if shop subdomain CNAME already exists
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/domains/${domainId}/dns`);
+        const data = await res.json();
+        if (data.success) {
+          const records = data.data?.records || [];
+          const hasShop = records.some(
+            (r: DnsRecord) => r.type === "CNAME" && r.name === shopHost
+          );
+          setShopSubdomain(hasShop);
+        }
+      } catch { /* ignore */ }
+      setChecking(false);
+    })();
+  }, [domainId, shopHost]);
+
+  const toggleShopSubdomain = async () => {
+    setToggling(true);
+    try {
+      if (shopSubdomain) {
+        // Remove shop subdomain — find and delete the CNAME record
+        const res = await fetch(`/api/domains/${domainId}/dns`);
+        const data = await res.json();
+        const records = data.data?.records || [];
+        const shopRecord = records.find(
+          (r: DnsRecord) => r.type === "CNAME" && r.name === shopHost
+        );
+        if (shopRecord) {
+          await fetch(`/api/domains/${domainId}/dns`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ recordId: shopRecord.id }),
+          });
+        }
+        // Unlink store from this domain
+        await fetch(`/api/domains/${domainId}/settings`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ linkToStore: false }),
+        });
+        setShopSubdomain(false);
+        toast({ title: `${shopHost} subdomain removed` });
+      } else {
+        // Create shop subdomain CNAME pointing to main domain
+        const res = await fetch(`/api/domains/${domainId}/dns`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "CNAME",
+            name: shopHost,
+            content: domainName,
+            proxied: true,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          // Link store to this domain
+          await fetch(`/api/domains/${domainId}/settings`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ linkToStore: true }),
+          });
+          setShopSubdomain(true);
+          toast({ title: `${shopHost} subdomain created for your store!` });
+        } else {
+          toast({ title: data.error?.message || "Failed to create subdomain", variant: "destructive" });
+        }
+      }
+      onUpdate();
+    } catch {
+      toast({ title: "Failed to update shop subdomain", variant: "destructive" });
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  if (checking) return null;
+
+  // Don't show if store is already on the main domain
+  if (hasStoreOnMain) return null;
+
+  return (
+    <div className="rounded-lg border bg-muted/30 p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-lg bg-violet-100 dark:bg-violet-950/30 flex items-center justify-center">
+            <ShoppingBag className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">Shop Subdomain</p>
+            <p className="text-xs text-muted-foreground">
+              {shopSubdomain ? (
+                <><span className="font-mono text-brand-600">{shopHost}</span> is active for your store</>
+              ) : (
+                <>Create <span className="font-mono">{shopHost}</span> for your FlowShop store while your main domain serves your website</>
+              )}
+            </p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant={shopSubdomain ? "outline" : "default"}
+          onClick={toggleShopSubdomain}
+          disabled={toggling || parentSaving}
+        >
+          {toggling ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : shopSubdomain ? (
+            <>
+              <Unlink className="h-3.5 w-3.5" />
+              Remove
+            </>
+          ) : (
+            <>
+              <Plus className="h-3.5 w-3.5" />
+              Enable
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
   );
 }
