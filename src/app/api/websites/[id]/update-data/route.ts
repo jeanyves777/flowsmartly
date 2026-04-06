@@ -12,18 +12,40 @@ async function localizeImage(url: string, siteDir: string, category: string): Pr
   if (url.startsWith("/images/")) return url;
   // External URL (S3 presigned or any http URL) — download it
   if (url.startsWith("http")) {
-    console.log(`[LocalizeImage] Downloading: ${url.substring(0, 80)}...`);
     try {
-      const res = await fetch(url);
-      if (!res.ok) return url;
+      // Strip presigned query params to get clean S3 URL for download
+      let downloadUrl = url;
+      if (url.includes("X-Amz-")) {
+        // Extract the base S3 URL without presigned params — bucket has public read
+        const cleanUrl = url.split("?")[0];
+        console.log(`[LocalizeImage] Using clean S3 URL: ${cleanUrl}`);
+        downloadUrl = cleanUrl;
+      }
+
+      console.log(`[LocalizeImage] Downloading: ${downloadUrl.substring(0, 100)}...`);
+      const res = await fetch(downloadUrl);
+      if (!res.ok) {
+        console.error(`[LocalizeImage] Download failed: ${res.status} ${res.statusText}`);
+        return url;
+      }
       const buffer = Buffer.from(await res.arrayBuffer());
-      const ext = url.match(/\.(png|jpg|jpeg|webp|gif|svg)/i)?.[1] || "jpg";
+      if (buffer.length < 100) {
+        console.error(`[LocalizeImage] Downloaded file too small: ${buffer.length} bytes`);
+        return url;
+      }
+      // Extract extension from the clean URL path
+      const pathPart = downloadUrl.split("?")[0];
+      const ext = pathPart.match(/\.(png|jpg|jpeg|webp|gif|svg)$/i)?.[1] || "jpg";
       const name = `${category}-${Date.now()}.${ext}`;
       const dir = join(siteDir, "public", "images", category);
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, name), buffer);
+      console.log(`[LocalizeImage] Saved: /images/${category}/${name} (${buffer.length} bytes)`);
       return `/images/${category}/${name}`;
-    } catch { return url; }
+    } catch (err: any) {
+      console.error(`[LocalizeImage] Error:`, err.message);
+      return url;
+    }
   }
   return url;
 }
