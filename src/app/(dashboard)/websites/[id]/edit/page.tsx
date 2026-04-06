@@ -8,6 +8,7 @@ import {
   Phone, Mail, MapPin, Star, Users, MessageSquare, HelpCircle,
 } from "lucide-react";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 
 interface Website {
   id: string; name: string; slug: string; status: string; buildStatus: string;
@@ -41,6 +42,8 @@ export default function WebsiteEditPage() {
   const [changed, setChanged] = useState(false);
   const [pages, setPages] = useState<Array<{ slug: string; label: string }>>([]);
   const [previewPage, setPreviewPage] = useState("");
+  const [buildStep, setBuildStep] = useState("");
+  const [buildResult, setBuildResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerCallback, setPickerCallback] = useState<((url: string) => void) | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -58,34 +61,60 @@ export default function WebsiteEditPage() {
   const save = async () => {
     if (!data) return;
     setSaving(true);
+    setBuildResult(null);
+    setBuildStep("Saving your changes...");
     await fetch(`/api/websites/${id}/update-data`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data }) });
     setChanged(false);
     setSaving(false);
+    setBuildStep("Changes saved. Starting rebuild...");
     rebuild();
   };
 
   const rebuild = async () => {
     setRebuilding(true);
+    setBuildResult(null);
+    setBuildStep("Syncing brand data...");
     await fetch(`/api/websites/${id}/rebuild`, { method: "POST" });
-    poll();
+    setBuildStep("Installing dependencies & building site...");
+    poll("rebuild");
   };
 
   const fixLinks = async () => {
     setFixingLinks(true);
+    setBuildResult(null);
+    setBuildStep("Fixing internal links...");
     await fetch(`/api/websites/${id}/fix-links`, { method: "POST" });
-    poll();
+    setBuildStep("Rebuilding site with fixed links...");
+    poll("fix-links");
   };
 
-  const poll = () => {
+  const poll = (action: string) => {
+    let elapsed = 0;
     const iv = setInterval(async () => {
+      elapsed += 3;
       const res = await fetch(`/api/websites/${id}`);
       const d = await res.json();
       setWebsite(d.website);
+
+      if (elapsed < 15) setBuildStep(action === "fix-links" ? "Rewriting links and rebuilding..." : "Building your website...");
+      else if (elapsed < 30) setBuildStep("Compiling pages...");
+      else if (elapsed < 60) setBuildStep("Generating static files...");
+      else setBuildStep("Almost done...");
+
       if (d.website.buildStatus !== "building") {
         clearInterval(iv);
         setRebuilding(false);
         setFixingLinks(false);
-        if (iframeRef.current) iframeRef.current.src = iframeRef.current.src;
+        setBuildStep("");
+
+        if (d.website.buildStatus === "built") {
+          setBuildResult({ type: "success", message: "Site updated successfully!" });
+          if (iframeRef.current) iframeRef.current.src = iframeRef.current.src;
+          // Auto-dismiss after 5s
+          setTimeout(() => setBuildResult(null), 5000);
+        } else {
+          setBuildResult({ type: "error", message: d.website.lastBuildError?.substring(0, 200) || "Build failed. Check Build tab for details." });
+        }
       }
     }, 3000);
   };
@@ -183,6 +212,26 @@ export default function WebsiteEditPage() {
           </button>
         ))}
       </div>
+
+      {/* Build Progress Overlay */}
+      {(rebuilding || fixingLinks || saving) && buildStep && (
+        <div className="mb-4">
+          <AIGenerationLoader
+            currentStep={buildStep}
+            subtitle="This usually takes 30-60 seconds"
+            compact
+          />
+        </div>
+      )}
+
+      {/* Build Result Toast */}
+      {buildResult && (
+        <div className={`mb-4 flex items-center gap-3 px-4 py-3 rounded-xl border ${buildResult.type === "success" ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-300" : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300"}`}>
+          {buildResult.type === "success" ? <Check className="w-5 h-5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 flex-shrink-0" />}
+          <p className="text-sm font-medium flex-1">{buildResult.message}</p>
+          <button onClick={() => setBuildResult(null)} className="p-1 hover:opacity-70"><X className="w-4 h-4" /></button>
+        </div>
+      )}
 
       {/* Preview */}
       {activeTab === "preview" && (
