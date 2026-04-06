@@ -134,16 +134,15 @@ export default function DomainDetailPage() {
     try {
       const res = await fetch("/api/websites");
       const data = await res.json();
-      if (data.success) {
-        setWebsites(
-          (data.data?.websites || data.websites || []).map((w: any) => ({
-            id: w.id,
-            name: w.name || w.slug,
-            slug: w.slug,
-            customDomain: w.customDomain,
-          }))
-        );
-      }
+      const list = data.websites || data.data?.websites || [];
+      setWebsites(
+        list.map((w: any) => ({
+          id: w.id,
+          name: w.name || w.slug,
+          slug: w.slug,
+          customDomain: w.customDomain,
+        }))
+      );
     } catch { /* non-critical */ }
   }, []);
 
