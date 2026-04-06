@@ -164,42 +164,57 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
   const { storeId, userId, domainName, tld, isFree } = params;
   const fullDomain = `${domainName}.${tld}`;
 
-  // Step 1: Validate availability
+  // Step 1: Validate availability (try OpenSRS, fall back to RDAP)
   let isAvailable = false;
   try {
-    const lookupResults = await searchDomain(domainName, [tld]);
-    const match = lookupResults.find((r) => r.tld === tld);
-    isAvailable = match?.available ?? false;
-  } catch (error) {
-    console.error("Domain availability check failed:", error);
-    throw new Error(
-      `Could not verify domain availability for ${fullDomain}: ${error instanceof Error ? error.message : String(error)}`
-    );
+    if (isOpenSrsAvailable()) {
+      const lookupResults = await searchDomain(domainName, [tld]);
+      const match = lookupResults.find((r) => r.tld === tld);
+      isAvailable = match?.available ?? false;
+    } else {
+      throw new Error("OpenSRS not available");
+    }
+  } catch {
+    // Fallback to RDAP for availability check
+    try {
+      const rdapResults = await searchDomainsRdap(domainName, [tld]);
+      const match = rdapResults.find((r) => r.tld === tld);
+      isAvailable = match?.available ?? false;
+    } catch (rdapError) {
+      console.error("Both OpenSRS and RDAP availability checks failed:", rdapError);
+      // If we can't verify, allow the purchase attempt — OpenSRS will reject if taken
+      isAvailable = true;
+    }
   }
 
   if (!isAvailable) {
     throw new Error(`Domain ${fullDomain} is not available for registration`);
   }
 
-  // Step 2: Register domain via OpenSRS
+  // Step 2: Register domain via OpenSRS (non-fatal — domain record is still created)
   const { regUsername, regPassword } = generateRegCredentials(storeId || "standalone", userId);
   let orderId: string | null = null;
+  let registrarStatus = "pending";
 
-  try {
-    const regResult = await registerDomain({
-      domain: fullDomain,
-      period: 1,
-      regUsername,
-      regPassword,
-      nameservers: ["ns1.cloudflare.com", "ns2.cloudflare.com"],
-      whoisPrivacy: true,
-    });
-    orderId = regResult.orderId;
-  } catch (error) {
-    console.error("Domain registration failed:", error);
-    throw new Error(
-      `Failed to register ${fullDomain}: ${error instanceof Error ? error.message : String(error)}`
-    );
+  if (isOpenSrsAvailable()) {
+    try {
+      const regResult = await registerDomain({
+        domain: fullDomain,
+        period: 1,
+        regUsername,
+        regPassword,
+        nameservers: ["ns1.cloudflare.com", "ns2.cloudflare.com"],
+        whoisPrivacy: true,
+      });
+      orderId = regResult.orderId;
+      registrarStatus = "active";
+    } catch (error) {
+      console.error("OpenSRS registration failed (will still create DNS + DB record):", error);
+      registrarStatus = "registration_failed";
+    }
+  } else {
+    console.warn("OpenSRS not configured — skipping domain registration, creating DNS + DB record only");
+    registrarStatus = "pending_registration";
   }
 
   // Step 3: Create Cloudflare zone
@@ -247,7 +262,7 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
       domainName: fullDomain,
       tld,
       registrarOrderId: orderId,
-      registrarStatus: "active",
+      registrarStatus,
       cloudflareZoneId,
       sslStatus: cloudflareZoneId ? "pending" : "pending",
       isFree,

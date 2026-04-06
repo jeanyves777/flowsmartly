@@ -191,10 +191,37 @@ export function DomainsPageContent() {
   };
 
   const handlePaymentComplete = () => {
+    const domainName = paymentPending?.domainName;
     setPaymentPending(null);
     setActiveView("list");
-    loadDomains();
-    toast({ title: "Payment confirmed! Domain is being registered..." });
+    toast({ title: "Payment confirmed! Registering your domain..." });
+
+    // Poll for the domain to appear (webhook processes in background)
+    let attempts = 0;
+    const maxAttempts = 15;
+    const pollInterval = setInterval(async () => {
+      attempts++;
+      try {
+        const res = await fetch("/api/domains");
+        const data = await res.json();
+        const domainList = data.data?.domains || [];
+        const found = domainList.find((d: { domainName: string }) => d.domainName === domainName);
+        if (found || attempts >= maxAttempts) {
+          clearInterval(pollInterval);
+          setDomains(domainList);
+          if (data.data?.isPro !== undefined) {
+            setStoreInfo({ isPro: data.data.isPro, freeDomainClaimed: data.data.freeDomainClaimed ?? false });
+          }
+          if (found) {
+            toast({ title: `${domainName} registered successfully!` });
+          } else {
+            toast({ title: "Domain registration is still processing. It should appear shortly.", variant: "destructive" });
+          }
+        }
+      } catch {
+        if (attempts >= maxAttempts) clearInterval(pollInterval);
+      }
+    }, 3000);
   };
 
   const handleConnect = async () => {
