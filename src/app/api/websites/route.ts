@@ -54,6 +54,15 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
+    // Limit: 1 website per account
+    const existingCount = await prisma.website.count({ where: { userId: session.userId, deletedAt: null } });
+    if (existingCount >= 1) {
+      return NextResponse.json({
+        error: "You can only have one website per account. Delete your existing site to create a new one.",
+        code: "LIMIT_REACHED",
+      }, { status: 403 });
+    }
+
     const body = await request.json();
     const { name, brandKitId, theme, navigation, settings } = body;
 

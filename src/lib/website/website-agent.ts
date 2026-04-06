@@ -181,7 +181,14 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - DO NOT write package.json, tsconfig.json, postcss.config.mjs, or tailwind.config.ts — these are already provided
 - DO NOT write next.config.ts — already provided
 - DO NOT write ThemeProvider.tsx or ThemeToggle.tsx — already provided as templates
-- DO NOT write a Logo.tsx component — use the real brand logo image instead`;
+- DO NOT write Analytics.tsx or CookieConsent.tsx — already provided as templates
+- DO NOT write privacy-policy, cookie-policy, or terms pages — already provided as templates
+- DO NOT write a Logo.tsx component — use the real brand logo image instead
+- In layout.tsx, MUST import and render <Analytics /> and <CookieConsent /> components:
+  import Analytics from '@/components/Analytics'
+  import CookieConsent from '@/components/CookieConsent'
+  Then add <Analytics /> and <CookieConsent /> inside the body
+- footerLinks MUST include privacy-policy, cookie-policy, and terms pages`;
 
 // --- Tool Execution ---
 

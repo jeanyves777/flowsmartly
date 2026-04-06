@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+
+// CORS headers added to existing OPTIONS handler at bottom of file
 import { z } from "zod";
 import {
   getOrCreateVisitor,

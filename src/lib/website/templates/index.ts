@@ -55,6 +55,91 @@ export const TEMPLATE_TSCONFIG = `{
 // next.config.ts is generated dynamically per site (needs basePath with slug)
 // See site-builder.ts initSiteDir()
 
+export function getTrackingScript(websiteId: string, apiBaseUrl: string): string {
+  return `"use client";
+
+import { useEffect } from "react";
+import { usePathname } from "next/navigation";
+
+export default function Analytics() {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const consent = localStorage.getItem("cookie-consent");
+    if (consent === "declined") return;
+
+    const data = {
+      type: "pageview",
+      websiteId: "${websiteId}",
+      path: pathname || window.location.pathname,
+      title: document.title,
+      referrer: document.referrer,
+      userAgent: navigator.userAgent,
+      screenWidth: window.screen.width,
+      screenHeight: window.screen.height,
+      language: navigator.language,
+      url: window.location.href,
+    };
+
+    fetch("${apiBaseUrl}/api/analytics/collect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      mode: "cors",
+    }).catch(() => {});
+  }, [pathname]);
+
+  return null;
+}
+`;
+}
+
+export const TEMPLATE_COOKIE_CONSENT = `"use client";
+
+import { useState, useEffect } from "react";
+
+export default function CookieConsent() {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const consent = localStorage.getItem("cookie-consent");
+    if (!consent) setShow(true);
+  }, []);
+
+  const accept = () => {
+    localStorage.setItem("cookie-consent", "accepted");
+    setShow(false);
+  };
+
+  const decline = () => {
+    localStorage.setItem("cookie-consent", "declined");
+    setShow(false);
+  };
+
+  if (!show) return null;
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-700 shadow-lg">
+      <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          We use cookies to improve your experience and analyze site traffic. By continuing, you agree to our{" "}
+          <a href="cookie-policy" className="underline hover:text-neutral-900 dark:hover:text-white">Cookie Policy</a>.
+        </p>
+        <div className="flex gap-2 flex-shrink-0">
+          <button onClick={decline} className="px-4 py-2 text-sm border border-neutral-300 dark:border-neutral-600 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800">
+            Decline
+          </button>
+          <button onClick={accept} className="px-4 py-2 text-sm bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg hover:opacity-90">
+            Accept
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+
 export const TEMPLATE_POSTCSS_CONFIG = `/** @type {import('postcss-load-config').Config} */
 const config = {
   plugins: {

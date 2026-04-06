@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Globe, Edit3, Trash2, Eye, ExternalLink, RefreshCw, Loader2, AlertCircle, Check } from "lucide-react";
+import { Plus, Globe, Edit3, Trash2, Eye, ExternalLink, RefreshCw, Loader2, AlertCircle, Check, BarChart3 } from "lucide-react";
 
 interface Website {
   id: string;
@@ -58,10 +58,12 @@ export default function WebsitesPage() {
           <h1 className="text-2xl font-bold">Website Builder</h1>
           <p className="text-muted-foreground text-sm mt-1">Build professional websites with AI — real Next.js sites with animations</p>
         </div>
-        <button onClick={() => router.push("/websites/create")} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-all">
-          <Plus className="w-4 h-4" />
-          Create Website
-        </button>
+        {websites.length === 0 && (
+          <button onClick={() => router.push("/websites/create")} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-all">
+            <Plus className="w-4 h-4" />
+            Create Website
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -101,8 +103,11 @@ export default function WebsitesPage() {
                   <button onClick={() => router.push(`/websites/${site.id}/edit`)} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-all">
                     <Edit3 className="w-3.5 h-3.5" /> Edit
                   </button>
+                  <button onClick={() => router.push(`/websites/${site.id}/analytics`)} className="px-3 py-1.5 border border-border rounded-md hover:bg-muted transition-colors" title="Analytics">
+                    <BarChart3 className="w-3.5 h-3.5" />
+                  </button>
                   {site.buildStatus === "built" && (
-                    <a href={`/sites/${site.slug}`} target="_blank" className="px-3 py-1.5 border border-border rounded-md hover:bg-muted transition-colors">
+                    <a href={`/sites/${site.slug}/`} target="_blank" className="px-3 py-1.5 border border-border rounded-md hover:bg-muted transition-colors" title="View Site">
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   )}
