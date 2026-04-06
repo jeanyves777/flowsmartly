@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { purchaseDomain } from "@/lib/domains/manager";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -98,7 +99,36 @@ async function handleCheckoutCompleted(
 async function handlePaymentSucceeded(
   paymentIntent: Stripe.PaymentIntent
 ) {
-  const orderId = paymentIntent.metadata?.orderId;
+  const { type, orderId, storeId, userId, domainName, tld, sld } = paymentIntent.metadata ?? {};
+
+  // ── Domain purchase ──
+  if (type === "domain_purchase" && storeId && userId && sld && tld) {
+    try {
+      // Check if domain was already registered (idempotency)
+      const existing = await prisma.storeDomain.findUnique({
+        where: { domainName: domainName || `${sld}.${tld}` },
+      });
+      if (existing) {
+        console.log(`Domain ${domainName} already registered, skipping duplicate webhook`);
+        return;
+      }
+
+      const result = await purchaseDomain({
+        storeId,
+        userId,
+        domainName: sld,
+        tld,
+        isFree: false,
+      });
+      console.log(`Domain ${result.domainName} registered after payment ${paymentIntent.id}`);
+    } catch (error) {
+      console.error(`Failed to register domain ${domainName} after payment:`, error);
+      // TODO: Send admin alert — payment succeeded but domain registration failed
+    }
+    return;
+  }
+
+  // ── Order payment ──
   if (!orderId) return;
 
   await prisma.order.update({

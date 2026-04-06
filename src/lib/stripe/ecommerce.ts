@@ -208,10 +208,15 @@ export async function createDomainPaymentIntent(params: {
   customerId: string;
   domainName: string;
   amountCents: number;
+  storeId: string;
+  tld: string;
 }): Promise<{ clientSecret: string; paymentIntentId: string }> {
   if (!stripe) {
     throw new Error("Stripe is not configured.");
   }
+
+  // Extract SLD from full domain (e.g. "example.com" -> "example")
+  const sld = params.domainName.replace(`.${params.tld}`, "");
 
   const paymentIntent = await stripe.paymentIntents.create({
     amount: params.amountCents,
@@ -226,6 +231,9 @@ export async function createDomainPaymentIntent(params: {
       type: "domain_purchase",
       userId: params.userId,
       domainName: params.domainName,
+      storeId: params.storeId,
+      tld: params.tld,
+      sld,
     },
   });
 

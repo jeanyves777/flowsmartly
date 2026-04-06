@@ -7,7 +7,7 @@
 
 const CF_BASE = "https://api.cloudflare.com/client/v4";
 const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || "";
-const SERVER_IP = "187.77.29.88";
+const SERVER_IP = process.env.DOMAIN_SERVER_IP || "187.77.29.88";
 
 const MAX_RETRIES = 2;
 const INITIAL_BACKOFF_MS = 1000;

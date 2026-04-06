@@ -16,16 +16,16 @@ export async function GET(_request: NextRequest) {
       );
     }
 
-    // Find user's store
+    // Find user's store with plan info
     const store = await prisma.store.findUnique({
       where: { userId: session.userId },
-      select: { id: true },
+      select: { id: true, ecomPlan: true, freeDomainClaimed: true },
     });
 
     if (!store) {
       return NextResponse.json({
         success: true,
-        data: { domains: [] },
+        data: { domains: [], isPro: false, freeDomainClaimed: false },
       });
     }
 
@@ -45,6 +45,9 @@ export async function GET(_request: NextRequest) {
         isFree: true,
         isPrimary: true,
         isConnected: true,
+        autoRenew: true,
+        whoisPrivacy: true,
+        nameservers: true,
         purchasePriceCents: true,
         renewalPriceCents: true,
         expiresAt: true,
@@ -54,7 +57,11 @@ export async function GET(_request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: { domains },
+      data: {
+        domains,
+        isPro: store.ecomPlan === "pro",
+        freeDomainClaimed: store.freeDomainClaimed,
+      },
     });
   } catch (error) {
     console.error("Domain list error:", error);

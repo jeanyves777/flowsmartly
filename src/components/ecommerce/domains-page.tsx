@@ -19,12 +19,20 @@ import {
   Clock,
   Copy,
   Server,
+  CreditCard,
+  Info,
+  ArrowRight,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { DomainSearch } from "@/components/ecommerce/domain-search";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
 
 interface StoreDomain {
   id: string;
@@ -64,6 +72,18 @@ export function DomainsPageContent() {
   const [connectDomain, setConnectDomain] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
+  const [connectionResult, setConnectionResult] = useState<{
+    domainName: string;
+    nameservers: string[];
+  } | null>(null);
+  const [paymentPending, setPaymentPending] = useState<{
+    clientSecret: string;
+    domainName: string;
+  } | null>(null);
+  const [storeInfo, setStoreInfo] = useState<{ isPro: boolean; freeDomainClaimed: boolean }>({
+    isPro: false,
+    freeDomainClaimed: false,
+  });
 
   const loadDomains = useCallback(async () => {
     try {
@@ -71,6 +91,12 @@ export function DomainsPageContent() {
       const data = await res.json();
       if (data.success) {
         setDomains(data.data?.domains || []);
+        if (data.data?.isPro !== undefined) {
+          setStoreInfo({
+            isPro: data.data.isPro,
+            freeDomainClaimed: data.data.freeDomainClaimed ?? false,
+          });
+        }
       }
     } catch {
       toast({ title: "Failed to load domains", variant: "destructive" });
@@ -142,9 +168,18 @@ export function DomainsPageContent() {
       });
       const data = await res.json();
       if (data.success) {
-        toast({ title: `${domain} registered successfully!` });
-        setActiveView("list");
-        loadDomains();
+        if (data.data?.clientSecret) {
+          // Paid domain: show payment form
+          setPaymentPending({
+            clientSecret: data.data.clientSecret,
+            domainName: data.data.domainName,
+          });
+        } else {
+          // Free domain: registered immediately
+          toast({ title: `${domain} registered successfully!` });
+          setActiveView("list");
+          loadDomains();
+        }
       } else {
         toast({ title: data.error?.message || "Purchase failed", variant: "destructive" });
       }
@@ -153,6 +188,13 @@ export function DomainsPageContent() {
     } finally {
       setPurchasing(false);
     }
+  };
+
+  const handlePaymentComplete = () => {
+    setPaymentPending(null);
+    setActiveView("list");
+    loadDomains();
+    toast({ title: "Payment confirmed! Domain is being registered..." });
   };
 
   const handleConnect = async () => {
@@ -170,9 +212,11 @@ export function DomainsPageContent() {
       });
       const data = await res.json();
       if (data.success) {
-        toast({ title: "Domain connected! Update your nameservers." });
         setConnectDomain("");
-        setActiveView("list");
+        setConnectionResult({
+          domainName: domain,
+          nameservers: data.data?.nameservers || [],
+        });
         loadDomains();
       } else {
         toast({ title: data.error?.message || "Connection failed", variant: "destructive" });
@@ -271,8 +315,8 @@ export function DomainsPageContent() {
               </p>
               <DomainSearch
                 onSelect={handlePurchase}
-                isPro={false}
-                freeDomainClaimed={false}
+                isPro={storeInfo.isPro}
+                freeDomainClaimed={storeInfo.freeDomainClaimed}
               />
               {purchasing && (
                 <div className="flex items-center gap-2 mt-4 text-sm text-muted-foreground">
@@ -280,6 +324,44 @@ export function DomainsPageContent() {
                   Registering domain...
                 </div>
               )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Domain Payment Modal */}
+      <AnimatePresence>
+        {paymentPending && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="rounded-xl border bg-card p-6">
+              <div className="flex items-center gap-2 mb-1">
+                <CreditCard className="h-5 w-5 text-brand-600" />
+                <h2 className="text-lg font-semibold">Complete Payment</h2>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Pay for <span className="font-medium">{paymentPending.domainName}</span> to complete registration.
+              </p>
+              <Elements
+                stripe={stripePromise}
+                options={{
+                  clientSecret: paymentPending.clientSecret,
+                  appearance: {
+                    theme: "stripe",
+                    variables: { colorPrimary: "#6366f1", borderRadius: "8px" },
+                  },
+                }}
+              >
+                <DomainPaymentForm
+                  domainName={paymentPending.domainName}
+                  onSuccess={handlePaymentComplete}
+                  onCancel={() => setPaymentPending(null)}
+                />
+              </Elements>
             </div>
           </motion.div>
         )}
@@ -294,23 +376,149 @@ export function DomainsPageContent() {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="rounded-xl border bg-card p-6">
-              <h2 className="text-lg font-semibold mb-1">Connect Your Domain</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Already own a domain? Connect it to your FlowSmartly store by updating your nameservers.
-              </p>
-              <div className="flex gap-3">
-                <Input
-                  value={connectDomain}
-                  onChange={(e) => setConnectDomain(e.target.value)}
-                  placeholder="Enter your domain (e.g. mybrand.com)"
-                  onKeyDown={(e) => e.key === "Enter" && handleConnect()}
-                />
-                <Button onClick={handleConnect} disabled={connecting || !connectDomain.trim()}>
-                  {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  Connect
-                </Button>
+            <div className="rounded-xl border bg-card p-6 space-y-5">
+              <div>
+                <h2 className="text-lg font-semibold mb-1">Connect Your Domain</h2>
+                <p className="text-sm text-muted-foreground">
+                  Already own a domain? Connect it to your FlowSmartly store in 3 simple steps.
+                </p>
               </div>
+
+              {/* Step-by-step guide */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-lg border bg-muted/30 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="flex items-center justify-center h-6 w-6 rounded-full bg-brand-100 dark:bg-brand-950/30 text-brand-700 dark:text-brand-400 text-xs font-bold">1</span>
+                    <h3 className="text-sm font-semibold">Enter Domain</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Type the domain you own below (e.g. mybrand.com). We will set up DNS records automatically.
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="flex items-center justify-center h-6 w-6 rounded-full bg-brand-100 dark:bg-brand-950/30 text-brand-700 dark:text-brand-400 text-xs font-bold">2</span>
+                    <h3 className="text-sm font-semibold">Update Nameservers</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Log in to your registrar (GoDaddy, Namecheap, Google Domains, etc.) and replace nameservers with the ones we provide.
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="flex items-center justify-center h-6 w-6 rounded-full bg-brand-100 dark:bg-brand-950/30 text-brand-700 dark:text-brand-400 text-xs font-bold">3</span>
+                    <h3 className="text-sm font-semibold">Wait for SSL</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    DNS propagation takes up to 24-48 hours. SSL is provisioned automatically once nameservers are active.
+                  </p>
+                </div>
+              </div>
+
+              {/* Connection form */}
+              {!connectionResult ? (
+                <div className="flex gap-3">
+                  <Input
+                    value={connectDomain}
+                    onChange={(e) => setConnectDomain(e.target.value)}
+                    placeholder="Enter your domain (e.g. mybrand.com)"
+                    onKeyDown={(e) => e.key === "Enter" && handleConnect()}
+                  />
+                  <Button onClick={handleConnect} disabled={connecting || !connectDomain.trim()}>
+                    {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                    Connect
+                  </Button>
+                </div>
+              ) : (
+                /* Post-connection: Nameserver instructions */
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                      <h3 className="font-semibold text-emerald-800 dark:text-emerald-300">
+                        {connectionResult.domainName} connected!
+                      </h3>
+                    </div>
+                    <p className="text-sm text-emerald-700 dark:text-emerald-400 mb-3">
+                      Now update your nameservers at your domain registrar to complete the setup.
+                    </p>
+
+                    {/* Nameserver list */}
+                    <div className="rounded-md bg-white dark:bg-zinc-900 border p-3 space-y-2">
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                        Set your nameservers to:
+                      </p>
+                      {connectionResult.nameservers.map((ns, i) => (
+                        <div key={i} className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <Server className="h-3.5 w-3.5 text-muted-foreground" />
+                            <code className="text-sm font-mono font-medium">{ns}</code>
+                          </div>
+                          <button
+                            onClick={() => copyToClipboard(ns)}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Registrar-specific help */}
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                      <h3 className="text-sm font-semibold">How to update nameservers at popular registrars</h3>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-start gap-2">
+                        <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        <span><span className="font-medium text-foreground">GoDaddy:</span> My Products {"->"} DNS {"->"} Nameservers {"->"} Change</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        <span><span className="font-medium text-foreground">Namecheap:</span> Domain List {"->"} Manage {"->"} Nameservers {"->"} Custom DNS</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        <span><span className="font-medium text-foreground">Google Domains:</span> DNS {"->"} Custom name servers {"->"} Manage</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        <span><span className="font-medium text-foreground">Cloudflare:</span> Already using Cloudflare? Just add A + CNAME records instead</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        <span><span className="font-medium text-foreground">Hostinger:</span> Domains {"->"} Manage {"->"} DNS / Nameservers</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        <span><span className="font-medium text-foreground">Porkbun:</span> Domain Management {"->"} Nameservers {"->"} Edit</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setConnectionResult(null);
+                        setActiveView("list");
+                      }}
+                    >
+                      Done
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setConnectionResult(null)}
+                    >
+                      Connect another domain
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -479,6 +687,23 @@ export function DomainsPageContent() {
                       </div>
                     </div>
                   )}
+                  {/* Setup reminder for BYOD domains with pending status */}
+                  {domain.isConnected && selectedDomain.sslStatus !== "active_certificate" && selectedDomain.sslStatus !== "active" && (
+                    <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                        <div className="text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                          <p className="font-semibold">Setup not complete</p>
+                          <p>
+                            Update your nameservers at your domain registrar to the ones shown above.
+                            Once nameservers are pointing to Cloudflare, SSL will be provisioned automatically.
+                            This can take up to 24-48 hours after the change.
+                          </p>
+                          <p>Click the refresh button to check the latest status.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               )}
             </motion.div>
@@ -486,5 +711,83 @@ export function DomainsPageContent() {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Stripe Payment Form for Domain Purchase ──
+
+function DomainPaymentForm({
+  domainName,
+  onSuccess,
+  onCancel,
+}: {
+  domainName: string;
+  onSuccess: () => void;
+  onCancel: () => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+
+    setProcessing(true);
+    setError(null);
+
+    const { error: submitError } = await elements.submit();
+    if (submitError) {
+      setError(submitError.message || "Payment validation failed");
+      setProcessing(false);
+      return;
+    }
+
+    const { error: confirmError } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: `${window.location.origin}/domains`,
+      },
+      redirect: "if_required",
+    });
+
+    if (confirmError) {
+      setError(confirmError.message || "Payment failed");
+      setProcessing(false);
+    } else {
+      toast({ title: `Payment for ${domainName} confirmed!` });
+      onSuccess();
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <PaymentElement />
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+      <div className="flex gap-3 justify-end">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={processing}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={!stripe || processing}>
+          {processing ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            <>
+              <CreditCard className="h-4 w-4" />
+              Pay & Register
+            </>
+          )}
+        </Button>
+      </div>
+    </form>
   );
 }

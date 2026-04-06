@@ -105,41 +105,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let clientSecret: string | undefined;
-    let paymentIntentId: string | undefined;
+    const fullDomain = `${domain}.${tld}`;
 
-    // For paid domains, create a Stripe PaymentIntent
+    // For PAID domains: create PaymentIntent only, don't register yet.
+    // Domain will be registered in the Stripe webhook after payment succeeds.
     if (!isFree) {
       const customerId = await getOrCreateStripeCustomer(session.userId);
-      const fullDomain = `${domain}.${tld}`;
 
       const paymentResult = await createDomainPaymentIntent({
         userId: session.userId,
         customerId,
         domainName: fullDomain,
         amountCents: retailPrice,
+        storeId: store.id,
+        tld,
       });
 
-      clientSecret = paymentResult.clientSecret;
-      paymentIntentId = paymentResult.paymentIntentId;
+      return NextResponse.json({
+        success: true,
+        data: {
+          domainName: fullDomain,
+          status: "awaiting_payment",
+          clientSecret: paymentResult.clientSecret,
+          paymentIntentId: paymentResult.paymentIntentId,
+        },
+      });
     }
 
-    // Register and provision the domain
+    // For FREE domains (Pro plan): register immediately
     const result = await purchaseDomain({
       storeId: store.id,
       userId: session.userId,
       domainName: domain,
       tld,
-      isFree,
+      isFree: true,
     });
-
-    // If free domain, update store.freeDomainClaimed
-    if (isFree) {
-      await prisma.store.update({
-        where: { id: store.id },
-        data: { freeDomainClaimed: true },
-      });
-    }
 
     return NextResponse.json({
       success: true,
@@ -147,8 +147,6 @@ export async function POST(request: NextRequest) {
         domainId: result.id,
         domainName: result.domainName,
         status: result.registrarStatus,
-        ...(clientSecret ? { clientSecret } : {}),
-        ...(paymentIntentId ? { paymentIntentId } : {}),
       },
     });
   } catch (error) {

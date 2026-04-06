@@ -20,7 +20,8 @@ interface DomainSearchProps {
   className?: string;
 }
 
-const FREE_ELIGIBLE_TLDS = [".com", ".net", ".org", ".info", ".biz", ".store", ".shop", ".online"];
+// Must match FREE_DOMAIN_TLDS from pricing.ts — no dot prefix, TLD only
+const FREE_ELIGIBLE_TLDS = ["com", "store", "shop", "online", "co"];
 
 function extractSLD(input: string): string {
   let cleaned = input.trim().toLowerCase();
@@ -230,7 +231,7 @@ export function DomainSearch({
           <Star className="h-4 w-4 text-violet-600 dark:text-violet-400 mt-0.5 shrink-0" />
           <p className="text-xs text-violet-700 dark:text-violet-300">
             <span className="font-semibold">Pro perk:</span> Your first domain in a popular TLD
-            ({FREE_ELIGIBLE_TLDS.join(", ")}) is free with your Pro subscription!
+            ({FREE_ELIGIBLE_TLDS.map(t => `.${t}`).join(", ")}) is free with your Pro subscription!
           </p>
         </div>
       )}

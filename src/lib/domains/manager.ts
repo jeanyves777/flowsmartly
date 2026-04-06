@@ -261,18 +261,22 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
     },
   });
 
-  // Step 7: If first domain, update store's customDomain
+  // Step 7: Update store — set customDomain if first, set freeDomainClaimed if free
+  const storeUpdate: Record<string, unknown> = {};
   if (isFirstDomain) {
+    storeUpdate.customDomain = fullDomain;
+  }
+  if (isFree) {
+    storeUpdate.freeDomainClaimed = true;
+  }
+  if (Object.keys(storeUpdate).length > 0) {
     try {
       await prisma.store.update({
         where: { id: storeId },
-        data: {
-          customDomain: fullDomain,
-          ...(isFree ? { freeDomainClaimed: true } : {}),
-        },
+        data: storeUpdate,
       });
     } catch (error) {
-      console.error("Failed to update store customDomain:", error);
+      console.error("Failed to update store after domain purchase:", error);
       // Non-fatal: domain is registered, just the store pointer failed
     }
   }
