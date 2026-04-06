@@ -407,7 +407,19 @@ function OverviewTab({
         </div>
       )}
 
-      {/* Setup incomplete warning */}
+      {/* Status banners */}
+      {!domain.isConnected && (domain.cloudflareStatus === "pending" || (domain.sslStatus !== "active_certificate" && domain.sslStatus !== "active")) && domain.registrarStatus === "active" && (
+        <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 p-4">
+          <div className="flex items-start gap-3">
+            <Clock className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+            <div className="text-sm text-blue-800 dark:text-blue-300">
+              <p className="font-semibold mb-1">Domain setup in progress</p>
+              <p>Your domain is registered and DNS is being configured automatically. SSL certificate will be provisioned once Cloudflare activates your zone. This typically takes a few minutes to a couple of hours — no action needed from you. Click Refresh to check the latest status.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {domain.isConnected && domain.sslStatus !== "active_certificate" && domain.sslStatus !== "active" && (
         <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-4">
           <div className="flex items-start gap-3">
