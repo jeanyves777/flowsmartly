@@ -550,7 +550,7 @@ function DomainsTab({ websiteSlug }: { websiteSlug: string }) {
   const [retrying, setRetrying] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/domains").then((r) => r.json()).then((d) => { setDomains(d.domains || d.data || []); setLoadingDomains(false); }).catch(() => setLoadingDomains(false));
+    fetch("/api/domains").then((r) => r.json()).then((d) => { setDomains(d.data?.domains || d.domains || []); setLoadingDomains(false); }).catch(() => { setDomains([]); setLoadingDomains(false); });
   }, []);
 
   const handleRetry = async (domainId: string) => {

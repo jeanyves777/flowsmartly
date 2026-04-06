@@ -645,6 +645,25 @@ export function DomainsPageContent() {
                   >
                     Manage
                   </Button>
+                  {(domain.registrarStatus === "registration_failed" || domain.registrarStatus === "pending_registration") && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-900/20"
+                      onClick={async () => {
+                        const res = await fetch(`/api/domains/${domain.id}/retry`, { method: "POST" });
+                        const data = await res.json();
+                        if (res.ok) {
+                          alert("Registration retry successful!");
+                          window.location.reload();
+                        } else {
+                          alert(data.error || "Retry failed");
+                        }
+                      }}
+                    >
+                      Retry Registration
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
