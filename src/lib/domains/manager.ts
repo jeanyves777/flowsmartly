@@ -95,9 +95,13 @@ function cleanQuery(query: string): string {
  * Generate a unique registrant username/password for OpenSRS from store + user IDs.
  */
 function generateRegCredentials(storeId: string, userId: string) {
+  // OpenSRS only allows alphanumerics (A-Z, a-z, 0-9) — no hyphens or special chars
+  const cleanStore = storeId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8);
+  const cleanUser = userId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8);
+  const ts = Date.now().toString(36).replace(/[^a-zA-Z0-9]/g, "");
   return {
-    regUsername: `fs-${storeId.slice(0, 8)}`,
-    regPassword: `fp-${userId.slice(0, 8)}-${Date.now().toString(36)}`,
+    regUsername: `fs${cleanStore}`,
+    regPassword: `fp${cleanUser}${ts}`,
   };
 }
 

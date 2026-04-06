@@ -157,11 +157,14 @@ export async function retryFailedRegistrations() {
     try {
       const { registerDomain } = await import("@/lib/domains/opensrs-client");
 
+      // OpenSRS only allows alphanumerics — no hyphens or special chars
+      const ts = Date.now().toString(36).replace(/[^a-zA-Z0-9]/g, "");
+      const rnd = Math.random().toString(36).replace(/[^a-zA-Z0-9]/g, "");
       const result = await registerDomain({
         domain: domain.domainName,
         period: 1,
-        regUsername: `fs-retry-${Date.now()}`,
-        regPassword: `${Date.now()}-${Math.random().toString(36)}`,
+        regUsername: `fsretry${ts}`,
+        regPassword: `${ts}${rnd}`,
       });
 
       await prisma.storeDomain.update({

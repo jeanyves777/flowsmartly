@@ -26,11 +26,14 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       const { registerDomain } = await import("@/lib/domains/opensrs-client");
       const { nanoid } = await import("nanoid");
 
+      // OpenSRS only allows alphanumerics — strip non-alphanumeric chars
+      const cleanId = nanoid(8).replace(/[^a-zA-Z0-9]/g, "");
+      const cleanPw = nanoid(16).replace(/[^a-zA-Z0-9]/g, "");
       const result = await registerDomain({
         domain: domain.domainName,
         period: 1,
-        regUsername: `fs-${nanoid(8)}`,
-        regPassword: nanoid(16),
+        regUsername: `fs${cleanId}`,
+        regPassword: cleanPw,
       });
 
       // Update domain record
