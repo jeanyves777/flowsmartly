@@ -115,18 +115,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
       }
 
-      // Update services titles and descriptions
+      // Rebuild entire services array
       if (data.services) {
-        for (const service of data.services) {
-          if (service.id) {
-            // Find the service block by id and update its fields
-            const serviceRegex = new RegExp(
-              `(id:\\s*['"]${service.id}['"][\\s\\S]*?title:\\s*['"])([\\s\\S]*?)(['"])`,
-              "m"
-            );
-            content = content.replace(serviceRegex, `$1${escapeStr(service.title)}$3`);
-          }
-        }
+        const servicesCode = data.services.map((s: any) => `  {
+    id: '${escapeStr(s.id || "")}',
+    title: '${escapeStr(s.title || "")}',
+    shortDescription: '${escapeStr(s.shortDescription || "")}',
+    description: '${escapeStr(s.description || "")}',
+    icon: '${escapeStr(s.icon || "Star")}',
+    image: '${escapeStr(s.image || "")}',
+  }`).join(",\n");
+
+        const svcExportMatch = content.match(/export const (services)\s*=/);
+        const svcExportName = svcExportMatch?.[1] || "services";
+        content = content.replace(
+          /export const services\s*=\s*\[[\s\S]*?\n\]/,
+          `export const ${svcExportName} = [\n${servicesCode}\n]`
+        );
       }
 
       // Update team members
