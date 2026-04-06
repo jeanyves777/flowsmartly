@@ -1,9 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { getSiteDir } from "@/lib/website/site-builder";
+
+// Download external image URLs to the site's public directory
+async function localizeImage(url: string, siteDir: string, category: string): Promise<string> {
+  if (!url) return url;
+  // Already a local path
+  if (url.startsWith("/images/")) return url;
+  // External URL — download it
+  if (url.startsWith("http")) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return url;
+      const buffer = Buffer.from(await res.arrayBuffer());
+      const ext = url.match(/\.(png|jpg|jpeg|webp|gif|svg)/i)?.[1] || "jpg";
+      const name = `${category}-${Date.now()}.${ext}`;
+      const dir = join(siteDir, "public", "images", category);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, name), buffer);
+      return `/images/${category}/${name}`;
+    } catch { return url; }
+  }
+  return url;
+}
 
 /**
  * POST /api/websites/[id]/update-data
@@ -158,6 +180,83 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
 
       writeFileSync(dataPath, content);
+
+      // Localize any external image URLs (download to site public dir)
+      if (data.logo && data.logo.startsWith("http")) {
+        data.logo = await localizeImage(data.logo, siteDir, "brand");
+      }
+      if (data.heroImages) {
+        for (let i = 0; i < data.heroImages.length; i++) {
+          if (data.heroImages[i]?.startsWith("http")) {
+            data.heroImages[i] = await localizeImage(data.heroImages[i], siteDir, "hero");
+          }
+        }
+      }
+      if (data.team) {
+        for (const member of data.team) {
+          if (member.image?.startsWith("http")) {
+            member.image = await localizeImage(member.image, siteDir, "team");
+          }
+        }
+      }
+      if (data.services) {
+        for (const svc of data.services) {
+          if (svc.image?.startsWith("http")) {
+            svc.image = await localizeImage(svc.image, siteDir, "services");
+          }
+        }
+      }
+
+      // Update Hero.tsx slides if heroImages changed
+      if (data.heroImages && data.heroImages.length > 0) {
+        const heroPath = join(siteDir, "src", "components", "Hero.tsx");
+        try {
+          let heroContent = readFileSync(heroPath, "utf-8");
+          const slidesCode = data.heroImages.map((img: string, i: number) => `  {\n    src: '${escapeStr(img)}',\n    alt: 'Slide ${i + 1}',\n  }`).join(",\n");
+          heroContent = heroContent.replace(
+            /const slides\s*=\s*\[[\s\S]*?\];/,
+            `const slides = [\n${slidesCode}\n];`
+          );
+          writeFileSync(heroPath, heroContent);
+          console.log(`[UpdateData] Updated Hero.tsx slides`);
+        } catch (err) {
+          console.log(`[UpdateData] Hero.tsx not found or not updatable`);
+        }
+      }
+
+      // Update Header.tsx logo if logo changed
+      if (data.logo) {
+        const headerPath = join(siteDir, "src", "components", "Header.tsx");
+        try {
+          let headerContent = readFileSync(headerPath, "utf-8");
+          // Replace logo image src
+          headerContent = headerContent.replace(
+            /src=["']\/images\/brand\/[^"']*["']/g,
+            `src="${escapeStr(data.logo)}"`
+          );
+          // Also try generic logo patterns
+          headerContent = headerContent.replace(
+            /(logo.*?src=["'])[^"']*(["'])/gi,
+            `$1${escapeStr(data.logo)}$2`
+          );
+          writeFileSync(headerPath, headerContent);
+          console.log(`[UpdateData] Updated Header.tsx logo`);
+        } catch (err) {
+          console.log(`[UpdateData] Header.tsx not found or not updatable`);
+        }
+
+        // Also update favicon in layout.tsx
+        const layoutPath = join(siteDir, "src", "app", "layout.tsx");
+        try {
+          let layoutContent = readFileSync(layoutPath, "utf-8");
+          layoutContent = layoutContent.replace(
+            /href=["']\/images\/brand\/favicon[^"']*["']/g,
+            `href="${escapeStr(data.logo)}"`
+          );
+          writeFileSync(layoutPath, layoutContent);
+        } catch {}
+      }
+
       console.log(`[UpdateData] Updated data.ts for ${website.slug}`);
     } catch (err) {
       console.error("[UpdateData] Failed to update data.ts:", err);
