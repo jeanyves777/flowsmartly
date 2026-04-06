@@ -502,15 +502,7 @@ export default function WebsiteEditPage() {
       )}
 
       {/* Domains */}
-      {activeTab === "domains" && (
-        <Section title="Custom Domains">
-          <p className="text-sm text-muted-foreground mb-4">Your site is at: <code className="px-2 py-0.5 bg-muted rounded">flowsmartly.com/sites/{website.slug}</code></p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <a href="/domains" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-center"><Globe className="w-8 h-8 text-primary mx-auto mb-2" /><p className="text-sm font-medium">Connect Domain</p><p className="text-xs text-muted-foreground mt-1">Point DNS to FlowSmartly</p></a>
-            <a href="/domains" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-center"><Globe className="w-8 h-8 text-primary mx-auto mb-2" /><p className="text-sm font-medium">Buy Domain</p><p className="text-xs text-muted-foreground mt-1">Search & purchase</p></a>
-          </div>
-        </Section>
-      )}
+      {activeTab === "domains" && <DomainsTab websiteSlug={website.slug} />}
 
       {/* Build */}
       {activeTab === "build" && (
@@ -551,6 +543,124 @@ export default function WebsiteEditPage() {
 }
 
 // --- Sub-components ---
+
+function DomainsTab({ websiteSlug }: { websiteSlug: string }) {
+  const [domains, setDomains] = useState<any[]>([]);
+  const [loadingDomains, setLoadingDomains] = useState(true);
+  const [retrying, setRetrying] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/domains").then((r) => r.json()).then((d) => { setDomains(d.domains || d.data || []); setLoadingDomains(false); }).catch(() => setLoadingDomains(false));
+  }, []);
+
+  const handleRetry = async (domainId: string) => {
+    setRetrying(domainId);
+    try {
+      const res = await fetch(`/api/domains/${domainId}/retry`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setDomains((prev) => prev.map((d) => d.id === domainId ? { ...d, registrarStatus: "active" } : d));
+      } else {
+        alert(data.error || "Retry failed");
+      }
+    } catch { alert("Retry failed"); }
+    setRetrying(null);
+  };
+
+  const daysUntil = (date: string) => Math.max(0, Math.ceil((new Date(date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-card border border-border rounded-xl p-6">
+        <h2 className="text-lg font-semibold mb-2">Custom Domains</h2>
+        <p className="text-sm text-muted-foreground mb-4">Your site is at: <code className="px-2 py-0.5 bg-muted rounded text-xs">flowsmartly.com/sites/{websiteSlug}</code></p>
+
+        {loadingDomains ? (
+          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+        ) : domains.length === 0 ? (
+          <div className="text-center py-8 border-2 border-dashed border-border rounded-xl">
+            <Globe className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground mb-4">No custom domains yet</p>
+            <div className="flex gap-2 justify-center">
+              <a href="/domains" className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90">Buy Domain</a>
+              <a href="/domains" className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Connect Existing</a>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {domains.map((d) => (
+              <div key={d.id} className="border border-border rounded-xl p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-primary" />
+                      {d.domainName}
+                      {d.isPrimary && <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded-full">Primary</span>}
+                    </h3>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                      <span className={`flex items-center gap-1 ${d.registrarStatus === "active" ? "text-green-600" : d.registrarStatus === "registration_failed" ? "text-red-600" : "text-amber-600"}`}>
+                        {d.registrarStatus === "active" ? <Check className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                        {d.registrarStatus}
+                      </span>
+                      <span>SSL: {d.sslStatus || "pending"}</span>
+                    </div>
+                  </div>
+                  {(d.registrarStatus === "registration_failed" || d.registrarStatus === "pending_registration") && (
+                    <button onClick={() => handleRetry(d.id)} disabled={retrying === d.id} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 rounded-lg hover:bg-amber-200 disabled:opacity-50">
+                      {retrying === d.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                      Retry
+                    </button>
+                  )}
+                </div>
+
+                {/* Billing Info */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 pt-3 border-t border-border">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Purchase Price</p>
+                    <p className="text-sm font-medium">{d.isFree ? "Free" : d.purchasePriceCents ? `$${(d.purchasePriceCents / 100).toFixed(2)}` : "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Renewal Price</p>
+                    <p className="text-sm font-medium">{d.renewalPriceCents ? `$${(d.renewalPriceCents / 100).toFixed(2)}/yr` : "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Expires</p>
+                    <p className="text-sm font-medium">{d.expiresAt ? new Date(d.expiresAt).toLocaleDateString() : "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Days Left</p>
+                    <p className={`text-sm font-medium ${d.expiresAt && daysUntil(d.expiresAt) < 30 ? "text-red-600" : ""}`}>
+                      {d.expiresAt ? `${daysUntil(d.expiresAt)} days` : "—"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Auto-renew toggle */}
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
+                  <span className="text-xs text-muted-foreground">Auto-renew</span>
+                  <span className={`text-xs font-medium ${d.autoRenew ? "text-green-600" : "text-amber-600"}`}>
+                    {d.autoRenew ? "Enabled" : "Disabled"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <a href="/domains" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-center bg-card">
+          <Globe className="w-6 h-6 text-primary mx-auto mb-2" />
+          <p className="text-sm font-medium">Register New Domain</p>
+        </a>
+        <a href="/domains" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-center bg-card">
+          <Link2 className="w-6 h-6 text-primary mx-auto mb-2" />
+          <p className="text-sm font-medium">Connect Existing Domain</p>
+        </a>
+      </div>
+    </div>
+  );
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

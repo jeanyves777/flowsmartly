@@ -121,9 +121,16 @@ async function handlePaymentSucceeded(
         isFree: false,
       });
       console.log(`Domain ${result.domainName} registered after payment ${paymentIntent.id}`);
-    } catch (error) {
+
+      // Send notifications
+      const { notifyDomainRegistered } = await import("@/lib/notifications/domain");
+      await notifyDomainRegistered(userId, result.domainName);
+    } catch (error: any) {
       console.error(`Failed to register domain ${domainName} after payment:`, error);
-      // TODO: Send admin alert — payment succeeded but domain registration failed
+
+      // Send failure notification
+      const { notifyDomainRegistrationFailed } = await import("@/lib/notifications/domain");
+      if (userId) await notifyDomainRegistrationFailed(userId, domainName || `${sld}.${tld}`, error.message);
     }
     return;
   }
