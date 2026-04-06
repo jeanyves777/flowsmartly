@@ -10,8 +10,9 @@ async function localizeImage(url: string, siteDir: string, category: string): Pr
   if (!url) return url;
   // Already a local path
   if (url.startsWith("/images/")) return url;
-  // External URL — download it
+  // External URL (S3 presigned or any http URL) — download it
   if (url.startsWith("http")) {
+    console.log(`[LocalizeImage] Downloading: ${url.substring(0, 80)}...`);
     try {
       const res = await fetch(url);
       if (!res.ok) return url;
@@ -234,20 +235,29 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const headerPath = join(siteDir, "src", "components", "Header.tsx");
         try {
           let headerContent = readFileSync(headerPath, "utf-8");
-          // Replace logo image src
-          headerContent = headerContent.replace(
-            /src=["']\/images\/brand\/[^"']*["']/g,
-            `src="${escapeStr(data.logo)}"`
-          );
-          // Also try generic logo patterns
-          headerContent = headerContent.replace(
-            /(logo.*?src=["'])[^"']*(["'])/gi,
-            `$1${escapeStr(data.logo)}$2`
-          );
+
+          // Case 1: Header uses <Logo /> component — replace with <img> tag
+          if (headerContent.includes("<Logo") || headerContent.includes("Logo />")) {
+            headerContent = headerContent.replace(/import Logo from ['"]@\/components\/Logo['"];?\n?/g, "");
+            headerContent = headerContent.replace(/<Logo\s[^>]*\/>/g, `<img src="${escapeStr(data.logo)}" alt="Logo" className="h-8 sm:h-10 w-auto" />`);
+            headerContent = headerContent.replace(/<Logo\s*\/>/g, `<img src="${escapeStr(data.logo)}" alt="Logo" className="h-8 sm:h-10 w-auto" />`);
+          }
+          // Case 2: Header already uses <img> for logo — update src
+          else {
+            headerContent = headerContent.replace(
+              /(<img[^>]*?(?:logo|brand)[^>]*?src=["'])[^"']*(["'])/gi,
+              `$1${escapeStr(data.logo)}$2`
+            );
+            headerContent = headerContent.replace(
+              /src=["']\/images\/brand\/[^"']*["']/g,
+              `src="${escapeStr(data.logo)}"`
+            );
+          }
+
           writeFileSync(headerPath, headerContent);
-          console.log(`[UpdateData] Updated Header.tsx logo`);
+          console.log(`[UpdateData] Updated Header.tsx logo to: ${data.logo}`);
         } catch (err) {
-          console.log(`[UpdateData] Header.tsx not found or not updatable`);
+          console.log(`[UpdateData] Header.tsx update error:`, err);
         }
 
         // Also update favicon in layout.tsx
@@ -255,7 +265,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         try {
           let layoutContent = readFileSync(layoutPath, "utf-8");
           layoutContent = layoutContent.replace(
-            /href=["']\/images\/brand\/favicon[^"']*["']/g,
+            /href=["'][^"']*favicon[^"']*["']/g,
             `href="${escapeStr(data.logo)}"`
           );
           writeFileSync(layoutPath, layoutContent);
