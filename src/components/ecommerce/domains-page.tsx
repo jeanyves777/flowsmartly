@@ -702,7 +702,6 @@ export function DomainsPageContent() {
         <div className="space-y-3">
           {domains.map((domain) => {
             const daysLeft = getDaysUntilExpiry(domain.expiresAt);
-            const isExpanded = expandedDomain === domain.id;
             const isRetryable = domain.registrarStatus === "registration_failed" || domain.registrarStatus === "pending_registration";
 
             return (
@@ -710,372 +709,90 @@ export function DomainsPageContent() {
                 key={domain.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-xl border bg-card overflow-hidden"
+                className="rounded-xl border bg-card p-5 hover:border-brand-300 dark:hover:border-brand-800 transition-colors cursor-pointer"
+                onClick={() => router.push(`/domains/${domain.id}`)}
               >
-                {/* Main row */}
-                <div className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-brand-100 dark:bg-brand-950/30 flex items-center justify-center">
-                        <Globe className="h-5 w-5 text-brand-600 dark:text-brand-400" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleExpand(domain.id)}
-                            className="font-semibold hover:text-brand-600 transition-colors text-left"
-                          >
-                            {domain.domainName}
-                          </button>
-                          {domain.isPrimary && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 dark:bg-brand-950/30 dark:text-brand-400 text-[10px] font-medium">
-                              <Star className="h-3 w-3" />
-                              Primary
-                            </span>
-                          )}
-                          {domain.isConnected && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 text-[10px] font-medium">
-                              <LinkIcon className="h-3 w-3" />
-                              BYOD
-                            </span>
-                          )}
-                          {domain.isFree && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950/30 dark:text-violet-400 text-[10px] font-medium">
-                              Free
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                          <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded", getStatusColor(domain.registrarStatus))}>
-                            {getStatusIcon(domain.registrarStatus)}
-                            {domain.registrarStatus}
-                          </span>
-                          <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded", getStatusColor(domain.sslStatus))}>
-                            {domain.sslStatus === "active" || domain.sslStatus === "active_certificate" ? (
-                              <ShieldCheck className="h-3 w-3" />
-                            ) : (
-                              <Shield className="h-3 w-3" />
-                            )}
-                            SSL: {domain.sslStatus}
-                          </span>
-                          {!domain.isConnected && domain.purchasePriceCents > 0 && (
-                            <span className="inline-flex items-center gap-1">
-                              <DollarSign className="h-3 w-3" />
-                              Paid: {formatCurrency(domain.purchasePriceCents)}/yr
-                            </span>
-                          )}
-                          {domain.expiresAt && daysLeft !== null && (
-                            <span className={cn("inline-flex items-center gap-1 font-medium", getExpiryColor(daysLeft))}>
-                              <Calendar className="h-3 w-3" />
-                              {daysLeft <= 0 ? "Expired" : `${daysLeft} days left`}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-brand-100 dark:bg-brand-950/30 flex items-center justify-center shrink-0">
+                      <Globe className="h-5 w-5 text-brand-600 dark:text-brand-400" />
                     </div>
-                    <div className="flex items-center gap-2">
-                      {isRetryable && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-900/20"
-                          disabled={retrying === domain.id}
-                          onClick={() => handleRetryRegistration(domain.id)}
-                        >
-                          {retrying === domain.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                          ) : (
-                            <RotateCcw className="h-4 w-4 mr-1" />
-                          )}
-                          Retry
-                        </Button>
-                      )}
-                      <Button
-                        variant={isExpanded ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handleExpand(domain.id)}
-                      >
-                        {isExpanded ? "Close" : "Manage"}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCheckStatus(domain.id)}
-                        disabled={loadingStatus === domain.id}
-                      >
-                        {loadingStatus === domain.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <RefreshCw className="h-4 w-4" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{domain.domainName}</span>
+                        {domain.isPrimary && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 dark:bg-brand-950/30 dark:text-brand-400 text-[10px] font-medium">
+                            <Star className="h-3 w-3" />
+                            Primary
+                          </span>
                         )}
-                      </Button>
-                      <Button variant="ghost" size="sm" asChild>
-                        <a href={`https://${domain.domainName}`} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </Button>
+                        {domain.isConnected && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 text-[10px] font-medium">
+                            <LinkIcon className="h-3 w-3" />
+                            BYOD
+                          </span>
+                        )}
+                        {domain.isFree && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950/30 dark:text-violet-400 text-[10px] font-medium">
+                            Free
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded", getStatusColor(domain.registrarStatus))}>
+                          {getStatusIcon(domain.registrarStatus)}
+                          {domain.registrarStatus}
+                        </span>
+                        <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded", getStatusColor(domain.sslStatus))}>
+                          {domain.sslStatus === "active" || domain.sslStatus === "active_certificate" ? (
+                            <ShieldCheck className="h-3 w-3" />
+                          ) : (
+                            <Shield className="h-3 w-3" />
+                          )}
+                          SSL: {domain.sslStatus}
+                        </span>
+                        {!domain.isConnected && domain.purchasePriceCents > 0 && (
+                          <span className="inline-flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            {formatCurrency(domain.purchasePriceCents)}/yr
+                          </span>
+                        )}
+                        {domain.expiresAt && daysLeft !== null && (
+                          <span className={cn("inline-flex items-center gap-1 font-medium", getExpiryColor(daysLeft))}>
+                            <Calendar className="h-3 w-3" />
+                            {daysLeft <= 0 ? "Expired" : `${daysLeft} days left`}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-
-                {/* Expanded Management Panel */}
-                <AnimatePresence>
-                  {isExpanded && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden"
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    {isRetryable && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-900/20"
+                        disabled={retrying === domain.id}
+                        onClick={() => handleRetryRegistration(domain.id)}
+                      >
+                        {retrying === domain.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        ) : (
+                          <RotateCcw className="h-4 w-4 mr-1" />
+                        )}
+                        Retry
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/domains/${domain.id}`)}
                     >
-                      <div className="border-t px-5 py-4 space-y-4 bg-muted/20">
-                        {/* Billing & Renewal Info */}
-                        <div>
-                          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                            <CreditCard className="h-4 w-4 text-muted-foreground" />
-                            Billing & Renewal
-                          </h3>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            <div className="rounded-lg bg-background border p-3">
-                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Purchase Price</p>
-                              <p className="text-lg font-bold mt-1">
-                                {domain.isFree ? "Free" : domain.isConnected ? "N/A" : formatCurrency(domain.purchasePriceCents)}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground">
-                                {domain.isFree ? "Pro plan perk" : domain.isConnected ? "External domain" : "one-time"}
-                              </p>
-                            </div>
-                            <div className="rounded-lg bg-background border p-3">
-                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Renewal Price</p>
-                              <p className="text-lg font-bold mt-1">
-                                {domain.isConnected ? "N/A" : formatCurrency(domain.renewalPriceCents)}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground">
-                                {domain.isConnected ? "No renewal needed" : "per year"}
-                              </p>
-                            </div>
-                            <div className="rounded-lg bg-background border p-3">
-                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Expires</p>
-                              <p className="text-lg font-bold mt-1">
-                                {domain.expiresAt
-                                  ? new Date(domain.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                                  : "N/A"}
-                              </p>
-                              {daysLeft !== null && (
-                                <p className={cn("text-[10px] font-medium", getExpiryColor(daysLeft))}>
-                                  {daysLeft <= 0 ? "EXPIRED" : `${daysLeft} days remaining`}
-                                </p>
-                              )}
-                            </div>
-                            <div className="rounded-lg bg-background border p-3">
-                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Registered</p>
-                              <p className="text-lg font-bold mt-1">
-                                {new Date(domain.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground">purchase date</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* DNS & Technical Status */}
-                        <div>
-                          <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-semibold flex items-center gap-2">
-                              <Server className="h-4 w-4 text-muted-foreground" />
-                              DNS & Technical Status
-                            </h3>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleCheckStatus(domain.id)}
-                              disabled={loadingStatus === domain.id}
-                            >
-                              {loadingStatus === domain.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                              ) : (
-                                <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                              )}
-                              Refresh Status
-                            </Button>
-                          </div>
-                          {loadingStatus === domain.id && !selectedDomain ? (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Loading DNS & SSL status...
-                            </div>
-                          ) : selectedDomain?.id === domain.id ? (
-                            <div className="space-y-3">
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <div className="rounded-lg bg-background border p-3">
-                                  <p className="text-[10px] font-medium text-muted-foreground uppercase">Registrar</p>
-                                  <p className="text-sm font-semibold mt-1">{selectedDomain.registrarStatus}</p>
-                                </div>
-                                <div className="rounded-lg bg-background border p-3">
-                                  <p className="text-[10px] font-medium text-muted-foreground uppercase">Cloudflare</p>
-                                  <p className="text-sm font-semibold mt-1">{selectedDomain.cloudflareStatus || "Not configured"}</p>
-                                </div>
-                                <div className="rounded-lg bg-background border p-3">
-                                  <p className="text-[10px] font-medium text-muted-foreground uppercase">SSL Certificate</p>
-                                  <p className="text-sm font-semibold mt-1">{selectedDomain.sslStatus}</p>
-                                </div>
-                              </div>
-                              {selectedDomain.nameservers.length > 0 && (
-                                <div className="rounded-lg bg-background border p-3">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <Server className="h-4 w-4 text-muted-foreground" />
-                                    <p className="text-[10px] font-medium text-muted-foreground uppercase">Nameservers</p>
-                                  </div>
-                                  <div className="space-y-1">
-                                    {selectedDomain.nameservers.map((ns, i) => (
-                                      <div key={i} className="flex items-center justify-between bg-muted/30 rounded-md px-3 py-1.5">
-                                        <code className="text-xs font-mono">{ns}</code>
-                                        <button
-                                          onClick={() => copyToClipboard(ns)}
-                                          className="text-muted-foreground hover:text-foreground transition-colors"
-                                        >
-                                          <Copy className="h-3.5 w-3.5" />
-                                        </button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {/* BYOD Setup Reminder */}
-                              {domain.isConnected && selectedDomain.sslStatus !== "active_certificate" && selectedDomain.sslStatus !== "active" && (
-                                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3">
-                                  <div className="flex items-start gap-2">
-                                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                                    <div className="text-xs text-amber-800 dark:text-amber-300 space-y-1">
-                                      <p className="font-semibold">Setup not complete</p>
-                                      <p>
-                                        Update your nameservers at your domain registrar to the ones shown above.
-                                        SSL will be provisioned automatically once nameservers are active (24-48 hours).
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground py-2">Click &quot;Refresh Status&quot; to check live DNS and SSL status.</p>
-                          )}
-                        </div>
-
-                        {/* Settings Row */}
-                        <div>
-                          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                            <Settings className="h-4 w-4 text-muted-foreground" />
-                            Domain Settings
-                          </h3>
-                          <div className="flex flex-wrap items-center gap-6 rounded-lg bg-background border p-4">
-                            {/* Auto-renew toggle */}
-                            {!domain.isConnected && (
-                              <div className="flex items-center gap-3">
-                                <div>
-                                  <p className="text-sm font-medium">Auto-Renewal</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {domain.autoRenew
-                                      ? `Renews at ${formatCurrency(domain.renewalPriceCents)}/yr`
-                                      : "Will expire without manual renewal"}
-                                  </p>
-                                </div>
-                                <Switch
-                                  checked={domain.autoRenew}
-                                  onCheckedChange={() => handleToggleAutoRenew(domain.id, domain.autoRenew)}
-                                  disabled={togglingAutoRenew === domain.id}
-                                />
-                              </div>
-                            )}
-                            {/* WHOIS privacy toggle */}
-                            {!domain.isConnected && (
-                              <>
-                                <div className="h-8 w-px bg-border hidden sm:block" />
-                                <div className="flex items-center gap-3">
-                                  <div>
-                                    <p className="text-sm font-medium flex items-center gap-1.5">
-                                      {domain.whoisPrivacy ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                                      WHOIS Privacy
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {domain.whoisPrivacy ? "Your info is hidden from WHOIS" : "Your info is visible in WHOIS"}
-                                    </p>
-                                  </div>
-                                  <Switch
-                                    checked={domain.whoisPrivacy}
-                                    onCheckedChange={() => handleToggleWhois(domain.id, domain.whoisPrivacy)}
-                                    disabled={togglingWhois === domain.id}
-                                  />
-                                </div>
-                              </>
-                            )}
-                            <div className="h-8 w-px bg-border hidden sm:block" />
-                            {/* Set Primary */}
-                            {!domain.isPrimary && (
-                              <Button variant="outline" size="sm" onClick={() => handleSetPrimary(domain.id)}>
-                                <Star className="h-3.5 w-3.5 mr-1.5" />
-                                Set as Primary
-                              </Button>
-                            )}
-                            {/* Delete */}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                              onClick={() => handleDisconnect(domain.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                              {domain.isConnected ? "Disconnect" : "Remove"}
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Domain Payment History */}
-                        {(() => {
-                          const relatedInvoices = domainInvoices.filter((inv: any) => {
-                            try {
-                              const items = typeof inv.items === "string" ? JSON.parse(inv.items) : inv.items;
-                              return items.some((item: any) => item.description?.includes(domain.domainName));
-                            } catch { return false; }
-                          });
-                          if (relatedInvoices.length === 0) return null;
-                          return (
-                            <div>
-                              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                                <Receipt className="h-4 w-4 text-muted-foreground" />
-                                Payment History
-                              </h3>
-                              <div className="space-y-2">
-                                {relatedInvoices.map((inv: any) => {
-                                  const items = typeof inv.items === "string" ? JSON.parse(inv.items) : inv.items;
-                                  return (
-                                    <div key={inv.id} className="flex items-center gap-3 rounded-lg bg-background border p-3">
-                                      <div className="h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
-                                        <FileText className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium">{inv.invoiceNumber}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                          {inv.type === "domain_purchase" ? "Domain Purchase" : "Domain Renewal"} &middot;{" "}
-                                          {new Date(inv.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                                        </p>
-                                      </div>
-                                      <div className="text-right shrink-0">
-                                        <p className="text-sm font-bold">{formatCurrency(inv.totalCents)}</p>
-                                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                                          <CheckCircle2 className="h-3 w-3" />
-                                          Paid
-                                        </span>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                      Manage
+                      <ChevronRight className="h-4 w-4 ml-0.5" />
+                    </Button>
+                  </div>
+                </div>
               </motion.div>
             );
           })}

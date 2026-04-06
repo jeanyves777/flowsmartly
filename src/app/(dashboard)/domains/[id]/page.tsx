@@ -25,6 +25,11 @@ import {
   ToggleRight,
   ExternalLink,
   ShoppingBag,
+  CreditCard,
+  DollarSign,
+  Calendar,
+  Receipt,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +56,9 @@ interface DomainSettings {
   whoisPrivacy: boolean;
   storeId: string | null;
   isFree: boolean;
+  purchasePriceCents: number;
+  renewalPriceCents: number;
+  createdAt: string;
 }
 
 interface DnsRecord {
@@ -69,7 +77,16 @@ interface LinkedWebsite {
   customDomain: string | null;
 }
 
-type Tab = "overview" | "dns" | "settings";
+interface DomainInvoice {
+  id: string;
+  invoiceNumber: string;
+  type: string;
+  totalCents: number;
+  createdAt: string;
+  items: any[];
+}
+
+type Tab = "overview" | "dns" | "billing" | "settings";
 
 // ── Main Page ──
 
@@ -83,6 +100,7 @@ export default function DomainDetailPage() {
   const [settings, setSettings] = useState<DomainSettings | null>(null);
   const [dnsRecords, setDnsRecords] = useState<DnsRecord[]>([]);
   const [websites, setWebsites] = useState<LinkedWebsite[]>([]);
+  const [invoices, setInvoices] = useState<DomainInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -115,6 +133,9 @@ export default function DomainDetailPage() {
             whoisPrivacy: d.whoisPrivacy,
             storeId: d.storeId || null,
             isFree: d.isFree,
+            purchasePriceCents: d.purchasePriceCents || 0,
+            renewalPriceCents: d.renewalPriceCents || 0,
+            createdAt: d.createdAt,
           });
         }
       }
@@ -130,6 +151,25 @@ export default function DomainDetailPage() {
       }
     } catch { /* non-critical */ }
   }, [id]);
+
+  const loadInvoices = useCallback(async (domainName?: string) => {
+    try {
+      const res = await fetch("/api/user/invoices?limit=50");
+      const data = await res.json();
+      if (data.success) {
+        const all = data.data?.invoices || [];
+        setInvoices(
+          all.filter((inv: any) => {
+            if (inv.type !== "domain_purchase" && inv.type !== "domain_renewal") return false;
+            try {
+              const items = typeof inv.items === "string" ? JSON.parse(inv.items) : inv.items;
+              return !domainName || items.some((item: any) => item.description?.includes(domainName));
+            } catch { return false; }
+          })
+        );
+      }
+    } catch { /* non-critical */ }
+  }, []);
 
   const loadWebsites = useCallback(async () => {
     try {
@@ -148,11 +188,19 @@ export default function DomainDetailPage() {
   }, []);
 
   useEffect(() => {
-    loadDomain();
+    loadDomain().then(() => {
+      // Load invoices after domain loads so we have the name
+    });
     loadSettings();
     loadDns();
     loadWebsites();
-  }, [loadDomain, loadSettings, loadDns, loadWebsites]);
+    loadInvoices();
+  }, [loadDomain, loadSettings, loadDns, loadWebsites, loadInvoices]);
+
+  // Reload invoices when domain name is known
+  useEffect(() => {
+    if (domain?.domainName) loadInvoices(domain.domainName);
+  }, [domain?.domainName, loadInvoices]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -212,6 +260,7 @@ export default function DomainDetailPage() {
         {([
           { key: "overview", label: "Overview", icon: Globe },
           { key: "dns", label: "DNS Records", icon: Layers },
+          { key: "billing", label: "Billing", icon: CreditCard },
           { key: "settings", label: "Settings", icon: Settings },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
@@ -244,6 +293,13 @@ export default function DomainDetailPage() {
           domainName={domain.domainName}
           hasZone={!!domain.cloudflareStatus}
           onRefresh={loadDns}
+        />
+      )}
+      {tab === "billing" && settings && (
+        <BillingTab
+          domain={domain}
+          settings={settings}
+          invoices={invoices}
         />
       )}
       {tab === "settings" && settings && (
@@ -363,6 +419,158 @@ function OverviewTab({
           </div>
         </div>
       )}
+    </motion.div>
+  );
+}
+
+// ── Billing Tab ──
+
+function BillingTab({
+  domain,
+  settings,
+  invoices,
+}: {
+  domain: DomainDetail;
+  settings: DomainSettings;
+  invoices: DomainInvoice[];
+}) {
+  const formatCurrency = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+  const daysLeft = domain.expiresAt
+    ? Math.ceil((new Date(domain.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+
+  const getExpiryColor = (days: number) => {
+    if (days <= 7) return "text-red-600";
+    if (days <= 30) return "text-amber-600";
+    return "text-emerald-600";
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+      {/* Pricing cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <p className="text-[10px] font-medium text-muted-foreground uppercase">Purchase Price</p>
+          </div>
+          <p className="text-xl font-bold">
+            {settings.isFree ? "Free" : domain.isConnected ? "N/A" : formatCurrency(settings.purchasePriceCents)}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {settings.isFree ? "Pro plan perk" : domain.isConnected ? "External domain" : "one-time"}
+          </p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Receipt className="h-4 w-4 text-muted-foreground" />
+            <p className="text-[10px] font-medium text-muted-foreground uppercase">Renewal Price</p>
+          </div>
+          <p className="text-xl font-bold">
+            {domain.isConnected ? "N/A" : formatCurrency(settings.renewalPriceCents)}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {domain.isConnected ? "No renewal needed" : "per year"}
+          </p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <p className="text-[10px] font-medium text-muted-foreground uppercase">Expires</p>
+          </div>
+          <p className="text-xl font-bold">
+            {domain.expiresAt
+              ? new Date(domain.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+              : "N/A"}
+          </p>
+          {daysLeft !== null && (
+            <p className={cn("text-xs font-medium mt-1", getExpiryColor(daysLeft))}>
+              {daysLeft <= 0 ? "EXPIRED" : `${daysLeft} days remaining`}
+            </p>
+          )}
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <p className="text-[10px] font-medium text-muted-foreground uppercase">Registered</p>
+          </div>
+          <p className="text-xl font-bold">
+            {settings.createdAt
+              ? new Date(settings.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+              : "N/A"}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">purchase date</p>
+        </div>
+      </div>
+
+      {/* Auto-renew status */}
+      <div className="rounded-xl border bg-card p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold">Auto-Renewal Status</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {settings.autoRenew
+                ? `Enabled — domain will auto-renew at ${formatCurrency(settings.renewalPriceCents)}/yr before expiry`
+                : "Disabled — domain will expire unless manually renewed"}
+            </p>
+          </div>
+          <span className={cn(
+            "px-2.5 py-1 rounded-full text-xs font-medium",
+            settings.autoRenew
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+              : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+          )}>
+            {settings.autoRenew ? "Enabled" : "Disabled"}
+          </span>
+        </div>
+      </div>
+
+      {/* Payment History */}
+      <div className="rounded-xl border bg-card overflow-hidden">
+        <div className="px-5 py-4 border-b">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            Payment History
+          </h3>
+        </div>
+        {invoices.length === 0 ? (
+          <div className="p-8 text-center">
+            <FileText className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
+            <p className="text-sm text-muted-foreground">No payment records found for this domain.</p>
+          </div>
+        ) : (
+          <div>
+            {/* Table header */}
+            <div className="grid grid-cols-[1fr_120px_100px_80px] gap-3 px-5 py-2.5 bg-muted/50 text-[10px] font-medium text-muted-foreground uppercase">
+              <span>Invoice</span>
+              <span>Date</span>
+              <span className="text-right">Amount</span>
+              <span className="text-right">Status</span>
+            </div>
+            {invoices.map((inv) => (
+              <div key={inv.id} className="grid grid-cols-[1fr_120px_100px_80px] gap-3 px-5 py-3 border-t items-center text-sm">
+                <div>
+                  <p className="font-medium">{inv.invoiceNumber}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {inv.type === "domain_purchase" ? "Domain Purchase" : "Domain Renewal"}
+                  </p>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(inv.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </span>
+                <span className="text-right font-semibold">{formatCurrency(inv.totalCents)}</span>
+                <span className="text-right">
+                  <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Paid
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </motion.div>
   );
 }
