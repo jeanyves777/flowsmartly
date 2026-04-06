@@ -120,15 +120,21 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
       data: { buildStatus: "building" },
     });
 
-    // npm install
-    console.log(`[SiteBuilder] Installing dependencies for ${websiteId}...`);
-    const installOutput = execSync("npm install", {
-      cwd: siteDir,
-      timeout: 120000,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=2048" },
-    });
+    // npm install — only if node_modules doesn't exist
+    let installOutput = "";
+    const nodeModulesExists = existsSync(join(siteDir, "node_modules", "next"));
+    if (!nodeModulesExists) {
+      console.log(`[SiteBuilder] Installing dependencies for ${websiteId}...`);
+      installOutput = execSync("npm install", {
+        cwd: siteDir,
+        timeout: 120000,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+        env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=2048" },
+      });
+    } else {
+      console.log(`[SiteBuilder] Dependencies already installed, skipping npm install`);
+    }
 
     // next build (static export)
     console.log(`[SiteBuilder] Building site ${websiteId}...`);

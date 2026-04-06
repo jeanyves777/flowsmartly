@@ -110,9 +110,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     image: '${escapeStr(t.image || "")}',
   }`).join(",\n");
 
+        // Keep the original export name (team or teamMembers)
+        const teamExportMatch = content.match(/export const (teamMembers|team)\s*=/);
+        const teamExportName = teamExportMatch?.[1] || "team";
         content = content.replace(
           /export const (?:teamMembers|team)\s*=\s*\[[\s\S]*?\n\]/,
-          `export const teamMembers = [\n${teamCode}\n]`
+          `export const ${teamExportName} = [\n${teamCode}\n]`
         );
       }
 
@@ -123,9 +126,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     answer: '${escapeStr(f.answer)}',
   }`).join(",\n");
 
+        const faqExportMatch = content.match(/export const (faqItems|faqs?)\s*=/);
+        const faqExportName = faqExportMatch?.[1] || "faqItems";
         content = content.replace(
           /export const (?:faqItems|faqs?)\s*=\s*\[[\s\S]*?\n\]/,
-          `export const faqItems = [\n${faqCode}\n]`
+          `export const ${faqExportName} = [\n${faqCode}\n]`
         );
       }
 
