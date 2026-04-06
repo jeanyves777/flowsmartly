@@ -63,9 +63,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       let changed = false;
 
       // Replace href="/about" → href="/sites/{slug}/about"
-      // But NOT href="/images/...", href="/sites/...", href="http...", href="mailto:...", href="tel:..."
+      // But NOT href="/sites/...", href="http...", href="mailto:...", href="tel:..."
       const newContent = content.replace(
-        /href=["']\/(?!sites\/|images\/|_next\/|http|mailto:|tel:|#)([^"']*)["']/g,
+        /href=["']\/(?!sites\/|_next\/|http|mailto:|tel:|#)([^"']*)["']/g,
         (match, path) => {
           changed = true;
           return `href="${basePath}/${path}"`;
@@ -88,7 +88,35 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    // 3. Also replace any <Link from 'next/link'> with regular <a> tags
+    // 3. Fix image src="/images/..." → src="/sites/{slug}/images/..."
+    for (const file of tsxFiles) {
+      let content = readFileSync(file, "utf-8");
+      let changed = false;
+
+      // Fix src="/images/..." (not already prefixed with /sites/)
+      const fixedContent = content.replace(
+        /src=["']\/(?!sites\/)images\/([^"']*)["']/g,
+        (match, path) => {
+          changed = true;
+          return `src="${basePath}/images/${path}"`;
+        }
+      );
+
+      // Fix image: '/images/...' in data files
+      const fixedContent2 = fixedContent.replace(
+        /:\s*['"]\/(?!sites\/)images\/([^'"]*)['"]/g,
+        (match, path) => {
+          changed = true;
+          return `: '${basePath}/images/${path}'`;
+        }
+      );
+
+      if (changed) {
+        writeFileSync(file, fixedContent2);
+      }
+    }
+
+    // 4. Also replace any <Link from 'next/link'> with regular <a> tags
     // (static export works better with <a> tags)
     for (const file of tsxFiles) {
       let content = readFileSync(file, "utf-8");
