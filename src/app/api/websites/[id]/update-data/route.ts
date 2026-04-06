@@ -264,15 +264,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             headerContent = headerContent.replace(/<Logo\s[^>]*\/>/g, `<img src="${escapeStr(data.logo)}" alt="Logo" className="h-8 sm:h-10 w-auto" />`);
             headerContent = headerContent.replace(/<Logo\s*\/>/g, `<img src="${escapeStr(data.logo)}" alt="Logo" className="h-8 sm:h-10 w-auto" />`);
           }
-          // Case 2: Header already uses <img> for logo — update src
+          // Case 2: Header already uses <img> for logo — replace the entire img tag's src
           else {
+            // Find the logo img tag and replace its src (handles any URL including S3 presigned)
             headerContent = headerContent.replace(
-              /(<img[^>]*?(?:logo|brand)[^>]*?src=["'])[^"']*(["'])/gi,
+              /(<img[^>]*alt=["']Logo["'][^>]*src=["'])[^"']*(["'])/i,
               `$1${escapeStr(data.logo)}$2`
             );
+            // Also try src before alt
             headerContent = headerContent.replace(
-              /src=["']\/images\/brand\/[^"']*["']/g,
-              `src="${escapeStr(data.logo)}"`
+              /(<img[^>]*src=["'])[^"']*(["'][^>]*alt=["']Logo["'])/i,
+              `$1${escapeStr(data.logo)}$2`
             );
           }
 

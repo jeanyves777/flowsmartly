@@ -4,7 +4,6 @@ import { prisma } from "@/lib/db/client";
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { buildSite, deploySite, getSiteDir } from "@/lib/website/site-builder";
-import { getPresignedUrl } from "@/lib/utils/s3-client";
 
 /**
  * POST /api/websites/[id]/rebuild
@@ -82,23 +81,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
           console.log(`[Rebuild] Could not update data.ts:`, err);
         }
 
-        // Update logo if changed
-        if (brandKit.logo) {
-          try {
-            const logoUrl = await getPresignedUrl(brandKit.logo);
-            const res = await fetch(logoUrl);
-            if (res.ok) {
-              const buffer = Buffer.from(await res.arrayBuffer());
-              const ext = brandKit.logo.includes(".png") ? "png" : brandKit.logo.includes(".webp") ? "webp" : "jpg";
-              const { mkdirSync } = await import("fs");
-              mkdirSync(join(siteDir, "public", "images", "brand"), { recursive: true });
-              writeFileSync(join(siteDir, "public", "images", "brand", `logo.${ext}`), buffer);
-              console.log(`[Rebuild] Updated logo for ${website.slug}`);
-            }
-          } catch (err) {
-            console.log(`[Rebuild] Could not update logo:`, err);
-          }
-        }
+        // Logo is handled by update-data route (localizes + updates Header.tsx)
+        // Rebuild only syncs text fields from brand kit, not images/components
       }
     }
 
