@@ -2,7 +2,7 @@
  * Domain Manager — orchestrates OpenSRS, Cloudflare, and Prisma for domain operations.
  */
 import { prisma } from "@/lib/db/client";
-import { searchDomain, registerDomain, getDomainInfo, isAvailable as isOpenSrsAvailable } from "./opensrs-client";
+import { searchDomain, registerDomain, getDomainInfo, setNameservers, isAvailable as isOpenSrsAvailable } from "./opensrs-client";
 import { searchDomainsRdap } from "./rdap-client";
 import { createZone, configureStoreDns, configureZoneSecurity, getZone, getSslStatus, deleteZone } from "./cloudflare-client";
 import { DOMAIN_PRICING, SUPPORTED_TLDS, FREE_DOMAIN_TLDS, isFreeDomainEligible } from "./pricing";
@@ -262,6 +262,16 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
         await configureZoneSecurity(zone.zoneId);
       } catch (secError) {
         console.error("Zone security configuration failed (non-fatal):", secError);
+      }
+
+      // Step 4c: Auto-update nameservers at OpenSRS to match Cloudflare
+      if (isOpenSrsAvailable() && registrarStatus === "active") {
+        try {
+          await setNameservers(fullDomain, cfNameservers);
+          console.log(`[Domain] Nameservers auto-updated at OpenSRS for ${fullDomain}`);
+        } catch (nsError) {
+          console.error("Nameserver update at OpenSRS failed (non-fatal):", nsError);
+        }
       }
     }
   } catch (cfError) {
