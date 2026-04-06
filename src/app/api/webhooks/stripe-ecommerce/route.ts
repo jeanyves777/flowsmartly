@@ -122,6 +122,31 @@ async function handlePaymentSucceeded(
       });
       console.log(`Domain ${result.domainName} registered after payment ${paymentIntent.id}`);
 
+      // Create invoice for the domain purchase
+      const { createInvoice } = await import("@/lib/invoices");
+      const domainUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true, name: true },
+      });
+      await createInvoice({
+        userId,
+        type: "domain_purchase",
+        items: [
+          {
+            description: `Domain registration: ${result.domainName} (1 year)`,
+            quantity: 1,
+            unitPriceCents: paymentIntent.amount,
+            totalCents: paymentIntent.amount,
+          },
+        ],
+        totalCents: paymentIntent.amount,
+        paymentMethod: paymentIntent.payment_method_types?.[0] || "card",
+        paymentId: paymentIntent.id,
+        customerName: domainUser?.name || undefined,
+        customerEmail: domainUser?.email || undefined,
+      });
+      console.log(`Invoice created for domain ${result.domainName}`);
+
       // Send notifications
       const { notifyDomainRegistered } = await import("@/lib/notifications/domain");
       await notifyDomainRegistered(userId, result.domainName);

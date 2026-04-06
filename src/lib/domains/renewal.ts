@@ -13,6 +13,7 @@ import {
   notifyDomainRenewed,
   notifyDomainRenewalFailed,
 } from "@/lib/notifications/domain";
+import { createInvoice } from "@/lib/invoices";
 
 /**
  * Check for expiring domains and send notifications
@@ -110,6 +111,21 @@ export async function processAutoRenewals() {
       await prisma.storeDomain.update({
         where: { id: domain.id },
         data: { expiresAt: newExpires },
+      });
+
+      // Create invoice for renewal
+      await createInvoice({
+        userId: domain.userId,
+        type: "domain_renewal",
+        items: [
+          {
+            description: `Domain renewal: ${domain.domainName} (1 year)`,
+            quantity: 1,
+            unitPriceCents: domain.renewalPriceCents,
+            totalCents: domain.renewalPriceCents,
+          },
+        ],
+        totalCents: domain.renewalPriceCents,
       });
 
       await notifyDomainRenewed(domain.userId, domain.domainName, newExpires, domain.renewalPriceCents);

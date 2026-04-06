@@ -340,14 +340,38 @@ async function processWebhookEvent(event: Stripe.Event) {
       }
 
       // Handle domain purchase payments
+      // Note: Primary domain registration + invoice creation happens in stripe-ecommerce webhook.
+      // This is a fallback safety net.
       if (piMetadata.type === "domain_purchase" && piMetadata.domainName) {
-        await prisma.storeDomain.updateMany({
-          where: { domainName: piMetadata.domainName },
-          data: { registrarStatus: "active" },
+        const existingInvoice = await prisma.invoice.findFirst({
+          where: { paymentId: paymentIntent.id },
         });
-        console.log(
-          `[Stripe Webhook] Domain ${piMetadata.domainName} payment confirmed`
-        );
+        if (!existingInvoice) {
+          // Create invoice if ecommerce webhook hasn't already
+          const { createInvoice } = await import("@/lib/invoices");
+          const domainUser = await prisma.user.findUnique({
+            where: { id: piMetadata.userId },
+            select: { email: true, name: true },
+          });
+          await createInvoice({
+            userId: piMetadata.userId,
+            type: "domain_purchase",
+            items: [
+              {
+                description: `Domain registration: ${piMetadata.domainName} (1 year)`,
+                quantity: 1,
+                unitPriceCents: paymentIntent.amount,
+                totalCents: paymentIntent.amount,
+              },
+            ],
+            totalCents: paymentIntent.amount,
+            paymentMethod: paymentIntent.payment_method_types?.[0] || "card",
+            paymentId: paymentIntent.id,
+            customerName: domainUser?.name || undefined,
+            customerEmail: domainUser?.email || undefined,
+          });
+          console.log(`[Stripe Webhook] Domain ${piMetadata.domainName} invoice created (fallback)`);
+        }
         break;
       }
 

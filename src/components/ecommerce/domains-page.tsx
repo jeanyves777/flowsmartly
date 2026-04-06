@@ -24,11 +24,18 @@ import {
   Info,
   ArrowRight,
   ChevronRight,
+  Calendar,
+  DollarSign,
+  Receipt,
+  FileText,
+  Download,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
+import { Switch } from "@/components/ui/switch";
 import { DomainSearch } from "@/components/ecommerce/domain-search";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
@@ -47,6 +54,8 @@ interface StoreDomain {
   autoRenew: boolean;
   whoisPrivacy: boolean;
   nameservers: string;
+  purchasePriceCents: number;
+  renewalPriceCents: number;
   expiresAt: string | null;
   createdAt: string;
 }
@@ -86,6 +95,10 @@ export function DomainsPageContent() {
     isPro: false,
     freeDomainClaimed: false,
   });
+  const [expandedDomain, setExpandedDomain] = useState<string | null>(null);
+  const [togglingAutoRenew, setTogglingAutoRenew] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState<string | null>(null);
+  const [domainInvoices, setDomainInvoices] = useState<any[]>([]);
 
   const loadDomains = useCallback(async () => {
     try {
@@ -260,6 +273,77 @@ export function DomainsPageContent() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: "Copied to clipboard" });
+  };
+
+  const handleToggleAutoRenew = async (domainId: string, currentValue: boolean) => {
+    setTogglingAutoRenew(domainId);
+    try {
+      const res = await fetch(`/api/domains/${domainId}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoRenew: !currentValue }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDomains((prev) => prev.map((d) => d.id === domainId ? { ...d, autoRenew: !currentValue } : d));
+        toast({ title: `Auto-renewal ${!currentValue ? "enabled" : "disabled"}` });
+      } else {
+        toast({ title: data.error?.message || "Failed to update", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to update auto-renewal", variant: "destructive" });
+    } finally {
+      setTogglingAutoRenew(null);
+    }
+  };
+
+  const handleRetryRegistration = async (domainId: string) => {
+    setRetrying(domainId);
+    try {
+      const res = await fetch(`/api/domains/${domainId}/retry`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast({ title: "Domain registered successfully!" });
+        loadDomains();
+      } else {
+        toast({ title: data.error || "Retry failed", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Retry failed", variant: "destructive" });
+    } finally {
+      setRetrying(null);
+    }
+  };
+
+  const loadDomainInvoices = async () => {
+    try {
+      const res = await fetch("/api/user/invoices?limit=50");
+      const data = await res.json();
+      if (data.success) {
+        // Filter to domain-related invoices only
+        const all = data.data?.invoices || [];
+        setDomainInvoices(all.filter((inv: any) => inv.type === "domain_purchase" || inv.type === "domain_renewal"));
+      }
+    } catch { /* ignore */ }
+  };
+
+  useEffect(() => {
+    loadDomainInvoices();
+  }, []);
+
+  const formatCurrency = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+  const getDaysUntilExpiry = (expiresAt: string | null) => {
+    if (!expiresAt) return null;
+    const diff = new Date(expiresAt).getTime() - Date.now();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  };
+
+  const getExpiryColor = (days: number | null) => {
+    if (days === null) return "";
+    if (days <= 7) return "text-red-600 dark:text-red-400";
+    if (days <= 30) return "text-amber-600 dark:text-amber-400";
+    return "text-emerald-600 dark:text-emerald-400";
   };
 
   const getStatusColor = (status: string) => {
@@ -578,196 +662,334 @@ export function DomainsPageContent() {
         </motion.div>
       ) : (
         <div className="space-y-3">
-          {domains.map((domain) => (
-            <motion.div
-              key={domain.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-xl border bg-card p-5"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-brand-100 dark:bg-brand-950/30 flex items-center justify-center">
-                    <Globe className="h-5 w-5 text-brand-600 dark:text-brand-400" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => router.push(`/domains/${domain.id}`)}
-                        className="font-semibold hover:text-brand-600 hover:underline transition-colors text-left"
-                      >
-                        {domain.domainName}
-                      </button>
-                      {domain.isPrimary && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 dark:bg-brand-950/30 dark:text-brand-400 text-[10px] font-medium">
-                          <Star className="h-3 w-3" />
-                          Primary
-                        </span>
-                      )}
-                      {domain.isConnected && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 text-[10px] font-medium">
-                          <LinkIcon className="h-3 w-3" />
-                          BYOD
-                        </span>
-                      )}
-                      {domain.isFree && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950/30 dark:text-violet-400 text-[10px] font-medium">
-                          Free
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                      <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded", getStatusColor(domain.registrarStatus))}>
-                        {getStatusIcon(domain.registrarStatus)}
-                        {domain.registrarStatus}
-                      </span>
-                      <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded", getStatusColor(domain.sslStatus))}>
-                        {domain.sslStatus === "active" || domain.sslStatus === "active_certificate" ? (
-                          <ShieldCheck className="h-3 w-3" />
-                        ) : (
-                          <Shield className="h-3 w-3" />
-                        )}
-                        SSL: {domain.sslStatus}
-                      </span>
-                      {domain.expiresAt && (
-                        <span>
-                          Expires: {new Date(domain.expiresAt).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push(`/domains/${domain.id}`)}
-                  >
-                    Manage
-                  </Button>
-                  {(domain.registrarStatus === "registration_failed" || domain.registrarStatus === "pending_registration") && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-900/20"
-                      onClick={async () => {
-                        const res = await fetch(`/api/domains/${domain.id}/retry`, { method: "POST" });
-                        const data = await res.json();
-                        if (res.ok) {
-                          alert("Registration retry successful!");
-                          window.location.reload();
-                        } else {
-                          alert(data.error || "Retry failed");
-                        }
-                      }}
-                    >
-                      Retry Registration
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleCheckStatus(domain.id)}
-                    disabled={loadingStatus === domain.id}
-                  >
-                    {loadingStatus === domain.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                  </Button>
-                  {!domain.isPrimary && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleSetPrimary(domain.id)}
-                    >
-                      <Star className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => handleDisconnect(domain.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    asChild
-                  >
-                    <a href={`https://${domain.domainName}`} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </Button>
-                </div>
-              </div>
+          {domains.map((domain) => {
+            const daysLeft = getDaysUntilExpiry(domain.expiresAt);
+            const isExpanded = expandedDomain === domain.id;
+            const isRetryable = domain.registrarStatus === "registration_failed" || domain.registrarStatus === "pending_registration";
 
-              {/* Expanded Status Panel */}
-              {selectedDomain?.id === domain.id && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  className="mt-4 pt-4 border-t space-y-3"
-                >
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="rounded-lg bg-muted/50 p-3">
-                      <p className="text-[10px] font-medium text-muted-foreground uppercase">Registrar</p>
-                      <p className="text-sm font-semibold mt-1">{selectedDomain.registrarStatus}</p>
-                    </div>
-                    <div className="rounded-lg bg-muted/50 p-3">
-                      <p className="text-[10px] font-medium text-muted-foreground uppercase">Cloudflare</p>
-                      <p className="text-sm font-semibold mt-1">{selectedDomain.cloudflareStatus || "N/A"}</p>
-                    </div>
-                    <div className="rounded-lg bg-muted/50 p-3">
-                      <p className="text-[10px] font-medium text-muted-foreground uppercase">SSL</p>
-                      <p className="text-sm font-semibold mt-1">{selectedDomain.sslStatus}</p>
-                    </div>
-                  </div>
-                  {selectedDomain.nameservers.length > 0 && (
-                    <div className="rounded-lg bg-muted/50 p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Server className="h-4 w-4 text-muted-foreground" />
-                        <p className="text-[10px] font-medium text-muted-foreground uppercase">Nameservers</p>
+            return (
+              <motion.div
+                key={domain.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-xl border bg-card overflow-hidden"
+              >
+                {/* Main row */}
+                <div className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-brand-100 dark:bg-brand-950/30 flex items-center justify-center">
+                        <Globe className="h-5 w-5 text-brand-600 dark:text-brand-400" />
                       </div>
-                      <div className="space-y-1">
-                        {selectedDomain.nameservers.map((ns, i) => (
-                          <div key={i} className="flex items-center justify-between">
-                            <code className="text-xs font-mono">{ns}</code>
-                            <button
-                              onClick={() => copyToClipboard(ns)}
-                              className="text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                              <Copy className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {/* Setup reminder for BYOD domains with pending status */}
-                  {domain.isConnected && selectedDomain.sslStatus !== "active_certificate" && selectedDomain.sslStatus !== "active" && (
-                    <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3">
-                      <div className="flex items-start gap-2">
-                        <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                        <div className="text-xs text-amber-800 dark:text-amber-300 space-y-1">
-                          <p className="font-semibold">Setup not complete</p>
-                          <p>
-                            Update your nameservers at your domain registrar to the ones shown above.
-                            Once nameservers are pointing to Cloudflare, SSL will be provisioned automatically.
-                            This can take up to 24-48 hours after the change.
-                          </p>
-                          <p>Click the refresh button to check the latest status.</p>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setExpandedDomain(isExpanded ? null : domain.id)}
+                            className="font-semibold hover:text-brand-600 transition-colors text-left"
+                          >
+                            {domain.domainName}
+                          </button>
+                          {domain.isPrimary && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 dark:bg-brand-950/30 dark:text-brand-400 text-[10px] font-medium">
+                              <Star className="h-3 w-3" />
+                              Primary
+                            </span>
+                          )}
+                          {domain.isConnected && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 text-[10px] font-medium">
+                              <LinkIcon className="h-3 w-3" />
+                              BYOD
+                            </span>
+                          )}
+                          {domain.isFree && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950/30 dark:text-violet-400 text-[10px] font-medium">
+                              Free
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                          <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded", getStatusColor(domain.registrarStatus))}>
+                            {getStatusIcon(domain.registrarStatus)}
+                            {domain.registrarStatus}
+                          </span>
+                          <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded", getStatusColor(domain.sslStatus))}>
+                            {domain.sslStatus === "active" || domain.sslStatus === "active_certificate" ? (
+                              <ShieldCheck className="h-3 w-3" />
+                            ) : (
+                              <Shield className="h-3 w-3" />
+                            )}
+                            SSL: {domain.sslStatus}
+                          </span>
+                          {!domain.isConnected && domain.purchasePriceCents > 0 && (
+                            <span className="inline-flex items-center gap-1">
+                              <DollarSign className="h-3 w-3" />
+                              Paid: {formatCurrency(domain.purchasePriceCents)}/yr
+                            </span>
+                          )}
+                          {domain.expiresAt && daysLeft !== null && (
+                            <span className={cn("inline-flex items-center gap-1 font-medium", getExpiryColor(daysLeft))}>
+                              <Calendar className="h-3 w-3" />
+                              {daysLeft <= 0 ? "Expired" : `${daysLeft} days left`}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
+                    <div className="flex items-center gap-2">
+                      {isRetryable && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-900/20"
+                          disabled={retrying === domain.id}
+                          onClick={() => handleRetryRegistration(domain.id)}
+                        >
+                          {retrying === domain.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                          ) : (
+                            <RotateCcw className="h-4 w-4 mr-1" />
+                          )}
+                          Retry
+                        </Button>
+                      )}
+                      <Button
+                        variant={isExpanded ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setExpandedDomain(isExpanded ? null : domain.id)}
+                      >
+                        {isExpanded ? "Close" : "Manage"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCheckStatus(domain.id)}
+                        disabled={loadingStatus === domain.id}
+                      >
+                        {loadingStatus === domain.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={`https://${domain.domainName}`} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Expanded Management Panel */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="border-t px-5 py-4 space-y-4 bg-muted/20">
+                        {/* Billing & Renewal Info */}
+                        <div>
+                          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                            <CreditCard className="h-4 w-4 text-muted-foreground" />
+                            Billing & Renewal
+                          </h3>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div className="rounded-lg bg-background border p-3">
+                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Purchase Price</p>
+                              <p className="text-lg font-bold mt-1">
+                                {domain.isFree ? "Free" : domain.isConnected ? "N/A" : formatCurrency(domain.purchasePriceCents)}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {domain.isFree ? "Pro plan perk" : domain.isConnected ? "External domain" : "one-time"}
+                              </p>
+                            </div>
+                            <div className="rounded-lg bg-background border p-3">
+                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Renewal Price</p>
+                              <p className="text-lg font-bold mt-1">
+                                {domain.isConnected ? "N/A" : formatCurrency(domain.renewalPriceCents)}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {domain.isConnected ? "No renewal needed" : "per year"}
+                              </p>
+                            </div>
+                            <div className="rounded-lg bg-background border p-3">
+                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Expires</p>
+                              <p className="text-lg font-bold mt-1">
+                                {domain.expiresAt
+                                  ? new Date(domain.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                                  : "N/A"}
+                              </p>
+                              {daysLeft !== null && (
+                                <p className={cn("text-[10px] font-medium", getExpiryColor(daysLeft))}>
+                                  {daysLeft <= 0 ? "EXPIRED" : `${daysLeft} days remaining`}
+                                </p>
+                              )}
+                            </div>
+                            <div className="rounded-lg bg-background border p-3">
+                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Registered</p>
+                              <p className="text-lg font-bold mt-1">
+                                {new Date(domain.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">purchase date</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Settings Row */}
+                        <div className="flex flex-wrap items-center gap-6 rounded-lg bg-background border p-4">
+                          {/* Auto-renew toggle */}
+                          {!domain.isConnected && (
+                            <div className="flex items-center gap-3">
+                              <div>
+                                <p className="text-sm font-medium">Auto-Renewal</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {domain.autoRenew
+                                    ? `Renews automatically at ${formatCurrency(domain.renewalPriceCents)}/yr`
+                                    : "Domain will expire without manual renewal"}
+                                </p>
+                              </div>
+                              <Switch
+                                checked={domain.autoRenew}
+                                onCheckedChange={() => handleToggleAutoRenew(domain.id, domain.autoRenew)}
+                                disabled={togglingAutoRenew === domain.id}
+                              />
+                            </div>
+                          )}
+                          <div className="h-8 w-px bg-border hidden sm:block" />
+                          {/* Set Primary */}
+                          {!domain.isPrimary && (
+                            <Button variant="outline" size="sm" onClick={() => handleSetPrimary(domain.id)}>
+                              <Star className="h-3.5 w-3.5 mr-1.5" />
+                              Set as Primary
+                            </Button>
+                          )}
+                          {/* Delete */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                            onClick={() => handleDisconnect(domain.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                            {domain.isConnected ? "Disconnect" : "Remove"}
+                          </Button>
+                        </div>
+
+                        {/* Status Details (from check) */}
+                        {selectedDomain?.id === domain.id && (
+                          <div>
+                            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                              <Server className="h-4 w-4 text-muted-foreground" />
+                              Technical Status
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div className="rounded-lg bg-background border p-3">
+                                <p className="text-[10px] font-medium text-muted-foreground uppercase">Registrar</p>
+                                <p className="text-sm font-semibold mt-1">{selectedDomain.registrarStatus}</p>
+                              </div>
+                              <div className="rounded-lg bg-background border p-3">
+                                <p className="text-[10px] font-medium text-muted-foreground uppercase">Cloudflare</p>
+                                <p className="text-sm font-semibold mt-1">{selectedDomain.cloudflareStatus || "N/A"}</p>
+                              </div>
+                              <div className="rounded-lg bg-background border p-3">
+                                <p className="text-[10px] font-medium text-muted-foreground uppercase">SSL</p>
+                                <p className="text-sm font-semibold mt-1">{selectedDomain.sslStatus}</p>
+                              </div>
+                            </div>
+                            {selectedDomain.nameservers.length > 0 && (
+                              <div className="rounded-lg bg-background border p-3 mt-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Server className="h-4 w-4 text-muted-foreground" />
+                                  <p className="text-[10px] font-medium text-muted-foreground uppercase">Nameservers</p>
+                                </div>
+                                <div className="space-y-1">
+                                  {selectedDomain.nameservers.map((ns, i) => (
+                                    <div key={i} className="flex items-center justify-between">
+                                      <code className="text-xs font-mono">{ns}</code>
+                                      <button
+                                        onClick={() => copyToClipboard(ns)}
+                                        className="text-muted-foreground hover:text-foreground transition-colors"
+                                      >
+                                        <Copy className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* BYOD Setup Reminder */}
+                        {domain.isConnected && selectedDomain?.id === domain.id && selectedDomain.sslStatus !== "active_certificate" && selectedDomain.sslStatus !== "active" && (
+                          <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3">
+                            <div className="flex items-start gap-2">
+                              <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                              <div className="text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                                <p className="font-semibold">Setup not complete</p>
+                                <p>
+                                  Update your nameservers at your domain registrar to the ones shown above.
+                                  Once nameservers are pointing to Cloudflare, SSL will be provisioned automatically (24-48 hours).
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Domain Payment History */}
+                        {(() => {
+                          const relatedInvoices = domainInvoices.filter((inv: any) => {
+                            try {
+                              const items = typeof inv.items === "string" ? JSON.parse(inv.items) : inv.items;
+                              return items.some((item: any) => item.description?.includes(domain.domainName));
+                            } catch { return false; }
+                          });
+                          if (relatedInvoices.length === 0) return null;
+                          return (
+                            <div>
+                              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                                <Receipt className="h-4 w-4 text-muted-foreground" />
+                                Payment History
+                              </h3>
+                              <div className="space-y-2">
+                                {relatedInvoices.map((inv: any) => {
+                                  const items = typeof inv.items === "string" ? JSON.parse(inv.items) : inv.items;
+                                  return (
+                                    <div key={inv.id} className="flex items-center gap-3 rounded-lg bg-background border p-3">
+                                      <div className="h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+                                        <FileText className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium">{inv.invoiceNumber}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {inv.type === "domain_purchase" ? "Domain Purchase" : "Domain Renewal"} &middot;{" "}
+                                          {new Date(inv.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                        </p>
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <p className="text-sm font-bold">{formatCurrency(inv.totalCents)}</p>
+                                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                          <CheckCircle2 className="h-3 w-3" />
+                                          Paid
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </motion.div>
                   )}
-                </motion.div>
-              )}
-            </motion.div>
-          ))}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
         </div>
       )}
     </div>

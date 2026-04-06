@@ -105,6 +105,8 @@ const INVOICE_TYPE_LABELS: Record<string, string> = {
   credit_purchase: "Credit Purchase",
   subscription: "Subscription",
   sms_rental: "SMS Number Rental",
+  domain_purchase: "Domain Purchase",
+  domain_renewal: "Domain Renewal",
 };
 
 const FILTER_OPTIONS = [
