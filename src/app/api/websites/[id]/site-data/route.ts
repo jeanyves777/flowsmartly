@@ -26,10 +26,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     // Detect pages from the generated site
     const pages = detectPages(siteDir);
 
-    // Try siteData from DB first
+    // Try siteData from DB first — but if logo or heroImages are missing, re-parse
     if (website.siteData && website.siteData !== "{}") {
       try {
-        return NextResponse.json({ data: JSON.parse(website.siteData), pages });
+        const cached = JSON.parse(website.siteData);
+        if (cached.logo && cached.heroImages?.length) {
+          return NextResponse.json({ data: cached, pages });
+        }
+        // Missing logo or heroImages — fall through to re-parse from files
       } catch {}
     }
 
@@ -82,11 +86,45 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       data.blogPosts = extractObjectArray(content, "blogPosts", ["id", "title", "excerpt", "content", "category", "date", "author", "image"]);
       data.galleryImages = extractObjectArray(content, "galleryImages", ["src", "alt", "category"]);
 
-      // Extract hero images
+      // Extract hero images from data.ts
       const slidesMatch = content.match(/(?:slides|heroImages|heroSlides)\s*=\s*\[([\s\S]*?)\]/);
       if (slidesMatch) {
         const imgPaths = [...slidesMatch[1].matchAll(/src:\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
         if (imgPaths.length > 0) data.heroImages = imgPaths;
+      }
+
+      // Also check Hero.tsx for slides (some sites define them in the component)
+      if (!data.heroImages?.length) {
+        try {
+          const heroPath = join(siteDir, "src", "components", "Hero.tsx");
+          const heroContent = readFileSync(heroPath, "utf-8");
+          const heroSlidesMatch = heroContent.match(/(?:const\s+)?slides\s*=\s*\[([\s\S]*?)\];/);
+          if (heroSlidesMatch) {
+            const imgPaths = [...heroSlidesMatch[1].matchAll(/src:\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
+            if (imgPaths.length > 0) data.heroImages = imgPaths;
+          }
+        } catch { /* Hero.tsx may not exist */ }
+      }
+
+      // Extract logo — check data.ts first, then Logo.tsx for image-based logos
+      const logoMatch = content.match(/logo:\s*['"]([^'"]+)['"]/);
+      if (logoMatch) {
+        data.logo = logoMatch[1];
+      }
+      if (!data.logo) {
+        try {
+          const logoPath = join(siteDir, "src", "components", "Logo.tsx");
+          const logoContent = readFileSync(logoPath, "utf-8");
+          // Check for image-based logo (img src or Image src)
+          const logoImgMatch = logoContent.match(/(?:src=\{?['"]|src:\s*['"])([^'"]+\.(?:png|jpg|jpeg|webp|svg|gif))['"]/);
+          if (logoImgMatch) {
+            data.logo = logoImgMatch[1];
+          }
+          // If SVG-based logo (no image), mark as "svg" so editor knows it exists
+          if (!data.logo && logoContent.includes("<svg")) {
+            data.logo = "__svg__";
+          }
+        } catch { /* Logo.tsx may not exist */ }
       }
 
       // Save to DB for faster future loads
