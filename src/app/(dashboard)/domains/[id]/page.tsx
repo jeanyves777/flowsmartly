@@ -1,0 +1,771 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import {
+  Globe,
+  ArrowLeft,
+  Shield,
+  ShieldCheck,
+  Server,
+  Plus,
+  Trash2,
+  RefreshCw,
+  Loader2,
+  Copy,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  Settings,
+  Layers,
+  Link as LinkIcon,
+  Unlink,
+  ToggleLeft,
+  ToggleRight,
+  ExternalLink,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils/cn";
+
+// ── Types ──
+
+interface DomainDetail {
+  id: string;
+  domainName: string;
+  tld: string;
+  registrarStatus: string;
+  cloudflareStatus: string | null;
+  sslStatus: string;
+  nameservers: string[];
+  isPrimary: boolean;
+  isConnected: boolean;
+  expiresAt: string | null;
+}
+
+interface DomainSettings {
+  autoRenew: boolean;
+  whoisPrivacy: boolean;
+  storeId: string | null;
+  isFree: boolean;
+}
+
+interface DnsRecord {
+  id: string;
+  type: string;
+  name: string;
+  content: string;
+  proxied: boolean;
+  ttl: number;
+}
+
+interface LinkedWebsite {
+  id: string;
+  name: string;
+  slug: string;
+  customDomain: string | null;
+}
+
+type Tab = "overview" | "dns" | "settings";
+
+// ── Main Page ──
+
+export default function DomainDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const [tab, setTab] = useState<Tab>("overview");
+  const [domain, setDomain] = useState<DomainDetail | null>(null);
+  const [settings, setSettings] = useState<DomainSettings | null>(null);
+  const [dnsRecords, setDnsRecords] = useState<DnsRecord[]>([]);
+  const [websites, setWebsites] = useState<LinkedWebsite[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadDomain = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/domains/${id}`);
+      const data = await res.json();
+      if (data.success) {
+        setDomain(data.data?.domain);
+      } else {
+        toast({ title: "Domain not found", variant: "destructive" });
+        router.push("/domains");
+      }
+    } catch {
+      toast({ title: "Failed to load domain", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [id, router, toast]);
+
+  const loadSettings = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/domains`);
+      const data = await res.json();
+      if (data.success) {
+        const d = (data.data?.domains || []).find((dom: { id: string }) => dom.id === id);
+        if (d) {
+          setSettings({
+            autoRenew: d.autoRenew,
+            whoisPrivacy: d.whoisPrivacy,
+            storeId: d.storeId || null,
+            isFree: d.isFree,
+          });
+        }
+      }
+    } catch { /* non-critical */ }
+  }, [id]);
+
+  const loadDns = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/domains/${id}/dns`);
+      const data = await res.json();
+      if (data.success) {
+        setDnsRecords(data.data?.records || []);
+      }
+    } catch { /* non-critical */ }
+  }, [id]);
+
+  const loadWebsites = useCallback(async () => {
+    try {
+      const res = await fetch("/api/websites");
+      const data = await res.json();
+      if (data.success) {
+        setWebsites(
+          (data.data?.websites || data.websites || []).map((w: any) => ({
+            id: w.id,
+            name: w.name || w.slug,
+            slug: w.slug,
+            customDomain: w.customDomain,
+          }))
+        );
+      }
+    } catch { /* non-critical */ }
+  }, []);
+
+  useEffect(() => {
+    loadDomain();
+    loadSettings();
+    loadDns();
+    loadWebsites();
+  }, [loadDomain, loadSettings, loadDns, loadWebsites]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([loadDomain(), loadDns()]);
+    setRefreshing(false);
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied to clipboard" });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!domain) return null;
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="sm" onClick={() => router.push("/domains")}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex-1">
+          <div className="flex items-center gap-3">
+            <Globe className="h-6 w-6 text-brand-600" />
+            <h1 className="text-2xl font-bold">{domain.domainName}</h1>
+            {domain.isPrimary && (
+              <span className="px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 dark:bg-brand-950/30 dark:text-brand-400 text-xs font-medium">
+                Primary
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+            {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Refresh
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a href={`https://${domain.domainName}`} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-4 w-4" />
+              Visit
+            </a>
+          </Button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b">
+        {([
+          { key: "overview", label: "Overview", icon: Globe },
+          { key: "dns", label: "DNS Records", icon: Layers },
+          { key: "settings", label: "Settings", icon: Settings },
+        ] as const).map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-[1px]",
+              tab === key
+                ? "border-brand-600 text-brand-700 dark:text-brand-400"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {tab === "overview" && (
+        <OverviewTab
+          domain={domain}
+          copyToClipboard={copyToClipboard}
+        />
+      )}
+      {tab === "dns" && (
+        <DnsTab
+          domainId={id}
+          records={dnsRecords}
+          domainName={domain.domainName}
+          hasZone={!!domain.cloudflareStatus}
+          onRefresh={loadDns}
+        />
+      )}
+      {tab === "settings" && settings && (
+        <SettingsTab
+          domainId={id}
+          domainName={domain.domainName}
+          settings={settings}
+          websites={websites}
+          onUpdate={() => { loadSettings(); loadDomain(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Overview Tab ──
+
+function OverviewTab({
+  domain,
+  copyToClipboard,
+}: {
+  domain: DomainDetail;
+  copyToClipboard: (text: string) => void;
+}) {
+  const getStatusBadge = (status: string) => {
+    const isActive = status === "active" || status === "active_certificate";
+    const isPending = status === "pending" || status === "pending_validation" || status === "pending_registration";
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
+          isActive && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+          isPending && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+          !isActive && !isPending && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+        )}
+      >
+        {isActive ? <CheckCircle2 className="h-3 w-3" /> : isPending ? <Clock className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+        {status}
+      </span>
+    );
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+      {/* Status cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-[10px] font-medium text-muted-foreground uppercase mb-2">Registrar Status</p>
+          {getStatusBadge(domain.registrarStatus)}
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-[10px] font-medium text-muted-foreground uppercase mb-2">Cloudflare</p>
+          {getStatusBadge(domain.cloudflareStatus || "not configured")}
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-[10px] font-medium text-muted-foreground uppercase mb-2">SSL Certificate</p>
+          <div className="flex items-center gap-2">
+            {domain.sslStatus === "active" || domain.sslStatus === "active_certificate" ? (
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            ) : (
+              <Shield className="h-4 w-4 text-amber-600" />
+            )}
+            {getStatusBadge(domain.sslStatus)}
+          </div>
+        </div>
+      </div>
+
+      {/* Domain info */}
+      <div className="rounded-xl border bg-card p-5 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Domain</p>
+            <p className="font-medium">{domain.domainName}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Type</p>
+            <p className="font-medium">{domain.isConnected ? "Connected (BYOD)" : "Registered"}</p>
+          </div>
+          {domain.expiresAt && (
+            <div>
+              <p className="text-xs text-muted-foreground">Expires</p>
+              <p className="font-medium">{new Date(domain.expiresAt).toLocaleDateString()}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Nameservers */}
+      {domain.nameservers.length > 0 && (
+        <div className="rounded-xl border bg-card p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Server className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Nameservers</h3>
+          </div>
+          <div className="space-y-2">
+            {domain.nameservers.map((ns, i) => (
+              <div key={i} className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-2.5">
+                <code className="text-sm font-mono">{ns}</code>
+                <button onClick={() => copyToClipboard(ns)} className="text-muted-foreground hover:text-foreground transition-colors">
+                  <Copy className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Setup incomplete warning */}
+      {domain.isConnected && domain.sslStatus !== "active_certificate" && domain.sslStatus !== "active" && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+            <div className="text-sm text-amber-800 dark:text-amber-300">
+              <p className="font-semibold mb-1">Setup not complete</p>
+              <p>Update your nameservers at your domain registrar to the ones shown above. SSL will be provisioned automatically once nameservers are active (24-48 hours).</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// ── DNS Tab ──
+
+function DnsTab({
+  domainId,
+  records,
+  domainName,
+  hasZone,
+  onRefresh,
+}: {
+  domainId: string;
+  records: DnsRecord[];
+  domainName: string;
+  hasZone: boolean;
+  onRefresh: () => void;
+}) {
+  const { toast } = useToast();
+  const [showAdd, setShowAdd] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  // New record form
+  const [newType, setNewType] = useState("A");
+  const [newName, setNewName] = useState("");
+  const [newContent, setNewContent] = useState("");
+  const [newProxied, setNewProxied] = useState(true);
+
+  const handleAdd = async () => {
+    if (!newName || !newContent) {
+      toast({ title: "Name and content are required", variant: "destructive" });
+      return;
+    }
+    setAdding(true);
+    try {
+      const res = await fetch(`/api/domains/${domainId}/dns`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: newType,
+          name: newName.includes(".") ? newName : `${newName}.${domainName}`,
+          content: newContent,
+          proxied: newProxied,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: "DNS record created" });
+        setShowAdd(false);
+        setNewName("");
+        setNewContent("");
+        onRefresh();
+      } else {
+        toast({ title: data.error?.message || "Failed to create record", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to create DNS record", variant: "destructive" });
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleDelete = async (recordId: string) => {
+    if (!confirm("Delete this DNS record?")) return;
+    setDeleting(recordId);
+    try {
+      const res = await fetch(`/api/domains/${domainId}/dns`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: "DNS record deleted" });
+        onRefresh();
+      } else {
+        toast({ title: data.error?.message || "Failed to delete", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to delete DNS record", variant: "destructive" });
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const typeColors: Record<string, string> = {
+    A: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    AAAA: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
+    CNAME: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
+    MX: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    TXT: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    NS: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400",
+    SRV: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400",
+    CAA: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  };
+
+  if (!hasZone) {
+    return (
+      <div className="rounded-xl border bg-card p-12 text-center">
+        <Layers className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+        <h3 className="font-semibold mb-1">No Cloudflare Zone</h3>
+        <p className="text-sm text-muted-foreground">DNS management requires an active Cloudflare zone. This will be configured automatically.</p>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{records.length} record{records.length !== 1 ? "s" : ""}</p>
+        <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
+          <Plus className="h-4 w-4" />
+          Add Record
+        </Button>
+      </div>
+
+      {/* Add record form */}
+      {showAdd && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          className="rounded-xl border bg-card p-5 space-y-3"
+        >
+          <h3 className="text-sm font-semibold">New DNS Record</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Type</label>
+              <select
+                value={newType}
+                onChange={(e) => setNewType(e.target.value)}
+                className="w-full mt-1 rounded-md border bg-background px-3 py-2 text-sm"
+              >
+                {["A", "AAAA", "CNAME", "MX", "TXT", "SRV", "CAA", "NS"].map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Name</label>
+              <Input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder={`@ or subdomain`}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Content</label>
+              <Input
+                value={newContent}
+                onChange={(e) => setNewContent(e.target.value)}
+                placeholder={newType === "A" ? "IP address" : newType === "CNAME" ? "target.com" : "value"}
+                className="mt-1"
+              />
+            </div>
+            <div className="flex items-end gap-2">
+              <label className="flex items-center gap-2 cursor-pointer mb-2">
+                <button
+                  type="button"
+                  onClick={() => setNewProxied(!newProxied)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  {newProxied ? (
+                    <ToggleRight className="h-5 w-5 text-brand-600" />
+                  ) : (
+                    <ToggleLeft className="h-5 w-5" />
+                  )}
+                </button>
+                <span className="text-xs">Proxied</span>
+              </label>
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" size="sm" onClick={() => setShowAdd(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleAdd} disabled={adding}>
+              {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Add
+            </Button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Records list */}
+      {records.length === 0 ? (
+        <div className="rounded-xl border bg-card p-8 text-center">
+          <p className="text-sm text-muted-foreground">No DNS records found. Add your first record above.</p>
+        </div>
+      ) : (
+        <div className="rounded-xl border bg-card overflow-hidden">
+          {/* Table header */}
+          <div className="grid grid-cols-[80px_1fr_1fr_80px_60px] gap-3 px-4 py-2.5 bg-muted/50 text-[10px] font-medium text-muted-foreground uppercase">
+            <span>Type</span>
+            <span>Name</span>
+            <span>Content</span>
+            <span>Proxy</span>
+            <span></span>
+          </div>
+          {records.map((record) => (
+            <div
+              key={record.id}
+              className="grid grid-cols-[80px_1fr_1fr_80px_60px] gap-3 px-4 py-3 border-t items-center text-sm"
+            >
+              <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold text-center", typeColors[record.type] || "bg-muted text-muted-foreground")}>
+                {record.type}
+              </span>
+              <span className="font-mono text-xs truncate">{record.name}</span>
+              <span className="font-mono text-xs truncate text-muted-foreground">{record.content}</span>
+              <span>
+                {record.proxied ? (
+                  <span className="text-[10px] text-amber-600 font-medium">Proxied</span>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">DNS only</span>
+                )}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                onClick={() => handleDelete(record.id)}
+                disabled={deleting === record.id}
+              >
+                {deleting === record.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// ── Settings Tab ──
+
+function SettingsTab({
+  domainId,
+  domainName,
+  settings,
+  websites,
+  onUpdate,
+}: {
+  domainId: string;
+  domainName: string;
+  settings: DomainSettings;
+  websites: LinkedWebsite[];
+  onUpdate: () => void;
+}) {
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+
+  const updateSetting = async (data: Record<string, unknown>) => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/domains/${domainId}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast({ title: "Settings updated" });
+        onUpdate();
+      } else {
+        toast({ title: result.error?.message || "Update failed", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to update settings", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const linkedWebsite = websites.find((w) => w.customDomain === domainName);
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+      {/* Auto-renew */}
+      <div className="rounded-xl border bg-card p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold">Auto-Renew</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Automatically renew this domain before it expires</p>
+          </div>
+          <button
+            onClick={() => updateSetting({ autoRenew: !settings.autoRenew })}
+            disabled={saving}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {settings.autoRenew ? (
+              <ToggleRight className="h-8 w-8 text-brand-600" />
+            ) : (
+              <ToggleLeft className="h-8 w-8" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* WHOIS Privacy */}
+      <div className="rounded-xl border bg-card p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold">WHOIS Privacy</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Hide your personal info from public WHOIS lookups</p>
+          </div>
+          <button
+            onClick={() => updateSetting({ whoisPrivacy: !settings.whoisPrivacy })}
+            disabled={saving}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {settings.whoisPrivacy ? (
+              <ToggleRight className="h-8 w-8 text-brand-600" />
+            ) : (
+              <ToggleLeft className="h-8 w-8" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Link to FlowShop Store */}
+      <div className="rounded-xl border bg-card p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold">Link to FlowShop Store</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {settings.storeId
+                ? "This domain is linked to your FlowShop store"
+                : "Connect this domain to your FlowShop store as a custom domain"}
+            </p>
+          </div>
+          {settings.storeId ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => updateSetting({ linkToStore: false })}
+              disabled={saving}
+            >
+              <Unlink className="h-4 w-4" />
+              Unlink
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={() => updateSetting({ linkToStore: true })}
+              disabled={saving}
+            >
+              <LinkIcon className="h-4 w-4" />
+              Link Store
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Link to Website */}
+      <div className="rounded-xl border bg-card p-5 space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold">Link to Website</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Use this domain as a custom domain for one of your websites
+          </p>
+        </div>
+        {linkedWebsite ? (
+          <div className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Globe className="h-4 w-4 text-brand-600" />
+              <span className="text-sm font-medium">{linkedWebsite.name}</span>
+              <span className="text-xs text-muted-foreground">({linkedWebsite.slug})</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => updateSetting({ linkToWebsite: null })}
+              disabled={saving}
+            >
+              <Unlink className="h-4 w-4" />
+              Unlink
+            </Button>
+          </div>
+        ) : websites.length > 0 ? (
+          <div className="space-y-2">
+            {websites.filter((w) => !w.customDomain).map((website) => (
+              <div key={website.id} className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">{website.name}</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => updateSetting({ linkToWebsite: website.id })}
+                  disabled={saving}
+                >
+                  <LinkIcon className="h-3.5 w-3.5" />
+                  Link
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No websites available. Create a website first to link this domain.</p>
+        )}
+      </div>
+    </motion.div>
+  );
+}

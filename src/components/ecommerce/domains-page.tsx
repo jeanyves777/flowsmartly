@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Globe,
@@ -63,6 +64,7 @@ interface DomainStatus {
 }
 
 export function DomainsPageContent() {
+  const router = useRouter();
   const { toast } = useToast();
   const [domains, setDomains] = useState<StoreDomain[]>([]);
   const [loading, setLoading] = useState(true);
@@ -590,7 +592,12 @@ export function DomainsPageContent() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold">{domain.domainName}</span>
+                      <button
+                        onClick={() => router.push(`/domains/${domain.id}`)}
+                        className="font-semibold hover:text-brand-600 hover:underline transition-colors text-left"
+                      >
+                        {domain.domainName}
+                      </button>
                       {domain.isPrimary && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 dark:bg-brand-950/30 dark:text-brand-400 text-[10px] font-medium">
                           <Star className="h-3 w-3" />
@@ -631,6 +638,13 @@ export function DomainsPageContent() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/domains/${domain.id}`)}
+                  >
+                    Manage
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
