@@ -5,10 +5,13 @@
  * (A + CNAME pointing to our server), and check SSL provisioning status.
  */
 
-import dns from "dns";
-
-// Force IPv4 for all DNS lookups — Cloudflare API tokens may have IPv4-only restrictions
-dns.setDefaultResultOrder("ipv4first");
+// Force IPv4 for Cloudflare API calls — token may have IPv4-only restrictions
+try {
+  const dns = require("dns");
+  dns.setDefaultResultOrder("ipv4first");
+} catch {
+  // Edge runtime doesn't support dns module — skip
+}
 
 const CF_BASE = "https://api.cloudflare.com/client/v4";
 const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || "";
