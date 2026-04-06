@@ -109,6 +109,25 @@ export default function WebsiteEditPage() {
     setPickerOpen(true);
   };
 
+  const aiGenerateImage = async (prompt: string, category: string): Promise<string | null> => {
+    try {
+      const res = await fetch(`/api/websites/${id}/generate-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, category }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to generate image");
+        return null;
+      }
+      return data.path;
+    } catch {
+      alert("Failed to generate image");
+      return null;
+    }
+  };
+
   const uploadImageToSite = async (file: File, category: string): Promise<string> => {
     const fd = new FormData();
     fd.append("file", file);
@@ -198,7 +217,7 @@ export default function WebsiteEditPage() {
       {activeTab === "hero" && data && (
         <div className="space-y-6">
           <Section title="Logo">
-            <ImagePicker label="Site Logo" value={data.logo} onChange={(v) => { update("logo", v); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "brand")} compact square />
+            <ImagePicker label="Site Logo" value={data.logo} onChange={(v) => { update("logo", v); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "brand")} onAiGenerate={aiGenerateImage} compact square />
           </Section>
           <Section title="Hero Slideshow Images">
             <p className="text-sm text-muted-foreground mb-3">Add images for the hero section slideshow. Upload your own photos or pick from your media library.</p>
@@ -249,7 +268,7 @@ export default function WebsiteEditPage() {
             <div key={i} className="bg-card border border-border rounded-xl p-4">
               <div className="flex items-start gap-4">
                 {/* Service Image */}
-                <ImagePicker label="" value={svc.image} onChange={(v) => { const s = [...data.services]; s[i] = { ...s[i], image: v }; update("services", s); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "services")} compact />
+                <ImagePicker label="" value={svc.image} onChange={(v) => { const s = [...data.services]; s[i] = { ...s[i], image: v }; update("services", s); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "services")} onAiGenerate={aiGenerateImage} compact />
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-muted-foreground">Service {i + 1}</span>
@@ -278,7 +297,7 @@ export default function WebsiteEditPage() {
           {(data.team || []).map((member, i) => (
             <div key={i} className="bg-card border border-border rounded-xl p-4">
               <div className="flex items-start gap-4">
-                <ImagePicker label="" value={member.image} onChange={(v) => { const t = [...(data.team || [])]; t[i] = { ...t[i], image: v }; update("team", t); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "team")} compact square />
+                <ImagePicker label="" value={member.image} onChange={(v) => { const t = [...(data.team || [])]; t[i] = { ...t[i], image: v }; update("team", t); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "team")} onAiGenerate={aiGenerateImage} compact square />
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-muted-foreground">Member {i + 1}</span>
@@ -366,7 +385,7 @@ export default function WebsiteEditPage() {
           {(data.blogPosts || []).map((post, i) => (
             <div key={i} className="bg-card border border-border rounded-xl p-4">
               <div className="flex items-start gap-4">
-                <ImagePicker label="" value={post.image} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], image: v }; update("blogPosts", p); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "blog")} compact />
+                <ImagePicker label="" value={post.image} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], image: v }; update("blogPosts", p); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "blog")} onAiGenerate={aiGenerateImage} compact />
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-muted-foreground">Post {i + 1}</span>
@@ -492,14 +511,18 @@ function Field({ label, value, onChange, multiline, span, icon }: { label: strin
   );
 }
 
-function ImagePicker({ label, value, onChange, onBrowse, onUpload, compact, square }: {
+function ImagePicker({ label, value, onChange, onBrowse, onUpload, onAiGenerate, compact, square }: {
   label?: string; value?: string; onChange: (url: string) => void;
   onBrowse: (cb: (url: string) => void) => void;
   onUpload: (file: File) => Promise<string>;
+  onAiGenerate?: (prompt: string, category: string) => Promise<string | null>;
   compact?: boolean; square?: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [showAiDialog, setShowAiDialog] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -508,6 +531,14 @@ function ImagePicker({ label, value, onChange, onBrowse, onUpload, compact, squa
     const path = await onUpload(file);
     if (path) onChange(path);
     setUploading(false);
+  };
+
+  const handleAiGenerate = async () => {
+    if (!aiPrompt.trim() || !onAiGenerate) return;
+    setAiGenerating(true);
+    const path = await onAiGenerate(aiPrompt, "generated");
+    if (path) { onChange(path); setShowAiDialog(false); setAiPrompt(""); }
+    setAiGenerating(false);
   };
 
   const size = compact ? (square ? "w-24 h-24" : "w-32 h-24") : "w-full aspect-video";
@@ -520,19 +551,59 @@ function ImagePicker({ label, value, onChange, onBrowse, onUpload, compact, squa
           <>
             <img src={value} alt="" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-              <button onClick={() => onBrowse(onChange)} className="p-1.5 bg-white/20 backdrop-blur rounded-lg text-white hover:bg-white/30"><ImageIcon className="w-4 h-4" /></button>
-              <button onClick={() => fileRef.current?.click()} className="p-1.5 bg-white/20 backdrop-blur rounded-lg text-white hover:bg-white/30"><Upload className="w-4 h-4" /></button>
-              <button onClick={() => onChange("")} className="p-1.5 bg-white/20 backdrop-blur rounded-lg text-white hover:bg-red-500/50"><X className="w-4 h-4" /></button>
+              <button onClick={() => onBrowse(onChange)} className="p-1.5 bg-white/20 backdrop-blur rounded-lg text-white hover:bg-white/30" title="Browse"><ImageIcon className="w-4 h-4" /></button>
+              <button onClick={() => fileRef.current?.click()} className="p-1.5 bg-white/20 backdrop-blur rounded-lg text-white hover:bg-white/30" title="Upload"><Upload className="w-4 h-4" /></button>
+              {onAiGenerate && <button onClick={() => setShowAiDialog(true)} className="p-1.5 bg-purple-500/50 backdrop-blur rounded-lg text-white hover:bg-purple-500/70" title="Generate with AI"><Star className="w-4 h-4" /></button>}
+              <button onClick={() => onChange("")} className="p-1.5 bg-white/20 backdrop-blur rounded-lg text-white hover:bg-red-500/50" title="Remove"><X className="w-4 h-4" /></button>
             </div>
           </>
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-1 cursor-pointer" onClick={() => onBrowse(onChange)}>
-            {uploading ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /> : <ImageIcon className="w-5 h-5 text-muted-foreground/50" />}
+          <div className="w-full h-full flex flex-col items-center justify-center gap-1">
+            {uploading ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /> : (
+              <div className="flex gap-1">
+                <button onClick={() => onBrowse(onChange)} className="p-1.5 hover:bg-muted rounded" title="Browse"><ImageIcon className="w-4 h-4 text-muted-foreground" /></button>
+                <button onClick={() => fileRef.current?.click()} className="p-1.5 hover:bg-muted rounded" title="Upload"><Upload className="w-4 h-4 text-muted-foreground" /></button>
+                {onAiGenerate && <button onClick={() => setShowAiDialog(true)} className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded" title="AI Generate"><Star className="w-4 h-4 text-purple-500" /></button>}
+              </div>
+            )}
             <span className="text-[10px] text-muted-foreground">{uploading ? "Uploading..." : "Add image"}</span>
           </div>
         )}
       </div>
       <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
+
+      {/* AI Image Generation Dialog */}
+      {showAiDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => !aiGenerating && setShowAiDialog(false)}>
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-4">
+              <Star className="w-5 h-5 text-purple-500" />
+              <h3 className="text-lg font-semibold">Generate Image with AI</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">Describe the image you want. AI will generate a professional image.</p>
+            <textarea
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              placeholder="e.g., Modern church interior with warm lighting and wooden pews, congregation worshipping together"
+              rows={3}
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-purple-500/30 resize-none mb-4"
+              disabled={aiGenerating}
+            />
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
+                Cost: <strong>15 credits ($0.15)</strong>
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setShowAiDialog(false)} disabled={aiGenerating} className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-muted disabled:opacity-50">Cancel</button>
+                <button onClick={handleAiGenerate} disabled={aiGenerating || !aiPrompt.trim()} className="flex items-center gap-1.5 px-4 py-1.5 text-sm bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50">
+                  {aiGenerating ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating...</> : <><Star className="w-3.5 h-3.5" /> Generate</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
