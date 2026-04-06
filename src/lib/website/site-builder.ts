@@ -136,6 +136,10 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
       console.log(`[SiteBuilder] Dependencies already installed, skipping npm install`);
     }
 
+    // Clear build cache so changes are picked up
+    const nextCacheDir = join(siteDir, ".next");
+    try { const { rmSync } = await import("fs"); rmSync(nextCacheDir, { recursive: true, force: true }); } catch {}
+
     // next build (static export)
     console.log(`[SiteBuilder] Building site ${websiteId}...`);
     const buildOutput = execSync("npx next build", {
@@ -182,7 +186,9 @@ export async function deploySite(websiteId: string, slug: string): Promise<{ suc
     // Create output directory
     mkdirSync(OUTPUT_BASE, { recursive: true });
 
-    // Copy out/ to output dir (overwrite if exists)
+    // Remove old output, then copy fresh build
+    const { rmSync } = await import("fs");
+    try { rmSync(outputDir, { recursive: true, force: true }); } catch {}
     cpSync(outDir, outputDir, { recursive: true, force: true });
 
     // Update website status
