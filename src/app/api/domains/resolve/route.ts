@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  if (!storeDomain || !storeDomain.store.isActive) {
+  if (!storeDomain || !storeDomain.store?.isActive) {
     // Also check if it matches a store's customDomain field directly
     const storeByCustomDomain = await prisma.store.findFirst({
       where: {
