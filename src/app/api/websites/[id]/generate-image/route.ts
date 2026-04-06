@@ -20,7 +20,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const website = await prisma.website.findFirst({
       where: { id, userId: session.userId, deletedAt: null },
-      select: { id: true, generatedPath: true, name: true },
+      select: { id: true, slug: true, generatedPath: true, name: true },
     });
     if (!website) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const buffer = Buffer.from(imageData.b64_json, "base64");
     writeFileSync(join(imgDir, filename), buffer);
 
-    const imagePath = `/images/${imgCategory}/${filename}`;
+    const imagePath = `/sites/${website.slug}/images/${imgCategory}/${filename}`;
 
     // Deduct credits
     await creditService.deductCredits({

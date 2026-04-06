@@ -6,10 +6,12 @@ import { join } from "path";
 import { getSiteDir } from "@/lib/website/site-builder";
 
 // Download external image URLs to the site's public directory
-async function localizeImage(url: string, siteDir: string, category: string): Promise<string> {
+async function localizeImage(url: string, siteDir: string, category: string, basePath: string = ""): Promise<string> {
   if (!url) return url;
-  // Already a local path
-  if (url.startsWith("/images/")) return url;
+  // Already a local path with basePath
+  if (url.startsWith("/sites/")) return url;
+  // Already a local path without basePath — add basePath
+  if (url.startsWith("/images/")) return basePath + url;
   // External URL (S3 presigned or any http URL) — download it
   if (url.startsWith("http")) {
     try {
@@ -40,8 +42,9 @@ async function localizeImage(url: string, siteDir: string, category: string): Pr
       const dir = join(siteDir, "public", "images", category);
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, name), buffer);
-      console.log(`[LocalizeImage] Saved: /images/${category}/${name} (${buffer.length} bytes)`);
-      return `/images/${category}/${name}`;
+      const localPath = `${basePath}/images/${category}/${name}`;
+      console.log(`[LocalizeImage] Saved: ${localPath} (${buffer.length} bytes)`);
+      return localPath;
     } catch (err: any) {
       console.error(`[LocalizeImage] Error:`, err.message);
       return url;
@@ -70,6 +73,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json();
     const data = body.data;
     if (!data) return NextResponse.json({ error: "Data required" }, { status: 400 });
+
+    const basePath = `/sites/${website.slug}`;
 
     // Save to DB
     await prisma.website.update({
@@ -211,26 +216,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       // Localize any external image URLs (download to site public dir)
       if (data.logo && data.logo.startsWith("http")) {
-        data.logo = await localizeImage(data.logo, siteDir, "brand");
+        data.logo = await localizeImage(data.logo, siteDir, "brand", basePath);
       }
       if (data.heroImages) {
         for (let i = 0; i < data.heroImages.length; i++) {
           if (data.heroImages[i]?.startsWith("http")) {
-            data.heroImages[i] = await localizeImage(data.heroImages[i], siteDir, "hero");
+            data.heroImages[i] = await localizeImage(data.heroImages[i], siteDir, "hero", basePath);
           }
         }
       }
       if (data.team) {
         for (const member of data.team) {
           if (member.image?.startsWith("http")) {
-            member.image = await localizeImage(member.image, siteDir, "team");
+            member.image = await localizeImage(member.image, siteDir, "team", basePath);
           }
         }
       }
       if (data.services) {
         for (const svc of data.services) {
           if (svc.image?.startsWith("http")) {
-            svc.image = await localizeImage(svc.image, siteDir, "services");
+            svc.image = await localizeImage(svc.image, siteDir, "services", basePath);
           }
         }
       }
