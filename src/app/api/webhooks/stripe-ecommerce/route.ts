@@ -113,12 +113,34 @@ async function handlePaymentSucceeded(
         return;
       }
 
+      // Fetch user's Brand Identity for registrant contact
+      const brandKit = await prisma.brandKit.findFirst({
+        where: { userId },
+        select: { name: true, email: true, phone: true, address: true, city: true, state: true, zip: true, country: true },
+      });
+
+      const contact = brandKit?.name && brandKit?.email && brandKit?.phone && brandKit?.address
+        ? {
+            first_name: brandKit.name.split(/\s+/)[0] || "Domain",
+            last_name: brandKit.name.split(/\s+/).slice(1).join(" ") || "Owner",
+            org_name: brandKit.name,
+            address1: brandKit.address,
+            city: brandKit.city || "New York",
+            state: brandKit.state || "NY",
+            postal_code: brandKit.zip || "10001",
+            country: brandKit.country?.length === 2 ? brandKit.country : "US",
+            phone: brandKit.phone.startsWith("+") ? brandKit.phone : `+1.${brandKit.phone.replace(/\D/g, "")}`,
+            email: brandKit.email,
+          }
+        : undefined;
+
       const result = await purchaseDomain({
         storeId: storeId || null,
         userId,
         domainName: sld,
         tld,
         isFree: false,
+        contact,
       });
       console.log(`Domain ${result.domainName} registered after payment ${paymentIntent.id}`);
 

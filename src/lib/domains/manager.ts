@@ -18,12 +18,26 @@ export interface DomainSearchItem {
   isFreeEligible: boolean;
 }
 
+export interface DomainContact {
+  first_name: string;
+  last_name: string;
+  org_name: string;
+  address1: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+  phone: string;
+  email: string;
+}
+
 export interface PurchaseDomainParams {
   storeId: string | null;
   userId: string;
   domainName: string;
   tld: string;
   isFree: boolean;
+  contact?: DomainContact;
 }
 
 export interface ConnectDomainParams {
@@ -161,7 +175,7 @@ export async function searchDomains(
  * saved with pending Cloudflare status so it can be retried.
  */
 export async function purchaseDomain(params: PurchaseDomainParams) {
-  const { storeId, userId, domainName, tld, isFree } = params;
+  const { storeId, userId, domainName, tld, isFree, contact } = params;
   const fullDomain = `${domainName}.${tld}`;
 
   // Step 1: Validate availability (try OpenSRS, fall back to RDAP)
@@ -204,6 +218,7 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
         regUsername,
         regPassword,
         nameservers: ["ns1.cloudflare.com", "ns2.cloudflare.com"],
+        contact: contact || undefined,
         whoisPrivacy: true,
       });
       orderId = regResult.orderId;

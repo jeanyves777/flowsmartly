@@ -186,6 +186,18 @@ export function DomainsPageContent() {
         body: JSON.stringify({ domain: domain.split(".")[0], tld, isFree: retailCents === 0 }),
       });
       const data = await res.json();
+      if (!data.success && data.error?.code === "INCOMPLETE_BRAND_IDENTITY") {
+        // Redirect to brand identity page to complete profile
+        toast({
+          title: "Complete Your Brand Identity",
+          description: data.error.message,
+          variant: "destructive",
+        });
+        router.push("/brand");
+        setPurchasing(false);
+        return;
+      }
+
       if (data.success) {
         if (data.data?.clientSecret) {
           // Paid domain: show payment form

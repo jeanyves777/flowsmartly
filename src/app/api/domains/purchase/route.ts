@@ -99,6 +99,61 @@ export async function POST(request: NextRequest) {
 
     const fullDomain = `${domain}.${tld}`;
 
+    // Fetch user's Brand Identity for registrant contact info
+    const brandKit = await prisma.brandKit.findFirst({
+      where: { userId: session.userId },
+      select: {
+        name: true,
+        email: true,
+        phone: true,
+        address: true,
+        city: true,
+        state: true,
+        zip: true,
+        country: true,
+      },
+    });
+
+    // Require complete contact info for domain registration
+    const missingFields: string[] = [];
+    if (!brandKit?.name) missingFields.push("Business Name");
+    if (!brandKit?.email) missingFields.push("Email");
+    if (!brandKit?.phone) missingFields.push("Phone");
+    if (!brandKit?.address) missingFields.push("Address");
+    if (!brandKit?.city) missingFields.push("City");
+    if (!brandKit?.state) missingFields.push("State");
+    if (!brandKit?.zip) missingFields.push("Zip Code");
+    if (!brandKit?.country) missingFields.push("Country");
+
+    if (missingFields.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "INCOMPLETE_BRAND_IDENTITY",
+            message: `Please complete your Brand Identity before purchasing a domain. Missing: ${missingFields.join(", ")}`,
+            missingFields,
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    // Build contact from Brand Identity
+    const nameParts = brandKit!.name!.trim().split(/\s+/);
+    const contact = {
+      first_name: nameParts[0] || "Domain",
+      last_name: nameParts.slice(1).join(" ") || "Owner",
+      org_name: brandKit!.name!,
+      address1: brandKit!.address!,
+      city: brandKit!.city!,
+      state: brandKit!.state!,
+      postal_code: brandKit!.zip!,
+      country: brandKit!.country!.length === 2 ? brandKit!.country! : "US",
+      phone: brandKit!.phone!.startsWith("+") ? brandKit!.phone! : `+1.${brandKit!.phone!.replace(/\D/g, "")}`,
+      email: brandKit!.email!,
+    };
+
     // For PAID domains: create PaymentIntent only, don't register yet.
     // Domain will be registered in the Stripe webhook after payment succeeds.
     if (!isFree) {
@@ -131,6 +186,7 @@ export async function POST(request: NextRequest) {
       domainName: domain,
       tld,
       isFree: true,
+      contact,
     });
 
     return NextResponse.json({

@@ -23,18 +23,18 @@ if (OPENSRS_USERNAME) {
 const MAX_RETRIES = 2;
 const BASE_DELAY_MS = 1000;
 
-// ── Default contact info (FlowSmartly as registrant/reseller) ──
+// ── Fallback contact (only used when user's Brand Identity is incomplete) ──
 
 const DEFAULT_CONTACT = {
   first_name: "FlowSmartly",
-  last_name: "Inc",
+  last_name: "Customer",
   org_name: "FlowSmartly Inc",
-  address1: "FlowSmartly Platform",
+  address1: "123 Main Street",
   city: "New York",
   state: "NY",
   postal_code: "10001",
   country: "US",
-  phone: "+1.0000000000",
+  phone: "+1.2125551234",
   email: "domains@flowsmartly.com",
 };
 
@@ -450,16 +450,19 @@ export async function registerDomain(
     contactSet[role] = mergedContact;
   }
 
-  // Custom nameservers flag
-  const customNameservers = nameservers.length > 0 ? 1 : 0;
+  // Format nameservers as OpenSRS expects: array of {name, sortorder} objects
+  const formattedNameservers = nameservers.map((ns, i) => ({
+    name: ns,
+    sortorder: i + 1,
+  }));
 
   const attributes: Record<string, unknown> = {
     domain,
     period,
     reg_username: regUsername,
     reg_password: regPassword,
-    custom_nameservers: customNameservers,
-    nameserver_list: nameservers,
+    custom_nameservers: nameservers.length > 0 ? 1 : 0,
+    nameserver_list: formattedNameservers,
     contact_set: contactSet,
     handle: "process",
     reg_type: "new",

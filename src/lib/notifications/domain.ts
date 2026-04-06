@@ -15,9 +15,6 @@ async function getUserEmail(userId: string): Promise<string | null> {
 
 function domainEmailContent(title: string, message: string, cta?: { text: string; url: string }): string {
   return `
-    <div style="text-align:center;padding:30px 0 10px">
-      <img src="${APP_URL}/logo.png" alt="FlowSmartly" width="40" height="40" style="border-radius:8px" />
-    </div>
     <h1 style="font-size:24px;font-weight:700;color:#1a1a1a;margin:20px 0 10px;text-align:center">${title}</h1>
     <p style="font-size:16px;color:#4b5563;line-height:1.6;margin:0 0 20px">${message}</p>
     ${cta ? `<div style="text-align:center;margin:30px 0"><a href="${cta.url}" style="display:inline-block;padding:12px 24px;background:#3b82f6;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">${cta.text}</a></div>` : ""}
