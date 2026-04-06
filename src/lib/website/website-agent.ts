@@ -281,9 +281,10 @@ async function executeTool(name: string, input: Record<string, unknown>, ctx: Ag
 
       try {
         const localPath = await downloadImageToDir(url, ctx.siteDir, category, filename);
-        return JSON.stringify({ success: true, localPath });
+        const fullPath = `/sites/${ctx.websiteSlug}${localPath}`;
+        return JSON.stringify({ success: true, localPath: fullPath });
       } catch (err: any) {
-        return JSON.stringify({ error: err.message, localPath: `/images/${category}/placeholder.jpg` });
+        return JSON.stringify({ error: err.message, localPath: `/sites/${ctx.websiteSlug}/images/${category}/placeholder.jpg` });
       }
     }
 

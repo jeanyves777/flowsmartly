@@ -6,57 +6,45 @@ import { join } from "path";
 import { getSiteDir } from "@/lib/website/site-builder";
 
 // Download external image URLs to the site's public directory
-async function localizeImage(url: string, siteDir: string, category: string, basePath: string = ""): Promise<string> {
+async function localizeImage(url: string, siteDir: string, category: string, basePath: string): Promise<string> {
   if (!url) return url;
-  // Already a local path with basePath
   if (url.startsWith("/sites/")) return url;
-  // Already a local path without basePath — add basePath
   if (url.startsWith("/images/")) return basePath + url;
-  // External URL (S3 presigned or any http URL) — download it
   if (url.startsWith("http")) {
     try {
-      // Strip presigned query params to get clean S3 URL for download
       let downloadUrl = url;
-      if (url.includes("X-Amz-")) {
-        // Extract the base S3 URL without presigned params — bucket has public read
-        const cleanUrl = url.split("?")[0];
-        console.log(`[LocalizeImage] Using clean S3 URL: ${cleanUrl}`);
-        downloadUrl = cleanUrl;
-      }
-
-      console.log(`[LocalizeImage] Downloading: ${downloadUrl.substring(0, 100)}...`);
+      if (url.includes("X-Amz-")) downloadUrl = url.split("?")[0];
       const res = await fetch(downloadUrl);
-      if (!res.ok) {
-        console.error(`[LocalizeImage] Download failed: ${res.status} ${res.statusText}`);
-        return url;
-      }
+      if (!res.ok) { console.error(`[Localize] Failed: ${res.status}`); return url; }
       const buffer = Buffer.from(await res.arrayBuffer());
-      if (buffer.length < 100) {
-        console.error(`[LocalizeImage] Downloaded file too small: ${buffer.length} bytes`);
-        return url;
-      }
-      // Extract extension from the clean URL path
-      const pathPart = downloadUrl.split("?")[0];
-      const ext = pathPart.match(/\.(png|jpg|jpeg|webp|gif|svg)$/i)?.[1] || "jpg";
-      const name = `${category}-${Date.now()}.${ext}`;
+      if (buffer.length < 100) return url;
+      const ext = downloadUrl.split("?")[0].match(/\.(png|jpg|jpeg|webp|gif|svg)$/i)?.[1] || "jpg";
+      const name = `${category}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}.${ext}`;
       const dir = join(siteDir, "public", "images", category);
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, name), buffer);
       const localPath = `${basePath}/images/${category}/${name}`;
-      console.log(`[LocalizeImage] Saved: ${localPath} (${buffer.length} bytes)`);
+      console.log(`[Localize] ${localPath} (${buffer.length}b)`);
       return localPath;
     } catch (err: any) {
-      console.error(`[LocalizeImage] Error:`, err.message);
+      console.error(`[Localize] Error: ${err.message}`);
       return url;
     }
   }
   return url;
 }
 
+function escapeStr(s: string): string {
+  return (s || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n");
+}
+
 /**
  * POST /api/websites/[id]/update-data
- * Saves edited site data to DB and rewrites data.ts with the updated content.
- * Does NOT rebuild — the caller should trigger rebuild separately.
+ *
+ * Flow:
+ * 1. Localize ALL external image URLs FIRST (download to disk)
+ * 2. Then write everything to data.ts + component files
+ * 3. Save to DB
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -75,49 +63,93 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!data) return NextResponse.json({ error: "Data required" }, { status: 400 });
 
     const basePath = `/sites/${website.slug}`;
+    const siteDir = website.generatedPath || getSiteDir(id);
 
-    // Save to DB
+    // ========== STEP 1: Localize ALL images FIRST ==========
+    if (data.logo?.startsWith("http")) {
+      data.logo = await localizeImage(data.logo, siteDir, "brand", basePath);
+    }
+    if (data.heroImages) {
+      for (let i = 0; i < data.heroImages.length; i++) {
+        if (data.heroImages[i]?.startsWith("http")) {
+          data.heroImages[i] = await localizeImage(data.heroImages[i], siteDir, "hero", basePath);
+        }
+      }
+    }
+    if (data.services) {
+      for (const svc of data.services) {
+        if (svc.image?.startsWith("http")) {
+          svc.image = await localizeImage(svc.image, siteDir, "services", basePath);
+        }
+      }
+    }
+    if (data.team) {
+      for (const m of data.team) {
+        if (m.image?.startsWith("http")) {
+          m.image = await localizeImage(m.image, siteDir, "team", basePath);
+        }
+      }
+    }
+    if (data.blogPosts) {
+      for (const p of data.blogPosts) {
+        if (p.image?.startsWith("http")) {
+          p.image = await localizeImage(p.image, siteDir, "blog", basePath);
+        }
+      }
+    }
+    if (data.galleryImages) {
+      for (const g of data.galleryImages) {
+        if (g.src?.startsWith("http")) {
+          g.src = await localizeImage(g.src, siteDir, "gallery", basePath);
+        }
+      }
+    }
+
+    // ========== STEP 2: Save to DB ==========
     await prisma.website.update({
       where: { id },
       data: { siteData: JSON.stringify(data) },
     });
 
-    // Rewrite data.ts in the generated site
-    const siteDir = website.generatedPath || getSiteDir(id);
+    // ========== STEP 3: Write data.ts ==========
     const dataPath = join(siteDir, "src", "lib", "data.ts");
-
     try {
       let content = readFileSync(dataPath, "utf-8");
 
-      // Update companyInfo fields
+      // --- Company info (field-by-field replace in companyInfo object) ---
       if (data.company) {
         const c = data.company;
-        content = replaceField(content, "name", c.name);
-        content = replaceField(content, "shortName", c.shortName);
-        content = replaceField(content, "tagline", c.tagline);
-        content = replaceField(content, "description", c.description);
-        content = replaceField(content, "about", c.about);
-        content = replaceField(content, "mission", c.mission);
-        content = replaceField(content, "address", c.address);
-        content = replaceField(content, "city", c.city);
-        content = replaceField(content, "state", c.state);
-        content = replaceField(content, "country", c.country);
-        if (c.phones?.length) content = replaceArray(content, "phones", c.phones);
-        if (c.emails?.length) content = replaceArray(content, "emails", c.emails);
-        if (c.website) content = replaceField(content, "website", c.website);
-      }
-
-      // Update stats
-      if (data.stats) {
-        for (const stat of data.stats) {
-          const regex = new RegExp(`(${stat.label}):\\s*\\d+`);
-          content = content.replace(regex, `${stat.label}: ${stat.value}`);
+        const fields: [string, string][] = [
+          ["name", c.name], ["shortName", c.shortName], ["tagline", c.tagline],
+          ["description", c.description], ["about", c.about], ["mission", c.mission],
+          ["address", c.address], ["city", c.city], ["state", c.state], ["country", c.country],
+          ["website", c.website],
+        ];
+        for (const [k, v] of fields) {
+          if (v !== undefined && v !== null) {
+            content = content.replace(new RegExp(`(${k}:\\s*['"])[\\s\\S]*?(?:(?<!\\\\)['"])`, "m"), `${k}: '${escapeStr(v)}'`);
+          }
+        }
+        if (c.phones?.length) {
+          const items = c.phones.map((v: string) => `'${escapeStr(v)}'`).join(", ");
+          content = content.replace(/phones:\s*\[[^\]]*\]/, `phones: [${items}]`);
+        }
+        if (c.emails?.length) {
+          const items = c.emails.map((v: string) => `'${escapeStr(v)}'`).join(", ");
+          content = content.replace(/emails:\s*\[[^\]]*\]/, `emails: [${items}]`);
         }
       }
 
-      // Rebuild entire services array
+      // --- Stats ---
+      if (data.stats) {
+        for (const s of data.stats) {
+          content = content.replace(new RegExp(`(${s.label}):\\s*\\d+`), `${s.label}: ${s.value}`);
+        }
+      }
+
+      // --- Services (full rebuild) ---
       if (data.services) {
-        const servicesCode = data.services.map((s: any) => `  {
+        const code = data.services.map((s: any) => `  {
     id: '${escapeStr(s.id || "")}',
     title: '${escapeStr(s.title || "")}',
     shortDescription: '${escapeStr(s.shortDescription || "")}',
@@ -125,70 +157,48 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     icon: '${escapeStr(s.icon || "Star")}',
     image: '${escapeStr(s.image || "")}',
   }`).join(",\n");
-
-        const svcExportMatch = content.match(/export const (services)\s*=/);
-        const svcExportName = svcExportMatch?.[1] || "services";
-        content = content.replace(
-          /export const services\s*=\s*\[[\s\S]*?\n\]/,
-          `export const ${svcExportName} = [\n${servicesCode}\n]`
-        );
+        content = content.replace(/export const services\s*=\s*\[[\s\S]*?\n\]/, `export const services = [\n${code}\n]`);
       }
 
-      // Update team members
+      // --- Team (full rebuild, preserve export name) ---
       if (data.team) {
-        const teamCode = data.team.map((t: { name: string; role: string; bio?: string; image?: string }) => `  {
-    name: '${escapeStr(t.name)}',
-    role: '${escapeStr(t.role)}',
+        const exportName = content.match(/export const (teamMembers|team)\s*=/)?.[1] || "team";
+        const code = data.team.map((t: any) => `  {
+    name: '${escapeStr(t.name || "")}',
+    role: '${escapeStr(t.role || "")}',
     bio: '${escapeStr(t.bio || "")}',
     image: '${escapeStr(t.image || "")}',
   }`).join(",\n");
-
-        // Keep the original export name (team or teamMembers)
-        const teamExportMatch = content.match(/export const (teamMembers|team)\s*=/);
-        const teamExportName = teamExportMatch?.[1] || "team";
-        content = content.replace(
-          /export const (?:teamMembers|team)\s*=\s*\[[\s\S]*?\n\]/,
-          `export const ${teamExportName} = [\n${teamCode}\n]`
-        );
+        content = content.replace(/export const (?:teamMembers|team)\s*=\s*\[[\s\S]*?\n\]/, `export const ${exportName} = [\n${code}\n]`);
       }
 
-      // Update FAQ
+      // --- FAQ (full rebuild, preserve export name) ---
       if (data.faq) {
-        const faqCode = data.faq.map((f: { question: string; answer: string }) => `  {
-    question: '${escapeStr(f.question)}',
-    answer: '${escapeStr(f.answer)}',
+        const exportName = content.match(/export const (faqItems|faqs?)\s*=/)?.[1] || "faqItems";
+        const code = data.faq.map((f: any) => `  {
+    question: '${escapeStr(f.question || "")}',
+    answer: '${escapeStr(f.answer || "")}',
   }`).join(",\n");
-
-        const faqExportMatch = content.match(/export const (faqItems|faqs?)\s*=/);
-        const faqExportName = faqExportMatch?.[1] || "faqItems";
-        content = content.replace(
-          /export const (?:faqItems|faqs?)\s*=\s*\[[\s\S]*?\n\]/,
-          `export const ${faqExportName} = [\n${faqCode}\n]`
-        );
+        content = content.replace(/export const (?:faqItems|faqs?)\s*=\s*\[[\s\S]*?\n\]/, `export const ${exportName} = [\n${code}\n]`);
       }
 
-      // Update testimonials
+      // --- Testimonials (full rebuild) ---
       if (data.testimonials) {
-        // Rebuild the testimonials array entirely
-        const testimonialsCode = data.testimonials.map((t: { name: string; role: string; text: string; rating: number }) => `  {
-    name: '${escapeStr(t.name)}',
-    role: '${escapeStr(t.role)}',
+        const code = data.testimonials.map((t: any) => `  {
+    name: '${escapeStr(t.name || "")}',
+    role: '${escapeStr(t.role || "")}',
     rating: ${t.rating || 5},
-    text: '${escapeStr(t.text)}',
-    avatar: '${(t.name || "").split(" ").map((w: string) => w[0]).join("").substring(0, 2).toUpperCase()}',
+    text: '${escapeStr(t.text || "")}',
+    avatar: '${(t.name || "").split(" ").map((w: string) => w[0] || "").join("").substring(0, 2).toUpperCase()}',
   }`).join(",\n");
-
-        content = content.replace(
-          /export const testimonials\s*=\s*\[[\s\S]*?\n\]/,
-          `export const testimonials = [\n${testimonialsCode}\n]`
-        );
+        content = content.replace(/export const testimonials\s*=\s*\[[\s\S]*?\n\]/, `export const testimonials = [\n${code}\n]`);
       }
 
-      // Update blog posts
+      // --- Blog posts (full rebuild) ---
       if (data.blogPosts) {
-        const blogCode = data.blogPosts.map((b: any) => `  {
+        const code = data.blogPosts.map((b: any) => `  {
     id: '${escapeStr(b.id || "")}',
-    title: '${escapeStr(b.title)}',
+    title: '${escapeStr(b.title || "")}',
     excerpt: '${escapeStr(b.excerpt || "")}',
     content: '${escapeStr(b.content || "")}',
     category: '${escapeStr(b.category || "")}',
@@ -196,170 +206,86 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     author: '${escapeStr(b.author || "")}',
     image: '${escapeStr(b.image || "")}',
   }`).join(",\n");
-
-        content = content.replace(
-          /export const blogPosts\s*=\s*\[[\s\S]*?\n\]/,
-          `export const blogPosts = [\n${blogCode}\n]`
-        );
+        content = content.replace(/export const blogPosts\s*=\s*\[[\s\S]*?\n\]/, `export const blogPosts = [\n${code}\n]`);
       }
 
-      // Update gallery images
+      // --- Gallery images (full rebuild) ---
       if (data.galleryImages) {
-        const galleryCode = data.galleryImages.map((g: any) => `  {
+        const code = data.galleryImages.map((g: any) => `  {
     src: '${escapeStr(g.src || "")}',
     alt: '${escapeStr(g.alt || "")}',
     category: '${escapeStr(g.category || "")}',
   }`).join(",\n");
-
-        content = content.replace(
-          /export const galleryImages\s*=\s*\[[\s\S]*?\n\]/,
-          `export const galleryImages = [\n${galleryCode}\n]`
-        );
+        content = content.replace(/export const galleryImages\s*=\s*\[[\s\S]*?\n\]/, `export const galleryImages = [\n${code}\n]`);
       }
 
       writeFileSync(dataPath, content);
-
-      // Localize any external image URLs (download to site public dir)
-      if (data.logo && data.logo.startsWith("http")) {
-        data.logo = await localizeImage(data.logo, siteDir, "brand", basePath);
-      }
-      if (data.heroImages) {
-        for (let i = 0; i < data.heroImages.length; i++) {
-          if (data.heroImages[i]?.startsWith("http")) {
-            data.heroImages[i] = await localizeImage(data.heroImages[i], siteDir, "hero", basePath);
-          }
-        }
-      }
-      if (data.team) {
-        for (const member of data.team) {
-          if (member.image?.startsWith("http")) {
-            member.image = await localizeImage(member.image, siteDir, "team", basePath);
-          }
-        }
-      }
-      if (data.services) {
-        for (const svc of data.services) {
-          if (svc.image?.startsWith("http")) {
-            svc.image = await localizeImage(svc.image, siteDir, "services", basePath);
-          }
-        }
-      }
-
-      // Update Hero.tsx slides if heroImages changed
-      if (data.heroImages && data.heroImages.length > 0) {
-        const heroPath = join(siteDir, "src", "components", "Hero.tsx");
-        try {
-          let heroContent = readFileSync(heroPath, "utf-8");
-          const slidesCode = data.heroImages.map((img: string, i: number) => `  {\n    src: '${escapeStr(img)}',\n    alt: 'Slide ${i + 1}',\n  }`).join(",\n");
-          heroContent = heroContent.replace(
-            /const slides\s*=\s*\[[\s\S]*?\];/,
-            `const slides = [\n${slidesCode}\n];`
-          );
-          writeFileSync(heroPath, heroContent);
-          console.log(`[UpdateData] Updated Hero.tsx slides`);
-        } catch (err) {
-          console.log(`[UpdateData] Hero.tsx not found or not updatable`);
-        }
-      }
-
-      // Update Header.tsx logo if logo changed
-      if (data.logo) {
-        const headerPath = join(siteDir, "src", "components", "Header.tsx");
-        try {
-          let headerContent = readFileSync(headerPath, "utf-8");
-
-          // Case 1: Header uses <Logo /> component — replace with <img> tag
-          if (headerContent.includes("<Logo") || headerContent.includes("Logo />")) {
-            headerContent = headerContent.replace(/import Logo from ['"]@\/components\/Logo['"];?\n?/g, "");
-            headerContent = headerContent.replace(/<Logo\s[^>]*\/>/g, `<img src="${escapeStr(data.logo)}" alt="Logo" className="h-8 sm:h-10 w-auto" />`);
-            headerContent = headerContent.replace(/<Logo\s*\/>/g, `<img src="${escapeStr(data.logo)}" alt="Logo" className="h-8 sm:h-10 w-auto" />`);
-          }
-          // Case 2: Header already uses <img> for logo — replace the entire img tag's src
-          else {
-            // Find the logo img tag and replace its src (handles any URL including S3 presigned)
-            headerContent = headerContent.replace(
-              /(<img[^>]*alt=["']Logo["'][^>]*src=["'])[^"']*(["'])/i,
-              `$1${escapeStr(data.logo)}$2`
-            );
-            // Also try src before alt
-            headerContent = headerContent.replace(
-              /(<img[^>]*src=["'])[^"']*(["'][^>]*alt=["']Logo["'])/i,
-              `$1${escapeStr(data.logo)}$2`
-            );
-          }
-
-          writeFileSync(headerPath, headerContent);
-          console.log(`[UpdateData] Updated Header.tsx logo to: ${data.logo}`);
-        } catch (err) {
-          console.log(`[UpdateData] Header.tsx update error:`, err);
-        }
-
-        // Also update Footer.tsx logo (same pattern — may use <Logo /> component)
-        const footerPath = join(siteDir, "src", "components", "Footer.tsx");
-        try {
-          let footerContent = readFileSync(footerPath, "utf-8");
-          if (footerContent.includes("<Logo") || footerContent.includes("Logo />") || footerContent.includes("Logo size")) {
-            footerContent = footerContent.replace(/import Logo from ['"]@\/components\/Logo['"];?\n?/g, "");
-            footerContent = footerContent.replace(/<Logo\s[^>]*\/>/g, `<img src="${escapeStr(data.logo)}" alt="Logo" className="h-10 w-auto" />`);
-            footerContent = footerContent.replace(/<Logo\s*\/>/g, `<img src="${escapeStr(data.logo)}" alt="Logo" className="h-10 w-auto" />`);
-          } else {
-            footerContent = footerContent.replace(
-              /(<img[^>]*alt=["']Logo["'][^>]*src=["'])[^"']*(["'])/i,
-              `$1${escapeStr(data.logo)}$2`
-            );
-            footerContent = footerContent.replace(
-              /(<img[^>]*src=["'])[^"']*(["'][^>]*alt=["']Logo["'])/i,
-              `$1${escapeStr(data.logo)}$2`
-            );
-          }
-          writeFileSync(footerPath, footerContent);
-          console.log(`[UpdateData] Updated Footer.tsx logo`);
-        } catch (err) {
-          console.log(`[UpdateData] Footer.tsx update error:`, err);
-        }
-
-        // Update favicon in layout.tsx — needs basePath for static export
-        const layoutPath = join(siteDir, "src", "app", "layout.tsx");
-        try {
-          let layoutContent = readFileSync(layoutPath, "utf-8");
-          // Replace icon/favicon references
-          layoutContent = layoutContent.replace(
-            /icon:\s*['"][^'"]*['"]/,
-            `icon: '${escapeStr(data.logo)}'`
-          );
-          layoutContent = layoutContent.replace(
-            /href=["'][^"']*favicon[^"']*["']/g,
-            `href="${escapeStr(data.logo)}"`
-          );
-          writeFileSync(layoutPath, layoutContent);
-          console.log(`[UpdateData] Updated layout.tsx favicon`);
-        } catch {}
-      }
-
-      console.log(`[UpdateData] Updated data.ts for ${website.slug}`);
+      console.log(`[UpdateData] Written data.ts`);
     } catch (err) {
-      console.error("[UpdateData] Failed to update data.ts:", err);
+      console.error("[UpdateData] data.ts write error:", err);
     }
 
+    // ========== STEP 4: Update component files ==========
+
+    // Hero slides
+    if (data.heroImages?.length) {
+      const heroPath = join(siteDir, "src", "components", "Hero.tsx");
+      try {
+        let c = readFileSync(heroPath, "utf-8");
+        const code = data.heroImages.map((img: string, i: number) => `  {\n    src: '${escapeStr(img)}',\n    alt: 'Slide ${i + 1}',\n  }`).join(",\n");
+        c = c.replace(/const slides\s*=\s*\[[\s\S]*?\];/, `const slides = [\n${code}\n];`);
+        writeFileSync(heroPath, c);
+        console.log(`[UpdateData] Hero.tsx slides updated`);
+      } catch {}
+    }
+
+    // Logo in Header, Footer, layout favicon
+    if (data.logo) {
+      // Header
+      try {
+        const p = join(siteDir, "src", "components", "Header.tsx");
+        let c = readFileSync(p, "utf-8");
+        if (c.includes("<Logo")) {
+          c = c.replace(/import Logo from ['"]@\/components\/Logo['"];?\n?/g, "");
+          c = c.replace(/<Logo\s[^>]*\/>/g, `<img src="${escapeStr(data.logo)}" alt="Logo" className="h-8 sm:h-10 w-auto" />`);
+          c = c.replace(/<Logo\s*\/>/g, `<img src="${escapeStr(data.logo)}" alt="Logo" className="h-8 sm:h-10 w-auto" />`);
+        } else {
+          c = c.replace(/(<img[^>]*alt=["']Logo["'][^>]*src=["'])[^"']*(["'])/i, `$1${escapeStr(data.logo)}$2`);
+          c = c.replace(/(<img[^>]*src=["'])[^"']*(["'][^>]*alt=["']Logo["'])/i, `$1${escapeStr(data.logo)}$2`);
+        }
+        writeFileSync(p, c);
+      } catch {}
+
+      // Footer
+      try {
+        const p = join(siteDir, "src", "components", "Footer.tsx");
+        let c = readFileSync(p, "utf-8");
+        if (c.includes("<Logo")) {
+          c = c.replace(/import Logo from ['"]@\/components\/Logo['"];?\n?/g, "");
+          c = c.replace(/<Logo\s[^>]*\/>/g, `<img src="${escapeStr(data.logo)}" alt="Logo" className="h-10 w-auto" />`);
+          c = c.replace(/<Logo\s*\/>/g, `<img src="${escapeStr(data.logo)}" alt="Logo" className="h-10 w-auto" />`);
+        } else {
+          c = c.replace(/(<img[^>]*alt=["']Logo["'][^>]*src=["'])[^"']*(["'])/i, `$1${escapeStr(data.logo)}$2`);
+          c = c.replace(/(<img[^>]*src=["'])[^"']*(["'][^>]*alt=["']Logo["'])/i, `$1${escapeStr(data.logo)}$2`);
+        }
+        writeFileSync(p, c);
+      } catch {}
+
+      // Favicon
+      try {
+        const p = join(siteDir, "src", "app", "layout.tsx");
+        let c = readFileSync(p, "utf-8");
+        c = c.replace(/icon:\s*['"][^'"]*['"]/, `icon: '${escapeStr(data.logo)}'`);
+        writeFileSync(p, c);
+      } catch {}
+
+      console.log(`[UpdateData] Logo updated in Header, Footer, favicon`);
+    }
+
+    console.log(`[UpdateData] Complete for ${website.slug}`);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("POST update-data error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
-}
-
-function escapeStr(s: string): string {
-  return (s || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n");
-}
-
-function replaceField(content: string, field: string, value: string): string {
-  if (value === undefined || value === null) return content;
-  const regex = new RegExp(`(${field}:\\s*['"])([\\s\\S]*?)(?:(?<!\\\\)['"])`, "m");
-  return content.replace(regex, `${field}: '${escapeStr(value)}'`);
-}
-
-function replaceArray(content: string, field: string, values: string[]): string {
-  const items = values.map((v) => `'${escapeStr(v)}'`).join(", ");
-  const regex = new RegExp(`(${field}:\\s*)\\[[^\\]]*\\]`);
-  return content.replace(regex, `${field}: [${items}]`);
 }
