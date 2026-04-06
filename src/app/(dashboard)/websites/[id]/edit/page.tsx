@@ -272,28 +272,6 @@ export default function WebsiteEditPage() {
           <Section title="Logo">
             <ImagePicker label="Site Logo" value={data.logo} onChange={(v) => { update("logo", v); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "brand")} onAiGenerate={aiGenerateImage} compact square />
           </Section>
-          <Section title="Page Images">
-            <p className="text-sm text-muted-foreground mb-3">Replace SVG illustrations or placeholder images on specific pages with your own photos.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {pages.filter((p) => p.slug && p.slug !== "contact").map((page) => (
-                <div key={page.slug}>
-                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">{page.label} Page Image</label>
-                  <ImagePicker
-                    value={data.pageImages?.[page.slug] || data.aboutImage && page.slug === "about" ? (data.aboutImage || "") : (data.pageImages?.[page.slug] || "")}
-                    onChange={(v) => {
-                      const pi = { ...(data.pageImages || {}), [page.slug]: v };
-                      if (page.slug === "about") update("aboutImage", v);
-                      update("pageImages", pi);
-                    }}
-                    onBrowse={openPicker}
-                    onUpload={(f) => uploadImageToSite(f, page.slug)}
-                    onAiGenerate={aiGenerateImage}
-                    compact
-                  />
-                </div>
-              ))}
-            </div>
-          </Section>
           <Section title="Hero Slideshow Images">
             <p className="text-sm text-muted-foreground mb-3">Add images for the hero section slideshow. Upload your own photos or pick from your media library.</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -313,23 +291,36 @@ export default function WebsiteEditPage() {
 
       {/* Company */}
       {activeTab === "company" && data && (
-        <Section title="Company Information">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Company Name" value={data.company.name} onChange={(v) => update("company.name", v)} />
-            <Field label="Short Name" value={data.company.shortName} onChange={(v) => update("company.shortName", v)} />
-            <Field label="Tagline" value={data.company.tagline} onChange={(v) => update("company.tagline", v)} span={2} />
-            <Field label="Description" value={data.company.description} onChange={(v) => update("company.description", v)} multiline span={2} />
-            <Field label="About" value={data.company.about} onChange={(v) => update("company.about", v)} multiline span={2} />
-            <Field label="Mission" value={data.company.mission} onChange={(v) => update("company.mission", v)} multiline span={2} />
-            <Field label="Address" value={data.company.address} onChange={(v) => update("company.address", v)} icon={<MapPin className="w-4 h-4" />} />
-            <Field label="City" value={data.company.city} onChange={(v) => update("company.city", v)} />
-            <Field label="State" value={data.company.state} onChange={(v) => update("company.state", v)} />
-            <Field label="Country" value={data.company.country} onChange={(v) => update("company.country", v)} />
-            <Field label="Phone" value={data.company.phones?.[0]} onChange={(v) => update("company.phones", [v])} icon={<Phone className="w-4 h-4" />} />
-            <Field label="Email" value={data.company.emails?.[0]} onChange={(v) => update("company.emails", [v])} icon={<Mail className="w-4 h-4" />} />
-            <Field label="Website" value={data.company.website} onChange={(v) => update("company.website", v)} span={2} />
-          </div>
-        </Section>
+        <div className="space-y-6">
+          <Section title="Company Information">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field label="Company Name" value={data.company.name} onChange={(v) => update("company.name", v)} />
+              <Field label="Short Name" value={data.company.shortName} onChange={(v) => update("company.shortName", v)} />
+              <Field label="Tagline" value={data.company.tagline} onChange={(v) => update("company.tagline", v)} span={2} />
+              <Field label="Description" value={data.company.description} onChange={(v) => update("company.description", v)} multiline span={2} />
+              <Field label="About" value={data.company.about} onChange={(v) => update("company.about", v)} multiline span={2} />
+              <Field label="Mission" value={data.company.mission} onChange={(v) => update("company.mission", v)} multiline span={2} />
+              <Field label="Address" value={data.company.address} onChange={(v) => update("company.address", v)} icon={<MapPin className="w-4 h-4" />} />
+              <Field label="City" value={data.company.city} onChange={(v) => update("company.city", v)} />
+              <Field label="State" value={data.company.state} onChange={(v) => update("company.state", v)} />
+              <Field label="Country" value={data.company.country} onChange={(v) => update("company.country", v)} />
+              <Field label="Phone" value={data.company.phones?.[0]} onChange={(v) => update("company.phones", [v])} icon={<Phone className="w-4 h-4" />} />
+              <Field label="Email" value={data.company.emails?.[0]} onChange={(v) => update("company.emails", [v])} icon={<Mail className="w-4 h-4" />} />
+              <Field label="Website" value={data.company.website} onChange={(v) => update("company.website", v)} span={2} />
+            </div>
+          </Section>
+          <Section title="About Page Illustration">
+            <p className="text-sm text-muted-foreground mb-3">Replace the About page illustration (SVG artwork) with your own image.</p>
+            <ImagePicker
+              label="About Section Image"
+              value={data.aboutImage || data.pageImages?.about || ""}
+              onChange={(v) => { update("aboutImage", v); update("pageImages", { ...(data.pageImages || {}), about: v }); }}
+              onBrowse={openPicker}
+              onUpload={(f) => uploadImageToSite(f, "about")}
+              onAiGenerate={aiGenerateImage}
+            />
+          </Section>
+        </div>
       )}
 
       {/* Services */}
