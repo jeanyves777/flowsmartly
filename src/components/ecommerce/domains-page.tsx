@@ -30,6 +30,9 @@ import {
   FileText,
   Download,
   RotateCcw,
+  Eye,
+  EyeOff,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,6 +100,7 @@ export function DomainsPageContent() {
   });
   const [expandedDomain, setExpandedDomain] = useState<string | null>(null);
   const [togglingAutoRenew, setTogglingAutoRenew] = useState<string | null>(null);
+  const [togglingWhois, setTogglingWhois] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
   const [domainInvoices, setDomainInvoices] = useState<any[]>([]);
 
@@ -273,6 +277,40 @@ export function DomainsPageContent() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: "Copied to clipboard" });
+  };
+
+  const handleExpand = (domainId: string) => {
+    if (expandedDomain === domainId) {
+      setExpandedDomain(null);
+      return;
+    }
+    setExpandedDomain(domainId);
+    // Auto-load technical status when expanding
+    if (!selectedDomain || selectedDomain.id !== domainId) {
+      handleCheckStatus(domainId);
+    }
+  };
+
+  const handleToggleWhois = async (domainId: string, currentValue: boolean) => {
+    setTogglingWhois(domainId);
+    try {
+      const res = await fetch(`/api/domains/${domainId}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ whoisPrivacy: !currentValue }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDomains((prev) => prev.map((d) => d.id === domainId ? { ...d, whoisPrivacy: !currentValue } : d));
+        toast({ title: `WHOIS privacy ${!currentValue ? "enabled" : "disabled"}` });
+      } else {
+        toast({ title: data.error?.message || "Failed to update", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to update WHOIS privacy", variant: "destructive" });
+    } finally {
+      setTogglingWhois(null);
+    }
   };
 
   const handleToggleAutoRenew = async (domainId: string, currentValue: boolean) => {
@@ -684,7 +722,7 @@ export function DomainsPageContent() {
                       <div>
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => setExpandedDomain(isExpanded ? null : domain.id)}
+                            onClick={() => handleExpand(domain.id)}
                             className="font-semibold hover:text-brand-600 transition-colors text-left"
                           >
                             {domain.domainName}
@@ -755,7 +793,7 @@ export function DomainsPageContent() {
                       <Button
                         variant={isExpanded ? "default" : "outline"}
                         size="sm"
-                        onClick={() => setExpandedDomain(isExpanded ? null : domain.id)}
+                        onClick={() => handleExpand(domain.id)}
                       >
                         {isExpanded ? "Close" : "Manage"}
                       </Button>
@@ -838,106 +876,157 @@ export function DomainsPageContent() {
                           </div>
                         </div>
 
-                        {/* Settings Row */}
-                        <div className="flex flex-wrap items-center gap-6 rounded-lg bg-background border p-4">
-                          {/* Auto-renew toggle */}
-                          {!domain.isConnected && (
-                            <div className="flex items-center gap-3">
-                              <div>
-                                <p className="text-sm font-medium">Auto-Renewal</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {domain.autoRenew
-                                    ? `Renews automatically at ${formatCurrency(domain.renewalPriceCents)}/yr`
-                                    : "Domain will expire without manual renewal"}
-                                </p>
-                              </div>
-                              <Switch
-                                checked={domain.autoRenew}
-                                onCheckedChange={() => handleToggleAutoRenew(domain.id, domain.autoRenew)}
-                                disabled={togglingAutoRenew === domain.id}
-                              />
-                            </div>
-                          )}
-                          <div className="h-8 w-px bg-border hidden sm:block" />
-                          {/* Set Primary */}
-                          {!domain.isPrimary && (
-                            <Button variant="outline" size="sm" onClick={() => handleSetPrimary(domain.id)}>
-                              <Star className="h-3.5 w-3.5 mr-1.5" />
-                              Set as Primary
+                        {/* DNS & Technical Status */}
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-semibold flex items-center gap-2">
+                              <Server className="h-4 w-4 text-muted-foreground" />
+                              DNS & Technical Status
+                            </h3>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCheckStatus(domain.id)}
+                              disabled={loadingStatus === domain.id}
+                            >
+                              {loadingStatus === domain.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                              ) : (
+                                <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                              )}
+                              Refresh Status
                             </Button>
+                          </div>
+                          {loadingStatus === domain.id && !selectedDomain ? (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading DNS & SSL status...
+                            </div>
+                          ) : selectedDomain?.id === domain.id ? (
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div className="rounded-lg bg-background border p-3">
+                                  <p className="text-[10px] font-medium text-muted-foreground uppercase">Registrar</p>
+                                  <p className="text-sm font-semibold mt-1">{selectedDomain.registrarStatus}</p>
+                                </div>
+                                <div className="rounded-lg bg-background border p-3">
+                                  <p className="text-[10px] font-medium text-muted-foreground uppercase">Cloudflare</p>
+                                  <p className="text-sm font-semibold mt-1">{selectedDomain.cloudflareStatus || "Not configured"}</p>
+                                </div>
+                                <div className="rounded-lg bg-background border p-3">
+                                  <p className="text-[10px] font-medium text-muted-foreground uppercase">SSL Certificate</p>
+                                  <p className="text-sm font-semibold mt-1">{selectedDomain.sslStatus}</p>
+                                </div>
+                              </div>
+                              {selectedDomain.nameservers.length > 0 && (
+                                <div className="rounded-lg bg-background border p-3">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Server className="h-4 w-4 text-muted-foreground" />
+                                    <p className="text-[10px] font-medium text-muted-foreground uppercase">Nameservers</p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    {selectedDomain.nameservers.map((ns, i) => (
+                                      <div key={i} className="flex items-center justify-between bg-muted/30 rounded-md px-3 py-1.5">
+                                        <code className="text-xs font-mono">{ns}</code>
+                                        <button
+                                          onClick={() => copyToClipboard(ns)}
+                                          className="text-muted-foreground hover:text-foreground transition-colors"
+                                        >
+                                          <Copy className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {/* BYOD Setup Reminder */}
+                              {domain.isConnected && selectedDomain.sslStatus !== "active_certificate" && selectedDomain.sslStatus !== "active" && (
+                                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3">
+                                  <div className="flex items-start gap-2">
+                                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                                    <div className="text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                                      <p className="font-semibold">Setup not complete</p>
+                                      <p>
+                                        Update your nameservers at your domain registrar to the ones shown above.
+                                        SSL will be provisioned automatically once nameservers are active (24-48 hours).
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground py-2">Click &quot;Refresh Status&quot; to check live DNS and SSL status.</p>
                           )}
-                          {/* Delete */}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                            onClick={() => handleDisconnect(domain.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                            {domain.isConnected ? "Disconnect" : "Remove"}
-                          </Button>
                         </div>
 
-                        {/* Status Details (from check) */}
-                        {selectedDomain?.id === domain.id && (
-                          <div>
-                            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                              <Server className="h-4 w-4 text-muted-foreground" />
-                              Technical Status
-                            </h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                              <div className="rounded-lg bg-background border p-3">
-                                <p className="text-[10px] font-medium text-muted-foreground uppercase">Registrar</p>
-                                <p className="text-sm font-semibold mt-1">{selectedDomain.registrarStatus}</p>
-                              </div>
-                              <div className="rounded-lg bg-background border p-3">
-                                <p className="text-[10px] font-medium text-muted-foreground uppercase">Cloudflare</p>
-                                <p className="text-sm font-semibold mt-1">{selectedDomain.cloudflareStatus || "N/A"}</p>
-                              </div>
-                              <div className="rounded-lg bg-background border p-3">
-                                <p className="text-[10px] font-medium text-muted-foreground uppercase">SSL</p>
-                                <p className="text-sm font-semibold mt-1">{selectedDomain.sslStatus}</p>
-                              </div>
-                            </div>
-                            {selectedDomain.nameservers.length > 0 && (
-                              <div className="rounded-lg bg-background border p-3 mt-3">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Server className="h-4 w-4 text-muted-foreground" />
-                                  <p className="text-[10px] font-medium text-muted-foreground uppercase">Nameservers</p>
+                        {/* Settings Row */}
+                        <div>
+                          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                            <Settings className="h-4 w-4 text-muted-foreground" />
+                            Domain Settings
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-6 rounded-lg bg-background border p-4">
+                            {/* Auto-renew toggle */}
+                            {!domain.isConnected && (
+                              <div className="flex items-center gap-3">
+                                <div>
+                                  <p className="text-sm font-medium">Auto-Renewal</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {domain.autoRenew
+                                      ? `Renews at ${formatCurrency(domain.renewalPriceCents)}/yr`
+                                      : "Will expire without manual renewal"}
+                                  </p>
                                 </div>
-                                <div className="space-y-1">
-                                  {selectedDomain.nameservers.map((ns, i) => (
-                                    <div key={i} className="flex items-center justify-between">
-                                      <code className="text-xs font-mono">{ns}</code>
-                                      <button
-                                        onClick={() => copyToClipboard(ns)}
-                                        className="text-muted-foreground hover:text-foreground transition-colors"
-                                      >
-                                        <Copy className="h-3.5 w-3.5" />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
+                                <Switch
+                                  checked={domain.autoRenew}
+                                  onCheckedChange={() => handleToggleAutoRenew(domain.id, domain.autoRenew)}
+                                  disabled={togglingAutoRenew === domain.id}
+                                />
                               </div>
                             )}
+                            {/* WHOIS privacy toggle */}
+                            {!domain.isConnected && (
+                              <>
+                                <div className="h-8 w-px bg-border hidden sm:block" />
+                                <div className="flex items-center gap-3">
+                                  <div>
+                                    <p className="text-sm font-medium flex items-center gap-1.5">
+                                      {domain.whoisPrivacy ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                      WHOIS Privacy
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {domain.whoisPrivacy ? "Your info is hidden from WHOIS" : "Your info is visible in WHOIS"}
+                                    </p>
+                                  </div>
+                                  <Switch
+                                    checked={domain.whoisPrivacy}
+                                    onCheckedChange={() => handleToggleWhois(domain.id, domain.whoisPrivacy)}
+                                    disabled={togglingWhois === domain.id}
+                                  />
+                                </div>
+                              </>
+                            )}
+                            <div className="h-8 w-px bg-border hidden sm:block" />
+                            {/* Set Primary */}
+                            {!domain.isPrimary && (
+                              <Button variant="outline" size="sm" onClick={() => handleSetPrimary(domain.id)}>
+                                <Star className="h-3.5 w-3.5 mr-1.5" />
+                                Set as Primary
+                              </Button>
+                            )}
+                            {/* Delete */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                              onClick={() => handleDisconnect(domain.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                              {domain.isConnected ? "Disconnect" : "Remove"}
+                            </Button>
                           </div>
-                        )}
-
-                        {/* BYOD Setup Reminder */}
-                        {domain.isConnected && selectedDomain?.id === domain.id && selectedDomain.sslStatus !== "active_certificate" && selectedDomain.sslStatus !== "active" && (
-                          <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3">
-                            <div className="flex items-start gap-2">
-                              <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                              <div className="text-xs text-amber-800 dark:text-amber-300 space-y-1">
-                                <p className="font-semibold">Setup not complete</p>
-                                <p>
-                                  Update your nameservers at your domain registrar to the ones shown above.
-                                  Once nameservers are pointing to Cloudflare, SSL will be provisioned automatically (24-48 hours).
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                        </div>
 
                         {/* Domain Payment History */}
                         {(() => {
