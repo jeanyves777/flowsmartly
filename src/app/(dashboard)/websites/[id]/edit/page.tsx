@@ -145,14 +145,16 @@ export default function WebsiteEditPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, category }),
       });
-      const data = await res.json();
+      const result = await res.json();
       if (!res.ok) {
-        alert(data.error || "Failed to generate image");
+        setBuildResult({ type: "error", message: result.error || "Failed to generate image" });
         return null;
       }
-      return data.path;
-    } catch {
-      alert("Failed to generate image");
+      setBuildResult({ type: "success", message: `Image generated! (${result.cost || 15} credits used)` });
+      setTimeout(() => setBuildResult(null), 3000);
+      return result.path;
+    } catch (err) {
+      setBuildResult({ type: "error", message: "Failed to generate image. Please try again." });
       return null;
     }
   };
