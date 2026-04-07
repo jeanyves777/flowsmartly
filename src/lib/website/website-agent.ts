@@ -140,14 +140,16 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - EVERY page you create MUST appear in either navLinks or footerLinks — no orphan pages
 
 ### Technical:
-- Use Tailwind CSS v3 syntax (@tailwind base; @tailwind components; @tailwind utilities; in globals.css)
-- Dark mode via "class" strategy (darkMode: "class" in tailwind.config.ts — already configured)
-- Use dark: prefix for dark mode classes (e.g. dark:bg-neutral-950, dark:text-white)
+- Tailwind CSS v4 — use @import "tailwindcss" in globals.css (NOT @tailwind directives, those are v3)
+- Dark mode: use @custom-variant dark (&:where(.dark, .dark *)); in globals.css, then dark: prefix in components
+- Use @theme { } block in globals.css for brand colors, fonts, and custom values
+- NO tailwind.config.ts file needed — Tailwind v4 is fully CSS-configured
 - Components are "use client" when using hooks/motion
 - Import icons from lucide-react
 - Images use standard <img> tags (static export, no next/image optimization)
 - The contact form should submit to: FLOWSMARTLY_API_URL/api/websites/WEBSITE_ID/form-submissions
 - Next.js 15 with React 19
+- DO NOT use deprecated APIs or old syntax from previous versions of any library
 
 ### Logo & Favicon:
 - The brand identity includes a "logo" URL — this is the user's ACTUAL logo
@@ -181,13 +183,22 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - If you reference a component, the filename must match EXACTLY (case-sensitive): Header.tsx for @/components/Header
 - layout.tsx imports Header and Footer → all pages inherit them automatically → page files MUST NOT re-import Header/Footer
 
+### String Escaping in data.ts (CRITICAL — causes syntax errors):
+- data.ts uses JavaScript strings — ALL apostrophes/single quotes MUST be escaped
+- If using single-quoted strings: escape every apostrophe with backslash: 'What\\'s Trending'
+- PREFERRED: Use double-quoted strings for any text containing apostrophes: "What's Trending"
+- This applies to: taglines, descriptions, about text, testimonials, FAQ answers, blog content
+- Company names with apostrophes: "Lenny's Pizza" NOT 'Lenny's Pizza'
+- Test mentally: can JavaScript parse this string without error?
+
 ### File Writing:
 - Write COMPLETE files — never partial content
 - Include all imports at the top
 - Include proper TypeScript types
 - Use @/ path alias for imports
-- DO NOT write package.json, tsconfig.json, postcss.config.mjs, or tailwind.config.ts — these are already provided
+- DO NOT write package.json, tsconfig.json, postcss.config.mjs — these are already provided
 - DO NOT write next.config.ts — already provided
+- DO NOT write tailwind.config.ts — Tailwind v4 uses CSS config via globals.css (@theme block)
 - DO NOT write ThemeProvider.tsx or ThemeToggle.tsx — already provided as templates
 - DO NOT write Analytics.tsx or CookieConsent.tsx — already provided as templates
 - DO NOT write privacy-policy, cookie-policy, or terms pages — already provided as templates
@@ -288,7 +299,7 @@ async function executeTool(name: string, input: Record<string, unknown>, ctx: Ag
       ctx.onProgress?.("Writing file...", path);
 
       // Prevent overwriting template files
-      const protectedFiles = ["package.json", "tsconfig.json", "postcss.config.mjs", "tailwind.config.ts", "next.config.ts", "src/components/ThemeProvider.tsx", "src/components/ThemeToggle.tsx", "src/components/Logo.tsx"];
+      const protectedFiles = ["package.json", "tsconfig.json", "postcss.config.mjs", "next.config.ts", "src/components/ThemeProvider.tsx", "src/components/ThemeToggle.tsx", "src/components/Logo.tsx"];
       if (protectedFiles.includes(path)) {
         return JSON.stringify({ skipped: true, reason: `${path} is a template file — already provided, do not overwrite` });
       }

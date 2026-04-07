@@ -79,7 +79,7 @@ const nextConfig: NextConfig = {
 export default nextConfig
 `);
   writeFileSync(join(siteDir, "postcss.config.mjs"), TEMPLATE_POSTCSS_CONFIG);
-  writeFileSync(join(siteDir, "tailwind.config.ts"), TEMPLATE_TAILWIND_CONFIG);
+  // Tailwind v4 — no tailwind.config.ts needed (CSS-based config via @import "tailwindcss")
   writeFileSync(join(siteDir, "src", "components", "ThemeProvider.tsx"), TEMPLATE_THEME_PROVIDER);
   writeFileSync(join(siteDir, "src", "components", "ThemeToggle.tsx"), TEMPLATE_THEME_TOGGLE);
 
@@ -283,6 +283,48 @@ export default function ${componentName}(props: Record<string, unknown>) {
 }
 
 /**
+ * Fix common syntax errors in generated data.ts
+ * - Unescaped single quotes inside single-quoted strings
+ */
+function fixDataSyntax(siteDir: string): void {
+  const dataPath = join(siteDir, "src", "lib", "data.ts");
+  if (!existsSync(dataPath)) return;
+
+  let content = readFileSync(dataPath, "utf-8");
+  const original = content;
+
+  // Fix single-quoted strings that contain unescaped apostrophes
+  // Match: 'text with unescaped ' inside'  →  "text with unescaped ' inside"
+  // Strategy: find lines with odd number of single quotes (broken strings) and switch to double quotes
+  const lines = content.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Count unescaped single quotes
+    const unescaped = line.replace(/\\'/g, "").match(/'/g);
+    if (unescaped && unescaped.length % 2 !== 0) {
+      // Odd number of single quotes — broken string. Convert to double quotes.
+      // Replace the first and last single quote with double quotes
+      const firstQ = line.indexOf("'");
+      const lastQ = line.lastIndexOf("'");
+      if (firstQ !== lastQ && firstQ >= 0) {
+        const before = line.substring(0, firstQ);
+        const middle = line.substring(firstQ + 1, lastQ).replace(/\\'/g, "'"); // unescape existing
+        const after = line.substring(lastQ + 1);
+        // Escape any double quotes in the middle
+        const escaped = middle.replace(/"/g, '\\"');
+        lines[i] = `${before}"${escaped}"${after}`;
+      }
+    }
+  }
+  content = lines.join("\n");
+
+  if (content !== original) {
+    writeFileSync(dataPath, content, "utf-8");
+    console.log("[SiteBuilder] Auto-fixed data.ts syntax (unescaped quotes)");
+  }
+}
+
+/**
  * Build the site (npm install + next build)
  */
 export async function buildSite(websiteId: string): Promise<{ success: boolean; output: string; error?: string }> {
@@ -320,6 +362,9 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
     if (stubs.length > 0) {
       console.log(`[SiteBuilder] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);
     }
+
+    // Pre-build: fix common data.ts syntax issues (unescaped quotes in strings)
+    fixDataSyntax(siteDir);
 
     // Clear build cache so changes are picked up
     const nextCacheDir = join(siteDir, ".next");

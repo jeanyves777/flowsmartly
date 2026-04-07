@@ -13,18 +13,17 @@ export const TEMPLATE_PACKAGE_JSON = `{
     "start": "next start"
   },
   "dependencies": {
-    "next": "15.1.0",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
-    "framer-motion": "11.15.0",
-    "lucide-react": "0.460.0",
-    "tailwindcss": "3.4.17",
-    "postcss": "8.4.49",
-    "autoprefixer": "10.4.20",
-    "@types/node": "22.10.0",
-    "@types/react": "19.0.0",
-    "@types/react-dom": "19.0.0",
-    "typescript": "5.7.2"
+    "next": "15.3.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "framer-motion": "12.6.3",
+    "lucide-react": "0.475.0",
+    "tailwindcss": "4.1.3",
+    "@tailwindcss/postcss": "4.1.3",
+    "@types/node": "22.14.1",
+    "@types/react": "19.1.0",
+    "@types/react-dom": "19.1.0",
+    "typescript": "5.8.3"
   }
 }`;
 
@@ -141,25 +140,15 @@ export default function CookieConsent() {
 export const TEMPLATE_POSTCSS_CONFIG = `/** @type {import('postcss-load-config').Config} */
 const config = {
   plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
+    "@tailwindcss/postcss": {},
   },
 };
 
 export default config;
 `;
 
-export const TEMPLATE_TAILWIND_CONFIG = `import type { Config } from "tailwindcss";
-
-const config: Config = {
-  content: ["./src/**/*.{js,ts,jsx,tsx}"],
-  darkMode: "class",
-  theme: { extend: {} },
-  plugins: [],
-};
-
-export default config;
-`;
+// Tailwind v4 uses CSS-based config — no tailwind.config.ts needed
+export const TEMPLATE_TAILWIND_CONFIG = ``;
 
 export const TEMPLATE_THEME_PROVIDER = `"use client";
 
