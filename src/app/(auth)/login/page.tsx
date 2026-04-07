@@ -191,7 +191,7 @@ function LoginPageContent() {
           />
         )}
 
-        <Button type="submit" className={`w-full ${isAgentFlow ? "bg-violet-600 hover:bg-violet-700" : ""}`} size="lg" disabled={isLoading}>
+        <Button type="submit" className={`w-full ${isAgentFlow ? "bg-violet-600 hover:bg-violet-700" : ""}`} size="lg" disabled={isLoading || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}>
           {isLoading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />

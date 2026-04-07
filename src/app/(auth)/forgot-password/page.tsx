@@ -125,7 +125,7 @@ export default function ForgotPasswordPage() {
                 type="submit"
                 className="w-full"
                 size="lg"
-                disabled={isLoading}
+                disabled={isLoading || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
               >
                 {isLoading ? (
                   <>
