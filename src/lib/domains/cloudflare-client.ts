@@ -469,3 +469,30 @@ export async function configureStoreDns(
 
   return [aRecord.recordId, cnameRecord.recordId];
 }
+
+/**
+ * Purge all cached content for a Cloudflare zone.
+ * Called when a domain is linked/unlinked to ensure visitors see fresh content.
+ */
+export async function purgeZoneCache(zoneId: string): Promise<boolean> {
+  try {
+    const resp = await cfRequest<{ id: string }>(
+      `/zones/${zoneId}/purge_cache`,
+      {
+        method: "POST",
+        body: JSON.stringify({ purge_everything: true }),
+      }
+    );
+
+    if (!resp.success) {
+      console.error("Cloudflare cache purge failed:", resp.errors);
+      return false;
+    }
+
+    console.log(`[Cloudflare] Cache purged for zone ${zoneId}`);
+    return true;
+  } catch (err) {
+    console.error("Cloudflare cache purge error:", err);
+    return false;
+  }
+}

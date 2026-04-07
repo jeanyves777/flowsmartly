@@ -834,9 +834,11 @@ function SettingsTab({
 }) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState<string | null>(null);
 
-  const updateSetting = async (data: Record<string, unknown>) => {
+  const updateSetting = async (data: Record<string, unknown>, actionLabel?: string) => {
     setSaving(true);
+    setSavingAction(actionLabel || null);
     try {
       const res = await fetch(`/api/domains/${domainId}/settings`, {
         method: "PATCH",
@@ -845,7 +847,7 @@ function SettingsTab({
       });
       const result = await res.json();
       if (result.success) {
-        toast({ title: "Settings updated" });
+        toast({ title: result.message || "Settings updated" });
         onUpdate();
       } else {
         toast({ title: result.error?.message || "Update failed", variant: "destructive" });
@@ -854,6 +856,7 @@ function SettingsTab({
       toast({ title: "Failed to update settings", variant: "destructive" });
     } finally {
       setSaving(false);
+      setSavingAction(null);
     }
   };
 
@@ -861,6 +864,19 @@ function SettingsTab({
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+      {/* Full-screen loader overlay for linking actions */}
+      {saving && savingAction && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <Loader2 className="h-10 w-10 animate-spin text-brand-600 mx-auto" />
+            <div>
+              <p className="font-semibold text-lg">{savingAction}</p>
+              <p className="text-sm text-muted-foreground mt-1">This may take a few seconds...</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Auto-renew */}
       <div className="rounded-xl border bg-card p-5">
         <div className="flex items-center justify-between">
@@ -927,7 +943,7 @@ function SettingsTab({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => updateSetting({ linkToWebsite: null })}
+                onClick={() => updateSetting({ linkToWebsite: null }, `Unlinking website from ${domainName}...`)}
                 disabled={saving}
               >
                 <Unlink className="h-4 w-4" />
@@ -944,7 +960,7 @@ function SettingsTab({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => updateSetting({ linkToStore: false })}
+                onClick={() => updateSetting({ linkToStore: false }, `Unlinking store from ${domainName}...`)}
                 disabled={saving}
               >
                 <Unlink className="h-4 w-4" />
@@ -960,7 +976,7 @@ function SettingsTab({
                     key={website.id}
                     size="sm"
                     variant="outline"
-                    onClick={() => updateSetting({ linkToWebsite: website.id })}
+                    onClick={() => updateSetting({ linkToWebsite: website.id }, `Linking ${domainName} to "${website.name}"...`)}
                     disabled={saving}
                   >
                     <Globe className="h-3.5 w-3.5" />
@@ -970,7 +986,7 @@ function SettingsTab({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => updateSetting({ linkToStore: true })}
+                  onClick={() => updateSetting({ linkToStore: true }, `Linking ${domainName} to your store...`)}
                   disabled={saving}
                 >
                   <LinkIcon className="h-3.5 w-3.5" />
