@@ -56,7 +56,7 @@ export async function middleware(request: NextRequest) {
       // Domain not linked to anything — show under construction page
       return new NextResponse(parkingPageHtml(hostname), {
         status: 200,
-        headers: { "Content-Type": "text/html; charset=utf-8", "x-custom-domain": hostname },
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, no-cache, must-revalidate", "x-custom-domain": hostname },
       });
     }
 
@@ -67,7 +67,7 @@ export async function middleware(request: NextRequest) {
     if (!slug) {
       return new NextResponse(parkingPageHtml(hostname), {
         status: 200,
-        headers: { "Content-Type": "text/html; charset=utf-8", "x-custom-domain": hostname },
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, no-cache, must-revalidate", "x-custom-domain": hostname },
       });
     }
 
@@ -87,7 +87,11 @@ export async function middleware(request: NextRequest) {
     return response;
   } catch (error) {
     console.error("Middleware domain resolution error:", error);
-    return NextResponse.next();
+    // Show parking page on error instead of falling through to main site
+    return new NextResponse(parkingPageHtml(hostname), {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, no-cache, must-revalidate", "x-custom-domain": hostname },
+    });
   }
 }
 
