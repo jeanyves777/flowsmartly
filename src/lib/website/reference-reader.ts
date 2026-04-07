@@ -37,7 +37,8 @@ const COMPONENT_MAP: Record<string, string> = {
 };
 
 /**
- * Read a reference component file
+ * Read a reference component file, with automatic adaptation notes
+ * for patterns that must be changed in generated sites.
  */
 export function readReferenceComponent(name: string): string | null {
   const relativePath = COMPONENT_MAP[name];
@@ -47,7 +48,26 @@ export function readReferenceComponent(name: string): string | null {
 
   const fullPath = join(REFERENCE_DIR, relativePath);
   try {
-    return readFileSync(fullPath, "utf-8");
+    let source = readFileSync(fullPath, "utf-8");
+
+    // Add adaptation warnings for patterns that must change in generated sites
+    const warnings: string[] = [];
+
+    if (source.includes("next/link")) {
+      warnings.push("ADAPT: This reference uses next/link <Link>. You MUST replace ALL <Link> with <a> tags using siteUrl() for href. Static export does not support next/link.");
+    }
+    if (source.includes("next/image")) {
+      warnings.push("ADAPT: This reference uses next/image <Image>. You MUST replace with standard <img> tags. Static export does not support next/image optimization.");
+    }
+    if (source.includes("@tailwind base")) {
+      warnings.push("ADAPT: This reference uses Tailwind v3 syntax. You MUST use Tailwind v4: @import \"tailwindcss\" instead of @tailwind directives.");
+    }
+
+    if (warnings.length > 0) {
+      source = `/* ⚠️ ADAPTATION NOTES — read before copying:\n${warnings.map(w => ` * ${w}`).join("\n")}\n */\n\n${source}`;
+    }
+
+    return source;
   } catch (err) {
     console.error(`[RefReader] Failed to read ${fullPath}:`, err);
     return null;

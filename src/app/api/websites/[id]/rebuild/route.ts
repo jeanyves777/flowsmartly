@@ -34,19 +34,23 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         try {
           let dataContent = readFileSync(dataPath, "utf-8");
 
+          // Helper: safely replace a string field in data.ts
+          // Uses double quotes to avoid apostrophe escaping issues
+          const replaceField = (field: string, value: string) => {
+            // Match field: 'value' or field: "value" — capture up to end of string (handles quotes inside)
+            const regex = new RegExp(`(${field}:\\s*)(?:'(?:[^'\\\\]|\\\\.)*'|"(?:[^"\\\\]|\\\\.)*")`);
+            const escaped = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+            dataContent = dataContent.replace(regex, `$1"${escaped}"`);
+          };
+
           // Update company name
-          if (brandKit.name) {
-            dataContent = dataContent.replace(
-              /name:\s*['"].*?['"]/,
-              `name: '${brandKit.name.replace(/'/g, "\\'")}'`
-            );
-          }
+          if (brandKit.name) replaceField("name", brandKit.name);
 
           // Update phone numbers
           if (brandKit.phone) {
             dataContent = dataContent.replace(
               /phones:\s*\[.*?\]/s,
-              `phones: ['${brandKit.phone.replace(/'/g, "\\'")}']`
+              `phones: ["${brandKit.phone.replace(/"/g, '\\"')}"]`
             );
           }
 
@@ -54,26 +58,18 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
           if (brandKit.email) {
             dataContent = dataContent.replace(
               /emails:\s*\[.*?\]/s,
-              `emails: ['${brandKit.email.replace(/'/g, "\\'")}']`
+              `emails: ["${brandKit.email.replace(/"/g, '\\"')}"]`
             );
           }
 
           // Update address
           if (brandKit.address) {
             const fullAddress = [brandKit.address, brandKit.city, brandKit.state, brandKit.country].filter(Boolean).join(", ");
-            dataContent = dataContent.replace(
-              /address:\s*['"].*?['"]/,
-              `address: '${fullAddress.replace(/'/g, "\\'")}'`
-            );
+            replaceField("address", fullAddress);
           }
 
           // Update tagline
-          if (brandKit.tagline) {
-            dataContent = dataContent.replace(
-              /tagline:\s*['"].*?['"]/,
-              `tagline: '${brandKit.tagline.replace(/'/g, "\\'")}'`
-            );
-          }
+          if (brandKit.tagline) replaceField("tagline", brandKit.tagline);
 
           writeFileSync(dataPath, dataContent);
           console.log(`[Rebuild] Updated data.ts from brand kit for ${website.slug}`);
