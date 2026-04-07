@@ -82,6 +82,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
+    // basePath sync (custom domain detection) is handled inside buildSite()
+
     // Build and deploy in background
     (async () => {
       const buildResult = await buildSite(id);

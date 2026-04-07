@@ -130,6 +130,12 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - NEVER use Next.js <Link> component — use <a> tags with siteUrl() for static export
 - External links (https://, mailto:, tel:) stay unchanged
 
+### CTA (Call-to-Action) Buttons:
+- In companyInfo, add: ctaText (button label, e.g. "Shop Now", "Get Started", "Book Now") and ctaUrl (external URL where the CTA points to, e.g. the user's online shop, booking page, or siteUrl('/contact'))
+- Header.tsx: render the CTA button using companyInfo.ctaText and companyInfo.ctaUrl
+- Hero.tsx: render the primary CTA using companyInfo.ctaText and companyInfo.ctaUrl
+- The CTA is editable by the user in the website editor — always read from data, never hardcode
+
 ### Navigation (header nav vs footer links):
 - In data.ts, create TWO link arrays:
   1. navLinks — MAIN pages for the header nav (Home, About, Services, Team, Blog, Contact)

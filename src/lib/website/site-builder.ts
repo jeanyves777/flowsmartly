@@ -196,6 +196,59 @@ export function writeSiteFile(websiteId: string, relativePath: string, content: 
 }
 
 /**
+ * Sync basePath across next.config.ts, data.ts (SITE_BASE), and all image paths.
+ * When custom domain is connected: basePath='' (root-relative links).
+ * When no custom domain: basePath='/sites/{slug}'.
+ */
+function syncBasePath(siteDir: string, basePath: string, slug: string): void {
+  // Update next.config.ts
+  const configPath = join(siteDir, "next.config.ts");
+  if (existsSync(configPath)) {
+    let config = readFileSync(configPath, "utf-8");
+    config = config.replace(/basePath:\s*['"][^'"]*['"]/, `basePath: '${basePath}'`);
+    writeFileSync(configPath, config);
+  }
+
+  // Update SITE_BASE in data.ts
+  const dataPath = join(siteDir, "src", "lib", "data.ts");
+  if (existsSync(dataPath)) {
+    let data = readFileSync(dataPath, "utf-8");
+    data = data.replace(/export const SITE_BASE\s*=\s*['"][^'"]*['"]/, `export const SITE_BASE = '${basePath}'`);
+
+    // Rewrite image paths
+    const oldPrefix = `/sites/${slug}`;
+    if (basePath === "") {
+      // Custom domain: strip /sites/slug prefix from image paths
+      data = data.replace(new RegExp(escapeRegex(oldPrefix) + "(/images/)", "g"), "$1");
+    } else if (!data.includes(`${basePath}/images/`)) {
+      // No custom domain: ensure /images/ paths have the basePath prefix
+      // Only prefix bare /images/ that aren't already prefixed
+      data = data.replace(/(?<=["'])\/images\//g, `${basePath}/images/`);
+    }
+    writeFileSync(dataPath, data);
+  }
+
+  // Rewrite image paths in all component/page files
+  const srcDir = join(siteDir, "src");
+  const oldPrefix = `/sites/${slug}`;
+  if (basePath === "" && slug) {
+    const files = collectSourceFiles(srcDir);
+    const pattern = new RegExp(escapeRegex(oldPrefix) + "(/images/)", "g");
+    for (const file of files) {
+      let content = readFileSync(file, "utf-8");
+      const updated = content.replace(pattern, "$1");
+      if (updated !== content) writeFileSync(file, updated);
+    }
+  }
+
+  console.log(`[SiteBuilder] Synced basePath to '${basePath}' for slug '${slug}'`);
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
  * Recursively collect all .ts/.tsx files in a directory
  */
 function collectSourceFiles(dir: string, files: string[] = []): string[] {
@@ -335,11 +388,22 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
   }
 
   try {
+    // Fetch website to check for custom domain
+    const website = await prisma.website.findUnique({
+      where: { id: websiteId },
+      select: { slug: true, customDomain: true },
+    });
+    const hasCustomDomain = !!website?.customDomain;
+    const basePath = hasCustomDomain ? "" : `/sites/${website?.slug || websiteId}`;
+
     // Update build status
     await prisma.website.update({
       where: { id: websiteId },
       data: { buildStatus: "building" },
     });
+
+    // Sync basePath in next.config.ts and SITE_BASE in data.ts
+    syncBasePath(siteDir, basePath, website?.slug || "");
 
     // npm install — only if node_modules doesn't exist
     let installOutput = "";

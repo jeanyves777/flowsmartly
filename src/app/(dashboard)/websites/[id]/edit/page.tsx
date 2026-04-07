@@ -331,6 +331,18 @@ export default function WebsiteEditPage() {
               <Field label="Website" value={data.company.website} onChange={(v) => update("company.website", v)} span={2} />
             </div>
           </Section>
+          <Section title="Call-to-Action Button">
+            <p className="text-sm text-muted-foreground mb-3">
+              Configure the main CTA button shown in your site header and hero section. Point it to your online shop, booking page, or any external URL.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field label="Button Text" value={data.company.ctaText || ""} onChange={(v) => update("company.ctaText", v)} icon={<Star className="w-4 h-4" />} />
+              <Field label="Button URL" value={data.company.ctaUrl || ""} onChange={(v) => update("company.ctaUrl", v)} icon={<ExternalLink className="w-4 h-4" />} />
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Examples: "Shop Now" → https://your-store.com &nbsp;|&nbsp; "Book Appointment" → https://calendly.com/you &nbsp;|&nbsp; Leave empty to link to your contact page.
+            </p>
+          </Section>
           <Section title="About Page Illustration">
             <p className="text-sm text-muted-foreground mb-3">Replace the About page illustration (SVG artwork) with your own image.</p>
             <ImagePicker

@@ -123,7 +123,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           ["name", c.name], ["shortName", c.shortName], ["tagline", c.tagline],
           ["description", c.description], ["about", c.about], ["mission", c.mission],
           ["address", c.address], ["city", c.city], ["state", c.state], ["country", c.country],
-          ["website", c.website],
+          ["website", c.website], ["ctaText", c.ctaText], ["ctaUrl", c.ctaUrl],
         ];
         for (const [k, v] of fields) {
           if (v !== undefined && v !== null) {

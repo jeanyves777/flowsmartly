@@ -65,6 +65,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           phones: extractArray(ci, "phones"),
           emails: extractArray(ci, "emails"),
           website: extractString(ci, "website"),
+          ctaText: extractString(ci, "ctaText"),
+          ctaUrl: extractString(ci, "ctaUrl"),
         };
 
         // Extract stats

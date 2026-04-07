@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { buildSite, deploySite } from "@/lib/website/site-builder";
 
 /**
  * PATCH /api/domains/[id]/settings
@@ -87,12 +88,23 @@ export async function PATCH(
         where: { id: website.id },
         data: { customDomain: domain.domainName },
       });
+      // Trigger rebuild so links use the custom domain (basePath = '')
+      triggerWebsiteRebuild(website.id, website.slug);
     } else if (body.linkToWebsite === null) {
+      // Find websites using this domain before unlinking (need IDs for rebuild)
+      const linkedWebsites = await prisma.website.findMany({
+        where: { customDomain: domain.domainName, userId: session.userId },
+        select: { id: true, slug: true },
+      });
       // Unlink from any website that uses this domain
       await prisma.website.updateMany({
         where: { customDomain: domain.domainName, userId: session.userId },
         data: { customDomain: null },
       });
+      // Trigger rebuild so links revert to /sites/slug/ basePath
+      for (const ws of linkedWebsites) {
+        triggerWebsiteRebuild(ws.id, ws.slug);
+      }
     }
 
     if (Object.keys(updateData).length > 0) {
@@ -126,4 +138,22 @@ export async function PATCH(
       { status: 500 }
     );
   }
+}
+
+/**
+ * Fire-and-forget: rebuild website when custom domain is linked/unlinked.
+ * This updates basePath, SITE_BASE, and all image paths so links use
+ * the correct domain (custom domain = root path, no domain = /sites/slug/).
+ */
+function triggerWebsiteRebuild(websiteId: string, slug: string) {
+  (async () => {
+    console.log(`[DomainSettings] Triggering rebuild for website ${slug} after domain change`);
+    const result = await buildSite(websiteId);
+    if (result.success) {
+      await deploySite(websiteId, slug);
+      console.log(`[DomainSettings] Rebuild + deploy succeeded for ${slug}`);
+    } else {
+      console.error(`[DomainSettings] Rebuild failed for ${slug}:`, result.error?.substring(0, 200));
+    }
+  })().catch((err) => console.error("[DomainSettings] Rebuild error:", err));
 }
