@@ -24,6 +24,8 @@ export default function WebsitesPage() {
   const [websites, setWebsites] = useState<Website[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<QuickStats | null>(null);
+  const [rebuilding, setRebuilding] = useState(false);
+  const [rebuildResult, setRebuildResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/websites")
@@ -47,6 +49,31 @@ export default function WebsitesPage() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  const handleRebuild = async (siteId: string) => {
+    setRebuilding(true);
+    setRebuildResult(null);
+    await fetch(`/api/websites/${siteId}/rebuild`, { method: "POST" });
+    // Poll for completion
+    const iv = setInterval(async () => {
+      try {
+        const res = await fetch("/api/websites");
+        const d = await res.json();
+        const updated = d.websites?.[0];
+        if (updated) setWebsites(d.websites);
+        if (updated && updated.buildStatus !== "building") {
+          clearInterval(iv);
+          setRebuilding(false);
+          if (updated.buildStatus === "built") {
+            setRebuildResult({ type: "success", message: "Website rebuilt successfully!" });
+            setTimeout(() => setRebuildResult(null), 5000);
+          } else {
+            setRebuildResult({ type: "error", message: updated.lastBuildError?.substring(0, 200) || "Build failed." });
+          }
+        }
+      } catch { /* keep polling */ }
+    }, 3000);
+  };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure? This will permanently delete your website and all its files.")) return;
@@ -85,6 +112,15 @@ export default function WebsitesPage() {
       ) : (
         /* Has website — full dashboard card */
         <div className="space-y-6">
+          {/* Rebuild Result Toast */}
+          {rebuildResult && (
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${rebuildResult.type === "success" ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-300" : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300"}`}>
+              {rebuildResult.type === "success" ? <Check className="w-5 h-5 flex-shrink-0" /> : <AlertTriangle className="w-5 h-5 flex-shrink-0" />}
+              <p className="text-sm font-medium flex-1">{rebuildResult.message}</p>
+              <button onClick={() => setRebuildResult(null)} className="p-1 hover:opacity-70"><span className="text-lg leading-none">&times;</span></button>
+            </div>
+          )}
+
           {/* Hero Card */}
           <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card to-card/50">
             {/* Top bar */}
@@ -100,16 +136,16 @@ export default function WebsitesPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
-                  site.buildStatus === "built" && site.status === "PUBLISHED"
-                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                    : site.buildStatus === "building"
-                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                  (site.buildStatus === "building" || rebuilding)
+                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                    : site.buildStatus === "built" && site.status === "PUBLISHED"
+                      ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
                       : site.buildStatus === "error"
                         ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
                         : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                 }`}>
-                  {site.buildStatus === "built" && site.status === "PUBLISHED" ? <><Check className="w-3 h-3" /> Live</> :
-                   site.buildStatus === "building" ? <><Loader2 className="w-3 h-3 animate-spin" /> Building</> :
+                  {(site.buildStatus === "building" || rebuilding) ? <><Loader2 className="w-3 h-3 animate-spin" /> Building...</> :
+                   site.buildStatus === "built" && site.status === "PUBLISHED" ? <><Check className="w-3 h-3" /> Live</> :
                    site.buildStatus === "error" ? <><AlertTriangle className="w-3 h-3" /> Error</> : "Draft"}
                 </span>
               </div>
@@ -155,12 +191,7 @@ export default function WebsitesPage() {
                 <ActionButton icon={BarChart3} label="Analytics" onClick={() => router.push(`/websites/${site.id}/analytics`)} />
                 <ActionButton icon={ExternalLink} label="View Site" onClick={() => window.open(`/sites/${site.slug}/`, "_blank")} />
                 <ActionButton icon={Link2} label="Domains" onClick={() => router.push(`/websites/${site.id}/edit?tab=domains`)} />
-                <ActionButton icon={RefreshCw} label="Rebuild" onClick={async () => {
-                  await fetch(`/api/websites/${site.id}/rebuild`, { method: "POST" });
-                  const res = await fetch("/api/websites");
-                  const data = await res.json();
-                  setWebsites(data.websites || []);
-                }} />
+                <ActionButton icon={rebuilding ? Loader2 : RefreshCw} label={rebuilding ? "Building..." : "Rebuild"} onClick={() => !rebuilding && handleRebuild(site.id)} spin={rebuilding} />
               </div>
 
               {/* Bottom info */}
@@ -194,7 +225,7 @@ function QuickStat({ icon: Icon, label, value, highlight }: { icon: any; label: 
   );
 }
 
-function ActionButton({ icon: Icon, label, primary, onClick }: { icon: any; label: string; primary?: boolean; onClick: () => void }) {
+function ActionButton({ icon: Icon, label, primary, onClick, spin }: { icon: any; label: string; primary?: boolean; onClick: () => void; spin?: boolean }) {
   return (
     <button
       onClick={onClick}
@@ -204,7 +235,7 @@ function ActionButton({ icon: Icon, label, primary, onClick }: { icon: any; labe
           : "bg-card border-border hover:border-primary/50 hover:bg-primary/5"
       }`}
     >
-      <Icon className="w-5 h-5" />
+      <Icon className={`w-5 h-5 ${spin ? "animate-spin" : ""}`} />
       <span className="text-xs font-medium">{label}</span>
     </button>
   );
