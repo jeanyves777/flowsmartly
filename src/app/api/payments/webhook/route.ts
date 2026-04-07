@@ -228,6 +228,27 @@ async function processWebhookEvent(event: Stripe.Event) {
         console.log(
           `[Stripe Webhook] Store order ${orderId} payment confirmed (${storeSlug})`
         );
+      } else if (type === "listsmartly_subscription") {
+        // ListSmartly subscription activated
+        const profileId = session.metadata?.profileId;
+        const lsPlan = session.metadata?.plan || "basic";
+        if (profileId) {
+          await prisma.listSmartlyProfile.update({
+            where: { id: profileId },
+            data: {
+              lsSubscriptionId: session.subscription as string || null,
+              lsSubscriptionStatus: "active",
+              lsPlan,
+            },
+          });
+        }
+        if (session.customer) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: { stripeCustomerId: session.customer as string },
+          });
+        }
+        console.log(`[Stripe Webhook] ListSmartly subscription activated for user ${userId} (plan: ${lsPlan})`);
       } else if (type === "ecommerce_subscription") {
         // E-commerce FlowShop subscription activated
         await prisma.store.updateMany({
@@ -541,7 +562,20 @@ async function processWebhookEvent(event: Stripe.Event) {
       const updatedSub = event.data.object as Stripe.Subscription;
       const updatedSubType = updatedSub.metadata?.type;
 
-      if (updatedSubType === "ecommerce_subscription") {
+      if (updatedSubType === "listsmartly_subscription") {
+        const lsUserId = updatedSub.metadata?.userId;
+        if (lsUserId) {
+          const lsStatus = updatedSub.status === "active" ? "active"
+            : updatedSub.status === "trialing" ? "trialing"
+            : updatedSub.status === "past_due" ? "past_due"
+            : "inactive";
+          await prisma.listSmartlyProfile.updateMany({
+            where: { userId: lsUserId },
+            data: { lsSubscriptionStatus: lsStatus },
+          });
+          console.log(`[Stripe Webhook] ListSmartly subscription updated: ${lsStatus} for user ${lsUserId}`);
+        }
+      } else if (updatedSubType === "ecommerce_subscription") {
         const ecomUserId = updatedSub.metadata?.userId;
         if (ecomUserId) {
           const newStatus = updatedSub.status === "active"
@@ -579,6 +613,19 @@ async function processWebhookEvent(event: Stripe.Event) {
       const subscription = event.data.object as Stripe.Subscription;
       const customerId = subscription.customer as string;
       const subMetaType = subscription.metadata?.type;
+
+      // Check if this is a ListSmartly subscription
+      if (subMetaType === "listsmartly_subscription") {
+        const lsUserId = subscription.metadata?.userId;
+        if (lsUserId) {
+          await prisma.listSmartlyProfile.updateMany({
+            where: { userId: lsUserId },
+            data: { lsSubscriptionStatus: "cancelled", lsSubscriptionId: null },
+          });
+          console.log(`[Stripe Webhook] ListSmartly subscription cancelled for user ${lsUserId}`);
+        }
+        break;
+      }
 
       // Check if this is an ecommerce subscription
       if (subMetaType === "ecommerce_subscription") {
