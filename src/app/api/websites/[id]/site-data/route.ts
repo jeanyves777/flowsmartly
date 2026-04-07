@@ -77,11 +77,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         }
       }
 
-      // Extract navigation links
-      data.navLinks = extractObjectArray(content, "navLinks", ["href", "label"]);
-      // footerLinks may use spread ...navLinks — extract raw entries only
-      const rawFooterLinks = extractObjectArray(content, "footerLinks", ["href", "label"]);
-      // Filter out entries that are also in navLinks (came from ...navLinks spread)
+      // Extract navigation links (handles both plain strings and siteUrl() calls)
+      data.navLinks = extractLinkArray(content, "navLinks");
+      // footerLinks may use spread ...navLinks — extract only the non-spread entries
+      const rawFooterLinks = extractLinkArray(content, "footerLinks");
       const navHrefs = new Set((data.navLinks || []).map((l: any) => l.href));
       data.footerLinks = rawFooterLinks.filter((l: any) => !navHrefs.has(l.href));
 
@@ -217,12 +216,51 @@ function extractObjectArray(content: string, exportName: string, fields: string[
 }
 
 function extractString(text: string, key: string): string {
-  const match = text.match(new RegExp(`${key}:\\s*['"]([\\s\\S]*?)(?:(?<!\\\\)['"])`, "m"));
-  return match ? match[1].replace(/\\'/g, "'").replace(/\\"/g, '"') : "";
+  // Try double-quoted first (handles apostrophes inside), then single-quoted
+  const dblMatch = text.match(new RegExp(`${key}:\\s*"((?:[^"\\\\]|\\\\.)*)"`, "m"));
+  if (dblMatch) return dblMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  const sglMatch = text.match(new RegExp(`${key}:\\s*'((?:[^'\\\\]|\\\\.)*)'`, "m"));
+  if (sglMatch) return sglMatch[1].replace(/\\'/g, "'").replace(/\\\\/g, "\\");
+  return "";
 }
 
 function extractArray(text: string, key: string): string[] {
   const match = text.match(new RegExp(`${key}:\\s*\\[([^\\]]*?)\\]`));
   if (!match) return [];
   return [...match[1].matchAll(/['"]([^'"]*)['"]/g)].map((m) => m[1]);
+}
+
+/**
+ * Extract link arrays (navLinks, footerLinks) that may use siteUrl() or plain strings.
+ * Handles: { href: siteUrl('/about'), label: 'About' }
+ *          { href: '/about', label: 'About' }
+ *          { href: 'https://external.com', label: 'Shop' }
+ */
+function extractLinkArray(content: string, exportName: string): Array<{ href: string; label: string }> {
+  const startRegex = new RegExp(`export const ${exportName}\\s*=\\s*\\[`);
+  const startMatch = startRegex.exec(content);
+  if (!startMatch) return [];
+
+  // Find matching closing bracket
+  let depth = 1;
+  let i = startMatch.index + startMatch[0].length;
+  while (i < content.length && depth > 0) {
+    if (content[i] === "[") depth++;
+    if (content[i] === "]") depth--;
+    i++;
+  }
+  const arrayContent = content.substring(startMatch.index + startMatch[0].length, i - 1);
+
+  // Match each { href: ..., label: ... } entry
+  const links: Array<{ href: string; label: string }> = [];
+  // Match href with siteUrl(): href: siteUrl('/path')
+  // Match href with plain string: href: '/path' or href: "https://..."
+  const entryRegex = /href:\s*(?:siteUrl\(\s*['"]([^'"]*)['"]\s*\)|['"]([^'"]*)['"]),\s*label:\s*['"]([^'"]*)['"]/g;
+  let m;
+  while ((m = entryRegex.exec(arrayContent)) !== null) {
+    const href = m[1] !== undefined ? m[1] : m[2]; // siteUrl arg or plain string
+    const label = m[3];
+    links.push({ href, label });
+  }
+  return links;
 }
