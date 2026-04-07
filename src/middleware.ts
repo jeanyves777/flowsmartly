@@ -65,12 +65,18 @@ export async function middleware(request: NextRequest) {
       forceStore = true;
     }
 
-    const resolveUrl = new URL("/api/domains/resolve", request.url);
+    // Build resolve URL using the origin (works for both main domain and custom domains)
+    // Use request.nextUrl.origin which always points to the actual server
+    const resolveUrl = new URL("/api/domains/resolve", request.nextUrl.origin);
     resolveUrl.searchParams.set("domain", lookupDomain);
     if (forceStore) resolveUrl.searchParams.set("forceStore", "1");
 
     const res = await fetch(resolveUrl.toString(), {
-      headers: { "x-middleware-resolve": "1" },
+      headers: {
+        "x-middleware-resolve": "1",
+        // Pass the correct host so the request reaches our server, not the custom domain
+        "Host": request.nextUrl.host,
+      },
     });
 
     if (!res.ok) {
