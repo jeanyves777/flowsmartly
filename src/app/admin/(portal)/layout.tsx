@@ -40,6 +40,8 @@ import {
   Briefcase,
   Gift,
   CreditCard,
+  Timer,
+  Repeat,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -84,6 +86,8 @@ const navItems: NavItem[] = [
   { href: "/admin/earnings", icon: DollarSign, label: "Earnings", permission: "VIEW_ANALYTICS" },
   { href: "/admin/agents", icon: Briefcase, label: "Agents", permission: "VIEW_USERS" },
   { href: "/admin/referrals", icon: Gift, label: "Referrals", permission: "VIEW_ANALYTICS" },
+  { href: "/admin/subscriptions", icon: Repeat, label: "Subscriptions", permission: "EDIT_SETTINGS" },
+  { href: "/admin/cron-jobs", icon: Timer, label: "Cron Jobs", permission: "EDIT_SETTINGS" },
   { href: "/admin/system", icon: Server, label: "System", permission: "EDIT_SETTINGS" },
   { href: "/admin/settings", icon: Settings, label: "Settings", permission: "VIEW_SETTINGS" },
 ];
