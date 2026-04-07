@@ -415,7 +415,7 @@ export async function setMinTlsVersion(
  */
 export async function configureZoneSecurity(zoneId: string): Promise<void> {
   await Promise.all([
-    setSslMode(zoneId, "full"),
+    setSslMode(zoneId, "flexible"),
     setAlwaysUseHttps(zoneId, true),
     setAutoHttpsRewrites(zoneId, true),
     setMinTlsVersion(zoneId, "1.2"),
