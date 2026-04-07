@@ -45,10 +45,14 @@ export async function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
-  // Always skip internal Next.js and API routes for custom domains
-  if (path.startsWith("/api/") || path.startsWith("/_next/")) {
+  // Always skip API routes for custom domains
+  if (path.startsWith("/api/")) {
     return NextResponse.next();
   }
+
+  // For /_next/ paths: skip only if it's a known Next.js app asset (main app chunks)
+  // Custom domain website assets at /_next/static/... need to be rewritten
+  // We handle this AFTER domain resolution below
 
   // This is a custom domain request — resolve it
   try {
@@ -92,8 +96,8 @@ export async function middleware(request: NextRequest) {
     }
 
     if (type === "website") {
-      // WEBSITE: rewrite ALL paths (pages + assets) to /sites/{slug}/...
-      // The /sites/[...path] route handler serves the static files
+      // WEBSITE: rewrite ALL paths (pages + /_next/ + images + assets) to /sites/{slug}/...
+      // The /sites/[...path] route handler serves the static files from disk
       const sitePath = path === "/" ? `/sites/${slug}` : `/sites/${slug}${path}`;
       const rewriteUrl = new URL(sitePath, request.url);
       rewriteUrl.search = request.nextUrl.search;
@@ -103,6 +107,11 @@ export async function middleware(request: NextRequest) {
       response.headers.set("x-store-slug", slug);
       response.headers.set("x-domain-type", "website");
       return response;
+    }
+
+    // STORE: /_next/ paths should pass through to Next.js (store uses app assets)
+    if (path.startsWith("/_next/")) {
+      return NextResponse.next();
     }
 
     // STORE: rewrite to /store/{slug}/...
@@ -122,8 +131,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    // Match all paths except static Next.js internals
-    "/((?!_next/static|_next/image|favicon.ico).*)",
-  ],
+  // Match ALL paths — custom domains need /_next/static rewriting for website assets
+  matcher: ["/(.*)",],
 };
