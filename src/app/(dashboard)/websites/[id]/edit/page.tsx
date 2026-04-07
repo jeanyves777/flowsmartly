@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, ExternalLink, RefreshCw, Loader2, Check, AlertCircle, Globe,
   FileText, Save, Plus, Trash2, Link2, Upload, X, Image as ImageIcon,
-  Phone, Mail, MapPin, Star, Users, MessageSquare, HelpCircle,
+  Phone, Mail, MapPin, Star, Users, MessageSquare, HelpCircle, Flag, AlertTriangle,
 } from "lucide-react";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
@@ -34,12 +34,13 @@ interface SiteData {
 export default function WebsiteEditPage() {
   const router = useRouter();
   const { id } = useParams() as { id: string };
+  const searchParams = useSearchParams();
   const [website, setWebsite] = useState<Website | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
   const [fixingLinks, setFixingLinks] = useState(false);
-  const [activeTab, setActiveTab] = useState("preview");
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "preview");
   const [data, setData] = useState<SiteData | null>(null);
   const [changed, setChanged] = useState(false);
   const [pages, setPages] = useState<Array<{ slug: string; label: string }>>([]);
@@ -116,6 +117,8 @@ export default function WebsiteEditPage() {
           setTimeout(() => setBuildResult(null), 5000);
         } else {
           setBuildResult({ type: "error", message: d.website.lastBuildError?.substring(0, 200) || "Build failed. Check Build tab for details." });
+          // Auto-switch to preview to show error state with report button
+          if (activeTab !== "build") setActiveTab("preview");
         }
       }
     }, 3000);
@@ -258,7 +261,26 @@ export default function WebsiteEditPage() {
               ))}
             </div>
           )}
-          {website.buildStatus === "built" ? <iframe ref={iframeRef} src={`/sites/${website.slug}/${previewPage}`} className="w-full h-[75vh] border-0" /> : (
+          {website.buildStatus === "built" ? <iframe ref={iframeRef} src={`/sites/${website.slug}/${previewPage}`} className="w-full h-[75vh] border-0" /> : website.buildStatus === "error" ? (
+            <div className="text-center py-16 px-6">
+              <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-red-800 dark:text-red-300 mb-2">Website Build Failed</h3>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto mb-2">
+                Your website encountered an error during the build process. You can try rebuilding, or report this issue to our team for assistance.
+              </p>
+              {website.lastBuildError && (
+                <pre className="mx-auto max-w-lg text-left p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-xs rounded-lg overflow-auto max-h-32 mb-4">{website.lastBuildError.substring(0, 300)}{website.lastBuildError.length > 300 ? "..." : ""}</pre>
+              )}
+              <div className="flex items-center justify-center gap-3">
+                <button onClick={rebuild} disabled={busy} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50">
+                  {rebuilding ? <><Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1.5" />Rebuilding...</> : <><RefreshCw className="w-3.5 h-3.5 inline mr-1.5" />Try Rebuild</>}
+                </button>
+                <ReportErrorButton websiteId={id} />
+              </div>
+            </div>
+          ) : (
             <div className="text-center py-20"><p className="text-muted-foreground mb-4">{website.buildStatus === "building" ? "Building..." : "Not built yet"}</p>
               {website.buildStatus !== "building" && <button onClick={rebuild} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm">Build Now</button>}
             </div>
@@ -515,7 +537,17 @@ export default function WebsiteEditPage() {
              : <span className="text-sm text-muted-foreground">Idle</span>}
           </div>
           {website.lastBuildAt && <p className="text-sm text-muted-foreground mb-4">Last: {new Date(website.lastBuildAt).toLocaleString()}</p>}
-          {website.buildStatus === "error" && website.lastBuildError && <pre className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 text-xs rounded-lg overflow-auto max-h-60">{website.lastBuildError}</pre>}
+          {website.buildStatus === "error" && website.lastBuildError && (
+            <>
+              <pre className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-xs rounded-lg overflow-auto max-h-60 mb-4">{website.lastBuildError}</pre>
+              <div className="flex items-center gap-3">
+                <button onClick={rebuild} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">
+                  {rebuilding ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rebuilding...</> : <><RefreshCw className="w-3.5 h-3.5" /> Retry Build</>}
+                </button>
+                <ReportErrorButton websiteId={id} />
+              </div>
+            </>
+          )}
         </Section>
       )}
 
@@ -543,6 +575,29 @@ export default function WebsiteEditPage() {
 }
 
 // --- Sub-components ---
+
+function ReportErrorButton({ websiteId }: { websiteId: string }) {
+  const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const report = async () => {
+    setSending(true);
+    try {
+      await fetch(`/api/websites/${websiteId}/report-error`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      setSent(true);
+    } catch {}
+    setSending(false);
+  };
+
+  if (sent) return <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400"><Check className="w-4 h-4" /> Reported — our team will look into it</span>;
+
+  return (
+    <button onClick={report} disabled={sending} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50">
+      {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Flag className="w-3.5 h-3.5" />}
+      Report to Admin
+    </button>
+  );
+}
 
 function DomainsTab({ websiteSlug }: { websiteSlug: string }) {
   return (

@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import {
   Plus, Globe, Edit3, Trash2, ExternalLink, RefreshCw, Loader2, Check,
   BarChart3, Eye, Users, TrendingUp, Zap, ArrowRight, Settings, Link2,
+  AlertTriangle, Flag,
 } from "lucide-react";
 
 interface Website {
   id: string; name: string; slug: string; status: string; buildStatus: string;
   pageCount: number; totalViews: number; customDomain?: string; updatedAt: string;
-  lastBuildAt?: string;
+  lastBuildAt?: string; lastBuildError?: string;
 }
 
 interface QuickStats {
@@ -103,10 +104,13 @@ export default function WebsitesPage() {
                     ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
                     : site.buildStatus === "building"
                       ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                      : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                      : site.buildStatus === "error"
+                        ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                        : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                 }`}>
                   {site.buildStatus === "built" && site.status === "PUBLISHED" ? <><Check className="w-3 h-3" /> Live</> :
-                   site.buildStatus === "building" ? <><Loader2 className="w-3 h-3 animate-spin" /> Building</> : "Draft"}
+                   site.buildStatus === "building" ? <><Loader2 className="w-3 h-3 animate-spin" /> Building</> :
+                   site.buildStatus === "error" ? <><AlertTriangle className="w-3 h-3" /> Error</> : "Draft"}
                 </span>
               </div>
             </div>
@@ -118,6 +122,31 @@ export default function WebsitesPage() {
               <QuickStat icon={Users} label="Unique Visitors" value={stats?.uniqueVisitors || 0} />
               <QuickStat icon={Zap} label="Live Now" value={stats?.realtimeVisitors || 0} highlight />
             </div>
+
+            {/* Build Error Banner */}
+            {site.buildStatus === "error" && (
+              <div className="mx-6 mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-red-800 dark:text-red-300">Your website failed to build</p>
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                      {site.lastBuildError?.substring(0, 150) || "An error occurred during the build process."}
+                      {(site.lastBuildError?.length || 0) > 150 && "..."}
+                    </p>
+                    <div className="flex items-center gap-2 mt-3">
+                      <button
+                        onClick={() => router.push(`/websites/${site.id}/edit?tab=build`)}
+                        className="px-3 py-1.5 text-xs font-medium bg-red-100 dark:bg-red-800/40 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors"
+                      >
+                        View Details
+                      </button>
+                      <ReportErrorButton websiteId={site.id} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="p-6">
@@ -177,6 +206,33 @@ function ActionButton({ icon: Icon, label, primary, onClick }: { icon: any; labe
     >
       <Icon className="w-5 h-5" />
       <span className="text-xs font-medium">{label}</span>
+    </button>
+  );
+}
+
+function ReportErrorButton({ websiteId }: { websiteId: string }) {
+  const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const report = async () => {
+    setSending(true);
+    try {
+      await fetch(`/api/websites/${websiteId}/report-error`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      setSent(true);
+    } catch {}
+    setSending(false);
+  };
+
+  if (sent) return <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400"><Check className="w-3 h-3" /> Reported</span>;
+
+  return (
+    <button
+      onClick={report}
+      disabled={sending}
+      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-800/40 rounded-lg transition-colors disabled:opacity-50"
+    >
+      {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Flag className="w-3 h-3" />}
+      Report to Admin
     </button>
   );
 }

@@ -173,6 +173,14 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - If you must use SVG for decorative elements, name the component with "SVG" or "Illustration" suffix (e.g. ChurchBuildingSVG) so the editor can detect and replace them
 - Store page illustration paths in data.ts as: export const pageImages = { about: '/sites/.../images/about/illustration.jpg', ... }
 
+### Import Safety (CRITICAL — #1 cause of build failures):
+- NEVER import a file you haven't written yet — write dependencies BEFORE dependents
+- Write components in order: data.ts → globals.css → layout.tsx → Header → Footer → other components → pages
+- Additional pages (about/page.tsx, services/page.tsx, contact/page.tsx) should ONLY import from @/lib/data — NOT from @/components/Header or @/components/Footer (those are already rendered by layout.tsx)
+- Before importing @/components/SomeName, make sure you have ALREADY called write_file to create that exact file
+- If you reference a component, the filename must match EXACTLY (case-sensitive): Header.tsx for @/components/Header
+- layout.tsx imports Header and Footer → all pages inherit them automatically → page files MUST NOT re-import Header/Footer
+
 ### File Writing:
 - Write COMPLETE files — never partial content
 - Include all imports at the top

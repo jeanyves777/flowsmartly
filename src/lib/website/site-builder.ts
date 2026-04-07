@@ -3,8 +3,8 @@
  */
 
 import { execSync } from "child_process";
-import { existsSync, mkdirSync, cpSync, writeFileSync } from "fs";
-import { join } from "path";
+import { existsSync, mkdirSync, cpSync, writeFileSync, readdirSync, readFileSync } from "fs";
+import { join, dirname } from "path";
 import { prisma } from "@/lib/db/client";
 import {
   TEMPLATE_PACKAGE_JSON,
@@ -196,6 +196,93 @@ export function writeSiteFile(websiteId: string, relativePath: string, content: 
 }
 
 /**
+ * Recursively collect all .ts/.tsx files in a directory
+ */
+function collectSourceFiles(dir: string, files: string[] = []): string[] {
+  if (!existsSync(dir)) return files;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory() && entry.name !== "node_modules" && entry.name !== ".next") {
+      collectSourceFiles(full, files);
+    } else if (entry.isFile() && /\.(tsx?|jsx?)$/.test(entry.name)) {
+      files.push(full);
+    }
+  }
+  return files;
+}
+
+/**
+ * Pre-build validation: scan all source files for @/ imports that don't resolve.
+ * Auto-creates minimal stub files for missing modules so the build doesn't crash.
+ * Returns the list of stubs created.
+ */
+function validateAndFixImports(siteDir: string): string[] {
+  const srcDir = join(siteDir, "src");
+  const files = collectSourceFiles(srcDir);
+  const createdStubs: string[] = [];
+
+  // Collect all @/ imports across all files
+  const missingImports = new Set<string>();
+
+  for (const file of files) {
+    const content = readFileSync(file, "utf-8");
+    // Match: import ... from '@/...' or import ... from "@/..."
+    const importRegex = /from\s+['"]@\/([^'"]+)['"]/g;
+    let match;
+    while ((match = importRegex.exec(content)) !== null) {
+      const importPath = match[1]; // e.g. "components/Header" or "lib/data"
+      const resolvedBase = join(srcDir, importPath);
+
+      // Check if it resolves (with or without extensions)
+      const candidates = [
+        resolvedBase,
+        resolvedBase + ".ts",
+        resolvedBase + ".tsx",
+        resolvedBase + ".js",
+        resolvedBase + ".jsx",
+        join(resolvedBase, "index.ts"),
+        join(resolvedBase, "index.tsx"),
+      ];
+
+      if (!candidates.some(c => existsSync(c))) {
+        missingImports.add(importPath);
+      }
+    }
+  }
+
+  // Create stub files for missing imports
+  for (const importPath of missingImports) {
+    const isComponent = importPath.startsWith("components/");
+    const componentName = importPath.split("/").pop() || "Unknown";
+
+    // Determine file extension based on path
+    const ext = isComponent ? ".tsx" : ".ts";
+    const stubPath = join(srcDir, importPath + ext);
+
+    mkdirSync(dirname(stubPath), { recursive: true });
+
+    if (isComponent) {
+      // Create a minimal React component stub
+      const stub = `"use client";
+
+export default function ${componentName}(props: Record<string, unknown>) {
+  return <div data-component="${componentName}" />;
+}
+`;
+      writeFileSync(stubPath, stub, "utf-8");
+    } else {
+      // Create a minimal data/util stub with empty exports
+      writeFileSync(stubPath, `// Auto-generated stub for missing module: ${importPath}\nexport default {};\n`, "utf-8");
+    }
+
+    createdStubs.push(importPath);
+    console.log(`[SiteBuilder] Created stub for missing import: @/${importPath}`);
+  }
+
+  return createdStubs;
+}
+
+/**
  * Build the site (npm install + next build)
  */
 export async function buildSite(websiteId: string): Promise<{ success: boolean; output: string; error?: string }> {
@@ -226,6 +313,12 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
       });
     } else {
       console.log(`[SiteBuilder] Dependencies already installed, skipping npm install`);
+    }
+
+    // Pre-build: validate imports and create stubs for missing ones
+    const stubs = validateAndFixImports(siteDir);
+    if (stubs.length > 0) {
+      console.log(`[SiteBuilder] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);
     }
 
     // Clear build cache so changes are picked up
