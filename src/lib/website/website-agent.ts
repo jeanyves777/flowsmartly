@@ -99,9 +99,21 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
    Each legal page MUST: import companyInfo from '@/lib/data', use companyInfo.name throughout, use brand colors, have proper dark mode, NOT import Header/Footer (layout.tsx handles those)
 9. Write src/app/not-found.tsx (custom branded 404 page with brand colors, company logo, link back to home using siteUrl)
 10. Write src/app/error.tsx ("use client" error boundary with brand styling, "Try Again" button that calls reset())
-11. Call build_site to build
-12. If errors, fix the files and rebuild
-13. Call finish to deploy
+11. SEO VERIFICATION — before building, verify ALL of the following are in place:
+    a. layout.tsx metadata: title with company name + tagline, description (150-160 chars), keywords (8-12 relevant terms)
+    b. layout.tsx metadata: openGraph (title, description, image, siteName, locale, type), twitter card (summary_large_image)
+    c. layout.tsx metadata: favicon using the ACTUAL downloaded logo path (icons: { icon: '{basePath}/images/brand/logo.{ext}' })
+       - The favicon extension MUST match the actual downloaded file (e.g. .webp, .png, .jpg — NOT a different extension)
+    d. Every page file with metadata export: unique title and description for that page
+    e. Semantic HTML: proper heading hierarchy (one h1 per page), alt text on all images
+    f. Write src/app/robots.txt route or public/robots.txt: Allow all, sitemap reference
+    g. Write src/app/sitemap.ts: generate sitemap with all pages, proper URLs, lastModified dates
+    h. Structured data (JSON-LD) in layout.tsx or page.tsx: Organization schema with name, url, logo, contactPoint
+    i. All internal links use descriptive anchor text (not "click here")
+    j. Images have descriptive alt text with keywords where appropriate
+12. Call build_site to build
+13. If errors, fix the files and rebuild
+14. Call finish to deploy
 10. If errors, fix the files and rebuild
 11. Call finish to deploy
 
@@ -197,7 +209,10 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
   - Header: className="h-16 sm:h-20 w-auto max-w-[200px] object-contain" (NOT h-8 or h-10 — those are tiny)
   - Footer: className="h-20 w-auto max-w-[220px] object-contain"
   - NEVER use h-8, h-10, or h-12 for logos — they render too small
-- In layout.tsx metadata, set favicon: icons: { icon: '{downloaded path}' }
+- FAVICON: In layout.tsx metadata, set icons: { icon: '{downloaded path}' }
+  - The path MUST use the exact filename+extension from the download_image result (e.g. .webp, .png, .jpg)
+  - NEVER hardcode a different extension than what was actually downloaded
+  - This makes the logo appear in the browser tab — critical for branding
 - If no logoUrl is provided, use the company name as text — but ONLY in that case
 
 ### Image Paths (CRITICAL):
