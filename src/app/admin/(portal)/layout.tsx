@@ -42,6 +42,13 @@ import {
   CreditCard,
   Timer,
   Repeat,
+  Globe,
+  Globe2,
+  ShoppingBag,
+  Zap,
+  Calendar,
+  List,
+  Cpu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -90,6 +97,18 @@ const navItems: NavItem[] = [
   { href: "/admin/cron-jobs", icon: Timer, label: "Cron Jobs", permission: "EDIT_SETTINGS" },
   { href: "/admin/system", icon: Server, label: "System", permission: "EDIT_SETTINGS" },
   { href: "/admin/settings", icon: Settings, label: "Settings", permission: "VIEW_SETTINGS" },
+];
+
+// Services section - feature management
+const serviceItems: NavItem[] = [
+  { href: "/admin/websites", icon: Globe, label: "Websites", permission: "VIEW_CONTENT" },
+  { href: "/admin/ai-jobs", icon: Cpu, label: "AI Jobs", permission: "VIEW_CONTENT" },
+  { href: "/admin/ecommerce", icon: ShoppingBag, label: "E-Commerce", permission: "VIEW_CONTENT" },
+  { href: "/admin/landing-pages", icon: FileText, label: "Landing Pages", permission: "VIEW_CONTENT" },
+  { href: "/admin/domains", icon: Globe2, label: "Domains", permission: "VIEW_CONTENT" },
+  { href: "/admin/automations", icon: Zap, label: "Automations", permission: "VIEW_CONTENT" },
+  { href: "/admin/events", icon: Calendar, label: "Events", permission: "VIEW_CONTENT" },
+  { href: "/admin/listsmartly", icon: List, label: "ListSmartly", permission: "VIEW_CONTENT" },
 ];
 
 // Marketing section
@@ -206,6 +225,7 @@ export default function AdminPortalLayout({
   };
 
   const filteredNavItems = navItems.filter(canAccess);
+  const filteredServiceItems = serviceItems.filter(canAccess);
   const filteredMarketingItems = marketingItems.filter(canAccess);
 
   const toggleTheme = () => {
@@ -327,6 +347,23 @@ export default function AdminPortalLayout({
 
           {renderNavItems(filteredNavItems, undefined, sidebarCollapsed)}
 
+          {/* Services Section */}
+          {filteredServiceItems.length > 0 && (
+            <>
+              <div className="my-3 border-t border-border" />
+              {!sidebarCollapsed ? (
+                <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  Services
+                </div>
+              ) : (
+                <div className="flex justify-center py-2">
+                  <Globe className="w-4 h-4 text-muted-foreground/70" />
+                </div>
+              )}
+              {renderNavItems(filteredServiceItems, undefined, sidebarCollapsed)}
+            </>
+          )}
+
           {/* Marketing Section */}
           {filteredMarketingItems.length > 0 && (
             <>
@@ -438,6 +475,16 @@ export default function AdminPortalLayout({
                   Admin Panel
                 </div>
                 {renderNavItems(filteredNavItems, () => setMobileMenuOpen(false))}
+
+                {filteredServiceItems.length > 0 && (
+                  <>
+                    <div className="my-3 border-t border-border" />
+                    <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+                      Services
+                    </div>
+                    {renderNavItems(filteredServiceItems, () => setMobileMenuOpen(false))}
+                  </>
+                )}
 
                 {filteredMarketingItems.length > 0 && (
                   <>
