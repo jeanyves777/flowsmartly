@@ -147,9 +147,11 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 ### Navigation (header nav vs footer links):
 - In data.ts, create TWO link arrays:
   1. navLinks — MAIN pages for the header nav (Home, About, Services, Team, Blog, Contact)
-  2. footerLinks — SECONDARY pages for footer only (FAQ, Gallery, Testimonials, etc.)
+  2. footerLinks — ALL other pages including legal: FAQ, Gallery, Testimonials, Pricing, Privacy Policy, Cookie Policy, Terms & Conditions
 - Header.tsx imports and renders navLinks
-- Footer.tsx imports BOTH navLinks and footerLinks, renders all of them in the Quick Links section
+- Footer.tsx imports BOTH navLinks and footerLinks, renders ALL of them — do NOT use .slice() to limit the count
+- Footer MUST show legal links (Privacy Policy, Cookie Policy, Terms) — these are legally required
+- Consider using separate footer sections: "Quick Links" (navLinks), "More Pages" (footerLinks), "Legal" (privacy, cookie, terms)
 - ALL links in both arrays MUST use siteUrl() for href values
 - EVERY page you create MUST appear in either navLinks or footerLinks — no orphan pages
 
@@ -165,15 +167,15 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - Next.js 15 with React 19
 - DO NOT use deprecated APIs or old syntax from previous versions of any library
 
-### Logo & Favicon:
-- The brand identity includes a "logo" URL — this is the user's ACTUAL logo
-- Call download_image to save the logo to the site (category: "brand", filename: "logo")
-- The download returns a local path like "/images/brand/logo.jpg"
-- IMPORTANT: ALL image src paths MUST include the siteBasePath prefix!
-  Example: if siteBasePath is "/sites/my-business-abc", use src="/sites/my-business-abc/images/brand/logo.jpg"
-- Use the FULL prefixed path in Header AND Footer: <img src="{siteBasePath}/images/brand/logo.jpg" />
-- DO NOT create a Logo.tsx SVG component — use the real logo image
-- In layout.tsx metadata, set icon with basePath: icons: { icon: '{siteBasePath}/images/brand/logo.jpg' }
+### Logo & Favicon (MANDATORY — do this BEFORE writing any components):
+- STEP 1: Call get_brand_identity — it includes a "logoUrl" field
+- STEP 2: If logoUrl exists, you MUST call download_image with that URL (category: "brand", filename: "logo") IMMEDIATELY
+- STEP 3: The download returns a local path — save it and use it in Header, Footer, and layout.tsx
+- NEVER create a text/SVG placeholder logo (like a colored div with an initial letter) — ALWAYS use the real logo <img>
+- NEVER skip the logo download step even if it seems optional — the user uploaded their actual brand logo
+- Use the FULL prefixed path in Header AND Footer: <img src="{downloaded path}" alt="{company name}" />
+- In layout.tsx metadata, set favicon: icons: { icon: '{downloaded path}' }
+- If no logoUrl is provided, use the company name as text — but ONLY in that case
 
 ### Image Paths (CRITICAL):
 - Next.js basePath ONLY auto-prefixes /_next/ assets
@@ -221,7 +223,9 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
   import Analytics from '@/components/Analytics'
   import CookieConsent from '@/components/CookieConsent'
   Then add <Analytics /> and <CookieConsent /> inside the body
-- footerLinks MUST include privacy-policy, cookie-policy, and terms pages`;
+- footerLinks MUST include privacy-policy, cookie-policy, and terms pages
+- Footer.tsx MUST render ALL footerLinks without slicing — never use .slice() to cut off links
+- The real brand logo MUST be downloaded and used as <img> in Header AND Footer — never create a fake text/SVG logo`;
 
 // --- Tool Execution ---
 
