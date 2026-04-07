@@ -308,17 +308,21 @@ function fixBareLinks(siteDir: string, basePath: string): void {
   const srcDir = join(siteDir, "src");
   const files = collectSourceFiles(srcDir);
   let fixCount = 0;
+  const escaped = escapeRegex(basePath);
 
   for (const file of files) {
     let content = readFileSync(file, "utf-8");
     const original = content;
 
-    // Fix href="/" -> href="{basePath}/"
-    content = content.replace(/href="\/"/g, `href="${basePath}/"`);
-
-    // Fix href="/word..." but NOT href="/sites/", href="/_next/", href="/images/"
+    // Fix href="/" -> href="{basePath}/" (but not if already prefixed)
     content = content.replace(
-      /href="\/(?!sites\/|_next\/|images\/)([a-zA-Z])/g,
+      new RegExp(`href="(?!${escaped})/"`, "g"),
+      `href="${basePath}/"`
+    );
+
+    // Fix href="/word..." but NOT if already prefixed, and NOT /sites/, /_next/, /images/
+    content = content.replace(
+      new RegExp(`href="(?!${escaped})/(?!sites/|_next/|images/)([a-zA-Z][a-zA-Z0-9/-]*)`, "g"),
       `href="${basePath}/$1`
     );
 
