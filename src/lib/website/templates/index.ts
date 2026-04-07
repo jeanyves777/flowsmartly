@@ -20,9 +20,7 @@ export const TEMPLATE_PACKAGE_JSON = `{
     "lucide-react": "0.460.0",
     "tailwindcss": "3.4.17",
     "postcss": "8.4.49",
-    "autoprefixer": "10.4.20"
-  },
-  "devDependencies": {
+    "autoprefixer": "10.4.20",
     "@types/node": "22.10.0",
     "@types/react": "19.0.0",
     "@types/react-dom": "19.0.0",

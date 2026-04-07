@@ -304,12 +304,12 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
     const nodeModulesExists = existsSync(join(siteDir, "node_modules", "next"));
     if (!nodeModulesExists) {
       console.log(`[SiteBuilder] Installing dependencies for ${websiteId}...`);
-      installOutput = execSync("npm install", {
+      installOutput = execSync("npm install --include=dev", {
         cwd: siteDir,
         timeout: 120000,
         encoding: "utf-8",
         stdio: ["pipe", "pipe", "pipe"],
-        env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=2048" },
+        env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=2048", NODE_ENV: "development" },
       });
     } else {
       console.log(`[SiteBuilder] Dependencies already installed, skipping npm install`);
