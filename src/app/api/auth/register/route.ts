@@ -6,6 +6,7 @@ import { createSession, setSessionCookies } from "@/lib/auth/session";
 import { notifyWelcome } from "@/lib/notifications";
 import { processReferralSignup } from "@/lib/referrals";
 import { getRegionForCountry } from "@/lib/constants/regions";
+import { verifyTurnstile } from "@/lib/auth/turnstile";
 
 // Validation schema
 const registerSchema = z.object({
@@ -23,6 +24,7 @@ const registerSchema = z.object({
     .toLowerCase(),
   country: z.string().min(1, "Country is required").max(20),
   referralCode: z.string().optional(),
+  turnstileToken: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -45,7 +47,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, password, name, username, country } = validation.data;
+    const { email, password, name, username, country, turnstileToken } = validation.data;
+
+    // Verify Turnstile CAPTCHA
+    if (process.env.TURNSTILE_SECRET_KEY) {
+      const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || undefined;
+      const isHuman = await verifyTurnstile(turnstileToken || "", ip);
+      if (!isHuman) {
+        return NextResponse.json(
+          { success: false, error: { code: "CAPTCHA_FAILED", message: "CAPTCHA verification failed. Please try again." } },
+          { status: 403 }
+        );
+      }
+    }
+
     const region = getRegionForCountry(country) || "worldwide";
 
     // Validate password strength

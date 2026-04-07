@@ -3,11 +3,13 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/client";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSession, setSessionCookies } from "@/lib/auth/session";
+import { verifyTurnstile } from "@/lib/auth/turnstile";
 
 // Validation schema
 const loginSchema = z.object({
   email: z.string().email("Invalid email address").toLowerCase().trim(),
   password: z.string().min(1, "Password is required"),
+  turnstileToken: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -30,7 +32,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, password } = validation.data;
+    const { email, password, turnstileToken } = validation.data;
+
+    // Verify Turnstile CAPTCHA
+    if (process.env.TURNSTILE_SECRET_KEY) {
+      const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || undefined;
+      const isHuman = await verifyTurnstile(turnstileToken || "", ip);
+      if (!isHuman) {
+        return NextResponse.json(
+          { success: false, error: { code: "CAPTCHA_FAILED", message: "CAPTCHA verification failed. Please try again." } },
+          { status: 403 }
+        );
+      }
+    }
 
     // Find user by email
     const user = await prisma.user.findUnique({
