@@ -298,6 +298,42 @@ function fixDataSyntax(siteDir: string): void {
 }
 
 /**
+ * Fix bare internal links (href="/about") that are missing the basePath prefix.
+ * The agent sometimes writes href="/contact" instead of using siteUrl().
+ * This ensures ALL internal links work correctly on subpath deployments.
+ */
+function fixBareLinks(siteDir: string, basePath: string): void {
+  if (!basePath) return; // Custom domain — bare links are correct
+
+  const srcDir = join(siteDir, "src");
+  const files = collectSourceFiles(srcDir);
+  let fixCount = 0;
+
+  for (const file of files) {
+    let content = readFileSync(file, "utf-8");
+    const original = content;
+
+    // Fix href="/" -> href="{basePath}/"
+    content = content.replace(/href="\/"/g, `href="${basePath}/"`);
+
+    // Fix href="/word..." but NOT href="/sites/", href="/_next/", href="/images/"
+    content = content.replace(
+      /href="\/(?!sites\/|_next\/|images\/)([a-zA-Z])/g,
+      `href="${basePath}/$1`
+    );
+
+    if (content !== original) {
+      writeFileSync(file, content);
+      fixCount++;
+    }
+  }
+
+  if (fixCount > 0) {
+    console.log(`[SiteBuilder] Auto-fixed bare links in ${fixCount} files (basePath: ${basePath})`);
+  }
+}
+
+/**
  * Build the site (npm install + next build)
  */
 export async function buildSite(websiteId: string): Promise<{ success: boolean; output: string; error?: string }> {
@@ -349,6 +385,9 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
 
     // Pre-build: fix common data.ts syntax issues (unescaped quotes in strings)
     fixDataSyntax(siteDir);
+
+    // Pre-build: fix bare internal links that are missing the basePath prefix
+    fixBareLinks(siteDir, basePath);
 
     // Clear build cache so changes are picked up
     const nextCacheDir = join(siteDir, ".next");

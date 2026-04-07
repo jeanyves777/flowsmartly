@@ -198,10 +198,12 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 ### Import Safety (CRITICAL — #1 cause of build failures):
 - NEVER import a file you haven't written yet — write dependencies BEFORE dependents
 - Write components in order: data.ts → globals.css → layout.tsx → Header → Footer → other components → pages
-- Additional pages (about/page.tsx, services/page.tsx, contact/page.tsx) should ONLY import from @/lib/data — NOT from @/components/Header or @/components/Footer (those are already rendered by layout.tsx)
+- Choose ONE pattern for Header/Footer and be CONSISTENT across ALL pages:
+  - PREFERRED: Put Header and Footer in layout.tsx so ALL pages (including legal pages) get them automatically
+  - If you put Header/Footer in layout.tsx, then individual page files must NOT import them
+  - If you put Header/Footer in each page file, then EVERY page (including about, contact, privacy-policy, terms, cookie-policy) MUST import and render them
 - Before importing @/components/SomeName, make sure you have ALREADY called write_file to create that exact file
 - If you reference a component, the filename must match EXACTLY (case-sensitive): Header.tsx for @/components/Header
-- layout.tsx imports Header and Footer → all pages inherit them automatically → page files MUST NOT re-import Header/Footer
 
 ### String Escaping in data.ts (CRITICAL — causes syntax errors):
 - data.ts uses JavaScript strings — ALL apostrophes/single quotes MUST be escaped
