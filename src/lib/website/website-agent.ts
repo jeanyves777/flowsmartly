@@ -147,6 +147,9 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
   export function siteUrl(path: string): string { return SITE_BASE + path; }
 - ALL internal navigation links MUST use siteUrl()
 - NEVER write bare "/contact" or "/about" — ALWAYS siteUrl("/contact")
+- NEVER use href="#" or href="/#section" — these resolve to the wrong domain on subpath sites
+  - For "Learn more" links on cards: use siteUrl("/contact") or siteUrl("/services") — point to a real page
+  - For same-page anchors: use siteUrl("/") + "#section" like siteUrl("/#features")
 - NEVER use Next.js <Link> component — use <a> tags with siteUrl() for static export
 - External links (https://, mailto:, tel:) stay unchanged
 

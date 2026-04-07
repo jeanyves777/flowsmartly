@@ -326,6 +326,21 @@ function fixBareLinks(siteDir: string, basePath: string): void {
       `href="${basePath}/$1`
     );
 
+    // Fix href="/#hash" -> href="{basePath}/#hash" (hash links to homepage sections)
+    content = content.replace(
+      new RegExp(`href="(?!${escaped})/#`, "g"),
+      `href="${basePath}/#`
+    );
+
+    // Fix href="#" (bare hash) -> href="{basePath}/" (point to homepage)
+    content = content.replace(/href="#"/g, `href="${basePath}/"`);
+
+    // Fix template literal links: href={`/path`} and href={`/#hash`}
+    content = content.replace(
+      new RegExp("href=\\{`(?!" + escaped + ")/(?!sites/|_next/|images/)([a-zA-Z#][^`]*)`\\}", "g"),
+      `href={\`${basePath}/$1\`}`
+    );
+
     if (content !== original) {
       writeFileSync(file, content);
       fixCount++;
