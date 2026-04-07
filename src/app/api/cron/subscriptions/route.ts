@@ -3,11 +3,14 @@ import {
   checkExpiredSubscriptions,
   sendSubscriptionReminders,
   checkFailedPayments,
+  processPhoneNumberRenewals,
+  processAgentClientMaintenance,
 } from "@/lib/subscriptions";
 
 /**
  * GET /api/cron/subscriptions
- * Daily cron job: check expired subscriptions, send renewal reminders, dunning for failed payments.
+ * Daily cron job: check expired subscriptions, send renewal reminders,
+ * dunning for failed payments, phone number renewals, agent client cleanup.
  * Protected by CRON_SECRET header.
  */
 export async function GET(request: NextRequest) {
@@ -33,11 +36,21 @@ export async function GET(request: NextRequest) {
     const dunning = await checkFailedPayments();
     console.log(`[Cron] Dunning: ${dunning.notified}/${dunning.pastDue} notified`);
 
+    // 4. Process phone number monthly renewals
+    const phones = await processPhoneNumberRenewals();
+    console.log(`[Cron] Phone renewals: ${phones.charged}/${phones.total} charged, ${phones.failed} failed`);
+
+    // 5. Agent client maintenance (auto-expire stale PENDING requests)
+    const agents = await processAgentClientMaintenance();
+    console.log(`[Cron] Agent clients: ${agents.expired} expired, ${agents.activeClients} active, ${agents.pendingClients} pending`);
+
     return NextResponse.json({
       success: true,
       expired,
       reminders,
       dunning,
+      phones,
+      agents,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

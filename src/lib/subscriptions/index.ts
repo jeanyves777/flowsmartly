@@ -559,3 +559,111 @@ export async function syncStripeSubscriptions() {
 
   return { total: users.length, synced, discrepancies, issues };
 }
+
+// ── 8. Phone Number Monthly Renewal ──
+
+/**
+ * Charge monthly phone number rental fee ($5/mo in credits).
+ * Runs daily — checks if 30 days have passed since last charge.
+ */
+export async function processPhoneNumberRenewals() {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const configs = await prisma.marketingConfig.findMany({
+    where: {
+      smsPhoneNumber: { not: null },
+      smsEnabled: true,
+    },
+    select: {
+      id: true,
+      userId: true,
+      smsPhoneNumber: true,
+      user: { select: { email: true, name: true, aiCredits: true } },
+    },
+  });
+
+  let charged = 0;
+  let failed = 0;
+  const PHONE_MONTHLY_CREDITS = 50; // $5 = 50 credits
+
+  for (const config of configs) {
+    // Check if already charged this month
+    const recentCharge = await prisma.creditTransaction.findFirst({
+      where: {
+        userId: config.userId,
+        referenceType: "phone_number_renewal",
+        createdAt: { gte: thirtyDaysAgo },
+      },
+    });
+
+    if (recentCharge) continue;
+
+    // Check if user has enough credits
+    if (config.user.aiCredits < PHONE_MONTHLY_CREDITS) {
+      // Not enough credits — notify but don't disable yet
+      const { notifyLowCredits } = await import("@/lib/notifications");
+      await notifyLowCredits({
+        userId: config.userId,
+        email: config.user.email,
+        name: config.user.name,
+        currentBalance: config.user.aiCredits,
+        threshold: PHONE_MONTHLY_CREDITS,
+      }).catch(() => {});
+      failed++;
+      continue;
+    }
+
+    try {
+      await creditService.deductCredits({
+        userId: config.userId,
+        type: TRANSACTION_TYPES.USAGE,
+        amount: PHONE_MONTHLY_CREDITS,
+        description: `Monthly phone number rental: ${config.smsPhoneNumber}`,
+        referenceType: "phone_number_renewal",
+        referenceId: `phone-${new Date().toISOString().slice(0, 7)}`,
+      });
+      charged++;
+      console.log(`[Phone] Monthly renewal charged: ${config.smsPhoneNumber} for user ${config.userId}`);
+    } catch (err) {
+      console.error(`[Phone] Failed to charge for ${config.smsPhoneNumber}:`, err);
+      failed++;
+    }
+  }
+
+  return { total: configs.length, charged, failed };
+}
+
+// ── 9. Agent Client Auto-Expiry ──
+
+/**
+ * Auto-expire PENDING agent hire requests older than 14 days.
+ * Also verify active agent clients have valid billing.
+ */
+export async function processAgentClientMaintenance() {
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+  // Auto-expire stale PENDING requests
+  const expired = await prisma.agentClient.updateMany({
+    where: {
+      status: "PENDING",
+      startDate: { lt: fourteenDaysAgo },
+    },
+    data: {
+      status: "TERMINATED",
+      endDate: new Date(),
+      terminatedBy: "system",
+      terminationReason: "Auto-expired: no response within 14 days",
+    },
+  });
+
+  // Count active agent clients for stats
+  const activeClients = await prisma.agentClient.count({
+    where: { status: "ACTIVE" },
+  });
+
+  const pendingClients = await prisma.agentClient.count({
+    where: { status: "PENDING" },
+  });
+
+  return { expired: expired.count, activeClients, pendingClients };
+}

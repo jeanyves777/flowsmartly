@@ -390,7 +390,7 @@ export async function GET(request: NextRequest) {
       const userId = request.nextUrl.searchParams.get("userId");
       if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
-      const [user, store, listsmartly, domains, agentClients, referralsMade, referredBy, commissions, recentTransactions] = await Promise.all([
+      const [user, store, listsmartly, domains, agentClients, phoneNumber, referralsMade, referredBy, commissions, recentTransactions] = await Promise.all([
         prisma.user.findUnique({
           where: { id: userId },
           select: {
@@ -430,6 +430,14 @@ export async function GET(request: NextRequest) {
             agentProfile: { select: { displayName: true, userId: true, user: { select: { email: true } } } },
           },
         }),
+        // Phone number subscription
+        prisma.marketingConfig.findFirst({
+          where: { userId },
+          select: {
+            id: true, smsPhoneNumber: true, smsPhoneNumberSid: true,
+            smsEnabled: true, smsVerified: true,
+          },
+        }),
         prisma.userReferral.findMany({
           where: { referrerUserId: userId },
           select: {
@@ -463,7 +471,7 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        data: { user, store, listsmartly, domains, agentClients, referralsMade, referredBy, commissions, recentTransactions },
+        data: { user, store, listsmartly, domains, agentClients, phoneNumber, referralsMade, referredBy, commissions, recentTransactions },
       });
     }
 

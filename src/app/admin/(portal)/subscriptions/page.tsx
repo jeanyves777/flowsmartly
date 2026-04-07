@@ -453,28 +453,67 @@ export default function AdminSubscriptionsPage() {
           </Card>
         </div>
 
-        {/* Domains */}
-        {selectedUser.domains.length > 0 && (
+        {/* Second row: Domains, Phone Number */}
+        <div className="grid md:grid-cols-2 gap-4">
+          {/* Domains */}
           <Card>
             <CardContent className="p-4">
-              <h3 className="font-semibold text-sm flex items-center gap-2 mb-3"><Globe className="h-4 w-4 text-cyan-400" /> Domains ({selectedUser.domains.length})</h3>
-              <div className="space-y-2">
-                {selectedUser.domains.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-sm">{d.domainName}</span>
-                      <Badge variant="outline" className={statusColors[d.registrarStatus] || ""}>{d.registrarStatus}</Badge>
-                      {d.isFree && <Badge className="bg-emerald-500/20 text-emerald-400 text-[10px]">FREE</Badge>}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {d.autoRenew ? "Auto-renew" : "Manual"} • Expires {formatDate(d.expiresAt)}
-                    </div>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-sm flex items-center gap-2"><Globe className="h-4 w-4 text-cyan-400" /> Domains</h3>
+                <Badge variant="outline">{selectedUser.domains.length}</Badge>
               </div>
+              {selectedUser.domains.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedUser.domains.map((d) => (
+                    <div key={d.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs">{d.domainName}</span>
+                        <Badge variant="outline" className={statusColors[d.registrarStatus] || ""}>{d.registrarStatus}</Badge>
+                        {d.isFree && <Badge className="bg-emerald-500/20 text-emerald-400 text-[10px]">FREE</Badge>}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">{d.autoRenew ? "Auto" : "Manual"} • {formatDate(d.expiresAt)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-xs text-muted-foreground">No domains purchased</p>}
             </CardContent>
           </Card>
-        )}
+
+          {/* Phone Number */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-sm flex items-center gap-2">
+                  <svg className="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                  Phone Number
+                </h3>
+                {(selectedUser as any).phoneNumber ? (
+                  <Badge variant="outline" className={(selectedUser as any).phoneNumber.smsEnabled ? "text-green-400 border-green-500/30" : "text-gray-400"}>
+                    {(selectedUser as any).phoneNumber.smsEnabled ? "Active" : "Disabled"}
+                  </Badge>
+                ) : <Badge variant="outline" className="text-gray-400">None</Badge>}
+              </div>
+              {(selectedUser as any).phoneNumber ? (
+                <div className="space-y-1.5 text-sm">
+                  <p>Number: <span className="font-mono font-medium">{(selectedUser as any).phoneNumber.smsPhoneNumber}</span></p>
+                  <p>Verified: {(selectedUser as any).phoneNumber.smsVerified ? <span className="text-green-400">Yes</span> : <span className="text-red-400">No</span>}</p>
+                  <p className="text-xs text-muted-foreground">$5.00/mo (credit deduction)</p>
+                </div>
+              ) : <p className="text-xs text-muted-foreground">No phone number rented</p>}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Third row: VPS Hosting */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-sm flex items-center gap-2"><Clock className="h-4 w-4 text-cyan-400" /> VPS Hosting</h3>
+              <Badge variant="outline" className="text-muted-foreground">Coming Soon</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">VPS hosting subscriptions will be available soon.</p>
+          </CardContent>
+        </Card>
 
         {/* Referrals */}
         {(selectedUser.referralsMade.length > 0 || selectedUser.referredBy) && (
