@@ -39,7 +39,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 // Non-subscriber roles
 const FREE_ROLES = ["STARTER", "ADMIN", "SUPER_ADMIN", "AGENT"];
 
-type TabId = "overview" | "plans" | "flowshop" | "listsmartly" | "domains" | "referrals";
+type TabId = "overview" | "plans" | "flowshop" | "listsmartly" | "domains" | "stripe-sync";
 
 interface Stats {
   totalUsers: number;
@@ -137,6 +137,22 @@ export default function AdminSubscriptionsPage() {
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [refundAmount, setRefundAmount] = useState("");
 
+  // Stripe sync
+  const [syncData, setSyncData] = useState<{
+    stats: { totalStripe: number; activeStripe: number; synced: number; mismatches: number; stripeOnly: number; dbOnly: number };
+    comparison: Array<{
+      stripeId: string | null; stripeStatus: string | null; stripeType: string;
+      stripePlan: string | null; stripeAmount: number; stripeInterval: string | null;
+      stripeEmail: string | null; stripeCreated: string | null;
+      localUserId: string | null; localEmail: string | null; localName: string | null;
+      localPlan: string | null; localStatus: string | null; localExpiresAt: string | null;
+      match: string; issue: string | null;
+    }>;
+    timestamp: string;
+  } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncFilter, setSyncFilter] = useState<string>("all");
+
   const loadStats = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/subscriptions?view=stats");
@@ -150,7 +166,7 @@ export default function AdminSubscriptionsPage() {
     setLoading(true);
     const viewMap: Record<TabId, string> = {
       overview: "", plans: "users", flowshop: "flowshop",
-      listsmartly: "listsmartly", domains: "domains", referrals: "referrals",
+      listsmartly: "listsmartly", domains: "domains", "stripe-sync": "",
     };
     const view = viewMap[activeTab];
     if (!view) { setLoading(false); return; }
@@ -211,7 +227,7 @@ export default function AdminSubscriptionsPage() {
     { id: "flowshop", label: "FlowShop", icon: ShoppingBag, count: stats ? stats.flowshop.active + stats.flowshop.trialing : undefined },
     { id: "listsmartly", label: "ListSmartly", icon: MapPin, count: stats ? stats.listsmartly.active + stats.listsmartly.trialing : undefined },
     { id: "domains", label: "Domains", icon: Globe, count: stats?.domains.active },
-    { id: "referrals", label: "Referrals", icon: Gift, count: stats?.referrals.active },
+    { id: "stripe-sync", label: "Stripe Sync", icon: RefreshCw },
   ];
 
   // ── User Detail View ──
@@ -590,14 +606,6 @@ export default function AdminSubscriptionsPage() {
             </div>
           </CardContent></Card>
 
-          <Card><CardContent className="p-4">
-            <h3 className="font-semibold text-sm mb-3">Referral Program</h3>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Active Referrals</span><span className="font-semibold">{stats.referrals.active}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Pending Commissions</span><span className="text-amber-400 font-semibold">{stats.referrals.pendingCommissions}</span></div>
-            </div>
-          </CardContent></Card>
-
           {stats.expiredNotReset > 0 && (
             <Card className="md:col-span-2"><CardContent className="p-4">
               <div className="flex items-center gap-2 text-red-400">
@@ -615,7 +623,7 @@ export default function AdminSubscriptionsPage() {
         <>
           {/* Search & Filters */}
           <div className="flex flex-col sm:flex-row gap-3">
-            {(activeTab === "plans" || activeTab === "referrals") && (
+            {activeTab === "plans" && (
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input type="text" placeholder="Search by name or email..." value={search}
@@ -757,21 +765,207 @@ export default function AdminSubscriptionsPage() {
                 </div>
               )}
 
-              {/* Referrals Tab */}
-              {activeTab === "referrals" && (
-                <div className="space-y-2">
-                  {(items as any[]).map((r: any) => (
-                    <Card key={r.id}><CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="p-2 rounded-lg bg-pink-500/20"><Gift className="h-5 w-5 text-pink-400" /></div>
-                        <div>
-                          <p className="text-sm"><span className="font-medium">{r.referrer?.name}</span> → <span className="font-medium">{r.referred?.name}</span></p>
-                          <p className="text-xs text-muted-foreground">{r.referralType} • {(r.commissionRate * 100)}% {r.commissionType?.toLowerCase()} • Code: {r.referralCode}</p>
-                        </div>
+              {/* Stripe Sync Tab */}
+              {activeTab === "stripe-sync" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">Pull all subscriptions from Stripe and compare with local database side-by-side.</p>
+                    <Button onClick={async () => {
+                      setSyncing(true); setSyncData(null);
+                      try {
+                        const res = await fetch("/api/admin/stripe-sync");
+                        const data = await res.json();
+                        if (data.success) setSyncData(data);
+                      } catch { /* silent */ }
+                      finally { setSyncing(false); }
+                    }} disabled={syncing} className="bg-orange-500 hover:bg-orange-600 text-white">
+                      {syncing ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Pulling from Stripe...</> : <><RefreshCw className="h-4 w-4 mr-1" /> Sync with Stripe</>}
+                    </Button>
+                  </div>
+
+                  {syncData && (
+                    <>
+                      {/* Sync stats */}
+                      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                        <Card><CardContent className="pt-3 pb-2 px-3">
+                          <div className="text-[10px] text-muted-foreground uppercase">Stripe Total</div>
+                          <div className="text-lg font-bold">{syncData.stats.totalStripe}</div>
+                        </CardContent></Card>
+                        <Card><CardContent className="pt-3 pb-2 px-3">
+                          <div className="text-[10px] text-muted-foreground uppercase">Stripe Active</div>
+                          <div className="text-lg font-bold text-green-400">{syncData.stats.activeStripe}</div>
+                        </CardContent></Card>
+                        <Card><CardContent className="pt-3 pb-2 px-3">
+                          <div className="text-[10px] text-muted-foreground uppercase">In Sync</div>
+                          <div className="text-lg font-bold text-green-400">{syncData.stats.synced}</div>
+                        </CardContent></Card>
+                        <Card><CardContent className="pt-3 pb-2 px-3">
+                          <div className="text-[10px] text-muted-foreground uppercase">Mismatches</div>
+                          <div className="text-lg font-bold text-red-400">{syncData.stats.mismatches}</div>
+                        </CardContent></Card>
+                        <Card><CardContent className="pt-3 pb-2 px-3">
+                          <div className="text-[10px] text-muted-foreground uppercase">Stripe Only</div>
+                          <div className="text-lg font-bold text-amber-400">{syncData.stats.stripeOnly}</div>
+                        </CardContent></Card>
+                        <Card><CardContent className="pt-3 pb-2 px-3">
+                          <div className="text-[10px] text-muted-foreground uppercase">DB Only</div>
+                          <div className="text-lg font-bold text-blue-400">{syncData.stats.dbOnly}</div>
+                        </CardContent></Card>
                       </div>
-                      <Badge variant="outline" className={r.status === "ACTIVE" ? "text-green-400 border-green-500/30" : "text-gray-400"}>{r.status}</Badge>
-                    </CardContent></Card>
-                  ))}
+
+                      {/* Filter */}
+                      <div className="flex gap-1 flex-wrap">
+                        {[
+                          { key: "all", label: "All", color: "bg-orange-500/20 text-orange-400" },
+                          { key: "mismatch", label: `Mismatches (${syncData.stats.mismatches})`, color: "bg-red-500/20 text-red-400" },
+                          { key: "stripe_only", label: `Stripe Only (${syncData.stats.stripeOnly})`, color: "bg-amber-500/20 text-amber-400" },
+                          { key: "db_only", label: `DB Only (${syncData.stats.dbOnly})`, color: "bg-blue-500/20 text-blue-400" },
+                          { key: "synced", label: `Synced (${syncData.stats.synced})`, color: "bg-green-500/20 text-green-400" },
+                        ].map((f) => (
+                          <button key={f.key} onClick={() => setSyncFilter(f.key)}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${syncFilter === f.key ? f.color : "bg-muted text-muted-foreground hover:bg-accent"}`}>
+                            {f.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Comparison table */}
+                      <div className="space-y-2">
+                        {syncData.comparison
+                          .filter((c) => syncFilter === "all" || c.match === syncFilter)
+                          .map((c, i) => {
+                            const matchColors: Record<string, string> = {
+                              synced: "border-green-500/30",
+                              mismatch: "border-red-500/30",
+                              stripe_only: "border-amber-500/30",
+                              db_only: "border-blue-500/30",
+                            };
+                            const matchLabels: Record<string, { text: string; color: string }> = {
+                              synced: { text: "IN SYNC", color: "text-green-400" },
+                              mismatch: { text: "MISMATCH", color: "text-red-400" },
+                              stripe_only: { text: "STRIPE ONLY", color: "text-amber-400" },
+                              db_only: { text: "DB ONLY", color: "text-blue-400" },
+                            };
+                            const label = matchLabels[c.match] || { text: c.match, color: "" };
+                            const typeColors: Record<string, string> = {
+                              platform: "bg-violet-500/20 text-violet-400",
+                              flowshop: "bg-pink-500/20 text-pink-400",
+                              listsmartly: "bg-blue-500/20 text-blue-400",
+                              unknown: "bg-gray-500/20 text-gray-400",
+                            };
+
+                            return (
+                              <Card key={`${c.stripeId || ""}-${c.localUserId || ""}-${i}`} className={`border ${matchColors[c.match] || ""}`}>
+                                <CardContent className="p-4">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="flex-1 min-w-0">
+                                      {/* Header row */}
+                                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                                        <span className={`text-[10px] font-bold uppercase ${label.color}`}>{label.text}</span>
+                                        <Badge className={typeColors[c.stripeType] || ""} variant="outline">{c.stripeType}</Badge>
+                                        {c.issue && <span className="text-xs text-muted-foreground">— {c.issue}</span>}
+                                      </div>
+
+                                      {/* Side by side */}
+                                      <div className="grid md:grid-cols-2 gap-4">
+                                        {/* Stripe side */}
+                                        <div className="p-3 rounded-lg bg-muted/50">
+                                          <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1.5">STRIPE</p>
+                                          {c.stripeId ? (
+                                            <div className="space-y-1 text-xs">
+                                              <p>Email: <span className="font-medium">{c.stripeEmail || "—"}</span></p>
+                                              <p>Status: <Badge variant="outline" className={statusColors[c.stripeStatus || ""] || ""}>{c.stripeStatus}</Badge></p>
+                                              <p>Plan: <span className="font-medium">{c.stripePlan || "—"}</span></p>
+                                              <p>Amount: <span className="font-medium">${(c.stripeAmount / 100).toFixed(2)}/{c.stripeInterval || "mo"}</span></p>
+                                              <p className="font-mono text-[10px] text-muted-foreground truncate">{c.stripeId}</p>
+                                            </div>
+                                          ) : (
+                                            <p className="text-xs text-muted-foreground italic">No Stripe subscription</p>
+                                          )}
+                                        </div>
+
+                                        {/* DB side */}
+                                        <div className="p-3 rounded-lg bg-muted/50">
+                                          <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1.5">LOCAL DATABASE</p>
+                                          {c.localUserId ? (
+                                            <div className="space-y-1 text-xs">
+                                              <p>Email: <span className="font-medium">{c.localEmail || "—"}</span></p>
+                                              <p>Name: <span className="font-medium">{c.localName || "—"}</span></p>
+                                              <p>Plan: <Badge className={planColors[c.localPlan || ""] || "bg-gray-500/20"}>{c.localPlan || "—"}</Badge></p>
+                                              <p>Status: <span className="font-medium">{c.localStatus || "—"}</span></p>
+                                              {c.localExpiresAt && <p>Expires: {formatDate(c.localExpiresAt)}</p>}
+                                            </div>
+                                          ) : (
+                                            <p className="text-xs text-muted-foreground italic">No matching local record</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Fix buttons */}
+                                    {c.match !== "synced" && (
+                                      <div className="flex flex-col gap-1.5 shrink-0">
+                                        {c.stripeId && (
+                                          <Button size="sm" variant="outline" className="text-xs" disabled={actionLoading}
+                                            onClick={async () => {
+                                              setActionLoading(true); setActionMessage(null);
+                                              try {
+                                                const res = await fetch("/api/admin/stripe-sync", {
+                                                  method: "POST",
+                                                  headers: { "Content-Type": "application/json" },
+                                                  body: JSON.stringify({ action: "sync_from_stripe", stripeSubscriptionId: c.stripeId, userId: c.localUserId }),
+                                                });
+                                                const data = await res.json();
+                                                setActionMessage(data.success ? data.message : `Error: ${data.error}`);
+                                              } catch { setActionMessage("Sync failed"); }
+                                              finally { setActionLoading(false); }
+                                            }}>
+                                            <RefreshCw className="h-3 w-3 mr-1" /> Sync
+                                          </Button>
+                                        )}
+                                        {c.localUserId && c.match === "db_only" && (
+                                          <Button size="sm" variant="outline" className="text-xs text-red-400" disabled={actionLoading}
+                                            onClick={async () => {
+                                              setActionLoading(true); setActionMessage(null);
+                                              try {
+                                                const res = await fetch("/api/admin/stripe-sync", {
+                                                  method: "POST",
+                                                  headers: { "Content-Type": "application/json" },
+                                                  body: JSON.stringify({ action: "reset_to_starter", userId: c.localUserId }),
+                                                });
+                                                const data = await res.json();
+                                                setActionMessage(data.success ? data.message : `Error: ${data.error}`);
+                                              } catch { setActionMessage("Reset failed"); }
+                                              finally { setActionLoading(false); }
+                                            }}>
+                                            Reset to Free
+                                          </Button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                      </div>
+
+                      {syncData.comparison.filter((c) => syncFilter === "all" || c.match === syncFilter).length === 0 && (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-green-500" />
+                          <p>No items match this filter</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {!syncData && !syncing && (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <RefreshCw className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                      <p className="font-medium">Click "Sync with Stripe" to pull all subscriptions</p>
+                      <p className="text-xs mt-1">This will compare every Stripe subscription with your local database</p>
+                    </div>
+                  )}
                 </div>
               )}
 

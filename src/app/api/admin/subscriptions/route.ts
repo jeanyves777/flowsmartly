@@ -44,10 +44,18 @@ export async function GET(request: NextRequest) {
       ] = await Promise.all([
         prisma.user.count({ where: { deletedAt: null } }),
         prisma.user.count({ where: { plan: { in: FREE_ROLES }, deletedAt: null } }),
-        prisma.user.count({ where: { plan: { notIn: FREE_ROLES }, deletedAt: null } }),
+        // Real paid subscribers: non-free plan + Stripe customer + valid expiry
         prisma.user.count({
           where: {
             plan: { notIn: FREE_ROLES },
+            stripeCustomerId: { not: null },
+            deletedAt: null,
+          },
+        }),
+        prisma.user.count({
+          where: {
+            plan: { notIn: FREE_ROLES },
+            stripeCustomerId: { not: null },
             planExpiresAt: { gte: now, lte: sevenDaysFromNow },
             deletedAt: null,
           },
@@ -55,6 +63,7 @@ export async function GET(request: NextRequest) {
         prisma.user.count({
           where: {
             plan: { notIn: FREE_ROLES },
+            stripeCustomerId: { not: null },
             planExpiresAt: { lt: now },
             deletedAt: null,
           },
