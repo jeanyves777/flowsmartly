@@ -1,15 +1,30 @@
 /**
- * Next.js Middleware — Custom domain routing for FlowShop stores.
+ * Next.js Middleware — Custom domain routing for websites and stores.
  *
- * When a request comes in with a Host header that isn't flowsmartly.com
- * or localhost, we look up the domain in the database and rewrite
- * the request to the store's public storefront.
+ * When a request comes in with a Host header that isn't flowsmartly.com:
+ * 1. Resolve domain → website slug or store slug via /api/domains/resolve
+ * 2. Website: rewrite ALL requests (pages + assets) to /sites/{slug}/...
+ * 3. Store: rewrite page requests to /store/{slug}/...
+ * 4. Unlinked domain: show "Under Construction" parking page
+ *
+ * Also handles shop.domain.com subdomains for FlowShop stores.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 
 function parkingPageHtml(domain: string): string {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${domain} — Coming Soon</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;color:#fff}.wrap{text-align:center;padding:40px 24px;max-width:600px}.icon{font-size:64px;margin-bottom:24px}.title{font-size:36px;font-weight:800;margin:0 0 8px;letter-spacing:-.5px}.badge{display:inline-flex;align-items:center;gap:8px;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);border-radius:24px;padding:6px 16px;margin:16px 0 24px;font-size:14px;color:#93c5fd}.dot{width:8px;height:8px;border-radius:50%;background:#3b82f6;display:inline-block;animation:pulse 2s infinite}.desc{font-size:18px;color:#94a3b8;line-height:1.6;margin:0 0 32px}.footer{margin-top:48px;padding-top:24px;border-top:1px solid rgba(255,255,255,.1)}.footer p{font-size:12px;color:#64748b}.footer a{color:#3b82f6;text-decoration:none;font-weight:600}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}</style></head><body><div class="wrap"><div class="icon">🚧</div><h1 class="title">${domain}</h1><div class="badge"><span class="dot"></span>Under Construction</div><p class="desc">We&apos;re building something amazing. This website is being set up and will be live soon.</p><div class="footer"><p>Powered by <a href="https://flowsmartly.com">FlowSmartly</a></p></div></div></body></html>`;
+}
+
+function parkingResponse(hostname: string) {
+  return new NextResponse(parkingPageHtml(hostname), {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "x-custom-domain": hostname,
+    },
+  });
 }
 
 const MAIN_DOMAINS = [
@@ -28,76 +43,84 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Skip API routes, _next, and static assets
   const path = request.nextUrl.pathname;
-  if (
-    path.startsWith("/api/") ||
-    path.startsWith("/_next/") ||
-    path.startsWith("/favicon") ||
-    path.startsWith("/logo") ||
-    path.startsWith("/icon") ||
-    path.includes(".")
-  ) {
+
+  // Always skip internal Next.js and API routes for custom domains
+  if (path.startsWith("/api/") || path.startsWith("/_next/")) {
     return NextResponse.next();
   }
 
-  // This is a custom domain request — look up the store
+  // This is a custom domain request — resolve it
   try {
-    // Use internal API to resolve domain → store slug
-    // We can't use Prisma directly in Edge middleware, so we call our own API
+    // Determine the lookup domain:
+    // - shop.example.com → resolve "example.com" as store (shop subdomain)
+    // - example.com → resolve "example.com" (could be website or store)
+    let lookupDomain = hostname;
+    let forceStore = false;
+
+    // Handle shop.domain.com subdomain → always resolves as store
+    const shopMatch = hostname.match(/^shop\.(.+)$/);
+    if (shopMatch) {
+      lookupDomain = shopMatch[1];
+      forceStore = true;
+    }
+
     const resolveUrl = new URL("/api/domains/resolve", request.url);
-    resolveUrl.searchParams.set("domain", hostname);
+    resolveUrl.searchParams.set("domain", lookupDomain);
+    if (forceStore) resolveUrl.searchParams.set("forceStore", "1");
 
     const res = await fetch(resolveUrl.toString(), {
       headers: { "x-middleware-resolve": "1" },
     });
 
     if (!res.ok) {
-      // Domain not linked to anything — show under construction page
-      return new NextResponse(parkingPageHtml(hostname), {
-        status: 200,
-        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, no-cache, must-revalidate", "x-custom-domain": hostname },
-      });
+      return parkingResponse(hostname);
     }
 
     const data = await res.json();
     const slug = data.slug;
-    const type = data.type || "store"; // "store" or "website"
+    let type = data.type || "store";
+
+    // shop.domain.com always goes to store
+    if (forceStore) type = "store";
 
     if (!slug) {
-      return new NextResponse(parkingPageHtml(hostname), {
-        status: 200,
-        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, no-cache, must-revalidate", "x-custom-domain": hostname },
-      });
+      return parkingResponse(hostname);
     }
 
-    // Rewrite to the appropriate page based on type
-    const basePath = type === "website" ? `/sites/${slug}` : `/store/${slug}`;
-    const rewritePath = path === "/" ? basePath : `${basePath}${path}`;
-    const rewriteUrl = new URL(rewritePath, request.url);
+    if (type === "website") {
+      // WEBSITE: rewrite ALL paths (pages + assets) to /sites/{slug}/...
+      // The /sites/[...path] route handler serves the static files
+      const sitePath = path === "/" ? `/sites/${slug}` : `/sites/${slug}${path}`;
+      const rewriteUrl = new URL(sitePath, request.url);
+      rewriteUrl.search = request.nextUrl.search;
+
+      const response = NextResponse.rewrite(rewriteUrl);
+      response.headers.set("x-custom-domain", hostname);
+      response.headers.set("x-store-slug", slug);
+      response.headers.set("x-domain-type", "website");
+      return response;
+    }
+
+    // STORE: rewrite to /store/{slug}/...
+    const storePath = path === "/" ? `/store/${slug}` : `/store/${slug}${path}`;
+    const rewriteUrl = new URL(storePath, request.url);
     rewriteUrl.search = request.nextUrl.search;
 
     const response = NextResponse.rewrite(rewriteUrl);
-
-    // Set headers so the page knows it's being served on a custom domain
     response.headers.set("x-custom-domain", hostname);
     response.headers.set("x-store-slug", slug);
-    response.headers.set("x-domain-type", type);
-
+    response.headers.set("x-domain-type", "store");
     return response;
   } catch (error) {
     console.error("Middleware domain resolution error:", error);
-    // Show parking page on error instead of falling through to main site
-    return new NextResponse(parkingPageHtml(hostname), {
-      status: 200,
-      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, no-cache, must-revalidate", "x-custom-domain": hostname },
-    });
+    return parkingResponse(hostname);
   }
 }
 
 export const config = {
-  // Run middleware on all routes except static files and API
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|logo|icon|robots.txt|sitemap|manifest).*)",
+    // Match all paths except static Next.js internals
+    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
