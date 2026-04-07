@@ -174,6 +174,10 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - NEVER create a text/SVG placeholder logo (like a colored div with an initial letter) — ALWAYS use the real logo <img>
 - NEVER skip the logo download step even if it seems optional — the user uploaded their actual brand logo
 - Use the FULL prefixed path in Header AND Footer: <img src="{downloaded path}" alt="{company name}" />
+- Logo sizing MUST be generous — logos with text need to be readable:
+  - Header: className="h-16 sm:h-20 w-auto max-w-[200px] object-contain" (NOT h-8 or h-10 — those are tiny)
+  - Footer: className="h-20 w-auto max-w-[220px] object-contain"
+  - NEVER use h-8, h-10, or h-12 for logos — they render too small
 - In layout.tsx metadata, set favicon: icons: { icon: '{downloaded path}' }
 - If no logoUrl is provided, use the company name as text — but ONLY in that case
 
