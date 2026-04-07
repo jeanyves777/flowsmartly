@@ -92,8 +92,16 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
    b. Write an ADAPTED version for THIS business — same quality, same animations, different content
 6. Write src/app/page.tsx (home page composing all sections)
 7. Write additional pages (about/page.tsx, services/page.tsx, contact/page.tsx) if requested
-8. Write src/app/not-found.tsx (custom 404 page with brand styling, link back to home)
-9. Call build_site to build
+8. Write branded legal pages — these MUST use the company name and import companyInfo from data:
+   - src/app/privacy-policy/page.tsx (privacy policy mentioning company name, email, services)
+   - src/app/cookie-policy/page.tsx (cookie policy mentioning company name and analytics)
+   - src/app/terms/page.tsx (terms of service mentioning company name and industry)
+   Each legal page MUST: import companyInfo from '@/lib/data', use companyInfo.name throughout, use brand colors, have proper dark mode, NOT import Header/Footer (layout.tsx handles those)
+9. Write src/app/not-found.tsx (custom branded 404 page with brand colors, company logo, link back to home using siteUrl)
+10. Write src/app/error.tsx ("use client" error boundary with brand styling, "Try Again" button that calls reset())
+11. Call build_site to build
+12. If errors, fix the files and rebuild
+13. Call finish to deploy
 10. If errors, fix the files and rebuild
 11. Call finish to deploy
 
@@ -207,7 +215,7 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - DO NOT write tailwind.config.ts — Tailwind v4 uses CSS config via globals.css (@theme block)
 - DO NOT write ThemeProvider.tsx or ThemeToggle.tsx — already provided as templates
 - DO NOT write Analytics.tsx or CookieConsent.tsx — already provided as templates
-- DO NOT write privacy-policy, cookie-policy, or terms pages — already provided as templates
+- You MUST write privacy-policy, cookie-policy, terms, not-found, and error pages — use the brand identity
 - DO NOT write a Logo.tsx component — use the real brand logo image instead
 - In layout.tsx, MUST import and render <Analytics /> and <CookieConsent /> components:
   import Analytics from '@/components/Analytics'

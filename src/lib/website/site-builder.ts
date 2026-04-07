@@ -83,95 +83,15 @@ export default nextConfig
   writeFileSync(join(siteDir, "src", "components", "ThemeProvider.tsx"), TEMPLATE_THEME_PROVIDER);
   writeFileSync(join(siteDir, "src", "components", "ThemeToggle.tsx"), TEMPLATE_THEME_TOGGLE);
 
-  // 404 and error pages (brand-neutral defaults — agent can overwrite with branded versions)
-  writeFileSync(join(siteDir, "src", "app", "not-found.tsx"), `"use client";
-
-export default function NotFound() {
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
-      <h1 className="text-6xl font-bold text-neutral-900 dark:text-white mb-4">404</h1>
-      <p className="text-xl text-neutral-600 dark:text-neutral-400 mb-8">Page not found</p>
-      <a href="/" className="px-6 py-3 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg font-medium hover:opacity-90 transition-opacity">
-        Go Home
-      </a>
-    </div>
-  );
-}
-`);
-
   // Tracking script + cookie consent
   const apiBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com";
   writeFileSync(join(siteDir, "src", "components", "Analytics.tsx"), getTrackingScript(websiteId, apiBaseUrl));
   writeFileSync(join(siteDir, "src", "components", "CookieConsent.tsx"), TEMPLATE_COOKIE_CONSENT);
 
-  // Privacy, cookie, terms policy pages
+  // Create directories for legal pages (agent writes the actual content)
   mkdirSync(join(siteDir, "src", "app", "privacy-policy"), { recursive: true });
   mkdirSync(join(siteDir, "src", "app", "cookie-policy"), { recursive: true });
   mkdirSync(join(siteDir, "src", "app", "terms"), { recursive: true });
-
-  const policyPage = (title: string, content: string) => `"use client";
-
-export default function ${title.replace(/[^a-zA-Z]/g, "")}Page() {
-  return (
-    <div className="min-h-screen bg-white dark:bg-neutral-950 py-20">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6">
-        <h1 className="text-3xl font-bold text-neutral-900 dark:text-white mb-8">${title}</h1>
-        <div className="prose dark:prose-invert max-w-none text-neutral-600 dark:text-neutral-400 space-y-4">
-          ${content}
-        </div>
-      </div>
-    </div>
-  );
-}
-`;
-
-  writeFileSync(join(siteDir, "src", "app", "privacy-policy", "page.tsx"), policyPage("Privacy Policy",
-    `<p>This privacy policy explains how we collect, use, and protect your personal information.</p>
-          <h2 className="text-xl font-semibold text-neutral-900 dark:text-white mt-6">Information We Collect</h2>
-          <p>We may collect personal information such as your name, email address, and browsing behavior when you visit our website.</p>
-          <h2 className="text-xl font-semibold text-neutral-900 dark:text-white mt-6">How We Use Your Information</h2>
-          <p>We use your information to improve our services, respond to inquiries, and send relevant communications.</p>
-          <h2 className="text-xl font-semibold text-neutral-900 dark:text-white mt-6">Data Protection</h2>
-          <p>We implement appropriate security measures to protect your personal data against unauthorized access or disclosure.</p>
-          <h2 className="text-xl font-semibold text-neutral-900 dark:text-white mt-6">Contact Us</h2>
-          <p>If you have questions about this policy, please contact us through our website.</p>`
-  ));
-
-  writeFileSync(join(siteDir, "src", "app", "cookie-policy", "page.tsx"), policyPage("Cookie Policy",
-    `<p>This website uses cookies to enhance your browsing experience.</p>
-          <h2 className="text-xl font-semibold text-neutral-900 dark:text-white mt-6">What Are Cookies</h2>
-          <p>Cookies are small text files stored on your device that help us understand how you use our website.</p>
-          <h2 className="text-xl font-semibold text-neutral-900 dark:text-white mt-6">Types of Cookies We Use</h2>
-          <p><strong>Essential cookies:</strong> Required for the website to function properly.</p>
-          <p><strong>Analytics cookies:</strong> Help us understand visitor behavior and improve our site.</p>
-          <h2 className="text-xl font-semibold text-neutral-900 dark:text-white mt-6">Managing Cookies</h2>
-          <p>You can control cookies through your browser settings. Declining cookies may affect your experience.</p>`
-  ));
-
-  writeFileSync(join(siteDir, "src", "app", "terms", "page.tsx"), policyPage("Terms of Service",
-    `<p>By using this website, you agree to the following terms and conditions.</p>
-          <h2 className="text-xl font-semibold text-neutral-900 dark:text-white mt-6">Use of Website</h2>
-          <p>This website is provided for informational purposes. You agree to use it in accordance with applicable laws.</p>
-          <h2 className="text-xl font-semibold text-neutral-900 dark:text-white mt-6">Intellectual Property</h2>
-          <p>All content on this website is protected by copyright and may not be reproduced without permission.</p>
-          <h2 className="text-xl font-semibold text-neutral-900 dark:text-white mt-6">Limitation of Liability</h2>
-          <p>We are not liable for any damages arising from the use of this website.</p>`
-  ));
-
-  writeFileSync(join(siteDir, "src", "app", "error.tsx"), `"use client";
-
-export default function ErrorPage({ error, reset }: { error: Error; reset: () => void }) {
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
-      <h1 className="text-4xl font-bold text-neutral-900 dark:text-white mb-4">Something went wrong</h1>
-      <p className="text-lg text-neutral-600 dark:text-neutral-400 mb-8">{error.message || "An unexpected error occurred"}</p>
-      <button onClick={reset} className="px-6 py-3 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg font-medium hover:opacity-90 transition-opacity">
-        Try Again
-      </button>
-    </div>
-  );
-}
-`);
 
   return siteDir;
 }
