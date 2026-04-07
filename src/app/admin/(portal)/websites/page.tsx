@@ -400,7 +400,7 @@ export default function AdminWebsitesPage() {
               <Button size="sm" variant="outline" onClick={() => { handleRebuild(viewingSite.id); setViewingSite(null); }}>
                 <Hammer className="w-4 h-4 mr-2" />Rebuild
               </Button>
-              <Button size="sm" variant="outline" onClick={() => window.open(`/s/${viewingSite.slug}`, "_blank")}>
+              <Button size="sm" variant="outline" onClick={() => window.open(`/sites/${viewingSite.slug}`, "_blank")}>
                 <Eye className="w-4 h-4 mr-2" />Preview
               </Button>
             </div>
