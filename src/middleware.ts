@@ -49,8 +49,11 @@ export async function middleware(request: NextRequest) {
     });
 
     if (!res.ok) {
-      // Domain not found — show 404 or redirect to main site
-      return NextResponse.redirect(new URL("/", "https://flowsmartly.com"));
+      // Domain exists in our system but not linked to anything — show parking page
+      const parkingUrl = new URL("/parking", request.url);
+      const response = NextResponse.rewrite(parkingUrl);
+      response.headers.set("x-custom-domain", hostname);
+      return response;
     }
 
     const data = await res.json();
@@ -58,7 +61,11 @@ export async function middleware(request: NextRequest) {
     const type = data.type || "store"; // "store" or "website"
 
     if (!slug) {
-      return NextResponse.redirect(new URL("/", "https://flowsmartly.com"));
+      // Domain resolved but no slug — show parking page
+      const parkingUrl = new URL("/parking", request.url);
+      const response = NextResponse.rewrite(parkingUrl);
+      response.headers.set("x-custom-domain", hostname);
+      return response;
     }
 
     // Rewrite to the appropriate page based on type
