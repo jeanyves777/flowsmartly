@@ -167,6 +167,25 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - Next.js 15 with React 19
 - DO NOT use deprecated APIs or old syntax from previous versions of any library
 
+### Multilingual Sites (only if languages array has more than 1 language):
+- Create a translations file: src/lib/translations.ts with ALL UI strings in each language
+  Structure: export const translations = { en: { nav: { home: "Home", ... }, hero: { ... } }, fr: { nav: { home: "Accueil", ... }, ... } }
+- Create a language context: src/components/LanguageProvider.tsx ("use client")
+  - Auto-detects browser language on first visit via navigator.language
+  - Stores preference in localStorage
+  - Provides: currentLang, setLang, t() function for translations
+- Create a LanguageSwitcher.tsx component:
+  - Shows current language flag/code in the Header navbar (next to theme toggle)
+  - Dropdown with all supported languages
+  - Compact: just flag emoji + language code (e.g. 🇺🇸 EN, 🇫🇷 FR, 🇪🇸 ES)
+- In layout.tsx: wrap content with <LanguageProvider languages={[...]} />
+- In ALL components: use t("key") instead of hardcoded English strings
+- data.ts: ALL text content (services, testimonials, FAQ, etc.) must have translations
+  Structure: export const services = { en: [...], fr: [...], es: [...] }
+  Components access: services[currentLang] || services.en
+- The default language is the first in the array (usually "en")
+- If only 1 language selected: skip all of this, write everything in that single language
+
 ### Logo & Favicon (MANDATORY — do this BEFORE writing any components):
 - STEP 1: Call get_brand_identity — it includes a "logoUrl" field
 - STEP 2: If logoUrl exists, you MUST call download_image with that URL (category: "brand", filename: "logo") IMMEDIATELY
@@ -306,6 +325,9 @@ async function executeTool(name: string, input: Record<string, unknown>, ctx: Ag
         websiteId: ctx.websiteId,
         siteBasePath: `/sites/${ctx.websiteSlug}`,
         apiBaseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com",
+        // Languages
+        languages: ctx.questionnaire.languages || ["en"],
+        isMultilingual: (ctx.questionnaire.languages?.length || 1) > 1,
       });
     }
 
@@ -484,6 +506,12 @@ export async function runWebsiteAgent(
 // --- Helpers ---
 
 function buildUserPrompt(q: SiteQuestionnaire): string {
+  const langs = q.languages && q.languages.length > 1
+    ? `Languages: ${q.languages.join(", ")} — This is a MULTILINGUAL site. You MUST implement the language system described in the system prompt.`
+    : q.languages?.[0] && q.languages[0] !== "en"
+      ? `Language: ${q.languages[0]} — ALL content must be written in this language.`
+      : "";
+
   return [
     `Build a complete, production-quality website for:`,
     ``,
@@ -496,6 +524,7 @@ function buildUserPrompt(q: SiteQuestionnaire): string {
     `Style: ${q.stylePreference}`,
     `Tone: ${q.contentTone}`,
     `Features: ${q.features.join(", ")}`,
+    langs,
     q.existingContent && `\nExisting content:\n${q.existingContent}`,
     ``,
     `Start by calling get_brand_identity, then read the reference components, then build the site step by step.`,
