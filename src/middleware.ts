@@ -65,18 +65,15 @@ export async function middleware(request: NextRequest) {
       forceStore = true;
     }
 
-    // Build resolve URL using the origin (works for both main domain and custom domains)
-    // Use request.nextUrl.origin which always points to the actual server
-    const resolveUrl = new URL("/api/domains/resolve", request.nextUrl.origin);
+    // Build resolve URL — must hit our own server, not loop through the custom domain
+    // Use localhost to avoid DNS resolution of the custom domain
+    const internalOrigin = `http://127.0.0.1:${request.nextUrl.port || "3000"}`;
+    const resolveUrl = new URL("/api/domains/resolve", internalOrigin);
     resolveUrl.searchParams.set("domain", lookupDomain);
     if (forceStore) resolveUrl.searchParams.set("forceStore", "1");
 
     const res = await fetch(resolveUrl.toString(), {
-      headers: {
-        "x-middleware-resolve": "1",
-        // Pass the correct host so the request reaches our server, not the custom domain
-        "Host": request.nextUrl.host,
-      },
+      headers: { "x-middleware-resolve": "1" },
     });
 
     if (!res.ok) {
