@@ -9,6 +9,7 @@ import { Turnstile } from "@marsidev/react-turnstile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { RegisterIllustration } from "@/components/illustrations/register-illustration";
@@ -36,6 +37,83 @@ function RegisterPageContent() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [turnstileToken, setTurnstileToken] = useState<string>("");
+
+  // OAuth completion modal state
+  const oauthProvider = searchParams.get("oauth");
+  const [oauthModal, setOauthModal] = useState(false);
+  const [oauthData, setOauthData] = useState<{ provider: string; name: string; email: string; avatar: string } | null>(null);
+  const [oauthForm, setOauthForm] = useState({ username: "", country: "" });
+  const [oauthErrors, setOauthErrors] = useState<Record<string, string>>({});
+  const [oauthLoading, setOauthLoading] = useState(false);
+
+  // Check for pending OAuth data on mount
+  useEffect(() => {
+    if (oauthProvider) {
+      fetch("/api/auth/pending-oauth")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.data) {
+            setOauthData(data.data);
+            setOauthModal(true);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [oauthProvider]);
+
+  const handleOauthComplete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOauthLoading(true);
+    setOauthErrors({});
+
+    if (!oauthForm.country) {
+      setOauthErrors({ country: "Please select your country" });
+      setOauthLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/auth/complete-oauth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(oauthForm),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.error?.details) {
+          const fieldErrors: Record<string, string> = {};
+          Object.entries(data.error.details).forEach(([key, value]) => {
+            fieldErrors[key] = Array.isArray(value) ? value[0] : String(value);
+          });
+          setOauthErrors(fieldErrors);
+        } else {
+          toast({
+            title: "Registration failed",
+            description: data.error?.message || "Something went wrong",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+
+      toast({
+        title: "Account created!",
+        description: "Welcome to FlowSmartly. Let's get started.",
+      });
+
+      router.push(data.data?.redirectTo || "/select-plan");
+    } catch {
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setOauthLoading(false);
+    }
+  };
 
   // Validate referral code on mount if present
   useEffect(() => {
@@ -423,8 +501,8 @@ function RegisterPageContent() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => window.location.href = "/api/auth/google"}
-            disabled={isLoading}
+            onClick={() => window.location.href = "/api/auth/google?mode=register"}
+            disabled={isLoading || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
           >
             <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24">
               <path
@@ -450,8 +528,8 @@ function RegisterPageContent() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => window.location.href = "/api/auth/facebook"}
-            disabled={isLoading}
+            onClick={() => window.location.href = "/api/auth/facebook?mode=register"}
+            disabled={isLoading || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
           >
             <svg className="h-5 w-5 mr-2" fill="#1877F2" viewBox="0 0 24 24">
               <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
@@ -482,6 +560,103 @@ function RegisterPageContent() {
           </Link>
         </p>
       </motion.div>
+
+      {/* OAuth Registration Completion Modal */}
+      <Dialog open={oauthModal} onOpenChange={(open) => { if (!oauthLoading) setOauthModal(open); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Complete your registration</DialogTitle>
+            <DialogDescription>
+              {oauthData && (
+                <>
+                  Welcome, <strong>{oauthData.name}</strong>! Just a few more details to set up your account.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {oauthData && (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border">
+              {oauthData.avatar && (
+                <img src={oauthData.avatar} alt="" className="w-10 h-10 rounded-full" />
+              )}
+              <div className="min-w-0">
+                <p className="font-medium text-sm truncate">{oauthData.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{oauthData.email}</p>
+              </div>
+              <span className="ml-auto text-xs font-medium text-muted-foreground capitalize px-2 py-1 rounded-full bg-muted">
+                {oauthData.provider}
+              </span>
+            </div>
+          )}
+
+          <form onSubmit={handleOauthComplete} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="oauth-username">Username</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">@</span>
+                <Input
+                  id="oauth-username"
+                  placeholder="johndoe"
+                  value={oauthForm.username}
+                  onChange={(e) => {
+                    setOauthForm(prev => ({ ...prev, username: e.target.value }));
+                    if (oauthErrors.username) setOauthErrors(prev => ({ ...prev, username: "" }));
+                  }}
+                  error={oauthErrors.username}
+                  disabled={oauthLoading}
+                  className="pl-8"
+                  required
+                />
+              </div>
+              {oauthErrors.username && <p className="text-sm text-destructive">{oauthErrors.username}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="oauth-country">Country</Label>
+              <select
+                id="oauth-country"
+                value={oauthForm.country}
+                onChange={(e) => {
+                  setOauthForm(prev => ({ ...prev, country: e.target.value }));
+                  if (oauthErrors.country) setOauthErrors(prev => ({ ...prev, country: "" }));
+                }}
+                disabled={oauthLoading}
+                required
+                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                <option value="">Select your country</option>
+                {REGIONS.map(region => (
+                  <optgroup key={region.id} label={region.name}>
+                    {region.countries.map(c => (
+                      <option key={c.code} value={c.code}>{c.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              {oauthErrors.country && <p className="text-sm text-destructive">{oauthErrors.country}</p>}
+            </div>
+
+            <Button type="submit" className="w-full" size="lg" disabled={oauthLoading}>
+              {oauthLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating account...
+                </>
+              ) : (
+                "Create account"
+              )}
+            </Button>
+          </form>
+
+          <p className="text-center text-xs text-muted-foreground">
+            By creating an account, you agree to our{" "}
+            <Link href="/terms" className="underline hover:text-foreground">Terms</Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="underline hover:text-foreground">Privacy Policy</Link>
+          </p>
+        </DialogContent>
+      </Dialog>
     </AuthShell>
   );
 }
