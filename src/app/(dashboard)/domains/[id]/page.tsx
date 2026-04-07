@@ -1012,32 +1012,49 @@ function ShopSubdomainSection({
   saving: boolean;
   onUpdate: () => void;
 }) {
+  const router = useRouter();
   const { toast } = useToast();
   const [shopSubdomain, setShopSubdomain] = useState<boolean | null>(null);
+  const [hasStore, setHasStore] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(true);
   const [toggling, setToggling] = useState(false);
 
   const shopHost = `shop.${domainName}`;
 
-  // Check if shop subdomain CNAME already exists
+  // Check if shop subdomain CNAME already exists AND if user has a store
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`/api/domains/${domainId}/dns`);
-        const data = await res.json();
-        if (data.success) {
-          const records = data.data?.records || [];
-          const hasShop = records.some(
+        const [dnsRes, storeRes] = await Promise.all([
+          fetch(`/api/domains/${domainId}/dns`),
+          fetch("/api/ecommerce/store"),
+        ]);
+        const dnsData = await dnsRes.json();
+        if (dnsData.success) {
+          const records = dnsData.data?.records || [];
+          setShopSubdomain(records.some(
             (r: DnsRecord) => r.type === "CNAME" && r.name === shopHost
-          );
-          setShopSubdomain(hasShop);
+          ));
         }
+        const storeData = await storeRes.json();
+        setHasStore(!!(storeData.store || storeData.data?.store));
       } catch { /* ignore */ }
       setChecking(false);
     })();
   }, [domainId, shopHost]);
 
   const toggleShopSubdomain = async () => {
+    // Check store exists before enabling
+    if (!shopSubdomain && !hasStore) {
+      toast({
+        title: "No FlowShop store found",
+        description: "Create a FlowShop store first before enabling a shop subdomain.",
+        variant: "destructive",
+      });
+      router.push("/ecommerce");
+      return;
+    }
+
     setToggling(true);
     try {
       if (shopSubdomain) {
@@ -1077,14 +1094,14 @@ function ShopSubdomainSection({
         });
         const data = await res.json();
         if (data.success) {
-          // Link store to this domain
+          // Auto-link store to this domain
           await fetch(`/api/domains/${domainId}/settings`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ linkToStore: true }),
           });
           setShopSubdomain(true);
-          toast({ title: `${shopHost} subdomain created for your store!` });
+          toast({ title: `${shopHost} is live! Your store is now accessible at shop.${domainName}` });
         } else {
           toast({ title: data.error?.message || "Failed to create subdomain", variant: "destructive" });
         }
@@ -1114,6 +1131,8 @@ function ShopSubdomainSection({
             <p className="text-xs text-muted-foreground">
               {shopSubdomain ? (
                 <><span className="font-mono text-brand-600">{shopHost}</span> is active for your store</>
+              ) : !hasStore ? (
+                <>You need a FlowShop store to enable <span className="font-mono">{shopHost}</span></>
               ) : (
                 <>Create <span className="font-mono">{shopHost}</span> for your FlowShop store while your main domain serves your website</>
               )}
@@ -1122,7 +1141,7 @@ function ShopSubdomainSection({
         </div>
         <Button
           size="sm"
-          variant={shopSubdomain ? "outline" : "default"}
+          variant={shopSubdomain ? "outline" : !hasStore ? "outline" : "default"}
           onClick={toggleShopSubdomain}
           disabled={toggling || parentSaving}
         >
@@ -1132,6 +1151,11 @@ function ShopSubdomainSection({
             <>
               <Unlink className="h-3.5 w-3.5" />
               Remove
+            </>
+          ) : !hasStore ? (
+            <>
+              <ShoppingBag className="h-3.5 w-3.5" />
+              Create Store
             </>
           ) : (
             <>
