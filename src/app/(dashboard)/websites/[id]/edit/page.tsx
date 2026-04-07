@@ -29,6 +29,8 @@ interface SiteData {
   blogPosts?: Array<Record<string, any>>;
   galleryImages?: Array<Record<string, any>>;
   expertise?: string[];
+  navLinks?: Array<{ href: string; label: string }>;
+  footerLinks?: Array<{ href: string; label: string }>;
 }
 
 export default function WebsiteEditPage() {
@@ -189,7 +191,8 @@ export default function WebsiteEditPage() {
   if (data?.faq?.length || pages.some((p) => p.slug === "faq")) tabs.push({ id: "faq", label: "FAQ", icon: HelpCircle });
   if (data?.blogPosts?.length || pages.some((p) => p.slug === "blog")) tabs.push({ id: "blog", label: "Blog", icon: FileText });
   if (data?.galleryImages?.length || pages.some((p) => p.slug === "gallery")) tabs.push({ id: "gallery", label: "Gallery", icon: ImageIcon });
-  tabs.push({ id: "domains", label: "Domains", icon: Link2 });
+  tabs.push({ id: "links", label: "Links", icon: Link2 });
+  tabs.push({ id: "domains", label: "Domains", icon: Globe });
   tabs.push({ id: "build", label: "Build", icon: RefreshCw });
 
   return (
@@ -380,6 +383,7 @@ export default function WebsiteEditPage() {
                   </div>
                   <Field label="Short Description" value={svc.shortDescription} onChange={(v) => { const s = [...data.services]; s[i] = { ...s[i], shortDescription: v }; update("services", s); }} />
                   <Field label="Full Description" value={svc.description} onChange={(v) => { const s = [...data.services]; s[i] = { ...s[i], description: v }; update("services", s); }} multiline />
+                  <Field label="Link URL (optional — e.g. shop product page)" value={svc.link || ""} onChange={(v) => { const s = [...data.services]; s[i] = { ...s[i], link: v }; update("services", s); }} icon={<ExternalLink className="w-4 h-4" />} />
                 </div>
               </div>
             </div>
@@ -536,6 +540,55 @@ export default function WebsiteEditPage() {
       )}
 
       {/* Domains */}
+      {/* Links */}
+      {activeTab === "links" && data && (
+        <div className="space-y-6">
+          <Section title="Navigation Links">
+            <p className="text-sm text-muted-foreground mb-3">
+              These appear in the header navbar. Point them to your site pages or external URLs (e.g. your shop).
+            </p>
+            <div className="space-y-3">
+              {(data.navLinks || []).map((link, i) => (
+                <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                  <Field label="" value={link.label} onChange={(v) => { const links = [...(data.navLinks || [])]; links[i] = { ...links[i], label: v }; update("navLinks", links); }} />
+                  <Field label="" value={link.href} onChange={(v) => { const links = [...(data.navLinks || [])]; links[i] = { ...links[i], href: v }; update("navLinks", links); }} />
+                  <button onClick={() => { const links = [...(data.navLinks || [])]; links.splice(i, 1); update("navLinks", links); }} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              ))}
+              <button onClick={() => update("navLinks", [...(data.navLinks || []), { label: "New Link", href: "/" }])} className="flex items-center gap-1.5 px-3 py-2 text-sm border border-dashed border-border rounded-lg hover:border-primary/50 text-muted-foreground hover:text-primary">
+                <Plus className="w-3.5 h-3.5" /> Add Nav Link
+              </button>
+            </div>
+          </Section>
+
+          <Section title="Footer Links">
+            <p className="text-sm text-muted-foreground mb-3">
+              Additional links shown in the footer (legal pages, extra pages, external links). Navigation links also appear in the footer automatically.
+            </p>
+            <div className="space-y-3">
+              {(data.footerLinks || []).map((link, i) => (
+                <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                  <Field label="" value={link.label} onChange={(v) => { const links = [...(data.footerLinks || [])]; links[i] = { ...links[i], label: v }; update("footerLinks", links); }} />
+                  <Field label="" value={link.href} onChange={(v) => { const links = [...(data.footerLinks || [])]; links[i] = { ...links[i], href: v }; update("footerLinks", links); }} />
+                  <button onClick={() => { const links = [...(data.footerLinks || [])]; links.splice(i, 1); update("footerLinks", links); }} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              ))}
+              <button onClick={() => update("footerLinks", [...(data.footerLinks || []), { label: "New Link", href: "/" }])} className="flex items-center gap-1.5 px-3 py-2 text-sm border border-dashed border-border rounded-lg hover:border-primary/50 text-muted-foreground hover:text-primary">
+                <Plus className="w-3.5 h-3.5" /> Add Footer Link
+              </button>
+            </div>
+          </Section>
+
+          <Section title="How Links Work">
+            <div className="text-sm text-muted-foreground space-y-2">
+              <p><strong>Internal pages:</strong> Use paths like <code className="px-1 py-0.5 bg-muted rounded text-xs">/about</code> or <code className="px-1 py-0.5 bg-muted rounded text-xs">/contact</code></p>
+              <p><strong>Your shop:</strong> Use full URLs like <code className="px-1 py-0.5 bg-muted rounded text-xs">https://your-store.com</code> or <code className="px-1 py-0.5 bg-muted rounded text-xs">https://your-store.com/products</code></p>
+              <p><strong>CTA button:</strong> Edit in the Company tab under "Call-to-Action Button"</p>
+            </div>
+          </Section>
+        </div>
+      )}
+
       {activeTab === "domains" && <DomainsTab websiteSlug={website.slug} />}
 
       {/* Build */}

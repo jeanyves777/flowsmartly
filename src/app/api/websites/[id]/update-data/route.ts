@@ -147,6 +147,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
       }
 
+      // --- Navigation links (full rebuild) ---
+      if (data.navLinks) {
+        const code = data.navLinks.map((l: any) => `  { href: '${escapeStr(l.href || "")}', label: '${escapeStr(l.label || "")}' }`).join(",\n");
+        content = content.replace(/export const navLinks\s*=\s*\[[\s\S]*?\n\]/, `export const navLinks = [\n${code}\n]`);
+      }
+      if (data.footerLinks) {
+        // Rebuild footerLinks with ...navLinks spread + additional links
+        const code = data.footerLinks.map((l: any) => `  { href: '${escapeStr(l.href || "")}', label: '${escapeStr(l.label || "")}' }`).join(",\n");
+        content = content.replace(
+          /export const footerLinks\s*=\s*\[[\s\S]*?\n\]/,
+          `export const footerLinks = [\n  ...navLinks,\n${code}\n]`
+        );
+      }
+
       // --- Services (full rebuild) ---
       if (data.services) {
         const code = data.services.map((s: any) => `  {
@@ -155,7 +169,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     shortDescription: '${escapeStr(s.shortDescription || "")}',
     description: '${escapeStr(s.description || "")}',
     icon: '${escapeStr(s.icon || "Star")}',
-    image: '${escapeStr(s.image || "")}',
+    image: '${escapeStr(s.image || "")}',${s.link ? `\n    link: '${escapeStr(s.link)}',` : ""}
   }`).join(",\n");
         content = content.replace(/export const services\s*=\s*\[[\s\S]*?\n\]/, `export const services = [\n${code}\n]`);
       }

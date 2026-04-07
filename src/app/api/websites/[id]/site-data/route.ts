@@ -77,8 +77,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         }
       }
 
+      // Extract navigation links
+      data.navLinks = extractObjectArray(content, "navLinks", ["href", "label"]);
+      // footerLinks may use spread ...navLinks — extract raw entries only
+      const rawFooterLinks = extractObjectArray(content, "footerLinks", ["href", "label"]);
+      // Filter out entries that are also in navLinks (came from ...navLinks spread)
+      const navHrefs = new Set((data.navLinks || []).map((l: any) => l.href));
+      data.footerLinks = rawFooterLinks.filter((l: any) => !navHrefs.has(l.href));
+
       // Extract all arrays using robust method
-      data.services = extractObjectArray(content, "services", ["id", "title", "shortDescription", "description", "icon", "image"]);
+      data.services = extractObjectArray(content, "services", ["id", "title", "shortDescription", "description", "icon", "image", "link"]);
       data.testimonials = extractObjectArray(content, "testimonials", ["name", "role", "text"]);
       data.team = extractObjectArray(content, "team", ["name", "role", "bio", "image"]);
       if (!data.team?.length) data.team = extractObjectArray(content, "teamMembers", ["name", "role", "bio", "image"]);

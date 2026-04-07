@@ -129,6 +129,9 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 ### Content:
 - ALL text must be written specifically for THIS business — ZERO generic placeholders
 - Company name, services, stats must all come from the brand identity data
+- Each service in the services array MUST have a "link" field (URL where "Learn more" points to)
+  - Default: siteUrl("/contact") — but user can change it in the editor to their shop product URL
+  - Components should use service.link for the "Learn more" / "View Details" href
 - Write testimonials/reviews relevant to the industry
 - Stats must be realistic for the business type
 
