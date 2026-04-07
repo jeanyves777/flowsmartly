@@ -8,6 +8,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
+function parkingPageHtml(domain: string): string {
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${domain} — Coming Soon</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;color:#fff}.wrap{text-align:center;padding:40px 24px;max-width:600px}.icon{font-size:64px;margin-bottom:24px}.title{font-size:36px;font-weight:800;margin:0 0 8px;letter-spacing:-.5px}.badge{display:inline-flex;align-items:center;gap:8px;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);border-radius:24px;padding:6px 16px;margin:16px 0 24px;font-size:14px;color:#93c5fd}.dot{width:8px;height:8px;border-radius:50%;background:#3b82f6;display:inline-block;animation:pulse 2s infinite}.desc{font-size:18px;color:#94a3b8;line-height:1.6;margin:0 0 32px}.footer{margin-top:48px;padding-top:24px;border-top:1px solid rgba(255,255,255,.1)}.footer p{font-size:12px;color:#64748b}.footer a{color:#3b82f6;text-decoration:none;font-weight:600}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}</style></head><body><div class="wrap"><div class="icon">🚧</div><h1 class="title">${domain}</h1><div class="badge"><span class="dot"></span>Under Construction</div><p class="desc">We&apos;re building something amazing. This website is being set up and will be live soon.</p><div class="footer"><p>Powered by <a href="https://flowsmartly.com">FlowSmartly</a></p></div></div></body></html>`;
+}
+
 const MAIN_DOMAINS = [
   "flowsmartly.com",
   "www.flowsmartly.com",
@@ -49,11 +53,11 @@ export async function middleware(request: NextRequest) {
     });
 
     if (!res.ok) {
-      // Domain exists in our system but not linked to anything — show parking page
-      const parkingUrl = new URL("/parking", request.url);
-      const response = NextResponse.rewrite(parkingUrl);
-      response.headers.set("x-custom-domain", hostname);
-      return response;
+      // Domain not linked to anything — show under construction page
+      return new NextResponse(parkingPageHtml(hostname), {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8", "x-custom-domain": hostname },
+      });
     }
 
     const data = await res.json();
@@ -61,11 +65,10 @@ export async function middleware(request: NextRequest) {
     const type = data.type || "store"; // "store" or "website"
 
     if (!slug) {
-      // Domain resolved but no slug — show parking page
-      const parkingUrl = new URL("/parking", request.url);
-      const response = NextResponse.rewrite(parkingUrl);
-      response.headers.set("x-custom-domain", hostname);
-      return response;
+      return new NextResponse(parkingPageHtml(hostname), {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8", "x-custom-domain": hostname },
+      });
     }
 
     // Rewrite to the appropriate page based on type
