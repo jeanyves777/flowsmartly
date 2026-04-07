@@ -25,6 +25,8 @@ import {
   ImageIcon,
   Target,
 } from "lucide-react";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import PixelSettings from "@/components/ecommerce/pixel-settings";
 import {
   PRODUCT_CATEGORIES,
@@ -40,6 +42,8 @@ import {
 } from "@/lib/domains/pricing";
 import { STORE_TEMPLATES_FULL, type StoreTemplateConfig } from "@/lib/constants/store-templates";
 import { cn } from "@/lib/utils/cn";
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
 
 type TabId = "general" | "payments" | "shipping" | "branding" | "domain" | "pixels" | "subscription";
 
@@ -129,6 +133,10 @@ export default function EcommerceSettingsPage() {
   const [byodDomain, setByodDomain] = useState("");
   const [connectingDomain, setConnectingDomain] = useState(false);
   const [dnsInstructions, setDnsInstructions] = useState<{ nameservers: string[] } | null>(null);
+  const [domainPaymentPending, setDomainPaymentPending] = useState<{
+    clientSecret: string;
+    domainName: string;
+  } | null>(null);
 
   // Upgrade state
   const [upgrading, setUpgrading] = useState(false);
@@ -240,17 +248,47 @@ export default function EcommerceSettingsPage() {
       });
       const data = await res.json();
       if (data.success) {
-        setSuccessMessage(`Domain ${domain} ${isFree ? "claimed" : "purchased"} successfully!`);
-        setDomainResults([]);
-        setDomainSearch("");
-        loadDomains();
-        loadStore();
+        if (data.data?.clientSecret) {
+          // Paid domain: show Stripe payment form
+          setDomainPaymentPending({
+            clientSecret: data.data.clientSecret,
+            domainName: data.data.domainName,
+          });
+        } else {
+          // Free domain: registered immediately
+          setSuccessMessage(`Domain ${domain} claimed successfully!`);
+          setDomainResults([]);
+          setDomainSearch("");
+          loadDomains();
+          loadStore();
+        }
       } else {
         setError(data.error?.message || "Failed to register domain");
       }
     } catch {
       setError("Failed to process domain");
     } finally { setSaving(false); }
+  }
+
+  function handleDomainPaymentComplete() {
+    setDomainPaymentPending(null);
+    setSuccessMessage("Payment confirmed! Registering your domain...");
+    setDomainResults([]);
+    setDomainSearch("");
+    // Poll for domain to appear
+    let attempts = 0;
+    const pollInterval = setInterval(async () => {
+      attempts++;
+      if (attempts > 15) { clearInterval(pollInterval); loadDomains(); return; }
+      try {
+        const res = await fetch("/api/domains");
+        const data = await res.json();
+        if (data.success) {
+          setDomains(data.data?.domains || []);
+          clearInterval(pollInterval);
+        }
+      } catch { /* keep polling */ }
+    }, 2000);
   }
 
   async function handleConnectDomain() {
@@ -1169,6 +1207,35 @@ export default function EcommerceSettingsPage() {
                 </div>
               )}
 
+              {/* Domain Payment Form */}
+              {domainPaymentPending && (
+                <div className="rounded-lg border bg-card p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5 text-violet-600" />
+                    <h4 className="text-sm font-semibold">Complete Payment</h4>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Pay for <span className="font-medium">{domainPaymentPending.domainName}</span> to complete registration.
+                  </p>
+                  <Elements
+                    stripe={stripePromise}
+                    options={{
+                      clientSecret: domainPaymentPending.clientSecret,
+                      appearance: {
+                        theme: "stripe",
+                        variables: { colorPrimary: "#6366f1", borderRadius: "8px" },
+                      },
+                    }}
+                  >
+                    <SettingsDomainPaymentForm
+                      domainName={domainPaymentPending.domainName}
+                      onSuccess={handleDomainPaymentComplete}
+                      onCancel={() => setDomainPaymentPending(null)}
+                    />
+                  </Elements>
+                </div>
+              )}
+
               {/* Upgrade nudge for Basic users */}
               {store.ecomPlan === "basic" && (
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-950/20 dark:to-indigo-950/20 border border-violet-200 dark:border-violet-800">
@@ -1471,5 +1538,73 @@ export default function EcommerceSettingsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+/** Inline Stripe payment form for domain purchases on the settings page */
+function SettingsDomainPaymentForm({
+  domainName,
+  onSuccess,
+  onCancel,
+}: {
+  domainName: string;
+  onSuccess: () => void;
+  onCancel: () => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+
+    setProcessing(true);
+    setError(null);
+
+    const { error: confirmError } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: `${window.location.origin}/ecommerce/settings`,
+      },
+      redirect: "if_required",
+    });
+
+    if (confirmError) {
+      setError(confirmError.message || "Payment failed");
+      setProcessing(false);
+    } else {
+      onSuccess();
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <PaymentElement />
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+      <div className="flex gap-3">
+        <button
+          type="submit"
+          disabled={!stripe || processing}
+          className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
+        >
+          {processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+          {processing ? "Processing..." : `Pay for ${domainName}`}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={processing}
+          className="px-4 py-2 rounded-lg border text-sm font-medium hover:bg-accent disabled:opacity-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }
