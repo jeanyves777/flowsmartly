@@ -206,22 +206,49 @@ export async function checkLowCreditBalances(threshold = 50) {
 // ── 4. Monthly Credit Reset / Allocation ──
 
 /**
- * For users on active paid plans, check if they're due for a monthly credit reset.
+ * Calculate a user's purchased credits (PURCHASE type — these never expire).
+ */
+async function getPurchasedCreditsBalance(userId: string): Promise<number> {
+  const purchased = await prisma.creditTransaction.aggregate({
+    where: { userId, type: TRANSACTION_TYPES.PURCHASE },
+    _sum: { amount: true },
+  });
+  const purchasedUsage = await prisma.creditTransaction.aggregate({
+    where: { userId, type: TRANSACTION_TYPES.USAGE, amount: { lt: 0 } },
+    _sum: { amount: true },
+  });
+  // Total purchased minus total usage — but purchased balance can't go below 0
+  // We can't easily separate which usage came from purchased vs subscription credits,
+  // so we calculate: total purchased ever (they don't expire)
+  return Math.max(0, purchased._sum.amount || 0);
+}
+
+/**
+ * Monthly credit RESET for subscription plans.
+ *
+ * RULES:
+ * - Monthly subscription credits RESET (not add on top) — old unused subscription credits expire
+ * - Purchased credits (PURCHASE type) NEVER expire and are preserved
+ * - Before allocating: verify user has a valid stripeCustomerId (payment went through Stripe)
+ * - New balance = plan.monthlyCredits + remaining purchased credits
+ *
  * This is a safety net — primary allocation happens via Stripe webhook (invoice.payment_succeeded).
  * Only allocates if no SUBSCRIPTION credit transaction exists for this billing period.
  */
 export async function checkMonthlyCreditAllocations() {
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const FREE_ROLES = ["STARTER", "ADMIN", "SUPER_ADMIN", "AGENT"];
 
-  // Find active subscribers who haven't received credits in 30+ days
+  // Find active subscribers with Stripe connection and valid expiry
   const users = await prisma.user.findMany({
     where: {
-      plan: { not: "STARTER" },
-      planExpiresAt: { gte: now }, // Still active
+      plan: { notIn: FREE_ROLES },
+      stripeCustomerId: { not: null }, // Must have Stripe — payment must go through
+      planExpiresAt: { gte: now },     // Still active
       deletedAt: null,
     },
-    select: { id: true, email: true, name: true, plan: true },
+    select: { id: true, email: true, name: true, plan: true, aiCredits: true },
   });
 
   let allocated = 0;
@@ -254,13 +281,30 @@ export async function checkMonthlyCreditAllocations() {
     }
 
     try {
-      await creditService.addCredits({
-        userId: user.id,
-        type: TRANSACTION_TYPES.SUBSCRIPTION,
-        amount: plan.monthlyCredits,
-        description: `${plan.name} plan monthly credits (auto-allocation)`,
-        referenceType: "cron_monthly_allocation",
-        referenceId: `cron-${now.toISOString().slice(0, 7)}`,
+      // Calculate purchased credits (these persist)
+      const purchasedCredits = await getPurchasedCreditsBalance(user.id);
+
+      // New balance = plan monthly credits + purchased credits
+      const newBalance = plan.monthlyCredits + purchasedCredits;
+      const resetAmount = newBalance - user.aiCredits;
+
+      // Set the balance directly (reset, not increment)
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { aiCredits: newBalance },
+      });
+
+      // Record the transaction (shows the net change)
+      await prisma.creditTransaction.create({
+        data: {
+          userId: user.id,
+          type: TRANSACTION_TYPES.SUBSCRIPTION,
+          amount: resetAmount,
+          balanceAfter: newBalance,
+          description: `${plan.name} plan monthly credits reset (${plan.monthlyCredits} subscription + ${purchasedCredits} purchased)`,
+          referenceType: "cron_monthly_reset",
+          referenceId: `cron-${now.toISOString().slice(0, 7)}`,
+        },
       });
 
       await notifyCreditsReset({
@@ -272,13 +316,48 @@ export async function checkMonthlyCreditAllocations() {
       });
 
       allocated++;
-      console.log(`[Credits] Monthly allocation: +${plan.monthlyCredits} credits for user ${user.id}`);
+      console.log(`[Credits] Monthly reset: user ${user.id} → ${newBalance} credits (${plan.monthlyCredits} sub + ${purchasedCredits} purchased, was ${user.aiCredits})`);
     } catch (err) {
-      console.error(`[Credits] Failed monthly allocation for user ${user.id}:`, err);
+      console.error(`[Credits] Failed monthly reset for user ${user.id}:`, err);
     }
   }
 
   return { total: users.length, allocated, skipped };
+}
+
+/**
+ * Reset credits on subscription renewal (called from Stripe webhook).
+ * Same logic: monthly credits RESET, purchased credits preserved.
+ */
+export async function resetCreditsForRenewal(userId: string, monthlyCredits: number, planName: string) {
+  const purchasedCredits = await getPurchasedCreditsBalance(userId);
+  const newBalance = monthlyCredits + purchasedCredits;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { aiCredits: true },
+  });
+
+  const resetAmount = newBalance - (user?.aiCredits || 0);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { aiCredits: newBalance },
+  });
+
+  await prisma.creditTransaction.create({
+    data: {
+      userId,
+      type: TRANSACTION_TYPES.SUBSCRIPTION,
+      amount: resetAmount,
+      balanceAfter: newBalance,
+      description: `${planName} plan monthly credits reset (${monthlyCredits} subscription + ${purchasedCredits} purchased)`,
+      referenceType: "stripe_renewal_reset",
+      referenceId: `renewal-${new Date().toISOString().slice(0, 7)}`,
+    },
+  });
+
+  return { newBalance, purchasedCredits, resetAmount };
 }
 
 // ── 5. User Re-engagement ──

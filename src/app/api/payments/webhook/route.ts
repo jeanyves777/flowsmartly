@@ -515,16 +515,11 @@ async function processWebhookEvent(event: Stripe.Event) {
         },
       });
 
-      // Add monthly credits
+      // RESET monthly credits (not add) — old unused subscription credits expire,
+      // purchased credits are preserved. This is the correct billing behavior.
       const subMonthlyCredits = parseInt(subMetadata.monthlyCredits || String(subPlan.monthlyCredits), 10);
-      await creditService.addCredits({
-        userId: subMetadata.userId,
-        type: TRANSACTION_TYPES.SUBSCRIPTION,
-        amount: subMonthlyCredits,
-        description: `${subPlan.name} plan monthly credits`,
-        referenceType: "stripe_subscription",
-        referenceId: invoice.id,
-      });
+      const { resetCreditsForRenewal } = await import("@/lib/subscriptions");
+      await resetCreditsForRenewal(subMetadata.userId, subMonthlyCredits, subPlan.name);
 
       // Send subscription renewed notification
       const renewUser = await prisma.user.findUnique({

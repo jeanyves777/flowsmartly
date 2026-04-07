@@ -39,7 +39,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 // Non-subscriber roles
 const FREE_ROLES = ["STARTER", "ADMIN", "SUPER_ADMIN", "AGENT"];
 
-type TabId = "overview" | "plans" | "flowshop" | "listsmartly" | "domains" | "stripe-sync";
+type TabId = "overview" | "plans" | "flowshop" | "listsmartly" | "domains" | "agents" | "vps" | "stripe-sync";
 
 interface Stats {
   totalUsers: number;
@@ -136,6 +136,12 @@ export default function AdminSubscriptionsPage() {
   const [newPlan, setNewPlan] = useState("");
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [refundAmount, setRefundAmount] = useState("");
+  const [paymentHistory, setPaymentHistory] = useState<Array<{
+    id: string; type: string; amount: number; currency: string; status: string;
+    description: string; refunded: boolean; refundedAmount: number;
+    created: string; receiptUrl: string | null;
+  }> | null>(null);
+  const [loadingPayments, setLoadingPayments] = useState(false);
 
   // Stripe sync
   const [syncData, setSyncData] = useState<{
@@ -166,7 +172,8 @@ export default function AdminSubscriptionsPage() {
     setLoading(true);
     const viewMap: Record<TabId, string> = {
       overview: "", plans: "users", flowshop: "flowshop",
-      listsmartly: "listsmartly", domains: "domains", "stripe-sync": "",
+      listsmartly: "listsmartly", domains: "domains",
+      agents: "agents", vps: "", "stripe-sync": "",
     };
     const view = viewMap[activeTab];
     if (!view) { setLoading(false); return; }
@@ -189,6 +196,7 @@ export default function AdminSubscriptionsPage() {
 
   const loadUserDetail = async (userId: string) => {
     setDetailLoading(true);
+    setPaymentHistory(null); // Clear when switching users
     try {
       const res = await fetch(`/api/admin/subscriptions?view=user-detail&userId=${userId}`);
       const data = await res.json();
@@ -227,6 +235,8 @@ export default function AdminSubscriptionsPage() {
     { id: "flowshop", label: "FlowShop", icon: ShoppingBag, count: stats ? stats.flowshop.active + stats.flowshop.trialing : undefined },
     { id: "listsmartly", label: "ListSmartly", icon: MapPin, count: stats ? stats.listsmartly.active + stats.listsmartly.trialing : undefined },
     { id: "domains", label: "Domains", icon: Globe, count: stats?.domains.active },
+    { id: "agents", label: "Agent Plans", icon: Shield },
+    { id: "vps", label: "VPS Hosting", icon: Clock },
     { id: "stripe-sync", label: "Stripe Sync", icon: RefreshCw },
   ];
 
@@ -509,6 +519,80 @@ export default function AdminSubscriptionsPage() {
           </Card>
         )}
 
+        {/* Agent Subscriptions */}
+        {(selectedUser as any).agentClients?.length > 0 && (
+          <Card>
+            <CardContent className="p-4">
+              <h3 className="font-semibold text-sm flex items-center gap-2 mb-3"><Shield className="h-4 w-4 text-amber-400" /> Agent Subscriptions</h3>
+              <div className="space-y-2">
+                {(selectedUser as any).agentClients.map((ac: any) => (
+                  <div key={ac.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                    <div>
+                      <p className="text-sm font-medium">{ac.agentProfile?.displayName}</p>
+                      <p className="text-xs text-muted-foreground">${(ac.monthlyPriceCents / 100).toFixed(2)}/mo • Since {formatDate(ac.startDate)}</p>
+                    </div>
+                    <Badge variant="outline" className={statusColors[ac.status?.toLowerCase()] || ""}>{ac.status}</Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Stripe Payment History */}
+        {u.stripeCustomerId && (
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-sm flex items-center gap-2"><Receipt className="h-4 w-4 text-violet-400" /> Stripe Payment History</h3>
+                <Button size="sm" variant="outline" className="text-xs" disabled={loadingPayments} onClick={async () => {
+                  setLoadingPayments(true);
+                  try {
+                    const res = await fetch(`/api/admin/subscriptions?view=payments&userId=${u.id}`);
+                    const data = await res.json();
+                    if (data.success) setPaymentHistory(data.data.payments);
+                  } catch { setActionMessage("Failed to load payments"); }
+                  finally { setLoadingPayments(false); }
+                }}>
+                  {loadingPayments ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                  {paymentHistory ? "Refresh" : "Load from Stripe"}
+                </Button>
+              </div>
+              {!paymentHistory && !loadingPayments && (
+                <p className="text-xs text-muted-foreground">Click "Load from Stripe" to pull all charges, invoices, and refunds.</p>
+              )}
+              {paymentHistory && paymentHistory.length === 0 && (
+                <p className="text-xs text-muted-foreground">No payments found in Stripe for this customer.</p>
+              )}
+              {paymentHistory && paymentHistory.length > 0 && (
+                <div className="space-y-1">
+                  {paymentHistory.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between text-xs py-2 border-b border-border last:border-0">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Badge variant="outline" className={`text-[10px] ${p.type === "charge" ? "text-green-400" : "text-blue-400"}`}>{p.type}</Badge>
+                        <span className="truncate max-w-[200px]">{p.description}</span>
+                        {p.refunded && <Badge className="bg-red-500/20 text-red-400 text-[10px]">Refunded</Badge>}
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className={`font-mono font-semibold ${p.status === "succeeded" ? "text-green-400" : p.status === "failed" ? "text-red-400" : ""}`}>
+                          ${(p.amount / 100).toFixed(2)}
+                        </span>
+                        <Badge variant="outline" className={statusColors[p.status] || ""}>{p.status}</Badge>
+                        <span className="text-muted-foreground w-20 text-right">{formatDate(p.created)}</span>
+                        {p.receiptUrl && (
+                          <a href={p.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                            <Eye className="h-3 w-3" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Recent Transactions */}
         <Card>
           <CardContent className="p-4">
@@ -762,6 +846,51 @@ export default function AdminSubscriptionsPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {/* Agents Tab */}
+              {activeTab === "agents" && (
+                <div className="space-y-2">
+                  {(items as any[]).length > 0 ? (items as any[]).map((c: any) => (
+                    <Card key={c.id}><CardContent className="p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="p-2 rounded-lg bg-amber-500/20"><Shield className="h-5 w-5 text-amber-400" /></div>
+                        <div>
+                          <p className="text-sm"><span className="font-medium">{c.clientUser?.name}</span> → Agent: <span className="font-medium">{c.agentProfile?.displayName}</span></p>
+                          <p className="text-xs text-muted-foreground">{c.clientUser?.email} • ${(c.monthlyPriceCents / 100).toFixed(2)}/mo • Since {formatDate(c.startDate)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={statusColors[c.status?.toLowerCase()] || ""}>{c.status}</Badge>
+                        <Button size="sm" variant="ghost" onClick={() => loadUserDetail(c.clientUser?.id)}><Eye className="h-3.5 w-3.5" /></Button>
+                      </div>
+                    </CardContent></Card>
+                  )) : (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Shield className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                      <p>No agent subscriptions yet</p>
+                      <p className="text-xs mt-1">Users who subscribe to agent plans will appear here</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* VPS Hosting Tab */}
+              {activeTab === "vps" && (
+                <div className="text-center py-16">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 mb-4">
+                    <Clock className="h-8 w-8 text-cyan-400" />
+                  </div>
+                  <h3 className="text-lg font-bold mb-2">VPS Hosting — Coming Soon</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    VPS hosting subscriptions will be managed here. Users will be able to provision servers,
+                    manage hosting plans, and billing will be tracked alongside other subscriptions.
+                  </p>
+                  <div className="flex justify-center gap-3 mt-6">
+                    <Badge variant="outline" className="text-cyan-400 border-cyan-500/30">Planned</Badge>
+                    <Badge variant="outline" className="text-muted-foreground">Stripe Integration Ready</Badge>
+                  </div>
                 </div>
               )}
 

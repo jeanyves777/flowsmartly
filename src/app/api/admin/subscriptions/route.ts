@@ -299,12 +299,98 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // ── Agent subscriptions (users who hired agents) ──
+    if (view === "agents") {
+      const limit = parseInt(request.nextUrl.searchParams.get("limit") || "20", 10);
+      const offset = parseInt(request.nextUrl.searchParams.get("offset") || "0", 10);
+
+      const [clients, total] = await Promise.all([
+        prisma.agentClient.findMany({
+          select: {
+            id: true, status: true, monthlyPriceCents: true, startDate: true, endDate: true,
+            clientUser: { select: { id: true, email: true, name: true } },
+            agentProfile: { select: { displayName: true, user: { select: { email: true } } } },
+          },
+          orderBy: { createdAt: "desc" },
+          skip: offset,
+          take: limit,
+        }),
+        prisma.agentClient.count(),
+      ]);
+
+      return NextResponse.json({ success: true, data: { clients, total } });
+    }
+
+    // ── Payment history from Stripe ──
+    if (view === "payments") {
+      const userId = request.nextUrl.searchParams.get("userId");
+      if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { stripeCustomerId: true },
+      });
+
+      if (!user?.stripeCustomerId) {
+        return NextResponse.json({ success: true, data: { payments: [], message: "No Stripe customer ID" } });
+      }
+
+      try {
+        const { stripe } = await import("@/lib/stripe");
+        if (!stripe) return NextResponse.json({ success: true, data: { payments: [] } });
+
+        // Pull charges and invoices from Stripe
+        const [charges, invoices] = await Promise.all([
+          stripe.charges.list({ customer: user.stripeCustomerId, limit: 50 }),
+          stripe.invoices.list({ customer: user.stripeCustomerId, limit: 50 }),
+        ]);
+
+        const payments = charges.data.map((c) => ({
+          id: c.id,
+          type: "charge" as const,
+          amount: c.amount,
+          currency: c.currency,
+          status: c.status,
+          description: c.description || c.metadata?.type || "Payment",
+          refunded: c.refunded,
+          refundedAmount: c.amount_refunded,
+          created: new Date(c.created * 1000).toISOString(),
+          receiptUrl: c.receipt_url,
+          metadata: c.metadata || {},
+        }));
+
+        const invoiceList = invoices.data.map((inv) => ({
+          id: inv.id,
+          type: "invoice" as const,
+          amount: inv.amount_paid,
+          currency: inv.currency,
+          status: inv.status,
+          description: inv.lines?.data?.[0]?.description || "Invoice",
+          refunded: false,
+          refundedAmount: 0,
+          created: new Date(inv.created * 1000).toISOString(),
+          receiptUrl: inv.hosted_invoice_url,
+          metadata: inv.metadata || {},
+        }));
+
+        // Merge and sort by date
+        const allPayments = [...payments, ...invoiceList].sort(
+          (a, b) => new Date(b.created).getTime() - new Date(a.created).getTime()
+        );
+
+        return NextResponse.json({ success: true, data: { payments: allPayments } });
+      } catch (err) {
+        console.error("[Admin Payments] Stripe error:", err);
+        return NextResponse.json({ success: true, data: { payments: [], error: "Failed to fetch from Stripe" } });
+      }
+    }
+
     // ── User detail (all subscriptions for one user) ──
     if (view === "user-detail") {
       const userId = request.nextUrl.searchParams.get("userId");
       if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
-      const [user, store, listsmartly, domains, referralsMade, referredBy, commissions, recentTransactions] = await Promise.all([
+      const [user, store, listsmartly, domains, agentClients, referralsMade, referredBy, commissions, recentTransactions] = await Promise.all([
         prisma.user.findUnique({
           where: { id: userId },
           select: {
@@ -334,6 +420,14 @@ export async function GET(request: NextRequest) {
           select: {
             id: true, domainName: true, tld: true, registrarStatus: true, isFree: true,
             purchasePriceCents: true, autoRenew: true, expiresAt: true,
+          },
+        }),
+        // Agent subscriptions (user as client of agents)
+        prisma.agentClient.findMany({
+          where: { clientUserId: userId },
+          select: {
+            id: true, status: true, monthlyPriceCents: true, startDate: true, endDate: true,
+            agentProfile: { select: { displayName: true, userId: true, user: { select: { email: true } } } },
           },
         }),
         prisma.userReferral.findMany({
@@ -369,7 +463,7 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        data: { user, store, listsmartly, domains, referralsMade, referredBy, commissions, recentTransactions },
+        data: { user, store, listsmartly, domains, agentClients, referralsMade, referredBy, commissions, recentTransactions },
       });
     }
 
