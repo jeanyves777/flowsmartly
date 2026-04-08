@@ -782,37 +782,42 @@ function ImagePicker({ label, value, onChange, onBrowse, onUpload, onAiGenerate,
       {showAiDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => !aiGenerating && setShowAiDialog(false)}>
           <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-4">
-              <Star className="w-5 h-5 text-purple-500" />
-              <h3 className="text-lg font-semibold">Generate Image with AI</h3>
-            </div>
-            <p className="text-sm text-muted-foreground mb-4">Describe the image you want. AI will generate a professional image.</p>
-            <textarea
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder="e.g., Modern church interior with warm lighting and wooden pews, congregation worshipping together"
-              rows={3}
-              className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-purple-500/30 resize-none mb-4"
-              disabled={aiGenerating}
-            />
-            {aiError && (
-              <div className="flex items-start gap-2 p-3 mb-4 text-sm text-red-700 bg-red-50 dark:text-red-400 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>{aiError}</span>
-              </div>
+            {aiGenerating ? (
+              <AIGenerationLoader compact currentStep="Generating image..." subtitle="This may take a few seconds" />
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-4">
+                  <Star className="w-5 h-5 text-purple-500" />
+                  <h3 className="text-lg font-semibold">Generate Image with AI</h3>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">Describe the image you want. AI will generate a professional image.</p>
+                <textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="e.g., Modern church interior with warm lighting and wooden pews, congregation worshipping together"
+                  rows={3}
+                  className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-purple-500/30 resize-none mb-4"
+                />
+                {aiError && (
+                  <div className="flex items-start gap-2 p-3 mb-4 text-sm text-red-700 bg-red-50 dark:text-red-400 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span>{aiError}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
+                    Cost: <strong>15 credits ($0.15)</strong>
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowAiDialog(false)} className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
+                    <button onClick={handleAiGenerate} disabled={!aiPrompt.trim()} className="flex items-center gap-1.5 px-4 py-1.5 text-sm bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50">
+                      <Star className="w-3.5 h-3.5" /> Generate
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
-                Cost: <strong>15 credits ($0.15)</strong>
-              </p>
-              <div className="flex gap-2">
-                <button onClick={() => setShowAiDialog(false)} disabled={aiGenerating} className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-muted disabled:opacity-50">Cancel</button>
-                <button onClick={handleAiGenerate} disabled={aiGenerating || !aiPrompt.trim()} className="flex items-center gap-1.5 px-4 py-1.5 text-sm bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50">
-                  {aiGenerating ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating...</> : <><Star className="w-3.5 h-3.5" /> Generate</>}
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}
