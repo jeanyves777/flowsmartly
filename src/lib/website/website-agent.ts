@@ -139,6 +139,7 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - Use the brand's actual colors as the primary color (replace orange-500 from reference)
 - Choose appropriate Google Fonts for the brand's personality
 - Proper responsive design (mobile-first)
+- Mobile hamburger menu MUST work: use simple conditional render ({isOpen ? <X /> : <Menu />}), NEVER use AnimatePresence or motion.div with opacity:0 for the hamburger icon — it breaks on static export (icon stays invisible)
 - Full dark mode support
 - Smooth animations on scroll (useInView with once: true)
 

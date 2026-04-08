@@ -180,6 +180,30 @@ function syncBasePath(siteDir: string, basePath: string, slug: string): void {
   console.log(`[SiteBuilder] Synced basePath to '${basePath}' for slug '${slug}'`);
 }
 
+/**
+ * Fix hamburger menu: replace AnimatePresence with simple conditional render.
+ * AnimatePresence with opacity:0 initial state makes the menu icon invisible
+ * on static export because framer-motion JS hasn't hydrated yet.
+ */
+function fixHamburgerMenu(siteDir: string): void {
+  const headerPath = join(siteDir, "src", "components", "Header.tsx");
+  if (!existsSync(headerPath)) return;
+
+  let content = readFileSync(headerPath, "utf-8");
+
+  // Detect the problematic pattern: AnimatePresence wrapping Menu/X icons with opacity:0
+  if (!content.includes("AnimatePresence") || !content.includes("Toggle menu")) return;
+
+  // Replace animated hamburger with simple conditional
+  const animatedPattern = /<AnimatePresence[^>]*>\s*\{isMobileMenuOpen\s*\?\s*\(\s*<motion\.div[\s\S]*?<X[\s\S]*?<\/motion\.div>\s*\)\s*:\s*\(\s*<motion\.div[\s\S]*?<Menu[\s\S]*?<\/motion\.div>\s*\)\s*\}\s*<\/AnimatePresence>/;
+
+  if (animatedPattern.test(content)) {
+    content = content.replace(animatedPattern, "{isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}");
+    writeFileSync(headerPath, content);
+    console.log("[SiteBuilder] Fixed hamburger menu: replaced AnimatePresence with simple conditional");
+  }
+}
+
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -425,6 +449,9 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
 
     // Pre-build: fix bare internal links that are missing the basePath prefix
     fixBareLinks(siteDir, basePath);
+
+    // Pre-build: fix hamburger menu animation (AnimatePresence breaks on static export)
+    fixHamburgerMenu(siteDir);
 
     // Clear build cache so changes are picked up
     const nextCacheDir = join(siteDir, ".next");
