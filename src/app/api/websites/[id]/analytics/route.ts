@@ -23,9 +23,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     // Query PageViews linked to this website
+    // Match by websiteId (custom domain tracking) OR path prefix (direct access)
+    const sitePrefix = `/sites/${website.slug}`;
     const pageViews = await prisma.pageView.findMany({
       where: {
-        path: { startsWith: `/sites/${website.slug}` },
+        OR: [
+          { websiteId: website.id },
+          { path: { startsWith: sitePrefix } },
+        ],
         createdAt: { gte: since },
       },
       select: {

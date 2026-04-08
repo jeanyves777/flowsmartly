@@ -79,21 +79,34 @@ export default function WebsiteAnalyticsPage() {
           <div className="p-4 border-b border-border">
             <h2 className="text-lg font-semibold flex items-center gap-2"><Globe className="w-5 h-5 text-primary" /> Visitor Map</h2>
           </div>
-          <div className="relative h-[400px] bg-gradient-to-b from-slate-950 to-slate-900 flex items-center justify-center overflow-hidden">
-            {/* SVG World Map with animated dots */}
+          <div className="relative h-[400px] bg-gradient-to-b from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center overflow-hidden rounded-b-xl">
+            {/* SVG World Map with grid */}
             <div className="relative w-full h-full flex items-center justify-center">
-              <svg viewBox="0 0 800 400" className="w-full h-full opacity-30">
-                {/* Simplified world map outline */}
-                <ellipse cx="400" cy="200" rx="350" ry="180" fill="none" stroke="rgba(59,130,246,0.3)" strokeWidth="0.5" />
-                <ellipse cx="400" cy="200" rx="250" ry="130" fill="none" stroke="rgba(59,130,246,0.2)" strokeWidth="0.5" />
-                <ellipse cx="400" cy="200" rx="150" ry="80" fill="none" stroke="rgba(59,130,246,0.15)" strokeWidth="0.5" />
-                {/* Grid lines */}
+              <svg viewBox="0 0 800 400" className="w-full h-full">
+                {/* Latitude/longitude grid */}
                 {Array.from({ length: 12 }).map((_, i) => (
-                  <line key={`h${i}`} x1="50" y1={33 * i + 16} x2="750" y2={33 * i + 16} stroke="rgba(59,130,246,0.08)" />
+                  <line key={`h${i}`} x1="50" y1={33 * i + 16} x2="750" y2={33 * i + 16} stroke="currentColor" className="text-blue-200 dark:text-blue-900" strokeWidth="0.5" />
                 ))}
                 {Array.from({ length: 16 }).map((_, i) => (
-                  <line key={`v${i}`} x1={50 * i + 50} y1="16" x2={50 * i + 50} y2="384" stroke="rgba(59,130,246,0.08)" />
+                  <line key={`v${i}`} x1={50 * i + 50} y1="16" x2={50 * i + 50} y2="384" stroke="currentColor" className="text-blue-200 dark:text-blue-900" strokeWidth="0.5" />
                 ))}
+                {/* Globe outline */}
+                <ellipse cx="400" cy="200" rx="350" ry="180" fill="none" stroke="currentColor" className="text-blue-300 dark:text-blue-700" strokeWidth="1" />
+                <ellipse cx="400" cy="200" rx="250" ry="130" fill="none" stroke="currentColor" className="text-blue-200 dark:text-blue-800" strokeWidth="0.75" />
+                <ellipse cx="400" cy="200" rx="150" ry="80" fill="none" stroke="currentColor" className="text-blue-200 dark:text-blue-800" strokeWidth="0.5" />
+                {/* Continent silhouettes (simplified) */}
+                {/* North America */}
+                <path d="M150,80 Q170,60 200,70 Q230,65 250,80 Q260,100 250,130 Q240,150 220,160 Q200,155 180,140 Q160,120 150,100Z" fill="currentColor" className="text-blue-200/60 dark:text-blue-700/40" />
+                {/* South America */}
+                <path d="M220,180 Q240,170 250,190 Q260,220 255,260 Q245,290 230,300 Q215,295 210,270 Q205,240 210,210Z" fill="currentColor" className="text-blue-200/60 dark:text-blue-700/40" />
+                {/* Europe */}
+                <path d="M370,70 Q390,60 410,65 Q430,70 440,85 Q435,100 420,105 Q400,100 380,95 Q365,85 370,70Z" fill="currentColor" className="text-blue-200/60 dark:text-blue-700/40" />
+                {/* Africa */}
+                <path d="M380,130 Q400,120 420,125 Q440,140 445,170 Q440,210 430,240 Q415,260 400,255 Q385,240 375,210 Q370,170 380,130Z" fill="currentColor" className="text-blue-200/60 dark:text-blue-700/40" />
+                {/* Asia */}
+                <path d="M450,60 Q500,50 550,55 Q600,65 630,90 Q640,120 620,150 Q590,160 550,155 Q500,145 470,120 Q450,95 450,60Z" fill="currentColor" className="text-blue-200/60 dark:text-blue-700/40" />
+                {/* Australia */}
+                <path d="M580,230 Q610,220 640,230 Q655,245 650,265 Q635,275 610,270 Q585,260 580,245Z" fill="currentColor" className="text-blue-200/60 dark:text-blue-700/40" />
               </svg>
               {/* Visitor dots */}
               {(data?.geo?.countries || []).slice(0, 8).map((country, i) => {
@@ -105,17 +118,21 @@ export default function WebsiteAnalyticsPage() {
                 return (
                   <div key={i} className="absolute" style={{ left: `${(x / 800) * 100}%`, top: `${(y / 400) * 100}%`, transform: "translate(-50%, -50%)" }}>
                     <div className="relative">
-                      <div className="rounded-full bg-primary/60 animate-ping absolute" style={{ width: size * 2, height: size * 2 }} />
-                      <div className="rounded-full bg-primary relative z-10 flex items-center justify-center" style={{ width: size, height: size }}>
+                      <div className="rounded-full bg-primary/40 animate-ping absolute" style={{ width: size * 2, height: size * 2 }} />
+                      <div className="rounded-full bg-primary shadow-lg relative z-10 flex items-center justify-center" style={{ width: size, height: size }}>
                         <span className="text-[8px] text-white font-bold">{country.count}</span>
                       </div>
                     </div>
                   </div>
                 );
               })}
+              {/* Empty state */}
+              {(!data?.geo?.countries || data.geo.countries.length === 0) && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <p className="text-sm text-muted-foreground bg-background/80 backdrop-blur-sm px-4 py-2 rounded-full">Visitor locations will appear here</p>
+                </div>
+              )}
             </div>
-            {/* Center glow */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.1)_0%,transparent_70%)]" />
           </div>
         </div>
 

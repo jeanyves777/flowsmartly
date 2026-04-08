@@ -181,6 +181,54 @@ function syncBasePath(siteDir: string, basePath: string, slug: string): void {
 }
 
 /**
+ * Inject Analytics + CookieConsent components into layout.tsx if missing.
+ * The agent sometimes forgets to import these — this ensures tracking always works.
+ */
+function injectAnalytics(siteDir: string): void {
+  const layoutPath = join(siteDir, "src", "app", "layout.tsx");
+  if (!existsSync(layoutPath)) return;
+
+  let content = readFileSync(layoutPath, "utf-8");
+  let modified = false;
+
+  // Check if Analytics is already imported
+  if (!content.includes("Analytics") && existsSync(join(siteDir, "src", "components", "Analytics.tsx"))) {
+    // Add import at the top (after the last import line)
+    const lastImportIdx = content.lastIndexOf("\nimport ");
+    if (lastImportIdx !== -1) {
+      const endOfImportLine = content.indexOf("\n", lastImportIdx + 1);
+      content = content.slice(0, endOfImportLine + 1) +
+        "import Analytics from '@/components/Analytics'\n" +
+        content.slice(endOfImportLine + 1);
+    }
+
+    // Add <Analytics /> before the closing </body> tag
+    content = content.replace("</body>", "<Analytics />\n</body>");
+    modified = true;
+  }
+
+  // Check if CookieConsent is already imported
+  if (!content.includes("CookieConsent") && existsSync(join(siteDir, "src", "components", "CookieConsent.tsx"))) {
+    if (!content.includes("import CookieConsent")) {
+      const lastImportIdx = content.lastIndexOf("\nimport ");
+      if (lastImportIdx !== -1) {
+        const endOfImportLine = content.indexOf("\n", lastImportIdx + 1);
+        content = content.slice(0, endOfImportLine + 1) +
+          "import CookieConsent from '@/components/CookieConsent'\n" +
+          content.slice(endOfImportLine + 1);
+      }
+    }
+    content = content.replace("</body>", "<CookieConsent />\n</body>");
+    modified = true;
+  }
+
+  if (modified) {
+    writeFileSync(layoutPath, content);
+    console.log("[SiteBuilder] Injected Analytics + CookieConsent into layout.tsx");
+  }
+}
+
+/**
  * Fix hamburger menu: replace AnimatePresence with simple conditional render.
  * AnimatePresence with opacity:0 initial state makes the menu icon invisible
  * on static export because framer-motion JS hasn't hydrated yet.
@@ -452,6 +500,9 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
 
     // Pre-build: fix hamburger menu animation (AnimatePresence breaks on static export)
     fixHamburgerMenu(siteDir);
+
+    // Pre-build: inject Analytics + CookieConsent into layout.tsx if missing
+    injectAnalytics(siteDir);
 
     // Clear build cache so changes are picked up
     const nextCacheDir = join(siteDir, ".next");

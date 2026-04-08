@@ -285,6 +285,56 @@ interface AgentContext {
   onProgress?: (step: string, detail?: string) => void;
 }
 
+/**
+ * Scan the deployed output directory for HTML pages and sync to WebsitePage records.
+ * Updates the page count on the Website record.
+ */
+async function syncPagesFromOutput(websiteId: string, slug: string, siteDir: string) {
+  const { readdirSync, existsSync } = await import("fs");
+  const { join } = await import("path");
+  const outputDir = process.platform === "win32"
+    ? join("C:\\Users\\koffi\\Dev\\flowsmartly\\sites-output", slug)
+    : join("/var/www/flowsmartly/sites-output", slug);
+
+  // Also check the source app directory for page routes
+  const appDir = join(siteDir, "src", "app");
+  const pages: Array<{ slug: string; title: string }> = [];
+
+  // Scan output HTML files
+  if (existsSync(outputDir)) {
+    const files = readdirSync(outputDir).filter(
+      (f) => f.endsWith(".html") && f !== "404.html" && f !== "_error.html"
+    );
+    for (const file of files) {
+      const pageSlug = file === "index.html" ? "index" : file.replace(".html", "");
+      const title = pageSlug === "index" ? "Home" : pageSlug.charAt(0).toUpperCase() + pageSlug.slice(1).replace(/-/g, " ");
+      pages.push({ slug: pageSlug, title });
+    }
+  }
+
+  if (pages.length === 0) {
+    pages.push({ slug: "index", title: "Home" });
+  }
+
+  // Sync to database: delete old pages, create new ones
+  await prisma.websitePage.deleteMany({ where: { websiteId } });
+  await prisma.websitePage.createMany({
+    data: pages.map((p, i) => ({
+      websiteId,
+      title: p.title,
+      slug: p.slug,
+      sortOrder: i,
+    })),
+  });
+
+  await prisma.website.update({
+    where: { id: websiteId },
+    data: { pageCount: pages.length, generatedPath: siteDir },
+  });
+
+  console.log(`[WebsiteAgent] Synced ${pages.length} pages for ${slug}`);
+}
+
 async function executeTool(name: string, input: Record<string, unknown>, ctx: AgentContext): Promise<string> {
   switch (name) {
     case "get_brand_identity": {
@@ -411,12 +461,8 @@ async function executeTool(name: string, input: Record<string, unknown>, ctx: Ag
         return JSON.stringify({ error: deployResult.error });
       }
 
-      // Update page count
-      const pageCount = await prisma.websitePage.count({ where: { websiteId: ctx.websiteId } });
-      await prisma.website.update({
-        where: { id: ctx.websiteId },
-        data: { pageCount, generatedPath: ctx.siteDir },
-      });
+      // Sync pages from built output to DB and update count
+      await syncPagesFromOutput(ctx.websiteId, ctx.websiteSlug, ctx.siteDir);
 
       return JSON.stringify({ success: true, url: `/sites/${ctx.websiteSlug}`, summary: input.summary });
     }

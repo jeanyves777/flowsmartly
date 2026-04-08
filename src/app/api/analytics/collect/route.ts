@@ -15,6 +15,7 @@ import { cookies } from "next/headers";
 // Validation schemas
 const pageViewSchema = z.object({
   type: z.literal("pageview"),
+  websiteId: z.string().optional(),
   path: z.string(),
   title: z.string().optional(),
   referrer: z.string().optional(),
@@ -119,6 +120,7 @@ export async function POST(request: NextRequest) {
         await trackPageView({
           visitorId,
           sessionId,
+          websiteId: data.websiteId || null,
           path: data.path,
           title: data.title,
           referrer: data.referrer,

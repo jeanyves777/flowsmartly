@@ -84,11 +84,25 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     // basePath sync (custom domain detection) is handled inside buildSite()
 
-    // Build and deploy in background
+    // Build and deploy in background, then sync page count
     (async () => {
       const buildResult = await buildSite(id);
       if (buildResult.success) {
         await deploySite(id, website.slug);
+        // Update page count from output
+        const outputDir = process.platform === "win32"
+          ? join(siteDir, "..", "..", "sites-output", website.slug)
+          : `/var/www/flowsmartly/sites-output/${website.slug}`;
+        try {
+          const { readdirSync } = await import("fs");
+          const htmlFiles = readdirSync(outputDir).filter(
+            (f: string) => f.endsWith(".html") && f !== "404.html" && f !== "_error.html"
+          );
+          await prisma.website.update({
+            where: { id },
+            data: { pageCount: htmlFiles.length },
+          });
+        } catch {}
       }
     })().catch((err) => console.error("[Rebuild] Failed:", err));
 

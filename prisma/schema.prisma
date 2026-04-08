@@ -1585,6 +1585,7 @@ model PageView {
   visitorId    String
   sessionId    String
   userId       String?
+  websiteId    String?
 
   // Page info
   path         String
@@ -1631,6 +1632,7 @@ model PageView {
   @@index([visitorId])
   @@index([sessionId])
   @@index([userId])
+  @@index([websiteId])
   @@index([path])
   @@index([createdAt])
   @@index([country])

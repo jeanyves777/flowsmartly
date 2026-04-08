@@ -267,6 +267,7 @@ export async function trackPageView(data: {
   visitorId: string;
   sessionId: string;
   userId?: string | null;
+  websiteId?: string | null;
   path: string;
   title?: string;
   referrer?: string;
@@ -290,6 +291,7 @@ export async function trackPageView(data: {
       visitorId: data.visitorId,
       sessionId: data.sessionId,
       userId: data.userId,
+      websiteId: data.websiteId || null,
       path: data.path,
       title: data.title,
       referrer: data.referrer,
