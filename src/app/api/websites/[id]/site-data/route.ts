@@ -121,19 +121,23 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         data.logo = logoMatch[1];
       }
       if (!data.logo) {
-        try {
-          const logoPath = join(siteDir, "src", "components", "Logo.tsx");
-          const logoContent = readFileSync(logoPath, "utf-8");
-          // Check for image-based logo (img src or Image src)
-          const logoImgMatch = logoContent.match(/(?:src=\{?['"]|src:\s*['"])([^'"]+\.(?:png|jpg|jpeg|webp|svg|gif))['"]/);
-          if (logoImgMatch) {
-            data.logo = logoImgMatch[1];
-          }
-          // If SVG-based logo (no image), mark as "svg" so editor knows it exists
-          if (!data.logo && logoContent.includes("<svg")) {
-            data.logo = "__svg__";
-          }
-        } catch { /* Logo.tsx may not exist */ }
+        // Check Logo.tsx first, then Header.tsx for image-based logos
+        for (const componentName of ["Logo.tsx", "Header.tsx"]) {
+          if (data.logo && data.logo !== "__svg__") break;
+          try {
+            const componentPath = join(siteDir, "src", "components", componentName);
+            const componentContent = readFileSync(componentPath, "utf-8");
+            // Check for image-based logo (img src with alt="Logo")
+            const logoImgMatch = componentContent.match(/(?:alt=["']Logo["'][^>]*src=["']|src=["'])([^'"]+\.(?:png|jpg|jpeg|webp|svg|gif))["']/);
+            if (logoImgMatch) {
+              data.logo = logoImgMatch[1];
+            }
+            // If SVG-based logo (no image), mark as "svg" so editor knows it exists
+            if (!data.logo && componentContent.includes("<svg")) {
+              data.logo = "__svg__";
+            }
+          } catch { /* Component may not exist */ }
+        }
       }
 
       // Save to DB for faster future loads
