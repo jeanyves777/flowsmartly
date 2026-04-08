@@ -155,15 +155,13 @@ export default function WebsiteEditPage() {
       });
       const result = await res.json();
       if (!res.ok) {
-        setBuildResult({ type: "error", message: result.error || "Failed to generate image" });
-        return null;
+        throw new Error(result.error || "Failed to generate image");
       }
       setBuildResult({ type: "success", message: `Image generated! (${result.cost || 15} credits used)` });
       setTimeout(() => setBuildResult(null), 3000);
       return result.path;
-    } catch (err) {
-      setBuildResult({ type: "error", message: "Failed to generate image. Please try again." });
-      return null;
+    } catch (err: any) {
+      throw new Error(err.message || "Failed to generate image. Please try again.");
     }
   };
 
@@ -725,6 +723,7 @@ function ImagePicker({ label, value, onChange, onBrowse, onUpload, onAiGenerate,
   const [showAiDialog, setShowAiDialog] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -738,8 +737,13 @@ function ImagePicker({ label, value, onChange, onBrowse, onUpload, onAiGenerate,
   const handleAiGenerate = async () => {
     if (!aiPrompt.trim() || !onAiGenerate) return;
     setAiGenerating(true);
-    const path = await onAiGenerate(aiPrompt, "generated");
-    if (path) { onChange(path); setShowAiDialog(false); setAiPrompt(""); }
+    setAiError(null);
+    try {
+      const path = await onAiGenerate(aiPrompt, "generated");
+      if (path) { onChange(path); setShowAiDialog(false); setAiPrompt(""); setAiError(null); }
+    } catch (err: any) {
+      setAiError(err.message || "Generation failed. Please try again.");
+    }
     setAiGenerating(false);
   };
 
@@ -791,6 +795,12 @@ function ImagePicker({ label, value, onChange, onBrowse, onUpload, onAiGenerate,
               className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-purple-500/30 resize-none mb-4"
               disabled={aiGenerating}
             />
+            {aiError && (
+              <div className="flex items-start gap-2 p-3 mb-4 text-sm text-red-700 bg-red-50 dark:text-red-400 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{aiError}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />

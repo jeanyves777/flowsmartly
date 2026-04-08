@@ -85,8 +85,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     return NextResponse.json({ success: true, path: imagePath, cost });
-  } catch (err) {
-    console.error("Generate image error:", err);
-    return NextResponse.json({ error: "Generation failed" }, { status: 500 });
+  } catch (err: any) {
+    console.error("Generate image error:", err?.message || err, err?.status, err?.code);
+    const msg = err?.message?.includes("content_policy")
+      ? "Image was rejected by content policy. Try a different prompt."
+      : err?.message?.includes("rate_limit")
+      ? "Rate limit reached. Please wait a moment and try again."
+      : err?.message || "Generation failed";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
