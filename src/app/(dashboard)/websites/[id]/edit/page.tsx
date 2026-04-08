@@ -13,6 +13,7 @@ import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 interface Website {
   id: string; name: string; slug: string; status: string; buildStatus: string;
   lastBuildAt?: string; lastBuildError?: string; siteData: string;
+  customDomain?: string | null;
 }
 
 interface SiteData {
@@ -208,7 +209,7 @@ export default function WebsiteEditPage() {
         </div>
         <div className="flex items-center gap-2">
           {changed && <button onClick={save} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50"><Save className="w-3.5 h-3.5" /> Save & Rebuild</button>}
-          {website.buildStatus === "built" && <a href={`/sites/${website.slug}/`} target="_blank" className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted"><ExternalLink className="w-3.5 h-3.5" /> View</a>}
+          {website.buildStatus === "built" && <a href={website.customDomain ? `https://${website.customDomain}` : `/sites/${website.slug}/`} target="_blank" className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted"><ExternalLink className="w-3.5 h-3.5" /> View</a>}
           <button onClick={fixLinks} disabled={busy} className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted disabled:opacity-50">{fixingLinks ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Fix Links"}</button>
           <button onClick={rebuild} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">{rebuilding ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Building...</> : <><RefreshCw className="w-3.5 h-3.5" /> Rebuild</>}</button>
         </div>
@@ -248,7 +249,7 @@ export default function WebsiteEditPage() {
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30">
             <div className="flex gap-1.5"><div className="w-3 h-3 rounded-full bg-red-400" /><div className="w-3 h-3 rounded-full bg-yellow-400" /><div className="w-3 h-3 rounded-full bg-green-400" /></div>
-            <span className="text-xs text-muted-foreground flex-1 text-center">flowsmartly.com/sites/{website.slug}/{previewPage}</span>
+            <span className="text-xs text-muted-foreground flex-1 text-center">{website.customDomain ? `${website.customDomain}/${previewPage}` : `flowsmartly.com/sites/${website.slug}/${previewPage}`}</span>
           </div>
           {/* Page navigation */}
           {pages.length > 1 && (

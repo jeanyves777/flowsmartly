@@ -148,16 +148,27 @@ function syncBasePath(siteDir: string, basePath: string, slug: string): void {
     writeFileSync(dataPath, data);
   }
 
-  // Rewrite image paths in all component/page files
+  // Rewrite ALL hardcoded /sites/{slug} references in source files
   const srcDir = join(siteDir, "src");
   const oldPrefix = `/sites/${slug}`;
   if (basePath === "" && slug) {
+    // Custom domain: strip ALL /sites/{slug} from source files (links, images, everything)
     const files = collectSourceFiles(srcDir);
-    const pattern = new RegExp(escapeRegex(oldPrefix) + "(/images/)", "g");
+    const prefixPattern = new RegExp(escapeRegex(oldPrefix) + "/", "g");
+    const prefixExactPattern = new RegExp(escapeRegex(oldPrefix) + '"', "g");
+    let fileCount = 0;
     for (const file of files) {
       let content = readFileSync(file, "utf-8");
-      const updated = content.replace(pattern, "$1");
-      if (updated !== content) writeFileSync(file, updated);
+      const original = content;
+      content = content.replace(prefixPattern, "/");
+      content = content.replace(prefixExactPattern, '/"');
+      if (content !== original) {
+        writeFileSync(file, content);
+        fileCount++;
+      }
+    }
+    if (fileCount > 0) {
+      console.log(`[SiteBuilder] Stripped ${oldPrefix} from ${fileCount} source files (custom domain mode)`);
     }
   }
 

@@ -189,7 +189,7 @@ export default function WebsitesPage() {
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <ActionButton icon={Edit3} label="Edit Website" primary onClick={() => router.push(`/websites/${site.id}/edit`)} />
                 <ActionButton icon={BarChart3} label="Analytics" onClick={() => router.push(`/websites/${site.id}/analytics`)} />
-                <ActionButton icon={ExternalLink} label="View Site" onClick={() => window.open(`/sites/${site.slug}/`, "_blank")} />
+                <ActionButton icon={ExternalLink} label="View Site" onClick={() => window.open(site.customDomain ? `https://${site.customDomain}` : `/sites/${site.slug}/`, "_blank")} />
                 <ActionButton icon={Link2} label="Domains" onClick={() => router.push(`/websites/${site.id}/edit?tab=domains`)} />
                 <ActionButton icon={rebuilding ? Loader2 : RefreshCw} label={rebuilding ? "Building..." : "Rebuild"} onClick={() => !rebuilding && handleRebuild(site.id)} spin={rebuilding} />
               </div>
