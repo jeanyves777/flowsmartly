@@ -49,18 +49,16 @@ else
 
     # Add stores location block before the last closing brace
     # This serves static store files at /stores/{slug}/
-    STORES_CONFIG='
+    # IMPORTANT: This block MUST come BEFORE "location / { proxy_pass ... }"
+    # otherwise the proxy catches /stores/ requests first.
+    STORES_CONFIG="
     # FlowShop V2 — static store files
-    location ~ ^/stores/([^/]+)(/.*)?$ {
-        alias /var/www/flowsmartly/stores-output/$1$2;
-        try_files $uri $uri/index.html @store_fallback;
+    location /stores/ {
+        alias /var/www/flowsmartly/stores-output/;
+        index index.html;
+        try_files \\\$uri \\\$uri/ \\\$uri/index.html =404;
     }
-
-    location @store_fallback {
-        rewrite ^/stores/([^/]+)(/.*)?$ /stores/$1/404.html break;
-        root /var/www/flowsmartly/stores-output;
-    }
-'
+"
     # Insert before the last } in the server block
     # Use a temp file to avoid sed issues
     cp "$NGINX_CONF" "${NGINX_CONF}.bak"
