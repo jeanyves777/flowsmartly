@@ -71,13 +71,7 @@ export function StoreUpgradeBanner({
       <div className="mb-6 p-6 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 border border-purple-200 dark:border-purple-800">
         <AIGenerationLoader
           compact
-          steps={[
-            "Reading your brand identity...",
-            "Collecting products and images...",
-            "Designing your new storefront...",
-            "Building and deploying...",
-          ]}
-          title="Upgrading your store"
+          currentStep="Upgrading your store..."
           subtitle="This takes 1-2 minutes. Your existing products and orders are safe."
         />
       </div>
