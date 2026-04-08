@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -37,11 +37,18 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
       currency: true,
       userId: true,
       settings: true,
+      storeVersion: true,
     },
   });
 
   if (!store) {
     notFound();
+  }
+
+  // V2 stores are served as static files at /stores/{slug}
+  // Redirect all V1 SSR URLs to the static version
+  if (store.storeVersion === "static") {
+    redirect(`/stores/${slug}`);
   }
 
   // Fetch categories in parallel
