@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { buildSite, deploySite } from "@/lib/website/site-builder";
 import { purgeZoneCache } from "@/lib/domains/cloudflare-client";
+import { readdirSync, readFileSync, writeFileSync } from "fs";
+import { join } from "path";
+
+const SITES_OUTPUT =
+  process.platform === "win32"
+    ? "C:\\Users\\koffi\\Dev\\flowsmartly\\sites-output"
+    : "/var/www/flowsmartly/sites-output";
 
 /**
  * PATCH /api/domains/[id]/settings
@@ -96,11 +102,13 @@ export async function PATCH(
         data: { customDomain: domain.domainName },
       });
       needsCachePurge = true;
-      actionMessage = `${domain.domainName} is now serving your website "${website.slug}"`;
-      // Trigger rebuild so links use the custom domain (basePath = '')
-      triggerWebsiteRebuild(website.id, website.slug);
+      actionMessage = `${domain.domainName} is now serving your website`;
+
+      // Strip basePath prefix from all links in the deployed HTML files
+      // so links work as /about instead of /sites/slug/about
+      stripBasePathFromSite(website.slug);
     } else if (body.linkToWebsite === null) {
-      // Find websites using this domain before unlinking (need IDs for rebuild)
+      // Find websites using this domain before unlinking
       const linkedWebsites = await prisma.website.findMany({
         where: { customDomain: domain.domainName, userId: session.userId },
         select: { id: true, slug: true },
@@ -112,11 +120,14 @@ export async function PATCH(
       });
       needsCachePurge = true;
       actionMessage = "Website unlinked from domain";
-      // Trigger rebuild so links revert to /sites/slug/ basePath
+
+      // Restore basePath prefix to links (for /sites/slug/ access on flowsmartly.com)
       for (const ws of linkedWebsites) {
-        triggerWebsiteRebuild(ws.id, ws.slug);
+        addBasePathToSite(ws.slug);
       }
     }
+
+    // Link to website by linkToWebsite=null is handled above
 
     if (Object.keys(updateData).length > 0) {
       await prisma.storeDomain.update({
@@ -126,7 +137,6 @@ export async function PATCH(
     }
 
     // Purge Cloudflare cache when domain assignment changes
-    // so visitors immediately see the new content (not cached parking page)
     if (needsCachePurge && domain.cloudflareZoneId) {
       purgeZoneCache(domain.cloudflareZoneId).catch((err) =>
         console.error("[DomainSettings] Cache purge failed (non-fatal):", err)
@@ -161,19 +171,71 @@ export async function PATCH(
 }
 
 /**
- * Fire-and-forget: rebuild website when custom domain is linked/unlinked.
- * This updates basePath, SITE_BASE, and all image paths so links use
- * the correct domain (custom domain = root path, no domain = /sites/slug/).
+ * Strip /sites/{slug} prefix from all links in deployed HTML files.
+ * Called when a custom domain is linked — links become /about instead of /sites/slug/about.
+ * Instant, no rebuild needed, no credits used.
  */
-function triggerWebsiteRebuild(websiteId: string, slug: string) {
-  (async () => {
-    console.log(`[DomainSettings] Triggering rebuild for website ${slug} after domain change`);
-    const result = await buildSite(websiteId);
-    if (result.success) {
-      await deploySite(websiteId, slug);
-      console.log(`[DomainSettings] Rebuild + deploy succeeded for ${slug}`);
-    } else {
-      console.error(`[DomainSettings] Rebuild failed for ${slug}:`, result.error?.substring(0, 200));
+function stripBasePathFromSite(slug: string) {
+  try {
+    const siteDir = join(SITES_OUTPUT, slug);
+    const prefix = `/sites/${slug}`;
+    const files = readdirSync(siteDir).filter((f) => f.endsWith(".html"));
+    let fixed = 0;
+
+    for (const file of files) {
+      const fp = join(siteDir, file);
+      let content = readFileSync(fp, "utf-8");
+      const orig = content;
+
+      // Strip prefix from href="/sites/slug/..." and href="/sites/slug"
+      content = content.split(prefix + "/").join("/");
+      // Handle href="/sites/slug" (without trailing slash) → href="/"
+      content = content.split(prefix + '"').join('/"');
+
+      if (content !== orig) {
+        writeFileSync(fp, content);
+        fixed++;
+      }
     }
-  })().catch((err) => console.error("[DomainSettings] Rebuild error:", err));
+
+    console.log(`[DomainSettings] Stripped basePath from ${fixed} files for ${slug}`);
+  } catch (err) {
+    console.error(`[DomainSettings] Failed to strip basePath for ${slug}:`, err);
+  }
+}
+
+/**
+ * Restore /sites/{slug} prefix to all bare links in deployed HTML files.
+ * Called when a custom domain is unlinked — links become /sites/slug/about again.
+ * Instant, no rebuild needed, no credits used.
+ */
+function addBasePathToSite(slug: string) {
+  try {
+    const siteDir = join(SITES_OUTPUT, slug);
+    const prefix = `/sites/${slug}`;
+    const files = readdirSync(siteDir).filter((f) => f.endsWith(".html"));
+    let fixed = 0;
+
+    for (const file of files) {
+      const fp = join(siteDir, file);
+      let content = readFileSync(fp, "utf-8");
+      const orig = content;
+
+      // Add prefix to bare href="/" → href="/sites/slug/"
+      // But skip /_next/, /images/, http, mailto, tel, #
+      content = content.replace(
+        /href="\/(?!_next\/|images\/|sites\/|api\/|favicon|logo|icon|mailto|tel)([^"]*?)"/g,
+        `href="${prefix}/$1"`
+      );
+
+      if (content !== orig) {
+        writeFileSync(fp, content);
+        fixed++;
+      }
+    }
+
+    console.log(`[DomainSettings] Restored basePath in ${fixed} files for ${slug}`);
+  } catch (err) {
+    console.error(`[DomainSettings] Failed to restore basePath for ${slug}:`, err);
+  }
 }
