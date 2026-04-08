@@ -5,7 +5,17 @@ import { readFileSync, writeFileSync, existsSync, readdirSync } from "fs";
 import { join } from "path";
 import Anthropic from "@anthropic-ai/sdk";
 
-const SECTION_CREDIT_COST = 5;
+const DEFAULT_CREDIT_COST = 50;
+
+async function getSectionCreditCost(): Promise<number> {
+  try {
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: "section_update_credit_cost" },
+    });
+    if (setting?.value) return parseInt(setting.value, 10) || DEFAULT_CREDIT_COST;
+  } catch {}
+  return DEFAULT_CREDIT_COST;
+}
 
 const STORES_BASE = process.platform === "win32"
   ? "C:\\Users\\koffi\\Dev\\flowsmartly\\generated-stores"
@@ -87,7 +97,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const storeDir = store.generatedPath || getStoreDir(id);
     const sections = detectSections(storeDir);
 
-    return NextResponse.json({ sections, creditCost: SECTION_CREDIT_COST });
+    const cost = await getSectionCreditCost();
+    return NextResponse.json({ sections, creditCost: cost });
   } catch (err) {
     console.error("GET store update-section error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
@@ -107,14 +118,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Section and prompt are required" }, { status: 400 });
     }
 
+    const creditCost = await getSectionCreditCost();
+
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
       select: { aiCredits: true },
     });
 
-    if (!user || user.aiCredits < SECTION_CREDIT_COST) {
+    if (!user || user.aiCredits < creditCost) {
       return NextResponse.json({
-        error: `Not enough credits. Need ${SECTION_CREDIT_COST}, have ${user?.aiCredits || 0}`,
+        error: `Not enough credits. Need ${creditCost}, have ${user?.aiCredits || 0}`,
       }, { status: 402 });
     }
 
@@ -181,23 +194,23 @@ STORE DATA:\n\`\`\`\n${dataContent.substring(0, 3000)}\n\`\`\``,
 
     await prisma.user.update({
       where: { id: session.userId },
-      data: { aiCredits: { decrement: SECTION_CREDIT_COST } },
+      data: { aiCredits: { decrement: creditCost } },
     });
 
     await prisma.creditTransaction.create({
       data: {
         userId: session.userId,
         type: "USAGE",
-        amount: -SECTION_CREDIT_COST,
+        amount: -creditCost,
         description: `Store section update: ${section} — ${store.name}`,
-        balanceAfter: user.aiCredits - SECTION_CREDIT_COST,
+        balanceAfter: user.aiCredits - creditCost,
       },
     });
 
     return NextResponse.json({
       success: true,
       message: `${section} section updated! Click Rebuild to apply.`,
-      creditCost: SECTION_CREDIT_COST,
+      creditCost: creditCost,
     });
   } catch (err: any) {
     console.error("POST store update-section error:", err);

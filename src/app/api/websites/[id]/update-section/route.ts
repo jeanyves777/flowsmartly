@@ -6,7 +6,18 @@ import { join } from "path";
 import { getSiteDir } from "@/lib/website/site-builder";
 import Anthropic from "@anthropic-ai/sdk";
 
-const SECTION_CREDIT_COST = 5; // credits per section update
+// Default credit cost — can be overridden by admin via SystemSetting key: "section_update_credit_cost"
+const DEFAULT_CREDIT_COST = 50;
+
+async function getSectionCreditCost(): Promise<number> {
+  try {
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: "section_update_credit_cost" },
+    });
+    if (setting?.value) return parseInt(setting.value, 10) || DEFAULT_CREDIT_COST;
+  } catch {}
+  return DEFAULT_CREDIT_COST;
+}
 
 // Map section names to file paths relative to the site's src directory
 function getSectionFiles(siteDir: string, section: string): string[] {
@@ -93,10 +104,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     const siteDir = website.generatedPath || getSiteDir(id);
     const sections = detectSections(siteDir);
+    const cost = await getSectionCreditCost();
 
     return NextResponse.json({
       sections,
-      creditCost: SECTION_CREDIT_COST,
+      creditCost: cost,
     });
   } catch (err) {
     console.error("GET update-section error:", err);
@@ -122,14 +134,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Section and prompt are required" }, { status: 400 });
     }
 
+    const creditCost = await getSectionCreditCost();
+
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
       select: { aiCredits: true },
     });
 
-    if (!user || user.aiCredits < SECTION_CREDIT_COST) {
+    if (!user || user.aiCredits < creditCost) {
       return NextResponse.json({
-        error: `Not enough credits. You need ${SECTION_CREDIT_COST} credits. Current balance: ${user?.aiCredits || 0}`,
+        error: `Not enough credits. You need ${creditCost} credits. Current balance: ${user?.aiCredits || 0}`,
       }, { status: 402 });
     }
 
@@ -210,7 +224,7 @@ ${dataContent.substring(0, 3000)}
     // Deduct credits
     await prisma.user.update({
       where: { id: session.userId },
-      data: { aiCredits: { decrement: SECTION_CREDIT_COST } },
+      data: { aiCredits: { decrement: creditCost } },
     });
 
     // Log the transaction
@@ -218,16 +232,16 @@ ${dataContent.substring(0, 3000)}
       data: {
         userId: session.userId,
         type: "USAGE",
-        amount: -SECTION_CREDIT_COST,
+        amount: -creditCost,
         description: `Section update: ${section} — ${website.name}`,
-        balanceAfter: user.aiCredits - SECTION_CREDIT_COST,
+        balanceAfter: user.aiCredits - creditCost,
       },
     });
 
     return NextResponse.json({
       success: true,
       message: `${section} section updated! Click Rebuild to apply changes.`,
-      creditCost: SECTION_CREDIT_COST,
+      creditCost: creditCost,
       file: fileContents[0].path,
     });
   } catch (err: any) {

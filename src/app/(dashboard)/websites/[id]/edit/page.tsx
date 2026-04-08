@@ -179,22 +179,15 @@ export default function WebsiteEditPage() {
   if (!website) return <div className="text-center py-20"><p className="text-muted-foreground">Website not found</p></div>;
 
   const busy = rebuilding || fixingLinks || saving;
-  // Build tabs dynamically from detected pages + data sections
-  const hasImageHero = !!(data?.heroImages?.length || data?.logo);
+  // Only show tabs for features that reliably map to the source code.
+  // Section-specific editing (Hero, Services, Team, etc.) is done via AI Update tab.
   const tabs: Array<{ id: string; label: string; icon: any }> = [
     { id: "preview", label: "Preview", icon: Globe },
+    { id: "company", label: "Company", icon: FileText },
+    { id: "ai-update", label: "AI Update", icon: Sparkles },
+    { id: "links", label: "Links", icon: Link2 },
+    { id: "domains", label: "Domains", icon: Globe },
   ];
-  if (hasImageHero) tabs.push({ id: "hero", label: "Hero & Branding", icon: ImageIcon });
-  tabs.push({ id: "company", label: "Company", icon: FileText });
-  if (data?.services?.length) tabs.push({ id: "services", label: "Services", icon: Star });
-  if (data?.team?.length || pages.some((p) => p.slug === "team")) tabs.push({ id: "team", label: "Team", icon: Users });
-  if (data?.testimonials?.length || pages.some((p) => p.slug === "testimonials")) tabs.push({ id: "reviews", label: "Reviews", icon: MessageSquare });
-  if (data?.faq?.length || pages.some((p) => p.slug === "faq")) tabs.push({ id: "faq", label: "FAQ", icon: HelpCircle });
-  if (data?.blogPosts?.length || pages.some((p) => p.slug === "blog")) tabs.push({ id: "blog", label: "Blog", icon: FileText });
-  if (data?.galleryImages?.length || pages.some((p) => p.slug === "gallery")) tabs.push({ id: "gallery", label: "Gallery", icon: ImageIcon });
-  tabs.push({ id: "ai-update", label: "AI Update", icon: Sparkles });
-  tabs.push({ id: "links", label: "Links", icon: Link2 });
-  tabs.push({ id: "domains", label: "Domains", icon: Globe });
 
   return (
     <div className="pb-20">
@@ -293,28 +286,6 @@ export default function WebsiteEditPage() {
       )}
 
       {/* Hero & Branding */}
-      {activeTab === "hero" && data && (
-        <div className="space-y-6">
-          <Section title="Logo">
-            <ImagePicker label="Site Logo" value={data.logo} onChange={(v) => { update("logo", v); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "brand")} onAiGenerate={aiGenerateImage} compact square />
-          </Section>
-          <Section title="Hero Slideshow Images">
-            <p className="text-sm text-muted-foreground mb-3">Add images for the hero section slideshow. Upload your own photos or pick from your media library.</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {(data.heroImages || []).map((img, i) => (
-                <div key={i} className="relative group aspect-video rounded-lg overflow-hidden border border-border bg-muted">
-                  <img src={img} alt="" className="w-full h-full object-cover" />
-                  <button onClick={() => { const imgs = [...(data.heroImages || [])]; imgs.splice(i, 1); update("heroImages", imgs); }} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><X className="w-3 h-3" /></button>
-                </div>
-              ))}
-              <button onClick={() => openPicker((url) => update("heroImages", [...(data.heroImages || []), url]))} className="aspect-video rounded-lg border-2 border-dashed border-border hover:border-primary/50 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-primary transition-colors">
-                <Plus className="w-5 h-5" /><span className="text-xs">Add Image</span>
-              </button>
-            </div>
-          </Section>
-        </div>
-      )}
-
       {/* Company */}
       {activeTab === "company" && data && (
         <div className="space-y-6">
@@ -361,186 +332,6 @@ export default function WebsiteEditPage() {
         </div>
       )}
 
-      {/* Services */}
-      {activeTab === "services" && data && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Services ({data.services.length})</h2>
-            <button onClick={() => { const s = [...data.services, { id: `svc-${Date.now()}`, title: "", shortDescription: "", description: "", icon: "Star", image: "" }]; update("services", s); }} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add</button>
-          </div>
-          {data.services.map((svc, i) => (
-            <div key={i} className="bg-card border border-border rounded-xl p-4">
-              <div className="flex items-start gap-4">
-                {/* Service Image */}
-                <ImagePicker label="" value={svc.image} onChange={(v) => { const s = [...data.services]; s[i] = { ...s[i], image: v }; update("services", s); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "services")} onAiGenerate={aiGenerateImage} compact />
-                <div className="flex-1 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-muted-foreground">Service {i + 1}</span>
-                    <button onClick={() => { const s = data.services.filter((_, j) => j !== i); update("services", s); }} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <Field label="Title" value={svc.title} onChange={(v) => { const s = [...data.services]; s[i] = { ...s[i], title: v }; update("services", s); }} />
-                    <Field label="Icon (Lucide)" value={svc.icon} onChange={(v) => { const s = [...data.services]; s[i] = { ...s[i], icon: v }; update("services", s); }} />
-                  </div>
-                  <Field label="Short Description" value={svc.shortDescription} onChange={(v) => { const s = [...data.services]; s[i] = { ...s[i], shortDescription: v }; update("services", s); }} />
-                  <Field label="Full Description" value={svc.description} onChange={(v) => { const s = [...data.services]; s[i] = { ...s[i], description: v }; update("services", s); }} multiline />
-                  <Field label="Link URL (optional — e.g. shop product page)" value={svc.link || ""} onChange={(v) => { const s = [...data.services]; s[i] = { ...s[i], link: v }; update("services", s); }} icon={<ExternalLink className="w-4 h-4" />} />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Team */}
-      {activeTab === "team" && data && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Team Members ({data.team?.length || 0})</h2>
-            <button onClick={() => update("team", [...(data.team || []), { name: "", role: "", bio: "", image: "" }])} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add</button>
-          </div>
-          {(data.team || []).map((member, i) => (
-            <div key={i} className="bg-card border border-border rounded-xl p-4">
-              <div className="flex items-start gap-4">
-                <ImagePicker label="" value={member.image} onChange={(v) => { const t = [...(data.team || [])]; t[i] = { ...t[i], image: v }; update("team", t); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "team")} onAiGenerate={aiGenerateImage} compact square />
-                <div className="flex-1 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-muted-foreground">Member {i + 1}</span>
-                    <button onClick={() => { const t = (data.team || []).filter((_, j) => j !== i); update("team", t); }} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Name" value={member.name} onChange={(v) => { const t = [...(data.team || [])]; t[i] = { ...t[i], name: v }; update("team", t); }} />
-                    <Field label="Role" value={member.role} onChange={(v) => { const t = [...(data.team || [])]; t[i] = { ...t[i], role: v }; update("team", t); }} />
-                  </div>
-                  <Field label="Bio" value={member.bio} onChange={(v) => { const t = [...(data.team || [])]; t[i] = { ...t[i], bio: v }; update("team", t); }} multiline />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Reviews & Stats */}
-      {activeTab === "reviews" && data && (
-        <div className="space-y-6">
-          <Section title="Statistics">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {data.stats.map((s, i) => (
-                <div key={i} className="text-center space-y-1">
-                  <input type="number" value={s.value} onChange={(e) => { const st = [...data.stats]; st[i] = { ...st[i], value: Number(e.target.value) || 0 }; update("stats", st); }} className="w-full text-2xl font-bold text-center px-2 py-1 border border-border rounded-lg bg-background" />
-                  <input type="text" value={s.label} onChange={(e) => { const st = [...data.stats]; st[i] = { ...st[i], label: e.target.value }; update("stats", st); }} className="w-full text-xs text-center px-2 py-1 border border-border rounded-lg bg-background" />
-                </div>
-              ))}
-            </div>
-          </Section>
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Testimonials ({data.testimonials?.length || 0})</h2>
-              <button onClick={() => update("testimonials", [...(data.testimonials || []), { name: "", role: "", text: "", rating: 5 }])} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add</button>
-            </div>
-            {(data.testimonials || []).map((t, i) => (
-              <div key={i} className="bg-card border border-border rounded-xl p-4 mb-3">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-medium text-muted-foreground">Review {i + 1}</span>
-                  <button onClick={() => update("testimonials", (data.testimonials || []).filter((_, j) => j !== i))} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                  <Field label="Name" value={t.name} onChange={(v) => { const ts = [...(data.testimonials || [])]; ts[i] = { ...ts[i], name: v }; update("testimonials", ts); }} />
-                  <Field label="Role" value={t.role} onChange={(v) => { const ts = [...(data.testimonials || [])]; ts[i] = { ...ts[i], role: v }; update("testimonials", ts); }} />
-                  <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Rating</label>
-                    <select value={t.rating} onChange={(e) => { const ts = [...(data.testimonials || [])]; ts[i] = { ...ts[i], rating: Number(e.target.value) }; update("testimonials", ts); }} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
-                      {[5,4,3,2,1].map((r) => <option key={r} value={r}>{r} Stars</option>)}
-                    </select>
-                  </div>
-                </div>
-                <Field label="Review" value={t.text} onChange={(v) => { const ts = [...(data.testimonials || [])]; ts[i] = { ...ts[i], text: v }; update("testimonials", ts); }} multiline />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* FAQ */}
-      {activeTab === "faq" && data && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">FAQ ({data.faq?.length || 0})</h2>
-            <button onClick={() => update("faq", [...(data.faq || []), { question: "", answer: "" }])} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add</button>
-          </div>
-          {(data.faq || []).map((item, i) => (
-            <div key={i} className="bg-card border border-border rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-muted-foreground">Question {i + 1}</span>
-                <button onClick={() => update("faq", (data.faq || []).filter((_, j) => j !== i))} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-              </div>
-              <Field label="Question" value={item.question} onChange={(v) => { const f = [...(data.faq || [])]; f[i] = { ...f[i], question: v }; update("faq", f); }} />
-              <div className="mt-3"><Field label="Answer" value={item.answer} onChange={(v) => { const f = [...(data.faq || [])]; f[i] = { ...f[i], answer: v }; update("faq", f); }} multiline /></div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Blog */}
-      {activeTab === "blog" && data && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Blog Posts ({data.blogPosts?.length || 0})</h2>
-            <button onClick={() => update("blogPosts", [...(data.blogPosts || []), { id: `post-${Date.now()}`, title: "", excerpt: "", content: "", category: "", date: new Date().toISOString().split("T")[0], author: "", image: "" }])} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add Post</button>
-          </div>
-          {(data.blogPosts || []).map((post, i) => (
-            <div key={i} className="bg-card border border-border rounded-xl p-4">
-              <div className="flex items-start gap-4">
-                <ImagePicker label="" value={post.image} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], image: v }; update("blogPosts", p); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "blog")} onAiGenerate={aiGenerateImage} compact />
-                <div className="flex-1 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-muted-foreground">Post {i + 1}</span>
-                    <button onClick={() => update("blogPosts", (data.blogPosts || []).filter((_, j) => j !== i))} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <Field label="Title" value={post.title} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], title: v }; update("blogPosts", p); }} />
-                    <Field label="Category" value={post.category} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], category: v }; update("blogPosts", p); }} />
-                    <Field label="Author" value={post.author} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], author: v }; update("blogPosts", p); }} />
-                    <Field label="Date" value={post.date} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], date: v }; update("blogPosts", p); }} />
-                  </div>
-                  <Field label="Excerpt" value={post.excerpt} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], excerpt: v }; update("blogPosts", p); }} />
-                  <Field label="Content" value={post.content} onChange={(v) => { const p = [...(data.blogPosts || [])]; p[i] = { ...p[i], content: v }; update("blogPosts", p); }} multiline />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Gallery */}
-      {activeTab === "gallery" && data && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Gallery Images ({data.galleryImages?.length || 0})</h2>
-            <button onClick={() => openPicker((url) => update("galleryImages", [...(data.galleryImages || []), { src: url, alt: "", category: "" }]))} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add Image</button>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {(data.galleryImages || []).map((img, i) => (
-              <div key={i} className="relative group">
-                <div className="aspect-square rounded-lg overflow-hidden border border-border bg-muted">
-                  {img.src ? (
-                    <img src={img.src} alt={img.alt} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-muted-foreground"><ImageIcon className="w-8 h-8" /></div>
-                  )}
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <button onClick={() => openPicker((url) => { const g = [...(data.galleryImages || [])]; g[i] = { ...g[i], src: url }; update("galleryImages", g); })} className="p-1.5 bg-white/20 backdrop-blur rounded-lg text-white"><ImageIcon className="w-4 h-4" /></button>
-                    <button onClick={() => update("galleryImages", (data.galleryImages || []).filter((_, j) => j !== i))} className="p-1.5 bg-white/20 backdrop-blur rounded-lg text-white hover:bg-red-500/50"><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                </div>
-                <input type="text" value={img.alt || ""} onChange={(e) => { const g = [...(data.galleryImages || [])]; g[i] = { ...g[i], alt: e.target.value }; update("galleryImages", g); }} placeholder="Alt text" className="w-full mt-1 px-2 py-1 text-xs border border-border rounded bg-background" />
-                <input type="text" value={img.category || ""} onChange={(e) => { const g = [...(data.galleryImages || [])]; g[i] = { ...g[i], category: e.target.value }; update("galleryImages", g); }} placeholder="Category" className="w-full mt-1 px-2 py-1 text-xs border border-border rounded bg-background" />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Domains */}
       {/* Links */}
       {activeTab === "links" && data && (
         <div className="space-y-6">
