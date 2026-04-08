@@ -96,9 +96,11 @@ export async function middleware(request: NextRequest) {
     }
 
     if (type === "website") {
-      // WEBSITE: rewrite ALL paths (pages + /_next/ + images + assets) to /sites/{slug}/...
-      // The /sites/[...path] route handler serves the static files from disk
-      const sitePath = path === "/" ? `/sites/${slug}` : `/sites/${slug}${path}`;
+      // WEBSITE: rewrite ALL paths to /sites/{slug}/...
+      // Skip prefixing if path already starts with /sites/{slug} (avoids double-prefix)
+      const sitePrefix = `/sites/${slug}`;
+      const alreadyPrefixed = path.startsWith(sitePrefix);
+      const sitePath = alreadyPrefixed ? path : (path === "/" ? sitePrefix : `${sitePrefix}${path}`);
       const rewriteUrl = new URL(sitePath, request.url);
       rewriteUrl.search = request.nextUrl.search;
 
