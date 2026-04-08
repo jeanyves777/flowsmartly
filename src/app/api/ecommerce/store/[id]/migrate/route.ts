@@ -25,7 +25,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       include: {
         products: {
           where: { status: { not: "ARCHIVED" } },
-          include: { category: true },
+          include: { productCategory: true },
           orderBy: { createdAt: "asc" },
         },
         categories: {
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         description: p.description || p.shortDescription || "",
         priceCents: p.priceCents,
         comparePriceCents: p.comparePriceCents || undefined,
-        category: p.category?.name || "",
+        category: p.productCategory?.name || "",
         images,
         variants: [],
         tags,
