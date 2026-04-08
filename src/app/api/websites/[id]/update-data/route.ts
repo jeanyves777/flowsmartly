@@ -254,7 +254,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Logo in Header, Footer, layout favicon
-    if (data.logo) {
+    // Skip __svg__ placeholder — it's not a real image path
+    if (data.logo && data.logo !== "__svg__") {
       // Header
       try {
         const p = join(siteDir, "src", "components", "Header.tsx");
