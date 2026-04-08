@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { Sparkles, Rocket, Loader2, X, ArrowRight, Package, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { useToast } from "@/hooks/use-toast";
 
 interface StoreUpgradeBannerProps {
@@ -26,6 +25,7 @@ export function StoreUpgradeBanner({
   const { toast } = useToast();
   const [dismissed, setDismissed] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const [migrationStep, setMigrationStep] = useState("");
   const [migrationInfo, setMigrationInfo] = useState<{
     productCount: number;
     categoryCount: number;
@@ -65,15 +65,23 @@ export function StoreUpgradeBanner({
 
   if (!isV1 || dismissed || loading || !migrationInfo) return null;
 
-  // If currently building, show progress
+  // If currently building, show progress with step tracking
   if (migrating || buildStatus === "building") {
     return (
       <div className="mb-6 p-6 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 border border-purple-200 dark:border-purple-800">
-        <AIGenerationLoader
-          compact
-          currentStep="Upgrading your store..."
-          subtitle="This takes 1-2 minutes. Your existing products and orders are safe."
-        />
+        <div className="flex items-center gap-4">
+          <div className="relative w-10 h-10 flex-shrink-0">
+            <Loader2 className="w-10 h-10 text-purple-600 animate-spin" />
+          </div>
+          <div>
+            <p className="font-semibold text-gray-900 dark:text-white">
+              {migrationStep || "Upgrading your store..."}
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              This takes 1-2 minutes. Your existing products and orders are safe.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -101,15 +109,31 @@ export function StoreUpgradeBanner({
         description: `Collecting ${data.productsCollected} products. Your store will be rebuilt in 1-2 minutes.`,
       });
 
-      // Poll for completion
+      // Poll for completion with step tracking
+      let pollCount = 0;
+      const steps = [
+        "Collecting your products and brand data...",
+        "AI agent is designing your storefront...",
+        "Writing custom components...",
+        "Downloading product images...",
+        "Building your store...",
+        "Deploying...",
+      ];
+
       const pollInterval = setInterval(async () => {
+        pollCount++;
+        // Rotate through steps to show progress
+        const stepIdx = Math.min(Math.floor(pollCount / 3), steps.length - 1);
+        setMigrationStep(steps[stepIdx]);
+
         const statusRes = await fetch(`/api/ecommerce/store/${storeId}/generate`);
         if (statusRes.ok) {
           const status = await statusRes.json();
-          if (status.buildStatus === "built" && status.storeVersion === "static") {
+          if (status.buildStatus === "built") {
             clearInterval(pollInterval);
+            setMigrationStep("Store upgraded!");
             setMigrating(false);
-            toast({ title: "Store upgraded successfully!", description: "Refresh to see your new store." });
+            toast({ title: "Store upgraded successfully!" });
             window.location.reload();
           } else if (status.buildStatus === "error") {
             clearInterval(pollInterval);
@@ -123,11 +147,11 @@ export function StoreUpgradeBanner({
         }
       }, 5000);
 
-      // Safety timeout
+      // Safety timeout (5 minutes)
       setTimeout(() => {
         clearInterval(pollInterval);
-        if (migrating) setMigrating(false);
-      }, 180000);
+        setMigrating(false);
+      }, 300000);
     } catch {
       toast({ title: "Migration failed", variant: "destructive" });
       setMigrating(false);
