@@ -590,7 +590,7 @@ export default function WebsiteEditPage() {
         </div>
       )}
 
-      {activeTab === "domains" && <DomainsTab websiteSlug={website.slug} />}
+      {activeTab === "domains" && <DomainsTab websiteSlug={website.slug} customDomain={website.customDomain} />}
 
       {/* Build */}
       {activeTab === "build" && (
@@ -665,7 +665,7 @@ function ReportErrorButton({ websiteId }: { websiteId: string }) {
   );
 }
 
-function DomainsTab({ websiteSlug }: { websiteSlug: string }) {
+function DomainsTab({ websiteSlug, customDomain }: { websiteSlug: string; customDomain?: string | null }) {
   return (
     <div className="space-y-6">
       <div className="bg-card border border-border rounded-xl p-6">
@@ -674,7 +674,7 @@ function DomainsTab({ websiteSlug }: { websiteSlug: string }) {
           Your site is currently accessible at:
         </p>
         <div className="p-3 bg-muted/30 rounded-lg border border-border mb-6">
-          <code className="text-sm font-mono">{website?.customDomain || `flowsmartly.com/sites/${websiteSlug}`}</code>
+          <code className="text-sm font-mono">{customDomain || `flowsmartly.com/sites/${websiteSlug}`}</code>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
           To use a custom domain (e.g. <strong>yourbusiness.com</strong>), go to the Domains page to register a new domain or connect one you already own. Once set up, your website will be accessible at your custom domain.
