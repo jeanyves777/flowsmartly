@@ -56,7 +56,7 @@ else
     location /stores/ {
         alias /var/www/flowsmartly/stores-output/;
         index index.html;
-        try_files \\\$uri \\\$uri/ \\\$uri/index.html =404;
+        try_files \\\$uri \\\$uri/ \\\$uri.html \\\$uri/index.html =404;
     }
 "
     # Insert before the last } in the server block
