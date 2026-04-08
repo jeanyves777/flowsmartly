@@ -36,6 +36,11 @@
   ],
   "exclude": [
     "node_modules",
-    "scripts"
+    "scripts",
+    "reference-store",
+    "generated-stores",
+    "generated-sites",
+    "stores-output",
+    "sites-output"
   ]
 }
