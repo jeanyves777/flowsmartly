@@ -127,7 +127,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         ];
         for (const [k, v] of fields) {
           if (v !== undefined && v !== null) {
-            content = content.replace(new RegExp(`(${k}:\\s*['"])[\\s\\S]*?(?:(?<!\\\\)['"])`, "m"), `${k}: '${escapeStr(v)}'`);
+            // Match field: 'value' or field: "value" — must close with SAME quote type
+            // Use double quotes in output to avoid apostrophe issues
+            const escaped = v.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+            content = content.replace(
+              new RegExp(`(${k}:\\s*)(?:'(?:[^'\\\\]|\\\\.)*'|"(?:[^"\\\\]|\\\\.)*")`),
+              `$1"${escaped}"`
+            );
           }
         }
         if (c.phones?.length) {
