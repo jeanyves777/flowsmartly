@@ -148,9 +148,34 @@ function syncBasePath(siteDir: string, basePath: string, slug: string): void {
     writeFileSync(dataPath, data);
   }
 
-  // Rewrite image paths in source files if needed
+  // Prefix bare /images/ paths in source files with basePath
+  // The AI agent sometimes writes src="/images/..." without using siteUrl()
   const srcDir = join(siteDir, "src");
-  const oldPrefix = `/sites/${slug}`;
+  if (basePath && slug) {
+    const files = collectSourceFiles(srcDir);
+    let imgFixCount = 0;
+    for (const file of files) {
+      let content = readFileSync(file, "utf-8");
+      const original = content;
+      // Fix src="/images/..." → src="/sites/slug/images/..." (skip if already prefixed)
+      content = content.replace(
+        new RegExp(`src="(?!${escapeRegex(basePath)})/images/`, "g"),
+        `src="${basePath}/images/`
+      );
+      // Also fix href="/images/..." in case images are used as links
+      content = content.replace(
+        new RegExp(`href="(?!${escapeRegex(basePath)})/images/`, "g"),
+        `href="${basePath}/images/`
+      );
+      if (content !== original) {
+        writeFileSync(file, content);
+        imgFixCount++;
+      }
+    }
+    if (imgFixCount > 0) {
+      console.log(`[SiteBuilder] Prefixed bare /images/ paths in ${imgFixCount} source files`);
+    }
+  }
 
   console.log(`[SiteBuilder] Synced basePath to '${basePath}' for slug '${slug}'`);
 }
