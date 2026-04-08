@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { ORDER_STATUSES } from "@/lib/constants/ecommerce";
 import { formatPrice } from "@/lib/store/currency";
+import { StoreUpgradeBanner } from "@/components/ecommerce/store-upgrade-banner";
 
 interface Store {
   id: string;
@@ -29,6 +30,8 @@ interface Store {
   totalRevenueCents: number;
   currency: string;
   region: string | null;
+  generatorVersion: string;
+  buildStatus: string;
 }
 
 interface Order {
@@ -155,6 +158,14 @@ export default function EcommerceDashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* V2 Upgrade Banner */}
+      <StoreUpgradeBanner
+        storeId={store.id}
+        storeName={store.name}
+        generatorVersion={store.generatorVersion}
+        buildStatus={store.buildStatus}
+      />
 
       {/* Onboarding Incomplete Banner */}
       {!store.setupComplete && (
