@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { purgeZoneCache } from "@/lib/domains/cloudflare-client";
+import { buildSite, deploySite } from "@/lib/website/site-builder";
 import { readdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
@@ -104,9 +105,11 @@ export async function PATCH(
       needsCachePurge = true;
       actionMessage = `${domain.domainName} is now serving your website`;
 
-      // Strip basePath prefix from all links in the deployed HTML files
-      // so links work as /about instead of /sites/slug/about
+      // Instant fix: strip basePath prefix from deployed HTML so site works immediately
       stripBasePathFromSite(website.slug);
+
+      // Full rebuild in background: properly regenerates with basePath='' for all paths
+      triggerWebsiteRebuild(website.id, website.slug);
     } else if (body.linkToWebsite === null) {
       // Find websites using this domain before unlinking
       const linkedWebsites = await prisma.website.findMany({
@@ -121,9 +124,11 @@ export async function PATCH(
       needsCachePurge = true;
       actionMessage = "Website unlinked from domain";
 
-      // Restore basePath prefix to links (for /sites/slug/ access on flowsmartly.com)
+      // Instant fix: restore basePath prefix so /sites/slug/ access works
       for (const ws of linkedWebsites) {
         addBasePathToSite(ws.slug);
+        // Full rebuild in background
+        triggerWebsiteRebuild(ws.id, ws.slug);
       }
     }
 
@@ -202,6 +207,24 @@ function stripBasePathFromSite(slug: string) {
   } catch (err) {
     console.error(`[DomainSettings] Failed to strip basePath for ${slug}:`, err);
   }
+}
+
+/**
+ * Fire-and-forget: full rebuild + deploy when domain is linked/unlinked.
+ * This properly regenerates the site with the correct basePath, SITE_BASE,
+ * image paths, and all internal links. Runs after the instant fix.
+ */
+function triggerWebsiteRebuild(websiteId: string, slug: string) {
+  (async () => {
+    console.log(`[DomainSettings] Full rebuild for ${slug} after domain change`);
+    const result = await buildSite(websiteId);
+    if (result.success) {
+      await deploySite(websiteId, slug);
+      console.log(`[DomainSettings] Rebuild + deploy succeeded for ${slug}`);
+    } else {
+      console.error(`[DomainSettings] Rebuild failed for ${slug}:`, result.error?.substring(0, 200));
+    }
+  })().catch((err) => console.error("[DomainSettings] Rebuild error:", err));
 }
 
 /**
