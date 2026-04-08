@@ -241,8 +241,9 @@ const SYSTEM_PROMPT = `You are a professional e-commerce store developer. You bu
 - Components are "use client" when using hooks/motion
 - Icons from lucide-react
 - Images use <img> tags (static export)
-- For product detail pages: use generateStaticParams() to pre-render all product slugs
-- For category pages: use generateStaticParams() to pre-render all category slugs
+- CRITICAL: NEVER use generateStaticParams() in a "use client" page — they conflict in Next.js 15
+- Product detail and category pages are "use client" (they use useState/useEffect) so do NOT add generateStaticParams
+- For static export (output: 'export'), dynamic routes work without generateStaticParams
 
 ### String Escaping in data.ts (CRITICAL):
 - Use double-quoted strings for text with apostrophes: "What's New" NOT 'What's New'

@@ -12,10 +12,9 @@ import { products, getProductBySlug, getProductsByCategory } from "@/lib/product
 import { addToCart } from "@/lib/cart";
 import type { ProductVariant } from "@/lib/products";
 
-// For static export: generate all product pages at build time
-export function generateStaticParams() {
-  return products.map((p) => ({ slug: p.slug }));
-}
+// NOTE: Do NOT use generateStaticParams() with "use client" — they conflict in Next.js 15.
+// For static export (output: 'export'), Next.js generates pages from the route structure.
+// If you need static params, create a separate server component wrapper.
 
 export default function ProductDetailPage({ params }: { params: { slug: string } }) {
   const [cartOpen, setCartOpen] = useState(false);

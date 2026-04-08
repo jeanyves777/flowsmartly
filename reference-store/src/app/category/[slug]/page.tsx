@@ -8,10 +8,7 @@ import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
 import { categories, storeUrl } from "@/lib/data";
 
-// Static export: generate all category pages at build time
-export function generateStaticParams() {
-  return categories.map((c) => ({ slug: c.slug }));
-}
+// NOTE: Do NOT use generateStaticParams() with "use client" — they conflict in Next.js 15.
 
 export default function CategoryPage({ params }: { params: { slug: string } }) {
   const [cartOpen, setCartOpen] = useState(false);
