@@ -3,8 +3,8 @@
  */
 
 import { execSync } from "child_process";
-import { existsSync, mkdirSync, cpSync, writeFileSync, readdirSync, readFileSync } from "fs";
-import { join, dirname } from "path";
+import { existsSync, mkdirSync, cpSync, writeFileSync } from "fs";
+import { join } from "path";
 import { prisma } from "@/lib/db/client";
 import {
   TEMPLATE_PACKAGE_JSON,
@@ -16,6 +16,14 @@ import {
   TEMPLATE_COOKIE_CONSENT,
   getTrackingScript,
 } from "./templates";
+import {
+  syncBasePath,
+  validateAndFixImports,
+  fixDataSyntax,
+  fixBareLinks,
+  fixHamburgerMenu,
+  injectAnalytics,
+} from "@/lib/build-utils/validators";
 
 // Directories
 const SITES_BASE = process.platform === "win32"
@@ -115,330 +123,7 @@ export function writeSiteFile(websiteId: string, relativePath: string, content: 
   writeFileSync(fullPath, content, "utf-8");
 }
 
-/**
- * Sync basePath across next.config.ts, data.ts (SITE_BASE), and all image paths.
- * When custom domain is connected: basePath='' (root-relative links).
- * When no custom domain: basePath='/sites/{slug}'.
- */
-function syncBasePath(siteDir: string, basePath: string, slug: string): void {
-  // Update next.config.ts
-  const configPath = join(siteDir, "next.config.ts");
-  if (existsSync(configPath)) {
-    let config = readFileSync(configPath, "utf-8");
-    config = config.replace(/basePath:\s*['"][^'"]*['"]/, `basePath: '${basePath}'`);
-    writeFileSync(configPath, config);
-  }
-
-  // Update SITE_BASE in data.ts
-  const dataPath = join(siteDir, "src", "lib", "data.ts");
-  if (existsSync(dataPath)) {
-    let data = readFileSync(dataPath, "utf-8");
-    data = data.replace(/export const SITE_BASE\s*=\s*['"][^'"]*['"]/, `export const SITE_BASE = '${basePath}'`);
-
-    // Rewrite image paths
-    const oldPrefix = `/sites/${slug}`;
-    if (basePath === "") {
-      // Custom domain: strip /sites/slug prefix from image paths
-      data = data.replace(new RegExp(escapeRegex(oldPrefix) + "(/images/)", "g"), "$1");
-    } else if (!data.includes(`${basePath}/images/`)) {
-      // No custom domain: ensure /images/ paths have the basePath prefix
-      // Only prefix bare /images/ that aren't already prefixed
-      data = data.replace(/(?<=["'])\/images\//g, `${basePath}/images/`);
-    }
-    writeFileSync(dataPath, data);
-  }
-
-  // Prefix bare /images/ paths in source files with basePath
-  // The AI agent sometimes writes src="/images/..." without using siteUrl()
-  const srcDir = join(siteDir, "src");
-  if (basePath && slug) {
-    const files = collectSourceFiles(srcDir);
-    let imgFixCount = 0;
-    for (const file of files) {
-      let content = readFileSync(file, "utf-8");
-      const original = content;
-      // Fix src="/images/..." → src="/sites/slug/images/..." (skip if already prefixed)
-      content = content.replace(
-        new RegExp(`src="(?!${escapeRegex(basePath)})/images/`, "g"),
-        `src="${basePath}/images/`
-      );
-      // Also fix href="/images/..." in case images are used as links
-      content = content.replace(
-        new RegExp(`href="(?!${escapeRegex(basePath)})/images/`, "g"),
-        `href="${basePath}/images/`
-      );
-      if (content !== original) {
-        writeFileSync(file, content);
-        imgFixCount++;
-      }
-    }
-    if (imgFixCount > 0) {
-      console.log(`[SiteBuilder] Prefixed bare /images/ paths in ${imgFixCount} source files`);
-    }
-  }
-
-  console.log(`[SiteBuilder] Synced basePath to '${basePath}' for slug '${slug}'`);
-}
-
-/**
- * Inject Analytics + CookieConsent components into layout.tsx if missing.
- * The agent sometimes forgets to import these — this ensures tracking always works.
- */
-function injectAnalytics(siteDir: string): void {
-  const layoutPath = join(siteDir, "src", "app", "layout.tsx");
-  if (!existsSync(layoutPath)) return;
-
-  let content = readFileSync(layoutPath, "utf-8");
-  let modified = false;
-
-  // Check if Analytics is already imported
-  if (!content.includes("Analytics") && existsSync(join(siteDir, "src", "components", "Analytics.tsx"))) {
-    // Add import at the top (after the last import line)
-    const lastImportIdx = content.lastIndexOf("\nimport ");
-    if (lastImportIdx !== -1) {
-      const endOfImportLine = content.indexOf("\n", lastImportIdx + 1);
-      content = content.slice(0, endOfImportLine + 1) +
-        "import Analytics from '@/components/Analytics'\n" +
-        content.slice(endOfImportLine + 1);
-    }
-
-    // Add <Analytics /> before the closing </body> tag
-    content = content.replace("</body>", "<Analytics />\n</body>");
-    modified = true;
-  }
-
-  // Check if CookieConsent is already imported
-  if (!content.includes("CookieConsent") && existsSync(join(siteDir, "src", "components", "CookieConsent.tsx"))) {
-    if (!content.includes("import CookieConsent")) {
-      const lastImportIdx = content.lastIndexOf("\nimport ");
-      if (lastImportIdx !== -1) {
-        const endOfImportLine = content.indexOf("\n", lastImportIdx + 1);
-        content = content.slice(0, endOfImportLine + 1) +
-          "import CookieConsent from '@/components/CookieConsent'\n" +
-          content.slice(endOfImportLine + 1);
-      }
-    }
-    content = content.replace("</body>", "<CookieConsent />\n</body>");
-    modified = true;
-  }
-
-  if (modified) {
-    writeFileSync(layoutPath, content);
-    console.log("[SiteBuilder] Injected Analytics + CookieConsent into layout.tsx");
-  }
-}
-
-/**
- * Fix hamburger menu: replace AnimatePresence with simple conditional render.
- * AnimatePresence with opacity:0 initial state makes the menu icon invisible
- * on static export because framer-motion JS hasn't hydrated yet.
- */
-function fixHamburgerMenu(siteDir: string): void {
-  const headerPath = join(siteDir, "src", "components", "Header.tsx");
-  if (!existsSync(headerPath)) return;
-
-  let content = readFileSync(headerPath, "utf-8");
-
-  // Detect the problematic pattern: AnimatePresence wrapping Menu/X icons with opacity:0
-  if (!content.includes("AnimatePresence") || !content.includes("Toggle menu")) return;
-
-  // Replace animated hamburger with simple conditional
-  const animatedPattern = /<AnimatePresence[^>]*>\s*\{isMobileMenuOpen\s*\?\s*\(\s*<motion\.div[\s\S]*?<X[\s\S]*?<\/motion\.div>\s*\)\s*:\s*\(\s*<motion\.div[\s\S]*?<Menu[\s\S]*?<\/motion\.div>\s*\)\s*\}\s*<\/AnimatePresence>/;
-
-  if (animatedPattern.test(content)) {
-    content = content.replace(animatedPattern, "{isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}");
-    writeFileSync(headerPath, content);
-    console.log("[SiteBuilder] Fixed hamburger menu: replaced AnimatePresence with simple conditional");
-  }
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/**
- * Recursively collect all .ts/.tsx files in a directory
- */
-function collectSourceFiles(dir: string, files: string[] = []): string[] {
-  if (!existsSync(dir)) return files;
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory() && entry.name !== "node_modules" && entry.name !== ".next") {
-      collectSourceFiles(full, files);
-    } else if (entry.isFile() && /\.(tsx?|jsx?)$/.test(entry.name)) {
-      files.push(full);
-    }
-  }
-  return files;
-}
-
-/**
- * Pre-build validation: scan all source files for @/ imports that don't resolve.
- * Auto-creates minimal stub files for missing modules so the build doesn't crash.
- * Returns the list of stubs created.
- */
-function validateAndFixImports(siteDir: string): string[] {
-  const srcDir = join(siteDir, "src");
-  const files = collectSourceFiles(srcDir);
-  const createdStubs: string[] = [];
-
-  // Collect all @/ imports across all files
-  const missingImports = new Set<string>();
-
-  for (const file of files) {
-    const content = readFileSync(file, "utf-8");
-    // Match: import ... from '@/...' or import ... from "@/..."
-    const importRegex = /from\s+['"]@\/([^'"]+)['"]/g;
-    let match;
-    while ((match = importRegex.exec(content)) !== null) {
-      const importPath = match[1]; // e.g. "components/Header" or "lib/data"
-      const resolvedBase = join(srcDir, importPath);
-
-      // Check if it resolves (with or without extensions)
-      const candidates = [
-        resolvedBase,
-        resolvedBase + ".ts",
-        resolvedBase + ".tsx",
-        resolvedBase + ".js",
-        resolvedBase + ".jsx",
-        join(resolvedBase, "index.ts"),
-        join(resolvedBase, "index.tsx"),
-      ];
-
-      if (!candidates.some(c => existsSync(c))) {
-        missingImports.add(importPath);
-      }
-    }
-  }
-
-  // Create stub files for missing imports
-  for (const importPath of missingImports) {
-    const isComponent = importPath.startsWith("components/");
-    const componentName = importPath.split("/").pop() || "Unknown";
-
-    // Determine file extension based on path
-    const ext = isComponent ? ".tsx" : ".ts";
-    const stubPath = join(srcDir, importPath + ext);
-
-    mkdirSync(dirname(stubPath), { recursive: true });
-
-    if (isComponent) {
-      // Create a minimal React component stub
-      const stub = `"use client";
-
-export default function ${componentName}(props: Record<string, unknown>) {
-  return <div data-component="${componentName}" />;
-}
-`;
-      writeFileSync(stubPath, stub, "utf-8");
-    } else {
-      // Create a minimal data/util stub with empty exports
-      writeFileSync(stubPath, `// Auto-generated stub for missing module: ${importPath}\nexport default {};\n`, "utf-8");
-    }
-
-    createdStubs.push(importPath);
-    console.log(`[SiteBuilder] Created stub for missing import: @/${importPath}`);
-  }
-
-  return createdStubs;
-}
-
-/**
- * Fix common syntax errors in generated data.ts
- * - Unescaped single quotes inside single-quoted strings
- */
-function fixDataSyntax(siteDir: string): void {
-  const dataPath = join(siteDir, "src", "lib", "data.ts");
-  if (!existsSync(dataPath)) return;
-
-  let content = readFileSync(dataPath, "utf-8");
-  const original = content;
-
-  // Fix single-quoted strings that contain unescaped apostrophes
-  // Match: 'text with unescaped ' inside'  →  "text with unescaped ' inside"
-  // Strategy: find lines with odd number of single quotes (broken strings) and switch to double quotes
-  const lines = content.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    // Count unescaped single quotes
-    const unescaped = line.replace(/\\'/g, "").match(/'/g);
-    if (unescaped && unescaped.length % 2 !== 0) {
-      // Odd number of single quotes — broken string. Convert to double quotes.
-      // Replace the first and last single quote with double quotes
-      const firstQ = line.indexOf("'");
-      const lastQ = line.lastIndexOf("'");
-      if (firstQ !== lastQ && firstQ >= 0) {
-        const before = line.substring(0, firstQ);
-        const middle = line.substring(firstQ + 1, lastQ).replace(/\\'/g, "'"); // unescape existing
-        const after = line.substring(lastQ + 1);
-        // Escape any double quotes in the middle
-        const escaped = middle.replace(/"/g, '\\"');
-        lines[i] = `${before}"${escaped}"${after}`;
-      }
-    }
-  }
-  content = lines.join("\n");
-
-  if (content !== original) {
-    writeFileSync(dataPath, content, "utf-8");
-    console.log("[SiteBuilder] Auto-fixed data.ts syntax (unescaped quotes)");
-  }
-}
-
-/**
- * Fix bare internal links (href="/about") that are missing the basePath prefix.
- * The agent sometimes writes href="/contact" instead of using siteUrl().
- * This ensures ALL internal links work correctly on subpath deployments.
- */
-function fixBareLinks(siteDir: string, basePath: string): void {
-  if (!basePath) return; // Custom domain — bare links are correct
-
-  const srcDir = join(siteDir, "src");
-  const files = collectSourceFiles(srcDir);
-  let fixCount = 0;
-  const escaped = escapeRegex(basePath);
-
-  for (const file of files) {
-    let content = readFileSync(file, "utf-8");
-    const original = content;
-
-    // Fix href="/" -> href="{basePath}/" (but not if already prefixed)
-    content = content.replace(
-      new RegExp(`href="(?!${escaped})/"`, "g"),
-      `href="${basePath}/"`
-    );
-
-    // Fix href="/word..." but NOT if already prefixed, and NOT /sites/, /_next/, /images/
-    content = content.replace(
-      new RegExp(`href="(?!${escaped})/(?!sites/|_next/|images/)([a-zA-Z][a-zA-Z0-9/-]*)`, "g"),
-      `href="${basePath}/$1`
-    );
-
-    // Fix href="/#hash" -> href="{basePath}/#hash" (hash links to homepage sections)
-    content = content.replace(
-      new RegExp(`href="(?!${escaped})/#`, "g"),
-      `href="${basePath}/#`
-    );
-
-    // Fix href="#" (bare hash) -> href="{basePath}/" (point to homepage)
-    content = content.replace(/href="#"/g, `href="${basePath}/"`);
-
-    // Fix template literal links: href={`/path`} and href={`/#hash`}
-    content = content.replace(
-      new RegExp("href=\\{`(?!" + escaped + ")/(?!sites/|_next/|images/)([a-zA-Z#][^`]*)`\\}", "g"),
-      `href={\`${basePath}/$1\`}`
-    );
-
-    if (content !== original) {
-      writeFileSync(file, content);
-      fixCount++;
-    }
-  }
-
-  if (fixCount > 0) {
-    console.log(`[SiteBuilder] Auto-fixed bare links in ${fixCount} files (basePath: ${basePath})`);
-  }
-}
+// Pre-build validators are now imported from @/lib/build-utils/validators
 
 /**
  * Build the site (npm install + next build)
@@ -468,7 +153,7 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
     });
 
     // Sync basePath in next.config.ts and SITE_BASE in data.ts
-    syncBasePath(siteDir, basePath, website?.slug || "");
+    syncBasePath(siteDir, basePath, website?.slug || "", "SITE_BASE", "src/lib/data.ts");
 
     // npm install — only if node_modules doesn't exist
     let installOutput = "";

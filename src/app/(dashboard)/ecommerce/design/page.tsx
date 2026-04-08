@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter as useNextRouter } from "next/navigation";
 import {
   Layout,
   LayoutGrid,
@@ -262,6 +263,7 @@ function getDefaultStoreContent(): StoreContent {
 // ── Page Component ───────────────────────────────────────────────────────────
 
 export default function EcommerceDesignPage() {
+  const v2Router = useNextRouter();
   // ── State ──────────────────────────────────────────────────────────────────
   const [store, setStore] = useState<Store | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("theme");
@@ -298,6 +300,13 @@ export default function EcommerceDesignPage() {
       const data = await res.json();
       if (data.success && data.data?.store) {
         const s = data.data.store;
+
+        // V2 stores use the new editor
+        if (s.generatorVersion === "v2") {
+          v2Router.replace("/ecommerce/design/v2");
+          return;
+        }
+
         setStore(s);
 
         // Parse theme

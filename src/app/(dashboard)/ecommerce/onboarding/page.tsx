@@ -31,6 +31,7 @@ import {
 import { REGIONS, getRegionForCountry, getRegionName } from "@/lib/constants/regions";
 
 import { StoreInfoStep } from "@/components/ecommerce/onboarding/store-info-step";
+import { ProductListingStep, type ProductEntry } from "@/components/ecommerce/onboarding/product-listing-step";
 import { AIBuildStep } from "@/components/ecommerce/onboarding/ai-build-step";
 import { PreviewStep } from "@/components/ecommerce/onboarding/preview-step";
 import { type StoreTemplateConfig } from "@/lib/constants/store-templates";
@@ -69,6 +70,7 @@ interface PaymentMethodSelection extends PaymentMethodConfig {
 
 const STEP_CONFIG = [
   { label: "Store Info", icon: Globe },
+  { label: "Products", icon: Package },
   { label: "AI Build", icon: Sparkles },
   { label: "Preview", icon: Eye },
   { label: "Payments", icon: CreditCard },
@@ -100,7 +102,10 @@ export default function OnboardingPage() {
   const [includeVariants, setIncludeVariants] = useState(true);
   const [heroMediaType, setHeroMediaType] = useState<"none" | "images" | "video">("none");
 
-  // Step 2: AI build
+  // Step 2: Products (V2)
+  const [onboardingProducts, setOnboardingProducts] = useState<ProductEntry[]>([]);
+
+  // Step 3: AI build
   const [aiBuildComplete, setAiBuildComplete] = useState(false);
   const [aiBlueprintData, setAiBlueprintData] = useState<{
     blueprint: { templateId: string; content: { hero: { headline: string; subheadline: string; ctaText: string }; about: { title: string; body: string } } };
@@ -304,7 +309,7 @@ export default function OnboardingPage() {
     fetchPreviewProducts();
 
     // Auto-advance to preview
-    setCurrentStep(2);
+    setCurrentStep(3);
   }
 
   async function generateProductImagesForBuild(productIds: string[]) {
@@ -586,14 +591,14 @@ export default function OnboardingPage() {
   }
 
   function goNext() {
-    if (currentStep < 5 && canGoNext()) setCurrentStep((s) => s + 1);
+    if (currentStep < 6 && canGoNext()) setCurrentStep((s) => s + 1);
   }
 
   function goBack() {
     if (currentStep > 0) {
       // Skip back over AI build step if already complete
-      if (currentStep === 2 && aiBuildComplete) {
-        setCurrentStep(0);
+      if (currentStep === 3 && aiBuildComplete) {
+        setCurrentStep(1);
       } else {
         setCurrentStep((s) => s - 1);
       }
@@ -679,8 +684,21 @@ export default function OnboardingPage() {
             />
           )}
 
-          {/* Step 2: AI Building Your Store */}
-          {currentStep === 1 && (
+          {/* Step 2: Products */}
+          {currentStep === 1 && store && (
+            <ProductListingStep
+              storeId={store.id}
+              industry={industry}
+              currency={currency}
+              products={onboardingProducts}
+              onProductsChange={setOnboardingProducts}
+              onNext={() => setCurrentStep(2)}
+              onBack={() => setCurrentStep(0)}
+            />
+          )}
+
+          {/* Step 3: AI Building Your Store */}
+          {currentStep === 2 && (
             <AIBuildStep
               storeName={storeName}
               industry={industry}
@@ -707,8 +725,8 @@ export default function OnboardingPage() {
             />
           )}
 
-          {/* Step 3: Preview & Customize */}
-          {currentStep === 2 && store && (
+          {/* Step 4: Preview & Customize */}
+          {currentStep === 3 && store && (
             <div>
               <div className="mb-4">
                 <h2 className="text-lg font-bold mb-1">Preview & Customize</h2>
@@ -733,8 +751,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 4: Payment Methods */}
-          {currentStep === 3 && (
+          {/* Step 5: Payment Methods */}
+          {currentStep === 4 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-lg font-bold mb-1">Payment Methods</h2>
@@ -796,8 +814,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 5: Store Domain */}
-          {currentStep === 4 && (
+          {/* Step 6: Store Domain */}
+          {currentStep === 5 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-lg font-bold mb-1">Store Domain</h2>
@@ -852,8 +870,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 6: Review & Launch */}
-          {currentStep === 5 && (
+          {/* Step 7: Review & Launch */}
+          {currentStep === 6 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-lg font-bold mb-1">Review & Launch</h2>
@@ -914,7 +932,7 @@ export default function OnboardingPage() {
       </Card>
 
       {/* Navigation Buttons */}
-      {currentStep < 5 && (
+      {currentStep < 6 && (
         <div className="flex justify-between mt-6">
           <Button
             variant="outline"
@@ -936,7 +954,7 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      {currentStep === 5 && (
+      {currentStep === 6 && (
         <div className="flex justify-start mt-6">
           <Button variant="outline" onClick={goBack}>
             <ChevronLeft className="h-4 w-4 mr-1" />

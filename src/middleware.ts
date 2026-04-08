@@ -111,12 +111,46 @@ export async function middleware(request: NextRequest) {
       return response;
     }
 
-    // STORE: /_next/ paths should pass through to Next.js (store uses app assets)
+    // STORE: Check if this is a V2 static store or V1 SSR store
+    const storeVersion = data.storeVersion || "ssr";
+
+    // V2 static stores: serve from /stores/{slug}/ (nginx static files)
+    // EXCEPT checkout/track/order-confirmation which stay SSR on the main app
+    if (storeVersion === "static") {
+      const isSSRPath = /\/(checkout|track|order-confirmation)(\/|$|\?)/.test(path);
+
+      if (isSSRPath) {
+        // Dynamic SSR paths route to main app /store/{slug}/...
+        const storePath = `/store/${slug}${path}`;
+        const rewriteUrl = new URL(storePath, request.url);
+        rewriteUrl.search = request.nextUrl.search;
+        const response = NextResponse.rewrite(rewriteUrl);
+        response.headers.set("x-custom-domain", hostname);
+        response.headers.set("x-store-slug", slug);
+        response.headers.set("x-domain-type", "store-v2-ssr");
+        return response;
+      }
+
+      // Static store files at /stores/{slug}/...
+      const storePrefix = `/stores/${slug}`;
+      const alreadyPrefixed = path.startsWith(storePrefix);
+      const storePath = alreadyPrefixed ? path : (path === "/" ? storePrefix : `${storePrefix}${path}`);
+      const rewriteUrl = new URL(storePath, request.url);
+      rewriteUrl.search = request.nextUrl.search;
+
+      const response = NextResponse.rewrite(rewriteUrl);
+      response.headers.set("x-custom-domain", hostname);
+      response.headers.set("x-store-slug", slug);
+      response.headers.set("x-domain-type", "store-v2");
+      return response;
+    }
+
+    // V1 SSR stores: /_next/ paths pass through to Next.js
     if (path.startsWith("/_next/")) {
       return NextResponse.next();
     }
 
-    // STORE: rewrite to /store/{slug}/...
+    // V1 SSR stores: rewrite to /store/{slug}/...
     const storePath = path === "/" ? `/store/${slug}` : `/store/${slug}${path}`;
     const rewriteUrl = new URL(storePath, request.url);
     rewriteUrl.search = request.nextUrl.search;

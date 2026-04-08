@@ -137,6 +137,9 @@ export const DEFAULT_CREDIT_COSTS = {
 
   // --- AI Website Builder ---
   AI_WEBSITE_GENERATE: 500,     // Full site generation with AI agent ($5.00 — Claude API + build + hosting)
+
+  // --- AI Store Builder V2 (Agent-based) ---
+  AI_STORE_GENERATE: 500,       // Full store generation with AI agent ($5.00 — Claude API + build + hosting)
 } as const;
 
 /**
@@ -201,6 +204,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_LISTING_SCAN: "AI listing scan",
   AI_PITCH_LOCAL_PRESENCE: "AI local presence pitch",
   AI_WEBSITE_GENERATE: "AI website generation ($5.00)",
+  AI_STORE_GENERATE: "AI store generation V2 ($5.00)",
 };
 
 /**

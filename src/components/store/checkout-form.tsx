@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -31,6 +31,7 @@ interface CheckoutFormProps {
   } | null;
   primaryColor: string;
   cancelled?: boolean;
+  cartData?: string; // Base64-encoded cart JSON from V2 static store redirect
 }
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -55,11 +56,30 @@ export function CheckoutForm({
   shippingConfig,
   primaryColor,
   cancelled,
+  cartData,
 }: CheckoutFormProps) {
   const router = useRouter();
   const stripe = useStripe();
   const elements = useElements();
-  const { items, subtotalCents, clearCart } = useCart();
+  const { items, subtotalCents, clearCart, addItem } = useCart();
+
+  // Hydrate cart from URL param (V2 static store redirect)
+  const [cartHydrated, setCartHydrated] = useState(false);
+  useEffect(() => {
+    if (cartData && !cartHydrated) {
+      try {
+        const decoded = JSON.parse(atob(cartData));
+        if (Array.isArray(decoded) && decoded.length > 0 && items.length === 0) {
+          for (const item of decoded) {
+            addItem(item);
+          }
+        }
+      } catch {
+        // Invalid cart data — ignore, user can shop normally
+      }
+      setCartHydrated(true);
+    }
+  }, [cartData, cartHydrated, items.length, addItem]);
 
   // Form state
   const [customerName, setCustomerName] = useState("");

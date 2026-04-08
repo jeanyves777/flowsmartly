@@ -6,12 +6,12 @@ import { StripeProvider } from "@/components/providers/stripe-provider";
 
 interface CheckoutPageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ cancelled?: string }>;
+  searchParams: Promise<{ cancelled?: string; cart?: string }>;
 }
 
 export default async function CheckoutPage({ params, searchParams }: CheckoutPageProps) {
   const { slug } = await params;
-  const { cancelled } = await searchParams;
+  const { cancelled, cart: cartParam } = await searchParams;
 
   const store = await prisma.store.findUnique({
     where: { slug },
@@ -66,6 +66,7 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
         shippingConfig={shippingConfig}
         primaryColor={primaryColor}
         cancelled={cancelled === "true"}
+        cartData={cartParam || undefined}
       />
     </StripeProvider>
   );

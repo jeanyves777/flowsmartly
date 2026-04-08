@@ -3188,6 +3188,15 @@ model Store {
   freeTrialEndsAt        DateTime?
   freeTrialRemindersSent String    @default("[]")        // JSON: ["day25","day28"]
 
+  // V2 Agent Builder (file-based generation, like Website Builder V3)
+  generatorVersion       String    @default("v1")    // "v1"=SSR blueprint, "v2"=agent-static
+  generatedPath          String?                      // path to generated-stores/{id}/
+  buildStatus            String    @default("idle")   // idle, building, built, error
+  lastBuildAt            DateTime?
+  lastBuildError         String?
+  siteData               String    @default("{}")     // cached parsed data for editor
+  storeVersion           String    @default("ssr")    // "ssr" or "static" — controls routing
+
   // Status
   isActive               Boolean   @default(false)
   setupComplete          Boolean   @default(false)

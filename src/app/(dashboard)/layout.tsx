@@ -360,7 +360,7 @@ export default function DashboardLayout({
           className={cn(
             "pt-16 transition-all duration-200",
             // Full-height pages get fixed height with no padding
-            pathname === "/tools/background-remover" || pathname === "/studio" || pathname === "/video-editor"
+            pathname === "/tools/background-remover" || pathname === "/studio" || pathname === "/video-editor" || pathname === "/ecommerce/design/v2"
               ? "h-screen overflow-hidden"
               : "min-h-screen",
             // Desktop: respect sidebar state
@@ -368,7 +368,7 @@ export default function DashboardLayout({
             !sidebarCollapsed && "md:pl-[280px]"
           )}
         >
-          {pathname === "/tools/background-remover" || pathname === "/studio" || pathname === "/video-editor" ? (
+          {pathname === "/tools/background-remover" || pathname === "/studio" || pathname === "/video-editor" || pathname === "/ecommerce/design/v2" ? (
             // Full-height pages: no padding, direct children
             <>
               {children}
