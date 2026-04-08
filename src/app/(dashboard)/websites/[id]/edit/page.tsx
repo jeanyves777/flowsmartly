@@ -204,7 +204,7 @@ export default function WebsiteEditPage() {
           <button onClick={() => router.push("/websites")} className="p-2 rounded-lg hover:bg-muted"><ArrowLeft className="w-4 h-4" /></button>
           <div>
             <h1 className="text-xl font-bold">{website.name}</h1>
-            <p className="text-xs text-muted-foreground">/sites/{website.slug}</p>
+            <p className="text-xs text-muted-foreground">{website.customDomain || `/sites/${website.slug}`}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -674,7 +674,7 @@ function DomainsTab({ websiteSlug }: { websiteSlug: string }) {
           Your site is currently accessible at:
         </p>
         <div className="p-3 bg-muted/30 rounded-lg border border-border mb-6">
-          <code className="text-sm font-mono">flowsmartly.com/sites/{websiteSlug}</code>
+          <code className="text-sm font-mono">{website?.customDomain || `flowsmartly.com/sites/${websiteSlug}`}</code>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
           To use a custom domain (e.g. <strong>yourbusiness.com</strong>), go to the Domains page to register a new domain or connect one you already own. Once set up, your website will be accessible at your custom domain.
