@@ -16,7 +16,7 @@ export const TEMPLATE_STORE_PACKAGE_JSON = `{
     "next": "15.3.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "framer-motion": "12.6.3",
+    "framer-motion": "12.38.0",
     "lucide-react": "0.475.0",
     "zustand": "5.0.3",
     "tailwindcss": "4.1.3",
