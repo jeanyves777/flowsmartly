@@ -20,7 +20,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     const website = await prisma.website.findFirst({
       where: { id, userId: session.userId, deletedAt: null },
-      select: { id: true, slug: true, generatedPath: true, brandKitId: true },
+      select: { id: true, slug: true, generatedPath: true, brandKitId: true, siteData: true },
     });
     if (!website) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -43,33 +43,49 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
             dataContent = dataContent.replace(regex, `$1"${escaped}"`);
           };
 
-          // Update company name
-          if (brandKit.name) replaceField("name", brandKit.name);
+          // Use siteData (editor values) first, fallback to brandKit
+          const siteData = website.siteData ? JSON.parse(website.siteData) : {};
+          const company = siteData.company || {};
+
+          // Update company name — editor value takes priority
+          const name = company.name || brandKit.name;
+          if (name) replaceField("name", name);
+
+          // Update tagline — editor value takes priority
+          const tagline = company.tagline || brandKit.tagline;
+          if (tagline) replaceField("tagline", tagline);
 
           // Update phone numbers
-          if (brandKit.phone) {
-            dataContent = dataContent.replace(
-              /phones:\s*\[.*?\]/s,
-              `phones: ["${brandKit.phone.replace(/"/g, '\\"')}"]`
-            );
+          const phones = company.phones || (brandKit.phone ? [brandKit.phone] : null);
+          if (phones?.length) {
+            const items = phones.map((v: string) => `"${v.replace(/"/g, '\\"')}"`).join(", ");
+            dataContent = dataContent.replace(/phones:\s*\[.*?\]/s, `phones: [${items}]`);
           }
 
           // Update emails
-          if (brandKit.email) {
-            dataContent = dataContent.replace(
-              /emails:\s*\[.*?\]/s,
-              `emails: ["${brandKit.email.replace(/"/g, '\\"')}"]`
-            );
+          const emails = company.emails || (brandKit.email ? [brandKit.email] : null);
+          if (emails?.length) {
+            const items = emails.map((v: string) => `"${v.replace(/"/g, '\\"')}"`).join(", ");
+            dataContent = dataContent.replace(/emails:\s*\[.*?\]/s, `emails: [${items}]`);
           }
 
           // Update address
-          if (brandKit.address) {
-            const fullAddress = [brandKit.address, brandKit.city, brandKit.state, brandKit.country].filter(Boolean).join(", ");
+          const address = company.address || brandKit.address;
+          if (address) {
+            const city = company.city || brandKit.city;
+            const state = company.state || brandKit.state;
+            const country = company.country || brandKit.country;
+            const fullAddress = [address, city, state, country].filter(Boolean).join(", ");
             replaceField("address", fullAddress);
           }
 
-          // Update tagline
-          if (brandKit.tagline) replaceField("tagline", brandKit.tagline);
+          // Update other fields from editor
+          if (company.shortName) replaceField("shortName", company.shortName);
+          if (company.description) replaceField("description", company.description);
+          if (company.about) replaceField("about", company.about);
+          if (company.mission) replaceField("mission", company.mission);
+          if (company.ctaText) replaceField("ctaText", company.ctaText);
+          if (company.ctaUrl) replaceField("ctaUrl", company.ctaUrl);
 
           writeFileSync(dataPath, dataContent);
           console.log(`[Rebuild] Updated data.ts from brand kit for ${website.slug}`);
