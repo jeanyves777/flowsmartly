@@ -241,9 +241,13 @@ const SYSTEM_PROMPT = `You are a professional e-commerce store developer. You bu
 - Components are "use client" when using hooks/motion
 - Icons from lucide-react
 - Images use <img> tags (static export)
-- CRITICAL: NEVER use generateStaticParams() in a "use client" page — they conflict in Next.js 15
-- Product detail and category pages are "use client" (they use useState/useEffect) so do NOT add generateStaticParams
-- For static export (output: 'export'), dynamic routes work without generateStaticParams
+- CRITICAL: Dynamic [slug] routes with output:'export' need generateStaticParams() BUT it CANNOT be in a "use client" file
+- PATTERN FOR DYNAMIC ROUTES: Split into TWO files:
+  1. page.tsx (SERVER component, NO "use client"): exports generateStaticParams() + renders the client component
+  2. ProductDetailClient.tsx or CategoryClient.tsx ("use client"): all the interactive UI with hooks/state
+- Example page.tsx: import products from data, export generateStaticParams returning slugs, default export renders <ProductDetailClient params={params} />
+- Example ProductDetailClient.tsx: "use client", useState, motion, all the UI
+- The reference store shows this exact pattern — read it before writing dynamic route pages
 
 ### String Escaping in data.ts (CRITICAL):
 - Use double-quoted strings for text with apostrophes: "What's New" NOT 'What's New'
