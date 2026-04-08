@@ -148,29 +148,9 @@ function syncBasePath(siteDir: string, basePath: string, slug: string): void {
     writeFileSync(dataPath, data);
   }
 
-  // Rewrite ALL hardcoded /sites/{slug} references in source files
+  // Rewrite image paths in source files if needed
   const srcDir = join(siteDir, "src");
   const oldPrefix = `/sites/${slug}`;
-  if (basePath === "" && slug) {
-    // Custom domain: strip ALL /sites/{slug} from source files (links, images, everything)
-    const files = collectSourceFiles(srcDir);
-    const prefixPattern = new RegExp(escapeRegex(oldPrefix) + "/", "g");
-    const prefixExactPattern = new RegExp(escapeRegex(oldPrefix) + '"', "g");
-    let fileCount = 0;
-    for (const file of files) {
-      let content = readFileSync(file, "utf-8");
-      const original = content;
-      content = content.replace(prefixPattern, "/");
-      content = content.replace(prefixExactPattern, '/"');
-      if (content !== original) {
-        writeFileSync(file, content);
-        fileCount++;
-      }
-    }
-    if (fileCount > 0) {
-      console.log(`[SiteBuilder] Stripped ${oldPrefix} from ${fileCount} source files (custom domain mode)`);
-    }
-  }
 
   console.log(`[SiteBuilder] Synced basePath to '${basePath}' for slug '${slug}'`);
 }
@@ -379,8 +359,10 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
       where: { id: websiteId },
       select: { slug: true, customDomain: true },
     });
-    const hasCustomDomain = !!website?.customDomain;
-    const basePath = hasCustomDomain ? "" : `/sites/${website?.slug || websiteId}`;
+    // Always use /sites/{slug} basePath — custom domain routing is handled by
+    // the middleware rewrite, not by changing basePath. This keeps preview working
+    // on flowsmartly.com and custom domain serving working simultaneously.
+    const basePath = `/sites/${website?.slug || websiteId}`;
 
     // Update build status
     await prisma.website.update({

@@ -2,14 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { purgeZoneCache } from "@/lib/domains/cloudflare-client";
-import { buildSite, deploySite } from "@/lib/website/site-builder";
-import { readdirSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
-
-const SITES_OUTPUT =
-  process.platform === "win32"
-    ? "C:\\Users\\koffi\\Dev\\flowsmartly\\sites-output"
-    : "/var/www/flowsmartly/sites-output";
 
 /**
  * PATCH /api/domains/[id]/settings
@@ -104,12 +96,6 @@ export async function PATCH(
       });
       needsCachePurge = true;
       actionMessage = `${domain.domainName} is now serving your website`;
-
-      // Instant fix: strip basePath prefix from deployed HTML so site works immediately
-      stripBasePathFromSite(website.slug);
-
-      // Full rebuild in background: properly regenerates with basePath='' for all paths
-      triggerWebsiteRebuild(website.id, website.slug);
     } else if (body.linkToWebsite === null) {
       // Find websites using this domain before unlinking
       const linkedWebsites = await prisma.website.findMany({
@@ -123,13 +109,6 @@ export async function PATCH(
       });
       needsCachePurge = true;
       actionMessage = "Website unlinked from domain";
-
-      // Instant fix: restore basePath prefix so /sites/slug/ access works
-      for (const ws of linkedWebsites) {
-        addBasePathToSite(ws.slug);
-        // Full rebuild in background
-        triggerWebsiteRebuild(ws.id, ws.slug);
-      }
     }
 
     // Link to website by linkToWebsite=null is handled above
@@ -175,90 +154,9 @@ export async function PATCH(
   }
 }
 
-/**
- * Strip /sites/{slug} prefix from all links in deployed HTML files.
- * Called when a custom domain is linked — links become /about instead of /sites/slug/about.
- * Instant, no rebuild needed, no credits used.
- */
-function stripBasePathFromSite(slug: string) {
-  try {
-    const siteDir = join(SITES_OUTPUT, slug);
-    const prefix = `/sites/${slug}`;
-    const files = readdirSync(siteDir).filter((f) => f.endsWith(".html"));
-    let fixed = 0;
-
-    for (const file of files) {
-      const fp = join(siteDir, file);
-      let content = readFileSync(fp, "utf-8");
-      const orig = content;
-
-      // Strip prefix from href="/sites/slug/..." and href="/sites/slug"
-      content = content.split(prefix + "/").join("/");
-      // Handle href="/sites/slug" (without trailing slash) → href="/"
-      content = content.split(prefix + '"').join('/"');
-
-      if (content !== orig) {
-        writeFileSync(fp, content);
-        fixed++;
-      }
-    }
-
-    console.log(`[DomainSettings] Stripped basePath from ${fixed} files for ${slug}`);
-  } catch (err) {
-    console.error(`[DomainSettings] Failed to strip basePath for ${slug}:`, err);
-  }
-}
-
-/**
- * Fire-and-forget: full rebuild + deploy when domain is linked/unlinked.
- * This properly regenerates the site with the correct basePath, SITE_BASE,
- * image paths, and all internal links. Runs after the instant fix.
- */
-function triggerWebsiteRebuild(websiteId: string, slug: string) {
-  (async () => {
-    console.log(`[DomainSettings] Full rebuild for ${slug} after domain change`);
-    const result = await buildSite(websiteId);
-    if (result.success) {
-      await deploySite(websiteId, slug);
-      console.log(`[DomainSettings] Rebuild + deploy succeeded for ${slug}`);
-    } else {
-      console.error(`[DomainSettings] Rebuild failed for ${slug}:`, result.error?.substring(0, 200));
-    }
-  })().catch((err) => console.error("[DomainSettings] Rebuild error:", err));
-}
-
-/**
- * Restore /sites/{slug} prefix to all bare links in deployed HTML files.
- * Called when a custom domain is unlinked — links become /sites/slug/about again.
- * Instant, no rebuild needed, no credits used.
- */
-function addBasePathToSite(slug: string) {
-  try {
-    const siteDir = join(SITES_OUTPUT, slug);
-    const prefix = `/sites/${slug}`;
-    const files = readdirSync(siteDir).filter((f) => f.endsWith(".html"));
-    let fixed = 0;
-
-    for (const file of files) {
-      const fp = join(siteDir, file);
-      let content = readFileSync(fp, "utf-8");
-      const orig = content;
-
-      // Add prefix to bare href="/" → href="/sites/slug/"
-      // But skip /_next/, /images/, http, mailto, tel, #
-      content = content.replace(
-        /href="\/(?!_next\/|images\/|sites\/|api\/|favicon|logo|icon|mailto|tel)([^"]*?)"/g,
-        `href="${prefix}/$1"`
-      );
-
-      if (content !== orig) {
-        writeFileSync(fp, content);
-        fixed++;
-      }
-    }
-
-    console.log(`[DomainSettings] Restored basePath in ${fixed} files for ${slug}`);
-  } catch (err) {
-    console.error(`[DomainSettings] Failed to restore basePath for ${slug}:`, err);
-  }
-}
+// No rebuild or link manipulation needed when linking/unlinking domains.
+// basePath is always '/sites/{slug}' — the middleware handles custom domain
+// routing by rewriting all paths transparently. This means:
+// - Preview on flowsmartly.com: works (paths use /sites/slug/...)
+// - Custom domain: middleware rewrites / → /sites/slug/, works
+// - No broken states during link/unlink
