@@ -212,10 +212,14 @@ const SYSTEM_PROMPT = `You are a professional e-commerce store developer. You bu
 - Logo sizing: Header h-16 sm:h-20, Footer h-20, max-w-[200px] object-contain (NEVER h-8/h-10)
 - Favicon in layout.tsx: MUST use exact downloaded file extension
 
-### Image Paths (CRITICAL):
-- All <img src="..."> paths MUST include the storeBasePath prefix
-- The download_image tool returns paths WITH the prefix already included
-- In products.ts: all product image URLs use storeUrl('/images/products/...')
+### Image Paths (CRITICAL — read carefully):
+- The download_image tool returns BARE paths like "/images/products/lamp.jpg"
+- Use these paths DIRECTLY in src="" attributes: src="/images/products/lamp.jpg"
+- Do NOT wrap image paths in storeUrl() — that causes double-prefixing
+- The pre-build system (syncBasePath) automatically adds the basePath prefix to all /images/ paths
+- storeUrl() is ONLY for navigation links (href), NEVER for image src
+- In data.ts: logoUrl: "/images/brand/logo.jpg" (NOT storeUrl("/images/..."))
+- In products.ts: url: "/images/products/lamp.jpg" (NOT storeUrl("/images/..."))
 
 ### Footer (CRITICAL — legal requirement):
 - Footer MUST render ALL footerLinks — NEVER use .slice() to limit
@@ -375,10 +379,16 @@ async function executeTool(name: string, input: Record<string, unknown>, ctx: St
 
       try {
         const localPath = await downloadImageToStoreDir(url, ctx.siteDir, category, filename);
-        const fullPath = `/stores/${ctx.storeSlug}${localPath}`;
-        return JSON.stringify({ success: true, localPath: fullPath });
+        // Return the bare path (e.g. "/images/products/lamp.jpg") — NOT prefixed with basePath.
+        // The agent should use this path directly in src="" attributes.
+        // The pre-build validator syncBasePath() will add the basePath prefix automatically.
+        return JSON.stringify({
+          success: true,
+          localPath: localPath,
+          usage: `Use as: src="${localPath}" — do NOT wrap in storeUrl(). The build system auto-prefixes image paths.`,
+        });
       } catch (err: any) {
-        return JSON.stringify({ error: err.message, localPath: `/stores/${ctx.storeSlug}/images/${category}/placeholder.jpg` });
+        return JSON.stringify({ error: err.message, localPath: `/images/${category}/placeholder.jpg` });
       }
     }
 
