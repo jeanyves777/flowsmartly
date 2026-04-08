@@ -5,10 +5,11 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, ExternalLink, RefreshCw, Loader2, Check, AlertCircle, Globe,
   FileText, Save, Plus, Trash2, Link2, Upload, X, Image as ImageIcon,
-  Phone, Mail, MapPin, Star, Users, MessageSquare, HelpCircle, Flag, AlertTriangle,
+  Phone, Mail, MapPin, Star, Users, MessageSquare, HelpCircle, Flag, AlertTriangle, Sparkles,
 } from "lucide-react";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { SectionUpdater } from "@/components/shared/section-updater";
 
 interface Website {
   id: string; name: string; slug: string; status: string; buildStatus: string;
@@ -179,20 +180,21 @@ export default function WebsiteEditPage() {
 
   const busy = rebuilding || fixingLinks || saving;
   // Build tabs dynamically from detected pages + data sections
+  const hasImageHero = !!(data?.heroImages?.length || data?.logo);
   const tabs: Array<{ id: string; label: string; icon: any }> = [
     { id: "preview", label: "Preview", icon: Globe },
-    { id: "hero", label: "Hero & Branding", icon: ImageIcon },
-    { id: "company", label: "Company", icon: FileText },
   ];
+  if (hasImageHero) tabs.push({ id: "hero", label: "Hero & Branding", icon: ImageIcon });
+  tabs.push({ id: "company", label: "Company", icon: FileText });
   if (data?.services?.length) tabs.push({ id: "services", label: "Services", icon: Star });
   if (data?.team?.length || pages.some((p) => p.slug === "team")) tabs.push({ id: "team", label: "Team", icon: Users });
   if (data?.testimonials?.length || pages.some((p) => p.slug === "testimonials")) tabs.push({ id: "reviews", label: "Reviews", icon: MessageSquare });
   if (data?.faq?.length || pages.some((p) => p.slug === "faq")) tabs.push({ id: "faq", label: "FAQ", icon: HelpCircle });
   if (data?.blogPosts?.length || pages.some((p) => p.slug === "blog")) tabs.push({ id: "blog", label: "Blog", icon: FileText });
   if (data?.galleryImages?.length || pages.some((p) => p.slug === "gallery")) tabs.push({ id: "gallery", label: "Gallery", icon: ImageIcon });
+  tabs.push({ id: "ai-update", label: "AI Update", icon: Sparkles });
   tabs.push({ id: "links", label: "Links", icon: Link2 });
   tabs.push({ id: "domains", label: "Domains", icon: Globe });
-  tabs.push({ id: "build", label: "Build", icon: RefreshCw });
 
   return (
     <div className="pb-20">
@@ -585,6 +587,28 @@ export default function WebsiteEditPage() {
               <p><strong>CTA button:</strong> Edit in the Company tab under "Call-to-Action Button"</p>
             </div>
           </Section>
+        </div>
+      )}
+
+      {/* AI Section Update */}
+      {activeTab === "ai-update" && (
+        <div className="space-y-6">
+          <SectionUpdater
+            apiBase={`/api/websites/${id}/update-section`}
+            onUpdated={() => rebuild()}
+          />
+          <div className="rounded-lg border border-border bg-muted/30 p-4">
+            <h3 className="text-sm font-semibold mb-2">What can AI update?</h3>
+            <ul className="text-xs text-muted-foreground space-y-1.5">
+              <li>Change layouts, colors, fonts, spacing</li>
+              <li>Add new content sections or features</li>
+              <li>Update hero images, slideshow, animations</li>
+              <li>Modify navigation, footer, header</li>
+              <li>Add registration forms, contact forms</li>
+              <li>Update company info, stats, team members</li>
+              <li>Any design or content change you can describe</li>
+            </ul>
+          </div>
         </div>
       )}
 

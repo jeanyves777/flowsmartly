@@ -38,10 +38,11 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { SectionUpdater } from "@/components/shared/section-updater";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = "theme" | "layout" | "sections" | "content" | "policies";
+type TabId = "theme" | "layout" | "sections" | "content" | "policies" | "ai-update";
 
 interface ThemeColors {
   primary: string;
@@ -205,6 +206,7 @@ const TABS: { id: TabId; label: string; icon: typeof Palette }[] = [
   { id: "sections", label: "Sections", icon: Layout },
   { id: "content", label: "Content", icon: Type },
   { id: "policies", label: "Policies", icon: FileText },
+  { id: "ai-update", label: "AI Update", icon: Sparkles },
 ];
 
 // ── Defaults ─────────────────────────────────────────────────────────────────
@@ -2119,7 +2121,32 @@ export default function EcommerceDesignPage() {
               </div>
             )}
 
-            {/* ── Bottom Save Button (always visible) ─────────────────────── */}
+            {/* AI Section Update */}
+            {activeTab === "ai-update" && store && (
+              <div className="space-y-4">
+                <SectionUpdater
+                  apiBase={`/api/ecommerce/store/${store.id}/update-section`}
+                  onUpdated={() => {
+                    // Trigger preview refresh
+                    if (iframeRef.current) iframeRef.current.src = iframeRef.current.src;
+                  }}
+                />
+                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                  <h3 className="text-sm font-semibold mb-2">What can AI update?</h3>
+                  <ul className="text-xs text-muted-foreground space-y-1.5">
+                    <li>Change hero layout, images, animations</li>
+                    <li>Update product grid layout and card design</li>
+                    <li>Modify header, footer, navigation</li>
+                    <li>Add new sections (testimonials, features, etc.)</li>
+                    <li>Update colors, fonts, spacing</li>
+                    <li>Any design or content change you describe</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* ── Bottom Save Button (always visible, hide on AI tab) ─── */}
+            {activeTab !== "ai-update" && (
             <div className="flex justify-end pt-2">
               <button
                 onClick={handleSave}
@@ -2130,6 +2157,7 @@ export default function EcommerceDesignPage() {
                 Save & Refresh
               </button>
             </div>
+            )}
           </div>
         </div>
 
