@@ -15,6 +15,7 @@ import {
   initStoreDir, writeStoreFile, buildStore, deployStore, getStoreDir,
   initStoreDirV3, buildStoreV3, deployStoreV3,
 } from "./store-site-builder";
+import { cleanupV3Patterns } from "@/lib/build-utils/validators";
 import { searchProductImages, downloadImageToStoreDir } from "./image-search";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -1115,9 +1116,9 @@ export async function runStoreAgentV3(
       );
 
       if (toolUseBlocks.length === 0) {
-        console.log("[StoreAgent:V3] No more tool calls, done");
-        onProgress?.({ step: "Store ready!", toolCalls, done: true });
-        return { success: true };
+        // Agent stopped without calling build_store — auto-build
+        console.log("[StoreAgent:V3] No more tool calls — auto-building...");
+        break; // Fall through to the auto-build block below the loop
       }
 
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
@@ -1159,9 +1160,47 @@ export async function runStoreAgentV3(
       messages.push({ role: "user", content: toolResults });
     }
 
-    console.warn("[StoreAgent:V3] Max iterations reached");
-    onProgress?.({ step: "Store ready!", toolCalls, done: true });
-    return { success: true };
+    // Max iterations reached — agent wrote files but didn't call build_store/finish
+    // Auto-build and deploy so the user isn't stuck
+    console.warn(`[StoreAgent:V3] Max iterations reached (${toolCalls} tool calls). Auto-building...`);
+    onProgress?.({ step: "Finalizing store...", toolCalls, done: false });
+
+    try {
+      // Run V3 cleanup validator before building
+      cleanupV3Patterns(siteDir);
+
+      const buildResult = await buildStoreV3(storeId);
+      if (buildResult.success) {
+        onProgress?.({ step: "Deploying store...", toolCalls, done: false });
+        const deployResult = await deployStoreV3(storeId, storeSlug);
+        if (deployResult.success) {
+          await syncProductsToDB(storeId, siteDir);
+          onProgress?.({ step: "Store ready!", toolCalls, done: true });
+          return { success: true };
+        } else {
+          // Deploy failed but build succeeded — set error with details
+          await prisma.store.update({
+            where: { id: storeId },
+            data: { buildStatus: "error", lastBuildError: `Deploy failed: ${deployResult.error}` },
+          });
+          return { success: false, error: deployResult.error };
+        }
+      } else {
+        // Build failed — set error so UI shows it
+        await prisma.store.update({
+          where: { id: storeId },
+          data: { buildStatus: "error", lastBuildError: buildResult.error?.substring(0, 2000) },
+        });
+        return { success: false, error: buildResult.error };
+      }
+    } catch (buildErr: any) {
+      console.error("[StoreAgent:V3] Auto-build failed:", buildErr.message);
+      await prisma.store.update({
+        where: { id: storeId },
+        data: { buildStatus: "error", lastBuildError: `Auto-build failed: ${buildErr.message}` },
+      });
+      return { success: false, error: buildErr.message };
+    }
   } catch (err: any) {
     console.error("[StoreAgent:V3] Fatal error:", err.message);
     await prisma.store.update({

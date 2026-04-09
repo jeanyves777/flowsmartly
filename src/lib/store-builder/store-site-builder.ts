@@ -38,6 +38,7 @@ import {
   injectAnalytics,
   fixProductImages,
   fixGenerateStaticParams,
+  cleanupV3Patterns,
 } from "@/lib/build-utils/validators";
 import {
   allocatePort,
@@ -399,8 +400,8 @@ export async function buildStoreV3(storeId: string): Promise<{ success: boolean;
     }
 
     // 2. Pre-build validators (SSR-applicable only)
-    // Skip: syncBasePath (no basePath), fixBareLinks (no basePath prefix),
-    //        fixProductImages (no basePath), fixGenerateStaticParams (SSR handles natively)
+    // Skip: syncBasePath, fixBareLinks, fixProductImages, fixGenerateStaticParams
+    cleanupV3Patterns(storeDir); // Remove storeUrl/siteUrl/STORE_BASE left by agent
     const stubs = validateAndFixImports(storeDir);
     if (stubs.length > 0) {
       console.log(`[StoreBuilder:V3] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);

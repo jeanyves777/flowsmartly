@@ -724,9 +724,8 @@ export async function runWebsiteAgentV3(
       );
 
       if (toolUseBlocks.length === 0) {
-        console.log("[Agent:V3] No more tool calls, done");
-        onProgress?.({ step: "Website ready!", toolCalls, done: true });
-        return { success: true };
+        console.log("[Agent:V3] No more tool calls — auto-building...");
+        break; // Fall through to auto-build
       }
 
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
@@ -807,9 +806,44 @@ export async function runWebsiteAgentV3(
       messages.push({ role: "user", content: toolResults });
     }
 
-    console.warn("[Agent:V3] Max iterations reached");
-    onProgress?.({ step: "Website ready!", toolCalls, done: true });
-    return { success: true };
+    // Max iterations reached — auto-build
+    console.warn(`[Agent:V3] Max iterations reached (${toolCalls} tool calls). Auto-building...`);
+    onProgress?.({ step: "Finalizing website...", toolCalls, done: false });
+
+    try {
+      const { cleanupV3Patterns } = await import("@/lib/build-utils/validators");
+      cleanupV3Patterns(siteDir);
+
+      const buildResult = await buildSiteV3(websiteId);
+      if (buildResult.success) {
+        onProgress?.({ step: "Deploying website...", toolCalls, done: false });
+        const deployResult = await deploySiteV3(websiteId, websiteSlug);
+        if (deployResult.success) {
+          await syncPagesFromOutput(websiteId, websiteSlug, siteDir);
+          onProgress?.({ step: "Website ready!", toolCalls, done: true });
+          return { success: true };
+        } else {
+          await prisma.website.update({
+            where: { id: websiteId },
+            data: { buildStatus: "error", lastBuildError: `Deploy failed: ${deployResult.error}` },
+          });
+          return { success: false, error: deployResult.error };
+        }
+      } else {
+        await prisma.website.update({
+          where: { id: websiteId },
+          data: { buildStatus: "error", lastBuildError: buildResult.error?.substring(0, 2000) },
+        });
+        return { success: false, error: buildResult.error };
+      }
+    } catch (buildErr: any) {
+      console.error("[Agent:V3] Auto-build failed:", buildErr.message);
+      await prisma.website.update({
+        where: { id: websiteId },
+        data: { buildStatus: "error", lastBuildError: `Auto-build failed: ${buildErr.message}` },
+      });
+      return { success: false, error: buildErr.message };
+    }
   } catch (err: any) {
     console.error("[Agent:V3] Fatal error:", err.message);
     await prisma.website.update({

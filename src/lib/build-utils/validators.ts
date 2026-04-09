@@ -484,3 +484,57 @@ export default function ${componentName}({ params }: ${paramsType}) {
     console.log(`[BuildUtils] Fixed ${fixCount} pages with "use client" + generateStaticParams conflict`);
   }
 }
+
+// ─── V3 SSR Cleanup ─────────────────────────────────────────────────────────
+
+/**
+ * Clean up V2 patterns that agents sometimes leave in V3 SSR stores.
+ * V3 stores have NO basePath, NO storeUrl/siteUrl, NO STORE_BASE/SITE_BASE.
+ *
+ * Fixes:
+ * 1. Remove storeUrl()/siteUrl() wrapper from href values → bare paths
+ * 2. Remove STORE_BASE/SITE_BASE declarations
+ * 3. Remove storeUrl/siteUrl imports from components
+ * 4. Replace <a> tags with internal hrefs to use bare paths (agent should use <Link> but some don't)
+ * 5. Remove generateStaticParams exports (SSR doesn't need them)
+ */
+export function cleanupV3Patterns(siteDir: string): void {
+  const srcDir = join(siteDir, "src");
+  if (!existsSync(srcDir)) return;
+
+  const files = collectSourceFiles(srcDir);
+  let fixCount = 0;
+
+  for (const file of files) {
+    let content = readFileSync(file, "utf-8");
+    const original = content;
+
+    // 1. Replace storeUrl("/path") or siteUrl("/path") → "/path"
+    content = content.replace(/(?:storeUrl|siteUrl)\(\s*(['"`])(.*?)\1\s*\)/g, '$1$2$1');
+
+    // 2. Remove STORE_BASE/SITE_BASE declarations
+    content = content.replace(/export\s+const\s+(?:STORE_BASE|SITE_BASE)\s*=\s*['"`].*?['"`];?\s*\n?/g, "");
+
+    // 3. Remove storeUrl/siteUrl function declarations
+    content = content.replace(/export\s+function\s+(?:storeUrl|siteUrl)\s*\([^)]*\)\s*(?::\s*string\s*)?\{[^}]*\}\s*\n?/g, "");
+
+    // 4. Remove storeUrl/siteUrl from import statements
+    // e.g. import { storeInfo, storeUrl } from "@/lib/data" → import { storeInfo } from "@/lib/data"
+    content = content.replace(/,\s*(?:storeUrl|siteUrl)\s*(?=[,}])/g, "");
+    content = content.replace(/(?:storeUrl|siteUrl)\s*,\s*/g, "");
+    // If it was the only import: import { storeUrl } from ... → remove entire line
+    content = content.replace(/import\s*\{\s*(?:storeUrl|siteUrl)\s*\}\s*from\s*['"].*?['"];?\s*\n?/g, "");
+
+    // 5. Remove empty import {} lines left after cleanup
+    content = content.replace(/import\s*\{\s*\}\s*from\s*['"].*?['"];?\s*\n?/g, "");
+
+    if (content !== original) {
+      writeFileSync(file, content, "utf-8");
+      fixCount++;
+    }
+  }
+
+  if (fixCount > 0) {
+    console.log(`[BuildUtils] V3 cleanup: fixed ${fixCount} files (removed storeUrl/siteUrl/STORE_BASE patterns)`);
+  }
+}

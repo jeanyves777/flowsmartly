@@ -34,6 +34,7 @@ import {
   fixHamburgerMenu,
   injectAnalytics,
   fixGenerateStaticParams,
+  cleanupV3Patterns,
 } from "@/lib/build-utils/validators";
 import {
   allocatePort,
@@ -378,6 +379,7 @@ export async function buildSiteV3(websiteId: string): Promise<{ success: boolean
     }
 
     // SSR-applicable validators only
+    cleanupV3Patterns(siteDir); // Remove siteUrl/SITE_BASE left by agent
     const stubs = validateAndFixImports(siteDir);
     if (stubs.length > 0) {
       console.log(`[SiteBuilder:V3] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);

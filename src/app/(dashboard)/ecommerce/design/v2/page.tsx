@@ -624,7 +624,19 @@ export default function StoreEditorV2Page() {
                       setBuildStep("");
                       return;
                     }
+                    let pollCount = 0;
+                    const maxPolls = 120; // 10 minutes at 5s intervals
+                    const steps = [
+                      "Reading your brand identity...",
+                      "Downloading product images...",
+                      "Writing store pages...",
+                      "Building checkout and account pages...",
+                      "Generating components...",
+                      "Compiling your store...",
+                      "Almost done...",
+                    ];
                     const poll = setInterval(async () => {
+                      pollCount++;
                       const s = await fetch(`/api/ecommerce/store/${store.id}/generate`);
                       const d = await s.json();
                       if (d.buildStatus === "built") {
@@ -638,8 +650,15 @@ export default function StoreEditorV2Page() {
                         setUpgrading(false);
                         setBuildStep("");
                         setBuildResult({ type: "error", message: d.lastBuildError || "Rebuild failed" });
+                      } else if (pollCount >= maxPolls) {
+                        clearInterval(poll);
+                        setUpgrading(false);
+                        setBuildStep("");
+                        setBuildResult({ type: "error", message: "Build is taking longer than expected. Check the Build tab for status." });
                       } else {
-                        setBuildStep("Rebuilding your store...");
+                        // Show progressive step messages
+                        const stepIdx = Math.min(Math.floor(pollCount / 17), steps.length - 1);
+                        setBuildStep(steps[stepIdx]);
                       }
                     }, 5000);
                   } catch (err: any) {
