@@ -488,21 +488,24 @@ async function rewriteComponent(filePath: string, currentCode: string, prompt: s
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 16000,
-      system: `You are updating a React component for a Next.js website.
+      system: `You are updating a React component for a Next.js STATIC EXPORT website.
 
 RULES:
 - Return ONLY the updated file content (no markdown fences, no explanations)
 - Keep "use client" if present
-- Keep all existing imports, add new ones if needed
 - Use Tailwind CSS for styling
 - basePath is "${basePath}" — all internal href links must start with "${basePath}/"
 - All image src paths must start with "${basePath}/images/" or use the exact paths provided
-- Keep responsive design, dark mode support, animations
+- Keep responsive design, dark mode support
 - Preserve the component name and export
-- CRITICAL: Do NOT use AnimatePresence or motion.div with initial opacity:0 for ANY visible element
-- On static export, elements with opacity:0 stay invisible until JS hydrates
-- Use CSS transitions (transition-opacity) instead of framer-motion for slideshow/carousel
-- The first slide/image MUST render visible (opacity:1) in the initial HTML without JavaScript`,
+
+CRITICAL STATIC EXPORT RULES (MUST FOLLOW):
+- NEVER use framer-motion (motion.div, motion.span, AnimatePresence) for ANY visible content
+- ALL text, images, buttons MUST be visible in the initial HTML without JavaScript
+- For slideshows: render ALL slides using .map(), absolutely positioned, use Tailwind opacity-100/opacity-0 + transition-opacity for fading
+- For animations: use Tailwind animate-* classes or CSS @keyframes, NOT framer-motion
+- The page must look complete and styled with ZERO JavaScript loaded
+- useState/useEffect are OK for interactivity (slide timer, toggles) but initial render must be visible`,
       messages: [{
         role: "user",
         content: `Current component:\n\`\`\`tsx\n${currentCode}\n\`\`\`\n\nREQUEST: ${prompt}\n\nReturn ONLY the updated code.`,
