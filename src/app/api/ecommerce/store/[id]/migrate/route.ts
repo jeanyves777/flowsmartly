@@ -37,9 +37,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (!store) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    // Already V2 — no migration needed
-    if (store.generatorVersion === "v2") {
-      return NextResponse.json({ error: "Store is already V2", alreadyMigrated: true }, { status: 400 });
+    // If already V2, destroy old files first for a clean rebuild
+    if (store.generatorVersion === "v2" && store.generatedPath) {
+      const { rmSync } = await import("fs");
+      try { rmSync(store.generatedPath, { recursive: true, force: true }); } catch {}
+      try { rmSync(`/var/www/flowsmartly/stores-output/${store.slug}`, { recursive: true, force: true }); } catch {}
+      await prisma.store.update({
+        where: { id },
+        data: { buildStatus: "idle", generatedPath: null, lastBuildError: null, siteData: "{}" },
+      });
+      console.log(`[StoreMigrate] Destroyed old V2 files for clean rebuild`);
     }
 
     // Check credits

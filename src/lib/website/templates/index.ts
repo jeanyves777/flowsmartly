@@ -20,6 +20,7 @@ export const TEMPLATE_PACKAGE_JSON = `{
     "lucide-react": "0.475.0",
     "tailwindcss": "4.1.3",
     "@tailwindcss/postcss": "4.1.3",
+    "@tailwindcss/typography": "0.5.16",
     "@types/node": "22.14.1",
     "@types/react": "19.1.0",
     "@types/react-dom": "19.1.0",
