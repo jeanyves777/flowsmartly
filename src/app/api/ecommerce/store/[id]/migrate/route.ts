@@ -106,7 +106,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Auto-search images for products that have none
     for (const product of productInputs) {
-      if (product.images.length === 0) {
+      if (!product.images || product.images.length === 0) {
         try {
           const results = await searchProductImages(product.name, 1);
           if (results.length > 0) {
