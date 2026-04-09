@@ -26,6 +26,7 @@ import {
   fixHamburgerMenu,
   injectAnalytics,
   fixProductImages,
+  fixGenerateStaticParams,
 } from "@/lib/build-utils/validators";
 
 // ─── Directories ─────────────────────────────────────────────────────────────
@@ -181,6 +182,7 @@ export async function buildStore(storeId: string): Promise<{ success: boolean; o
     fixHamburgerMenu(storeDir);
     injectAnalytics(storeDir);
     fixProductImages(storeDir, basePath); // Store-specific: fix product image paths
+    fixGenerateStaticParams(storeDir); // Auto-split "use client" + generateStaticParams
 
     // Clear build cache
     const nextCacheDir = join(storeDir, ".next");
