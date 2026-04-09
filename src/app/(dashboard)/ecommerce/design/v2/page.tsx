@@ -307,7 +307,7 @@ export default function StoreEditorV2Page() {
       {upgrading && (
         <div className="mb-4">
           <AIGenerationLoader
-            stepText={buildStep || "Generating your independent store with checkout, accounts, and more..."}
+            currentStep={buildStep || "Generating your independent store with checkout, accounts, and more..."}
             compact
           />
         </div>
