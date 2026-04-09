@@ -512,13 +512,19 @@ CRITICAL STATIC EXPORT RULES (MUST FOLLOW):
       }],
     });
 
-    const updated = response.content
+    let updated = response.content
       .filter((c) => c.type === "text")
       .map((c) => c.type === "text" ? c.text : "")
       .join("")
-      .replace(/^```(?:tsx|typescript|ts)?\n?/, "")
+      .replace(/^```(?:tsx|typescript|ts|javascript|jsx)?\n?/, "")
       .replace(/\n?```$/, "")
+      .replace(/^(?:javascript|tsx?|jsx)\s*\n/i, "") // Strip stray language label
       .trim();
+
+    // Ensure 'use client' is first if the original had it
+    if (currentCode.includes("'use client'") && !updated.startsWith("'use client'") && !updated.startsWith('"use client"')) {
+      updated = "'use client'\n\n" + updated;
+    }
 
     if (updated && updated.length > 100) {
       writeFileSync(filePath, updated);

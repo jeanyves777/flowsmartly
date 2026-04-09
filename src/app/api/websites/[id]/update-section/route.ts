@@ -206,13 +206,20 @@ ${dataContent.substring(0, 3000)}
       messages: [{ role: "user", content: userMessage }],
     });
 
-    const updatedContent = response.content
+    let updatedContent = response.content
       .filter((c) => c.type === "text")
       .map((c) => c.type === "text" ? c.text : "")
       .join("")
-      .replace(/^```(?:tsx|typescript|ts)?\n?/, "")
+      .replace(/^```(?:tsx|typescript|ts|javascript|jsx)?\n?/, "")
       .replace(/\n?```$/, "")
+      .replace(/^(?:javascript|tsx?|jsx)\s*\n/i, "")
       .trim();
+
+    // Preserve 'use client' directive
+    const originalContent = fileContents[0].content;
+    if (originalContent.includes("'use client'") && !updatedContent.startsWith("'use client'") && !updatedContent.startsWith('"use client"')) {
+      updatedContent = "'use client'\n\n" + updatedContent;
+    }
 
     if (!updatedContent || updatedContent.length < 50) {
       return NextResponse.json({ error: "AI returned empty or invalid content" }, { status: 500 });
