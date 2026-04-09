@@ -626,9 +626,10 @@ export function fixTailwindV4Classes(siteDir: string): void {
 
 /**
  * Fix common CSS mistakes agents make in globals.css:
- * 1. @apply inside @keyframes (Tailwind v4 forbids this)
- * 2. @apply with invalid/unknown utilities
- * 3. Nested @import (must be top-level)
+ * 1. @apply inside @keyframes → replace with raw CSS
+ * 2. Invalid Tailwind classes in @apply (clip-path-inset, etc.)
+ * 3. Color-shade CSS vars (--color-primary-600) → remove (keep base only)
+ * 4. Color-shade references in @apply (from-primary-600) → fix
  */
 export function fixGlobalsCss(siteDir: string): void {
   const globalsCss = join(siteDir, "src", "app", "globals.css");
@@ -637,21 +638,54 @@ export function fixGlobalsCss(siteDir: string): void {
   let css = readFileSync(globalsCss, "utf-8");
   const original = css;
 
-  // 1. Remove @apply lines inside @keyframes blocks
-  // Match @keyframes { ... } and strip any @apply lines within
-  css = css.replace(/@keyframes\s+[\w-]+\s*\{([\s\S]*?)\n\}/g, (match) => {
+  // 1. Replace @apply inside @keyframes with raw CSS equivalents
+  css = css.replace(/@keyframes\s+[\w-]+\s*\{[\s\S]*?\n\}/g, (match) => {
     if (!match.includes("@apply")) return match;
-    // Replace @apply lines with their approximate CSS equivalents or remove them
-    const fixed = match.replace(/\s*@apply\s+[^;]+;/g, "");
-    console.log("[BuildUtils] Removed @apply from @keyframes block");
-    return fixed;
+    return match.replace(/@apply\s+([^;]+);/g, (_, classes) => {
+      // Convert common @apply classes to raw CSS
+      const cssProps: string[] = [];
+      const classStr = classes.trim();
+      if (classStr.includes("opacity-0")) cssProps.push("opacity: 0;");
+      if (classStr.includes("opacity-100")) cssProps.push("opacity: 1;");
+      if (classStr.includes("translate-y-4")) cssProps.push("transform: translateY(1rem);");
+      if (classStr.includes("translate-y-0")) cssProps.push("transform: translateY(0);");
+      if (classStr.includes("translate-x-4")) cssProps.push("transform: translateX(1rem);");
+      if (classStr.includes("translate-x-0")) cssProps.push("transform: translateX(0);");
+      if (classStr.includes("scale-95")) cssProps.push("transform: scale(0.95);");
+      if (classStr.includes("scale-100")) cssProps.push("transform: scale(1);");
+      if (cssProps.length === 0) return "/* removed invalid @apply */";
+      return cssProps.join(" ");
+    });
   });
 
-  // 2. Remove any @apply lines that reference clearly invalid utilities (color-shade patterns we already fixed)
-  // This is a safety net — if fixTailwindV4Classes missed any in CSS
+  // 2. Remove invalid Tailwind classes from @apply
+  const invalidClasses = ["clip-path-inset", "clip-inset", "clip-path"];
+  for (const cls of invalidClasses) {
+    css = css.replace(new RegExp(`\\b${escapeRegex(cls)}\\b`, "g"), "");
+  }
+  // Clean up double spaces left by removal
+  css = css.replace(/@apply\s+;/g, "/* removed empty @apply */");
+  css = css.replace(/@apply\s{2,}/g, "@apply ");
+
+  // 3. Remove numbered color-shade CSS vars from @theme (keep base only)
+  // e.g. --color-primary-600: #xxx; → remove (--color-primary stays)
+  css = css.replace(/\s*--color-(?:primary|secondary|accent|muted|destructive)-\d{2,3}:\s*[^;]+;\s*/g, "\n");
+
+  // 4. Fix color-shade references in @apply (from-primary-600 → from-primary)
+  const customColors = ["primary", "secondary", "accent", "muted", "destructive"];
+  for (const color of customColors) {
+    const shadeRegex = new RegExp(
+      `((?:bg|text|border|ring|from|to|via|fill|stroke|divide|decoration)-${color})-\\d{2,3}`,
+      "g"
+    );
+    css = css.replace(shadeRegex, "$1");
+  }
+
+  // 5. Clean up empty lines
+  css = css.replace(/\n{3,}/g, "\n\n");
 
   if (css !== original) {
     writeFileSync(globalsCss, css, "utf-8");
-    console.log("[BuildUtils] Fixed globals.css (removed @apply from @keyframes)");
+    console.log("[BuildUtils] Fixed globals.css (@keyframes, invalid classes, color shades)");
   }
 }
