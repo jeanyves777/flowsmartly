@@ -165,7 +165,7 @@ export default function StoreEditorV2Page() {
   ];
 
   return (
-    <div className="pb-20">
+    <div className="pb-20 px-1 md:px-2">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
