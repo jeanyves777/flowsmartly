@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { generateSlug } from "@/lib/constants/ecommerce";
+import { triggerStoreRebuildIfV2 } from "@/lib/store-builder/product-sync";
 import { z } from "zod";
 
 // ── Validation Schemas ──
@@ -259,6 +260,9 @@ export async function POST(request: NextRequest) {
         include: { variants: true, productCategory: { select: { id: true, name: true } } },
       });
     });
+
+    // Fire-and-forget: rebuild V2 store to include new product
+    triggerStoreRebuildIfV2(store.id).catch(() => {});
 
     return NextResponse.json({
       success: true,

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { runStoreAgent, type ProductInput } from "@/lib/store-builder/store-agent";
+import { searchProductImages } from "@/lib/store-builder/image-search";
 
 /**
  * POST /api/ecommerce/store/[id]/migrate — Migrate V1 store to V2
@@ -103,9 +104,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Collect categories
     const categoryNames = store.categories.map(c => c.name);
 
+    // Auto-search images for products that have none
+    for (let i = 0; i < productInputs.length; i++) {
+      if (productInputs[i].images.length === 0) {
+        try {
+          const results = await searchProductImages(productInputs[i].name, 1);
+          if (results.length > 0) {
+            productInputs[i].images = [results[0].url];
+          }
+        } catch {}
+      }
+    }
+
+    const productsWithImages = productInputs.filter(p => p.images.length > 0).length;
     console.log(
       `[StoreMigrate] Starting V1→V2 migration for store ${id} (${store.name}): ` +
-      `${productInputs.length} products, ${categoryNames.length} categories`
+      `${productInputs.length} products (${productsWithImages} with images), ${categoryNames.length} categories`
     );
 
     // Run V2 agent in background

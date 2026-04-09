@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { generateSlug } from "@/lib/constants/ecommerce";
+import { triggerStoreRebuildIfV2 } from "@/lib/store-builder/product-sync";
 import { z } from "zod";
 
 // ── Validation Schema ──
@@ -249,6 +250,9 @@ export async function PATCH(
       });
     });
 
+    // Fire-and-forget: rebuild V2 store to reflect product changes
+    triggerStoreRebuildIfV2(store.id).catch(() => {});
+
     return NextResponse.json({
       success: true,
       data: {
@@ -308,6 +312,9 @@ export async function DELETE(
         data: { productCount: { decrement: 1 } },
       });
     });
+
+    // Fire-and-forget: rebuild V2 store to reflect product deletion
+    triggerStoreRebuildIfV2(store.id).catch(() => {});
 
     return NextResponse.json({ success: true, data: { id: product.id } });
   } catch (error) {

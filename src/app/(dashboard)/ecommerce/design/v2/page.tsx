@@ -33,6 +33,7 @@ interface SiteData {
   categories?: Array<Record<string, any>>;
   faq?: Array<{ question: string; answer: string }>;
   products?: Array<Record<string, any>>;
+  pages?: Array<{ slug: string; label: string }>;
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
@@ -304,8 +305,49 @@ export default function StoreEditorV2Page() {
       )}
 
       {/* ═══ Links Tab ═══ */}
-      {activeTab === "links" && data && (
+      {activeTab === "links" && data && (() => {
+        // Compute available pages (exist on disk but not in nav)
+        const navHrefs = new Set(
+          (data.navLinks || []).map((l) => {
+            const h = (l.href || "").replace(/^\/stores\/[^/]+/, "");
+            return h || "/";
+          })
+        );
+        const availablePages = (data.pages || []).filter((p) => {
+          const href = p.slug === "" ? "/" : `/${p.slug}`;
+          return !navHrefs.has(href);
+        });
+
+        return (
         <div className="space-y-6">
+          {/* Available Pages — quick add */}
+          {availablePages.length > 0 && (
+            <Section title="Available Pages">
+              <p className="text-sm text-muted-foreground mb-3">
+                These pages exist in your store but are not in the navigation menu. Click to add them.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {availablePages.map((p) => (
+                  <button
+                    key={p.slug}
+                    onClick={() => {
+                      const href = p.slug === "" ? "/" : `/${p.slug}`;
+                      update("navLinks", [...(data.navLinks || []), { label: p.label, href }]);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-border bg-card hover:border-primary/50 hover:bg-primary/5 text-foreground transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-primary" />
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                <Sparkles className="w-3 h-3 inline mr-1" />
+                After adding, use <strong>AI Update</strong> tab to enhance page content.
+              </p>
+            </Section>
+          )}
+
           <Section title="Navigation Links">
             <p className="text-sm text-muted-foreground mb-3">These appear in the header navbar.</p>
             <div className="space-y-3">
@@ -338,7 +380,8 @@ export default function StoreEditorV2Page() {
             </div>
           </Section>
         </div>
-      )}
+        );
+      })()}
 
       {/* ═══ Domains Tab ═══ */}
       {activeTab === "domains" && (

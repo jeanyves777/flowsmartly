@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getStoreDir } from "@/lib/store-builder/store-site-builder";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, readdirSync } from "fs";
 import { join } from "path";
 
 // GET /api/ecommerce/store/[id]/site-data — Parse data.ts + products.ts for the editor
@@ -83,6 +83,32 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         "priceCents", "comparePriceCents", "categoryId", "featured",
       ]);
     }
+
+    // Detect available pages from src/app/ directory
+    const appDir = join(storeDir, "src", "app");
+    const pages: Array<{ slug: string; label: string }> = [];
+    if (existsSync(appDir)) {
+      const scanPages = (dir: string, prefix: string = "") => {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          if (entry.name.startsWith("[") || entry.name.startsWith("_")) continue;
+          const slug = prefix ? `${prefix}/${entry.name}` : entry.name;
+          const pagePath = join(dir, entry.name, "page.tsx");
+          if (existsSync(pagePath)) {
+            const label = entry.name
+              .replace(/-/g, " ")
+              .replace(/\b\w/g, (c) => c.toUpperCase());
+            pages.push({ slug, label });
+          }
+        }
+      };
+      scanPages(appDir);
+      // Add root page
+      if (existsSync(join(appDir, "page.tsx"))) {
+        pages.unshift({ slug: "", label: "Home" });
+      }
+    }
+    result.pages = pages;
 
     // Cache the parsed data
     await prisma.store.update({
