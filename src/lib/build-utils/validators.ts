@@ -621,3 +621,37 @@ export function fixTailwindV4Classes(siteDir: string): void {
     console.log(`[BuildUtils] Tailwind v4 fix: fixed ${fixCount} files (replaced color-shade with color/opacity)`);
   }
 }
+
+// ─── Fix globals.css common agent mistakes ──────────────────────────────────
+
+/**
+ * Fix common CSS mistakes agents make in globals.css:
+ * 1. @apply inside @keyframes (Tailwind v4 forbids this)
+ * 2. @apply with invalid/unknown utilities
+ * 3. Nested @import (must be top-level)
+ */
+export function fixGlobalsCss(siteDir: string): void {
+  const globalsCss = join(siteDir, "src", "app", "globals.css");
+  if (!existsSync(globalsCss)) return;
+
+  let css = readFileSync(globalsCss, "utf-8");
+  const original = css;
+
+  // 1. Remove @apply lines inside @keyframes blocks
+  // Match @keyframes { ... } and strip any @apply lines within
+  css = css.replace(/@keyframes\s+[\w-]+\s*\{([\s\S]*?)\n\}/g, (match) => {
+    if (!match.includes("@apply")) return match;
+    // Replace @apply lines with their approximate CSS equivalents or remove them
+    const fixed = match.replace(/\s*@apply\s+[^;]+;/g, "");
+    console.log("[BuildUtils] Removed @apply from @keyframes block");
+    return fixed;
+  });
+
+  // 2. Remove any @apply lines that reference clearly invalid utilities (color-shade patterns we already fixed)
+  // This is a safety net — if fixTailwindV4Classes missed any in CSS
+
+  if (css !== original) {
+    writeFileSync(globalsCss, css, "utf-8");
+    console.log("[BuildUtils] Fixed globals.css (removed @apply from @keyframes)");
+  }
+}

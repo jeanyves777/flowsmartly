@@ -40,6 +40,7 @@ import {
   fixGenerateStaticParams,
   cleanupV3Patterns,
   fixTailwindV4Classes,
+  fixGlobalsCss,
 } from "@/lib/build-utils/validators";
 import {
   allocatePort,
@@ -404,6 +405,7 @@ export async function buildStoreV3(storeId: string): Promise<{ success: boolean;
     // Skip: syncBasePath, fixBareLinks, fixProductImages, fixGenerateStaticParams
     cleanupV3Patterns(storeDir); // Remove storeUrl/siteUrl/STORE_BASE left by agent
     fixTailwindV4Classes(storeDir); // Fix bg-primary-500 → bg-primary etc.
+    fixGlobalsCss(storeDir); // Fix @apply inside @keyframes etc.
     const stubs = validateAndFixImports(storeDir);
     if (stubs.length > 0) {
       console.log(`[StoreBuilder:V3] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);
