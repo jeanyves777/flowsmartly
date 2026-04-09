@@ -48,6 +48,7 @@ export default function StoreEditorV2Page() {
   const [saving, setSaving] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [activeTab, setActiveTab] = useState("preview");
   const [data, setData] = useState<SiteData | null>(null);
   const [changed, setChanged] = useState(false);
@@ -247,52 +248,11 @@ export default function StoreEditorV2Page() {
               </div>
               <div>
                 <p className="font-semibold text-sm">Upgrade Available — V3 Independent Store</p>
-                <p className="text-xs text-muted-foreground">Built-in checkout, customer accounts, order tracking. Self-hostable on your own VPS.</p>
+                <p className="text-xs text-muted-foreground">Built-in checkout, customer accounts, and order tracking — all within your store.</p>
               </div>
             </div>
             <button
-              onClick={async () => {
-                if (!store) return;
-                if (!confirm("This will regenerate your store with the new V3 architecture. Your products and brand are preserved. Costs 500 credits. Continue?")) return;
-                setUpgrading(true);
-                setBuildStep("Upgrading to V3...");
-                try {
-                  const res = await fetch(`/api/ecommerce/store/${store.id}/generate`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ products: [], categories: [] }),
-                  });
-                  if (!res.ok) {
-                    const d = await res.json();
-                    setBuildResult({ type: "error", message: d.error || "Upgrade failed" });
-                    setUpgrading(false);
-                    setBuildStep("");
-                    return;
-                  }
-                  const poll = setInterval(async () => {
-                    const s = await fetch(`/api/ecommerce/store/${store.id}/generate`);
-                    const d = await s.json();
-                    if (d.buildStatus === "built") {
-                      clearInterval(poll);
-                      setUpgrading(false);
-                      setBuildStep("");
-                      setBuildResult({ type: "success", message: "Store upgraded to V3!" });
-                      setStore((prev) => prev ? { ...prev, storeVersion: "independent", generatorVersion: "v3", buildStatus: "built", ssrStatus: "running" } : null);
-                    } else if (d.buildStatus === "error") {
-                      clearInterval(poll);
-                      setUpgrading(false);
-                      setBuildStep("");
-                      setBuildResult({ type: "error", message: d.lastBuildError || "Upgrade failed" });
-                    } else {
-                      setBuildStep("Building V3 store...");
-                    }
-                  }, 5000);
-                } catch (err: any) {
-                  setBuildResult({ type: "error", message: err.message });
-                  setUpgrading(false);
-                  setBuildStep("");
-                }
-              }}
+              onClick={() => setShowUpgradeModal(true)}
               disabled={busy}
               className="flex-shrink-0 flex items-center gap-1.5 px-5 py-2.5 text-sm bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 disabled:opacity-50"
             >
@@ -583,9 +543,9 @@ export default function StoreEditorV2Page() {
                   <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" /></svg>
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-sm mb-1">Self-Host Your Store</h3>
+                  <h3 className="font-semibold text-sm mb-1">Deploy to Your Own Server</h3>
                   <p className="text-xs text-muted-foreground mb-3">
-                    Your store is a complete, independent application. Deploy it on your own VPS for full control — your own domain, your own server, no platform dependency.
+                    Want full control? Deploy your store on your own VPS — your server, your rules. Purchase a VPS plan to get started.
                   </p>
                   <button
                     disabled
@@ -611,6 +571,96 @@ export default function StoreEditorV2Page() {
           <button onClick={save} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 disabled:opacity-50">
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save & Rebuild
           </button>
+        </div>
+      )}
+
+      {/* V3 Upgrade Confirmation Modal */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowUpgradeModal(false)} />
+          <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+            <button onClick={() => setShowUpgradeModal(false)} className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted">
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <h3 className="text-lg font-bold">Upgrade to V3</h3>
+            </div>
+
+            <p className="text-sm text-muted-foreground mb-4">
+              Your store will be rebuilt as a fully independent application with:
+            </p>
+
+            <ul className="text-sm space-y-2 mb-6">
+              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-primary flex-shrink-0" /> Built-in checkout page</li>
+              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-primary flex-shrink-0" /> Customer accounts (login, register, orders)</li>
+              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-primary flex-shrink-0" /> Order tracking and confirmation</li>
+              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-primary flex-shrink-0" /> No redirects — everything in your store</li>
+              <li className="flex items-center gap-2 text-muted-foreground"><Check className="w-4 h-4 flex-shrink-0" /> Option to self-host on your own VPS later</li>
+            </ul>
+
+            <p className="text-xs text-muted-foreground mb-5">
+              Your products and brand identity are preserved. This costs <span className="font-semibold text-foreground">500 credits</span>.
+            </p>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  setShowUpgradeModal(false);
+                  setUpgrading(true);
+                  setBuildStep("Upgrading to V3...");
+                  try {
+                    const res = await fetch(`/api/ecommerce/store/${store.id}/generate`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ products: [], categories: [] }),
+                    });
+                    if (!res.ok) {
+                      const d = await res.json();
+                      setBuildResult({ type: "error", message: d.error || "Upgrade failed" });
+                      setUpgrading(false);
+                      setBuildStep("");
+                      return;
+                    }
+                    const poll = setInterval(async () => {
+                      const s = await fetch(`/api/ecommerce/store/${store.id}/generate`);
+                      const d = await s.json();
+                      if (d.buildStatus === "built") {
+                        clearInterval(poll);
+                        setUpgrading(false);
+                        setBuildStep("");
+                        setBuildResult({ type: "success", message: "Store upgraded to V3!" });
+                        setStore((prev) => prev ? { ...prev, storeVersion: "independent", generatorVersion: "v3", buildStatus: "built", ssrStatus: "running" } : null);
+                      } else if (d.buildStatus === "error") {
+                        clearInterval(poll);
+                        setUpgrading(false);
+                        setBuildStep("");
+                        setBuildResult({ type: "error", message: d.lastBuildError || "Upgrade failed" });
+                      } else {
+                        setBuildStep("Building V3 store...");
+                      }
+                    }, 5000);
+                  } catch (err: any) {
+                    setBuildResult({ type: "error", message: err.message });
+                    setUpgrading(false);
+                    setBuildStep("");
+                  }
+                }}
+                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90"
+              >
+                <Sparkles className="w-4 h-4" /> Upgrade Now — 500 Credits
+              </button>
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="px-4 py-2.5 text-sm border border-border rounded-lg font-medium hover:bg-muted"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
