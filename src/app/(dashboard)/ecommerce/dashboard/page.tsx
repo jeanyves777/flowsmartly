@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Rocket,
   ArrowRight,
+  Palette,
 } from "lucide-react";
 import { ORDER_STATUSES } from "@/lib/constants/ecommerce";
 import { formatPrice } from "@/lib/store/currency";
@@ -149,6 +150,13 @@ export default function EcommerceDashboardPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href={store.generatorVersion === "v2" ? "/ecommerce/design/v2" : "/ecommerce/design"}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-colors"
+          >
+            <Palette className="h-4 w-4" />
+            Edit Store
+          </Link>
           <Link
             href="/ecommerce/settings"
             className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border hover:bg-accent transition-colors"
