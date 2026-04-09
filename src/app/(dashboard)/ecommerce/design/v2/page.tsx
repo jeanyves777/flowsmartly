@@ -42,6 +42,7 @@ export default function StoreEditorV2Page() {
   const router = useRouter();
   const [store, setStore] = useState<StoreData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [needsUpgrade, setNeedsUpgrade] = useState(false);
   const [saving, setSaving] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
   const [activeTab, setActiveTab] = useState("preview");
@@ -61,8 +62,13 @@ export default function StoreEditorV2Page() {
         if (!storeJson.success || !storeJson.data?.store) { router.replace("/ecommerce"); return; }
 
         const s = storeJson.data.store;
-        if (s.generatorVersion !== "v2") { router.replace("/ecommerce/design"); return; }
         setStore(s);
+
+        if (s.generatorVersion !== "v2") {
+          setNeedsUpgrade(true);
+          setLoading(false);
+          return;
+        }
 
         const dataRes = await fetch(`/api/ecommerce/store/${s.id}/site-data`);
         if (dataRes.ok) {
@@ -152,6 +158,39 @@ export default function StoreEditorV2Page() {
 
   if (loading) return <PageLoader />;
   if (!store) return null;
+
+  // V1 stores need to upgrade first
+  if (needsUpgrade) {
+    return (
+      <div className="pb-20 px-1 md:px-2">
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={() => router.push("/ecommerce/dashboard")} className="p-2 rounded-lg hover:bg-muted">
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div>
+            <h1 className="text-xl font-bold">{store.name}</h1>
+            <p className="text-xs text-muted-foreground">Store Editor</p>
+          </div>
+        </div>
+        <div className="rounded-2xl border-2 border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 p-10 text-center">
+          <Sparkles className="w-12 h-12 text-purple-600 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Upgrade to FlowShop V2</h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-2 max-w-lg mx-auto">
+            The new store editor requires a V2 store. Upgrade now to get a stunning AI-designed storefront
+            with custom animations, modern layouts, and all your existing products migrated automatically.
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">500 credits | Your products, orders, and settings are preserved</p>
+          <button
+            onClick={() => router.push("/ecommerce/dashboard")}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-indigo-700 transition-all"
+          >
+            <Sparkles className="w-4 h-4" />
+            Go to Dashboard to Upgrade
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const busy = rebuilding || saving;
   const previewUrl = `/stores/${store.slug}/`;
