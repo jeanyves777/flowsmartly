@@ -265,8 +265,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         } else {
           // Hero uses emoji/text slides — needs AI to rewrite the component
           // to support background images with the user's uploaded photos
-          console.log(`[UpdateData] Hero.tsx not image-compatible — triggering AI rewrite`);
-          triggerHeroRewrite(id, heroPath, c, data.heroImages, basePath);
+          console.log(`[UpdateData] Hero.tsx not image-compatible — AI rewriting synchronously`);
+          await rewriteComponent(heroPath, c,
+            `The user has uploaded hero images for a slideshow. Rewrite this Hero component to display these images as full-screen background image slideshow with smooth transitions. Images: ${JSON.stringify(data.heroImages)}. Remove emoji/text slides. Use images as backgrounds with existing tagline and CTA overlaid. Keep design quality, dark mode, responsive.`,
+            basePath
+          );
         }
       } catch {}
     }
@@ -398,42 +401,39 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
 /**
  * Detect mismatches between user data and component capabilities.
- * If user added images/content that the component can't render, trigger AI rewrite.
+ * If user added images/content that the component can't render, AI rewrites the component.
+ * Synchronous — waits for AI to finish before returning.
  */
-function detectAndFixMismatches(siteDir: string, data: any, basePath: string) {
+async function detectAndFixMismatches(siteDir: string, data: any, basePath: string) {
   const checks: Array<{
     condition: boolean;
     filePath: string;
     detectField: string;
     prompt: string;
   }> = [
-    // Services: user added service images but component doesn't render them
     {
       condition: data.services?.some((s: any) => s.image),
       filePath: join(siteDir, "src", "app", "services", "page.tsx"),
       detectField: "image",
-      prompt: `The user has added images to their services. Update this component to display each service's image (from the services array in data.ts — each service has an 'image' field). Show images as cards or alongside the service description.`,
+      prompt: `The user has added images to their services. Update this component to display each service's image (from the services array in data.ts). Show images as cards or alongside the service description.`,
     },
-    // Team: user added team member photos but component doesn't render them
     {
       condition: data.team?.some((t: any) => t.image),
       filePath: join(siteDir, "src", "app", "team", "page.tsx"),
       detectField: "image",
-      prompt: `The user has added photos for team members. Update this component to display each team member's photo (from the team array in data.ts — each member has an 'image' field). Show photos in a professional team grid layout.`,
+      prompt: `The user has added photos for team members. Update this component to display each team member's photo (from the team array in data.ts). Show photos in a professional team grid layout.`,
     },
-    // Gallery: user added gallery images but component doesn't render them
     {
       condition: data.galleryImages?.length > 0,
       filePath: join(siteDir, "src", "app", "gallery", "page.tsx"),
       detectField: "galleryImages",
-      prompt: `The user has added gallery images. Make sure this component imports and renders the galleryImages array from data.ts. Each item has {src, alt, category}. Show in a responsive masonry or grid layout with category filtering.`,
+      prompt: `The user has added gallery images. Make sure this component imports and renders the galleryImages array from data.ts. Each item has {src, alt, category}. Show in a responsive grid layout.`,
     },
-    // Blog: user added blog posts with images but component doesn't render images
     {
       condition: data.blogPosts?.some((b: any) => b.image),
       filePath: join(siteDir, "src", "app", "blog", "page.tsx"),
       detectField: ".image",
-      prompt: `The user has added images to blog posts. Update this component to display each blog post's image (from blogPosts in data.ts — each post has an 'image' field). Show images as card thumbnails.`,
+      prompt: `The user has added images to blog posts. Update this component to display each blog post's image (from blogPosts in data.ts). Show images as card thumbnails.`,
     },
   ];
 
@@ -443,72 +443,57 @@ function detectAndFixMismatches(siteDir: string, data: any, basePath: string) {
 
     try {
       const code = readFileSync(check.filePath, "utf-8");
-      // Check if component already handles this field
       if (!code.includes(check.detectField)) {
-        console.log(`[UpdateData] Mismatch: ${check.filePath.split("/").pop()} missing '${check.detectField}' — triggering AI fix`);
-        triggerComponentRewrite(check.filePath, code, check.prompt, basePath);
+        console.log(`[UpdateData] Mismatch: ${check.filePath.split("/").pop()} missing '${check.detectField}' — AI fixing`);
+        await rewriteComponent(check.filePath, code, check.prompt, basePath);
       }
     } catch {}
   }
 }
 
 /**
- * Fire-and-forget: AI rewrites a component to support user's data.
- * Called when user adds data (images, content) that the component doesn't support.
- * e.g. Hero uses emoji slides but user uploaded images → rewrite Hero to use images.
+ * AI component rewriter — synchronous. Reads current code, calls Claude,
+ * writes back the updated component. Awaited by caller.
  */
-function triggerHeroRewrite(websiteId: string, heroPath: string, currentCode: string, images: string[], basePath: string) {
-  triggerComponentRewrite(
-    heroPath,
-    currentCode,
-    `The user has uploaded hero images for a slideshow. Rewrite this Hero component to display these images as a full-screen background image slideshow/carousel with smooth transitions. Images: ${JSON.stringify(images)}. Remove the emoji/text-based slides and use the images as background images with the existing tagline and CTA overlaid on top.`,
-    basePath
-  );
-}
+async function rewriteComponent(filePath: string, currentCode: string, prompt: string, basePath: string) {
+  try {
+    const Anthropic = (await import("@anthropic-ai/sdk")).default;
+    const anthropic = new Anthropic();
 
-/**
- * Generic AI component rewriter — reads current code, sends prompt to Claude,
- * writes back the updated component. Fire-and-forget (non-blocking).
- */
-function triggerComponentRewrite(filePath: string, currentCode: string, prompt: string, basePath: string) {
-  (async () => {
-    try {
-      const Anthropic = (await import("@anthropic-ai/sdk")).default;
-      const anthropic = new Anthropic();
-
-      const response = await anthropic.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 16000,
-        system: `You are updating a React component for a Next.js website.
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 16000,
+      system: `You are updating a React component for a Next.js website.
 
 RULES:
 - Return ONLY the updated file content (no markdown fences, no explanations)
 - Keep "use client" if present
 - Keep all existing imports, add new ones if needed
 - Use Tailwind CSS for styling
-- basePath is "${basePath}" — all image src paths must start with "${basePath}/images/" or use the paths provided
+- basePath is "${basePath}" — all internal href links must start with "${basePath}/"
+- All image src paths must start with "${basePath}/images/" or use the exact paths provided
 - Keep responsive design, dark mode support, animations
-- Preserve the component name and export`,
-        messages: [{
-          role: "user",
-          content: `Current component:\n\`\`\`tsx\n${currentCode}\n\`\`\`\n\nREQUEST: ${prompt}\n\nReturn ONLY the updated code.`,
-        }],
-      });
+- Preserve the component name and export
+- Do NOT use AnimatePresence with opacity:0 for hamburger menu icons`,
+      messages: [{
+        role: "user",
+        content: `Current component:\n\`\`\`tsx\n${currentCode}\n\`\`\`\n\nREQUEST: ${prompt}\n\nReturn ONLY the updated code.`,
+      }],
+    });
 
-      const updated = response.content
-        .filter((c) => c.type === "text")
-        .map((c) => c.type === "text" ? c.text : "")
-        .join("")
-        .replace(/^```(?:tsx|typescript|ts)?\n?/, "")
-        .replace(/\n?```$/, "")
-        .trim();
+    const updated = response.content
+      .filter((c) => c.type === "text")
+      .map((c) => c.type === "text" ? c.text : "")
+      .join("")
+      .replace(/^```(?:tsx|typescript|ts)?\n?/, "")
+      .replace(/\n?```$/, "")
+      .trim();
 
-      if (updated && updated.length > 100) {
-        writeFileSync(filePath, updated);
-        console.log(`[UpdateData] AI rewrote component: ${filePath.split("/").pop()}`);
-      }
-    } catch (err) {
-      console.error(`[UpdateData] AI rewrite failed:`, err);
+    if (updated && updated.length > 100) {
+      writeFileSync(filePath, updated);
+      console.log(`[UpdateData] AI rewrote: ${filePath.split("/").pop()}`);
     }
-  })();
+  } catch (err) {
+    console.error(`[UpdateData] AI rewrite failed:`, err);
+  }
 }
