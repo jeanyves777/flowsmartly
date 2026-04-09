@@ -287,21 +287,29 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             `  { src: '${escapeStr(img)}', alt: 'Slide ${i + 1}' }`
           ).join(",\n");
           await rewriteComponent(heroPath, c,
-            `The user has uploaded hero images for a slideshow. Rewrite this Hero component to display these images as full-screen background image slideshow with smooth transitions.
+            `The user has uploaded hero images for a slideshow. Add these images to the Hero component while PRESERVING the existing layout structure.
+
+LAYOUT PRESERVATION (CRITICAL):
+- First, analyze the current Hero layout: Is it a two-column grid (text left, content right)? A full-width hero? A centered layout?
+- KEEP the same layout structure — if it has a two-column grid, put the image slideshow in the RIGHT column where any illustration/placeholder was
+- If it's a single-column/centered layout, add the slideshow as a background behind the text with an overlay
+- Preserve ALL existing text content (headline, tagline, description, CTA buttons, badges, stats)
+- Preserve the existing color scheme, brand colors, and button styles
 
 USE THESE EXACT IMAGE PATHS — copy them verbatim into a slides array:
 const slides = [
 ${slidesCode}
 ];
 
-Remove any emoji/text/icon slides. Use the images as full-width background images with the existing headline, tagline, and CTA buttons overlaid on top using a semi-transparent gradient overlay for text readability.
+Remove any emoji/text/icon placeholder slides but keep the layout structure they were in.
 
 THEMING (CRITICAL):
 - The component MUST support BOTH light and dark mode using Tailwind "dark:" prefix
 - Do NOT hardcode dark backgrounds (bg-black, bg-gray-900, bg-neutral-900, etc.) without a light-mode default
-- The overlay gradient on top of images should work in both modes, e.g. from-black/60 is OK because it's over a photo, but any section background outside the slideshow must use light defaults with dark: variants (e.g. bg-white dark:bg-neutral-950)
-- Text colors: use text-gray-900 dark:text-white or similar pairs
-- Badge/pill backgrounds: use bg-white/90 dark:bg-neutral-800/90 or similar
+- Section background: bg-white dark:bg-neutral-950 (or similar light/dark pair)
+- Text colors: text-neutral-900 dark:text-white for headings, text-neutral-600 dark:text-neutral-300 for body
+- Badge/pill backgrounds: use bg-yellow-50 dark:bg-yellow-500/10 or similar pairs
+- Borders: border-neutral-200 dark:border-neutral-800
 
 STATIC EXPORT RULES:
 - Render ALL slides using .map(), absolutely positioned within a relative container
@@ -311,7 +319,8 @@ STATIC EXPORT RULES:
 - Each slide image: <img src={slide.src} alt={slide.alt} className="w-full h-full object-cover" />
 - The first slide MUST be visible without JavaScript
 - The slideshow container MUST use z-0 (NOT -z-10 or any negative z-index — negative z puts images behind the parent background)
-- Content overlay must use z-10, navigation controls z-20`,
+- If the slideshow is in a column (not full-width), wrap it in a rounded card with aspect-[4/3] and overflow-hidden
+- Add prev/next buttons and dot indicators below or on top of the slideshow`,
             basePath
           );
         }
