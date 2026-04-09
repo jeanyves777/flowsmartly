@@ -155,12 +155,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       // --- Navigation links (full rebuild) ---
       if (data.navLinks) {
-        const code = data.navLinks.map((l: any) => `  { href: '${escapeStr(l.href || "")}', label: '${escapeStr(l.label || "")}' }`).join(",\n");
+        const code = data.navLinks.map((l: any) => {
+          let href = l.href || "";
+          // Prefix bare internal paths with basePath
+          if (href.startsWith("/") && !href.startsWith(basePath) && !href.startsWith("/http")) {
+            href = basePath + href;
+          }
+          return `  { href: '${escapeStr(href)}', label: '${escapeStr(l.label || "")}' }`;
+        }).join(",\n");
         content = content.replace(/export const navLinks\s*=\s*\[[\s\S]*?\n\]/, `export const navLinks = [\n${code}\n]`);
       }
       if (data.footerLinks) {
-        // Rebuild footerLinks with ...navLinks spread + additional links
-        const code = data.footerLinks.map((l: any) => `  { href: '${escapeStr(l.href || "")}', label: '${escapeStr(l.label || "")}' }`).join(",\n");
+        const code = data.footerLinks.map((l: any) => {
+          let href = l.href || "";
+          if (href.startsWith("/") && !href.startsWith(basePath) && !href.startsWith("/http")) {
+            href = basePath + href;
+          }
+          return `  { href: '${escapeStr(href)}', label: '${escapeStr(l.label || "")}' }`;
+        }).join(",\n");
         content = content.replace(
           /export const footerLinks\s*=\s*\[[\s\S]*?\n\]/,
           `export const footerLinks = [\n  ...navLinks,\n${code}\n]`
@@ -369,15 +381,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       } catch {}
     }
 
-    // --- NavLinks + FooterLinks ---
+    // --- NavLinks + FooterLinks (prefix bare paths with basePath) ---
     try {
       let content = readFileSync(dataPath, "utf-8");
+      const prefixHref = (href: string) => {
+        if (href.startsWith("/") && !href.startsWith(basePath) && !href.startsWith("/http")) {
+          return basePath + href;
+        }
+        return href;
+      };
       if (data.navLinks) {
-        const navCode = data.navLinks.map((l: any) => `  { href: '${escapeStr(l.href || "")}', label: '${escapeStr(l.label || "")}' }`).join(",\n");
+        const navCode = data.navLinks.map((l: any) => `  { href: '${escapeStr(prefixHref(l.href || ""))}', label: '${escapeStr(l.label || "")}' }`).join(",\n");
         content = content.replace(/export const navLinks\s*=\s*\[[\s\S]*?\n\]/, `export const navLinks = [\n${navCode}\n]`);
       }
       if (data.footerLinks) {
-        const fCode = data.footerLinks.map((l: any) => `  { href: '${escapeStr(l.href || "")}', label: '${escapeStr(l.label || "")}' }`).join(",\n");
+        const fCode = data.footerLinks.map((l: any) => `  { href: '${escapeStr(prefixHref(l.href || ""))}', label: '${escapeStr(l.label || "")}' }`).join(",\n");
         if (content.includes("export const footerLinks")) {
           content = content.replace(/export const footerLinks\s*=\s*\[[\s\S]*?\n\]/, `export const footerLinks = [\n${fCode}\n]`);
         } else {
