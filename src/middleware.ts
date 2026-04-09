@@ -111,8 +111,21 @@ export async function middleware(request: NextRequest) {
       return response;
     }
 
-    // STORE: Check if this is a V2 static store or V1 SSR store
+    // STORE: Check version — V3 independent, V2 static, or V1 SSR
     const storeVersion = data.storeVersion || "ssr";
+
+    // V3 Independent SSR: nginx reverse proxies to the store's PM2 port
+    // Middleware just passes through — nginx handles the routing via upstream config
+    if (storeVersion === "independent") {
+      // For custom domains: nginx proxies directly to the store's port
+      // For /stores/{slug}/ paths: nginx also proxies
+      // Middleware only needs to set headers for identification
+      const response = NextResponse.next();
+      response.headers.set("x-custom-domain", hostname);
+      response.headers.set("x-store-slug", slug);
+      response.headers.set("x-domain-type", "store-v3");
+      return response;
+    }
 
     // V2 static stores: serve from /stores/{slug}/ (nginx static files)
     // EXCEPT checkout/track/order-confirmation which stay SSR on the main app

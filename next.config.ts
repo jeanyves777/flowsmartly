@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
-  // Exclude reference stores, generated stores/sites from compilation
+  // Exclude reference stores, generated stores/sites, docker from compilation
   webpack: (config) => {
     config.watchOptions = {
       ...config.watchOptions,
@@ -14,6 +14,7 @@ const nextConfig: NextConfig = {
         "**/generated-sites/**",
         "**/stores-output/**",
         "**/sites-output/**",
+        "**/docker/**",
       ],
     };
     return config;

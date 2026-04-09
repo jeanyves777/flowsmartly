@@ -3,9 +3,10 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
-import { runWebsiteAgent } from "@/lib/website/website-agent";
+import { runWebsiteAgent, runWebsiteAgentV3 } from "@/lib/website/website-agent";
 
 // POST /api/websites/[id]/generate — Claude Agent builds the website
+// Default: V3 (independent SSR). Pass ?version=v2 for static export.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession();
@@ -28,10 +29,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const questionnaire = body.questionnaire;
     if (!questionnaire) return NextResponse.json({ error: "Questionnaire data required" }, { status: 400 });
 
-    console.log(`[WebsiteGen] Starting V3 agent for website ${id}`);
+    const url = new URL(request.url);
+    const version = url.searchParams.get("version") || "v3";
+    const isV3 = version === "v3";
 
-    // Run the agent (writes real .tsx files to disk)
-    const result = await runWebsiteAgent(
+    console.log(`[WebsiteGen] Starting ${isV3 ? "V3 SSR" : "V2 static"} agent for website ${id}`);
+
+    const runner = isV3 ? runWebsiteAgentV3 : runWebsiteAgent;
+    const result = await runner(
       id,
       website.slug,
       session.userId,
@@ -50,10 +55,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       userId: session.userId,
       amount: cost,
       type: TRANSACTION_TYPES.USAGE,
-      description: `AI website generation: ${website.name}`,
+      description: `AI website generation (${isV3 ? "V3" : "V2"}): ${website.name}`,
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, version: isV3 ? "v3" : "v2" });
   } catch (err) {
     console.error("POST /api/websites/[id]/generate error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

@@ -55,3 +55,6 @@ public/uploads/
 
 .next-build.tar.gz
 next-build.zip
+
+# Docker model files (symlinks break Windows builds)
+docker/flow-ai/models/

@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
           slug: true,
           isActive: true,
           storeVersion: true,
+          ssrPort: true,
         },
       },
     },
@@ -45,27 +46,27 @@ export async function GET(request: NextRequest) {
   if (forceStore) {
     // First: check if StoreDomain has a linked store
     if (storeDomain?.store?.isActive) {
-      return NextResponse.json({ slug: storeDomain.store.slug, type: "store", storeVersion: storeDomain.store.storeVersion });
+      return NextResponse.json({ slug: storeDomain.store.slug, type: "store", storeVersion: storeDomain.store.storeVersion, ssrPort: storeDomain.store.ssrPort });
     }
 
     // Second: check if the domain owner has any active store
     if (storeDomain?.userId) {
       const ownerStore = await prisma.store.findFirst({
         where: { userId: storeDomain.userId, isActive: true },
-        select: { slug: true, storeVersion: true },
+        select: { slug: true, storeVersion: true, ssrPort: true },
       });
       if (ownerStore) {
-        return NextResponse.json({ slug: ownerStore.slug, type: "store", storeVersion: ownerStore.storeVersion });
+        return NextResponse.json({ slug: ownerStore.slug, type: "store", storeVersion: ownerStore.storeVersion, ssrPort: ownerStore.ssrPort });
       }
     }
 
     // Third: check Store.customDomain
     const storeByDomain = await prisma.store.findFirst({
       where: { customDomain: domainLower, isActive: true },
-      select: { slug: true, storeVersion: true },
+      select: { slug: true, storeVersion: true, ssrPort: true },
     });
     if (storeByDomain) {
-      return NextResponse.json({ slug: storeByDomain.slug, type: "store", storeVersion: storeByDomain.storeVersion });
+      return NextResponse.json({ slug: storeByDomain.slug, type: "store", storeVersion: storeByDomain.storeVersion, ssrPort: storeByDomain.ssrPort });
     }
 
     return NextResponse.json({ error: "No store found" }, { status: 404 });
@@ -75,16 +76,16 @@ export async function GET(request: NextRequest) {
 
   // 1. StoreDomain → Store
   if (storeDomain?.store?.isActive) {
-    return NextResponse.json({ slug: storeDomain.store.slug, type: "store", storeVersion: storeDomain.store.storeVersion });
+    return NextResponse.json({ slug: storeDomain.store.slug, type: "store", storeVersion: storeDomain.store.storeVersion, ssrPort: storeDomain.store.ssrPort });
   }
 
   // 2. Store.customDomain (direct assignment, no StoreDomain record)
   const storeByCustomDomain = await prisma.store.findFirst({
     where: { customDomain: domainLower, isActive: true },
-    select: { slug: true, storeVersion: true },
+    select: { slug: true, storeVersion: true, ssrPort: true },
   });
   if (storeByCustomDomain) {
-    return NextResponse.json({ slug: storeByCustomDomain.slug, type: "store", storeVersion: storeByCustomDomain.storeVersion });
+    return NextResponse.json({ slug: storeByCustomDomain.slug, type: "store", storeVersion: storeByCustomDomain.storeVersion, ssrPort: storeByCustomDomain.ssrPort });
   }
 
   // 3. Website.customDomain

@@ -15,6 +15,9 @@ interface Website {
   id: string; name: string; slug: string; status: string; buildStatus: string;
   lastBuildAt?: string; lastBuildError?: string; siteData: string;
   customDomain?: string | null;
+  generatorVersion?: string;
+  ssrPort?: number | null;
+  ssrStatus?: string | null;
 }
 
 interface SiteData {
@@ -656,27 +659,77 @@ export default function WebsiteEditPage() {
 
       {/* Build */}
       {activeTab === "build" && (
-        <Section title="Build Status">
-          <div className="flex items-center gap-3 mb-4">
-            <span className="text-sm font-medium">Status:</span>
-            {website.buildStatus === "built" ? <span className="flex items-center gap-1 text-sm text-green-600"><Check className="w-4 h-4" /> Live</span>
-             : website.buildStatus === "building" ? <span className="flex items-center gap-1 text-sm text-blue-600"><Loader2 className="w-4 h-4 animate-spin" /> Building...</span>
-             : website.buildStatus === "error" ? <span className="flex items-center gap-1 text-sm text-red-600"><AlertCircle className="w-4 h-4" /> Error</span>
-             : <span className="text-sm text-muted-foreground">Idle</span>}
-          </div>
-          {website.lastBuildAt && <p className="text-sm text-muted-foreground mb-4">Last: {new Date(website.lastBuildAt).toLocaleString()}</p>}
-          {website.buildStatus === "error" && website.lastBuildError && (
-            <>
-              <pre className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-xs rounded-lg overflow-auto max-h-60 mb-4">{website.lastBuildError}</pre>
-              <div className="flex items-center gap-3">
-                <button onClick={rebuild} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">
-                  {rebuilding ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rebuilding...</> : <><RefreshCw className="w-3.5 h-3.5" /> Retry Build</>}
-                </button>
-                <ReportErrorButton websiteId={id} />
+        <div className="space-y-6">
+          <Section title="Build Status">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-sm font-medium">Status:</span>
+              {website.buildStatus === "built" ? <span className="flex items-center gap-1 text-sm text-green-600"><Check className="w-4 h-4" /> Live</span>
+               : website.buildStatus === "building" ? <span className="flex items-center gap-1 text-sm text-blue-600"><Loader2 className="w-4 h-4 animate-spin" /> Building...</span>
+               : website.buildStatus === "error" ? <span className="flex items-center gap-1 text-sm text-red-600"><AlertCircle className="w-4 h-4" /> Error</span>
+               : <span className="text-sm text-muted-foreground">Idle</span>}
+            </div>
+
+            {/* V3 SSR Process Status */}
+            {website.generatorVersion === "v3" && website.ssrStatus && (
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-sm font-medium">App Process:</span>
+                {website.ssrStatus === "running" ? <span className="flex items-center gap-1.5 text-sm text-green-600"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Running on port {website.ssrPort}</span>
+                 : website.ssrStatus === "starting" ? <span className="flex items-center gap-1.5 text-sm text-blue-600"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Starting...</span>
+                 : website.ssrStatus === "stopped" ? <span className="flex items-center gap-1.5 text-sm text-amber-600"><span className="w-2 h-2 rounded-full bg-amber-500" /> Stopped (auto-starts on visit)</span>
+                 : website.ssrStatus === "error" ? <span className="flex items-center gap-1 text-sm text-red-600"><AlertCircle className="w-4 h-4" /> Process Error</span>
+                 : null}
               </div>
-            </>
+            )}
+
+            {/* Version badge */}
+            {website.generatorVersion === "v3" && (
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">V3 Independent SSR</span>
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Self-Hostable</span>
+              </div>
+            )}
+
+            {website.lastBuildAt && <p className="text-sm text-muted-foreground mb-4">Last: {new Date(website.lastBuildAt).toLocaleString()}</p>}
+            {website.buildStatus === "error" && website.lastBuildError && (
+              <>
+                <pre className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-xs rounded-lg overflow-auto max-h-60 mb-4">{website.lastBuildError}</pre>
+                <div className="flex items-center gap-3">
+                  <button onClick={rebuild} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">
+                    {rebuilding ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rebuilding...</> : <><RefreshCw className="w-3.5 h-3.5" /> Retry Build</>}
+                  </button>
+                  <ReportErrorButton websiteId={id} />
+                </div>
+              </>
+            )}
+          </Section>
+
+          {/* Deploy to VPS — future feature */}
+          {website.generatorVersion === "v3" && (
+            <Section title="Deploy to Your Server">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" /></svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-sm mb-1">Self-Host Your Website</h3>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Your website is a complete, independent application. Deploy it on your own VPS for full control — your own server, zero platform dependency.
+                  </p>
+                  <button
+                    disabled
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm border border-border rounded-lg font-medium text-muted-foreground cursor-not-allowed opacity-60"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    Deploy to VPS — Coming Soon
+                  </button>
+                  <p className="text-[11px] text-muted-foreground mt-2">
+                    Purchase a VPS plan to unlock one-click deployment to your own server.
+                  </p>
+                </div>
+              </div>
+            </Section>
           )}
-        </Section>
+        </div>
       )}
 
       {/* Unsaved bar */}

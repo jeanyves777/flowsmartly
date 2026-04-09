@@ -9,7 +9,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/db/client";
 import { getPresignedUrl } from "@/lib/utils/s3-client";
 import { readReferenceComponent, getAvailableReferences } from "./reference-reader";
-import { initSiteDir, writeSiteFile, buildSite, deploySite } from "./site-builder";
+import {
+  initSiteDir, writeSiteFile, buildSite, deploySite, getSiteDir,
+  initSiteDirV3, buildSiteV3, deploySiteV3,
+} from "./site-builder";
 import { downloadImageToDir } from "./image-search";
 import type { SiteQuestionnaire, AgentProgress } from "@/types/website-builder";
 
@@ -621,4 +624,198 @@ function buildUserPrompt(q: SiteQuestionnaire): string {
 function safeParseJSON(str: string | null): unknown {
   if (!str) return null;
   try { return JSON.parse(str); } catch { return str; }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// V3: Independent SSR Website Agent
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Run the V3 website agent — generates a fully independent SSR app.
+ *
+ * Key differences from V2:
+ * - Uses initSiteDirV3 (SSR config, API proxy, no basePath)
+ * - Uses buildSiteV3 + deploySiteV3 (PM2 process, not static files)
+ * - System prompt allows <Link>, <Image>, no siteUrl()/SITE_BASE
+ * - Contact forms submit to local /api/contact (proxied to FlowSmartly)
+ * - Protected files include api-client.ts and API proxy route
+ */
+export async function runWebsiteAgentV3(
+  websiteId: string,
+  websiteSlug: string,
+  userId: string,
+  questionnaire: SiteQuestionnaire,
+  onProgress?: (progress: AgentProgress) => void
+): Promise<{ success: boolean; error?: string }> {
+  const siteDir = initSiteDirV3(websiteId, websiteSlug);
+
+  const ctx: AgentContext = {
+    websiteId,
+    websiteSlug,
+    userId,
+    questionnaire,
+    siteDir,
+    onProgress: (step: string, detail?: string) => {
+      onProgress?.({ step, detail, toolCalls, done: false });
+    },
+  };
+
+  let toolCalls = 0;
+  const maxIterations = 50;
+
+  const userPrompt = buildUserPrompt(questionnaire);
+  let messages: Anthropic.MessageParam[] = [{ role: "user", content: userPrompt }];
+
+  // V3 system prompt modifications: patch the existing SYSTEM_PROMPT
+  const v3SystemPrompt = SYSTEM_PROMPT
+    // Replace static export rules with SSR rules
+    .replace(
+      /### Internal Links \(CRITICAL.*?\n([\s\S]*?)(?=### CTA)/,
+      `### Internal Links (SSR — no basePath needed):
+- This is a FULL SSR app running at root "/"
+- ALL internal navigation uses Next.js <Link> component: <Link href="/about">About</Link>
+- NO siteUrl(), NO SITE_BASE, NO basePath — all links are root-relative
+- External links (https://, mailto:, tel:) stay as <a> tags
+- In data.ts: NO SITE_BASE or siteUrl() function needed
+
+### Contact Form (uses local API proxy):
+- Contact form submits to /api/contact (local proxy → FlowSmartly gateway)
+- Use fetch("/api/contact", { method: "POST", body: JSON.stringify(formData) })
+- NEVER call external FlowSmartly URLs directly
+
+`
+    )
+    // Remove the "NEVER use Next.js <Link>" rule
+    .replace(/- NEVER use Next\.js <Link> component.*\n/g, "")
+    // Remove static export image rules
+    .replace(/- Images use standard <img> tags \(static export.*\n/g, "- Use Next.js <Image> component for images (SSR supports it)\n")
+    // Remove generateStaticParams instructions
+    .replace(/- CRITICAL: Dynamic \[slug\] routes.*\n([\s\S]*?)(?=### String Escaping)/,
+      "### Dynamic Routes:\n- SSR handles dynamic [slug] routes natively — no generateStaticParams() needed\n- All pages can be 'use client' if they need hooks/state\n\n")
+    // Update protected files list for V3
+    .replace(
+      /DO NOT write: package\.json.*CookieConsent\.tsx/,
+      "DO NOT write: package.json, tsconfig.json, postcss.config.mjs, next.config.ts, .env.local, src/lib/api-client.ts, src/app/api/[...path]/route.ts, ThemeProvider.tsx, ThemeToggle.tsx, Analytics.tsx, CookieConsent.tsx"
+    );
+
+  try {
+    await prisma.website.update({
+      where: { id: websiteId },
+      data: {
+        buildStatus: "building",
+        generatedPath: siteDir,
+        generatorVersion: "v3",
+      },
+    });
+
+    for (let iteration = 0; iteration < maxIterations; iteration++) {
+      console.log(`[Agent:V3] Iteration ${iteration + 1}, messages: ${messages.length}, tools: ${toolCalls}`);
+
+      const response = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 16000,
+        system: v3SystemPrompt,
+        tools: TOOLS,
+        messages,
+      });
+
+      const toolUseBlocks = response.content.filter(
+        (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
+      );
+
+      if (toolUseBlocks.length === 0) {
+        console.log("[Agent:V3] No more tool calls, done");
+        onProgress?.({ step: "Website ready!", toolCalls, done: true });
+        return { success: true };
+      }
+
+      const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+      for (const toolUse of toolUseBlocks) {
+        toolCalls++;
+        console.log(
+          `[Agent:V3] Tool #${toolCalls}: ${toolUse.name}${
+            toolUse.name === "write_file" ? ` (${(toolUse.input as any).path})` : ""
+          }`
+        );
+
+        try {
+          let result: string;
+
+          if (toolUse.name === "write_file") {
+            // V3: expanded protected files list
+            const path = (toolUse.input as any).path as string;
+            const v3ProtectedFiles = [
+              "package.json", "tsconfig.json", "postcss.config.mjs", "next.config.ts",
+              ".env.local", "src/lib/api-client.ts", "src/app/api/[...path]/route.ts",
+              "src/components/ThemeProvider.tsx", "src/components/ThemeToggle.tsx",
+              "src/components/Analytics.tsx", "src/components/CookieConsent.tsx",
+            ];
+            if (v3ProtectedFiles.includes(path)) {
+              result = JSON.stringify({ skipped: true, reason: `${path} is provided by the builder — do not overwrite` });
+            } else {
+              result = await executeTool(toolUse.name, toolUse.input as Record<string, unknown>, ctx);
+            }
+          } else if (toolUse.name === "build_site") {
+            ctx.onProgress?.("Building SSR website...");
+            const buildResult = await buildSiteV3(websiteId);
+            result = buildResult.success
+              ? JSON.stringify({ success: true, message: "SSR build succeeded" })
+              : JSON.stringify({ success: false, error: buildResult.error?.substring(0, 3000) });
+          } else if (toolUse.name === "finish") {
+            ctx.onProgress?.("Deploying independent website...");
+            const deployResult = await deploySiteV3(websiteId, websiteSlug);
+            if (!deployResult.success) {
+              result = JSON.stringify({ error: deployResult.error });
+            } else {
+              await syncPagesFromOutput(websiteId, websiteSlug, siteDir);
+              result = JSON.stringify({ success: true, url: `/sites/${websiteSlug}`, summary: (toolUse.input as any).summary });
+            }
+
+            onProgress?.({ step: "Website deployed!", toolCalls, done: true });
+            messages.push({ role: "assistant", content: response.content });
+            messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, content: result }] });
+            return { success: true };
+          } else if (toolUse.name === "get_brand_identity") {
+            // V3: remove basePath from brand identity response
+            result = await executeTool(toolUse.name, toolUse.input as Record<string, unknown>, ctx);
+            try {
+              const data = JSON.parse(result);
+              delete data.siteBasePath;
+              delete data.basePath;
+              data.isSSR = true;
+              data.contactFormEndpoint = "/api/contact";
+              result = JSON.stringify(data);
+            } catch {}
+          } else {
+            result = await executeTool(toolUse.name, toolUse.input as Record<string, unknown>, ctx);
+          }
+
+          toolResults.push({ type: "tool_result", tool_use_id: toolUse.id, content: result });
+        } catch (err: any) {
+          console.error(`[Agent:V3] Tool ${toolUse.name} failed:`, err.message);
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: toolUse.id,
+            content: JSON.stringify({ error: err.message }),
+            is_error: true,
+          });
+        }
+      }
+
+      messages.push({ role: "assistant", content: response.content });
+      messages.push({ role: "user", content: toolResults });
+    }
+
+    console.warn("[Agent:V3] Max iterations reached");
+    onProgress?.({ step: "Website ready!", toolCalls, done: true });
+    return { success: true };
+  } catch (err: any) {
+    console.error("[Agent:V3] Fatal error:", err.message);
+    await prisma.website.update({
+      where: { id: websiteId },
+      data: { buildStatus: "error", lastBuildError: err.message },
+    });
+    return { success: false, error: err.message };
+  }
 }

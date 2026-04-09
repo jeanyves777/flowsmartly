@@ -3195,7 +3195,12 @@ model Store {
   lastBuildAt            DateTime?
   lastBuildError         String?
   siteData               String    @default("{}")     // cached parsed data for editor
-  storeVersion           String    @default("ssr")    // "ssr" or "static" — controls routing
+  storeVersion           String    @default("ssr")    // "ssr", "static", or "independent" — controls routing
+
+  // V3 Independent SSR App
+  ssrPort                Int?                          // Assigned port (4001-4999)
+  ssrProcessName         String?                       // PM2 process name: "store-{slug}"
+  ssrStatus              String    @default("stopped") // stopped, starting, running, error
 
   // Status
   isActive               Boolean   @default(false)
@@ -4244,6 +4249,11 @@ model Website {
   lastBuildAt      DateTime?
   lastBuildError   String?
   siteData         String   @default("{}")      // Structured business data (company, services, etc.)
+
+  // V3 Independent SSR App
+  ssrPort          Int?                          // Assigned port (4501-4999)
+  ssrProcessName   String?                       // PM2 process name: "site-{slug}"
+  ssrStatus        String   @default("stopped") // stopped, starting, running, error
 
   // Stats
   pageCount       Int       @default(0)

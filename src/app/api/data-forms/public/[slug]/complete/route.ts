@@ -86,7 +86,7 @@ export async function POST(
           userId: form.userId,
           status: "ACTIVE",
           id: { not: contactId },
-          firstName: { equals: contact.firstName, mode: "insensitive" },
+          firstName: { equals: contact.firstName },
         },
         select: { lastName: true, email: true, phone: true, birthday: true, imageUrl: true, address: true, city: true, state: true },
       });
@@ -326,7 +326,7 @@ export async function GET(
           userId: form.userId,
           status: "ACTIVE",
           id: { not: contactId },
-          firstName: { equals: contact.firstName, mode: "insensitive" },
+          firstName: { equals: contact.firstName },
         },
         select: {
           firstName: true,

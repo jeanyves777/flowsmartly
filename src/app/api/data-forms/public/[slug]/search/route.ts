@@ -38,7 +38,7 @@ export async function GET(
       where: {
         userId: form.userId,
         status: "ACTIVE",
-        firstName: { contains: q, mode: "insensitive" },
+        firstName: { contains: q },
       },
       select: {
         id: true,

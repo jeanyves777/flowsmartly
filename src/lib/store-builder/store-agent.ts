@@ -11,7 +11,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/db/client";
 import { getPresignedUrl } from "@/lib/utils/s3-client";
 import { readReferenceComponent, getAvailableReferences } from "./reference-reader";
-import { initStoreDir, writeStoreFile, buildStore, deployStore, getStoreDir } from "./store-site-builder";
+import {
+  initStoreDir, writeStoreFile, buildStore, deployStore, getStoreDir,
+  initStoreDirV3, buildStoreV3, deployStoreV3,
+} from "./store-site-builder";
 import { searchProductImages, downloadImageToStoreDir } from "./image-search";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -715,4 +718,456 @@ function buildStorePrompt(
     `For products without images, use search_product_images to find appropriate stock photos.`,
     `For products WITH image URLs provided, download those images directly.`,
   ].filter(Boolean).join("\n");
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// V3: Independent SSR Store Agent
+// ═════════════════════════════════════════════════════════════════════════════
+
+const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You build REAL, production-quality online stores as fully independent Next.js SSR applications. Each store you build is a complete, self-hostable app — checkout, customer accounts, order tracking, everything built-in. No redirects to external URLs.
+
+## YOUR PROCESS (follow this order strictly):
+
+1. Call get_brand_identity to learn about the business, products, and brand
+2. Download the brand logo via download_image (category: "brand", filename: "logo") — MANDATORY
+3. Write src/lib/data.ts — store config, branding, navigation, policies
+4. Write src/lib/products.ts — full product catalog with helpers
+5. For EVERY product — download at least 1 image:
+   a. If product has image URLs, call download_image for each
+   b. If NO images, call search_product_images then download_image for the best result
+   c. NEVER skip — every product MUST have at least 1 real image
+   d. Download 1 image per category (for category cards)
+   e. Download 1 hero background image (search for the store's INDUSTRY, not generic)
+6. Write src/app/globals.css with brand colors using @theme {}
+7. Write src/app/layout.tsx with unified layout (Header, Footer, MobileBottomNav, CartDrawer, Analytics, CookieConsent)
+8. Write all components: Header (with mobile side drawer), Hero, CategoryShowcase, FeaturedProducts, ProductCard, ProductGrid, CartDrawer, MobileBottomNav, Footer, Newsletter, AboutSection, FAQ
+9. Write storefront pages:
+   - src/app/page.tsx (home)
+   - src/app/products/page.tsx (product listing)
+   - src/app/products/[slug]/page.tsx (product detail)
+   - src/app/category/[slug]/page.tsx (category view)
+   - src/app/search/page.tsx (search results)
+   - src/app/about/page.tsx
+   - src/app/faq/page.tsx
+10. Write CHECKOUT page — src/app/checkout/page.tsx:
+    - "use client" — fully client-side
+    - Load cart from localStorage, show order summary sidebar
+    - Contact info form: name, email, phone
+    - Shipping address form: street, city, state, zip, country
+    - Shipping method selector: standard / local pickup
+    - Payment method selector: card, cod, mobile money, bank transfer
+    - Submit handler: POST to /api/checkout with items + customer info + shipping + payment method
+    - On success: clear cart, redirect to /order-confirmation?orderId={id}
+    - Empty cart state with "Continue Shopping" link
+    - Styled with brand colors, dark mode, Framer Motion
+11. Write ACCOUNT pages — all "use client", all fetch from /api/:
+    - src/app/account/login/page.tsx: email + password form → POST /api/auth/login → redirect /account
+    - src/app/account/register/page.tsx: name + email + password + confirm → POST /api/auth/register → redirect /account
+    - src/app/account/page.tsx: dashboard with greeting, recent orders, quick links (orders/addresses/settings). Fetch from /api/account/profile + /api/account/orders. If 401 → redirect to /account/login
+    - src/app/account/orders/page.tsx: full order history from /api/account/orders
+    - src/app/account/orders/[orderId]/page.tsx: order detail from /api/account/orders/{orderId}
+    - src/app/account/addresses/page.tsx: saved addresses from /api/account/addresses
+    - src/app/account/settings/page.tsx: profile settings, update via POST /api/account/profile
+12. Write ORDER pages:
+    - src/app/order-confirmation/page.tsx: "use client", reads ?orderId from URL, fetches order from /api/account/orders/{id}, shows order summary + "what happens next"
+    - src/app/track/[orderId]/page.tsx: public order tracking page
+13. Write policy pages (branded, using store name from data.ts):
+    - shipping-policy, return-policy, privacy-policy, terms
+14. Write not-found.tsx and error.tsx (branded)
+15. SEO: metadata, og tags, robots.txt, sitemap.ts, JSON-LD Product schema on product pages
+16. Call build_store to build
+17. If errors, fix the files and rebuild
+18. Call finish to deploy
+
+## CRITICAL RULES:
+
+### This is an SSR App (NOT static export):
+- Use Next.js <Link> component for ALL internal navigation — NEVER bare <a> tags for internal links
+- Use Next.js <Image> component for optimized images
+- NO basePath, NO storeUrl() — all links are root-relative ("/products", "/checkout", "/account")
+- NO generateStaticParams() needed — SSR handles dynamic routes natively
+- Server components are default; add "use client" only when using hooks/state/motion
+
+### API Gateway (CRITICAL — how backend works):
+- The builder already wrote src/lib/api-client.ts and src/app/api/[...path]/route.ts
+- All backend calls go through the local /api/ proxy which forwards to FlowSmartly
+- Checkout: POST to /api/checkout (NOT to an external URL)
+- Auth: POST to /api/auth/login, /api/auth/register, /api/auth/logout
+- Account: GET /api/account/profile, /api/account/orders, /api/account/addresses
+- Products: GET /api/products (for server-side fetching if needed)
+- NEVER call external URLs for backend operations — always use /api/
+
+### Cart & Checkout (CRITICAL — NO external redirects):
+- Cart uses localStorage via src/lib/cart.ts (already provided by builder — DO NOT overwrite)
+- goToCheckout() in cart.ts navigates to /checkout (local page)
+- Checkout page is WITHIN the store at /checkout — NOT a redirect to FlowSmartly
+- Payment processing happens via /api/checkout → FlowSmartly gateway → Stripe
+
+### Customer Accounts (CRITICAL — built into the store):
+- Login/register pages are WITHIN the store at /account/login and /account/register
+- Auth tokens managed via httpOnly cookies (set by the API)
+- Account dashboard at /account shows orders, addresses, settings
+- NEVER link to external URLs for account management
+
+### Quality Standard:
+- Every component MUST use Framer Motion (whileInView, AnimatePresence, motion.div)
+- Every component MUST have dark: Tailwind variants
+- Import data from '@/lib/data' and products from '@/lib/products' — NEVER hardcode content
+- Use brand colors from the brand identity throughout
+
+### Data Structure:
+- src/lib/data.ts MUST contain:
+  export const storeInfo = { name, tagline, description, about, mission, currency, region, logoUrl, email, phone, address, ... }
+  export function formatPrice(cents: number): string { ... }
+  export const categories = [...]
+  export const navLinks = [{ href: "/products", label: "Shop" }, { href: "/about", label: "About" }, ...]
+  export const footerLinks = [...navLinks, { href: "/faq", label: "FAQ" }, { href: "/privacy-policy", label: "Privacy Policy" }, ...]
+  export const heroConfig = { headline, subheadline, ctaText, ctaUrl, ... }
+  export const faq = [...]
+  export const policies = { shipping, returns, privacy, terms }
+
+- src/lib/products.ts MUST contain:
+  export interface Product { id, slug, name, description, shortDescription, priceCents, comparePriceCents, categoryId, tags, images, variants, badges, featured, inStock }
+  export const products: Product[] = [...]
+  export function getProductBySlug, getProductsByCategory, getFeaturedProducts, searchProducts
+
+### Logo & Favicon:
+- MUST download brand logo via download_image IMMEDIATELY after get_brand_identity
+- NEVER create text/SVG placeholder logos
+- Logo sizing: Header h-12 sm:h-14 md:h-16, Footer h-14 md:h-16, max-w-[200px] object-contain
+- Favicon: use exact downloaded file extension
+
+### Footer (legal requirement):
+- MUST render ALL footerLinks — NEVER .slice()
+- MUST include: Shipping Policy, Return Policy, Privacy Policy, Terms
+- These are legally required for e-commerce stores
+
+### Layout Integration:
+- layout.tsx imports: Header, Footer, MobileBottomNav, CartDrawer, Analytics, CookieConsent
+- Main content pb-16 md:pb-0 for MobileBottomNav space
+- CartDrawer shared between Header cart icon and MobileBottomNav cart button
+
+### Mobile UX:
+- Header hamburger → side drawer from LEFT (motion.div x:"-100%" → x:0)
+- MobileBottomNav (fixed bottom, md:hidden): Shop, Search, Cart (with badge), Account
+- Cart badge from localStorage + 'cart-updated' event listener
+- Account button links to /account (internal, NOT external)
+- 2-col product grids on mobile, 3 on md, 4 on lg
+- Touch targets: min 44px
+
+### Technical:
+- Tailwind CSS v4: @import "tailwindcss", @theme {}, @custom-variant dark
+- NO tailwind.config.ts
+- Icons from lucide-react
+- Use double-quoted strings for text with apostrophes: "What's New"
+
+### Protected Files (DO NOT write these — builder already created them):
+- package.json, tsconfig.json, postcss.config.mjs, next.config.ts
+- src/lib/api-client.ts, src/lib/cart.ts
+- src/app/api/[...path]/route.ts
+- src/components/ThemeProvider.tsx, ThemeToggle.tsx, Analytics.tsx, CookieConsent.tsx
+- .env.local
+
+### Import Order:
+- Write files in dependency order: data.ts → products.ts → globals.css → layout.tsx → components → pages → checkout → account`;
+
+// ─── V3 Tool Definitions ─────────────────────────────────────────────────────
+
+const V3_TOOLS: Anthropic.Tool[] = [
+  TOOLS[0], // get_brand_identity
+  TOOLS[1], // read_reference
+  TOOLS[2], // write_file
+  TOOLS[3], // download_image
+  TOOLS[4], // search_product_images
+  {
+    name: "build_store",
+    description: "Run next build (SSR mode) to compile the store. Returns build output or errors. If errors, fix the files and rebuild.",
+    input_schema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "finish",
+    description: "Deploy the built store as an independent SSR app (starts PM2 process). Call this LAST after a successful build.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        summary: { type: "string", description: "Summary of what was built" },
+      },
+      required: ["summary"],
+    },
+  },
+];
+
+// ─── V3 Tool Execution ──────────────────────────────────────────────────────
+
+async function executeToolV3(name: string, input: Record<string, unknown>, ctx: StoreAgentContext): Promise<string> {
+  // Most tools are the same — only build_store and finish differ
+  switch (name) {
+    case "get_brand_identity": {
+      // Same as V2 but change accountUrl to internal /account
+      ctx.onProgress?.("Reading brand identity...");
+      const brandKit = await prisma.brandKit.findFirst({
+        where: { userId: ctx.userId },
+        orderBy: { isDefault: "desc" },
+      });
+
+      const website = await prisma.website.findFirst({
+        where: { userId: ctx.userId, status: "PUBLISHED", deletedAt: null },
+        select: { slug: true, customDomain: true },
+      });
+      const websiteUrl = website
+        ? (website.customDomain ? `https://${website.customDomain}` : `${process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com"}/sites/${website.slug}`)
+        : "";
+
+      const productList = ctx.products.map(p => ({
+        name: p.name,
+        description: p.description || "",
+        priceCents: p.priceCents,
+        comparePriceCents: p.comparePriceCents,
+        category: p.category || "general",
+        images: p.images || [],
+        variants: p.variants || [],
+        tags: p.tags || [],
+      }));
+
+      const brandData: Record<string, unknown> = {
+        storeName: ctx.storeInfo.name,
+        industry: ctx.storeInfo.industry,
+        niche: ctx.storeInfo.niche,
+        targetAudience: ctx.storeInfo.targetAudience,
+        region: ctx.storeInfo.region,
+        currency: ctx.storeInfo.currency,
+        products: productList,
+        categories: ctx.categories,
+        productCount: productList.length,
+        storeId: ctx.storeId,
+        storeSlug: ctx.storeSlug,
+        // V3: NO basePath, NO external accountUrl
+        accountUrl: "/account",
+        checkoutUrl: "/checkout",
+        websiteUrl,
+      };
+
+      if (brandKit) {
+        Object.assign(brandData, {
+          name: brandKit.name,
+          tagline: brandKit.tagline,
+          description: brandKit.description,
+          colors: safeParseJSON(brandKit.colors),
+          fonts: safeParseJSON(brandKit.fonts),
+          logoUrl: brandKit.logo ? await getPresignedUrl(brandKit.logo) : null,
+          logoInstructions: brandKit.logo
+            ? "IMPORTANT: Download this logo using download_image with the logoUrl above, category 'brand' and filename 'logo'. Then use the returned path in Header, Footer, and favicon."
+            : "No logo available — use the store name as text in the header.",
+          handles: safeParseJSON(brandKit.handles),
+          email: brandKit.email,
+          phone: brandKit.phone,
+          website: brandKit.website,
+          address: brandKit.address,
+          city: brandKit.city,
+          state: brandKit.state,
+          country: brandKit.country,
+          voiceTone: brandKit.voiceTone,
+        });
+      } else {
+        brandData.noBrandKit = true;
+      }
+
+      return JSON.stringify(brandData);
+    }
+
+    case "read_reference":
+      return executeTool("read_reference", input, ctx);
+
+    case "write_file": {
+      const path = input.path as string;
+      const content = input.content as string;
+      ctx.onProgress?.("Writing file...", path);
+
+      // V3 protected files (builder writes these — agent must NOT overwrite)
+      const protectedFiles = [
+        "package.json", "tsconfig.json", "postcss.config.mjs", "next.config.ts",
+        ".env.local",
+        "src/lib/api-client.ts", "src/lib/cart.ts",
+        "src/app/api/[...path]/route.ts",
+        "src/components/ThemeProvider.tsx", "src/components/ThemeToggle.tsx",
+        "src/components/Analytics.tsx", "src/components/CookieConsent.tsx",
+      ];
+      if (protectedFiles.includes(path)) {
+        return JSON.stringify({ skipped: true, reason: `${path} is provided by the builder — do not overwrite` });
+      }
+
+      try {
+        writeStoreFile(ctx.storeId, path, content);
+        return JSON.stringify({ success: true, path });
+      } catch (err: any) {
+        return JSON.stringify({ error: err.message });
+      }
+    }
+
+    case "download_image": {
+      const url = input.url as string;
+      const category = input.category as string;
+      const filename = input.filename as string;
+      ctx.onProgress?.("Downloading image...", filename);
+
+      try {
+        const localPath = await downloadImageToStoreDir(url, ctx.siteDir, category, filename);
+        // V3: paths are root-relative (no basePath needed)
+        return JSON.stringify({
+          success: true,
+          localPath: localPath,
+          usage: `Use as: src="${localPath}" in <Image> or <img> tags.`,
+        });
+      } catch (err: any) {
+        return JSON.stringify({ error: err.message, localPath: `/images/${category}/placeholder.jpg` });
+      }
+    }
+
+    case "search_product_images":
+      return executeTool("search_product_images", input, ctx);
+
+    case "build_store": {
+      ctx.onProgress?.("Building SSR store...");
+      const result = await buildStoreV3(ctx.storeId);
+      if (result.success) {
+        return JSON.stringify({ success: true, message: "SSR build succeeded" });
+      }
+      return JSON.stringify({ success: false, error: result.error?.substring(0, 3000) });
+    }
+
+    case "finish": {
+      ctx.onProgress?.("Deploying independent store...");
+      const deployResult = await deployStoreV3(ctx.storeId, ctx.storeSlug);
+      if (!deployResult.success) {
+        return JSON.stringify({ error: deployResult.error });
+      }
+
+      await syncProductsToDB(ctx.storeId, ctx.siteDir);
+
+      return JSON.stringify({
+        success: true,
+        url: `/stores/${ctx.storeSlug}`,
+        summary: input.summary,
+      });
+    }
+
+    default:
+      return JSON.stringify({ error: `Unknown tool: ${name}` });
+  }
+}
+
+// ─── V3 Agent Runner ─────────────────────────────────────────────────────────
+
+export async function runStoreAgentV3(
+  storeId: string,
+  storeSlug: string,
+  userId: string,
+  storeInfo: StoreAgentContext["storeInfo"],
+  products: ProductInput[],
+  categories: string[],
+  onProgress?: (progress: AgentProgress) => void
+): Promise<{ success: boolean; error?: string }> {
+  // Initialize V3 store directory (SSR templates, API proxy, cart, env)
+  const siteDir = initStoreDirV3(storeId, storeSlug);
+
+  const ctx: StoreAgentContext = {
+    storeId,
+    storeSlug,
+    userId,
+    storeInfo,
+    products,
+    categories,
+    siteDir,
+    onProgress: (step, detail) => {
+      onProgress?.({ step, detail, toolCalls, done: false });
+    },
+  };
+
+  let toolCalls = 0;
+  const maxIterations = 50;
+
+  const userPrompt = buildStorePrompt(storeInfo, products, categories);
+  let messages: Anthropic.MessageParam[] = [{ role: "user", content: userPrompt }];
+
+  try {
+    await prisma.store.update({
+      where: { id: storeId },
+      data: {
+        buildStatus: "building",
+        generatedPath: siteDir,
+        generatorVersion: "v3",
+      },
+    });
+
+    for (let iteration = 0; iteration < maxIterations; iteration++) {
+      console.log(`[StoreAgent:V3] Iteration ${iteration + 1}, messages: ${messages.length}, tools: ${toolCalls}`);
+
+      const response = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 16000,
+        system: V3_SYSTEM_PROMPT,
+        tools: V3_TOOLS,
+        messages,
+      });
+
+      const toolUseBlocks = response.content.filter(
+        (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
+      );
+
+      if (toolUseBlocks.length === 0) {
+        console.log("[StoreAgent:V3] No more tool calls, done");
+        onProgress?.({ step: "Store ready!", toolCalls, done: true });
+        return { success: true };
+      }
+
+      const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+      for (const toolUse of toolUseBlocks) {
+        toolCalls++;
+        console.log(
+          `[StoreAgent:V3] Tool #${toolCalls}: ${toolUse.name}${
+            toolUse.name === "write_file" ? ` (${(toolUse.input as any).path})` : ""
+          }`
+        );
+
+        try {
+          const result = await executeToolV3(toolUse.name, toolUse.input as Record<string, unknown>, ctx);
+
+          if (toolUse.name === "finish") {
+            onProgress?.({ step: "Store deployed!", toolCalls, done: true });
+            messages.push({ role: "assistant", content: response.content });
+            messages.push({
+              role: "user",
+              content: [{ type: "tool_result", tool_use_id: toolUse.id, content: result }],
+            });
+            return { success: true };
+          }
+
+          toolResults.push({ type: "tool_result", tool_use_id: toolUse.id, content: result });
+        } catch (err: any) {
+          console.error(`[StoreAgent:V3] Tool ${toolUse.name} failed:`, err.message);
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: toolUse.id,
+            content: JSON.stringify({ error: err.message }),
+            is_error: true,
+          });
+        }
+      }
+
+      messages.push({ role: "assistant", content: response.content });
+      messages.push({ role: "user", content: toolResults });
+    }
+
+    console.warn("[StoreAgent:V3] Max iterations reached");
+    onProgress?.({ step: "Store ready!", toolCalls, done: true });
+    return { success: true };
+  } catch (err: any) {
+    console.error("[StoreAgent:V3] Fatal error:", err.message);
+    await prisma.store.update({
+      where: { id: storeId },
+      data: { buildStatus: "error", lastBuildError: err.message },
+    });
+    return { success: false, error: err.message };
+  }
 }
