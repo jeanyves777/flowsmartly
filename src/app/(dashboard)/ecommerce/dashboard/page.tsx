@@ -15,6 +15,9 @@ import {
   Rocket,
   ArrowRight,
   Palette,
+  Loader2,
+  Flag,
+  Check,
 } from "lucide-react";
 import { ORDER_STATUSES } from "@/lib/constants/ecommerce";
 import { formatPrice } from "@/lib/store/currency";
@@ -33,6 +36,7 @@ interface Store {
   region: string | null;
   generatorVersion: string;
   buildStatus: string;
+  lastBuildError: string | null;
 }
 
 interface Order {
@@ -166,6 +170,51 @@ export default function EcommerceDashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Build Error Banner */}
+      {store.buildStatus === "error" && store.generatorVersion === "v2" && (
+        <div className="rounded-xl border-2 border-red-300 dark:border-red-700 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/30 p-5">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-red-800 dark:text-red-300 mb-1">Store Build Failed</h3>
+              <p className="text-sm text-red-700 dark:text-red-400 mb-1">
+                Your store encountered an error during the last build. You can view the error details, try rebuilding, or report the issue to our team.
+              </p>
+              {store.lastBuildError && (
+                <pre className="text-xs text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded-lg p-2 overflow-auto max-h-20 mb-3">
+                  {store.lastBuildError.substring(0, 200)}{store.lastBuildError.length > 200 ? "..." : ""}
+                </pre>
+              )}
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/ecommerce/design/v2?tab=build"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  <Palette className="w-3.5 h-3.5" />
+                  Open Editor
+                </Link>
+                <BuildErrorReportButton storeId={store.id} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Build In Progress Banner */}
+      {store.buildStatus === "building" && store.generatorVersion === "v2" && (
+        <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-4">
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />
+            <div>
+              <p className="font-medium text-blue-800 dark:text-blue-300 text-sm">Your store is being built...</p>
+              <p className="text-xs text-blue-600 dark:text-blue-400">This usually takes 30-60 seconds.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* V2 Upgrade Banner */}
       <StoreUpgradeBanner
@@ -324,5 +373,42 @@ export default function EcommerceDashboardPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function BuildErrorReportButton({ storeId }: { storeId: string }) {
+  const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const report = async () => {
+    setSending(true);
+    try {
+      await fetch(`/api/ecommerce/store/${storeId}/report-error`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      setSent(true);
+    } catch {}
+    setSending(false);
+  };
+
+  if (sent) {
+    return (
+      <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
+        <Check className="w-4 h-4" /> Reported
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={report}
+      disabled={sending}
+      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+    >
+      {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Flag className="w-3.5 h-3.5" />}
+      Report to Admin
+    </button>
   );
 }
