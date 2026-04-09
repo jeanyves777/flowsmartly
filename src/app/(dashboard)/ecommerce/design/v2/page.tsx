@@ -247,8 +247,8 @@ export default function StoreEditorV2Page() {
                 <Sparkles className="w-5 h-5 text-primary-foreground" />
               </div>
               <div>
-                <p className="font-semibold text-sm">Upgrade Available — V3 Independent Store</p>
-                <p className="text-xs text-muted-foreground">Built-in checkout, customer accounts, and order tracking — all within your store.</p>
+                <p className="font-semibold text-sm">New Version Available</p>
+                <p className="text-xs text-muted-foreground">Rebuild your store with built-in checkout, customer accounts, and order tracking.</p>
               </div>
             </div>
             <button
@@ -257,7 +257,7 @@ export default function StoreEditorV2Page() {
               className="flex-shrink-0 flex items-center gap-1.5 px-5 py-2.5 text-sm bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 disabled:opacity-50"
             >
               <Sparkles className="w-4 h-4" />
-              Upgrade to V3
+              Rebuild Store
             </button>
           </div>
         </div>
@@ -267,7 +267,7 @@ export default function StoreEditorV2Page() {
       {upgrading && (
         <div className="mb-4">
           <AIGenerationLoader
-            currentStep={buildStep || "Generating your independent store with checkout, accounts, and more..."}
+            currentStep={buildStep || "Rebuilding your store with checkout, accounts, and more..."}
             compact
           />
         </div>
@@ -517,7 +517,7 @@ export default function StoreEditorV2Page() {
             {/* Version badge */}
             <div className="flex items-center gap-2 mb-4">
               <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">
-                {store.storeVersion === "independent" ? "V3 Independent SSR" : store.storeVersion === "static" ? "V2 Static" : "V1 SSR"}
+                {store.storeVersion === "independent" ? "Independent App" : store.storeVersion === "static" ? "V2 Static" : "V1 SSR"}
               </span>
               {store.storeVersion === "independent" && (
                 <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
@@ -587,19 +587,18 @@ export default function StoreEditorV2Page() {
               <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
                 <Sparkles className="w-5 h-5 text-primary-foreground" />
               </div>
-              <h3 className="text-lg font-bold">Upgrade to V3</h3>
+              <h3 className="text-lg font-bold">Rebuild Your Store</h3>
             </div>
 
             <p className="text-sm text-muted-foreground mb-4">
-              Your store will be rebuilt as a fully independent application with:
+              Your store will be rebuilt with the latest features:
             </p>
 
             <ul className="text-sm space-y-2 mb-6">
               <li className="flex items-center gap-2"><Check className="w-4 h-4 text-primary flex-shrink-0" /> Built-in checkout page</li>
               <li className="flex items-center gap-2"><Check className="w-4 h-4 text-primary flex-shrink-0" /> Customer accounts (login, register, orders)</li>
               <li className="flex items-center gap-2"><Check className="w-4 h-4 text-primary flex-shrink-0" /> Order tracking and confirmation</li>
-              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-primary flex-shrink-0" /> No redirects — everything in your store</li>
-              <li className="flex items-center gap-2 text-muted-foreground"><Check className="w-4 h-4 flex-shrink-0" /> Option to self-host on your own VPS later</li>
+              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-primary flex-shrink-0" /> Everything runs within your store — no redirects</li>
             </ul>
 
             <p className="text-xs text-muted-foreground mb-5">
@@ -611,7 +610,7 @@ export default function StoreEditorV2Page() {
                 onClick={async () => {
                   setShowUpgradeModal(false);
                   setUpgrading(true);
-                  setBuildStep("Upgrading to V3...");
+                  setBuildStep("Rebuilding store...");
                   try {
                     const res = await fetch(`/api/ecommerce/store/${store.id}/generate`, {
                       method: "POST",
@@ -620,7 +619,7 @@ export default function StoreEditorV2Page() {
                     });
                     if (!res.ok) {
                       const d = await res.json();
-                      setBuildResult({ type: "error", message: d.error || "Upgrade failed" });
+                      setBuildResult({ type: "error", message: d.error || "Rebuild failed" });
                       setUpgrading(false);
                       setBuildStep("");
                       return;
@@ -632,15 +631,15 @@ export default function StoreEditorV2Page() {
                         clearInterval(poll);
                         setUpgrading(false);
                         setBuildStep("");
-                        setBuildResult({ type: "success", message: "Store upgraded to V3!" });
+                        setBuildResult({ type: "success", message: "Store rebuilt successfully!" });
                         setStore((prev) => prev ? { ...prev, storeVersion: "independent", generatorVersion: "v3", buildStatus: "built", ssrStatus: "running" } : null);
                       } else if (d.buildStatus === "error") {
                         clearInterval(poll);
                         setUpgrading(false);
                         setBuildStep("");
-                        setBuildResult({ type: "error", message: d.lastBuildError || "Upgrade failed" });
+                        setBuildResult({ type: "error", message: d.lastBuildError || "Rebuild failed" });
                       } else {
-                        setBuildStep("Building V3 store...");
+                        setBuildStep("Rebuilding your store...");
                       }
                     }, 5000);
                   } catch (err: any) {
@@ -651,7 +650,7 @@ export default function StoreEditorV2Page() {
                 }}
                 className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90"
               >
-                <Sparkles className="w-4 h-4" /> Upgrade Now — 500 Credits
+                <Sparkles className="w-4 h-4" /> Rebuild Now — 500 Credits
               </button>
               <button
                 onClick={() => setShowUpgradeModal(false)}
