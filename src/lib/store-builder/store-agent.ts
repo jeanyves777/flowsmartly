@@ -144,7 +144,7 @@ const SYSTEM_PROMPT = `You are a professional e-commerce store developer. You bu
    b. If NO images provided, call search_product_images with the product name, then download_image for the best result
    c. NEVER skip image download — every product MUST have at least 1 real image
    d. Also search and download 1 image per category (for category showcase cards)
-   e. Search and download 1 hero background image for the store
+   e. Search and download 1 hero background image — search for the store's INDUSTRY (e.g. "electronics store", "fashion boutique") NOT generic "store" or "shopping"
 7. Call read_reference for "GlobalCSS" then write src/app/globals.css with the brand's colors
 8. Call read_reference for "Layout" then write src/app/layout.tsx
 9. For each component (Header, Hero, CategoryShowcase, FeaturedProducts, ProductCard, ProductGrid, CartDrawer, MobileBottomNav, Footer, Newsletter, AboutSection, FAQ):
