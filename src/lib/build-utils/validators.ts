@@ -79,6 +79,17 @@ export function syncBasePath(
       // No custom domain: ensure bare /images/ paths have the basePath prefix
       data = data.replace(/(?<=["'])\/images\//g, `${basePath}/images/`);
     }
+    // Fix navLinks and footerLinks: prefix bare href paths with basePath
+    // e.g. { href: '/about' } → { href: '/sites/slug/about' }
+    if (basePath) {
+      const escaped = escapeRegex(basePath);
+      // Match href: '/path' or href: "/path" where path doesn't already have basePath
+      data = data.replace(
+        new RegExp(`(href:\\s*['"])(?!${escaped}|https?://|mailto:|tel:|#)(/[^'"]*['"])`, "g"),
+        `$1${basePath}$2`
+      );
+    }
+
     writeFileSync(dataPath, data);
   }
 
