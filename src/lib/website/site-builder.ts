@@ -35,6 +35,7 @@ import {
   injectAnalytics,
   fixGenerateStaticParams,
   cleanupV3Patterns,
+  fixTailwindV4Classes,
 } from "@/lib/build-utils/validators";
 import {
   allocatePort,
@@ -380,6 +381,7 @@ export async function buildSiteV3(websiteId: string): Promise<{ success: boolean
 
     // SSR-applicable validators only
     cleanupV3Patterns(siteDir); // Remove siteUrl/SITE_BASE left by agent
+    fixTailwindV4Classes(siteDir); // Fix bg-primary-500 → bg-primary etc.
     const stubs = validateAndFixImports(siteDir);
     if (stubs.length > 0) {
       console.log(`[SiteBuilder:V3] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);

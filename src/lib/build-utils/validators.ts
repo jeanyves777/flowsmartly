@@ -538,3 +538,86 @@ export function cleanupV3Patterns(siteDir: string): void {
     console.log(`[BuildUtils] V3 cleanup: fixed ${fixCount} files (removed storeUrl/siteUrl/STORE_BASE patterns)`);
   }
 }
+
+// ─── Tailwind v4 Class Fixer ────────────────────────────────────────────────
+
+/**
+ * Fix invalid Tailwind v4 utility classes that agents generate.
+ *
+ * Common mistakes:
+ * - bg-primary-950, text-primary-600, etc. (primary is a single color, not a scale)
+ * - hover:bg-primary-700 → hover:bg-primary/70
+ * - Same for secondary, accent, etc.
+ *
+ * In Tailwind v4 with @theme { --color-primary: #xxx }, only `bg-primary` works,
+ * not `bg-primary-500`. Numbered variants need opacity modifiers: bg-primary/50.
+ */
+export function fixTailwindV4Classes(siteDir: string): void {
+  const srcDir = join(siteDir, "src");
+  if (!existsSync(srcDir)) return;
+
+  const files = collectSourceFiles(srcDir);
+  let fixCount = 0;
+
+  // Map numbered shade to opacity approximation
+  // 50→95, 100→90, 200→80, 300→70, 400→60, 500→(base), 600→80, 700→70, 800→50, 900→30, 950→20
+  const shadeToOpacity: Record<string, string> = {
+    "50": "/95", "100": "/90", "200": "/80", "300": "/70", "400": "/60",
+    "500": "", "600": "/80", "700": "/70", "800": "/50", "900": "/30", "950": "/20",
+  };
+
+  // Custom theme colors that are single values (not scales)
+  const customColors = ["primary", "secondary", "accent", "muted", "destructive"];
+
+  for (const file of files) {
+    let content = readFileSync(file, "utf-8");
+    const original = content;
+
+    for (const color of customColors) {
+      // Match patterns like bg-primary-500, text-secondary-700, border-accent-200, etc.
+      // Replace with bg-primary/opacity
+      const regex = new RegExp(
+        `((?:bg|text|border|ring|outline|shadow|from|to|via|fill|stroke|placeholder|divide|decoration)-${color})-(\\d{2,3})`,
+        "g"
+      );
+      content = content.replace(regex, (match, prefix, shade) => {
+        const opacity = shadeToOpacity[shade];
+        if (opacity === undefined) return match; // Unknown shade, leave as-is
+        return `${prefix}${opacity}`;
+      });
+    }
+
+    if (content !== original) {
+      writeFileSync(file, content, "utf-8");
+      fixCount++;
+    }
+  }
+
+  // Also fix globals.css — agent might use invalid @apply classes
+  const globalsCss = join(srcDir, "app", "globals.css");
+  if (existsSync(globalsCss)) {
+    let css = readFileSync(globalsCss, "utf-8");
+    const originalCss = css;
+
+    for (const color of customColors) {
+      const regex = new RegExp(
+        `((?:bg|text|border|ring)-${color})-(\\d{2,3})`,
+        "g"
+      );
+      css = css.replace(regex, (match, prefix, shade) => {
+        const opacity = shadeToOpacity[shade];
+        if (opacity === undefined) return match;
+        return `${prefix}${opacity}`;
+      });
+    }
+
+    if (css !== originalCss) {
+      writeFileSync(globalsCss, css, "utf-8");
+      fixCount++;
+    }
+  }
+
+  if (fixCount > 0) {
+    console.log(`[BuildUtils] Tailwind v4 fix: fixed ${fixCount} files (replaced color-shade with color/opacity)`);
+  }
+}
