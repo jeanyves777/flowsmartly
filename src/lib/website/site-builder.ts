@@ -23,6 +23,7 @@ import {
   fixBareLinks,
   fixHamburgerMenu,
   injectAnalytics,
+  fixGenerateStaticParams,
 } from "@/lib/build-utils/validators";
 
 // Directories
@@ -188,6 +189,9 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
 
     // Pre-build: inject Analytics + CookieConsent into layout.tsx if missing
     injectAnalytics(siteDir);
+
+    // Pre-build: auto-split "use client" + generateStaticParams conflicts
+    fixGenerateStaticParams(siteDir);
 
     // Clear build cache so changes are picked up
     const nextCacheDir = join(siteDir, ".next");
