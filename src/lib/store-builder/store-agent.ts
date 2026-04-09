@@ -138,13 +138,16 @@ const SYSTEM_PROMPT = `You are a professional e-commerce store developer. You bu
 2. Call read_reference for "Data" to see the reference data structure, then write src/lib/data.ts
 3. Call read_reference for "Products" to see the product structure, then write src/lib/products.ts
 4. Call read_reference for "Cart" to see the cart logic, then write src/lib/cart.ts
-5. For each product that needs images:
-   a. If the brand identity provides product image URLs, call download_image for each
-   b. If no images provided, call search_product_images to find relevant images, then download_image
-6. Download the brand logo via download_image (category: "brand", filename: "logo") — MANDATORY
+5. Download the brand logo via download_image (category: "brand", filename: "logo") — MANDATORY
+6. For EVERY product — download at least 1 image:
+   a. If product has image URLs provided, call download_image for each
+   b. If NO images provided, call search_product_images with the product name, then download_image for the best result
+   c. NEVER skip image download — every product MUST have at least 1 real image
+   d. Also search and download 1 image per category (for category showcase cards)
+   e. Search and download 1 hero background image for the store
 7. Call read_reference for "GlobalCSS" then write src/app/globals.css with the brand's colors
 8. Call read_reference for "Layout" then write src/app/layout.tsx
-9. For each component (Header, Hero, CategoryShowcase, FeaturedProducts, ProductCard, ProductGrid, CartDrawer, Footer, Newsletter, AboutSection, FAQ):
+9. For each component (Header, Hero, CategoryShowcase, FeaturedProducts, ProductCard, ProductGrid, CartDrawer, MobileBottomNav, Footer, Newsletter, AboutSection, FAQ):
    a. Call read_reference to see the reference component
    b. Write an ADAPTED version for THIS store — same quality, same animations, different content/branding
 10. Write pages: src/app/page.tsx (home), src/app/products/page.tsx, src/app/products/[slug]/page.tsx, src/app/category/[slug]/page.tsx, src/app/about/page.tsx, src/app/faq/page.tsx
@@ -262,18 +265,33 @@ const SYSTEM_PROMPT = `You are a professional e-commerce store developer. You bu
 - NEVER import a file you haven't written yet
 - DO NOT write: package.json, tsconfig.json, postcss.config.mjs, next.config.ts, ThemeProvider.tsx, ThemeToggle.tsx, Analytics.tsx, CookieConsent.tsx
 
-### Mobile Hamburger Menu:
-- MUST use simple conditional: {isOpen ? <X /> : <Menu />}
-- NEVER use AnimatePresence or motion.div with opacity:0 for the icon — breaks static export
+### Mobile UX (CRITICAL — most users access on phone):
 
-### Mobile Bottom Nav (MANDATORY):
-- Write src/components/MobileBottomNav.tsx — a fixed bottom bar for mobile (md:hidden)
-- Buttons: Home, Shop, Cart (with badge count), Account
-- If storeInfo.websiteUrl exists, add a Website button
-- Cart count: use getCart()/getCartCount() from '@/lib/cart' + listen to 'cart-updated' event
+#### Mobile Menu — SIDE DRAWER (NOT dropdown):
+- Header hamburger button opens a SIDE DRAWER that slides from the LEFT
+- Drawer must: have logo at top, navigation links with chevrons, category links, contact info at bottom
+- Drawer uses AnimatePresence + motion.div with x:"-100%" → x:0 transition
+- The hamburger ICON itself must use simple conditional: {menuOpen ? nothing : <Menu />} — the X close button is INSIDE the drawer
+- Drawer must lock body scroll when open (document.body.style.overflow = "hidden")
+- NEVER use a dropdown menu from the top — always side drawer on mobile
+
+#### Mobile Bottom Nav (MANDATORY):
+- Write src/components/MobileBottomNav.tsx — fixed bottom bar, md:hidden
+- 4 buttons: Shop (Home icon), Search, Cart (ShoppingBag icon with red badge), Account (User icon)
+- Cart badge: use getCart()/getCartCount() from '@/lib/cart' + listen to 'cart-updated' event
+- Cart button opens CartDrawer (pass onCartOpen prop)
 - Account links to storeInfo.accountUrl (external URL to main app)
 - Import and render in layout.tsx AFTER Footer, BEFORE </body>
-- Add pb-16 to the page wrapper on mobile so content isn't hidden behind the bar`;
+- Add pb-16 to the page wrapper on mobile so content isn't hidden behind the bar
+- Use safe-area-inset-bottom for iPhone notch: pb-[env(safe-area-inset-bottom)]
+
+#### Mobile-First Design:
+- ALL components must be mobile-first (base styles for mobile, sm:/md:/lg: for larger)
+- Product grids: 2 columns on mobile (grid-cols-2), 3 on md, 4 on lg
+- Hero: full-width on mobile with readable text (text-3xl not text-6xl)
+- Logo in header: h-10 on mobile (NOT h-16/h-20 which is too large on phone)
+- Logo in footer: h-12 on mobile
+- Touch targets: minimum 44px tap area for all buttons/links on mobile`;
 
 // ─── Tool Execution ──────────────────────────────────────────────────────────
 
