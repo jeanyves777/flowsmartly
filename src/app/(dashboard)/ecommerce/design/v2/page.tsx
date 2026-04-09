@@ -4,11 +4,12 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, ExternalLink, RefreshCw, Loader2, Check, AlertCircle, Globe,
-  FileText, Save, Plus, Trash2, Link2, X, Image as ImageIcon,
-  Phone, Mail, MapPin, ShoppingBag, HelpCircle, AlertTriangle, Tag, DollarSign,
+  FileText, Save, Plus, Trash2, Link2, X,
+  MapPin, Sparkles, AlertTriangle,
 } from "lucide-react";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { PageLoader } from "@/components/shared/page-loader";
+import { SectionUpdater } from "@/components/shared/section-updater";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -157,10 +158,7 @@ export default function StoreEditorV2Page() {
   const tabs: Array<{ id: string; label: string; icon: any }> = [
     { id: "preview", label: "Preview", icon: Globe },
     { id: "store-info", label: "Store Info", icon: FileText },
-    { id: "hero", label: "Hero", icon: ImageIcon },
-    { id: "products", label: "Products", icon: ShoppingBag },
-    { id: "categories", label: "Categories", icon: Tag },
-    { id: "faq", label: "FAQ", icon: HelpCircle },
+    { id: "ai-update", label: "AI Update", icon: Sparkles },
     { id: "links", label: "Links", icon: Link2 },
     { id: "domains", label: "Domains", icon: Globe },
     { id: "build", label: "Build", icon: AlertCircle },
@@ -283,90 +281,25 @@ export default function StoreEditorV2Page() {
         </div>
       )}
 
-      {/* ═══ Hero Tab ═══ */}
-      {activeTab === "hero" && data && (
-        <Section title="Hero Section">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Headline" value={data.heroConfig?.headline} onChange={(v) => update("heroConfig.headline", v)} span={2} />
-            <Field label="Subheadline" value={data.heroConfig?.subheadline} onChange={(v) => update("heroConfig.subheadline", v)} multiline span={2} />
-            <Field label="CTA Text" value={data.heroConfig?.ctaText} onChange={(v) => update("heroConfig.ctaText", v)} />
-            <Field label="CTA URL" value={data.heroConfig?.ctaUrl} onChange={(v) => update("heroConfig.ctaUrl", v)} />
+      {/* ═══ AI Update Tab ═══ */}
+      {activeTab === "ai-update" && store && (
+        <div className="space-y-6">
+          <SectionUpdater
+            apiBase={`/api/ecommerce/store/${store.id}/update-section`}
+            onUpdated={() => rebuild()}
+          />
+          <div className="rounded-lg border border-border bg-muted/30 p-4">
+            <h3 className="text-sm font-semibold mb-2">What can AI update?</h3>
+            <ul className="text-xs text-muted-foreground space-y-1.5">
+              <li>Change hero section, headlines, images, animations</li>
+              <li>Update product cards layout, pricing display, badges</li>
+              <li>Modify category showcase, featured products section</li>
+              <li>Update navigation, footer, header design</li>
+              <li>Change colors, fonts, spacing, dark mode</li>
+              <li>Add newsletter signup, about section, FAQ</li>
+              <li>Any design or content change you can describe</li>
+            </ul>
           </div>
-        </Section>
-      )}
-
-      {/* ═══ Products Tab ═══ */}
-      {activeTab === "products" && data && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Products ({data.products?.length || 0})</h2>
-          </div>
-          {(data.products || []).map((product, i) => (
-            <div key={i} className="bg-card border border-border rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-muted-foreground">Product {i + 1}</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label="Name" value={product.name} onChange={(v) => { const p = [...(data.products || [])]; p[i] = { ...p[i], name: v }; update("products", p); }} />
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Price</label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input
-                      type="number"
-                      value={product.priceCents ? (parseInt(product.priceCents) / 100).toFixed(2) : ""}
-                      onChange={(e) => { const p = [...(data.products || [])]; p[i] = { ...p[i], priceCents: String(Math.round(parseFloat(e.target.value || "0") * 100)) }; update("products", p); }}
-                      step="0.01"
-                      className="w-full pl-10 pr-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3">
-                <Field label="Short Description" value={product.shortDescription || product.description} onChange={(v) => { const p = [...(data.products || [])]; p[i] = { ...p[i], shortDescription: v }; update("products", p); }} multiline />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ═══ Categories Tab ═══ */}
-      {activeTab === "categories" && data && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Categories ({data.categories?.length || 0})</h2>
-          </div>
-          {(data.categories || []).map((cat, i) => (
-            <div key={i} className="bg-card border border-border rounded-xl p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label="Name" value={cat.name} onChange={(v) => { const c = [...(data.categories || [])]; c[i] = { ...c[i], name: v }; update("categories", c); }} />
-                <Field label="Slug" value={cat.slug} onChange={(v) => { const c = [...(data.categories || [])]; c[i] = { ...c[i], slug: v }; update("categories", c); }} />
-              </div>
-              <div className="mt-3">
-                <Field label="Description" value={cat.description} onChange={(v) => { const c = [...(data.categories || [])]; c[i] = { ...c[i], description: v }; update("categories", c); }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ═══ FAQ Tab ═══ */}
-      {activeTab === "faq" && data && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">FAQ ({data.faq?.length || 0})</h2>
-            <button onClick={() => update("faq", [...(data.faq || []), { question: "", answer: "" }])} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add</button>
-          </div>
-          {(data.faq || []).map((item, i) => (
-            <div key={i} className="bg-card border border-border rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-muted-foreground">Question {i + 1}</span>
-                <button onClick={() => update("faq", (data.faq || []).filter((_, j) => j !== i))} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-              </div>
-              <Field label="Question" value={item.question} onChange={(v) => { const f = [...(data.faq || [])]; f[i] = { ...f[i], question: v }; update("faq", f); }} />
-              <div className="mt-3"><Field label="Answer" value={item.answer} onChange={(v) => { const f = [...(data.faq || [])]; f[i] = { ...f[i], answer: v }; update("faq", f); }} multiline /></div>
-            </div>
-          ))}
         </div>
       )}
 
