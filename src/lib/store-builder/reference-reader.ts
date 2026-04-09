@@ -28,6 +28,7 @@ const COMPONENT_MAP: Record<string, string> = {
   AboutSection: "components/AboutSection.tsx",
   FAQ: "components/FAQ.tsx",
   PolicyPage: "components/PolicyPage.tsx",
+  MobileBottomNav: "components/MobileBottomNav.tsx",
 
   // Data files
   Data: "lib/data.ts",

@@ -23,6 +23,8 @@ export const storeInfo = {
   phones: ["+1 (555) 123-4567"],
   emails: ["hello@examplestore.com"],
   website: "https://examplestore.com",
+  accountUrl: "https://flowsmartly.com/store/example-store/account",
+  websiteUrl: "", // populated by agent if user has a website
   ctaText: "Shop Now",
   ctaUrl: storeUrl("/products"),
   socialLinks: {

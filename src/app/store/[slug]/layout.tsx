@@ -45,10 +45,15 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
     notFound();
   }
 
-  // V2 stores are served as static files at /stores/{slug}
-  // Redirect all V1 SSR URLs to the static version
+  // V2 stores: redirect browsing pages to static /stores/{slug}
+  // SSR pages (checkout, tracking, account) stay on the main app
   if (store.storeVersion === "static") {
-    redirect(`/stores/${slug}`);
+    const headersList = await headers();
+    const invokedPath = headersList.get("x-invoke-path") || headersList.get("x-matched-path") || "";
+    const isSSRPage = /\/(checkout|track|order-confirmation|account)(\/|$|\?)/.test(invokedPath);
+    if (!isSSRPage) {
+      redirect(`/stores/${slug}`);
+    }
   }
 
   // Fetch categories in parallel

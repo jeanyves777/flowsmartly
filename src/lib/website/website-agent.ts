@@ -174,6 +174,11 @@ const SYSTEM_PROMPT = `You are a professional Next.js website developer. You bui
 - ALL links in both arrays MUST use siteUrl() for href values
 - EVERY page you create MUST appear in either navLinks or footerLinks — no orphan pages
 
+### Website-Store Integration:
+- If get_brand_identity returns a storeUrl, the user has an online store
+- Add "Shop" to navLinks pointing to the storeUrl (external link, not siteUrl)
+- Use storeUrl as the default ctaUrl if no other CTA is specified
+
 ### Technical:
 - Tailwind CSS v4 — use @import "tailwindcss" in globals.css (NOT @tailwind directives, those are v3)
 - Dark mode: use @custom-variant dark (&:where(.dark, .dark *)); in globals.css, then dark: prefix in components
@@ -344,6 +349,15 @@ async function executeTool(name: string, input: Record<string, unknown>, ctx: Ag
         orderBy: { isDefault: "desc" },
       });
 
+      // Check if the user has an active store for cross-linking
+      const userStore = await prisma.store.findFirst({
+        where: { userId: ctx.userId, isActive: true },
+        select: { slug: true, customDomain: true },
+      });
+      const storeUrl = userStore
+        ? (userStore.customDomain ? `https://${userStore.customDomain}` : `${process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com"}/stores/${userStore.slug}`)
+        : null;
+
       if (!brandKit) {
         return JSON.stringify({
           name: ctx.questionnaire.businessName,
@@ -354,6 +368,8 @@ async function executeTool(name: string, input: Record<string, unknown>, ctx: Ag
           goals: ctx.questionnaire.goals,
           pages: ctx.questionnaire.pages,
           noBrandKit: true,
+          storeUrl,
+          storeName: userStore?.slug || null,
         });
       }
 
@@ -397,6 +413,9 @@ async function executeTool(name: string, input: Record<string, unknown>, ctx: Ag
         websiteId: ctx.websiteId,
         siteBasePath: `/sites/${ctx.websiteSlug}`,
         apiBaseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com",
+        // Cross-linking: user's store
+        storeUrl,
+        storeName: userStore?.slug || null,
         // Languages
         languages: ctx.questionnaire.languages || ["en"],
         isMultilingual: (ctx.questionnaire.languages?.length || 1) > 1,

@@ -117,7 +117,7 @@ export async function middleware(request: NextRequest) {
     // V2 static stores: serve from /stores/{slug}/ (nginx static files)
     // EXCEPT checkout/track/order-confirmation which stay SSR on the main app
     if (storeVersion === "static") {
-      const isSSRPath = /\/(checkout|track|order-confirmation)(\/|$|\?)/.test(path);
+      const isSSRPath = /\/(checkout|track|order-confirmation|account)(\/|$|\?)/.test(path);
 
       if (isSSRPath) {
         // Dynamic SSR paths route to main app /store/{slug}/...

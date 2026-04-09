@@ -3221,6 +3221,7 @@ model Store {
   intelligenceReports    IntelligenceReport[]
   marketResearchReports  MarketResearchReport[]
   productFeeds           ProductFeed[]
+  customers              StoreCustomer[]
 
   @@index([slug])
   @@index([userId])
@@ -3581,6 +3582,27 @@ model MarketResearchReport {
 }
 
 // ============================================
+// STORE CUSTOMERS (buyer accounts for each store)
+// ============================================
+
+model StoreCustomer {
+  id             String    @id @default(cuid())
+  storeId        String
+  email          String
+  name           String
+  phone          String?
+  passwordHash   String
+  addresses      String    @default("[]") // JSON array of shipping addresses
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  store          Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, email])
+  @@index([storeId])
+  @@index([email])
+}
+
 // STORE DOMAINS
 // ============================================
 

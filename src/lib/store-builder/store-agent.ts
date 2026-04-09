@@ -264,7 +264,16 @@ const SYSTEM_PROMPT = `You are a professional e-commerce store developer. You bu
 
 ### Mobile Hamburger Menu:
 - MUST use simple conditional: {isOpen ? <X /> : <Menu />}
-- NEVER use AnimatePresence or motion.div with opacity:0 for the icon — breaks static export`;
+- NEVER use AnimatePresence or motion.div with opacity:0 for the icon — breaks static export
+
+### Mobile Bottom Nav (MANDATORY):
+- Write src/components/MobileBottomNav.tsx — a fixed bottom bar for mobile (md:hidden)
+- Buttons: Home, Shop, Cart (with badge count), Account
+- If storeInfo.websiteUrl exists, add a Website button
+- Cart count: use getCart()/getCartCount() from '@/lib/cart' + listen to 'cart-updated' event
+- Account links to storeInfo.accountUrl (external URL to main app)
+- Import and render in layout.tsx AFTER Footer, BEFORE </body>
+- Add pb-16 to the page wrapper on mobile so content isn't hidden behind the bar`;
 
 // ─── Tool Execution ──────────────────────────────────────────────────────────
 
@@ -281,6 +290,15 @@ async function executeTool(name: string, input: Record<string, unknown>, ctx: St
         where: { userId: ctx.userId },
         orderBy: { isDefault: "desc" },
       });
+
+      // Check if the user has a published website for cross-linking
+      const website = await prisma.website.findFirst({
+        where: { userId: ctx.userId, status: "PUBLISHED", deletedAt: null },
+        select: { slug: true, customDomain: true },
+      });
+      const websiteUrl = website
+        ? (website.customDomain ? `https://${website.customDomain}` : `${process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com"}/sites/${website.slug}`)
+        : "";
 
       // Build product list for the agent
       const productList = ctx.products.map(p => ({
@@ -311,6 +329,8 @@ async function executeTool(name: string, input: Record<string, unknown>, ctx: St
         storeBasePath: `/stores/${ctx.storeSlug}`,
         storeSlug: ctx.storeSlug,
         apiBaseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com",
+        accountUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com"}/store/${ctx.storeSlug}/account`,
+        websiteUrl,
       };
 
       if (brandKit) {

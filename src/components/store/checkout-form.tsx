@@ -32,6 +32,12 @@ interface CheckoutFormProps {
   primaryColor: string;
   cancelled?: boolean;
   cartData?: string; // Base64-encoded cart JSON from V2 static store redirect
+  customerPrefill?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    address?: Record<string, string>;
+  };
 }
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -57,6 +63,7 @@ export function CheckoutForm({
   primaryColor,
   cancelled,
   cartData,
+  customerPrefill,
 }: CheckoutFormProps) {
   const router = useRouter();
   const stripe = useStripe();
@@ -81,15 +88,15 @@ export function CheckoutForm({
     }
   }, [cartData, cartHydrated, items.length, addItem]);
 
-  // Form state
-  const [customerName, setCustomerName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [street, setStreet] = useState("");
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
-  const [zip, setZip] = useState("");
-  const [country, setCountry] = useState("");
+  // Form state (pre-fill from customer account if logged in)
+  const [customerName, setCustomerName] = useState(customerPrefill?.name || "");
+  const [email, setEmail] = useState(customerPrefill?.email || "");
+  const [phone, setPhone] = useState(customerPrefill?.phone || "");
+  const [street, setStreet] = useState(customerPrefill?.address?.line1 || "");
+  const [city, setCity] = useState(customerPrefill?.address?.city || "");
+  const [state, setState] = useState(customerPrefill?.address?.state || "");
+  const [zip, setZip] = useState(customerPrefill?.address?.zip || "");
+  const [country, setCountry] = useState(customerPrefill?.address?.country || "");
   const [shippingMethod, setShippingMethod] = useState("standard");
   const [selectedPayment, setSelectedPayment] = useState(
     paymentMethods.length > 0 ? paymentMethods[0].methodType : ""
