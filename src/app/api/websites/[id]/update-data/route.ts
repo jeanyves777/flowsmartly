@@ -279,7 +279,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           // to support background images with the user's uploaded photos
           console.log(`[UpdateData] Hero.tsx not image-compatible — AI rewriting synchronously`);
           await rewriteComponent(heroPath, c,
-            `The user has uploaded hero images for a slideshow. Rewrite this Hero component to display these images as full-screen background image slideshow with smooth transitions. Images: ${JSON.stringify(data.heroImages)}. Remove emoji/text slides. Use images as backgrounds with existing tagline and CTA overlaid. Keep design quality, dark mode, responsive.`,
+            `The user has uploaded hero images for a slideshow. Rewrite this Hero component to display these images as full-screen background image slideshow with smooth transitions. Images: ${JSON.stringify(data.heroImages)}. Remove emoji/text slides. Use images as backgrounds with existing tagline and CTA overlaid. Keep design quality, dark mode, responsive.
+
+CRITICAL RULES FOR STATIC EXPORT:
+- The FIRST slide image MUST be visible in the initial HTML (no opacity:0, no AnimatePresence wrapping the first image)
+- Use a simple <img> tag for the current slide with CSS transition for opacity, NOT framer-motion AnimatePresence
+- The first slide must render with opacity:1 and be visible WITHOUT JavaScript
+- Use useState for slide index, useEffect for auto-advance timer
+- CSS transitions (transition-opacity duration-1000) work better than AnimatePresence for static export`,
             basePath
           );
         }
@@ -492,7 +499,10 @@ RULES:
 - All image src paths must start with "${basePath}/images/" or use the exact paths provided
 - Keep responsive design, dark mode support, animations
 - Preserve the component name and export
-- Do NOT use AnimatePresence with opacity:0 for hamburger menu icons`,
+- CRITICAL: Do NOT use AnimatePresence or motion.div with initial opacity:0 for ANY visible element
+- On static export, elements with opacity:0 stay invisible until JS hydrates
+- Use CSS transitions (transition-opacity) instead of framer-motion for slideshow/carousel
+- The first slide/image MUST render visible (opacity:1) in the initial HTML without JavaScript`,
       messages: [{
         role: "user",
         content: `Current component:\n\`\`\`tsx\n${currentCode}\n\`\`\`\n\nREQUEST: ${prompt}\n\nReturn ONLY the updated code.`,
