@@ -212,8 +212,21 @@ const SYSTEM_PROMPT = `You are a professional e-commerce store developer. You bu
 - STEP 2: MUST call download_image with logoUrl (category: "brand", filename: "logo") IMMEDIATELY
 - STEP 3: Use downloaded path in Header AND Footer
 - NEVER create text/SVG placeholder logos
-- Logo sizing: Header h-16 sm:h-20, Footer h-20, max-w-[200px] object-contain (NEVER h-8/h-10)
+- Logo sizing: Header h-12 sm:h-14 md:h-16 max-w-[200px] object-contain
+- Footer logo: h-14 md:h-16 object-contain
 - Favicon in layout.tsx: MUST use exact downloaded file extension
+
+### Customer Account Integration:
+- storeInfo includes accountUrl — the URL to the customer login/register page
+- Header side drawer MUST include a "Sign In / Register" link pointing to storeInfo.accountUrl
+- MobileBottomNav MUST include an Account button pointing to storeInfo.accountUrl
+- These are external links (target="_blank") because they go to the main FlowSmartly app SSR
+
+### Layout Integration (MANDATORY):
+- layout.tsx MUST import and render: Header, Footer, MobileBottomNav, CartDrawer, Analytics, CookieConsent
+- MobileBottomNav receives onCartOpen prop to open the cart drawer
+- Main content wrapper MUST have pb-16 md:pb-0 so content isn't hidden behind MobileBottomNav on mobile
+- CartDrawer is shared — Header cart icon AND MobileBottomNav cart button both open it via onCartOpen
 
 ### Image Paths (CRITICAL — read carefully):
 - The download_image tool returns BARE paths like "/images/products/lamp.jpg"
