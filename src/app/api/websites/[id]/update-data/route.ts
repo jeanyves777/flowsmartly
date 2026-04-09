@@ -278,15 +278,33 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           // Hero uses emoji/text slides — needs AI to rewrite the component
           // to support background images with the user's uploaded photos
           console.log(`[UpdateData] Hero.tsx not image-compatible — AI rewriting synchronously`);
+          const slidesCode = data.heroImages.map((img: string, i: number) =>
+            `  { src: '${escapeStr(img)}', alt: 'Slide ${i + 1}' }`
+          ).join(",\n");
           await rewriteComponent(heroPath, c,
-            `The user has uploaded hero images for a slideshow. Rewrite this Hero component to display these images as full-screen background image slideshow with smooth transitions. Images: ${JSON.stringify(data.heroImages)}. Remove emoji/text slides. Use images as backgrounds with existing tagline and CTA overlaid. Keep design quality, dark mode, responsive.
+            `The user has uploaded hero images for a slideshow. Rewrite this Hero component to display these images as full-screen background image slideshow with smooth transitions.
 
-CRITICAL RULES FOR STATIC EXPORT:
-- The FIRST slide image MUST be visible in the initial HTML (no opacity:0, no AnimatePresence wrapping the first image)
-- Use a simple <img> tag for the current slide with CSS transition for opacity, NOT framer-motion AnimatePresence
-- The first slide must render with opacity:1 and be visible WITHOUT JavaScript
-- Use useState for slide index, useEffect for auto-advance timer
-- CSS transitions (transition-opacity duration-1000) work better than AnimatePresence for static export`,
+USE THESE EXACT IMAGE PATHS — copy them verbatim into a slides array:
+const slides = [
+${slidesCode}
+];
+
+Remove any emoji/text/icon slides. Use the images as full-width background images with the existing headline, tagline, and CTA buttons overlaid on top using a semi-transparent gradient overlay for text readability.
+
+THEMING (CRITICAL):
+- The component MUST support BOTH light and dark mode using Tailwind "dark:" prefix
+- Do NOT hardcode dark backgrounds (bg-black, bg-gray-900, bg-neutral-900, etc.) without a light-mode default
+- The overlay gradient on top of images should work in both modes, e.g. from-black/60 is OK because it's over a photo, but any section background outside the slideshow must use light defaults with dark: variants (e.g. bg-white dark:bg-neutral-950)
+- Text colors: use text-gray-900 dark:text-white or similar pairs
+- Badge/pill backgrounds: use bg-white/90 dark:bg-neutral-800/90 or similar
+
+STATIC EXPORT RULES:
+- Render ALL slides using .map(), absolutely positioned within a relative container
+- The first slide (index 0) MUST have opacity-100, all others opacity-0 — use: className={\`... \${i === current ? 'opacity-100' : 'opacity-0'} transition-opacity duration-1000\`}
+- Do NOT use framer-motion (AnimatePresence, motion.div) for the slideshow
+- Use useState for slide index (default 0), useEffect for auto-advance timer
+- Each slide image: <img src={slide.src} alt={slide.alt} className="w-full h-full object-cover" />
+- The first slide MUST be visible without JavaScript`,
             basePath
           );
         }
@@ -496,13 +514,13 @@ RULES:
 - Use Tailwind CSS for styling
 - basePath is "${basePath}" — all internal href links must start with "${basePath}/"
 - All image src paths must start with "${basePath}/images/" or use the exact paths provided
-- Keep responsive design, dark mode support
+- Support BOTH light and dark modes — use Tailwind "dark:" prefix for all color/background classes. NEVER hardcode dark-only backgrounds (bg-black, bg-neutral-900) without a corresponding light-mode default. Example: bg-white dark:bg-neutral-950
 - Preserve the component name and export
 
 CRITICAL STATIC EXPORT RULES (MUST FOLLOW):
 - NEVER use framer-motion (motion.div, motion.span, AnimatePresence) for ANY visible content
 - ALL text, images, buttons MUST be visible in the initial HTML without JavaScript
-- For slideshows: render ALL slides using .map(), absolutely positioned, use Tailwind opacity-100/opacity-0 + transition-opacity for fading
+- For slideshows: render ALL slides using .map(), absolutely positioned, first slide opacity-100 others opacity-0, use transition-opacity for fading
 - For animations: use Tailwind animate-* classes or CSS @keyframes, NOT framer-motion
 - The page must look complete and styled with ZERO JavaScript loaded
 - useState/useEffect are OK for interactivity (slide timer, toggles) but initial render must be visible`,

@@ -186,9 +186,12 @@ RULES:
 - The site uses basePath "${basePath}" — all image src paths must start with "${basePath}/images/"
 - All internal href links must start with "${basePath}/"
 - Keep "use client" directive if present
-- Keep existing functionality (dark mode, animations, responsive design)
+- Keep existing functionality (animations, responsive design)
+- Support BOTH light and dark modes — use Tailwind "dark:" prefix for all color/background classes. NEVER hardcode dark-only backgrounds (bg-black, bg-neutral-900) without a light-mode default. Example: bg-white dark:bg-neutral-950
 - Make the requested change while preserving everything else
 - Use the brand data from data.ts for company info, colors, etc.
+- If the section has a slideshow/carousel with images, preserve all image src paths exactly as they are
+- For slideshows: render ALL slides, use opacity-100/opacity-0 + transition-opacity, first slide must be visible without JS
 
 SITE DATA (data.ts) for context:
 \`\`\`typescript
