@@ -116,7 +116,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    const productsWithImages = productInputs.filter(p => p.images.length > 0).length;
+    const productsWithImages = productInputs.filter(p => (p.images?.length || 0) > 0).length;
     console.log(
       `[StoreMigrate] Starting V1→V2 migration for store ${id} (${store.name}): ` +
       `${productInputs.length} products (${productsWithImages} with images), ${categoryNames.length} categories`
