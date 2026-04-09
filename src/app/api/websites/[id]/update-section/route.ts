@@ -191,7 +191,7 @@ RULES:
 - Make the requested change while preserving everything else
 - Use the brand data from data.ts for company info, colors, etc.
 - If the section has a slideshow/carousel with images, preserve all image src paths exactly as they are
-- For slideshows: render ALL slides, use opacity-100/opacity-0 + transition-opacity, first slide must be visible without JS
+- For slideshows: render ALL slides with z-0 (NEVER negative z-index), use opacity-100/opacity-0 + transition-opacity, first slide must be visible without JS
 
 SITE DATA (data.ts) for context:
 \`\`\`typescript

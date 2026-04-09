@@ -265,13 +265,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       try {
         let c = readFileSync(heroPath, "utf-8");
 
-        // Check if the Hero component already supports image slides (has src: in slides array)
-        const hasImageSlides = /slides\s*=\s*\[[\s\S]*?src:\s*['"]/m.test(c);
+        // Check if the Hero component already supports image slides (has src: or image: in slides array)
+        const hasImageSlides = /slides\s*=\s*\[[\s\S]*?(?:src|image):\s*['"]/m.test(c);
 
         if (hasImageSlides) {
           // Simple replacement — component already renders images
+          // Normalize to use 'src' property (some AI rewrites used 'image')
           const code = data.heroImages.map((img: string, i: number) => `  {\n    src: '${escapeStr(img)}',\n    alt: 'Slide ${i + 1}',\n  }`).join(",\n");
           c = c.replace(/const slides\s*=\s*\[[\s\S]*?\];/, `const slides = [\n${code}\n];`);
+          // Fix: normalize slide.image references to slide.src
+          c = c.replace(/slide\.image/g, "slide.src");
+          // Fix: ensure slideshow container uses z-0 not negative z-index
+          c = c.replace(/-z-10/g, "z-0");
           writeFileSync(heroPath, c);
           console.log(`[UpdateData] Hero.tsx slides updated (image-compatible)`);
         } else {
@@ -304,7 +309,9 @@ STATIC EXPORT RULES:
 - Do NOT use framer-motion (AnimatePresence, motion.div) for the slideshow
 - Use useState for slide index (default 0), useEffect for auto-advance timer
 - Each slide image: <img src={slide.src} alt={slide.alt} className="w-full h-full object-cover" />
-- The first slide MUST be visible without JavaScript`,
+- The first slide MUST be visible without JavaScript
+- The slideshow container MUST use z-0 (NOT -z-10 or any negative z-index — negative z puts images behind the parent background)
+- Content overlay must use z-10, navigation controls z-20`,
             basePath
           );
         }
@@ -520,7 +527,7 @@ RULES:
 CRITICAL STATIC EXPORT RULES (MUST FOLLOW):
 - NEVER use framer-motion (motion.div, motion.span, AnimatePresence) for ANY visible content
 - ALL text, images, buttons MUST be visible in the initial HTML without JavaScript
-- For slideshows: render ALL slides using .map(), absolutely positioned, first slide opacity-100 others opacity-0, use transition-opacity for fading
+- For slideshows: render ALL slides using .map(), absolutely positioned with z-0 (NEVER -z-10), first slide opacity-100 others opacity-0, use transition-opacity for fading
 - For animations: use Tailwind animate-* classes or CSS @keyframes, NOT framer-motion
 - The page must look complete and styled with ZERO JavaScript loaded
 - useState/useEffect are OK for interactivity (slide timer, toggles) but initial render must be visible`,
