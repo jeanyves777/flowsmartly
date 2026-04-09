@@ -54,7 +54,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const website = await prisma.website.findFirst({
       where: { id, userId: session.userId, deletedAt: null },
-      select: { id: true, slug: true, generatedPath: true },
+      select: { id: true, slug: true, generatedPath: true, siteData: true },
     });
     if (!website) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -449,6 +449,60 @@ STATIC EXPORT RULES:
     // ========== STEP 5: Detect & fix component mismatches ==========
     // If user added data that the component doesn't support, trigger AI rewrite
     detectAndFixMismatches(siteDir, data, basePath);
+
+    // ========== STEP 6: Enhance newly added nav pages ==========
+    // If user added new pages to navLinks, check if they have sparse/placeholder content
+    // and auto-enhance them with AI using the site's company data
+    try {
+      const prevSiteData = website.siteData ? JSON.parse(website.siteData as string) : {};
+      const prevNavHrefs = new Set(
+        (prevSiteData.navLinks || []).map((l: any) => (l.href || "").replace(/^\/sites\/[^/]+/, ""))
+      );
+      const newPages = (data.navLinks || [])
+        .map((l: any) => ({
+          href: (l.href || "").replace(/^\/sites\/[^/]+/, ""),
+          label: l.label || "",
+        }))
+        .filter((l: any) => l.href.startsWith("/") && l.href !== "/" && !prevNavHrefs.has(l.href));
+
+      if (newPages.length > 0) {
+        const dataContent = readFileSync(join(siteDir, "src", "lib", "data.ts"), "utf-8").substring(0, 3000);
+        for (const page of newPages) {
+          const slug = page.href.replace(/^\//, "");
+          const pagePath = join(siteDir, "src", "app", slug, "page.tsx");
+          if (!existsSync(pagePath)) continue;
+
+          const pageCode = readFileSync(pagePath, "utf-8");
+          // Skip if page already has substantial content (>150 lines = well-built)
+          const lineCount = pageCode.split("\n").length;
+          if (lineCount > 150) continue;
+
+          console.log(`[UpdateData] New nav page "${slug}" is sparse (${lineCount} lines) — AI enhancing`);
+          await rewriteComponent(pagePath, pageCode,
+            `This page "${page.label}" was just added to the site navigation. It currently has sparse/placeholder content.
+Enhance it with real, detailed content for the "${page.label}" section of a "${data.company?.name || "business"}" website.
+
+Company context:
+- Name: ${data.company?.name || ""}
+- Tagline: ${data.company?.tagline || ""}
+- Description: ${data.company?.description || ""}
+- About: ${data.company?.about || ""}
+
+RULES:
+- Keep the same component name and exports
+- Import data from '@/lib/data' where appropriate (companyInfo, services, team, etc.)
+- Make the page look professional and complete with real sections, proper spacing, and visual appeal
+- Add multiple content sections appropriate for a "${page.label}" page
+- Ensure proper dark mode support (dark: variants on all colors/backgrounds)
+- Keep responsive design
+- Add meaningful content based on the company description — not lorem ipsum`,
+            basePath
+          );
+        }
+      }
+    } catch (err) {
+      console.error("[UpdateData] Nav page enhancement error:", err);
+    }
 
     console.log(`[UpdateData] Complete for ${website.slug}`);
     return NextResponse.json({ success: true });

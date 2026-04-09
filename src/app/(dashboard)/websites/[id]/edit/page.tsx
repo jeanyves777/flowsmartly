@@ -542,8 +542,47 @@ export default function WebsiteEditPage() {
 
       {/* Domains */}
       {/* Links */}
-      {activeTab === "links" && data && (
+      {activeTab === "links" && data && (() => {
+        // Compute available pages not yet in nav
+        const navHrefs = new Set((data.navLinks || []).map((l) => {
+          const h = l.href.replace(/^\/sites\/[^/]+/, "");
+          return h === "" ? "/" : h;
+        }));
+        const availablePages = pages.filter((p) => {
+          const href = p.slug === "" ? "/" : `/${p.slug}`;
+          return !navHrefs.has(href);
+        });
+
+        return (
         <div className="space-y-6">
+          {/* Available Pages — quick add */}
+          {availablePages.length > 0 && (
+            <Section title="Available Pages">
+              <p className="text-sm text-muted-foreground mb-3">
+                These pages are built but not visible in your menu. Click to add them to navigation.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {availablePages.map((p) => (
+                  <button
+                    key={p.slug}
+                    onClick={() => {
+                      const href = p.slug === "" ? "/" : `/${p.slug}`;
+                      update("navLinks", [...(data.navLinks || []), { label: p.label, href }]);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-border bg-card hover:border-primary/50 hover:bg-primary/5 text-foreground transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-primary" />
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                <Sparkles className="w-3 h-3 inline mr-1" />
+                After adding a page, use the <strong>AI Update</strong> tab to enhance its content with your business info.
+              </p>
+            </Section>
+          )}
+
           <Section title="Navigation Links">
             <p className="text-sm text-muted-foreground mb-3">
               These appear in the header navbar. Point them to your site pages or external URLs (e.g. your shop).
@@ -588,7 +627,8 @@ export default function WebsiteEditPage() {
             </div>
           </Section>
         </div>
-      )}
+        );
+      })()}
 
       {/* AI Section Update */}
       {activeTab === "ai-update" && (
