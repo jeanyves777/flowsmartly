@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Sparkles, Rocket, Loader2, X, ArrowRight, Package, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { useToast } from "@/hooks/use-toast";
 
 interface StoreUpgradeBannerProps {
@@ -12,10 +13,6 @@ interface StoreUpgradeBannerProps {
   buildStatus: string;
 }
 
-/**
- * Banner shown on the ecommerce dashboard for V1 store owners.
- * Prompts them to migrate to V2 (agent-built static store) with one click.
- */
 export function StoreUpgradeBanner({
   storeId,
   storeName,
@@ -33,13 +30,11 @@ export function StoreUpgradeBanner({
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Don't show for V2 stores or if dismissed
   const isV1 = generatorVersion === "v1" || !generatorVersion;
 
   useEffect(() => {
-    if (!isV1) return;
+    if (!isV1) { setLoading(false); return; }
 
-    // Check if user dismissed this session
     const key = `flowshop-upgrade-dismissed-${storeId}`;
     if (sessionStorage.getItem(key)) {
       setDismissed(true);
@@ -47,7 +42,6 @@ export function StoreUpgradeBanner({
       return;
     }
 
-    // Fetch migration info
     fetch(`/api/ecommerce/store/${storeId}/migrate`)
       .then(res => res.json())
       .then(data => {
@@ -65,29 +59,23 @@ export function StoreUpgradeBanner({
 
   if (!isV1 || dismissed || loading || !migrationInfo) return null;
 
-  // If currently building, show progress with step tracking
+  // Building state — use the shared AIGenerationLoader
   if (migrating || buildStatus === "building") {
     return (
       <div className="mb-6 p-6 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 border border-purple-200 dark:border-purple-800">
-        <div className="flex items-center gap-4">
-          <div className="relative w-10 h-10 flex-shrink-0">
-            <Loader2 className="w-10 h-10 text-purple-600 animate-spin" />
-          </div>
-          <div>
-            <p className="font-semibold text-gray-900 dark:text-white">
-              {migrationStep || "Upgrading your store..."}
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              This takes 1-2 minutes. Your existing products and orders are safe.
-            </p>
-          </div>
-        </div>
+        <AIGenerationLoader
+          compact
+          currentStep={migrationStep || "Upgrading your store..."}
+          subtitle="This takes 2-3 minutes. Your existing products and orders are safe."
+        />
       </div>
     );
   }
 
   const handleMigrate = async () => {
     setMigrating(true);
+    setMigrationStep("Starting migration...");
+
     try {
       const res = await fetch(`/api/ecommerce/store/${storeId}/migrate`, {
         method: "POST",
@@ -95,63 +83,76 @@ export function StoreUpgradeBanner({
       const data = await res.json();
 
       if (!res.ok) {
-        toast({
-          title: "Migration failed",
-          description: data.error || "Please try again",
-          variant: "destructive",
-        });
+        toast({ title: "Migration failed", description: data.error || "Please try again", variant: "destructive" });
         setMigrating(false);
         return;
       }
 
-      toast({
-        title: "Migration started!",
-        description: `Collecting ${data.productsCollected} products. Your store will be rebuilt in 1-2 minutes.`,
-      });
+      setMigrationStep("Collecting your products and brand data...");
 
-      // Poll for completion with step tracking
-      let pollCount = 0;
-      const steps = [
-        "Collecting your products and brand data...",
-        "AI agent is designing your storefront...",
-        "Writing custom components...",
-        "Downloading product images...",
-        "Building your store...",
-        "Deploying...",
-      ];
+      // Poll for completion — keep polling until done, no premature timeout
+      const poll = async () => {
+        let elapsed = 0;
+        const maxWait = 600; // 10 minutes max
 
-      const pollInterval = setInterval(async () => {
-        pollCount++;
-        // Rotate through steps to show progress
-        const stepIdx = Math.min(Math.floor(pollCount / 3), steps.length - 1);
-        setMigrationStep(steps[stepIdx]);
+        while (elapsed < maxWait) {
+          await new Promise(r => setTimeout(r, 5000));
+          elapsed += 5;
 
-        const statusRes = await fetch(`/api/ecommerce/store/${storeId}/generate`);
-        if (statusRes.ok) {
-          const status = await statusRes.json();
-          if (status.buildStatus === "built") {
-            clearInterval(pollInterval);
-            setMigrationStep("Store upgraded!");
-            setMigrating(false);
-            toast({ title: "Store upgraded successfully!" });
-            window.location.reload();
-          } else if (status.buildStatus === "error") {
-            clearInterval(pollInterval);
-            setMigrating(false);
-            toast({
-              title: "Build failed",
-              description: status.lastBuildError?.substring(0, 200) || "Please try again",
-              variant: "destructive",
-            });
+          // Update step text based on time
+          if (elapsed < 20) setMigrationStep("AI agent is reading your brand identity...");
+          else if (elapsed < 40) setMigrationStep("Writing store components...");
+          else if (elapsed < 60) setMigrationStep("Downloading product images...");
+          else if (elapsed < 90) setMigrationStep("Building your store...");
+          else if (elapsed < 120) setMigrationStep("Compiling pages...");
+          else if (elapsed < 150) setMigrationStep("Deploying...");
+          else setMigrationStep("Almost done...");
+
+          try {
+            const statusRes = await fetch(`/api/ecommerce/store/${storeId}/generate`);
+            if (statusRes.ok) {
+              const status = await statusRes.json();
+
+              if (status.buildStatus === "built") {
+                setMigrationStep("Store upgraded successfully!");
+                toast({ title: "Store upgraded to V2!" });
+                // Hard reload to reflect V2 state everywhere
+                setTimeout(() => window.location.reload(), 1000);
+                return;
+              }
+
+              if (status.buildStatus === "error") {
+                toast({
+                  title: "Build failed",
+                  description: status.lastBuildError?.substring(0, 200) || "Please try again",
+                  variant: "destructive",
+                });
+                setMigrating(false);
+                return;
+              }
+            }
+          } catch {
+            // Network error — keep polling
           }
         }
-      }, 5000);
 
-      // Safety timeout (5 minutes)
-      setTimeout(() => {
-        clearInterval(pollInterval);
+        // Timed out — check one final time
+        try {
+          const finalRes = await fetch(`/api/ecommerce/store/${storeId}/generate`);
+          if (finalRes.ok) {
+            const final = await finalRes.json();
+            if (final.buildStatus === "built") {
+              window.location.reload();
+              return;
+            }
+          }
+        } catch {}
+
+        toast({ title: "Migration is still running", description: "Refresh the page in a minute to check." });
         setMigrating(false);
-      }, 300000);
+      };
+
+      poll();
     } catch {
       toast({ title: "Migration failed", variant: "destructive" });
       setMigrating(false);
