@@ -17,9 +17,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       select: { id: true, slug: true, generatorVersion: true, generatedPath: true, siteData: true },
     });
     if (!store) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (store.generatorVersion !== "v2") {
-      return NextResponse.json({ error: "Only V2 stores have site data" }, { status: 400 });
-    }
 
     // Return cached data if available
     if (store.siteData && store.siteData !== "{}") {

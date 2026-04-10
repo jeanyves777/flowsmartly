@@ -165,8 +165,8 @@ RULES:
 - Return ONLY the updated file content (no markdown, no explanations)
 - Keep imports, exports, component structure
 - Tailwind CSS v4 for styling
-- basePath is "${basePath}" — image src paths start with "${basePath}/images/"
-- Internal href links start with "${basePath}/"
+- Images: use src="/images/..." (root-relative; basePath handled by next.config.ts)
+- Internal links: use root-relative paths like "/about", "/products" — Next.js will automatically prefix basePath
 - Keep "use client" if present
 - Preserve dark mode, responsive design, existing functionality
 

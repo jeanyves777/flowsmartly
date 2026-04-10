@@ -16,6 +16,7 @@ export function generateSSRNextConfig(assetPrefix: string): string {
 import path from "path";
 
 const nextConfig: NextConfig = {
+  basePath: "${assetPrefix}",
   assetPrefix: "${assetPrefix}",
   images: { unoptimized: true },
   typescript: { ignoreBuildErrors: true },

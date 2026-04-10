@@ -17,9 +17,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       select: { id: true, slug: true, generatorVersion: true, generatedPath: true, siteData: true },
     });
     if (!store) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (store.generatorVersion !== "v2") {
-      return NextResponse.json({ error: "Only V2 stores support data updates" }, { status: 400 });
-    }
 
     const storeDir = store.generatedPath || getStoreDir(id);
     const dataPath = join(storeDir, "src", "lib", "data.ts");
@@ -70,8 +67,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (navLinks && Array.isArray(navLinks)) {
       const navStr = navLinks
         .map((l: { href: string; label: string }) => {
-          const href = l.href.startsWith("/") ? `storeUrl("${escapeStr(l.href)}")` : `"${escapeStr(l.href)}"`;
-          return `  { href: ${href}, label: "${escapeStr(l.label)}" }`;
+          return `  { href: "${escapeStr(l.href)}", label: "${escapeStr(l.label)}" }`;
         })
         .join(",\n");
       data = data.replace(
@@ -84,8 +80,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (footerLinks && Array.isArray(footerLinks)) {
       const footerStr = footerLinks
         .map((l: { href: string; label: string }) => {
-          const href = l.href.startsWith("/") ? `storeUrl("${escapeStr(l.href)}")` : `"${escapeStr(l.href)}"`;
-          return `  { href: ${href}, label: "${escapeStr(l.label)}" }`;
+          return `  { href: "${escapeStr(l.href)}", label: "${escapeStr(l.label)}" }`;
         })
         .join(",\n");
       data = data.replace(

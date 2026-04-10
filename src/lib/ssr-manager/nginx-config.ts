@@ -30,7 +30,7 @@ function storeLocationBlock(slug: string, port: number): string {
   const safeName = `store_${slug.replace(/[^a-z0-9_-]/gi, "_")}`;
   return `# Store: ${slug} -> port ${port}
 location /stores/${slug}/ {
-    proxy_pass http://${safeName}/;
+    proxy_pass http://${safeName}/stores/${slug}/;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
