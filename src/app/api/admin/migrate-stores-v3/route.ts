@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getAdminSession } from "@/lib/admin/auth";
 import { runStoreAgentV3 } from "@/lib/store-builder/store-agent";
+import { buildStoreV3, deployStoreV3 } from "@/lib/store-builder/store-site-builder";
 
 /**
  * POST /api/admin/migrate-stores-v3
@@ -169,6 +170,57 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ v3Count: v3, pendingMigration: nonV3, stores: pendingStores });
   } catch (err) {
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
+}
+
+/**
+ * PUT /api/admin/migrate-stores-v3?storeId=xxx — Rebuild+redeploy a specific V3 store (no AI regeneration)
+ */
+export async function PUT(request: NextRequest) {
+  try {
+    const internalSecret = request.headers.get("x-admin-secret");
+    const validSecret = process.env.ADMIN_INTERNAL_SECRET;
+    const hasSecret = validSecret && internalSecret === validSecret;
+
+    if (!hasSecret) {
+      const session = await getAdminSession();
+      if (!session) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    }
+
+    const { searchParams } = new URL(request.url);
+    const storeId = searchParams.get("storeId");
+    if (!storeId) return NextResponse.json({ error: "storeId required" }, { status: 400 });
+
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { id: true, slug: true, generatedPath: true },
+    });
+    if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 });
+
+    console.log(`[AdminRebuild] Rebuilding store ${storeId} (${store.slug})`);
+
+    const rebuild = async () => {
+      const buildResult = await buildStoreV3(storeId);
+      if (!buildResult.success) {
+        console.error(`[AdminRebuild] Build failed: ${buildResult.error}`);
+        return;
+      }
+      const deployResult = await deployStoreV3(storeId, store.slug);
+      if (!deployResult.success) {
+        console.error(`[AdminRebuild] Deploy failed: ${deployResult.error}`);
+        return;
+      }
+      console.log(`[AdminRebuild] Store ${storeId} rebuilt and deployed`);
+    };
+
+    rebuild().catch(err => console.error("[AdminRebuild] Fatal:", err));
+
+    return NextResponse.json({ message: `Rebuild started for ${store.slug}` });
+  } catch (err) {
+    console.error("PUT /api/admin/migrate-stores-v3 error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
