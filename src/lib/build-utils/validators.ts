@@ -708,11 +708,66 @@ export function fixGlobalsCss(siteDir: string): void {
     });
   });
 
-  // 2. Remove invalid Tailwind classes from @apply
-  const invalidClasses = ["clip-path-inset", "clip-inset", "clip-path"];
-  for (const cls of invalidClasses) {
-    css = css.replace(new RegExp(`\\b${escapeRegex(cls)}\\b`, "g"), "");
-  }
+  // 2. Strip non-Tailwind tokens from @apply lines.
+  //
+  // Tailwind v4 throws a hard build error for ANY unknown class inside @apply.
+  // The agent frequently invents component-style names like "card", "btn", "badge",
+  // "container-card", "section-padding", etc. that are not real utilities.
+  //
+  // Strategy: keep only tokens that look like valid Tailwind utilities:
+  //   - Standard utility pattern: optional variant(s) + known prefix
+  //   - OR CSS variable references (--var-name)
+  //   - Remove anything that is a bare word / kebab phrase with no known prefix
+  //
+  // Known Tailwind v4 utility prefixes (non-exhaustive but covers >99% of AI output):
+  const TAILWIND_PREFIXES = new Set([
+    "flex","grid","block","inline","hidden","contents","flow",
+    "static","relative","absolute","fixed","sticky",
+    "top","bottom","left","right","inset","start","end","z",
+    "float","clear","isolation","object","overflow","overscroll",
+    "box","visibility","opacity","order","col","row","span","auto",
+    "m","mx","my","mt","mb","ml","mr","ms","me",
+    "p","px","py","pt","pb","pl","pr","ps","pe",
+    "w","h","min","max","size","aspect","shrink","grow","basis",
+    "border","outline","ring","divide","space","gap","place","content",
+    "bg","text","font","leading","tracking","decoration","underline",
+    "shadow","drop","blur","brightness","contrast","grayscale","hue",
+    "invert","saturate","sepia","backdrop","mix","filter",
+    "rounded","cursor","pointer","select","resize","scroll",
+    "list","align","justify","items","self","order","truncate","break",
+    "whitespace","indent","sr","not","appearance","accent",
+    "transition","duration","ease","delay","animate","will","transform",
+    "scale","rotate","translate","skew","origin",
+    "fill","stroke","clip","mask","columns","table","caption",
+    "from","to","via","gradient","caret","placeholder",
+    "hover","focus","active","visited","checked","disabled",
+    "group","peer","first","last","odd","even","only","nth",
+    "before","after","placeholder","file","marker","selection",
+    "portrait","landscape","motion","print",
+    "sm","md","lg","xl","2xl","3xl","dark","rtl","ltr",
+    "forced",
+  ]);
+
+  const INVALID_APPLY_CLASSES = ["clip-path-inset", "clip-inset", "clip-path"];
+
+  css = css.replace(/@apply\s+([^;{]+);/g, (fullMatch, classList) => {
+    const tokens = classList.trim().split(/\s+/);
+    const validTokens = tokens.filter((token: string) => {
+      // Always keep CSS var references
+      if (token.startsWith("--")) return true;
+      // Strip variant prefixes (hover:, focus:, dark:, sm:, etc.) to check the base
+      const base = token.replace(/^([a-z][a-z0-9]*:)+/, "");
+      // Get the first segment of the utility (before the first "-")
+      const prefix = base.split("-")[0];
+      // Keep if prefix is known, OR if it starts with "!" (important modifier)
+      if (token.startsWith("!")) return TAILWIND_PREFIXES.has(base.replace(/^!/, "").split("-")[0]);
+      if (INVALID_APPLY_CLASSES.some(c => base.startsWith(c))) return false;
+      return TAILWIND_PREFIXES.has(prefix);
+    });
+    if (validTokens.length === 0) return `/* removed invalid @apply: ${classList.trim()} */`;
+    return `@apply ${validTokens.join(" ")};`;
+  });
+
   // Clean up double spaces left by removal
   css = css.replace(/@apply\s+;/g, "/* removed empty @apply */");
   css = css.replace(/@apply\s{2,}/g, "@apply ");
