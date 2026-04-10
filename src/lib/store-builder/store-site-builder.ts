@@ -44,6 +44,8 @@ import {
   fixGlobalsCss,
   fixUseSearchParams,
   fixCartImports,
+  fixHeaderLayout,
+  fixFooterLogoSize,
 } from "@/lib/build-utils/validators";
 import {
   allocatePort,
@@ -242,6 +244,8 @@ export async function buildStore(storeId: string): Promise<{ success: boolean; o
     }
 
     fixCartImports(storeDir); // Fix getCart/getCartCount imported from @/lib/data → @/lib/cart
+    fixHeaderLayout(storeDir); // Fix tiny logo + misaligned icon row in Header
+    fixFooterLogoSize(storeDir); // Fix tiny logo in Footer
     fixDataSyntax(storeDir, "src/lib/data.ts");
     fixDataSyntax(storeDir, "src/lib/products.ts"); // Also fix products file
     fixBareLinks(storeDir, basePath);
@@ -464,6 +468,8 @@ export async function buildStoreFromDir(
       console.log(`[StoreBuilder] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);
     }
     fixCartImports(storeDir);
+    fixHeaderLayout(storeDir); // Fix tiny logo + misaligned icon row in Header
+    fixFooterLogoSize(storeDir); // Fix tiny logo in Footer
     fixDataSyntax(storeDir, "src/lib/data.ts");
     fixDataSyntax(storeDir, "src/lib/products.ts");
     fixHamburgerMenu(storeDir);

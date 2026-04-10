@@ -216,9 +216,35 @@ const SYSTEM_PROMPT = `You are a professional e-commerce store developer. You bu
 - STEP 2: MUST call download_image with logoUrl (category: "brand", filename: "logo") IMMEDIATELY
 - STEP 3: Use downloaded path in Header AND Footer
 - NEVER create text/SVG placeholder logos
-- Logo sizing: Header h-12 sm:h-14 md:h-16 max-w-[200px] object-contain
-- Footer logo: h-14 md:h-16 object-contain
+- Logo sizing: Header `h-10 sm:h-12 md:h-14 max-w-[200px] object-contain`  — NEVER h-4, h-6, h-8
+- Footer logo: `h-12 md:h-14 max-w-[180px] object-contain`
 - Favicon in layout.tsx: MUST use exact downloaded file extension
+
+### Desktop Header Layout (MANDATORY structure):
+Header.tsx MUST have this exact 3-column structure:
+  ```
+  <header>
+    <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+      {/* LEFT: Logo */}
+      <a href={storeUrl("/")}><img src={storeInfo.logoUrl} className="h-10 sm:h-12 md:h-14 max-w-[200px] object-contain" /></a>
+
+      {/* CENTER: Nav links — hidden on mobile */}
+      <nav className="hidden md:flex items-center gap-6">...</nav>
+
+      {/* RIGHT: icons in ONE horizontal row — hidden on mobile */}
+      <div className="hidden md:flex items-center gap-3">
+        <button aria-label="Search"><Search size={20} /></button>
+        <button aria-label="Cart" className="relative"><ShoppingBag size={20} />{cartCount > 0 && <span className="...badge...">{cartCount}</span>}</button>
+        <a href={storeInfo.accountUrl}><User size={20} /><span>Account</span></a>
+      </div>
+
+      {/* MOBILE: hamburger only */}
+      <button className="md:hidden"><Menu size={24} /></button>
+    </div>
+  </header>
+  ```
+- RIGHT side MUST be a single `hidden md:flex items-center gap-3` div — NEVER flex-col, NEVER flex-wrap, NEVER grid
+- Order of right icons: Search → Cart (with badge) → Account link — always left-to-right in ONE row
 
 ### Customer Account Integration:
 - storeInfo includes accountUrl — the URL to the customer login/register page
@@ -306,8 +332,8 @@ const SYSTEM_PROMPT = `You are a professional e-commerce store developer. You bu
 - ALL components must be mobile-first (base styles for mobile, sm:/md:/lg: for larger)
 - Product grids: 2 columns on mobile (grid-cols-2), 3 on md, 4 on lg
 - Hero: full-width on mobile with readable text (text-3xl not text-6xl)
-- Logo in header: h-10 on mobile (NOT h-16/h-20 which is too large on phone)
-- Logo in footer: h-12 on mobile
+- Logo in header: h-10 sm:h-12 md:h-14 max-w-[200px] object-contain (NEVER h-4/h-6/h-8 — too tiny)
+- Logo in footer: h-12 md:h-14 max-w-[180px] object-contain
 - Touch targets: minimum 44px tap area for all buttons/links on mobile`;
 
 // ─── Tool Execution ──────────────────────────────────────────────────────────
@@ -835,8 +861,39 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 ### Logo & Favicon:
 - MUST download brand logo via download_image IMMEDIATELY after get_brand_identity
 - NEVER create text/SVG placeholder logos
-- Logo sizing: Header h-12 sm:h-14 md:h-16, Footer h-14 md:h-16, max-w-[200px] object-contain
+- Logo sizing: Header `h-10 sm:h-12 md:h-14 max-w-[200px] object-contain` — NEVER h-4, h-6, h-8
+- Footer logo: `h-12 md:h-14 max-w-[180px] object-contain`
 - Favicon: use exact downloaded file extension
+
+### Desktop Header Layout (MANDATORY — prevents misaligned icons):
+Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon row:
+  ```tsx
+  <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b shadow-sm">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      {/* Logo */}
+      <Link href="/"><img src={storeInfo.logoUrl} className="h-10 sm:h-12 md:h-14 max-w-[200px] object-contain" alt={storeInfo.name} /></Link>
+
+      {/* Nav — desktop only */}
+      <nav className="hidden md:flex items-center gap-6">...</nav>
+
+      {/* Right icons — desktop only, ONE horizontal row */}
+      <div className="hidden md:flex items-center gap-3">
+        <button aria-label="Search"><Search size={20} /></button>
+        <button aria-label="Cart" className="relative" onClick={onCartOpen}>
+          <ShoppingBag size={20} />
+          {cartCount > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">{cartCount}</span>}
+        </button>
+        <Link href="/account" className="flex items-center gap-1"><User size={20} /><span className="text-sm">Account</span></Link>
+      </div>
+
+      {/* Hamburger — mobile only */}
+      <button className="md:hidden p-2" onClick={() => setMenuOpen(true)} aria-label="Open menu"><Menu size={24} /></button>
+    </div>
+  </header>
+  ```
+- RIGHT side MUST be `hidden md:flex items-center gap-3` — ONE row, NEVER flex-col, flex-wrap, or grid
+- Icon order left-to-right: Search → Cart (with badge) → Account
+- On mobile: ONLY show the hamburger button (md:hidden), hide the icon row entirely
 
 ### Footer (legal requirement):
 - MUST render ALL footerLinks — NEVER .slice()
@@ -850,9 +907,12 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 
 ### Mobile UX:
 - Header hamburger → side drawer from LEFT (motion.div x:"-100%" → x:0)
-- MobileBottomNav (fixed bottom, md:hidden): Shop, Search, Cart (with badge), Account
+- Drawer must: logo at top (h-10), nav links with chevrons, close button inside drawer
+- Drawer locks body scroll when open (document.body.style.overflow = "hidden")
+- MobileBottomNav (fixed bottom, md:hidden): Shop (Home icon), Search, Cart (badge), Account
 - Cart badge from localStorage + 'cart-updated' event listener
-- Account button links to /account (internal, NOT external)
+- Account button links to /account (internal)
+- Logo in header: h-10 sm:h-12 md:h-14 (NEVER h-4/h-6/h-8 — too tiny)
 - 2-col product grids on mobile, 3 on md, 4 on lg
 - Touch targets: min 44px
 

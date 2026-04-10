@@ -760,6 +760,121 @@ export default function Page() {
   }
 }
 
+// ─── Fix Header Layout ───────────────────────────────────────────────────────
+
+/**
+ * Fixes two common AI mistakes in the generated Header component:
+ *
+ * 1. TINY LOGO — AI sometimes uses h-4, h-6, or h-8 for the logo image.
+ *    Correct sizing is h-10 sm:h-12 md:h-14 max-w-[200px] object-contain.
+ *
+ * 2. MISALIGNED RIGHT ICONS — AI sometimes puts Account, Search, and Cart
+ *    in separate block elements or a flex-col/grid, causing them to stack
+ *    vertically instead of sitting in a single horizontal row.
+ *    The right-side container must be: hidden md:flex items-center gap-3
+ */
+export function fixHeaderLayout(siteDir: string): void {
+  const headerPath = join(siteDir, "src", "components", "Header.tsx");
+  if (!existsSync(headerPath)) return;
+
+  let content = readFileSync(headerPath, "utf-8");
+  const original = content;
+
+  // 1. Fix tiny logo: replace small h- values on <img> tags that are the logo
+  //    Matches: h-4, h-5, h-6, h-7, h-8, h-9 NOT followed by 0 (keeps h-10+)
+  //    Only targets <img className="...h-{4-9}..." (not other imgs)
+  content = content.replace(
+    /(className="[^"]*)\bh-([4-9])\b([^"]*")/g,
+    (match, before, size, after) => {
+      // Only fix if this looks like a logo img (has object-contain or is near logoUrl)
+      if (!before.includes("object-contain") && !match.includes("logoUrl") && !match.includes("logo")) {
+        return match;
+      }
+      return `${before}h-10 sm:h-12 md:h-14${after}`;
+    }
+  );
+
+  // 2. Fix missing max-w on logo (add max-w-[200px] if logo img lacks it)
+  content = content.replace(
+    /(className="[^"]*)(h-10 sm:h-12 md:h-14|h-12 sm:h-14 md:h-16|h-10 md:h-14)([^"]*")/g,
+    (match, before, hClass, after) => {
+      if (match.includes("max-w-")) return match;
+      return `${before}${hClass} max-w-[200px] object-contain${after}`;
+    }
+  );
+
+  // 3. Fix right-side icon container that's missing items-center
+  //    The right icon row must have BOTH `flex` and `items-center` to stay on one row.
+  //    Pattern: hidden md:flex (without items-center) → add it
+  content = content.replace(
+    /className="([^"]*\bhidden md:flex\b(?!\s*items-center)[^"]*)"/g,
+    (match, classes) => {
+      // Only fix if this div has icons (contains gap- class, indicating it's an icon row)
+      if (!classes.includes("gap-")) return match;
+      return `className="${classes} items-center"`;
+    }
+  );
+
+  // 4. Fix flex containers without items-center that have icons inside (common mis-pattern)
+  //    Pattern: className="flex gap-N" on the right-side div → ensure items-center
+  //    Look for the right-side div pattern: flex + gap- but missing items-center
+  content = content.replace(
+    /className="((?:hidden md:)?flex\s+gap-\d+(?:\s+\w[\w-]*)*)"/g,
+    (match, classes) => {
+      if (classes.includes("items-center")) return match;
+      if (classes.includes("flex-col")) return match;
+      // Only add items-center if this is a short utility class list (icon row, not layout)
+      const classCount = classes.trim().split(/\s+/).length;
+      if (classCount <= 6) {
+        return `className="${classes} items-center"`;
+      }
+      return match;
+    }
+  );
+
+  if (content !== original) {
+    writeFileSync(headerPath, content, "utf-8");
+    console.log(`[BuildUtils] Fixed Header.tsx layout (logo size / icon row alignment)`);
+  }
+}
+
+// ─── Fix Footer Logo Size ────────────────────────────────────────────────────
+
+/**
+ * Fixes tiny logo in Footer component — same h-4/h-6/h-8 problem as Header.
+ */
+export function fixFooterLogoSize(siteDir: string): void {
+  const footerPath = join(siteDir, "src", "components", "Footer.tsx");
+  if (!existsSync(footerPath)) return;
+
+  let content = readFileSync(footerPath, "utf-8");
+  const original = content;
+
+  content = content.replace(
+    /(className="[^"]*)\bh-([4-9])\b([^"]*")/g,
+    (match, before, size, after) => {
+      if (!before.includes("object-contain") && !match.includes("logoUrl") && !match.includes("logo")) {
+        return match;
+      }
+      return `${before}h-12 md:h-14${after}`;
+    }
+  );
+
+  // Add max-w if missing from footer logo
+  content = content.replace(
+    /(className="[^"]*)(h-12 md:h-14|h-14 md:h-16)([^"]*")/g,
+    (match, before, hClass, after) => {
+      if (match.includes("max-w-")) return match;
+      return `${before}${hClass} max-w-[180px] object-contain${after}`;
+    }
+  );
+
+  if (content !== original) {
+    writeFileSync(footerPath, content, "utf-8");
+    console.log(`[BuildUtils] Fixed Footer.tsx logo size`);
+  }
+}
+
 // ─── Fix globals.css common agent mistakes ──────────────────────────────────
 
 /**
