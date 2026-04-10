@@ -18,8 +18,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
     if (!store) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    // Return cached data if available
-    if (store.siteData && store.siteData !== "{}") {
+    // Return cached data if available (skip cache if ?refresh=true)
+    const forceRefresh = request.nextUrl.searchParams.get("refresh") === "true";
+    if (!forceRefresh && store.siteData && store.siteData !== "{}") {
       try {
         return NextResponse.json(JSON.parse(store.siteData));
       } catch {}

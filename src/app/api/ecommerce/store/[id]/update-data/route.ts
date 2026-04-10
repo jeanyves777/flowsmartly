@@ -25,7 +25,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const body = await request.json();
-    const { storeInfo, heroConfig, navLinks, footerLinks, faq, products } = body;
+    const { storeInfo, heroConfig, navLinks, footerLinks, faq, products, categories } = body;
 
     let data = readFileSync(dataPath, "utf-8");
     const storeBasePath = `/stores/${store.slug}`;
@@ -114,6 +114,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     writeFileSync(dataPath, data, "utf-8");
+
+    // Update categories in data.ts if provided
+    if (categories && Array.isArray(categories)) {
+      data = readFileSync(dataPath, "utf-8");
+      const catStr = categories
+        .map((c: { id: string; name: string; slug: string; description: string; image: string }) =>
+          `  {\n    id: "${escapeStr(c.id)}",\n    name: "${escapeStr(c.name)}",\n    slug: "${escapeStr(c.slug)}",\n    description: "${escapeStr(c.description || "")}",\n    image: storeUrl("${escapeStr(c.image || "")}"),\n  }`
+        )
+        .join(",\n");
+      const updatedData = data.replace(
+        /export const categories\s*=\s*\[[\s\S]*?\];/,
+        `export const categories = [\n${catStr},\n];`
+      );
+      if (updatedData !== data) {
+        writeFileSync(dataPath, updatedData, "utf-8");
+      }
+    }
 
     // Update products.ts if products provided
     if (products && Array.isArray(products)) {

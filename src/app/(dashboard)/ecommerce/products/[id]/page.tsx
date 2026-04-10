@@ -84,6 +84,7 @@ export default function EditProductPage() {
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
   const [status, setStatus] = useState<"DRAFT" | "ACTIVE" | "ARCHIVED">("DRAFT");
+  const [tags, setTags] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
 
@@ -136,6 +137,7 @@ export default function EditProductPage() {
       setSeoTitle(p.seoTitle || "");
       setSeoDescription(p.seoDescription || "");
       setStatus(p.status);
+      setTags(p.tags || []);
 
       if (p.variants && p.variants.length > 0) {
         setHasVariants(true);
@@ -487,6 +489,7 @@ export default function EditProductPage() {
         seoTitle: seoTitle || null,
         seoDescription: seoDescription || null,
         status,
+        tags,
       };
 
       if (hasVariants) {
@@ -989,6 +992,47 @@ export default function EditProductPage() {
               <Plus className="w-4 h-4" />
               Add Variant
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* Section 4.5: Product Labels */}
+      <div className="bg-card rounded-lg border border-border p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <Tag className="w-5 h-5 text-muted-foreground" />
+          Product Labels
+        </h2>
+        <p className="text-xs text-muted-foreground">Labels appear as badges on product cards and detail pages.</p>
+        <div className="flex flex-wrap gap-2">
+          {(["bestseller", "new", "limited", "sale", "discount", "featured"] as const).map((badge) => {
+            const active = tags.includes(badge);
+            const colors: Record<string, string> = {
+              bestseller: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
+              new: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700",
+              limited: "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700",
+              sale: "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700",
+              discount: "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-700",
+              featured: "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700",
+            };
+            return (
+              <button
+                key={badge}
+                type="button"
+                onClick={() => setTags(active ? tags.filter((t) => t !== badge) : [...tags, badge])}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-all capitalize ${
+                  active
+                    ? colors[badge]
+                    : "bg-muted/40 text-muted-foreground border-border hover:border-primary/40"
+                }`}
+              >
+                {active ? "✓ " : ""}{badge}
+              </button>
+            );
+          })}
+        </div>
+        {comparePriceStr && (
+          <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2">
+            💡 Compare price set — add the <strong>sale</strong> or <strong>discount</strong> label to show the crossed-out original price on product cards.
           </div>
         )}
       </div>

@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   ArrowLeft, ExternalLink, RefreshCw, Loader2, Check, AlertCircle,
   Globe, Save, Plus, Trash2, Eye, Sparkles, HelpCircle, Link2,
-  Store, LayoutDashboard, Palette,
+  Store, LayoutDashboard, Palette, Image as ImageIcon, FileText, Grid3X3,
 } from "lucide-react";
 import { SectionUpdater } from "@/components/shared/section-updater";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -41,6 +41,7 @@ interface StoreData {
   navLinks: Array<{ href: string; label: string }>;
   footerLinks: Array<{ href: string; label: string }>;
   faq: Array<{ question: string; answer: string }>;
+  categories: Array<{ id: string; name: string; slug: string; description: string; image: string }>;
   pages: Array<{ slug: string; label: string }>;
 }
 
@@ -48,8 +49,10 @@ const TABS = [
   { id: "preview", label: "Preview", icon: Eye },
   { id: "store-info", label: "Store Info", icon: Store },
   { id: "hero", label: "Hero", icon: LayoutDashboard },
+  { id: "categories", label: "Categories", icon: Grid3X3 },
   { id: "navigation", label: "Navigation", icon: Link2 },
   { id: "faq", label: "FAQ", icon: HelpCircle },
+  { id: "pages", label: "Pages", icon: FileText },
   { id: "ai-update", label: "AI Update", icon: Sparkles },
   { id: "rebuild", label: "Rebuild", icon: RefreshCw },
   { id: "domains", label: "Domains", icon: Globe },
@@ -67,9 +70,16 @@ export default function StoreDesignPage() {
   const [buildResult, setBuildResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerCallback, setPickerCallback] = useState<((url: string) => void) | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const storeUrl = store?.storeUrl || (store?.slug ? `/stores/${store.slug}/` : null);
+
+  async function loadStoreData(storeId: string, forceRefresh = false) {
+    const url = `/api/ecommerce/store/${storeId}/site-data${forceRefresh ? "?refresh=true" : ""}`;
+    const dr = await fetch(url);
+    if (dr.ok) setData(await dr.json());
+  }
 
   useEffect(() => {
     fetch("/api/ecommerce/store")
@@ -78,15 +88,18 @@ export default function StoreDesignPage() {
         const s: StoreRecord = res.data?.store ?? res.store;
         setStore(s);
         if (s?.id) {
-          try {
-            const dr = await fetch(`/api/ecommerce/store/${s.id}/site-data`);
-            if (dr.ok) setData(await dr.json());
-          } catch {}
+          try { await loadStoreData(s.id); } catch {}
         }
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
+
+  async function refreshData() {
+    if (!store) return;
+    setRefreshing(true);
+    try { await loadStoreData(store.id, true); } finally { setRefreshing(false); }
+  }
 
   function update<K extends keyof StoreData>(key: K, value: StoreData[K]) {
     setData((prev) => prev ? { ...prev, [key]: value } : prev);
@@ -100,6 +113,16 @@ export default function StoreDesignPage() {
 
   function updateHero<K extends keyof HeroConfig>(key: K, value: string) {
     setData((prev) => prev ? { ...prev, heroConfig: { ...prev.heroConfig, [key]: value } } : prev);
+    setChanged(true);
+  }
+
+  function updateCategory(index: number, field: string, value: string) {
+    setData((prev) => {
+      if (!prev) return prev;
+      const cats = [...(prev.categories || [])];
+      cats[index] = { ...cats[index], [field]: value };
+      return { ...prev, categories: cats };
+    });
     setChanged(true);
   }
 
@@ -178,6 +201,10 @@ export default function StoreDesignPage() {
             <ExternalLink className="w-3 h-3 text-muted-foreground" />
           </a>
         )}
+        <button onClick={refreshData} disabled={refreshing} title="Refresh store data"
+          className="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground disabled:opacity-50">
+          {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+        </button>
         {changed && (
           <button onClick={save} disabled={saving}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">
@@ -279,8 +306,8 @@ export default function StoreDesignPage() {
 
         {/* Hero */}
         {activeTab === "hero" && data && (
-          <div className="max-w-2xl">
-            <Section title="Hero Section">
+          <div className="max-w-2xl space-y-6">
+            <Section title="Hero Section — Text">
               <div className="grid grid-cols-1 gap-4">
                 <Field label="Headline" value={data.heroConfig?.headline} onChange={(v) => updateHero("headline", v)} />
                 <Field label="Sub-headline" value={data.heroConfig?.subheadline} onChange={(v) => updateHero("subheadline", v)} multiline />
@@ -288,6 +315,74 @@ export default function StoreDesignPage() {
                 <Field label="Hero CTA URL" value={data.heroConfig?.ctaUrl} onChange={(v) => updateHero("ctaUrl", v)} />
               </div>
             </Section>
+            <Section title="Hero Section — Background">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-2 block">Hero Background / Banner Image</label>
+                  <div className="flex gap-2">
+                    <input type="text" value={data.storeInfo?.bannerUrl || ""} onChange={(e) => updateInfo("bannerUrl", e.target.value)}
+                      placeholder="/images/hero-bg.jpg"
+                      className="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-background" />
+                    <button onClick={() => openPicker((url) => updateInfo("bannerUrl", url))}
+                      className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-accent flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5" /> Browse
+                    </button>
+                  </div>
+                  {data.storeInfo?.bannerUrl && (
+                    <img src={data.storeInfo.bannerUrl} alt="Hero preview" className="mt-3 h-32 w-full object-cover rounded-lg border" />
+                  )}
+                </div>
+              </div>
+            </Section>
+          </div>
+        )}
+
+        {/* Categories */}
+        {activeTab === "categories" && data && (
+          <div className="max-w-2xl space-y-4">
+            <Section title={`Categories (${(data.categories || []).length})`}>
+              <p className="text-sm text-muted-foreground mb-4">Edit category names, images, and descriptions. Changes apply after Save & Rebuild.</p>
+              {(data.categories || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No categories found. <Link href="/ecommerce/categories" className="text-primary hover:underline">Manage Categories →</Link></p>
+              ) : (
+                <div className="space-y-4">
+                  {(data.categories || []).map((cat, i) => (
+                    <div key={i} className="border border-border rounded-lg p-4 space-y-3">
+                      <div className="flex items-center gap-3">
+                        {cat.image ? (
+                          <img src={cat.image} alt={cat.name} className="w-14 h-14 object-cover rounded-lg border flex-shrink-0" />
+                        ) : (
+                          <div className="w-14 h-14 bg-muted rounded-lg border flex items-center justify-center flex-shrink-0">
+                            <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{cat.name}</p>
+                          <p className="text-xs text-muted-foreground">{cat.slug}</p>
+                        </div>
+                      </div>
+                      <Field label="Category Name" value={cat.name} onChange={(v) => updateCategory(i, "name", v)} />
+                      <Field label="Description" value={cat.description || ""} onChange={(v) => updateCategory(i, "description", v)} multiline />
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Category Image</label>
+                        <div className="flex gap-2">
+                          <input type="text" value={cat.image || ""} onChange={(e) => updateCategory(i, "image", e.target.value)}
+                            placeholder="/images/category.jpg"
+                            className="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-background" />
+                          <button onClick={() => openPicker((url) => updateCategory(i, "image", url))}
+                            className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-accent flex items-center gap-1.5">
+                            <ImageIcon className="w-3.5 h-3.5" /> Browse
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+            <div className="text-sm text-muted-foreground bg-muted/30 rounded-lg p-4">
+              <p>To add or remove categories, use <Link href="/ecommerce/categories" className="text-primary hover:underline">Category Manager →</Link></p>
+            </div>
           </div>
         )}
 
@@ -390,6 +485,44 @@ export default function StoreDesignPage() {
                 </button>
               </div>
             </Section>
+          </div>
+        )}
+
+        {/* Pages */}
+        {activeTab === "pages" && data && (
+          <div className="max-w-2xl space-y-4">
+            <Section title="Available Pages">
+              <p className="text-sm text-muted-foreground mb-4">
+                Pages in your store. Use the AI Update tab to rewrite any page&apos;s content and design.
+              </p>
+              {(data.pages || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No pages found. Rebuild your store to scan pages.</p>
+              ) : (
+                <div className="space-y-2">
+                  {(data.pages || []).map((p) => (
+                    <div key={p.slug} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
+                      <div>
+                        <p className="text-sm font-medium">{p.label}</p>
+                        <code className="text-xs text-muted-foreground">/{p.slug}</code>
+                      </div>
+                      <button
+                        onClick={() => setActiveTab("ai-update")}
+                        className="px-3 py-1 text-xs border border-border rounded-lg hover:bg-accent transition-colors"
+                      >
+                        Edit with AI
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+            <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-sm">
+              <p className="font-medium text-blue-800 dark:text-blue-300 mb-1">💡 Tip: Edit any page</p>
+              <p className="text-blue-700 dark:text-blue-400 text-xs">
+                Use the <strong>AI Update</strong> tab to describe changes for any specific page (About, FAQ, Policies, etc).
+                For example: &quot;Rewrite the About page with our company story&quot;.
+              </p>
+            </div>
           </div>
         )}
 
