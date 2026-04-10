@@ -380,7 +380,66 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - This applies to: search pages, order-confirmation pages, any page reading URL params
 
 ### Import Order:
-- Write files in dependency order: data.ts → products.ts → globals.css → layout.tsx → components → pages → checkout → account`;
+- Write files in dependency order: data.ts → products.ts → globals.css → layout.tsx → components → pages → checkout → account
+
+### Reference UI Patterns (build stores like these):
+
+**Product Grid:**
+- 2-column on mobile, 3 on md, 4 on lg
+- Products with variants show "Select Options" button instead of "Add to Cart"
+- Clicking "Select Options" opens the product detail page
+- ProductCard: image hover zoom, "NEW" / "SALE" / "BESTSELLER" / "LIMITED" badges from product.tags
+- Price: if comparePriceCents > 0 show original crossed out + sale price in red
+
+**Filter Drawer (ProductGrid page):**
+- Slide-in from left (mobile/desktop toggle)
+- Sections: "Product Categories" (list of categories with count), "Price Range" (slider min/max)
+- "Apply Filters" button at bottom, "Clear All" link at top
+- Triggered by "Filters" button in MobileBottomNav and top of product grid
+
+**Cart Drawer:**
+- Slide from RIGHT (not left), dark overlay backdrop
+- Empty state: ShoppingBag icon + "No products in cart" message + "Continue Shopping" link
+- Filled state: list of items with qty +/-, remove button, subtotal
+- "Checkout" button at bottom → /checkout
+
+**Account Modal (CRITICAL — slide-in drawer from right):**
+- DO NOT use a full /account/login page as the entry point
+- Instead: clicking Account icon in Header/MobileBottomNav opens an AccountModal component
+- AccountModal is a slide-in drawer from RIGHT (like cart), with:
+  - "Sign In" heading
+  - Email + Password fields
+  - "Log In" button → POST /api/auth/login
+  - Divider with "or" text
+  - "No account yet? Create An Account" → shows registration form in same drawer
+  - Google Sign In button (if configured)
+  - After login success: close drawer, refresh page state
+- If user IS logged in: clicking Account goes directly to /account (full page)
+- AccountModal context provider: wrap in layout.tsx — provides openAccountModal() function
+- Header and MobileBottomNav call openAccountModal() if !user, else navigate to /account
+
+**MobileBottomNav (5 items — MANDATORY):**
+- Fixed bottom, md:hidden
+- Items: Shop (HomeIcon → /products), Filters (SlidersHorizontal → triggers filter drawer), Wishlist (Heart), Cart (ShoppingBag with badge), My Account (User)
+- Active state: primary color icon + label
+- "Filters" triggers filterDrawerOpen state (shared via context or prop)
+- "Cart" triggers cartDrawerOpen
+- "My Account" calls openAccountModal() if not logged in, else /account
+
+### Pre-deploy Verification Checklist (VERIFY ALL before calling finish):
+1. ✅ layout.tsx imports ThemeProvider (default from @/components/ThemeProvider)
+2. ✅ layout.tsx imports AccountModalProvider (default from @/components/AccountModalProvider)
+3. ✅ layout.tsx body: <ThemeProvider><AccountModalProvider><CartProvider>...content...</CartProvider></AccountModalProvider></ThemeProvider>
+4. ✅ NO hardcoded product names, descriptions, or prices — all from products.ts
+5. ✅ NO hardcoded category names — all from data.ts categories[]
+6. ✅ All product images use downloaded paths (from download_image return value)
+7. ✅ MobileBottomNav exists with 5 items including Filters and My Account
+8. ✅ AccountModal drawer exists for sign-in (NOT a plain redirect to /account/login)
+9. ✅ ThemeToggle in Header — dark/light mode switch works
+10. ✅ Footer sticks to bottom (min-h-screen flex flex-col on root layout, flex-1 on main)
+11. ✅ All internal links use Next.js <Link> component — no <a href="..."> for internal pages
+12. ✅ CartDrawer slides from right, AccountModal slides from right, FilterDrawer slides from left`;
+
 
 // ─── V3 Tool Definitions ─────────────────────────────────────────────────────
 
