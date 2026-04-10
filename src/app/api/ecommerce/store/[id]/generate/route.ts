@@ -3,10 +3,9 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
-import { runStoreAgent, runStoreAgentV3, type ProductInput } from "@/lib/store-builder/store-agent";
+import { runStoreAgentV3, type ProductInput } from "@/lib/store-builder/store-agent";
 
-// POST /api/ecommerce/store/[id]/generate — Claude Agent builds the store
-// Default: V3 (independent SSR app). Pass ?version=v2 to force static export.
+// POST /api/ecommerce/store/[id]/generate — Claude Agent builds the store (V3 SSR only)
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession();
@@ -31,12 +30,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       categories?: string[];
     };
 
-    // Version selection: V3 (SSR) by default, V2 (static) if explicitly requested
-    const url = new URL(request.url);
-    const version = url.searchParams.get("version") || "v3";
-    const isV3 = version === "v3";
-
-    console.log(`[StoreGen] Starting ${isV3 ? "V3 SSR" : "V2 static"} agent for store ${id} (${store.name})`);
+    console.log(`[StoreGen] Starting V3 SSR agent for store ${id} (${store.name})`);
 
     const storeContext = {
       name: store.name,
@@ -52,9 +46,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     };
 
     // Fire-and-forget: agent runs in background, client polls buildStatus
-    const agentPromise = isV3
-      ? runStoreAgentV3(id, store.slug, session.userId, storeContext, products || [], categories || [], progressCb)
-      : runStoreAgent(id, store.slug, session.userId, storeContext, products || [], categories || [], progressCb);
+    const agentPromise = runStoreAgentV3(id, store.slug, session.userId, storeContext, products || [], categories || [], progressCb);
 
     // Don't await — let it run in background
     agentPromise
@@ -64,7 +56,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             userId: session.userId,
             amount: cost,
             type: TRANSACTION_TYPES.USAGE,
-            description: `AI store generation (${isV3 ? "V3" : "V2"}): ${store.name}`,
+            description: `AI store generation (V3): ${store.name}`,
           });
           console.log(`[StoreGen] Store ${id} generated successfully, ${cost} credits deducted`);
         } else {
@@ -75,7 +67,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         console.error(`[StoreGen] Store ${id} fatal error:`, err);
       });
 
-    return NextResponse.json({ success: true, message: "Store generation started", version: isV3 ? "v3" : "v2" });
+    return NextResponse.json({ success: true, message: "Store generation started", version: "v3" });
   } catch (err) {
     console.error("POST /api/ecommerce/store/[id]/generate error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

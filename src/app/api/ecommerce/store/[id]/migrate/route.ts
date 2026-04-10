@@ -3,14 +3,14 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
-import { runStoreAgent, type ProductInput } from "@/lib/store-builder/store-agent";
+import { runStoreAgentV3, type ProductInput } from "@/lib/store-builder/store-agent";
 import { searchProductImages } from "@/lib/store-builder/image-search";
 
 /**
- * POST /api/ecommerce/store/[id]/migrate — Migrate V1 store to V2
+ * POST /api/ecommerce/store/[id]/migrate — Migrate V1 store to V3 (SSR)
  *
  * Collects existing products, images, categories, and store info from the DB,
- * then runs the V2 agent to rebuild the store as a static site.
+ * then runs the V3 agent to rebuild the store as an independent SSR app.
  *
  * This preserves all existing data while giving the store a modern design.
  */
@@ -125,12 +125,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const productsWithImages = productInputs.filter(p => (p.images?.length || 0) > 0).length;
     console.log(
-      `[StoreMigrate] Starting V1→V2 migration for store ${id} (${store.name}): ` +
+      `[StoreMigrate] Starting V1→V3 migration for store ${id} (${store.name}): ` +
       `${productInputs.length} products (${productsWithImages} with images), ${categoryNames.length} categories`
     );
 
-    // Run V2 agent in background
-    const agentPromise = runStoreAgent(
+    // Run V3 agent in background
+    const agentPromise = runStoreAgentV3(
       id,
       store.slug,
       session.userId,
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             userId: session.userId,
             amount: cost,
             type: TRANSACTION_TYPES.USAGE,
-            description: `Store migration V1→V2: ${store.name}`,
+            description: `Store migration V1→V3: ${store.name}`,
           });
           console.log(`[StoreMigrate] Store ${id} migrated successfully, ${cost} credits deducted`);
         } else {

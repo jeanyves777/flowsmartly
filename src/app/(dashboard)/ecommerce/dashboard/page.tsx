@@ -155,7 +155,7 @@ export default function EcommerceDashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href={store.generatorVersion === "v2" ? "/ecommerce/design/v2" : "/ecommerce/design"}
+            href="/ecommerce/design"
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-colors"
           >
             <Palette className="h-4 w-4" />
@@ -172,7 +172,7 @@ export default function EcommerceDashboardPage() {
       </div>
 
       {/* Build Error Banner */}
-      {store.buildStatus === "error" && store.generatorVersion === "v2" && (
+      {store.buildStatus === "error" && (
         <div className="rounded-xl border-2 border-red-300 dark:border-red-700 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/30 p-5">
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
@@ -190,7 +190,7 @@ export default function EcommerceDashboardPage() {
               )}
               <div className="flex items-center gap-2">
                 <Link
-                  href="/ecommerce/design/v2?tab=build"
+                  href="/ecommerce/design"
                   className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                 >
                   <Palette className="w-3.5 h-3.5" />
@@ -204,7 +204,7 @@ export default function EcommerceDashboardPage() {
       )}
 
       {/* Build In Progress Banner */}
-      {store.buildStatus === "building" && store.generatorVersion === "v2" && (
+      {store.buildStatus === "building" && (
         <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-4">
           <div className="flex items-center gap-3">
             <Loader2 className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />

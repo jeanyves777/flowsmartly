@@ -115,8 +115,8 @@ export function StoreUpgradeBanner({
 
               if (status.buildStatus === "built") {
                 setMigrationStep("Store upgraded successfully!");
-                toast({ title: "Store upgraded to V2!" });
-                // Hard reload to reflect V2 state everywhere
+                toast({ title: "Store upgraded to V3!" });
+                // Hard reload to reflect V3 state everywhere
                 setTimeout(() => window.location.reload(), 1000);
                 return;
               }
@@ -181,10 +181,10 @@ export function StoreUpgradeBanner({
 
         <div className="flex-1">
           <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-            Upgrade to FlowShop V2
+            Upgrade to FlowShop V3
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-            Get a stunning AI-designed storefront with custom animations, modern layouts, and faster loading.
+            Get a stunning AI-designed storefront with custom animations, modern layouts, and full SSR performance.
             Your existing products, orders, and settings are preserved.
           </p>
           <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
