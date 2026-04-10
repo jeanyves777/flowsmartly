@@ -8,13 +8,37 @@
 // ─── next.config.ts (SSR — NO output: 'export', NO basePath) ────────────────
 
 export const TEMPLATE_SSR_NEXT_CONFIG = `import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   images: { unoptimized: true },
   typescript: { ignoreBuildErrors: true },
+  // Prevent Next.js from walking up to a parent workspace when nested inside a monorepo
+  outputFileTracingRoot: path.resolve(__dirname),
 };
 
 export default nextConfig;
+`;
+
+// ─── app/not-found.tsx ───────────────────────────────────────────────────────
+// Required to prevent Next.js from falling back to the Pages Router /404 page,
+// which imports <Html> from next/document and fails in App Router builds.
+export const TEMPLATE_SSR_NOT_FOUND = `import Link from "next/link";
+
+export default function NotFound() {
+  return (
+    <main className="min-h-screen flex flex-col items-center justify-center gap-6 p-8">
+      <h1 className="text-6xl font-bold text-primary">404</h1>
+      <p className="text-xl text-muted-foreground">Page not found</p>
+      <Link
+        href="/"
+        className="px-6 py-3 bg-primary text-white rounded-lg hover:opacity-90 transition-opacity"
+      >
+        Back to Home
+      </Link>
+    </main>
+  );
+}
 `;
 
 // ─── .env.local ──────────────────────────────────────────────────────────────

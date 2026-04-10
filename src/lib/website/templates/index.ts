@@ -196,6 +196,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     </ThemeContext.Provider>
   );
 }
+
+export default ThemeProvider;
 `;
 
 export const TEMPLATE_THEME_TOGGLE = `"use client";

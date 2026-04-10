@@ -859,7 +859,14 @@ async function main() {
     buildOutput = execSync("npx next build", {
       cwd: storeDir,
       encoding: "utf-8",
-      env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=2048" },
+      env: {
+        ...process.env,
+        NODE_OPTIONS: "--max-old-space-size=2048",
+        // Ensure Next.js runs in a clean production context.
+        // VS Code sets ELECTRON_RUN_AS_NODE which confuses Next.js on Windows.
+        NODE_ENV: "production",
+        ELECTRON_RUN_AS_NODE: "",
+      },
       timeout: 300000,
     }).toString();
     buildSuccess = true;

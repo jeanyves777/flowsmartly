@@ -23,6 +23,7 @@ import {
 } from "./templates";
 import {
   TEMPLATE_SSR_NEXT_CONFIG,
+  TEMPLATE_SSR_NOT_FOUND,
   TEMPLATE_API_CLIENT,
   TEMPLATE_API_PROXY,
   TEMPLATE_SSR_CART,
@@ -400,10 +401,20 @@ export function initStoreDirV3(storeId: string, slug: string): string {
   // Cart with local checkout (no external redirect)
   writeFileSync(join(storeDir, "src", "lib", "cart.ts"), TEMPLATE_SSR_CART);
 
-  // Pages Router fallback — Next.js 15 needs these for internal prerender
+  // App Router 404 — prevents cascading prerender error for /404
+  writeFileSync(join(storeDir, "src", "app", "not-found.tsx"), TEMPLATE_SSR_NOT_FOUND);
+
+  // Pages Router shims — Next.js 15 still exports /_error:/404 even in App Router projects.
+  // Without _document.tsx, that export fails with "<Html> outside _document" error.
   mkdirSync(join(storeDir, "src", "pages"), { recursive: true });
-  writeFileSync(join(storeDir, "src", "pages", "_error.tsx"), `export default function Error() { return null; }\n`);
-  writeFileSync(join(storeDir, "src", "pages", "_document.tsx"), `import { Html, Head, Main, NextScript } from "next/document";\nexport default function Document() { return <Html><Head /><body><Main /><NextScript /></body></Html>; }\n`);
+  writeFileSync(
+    join(storeDir, "src", "pages", "_document.tsx"),
+    `import { Html, Head, Main, NextScript } from "next/document";\nexport default function Document() {\n  return (<Html><Head /><body><Main /><NextScript /></body></Html>);\n}\n`
+  );
+  writeFileSync(
+    join(storeDir, "src", "pages", "404.tsx"),
+    `export default function Custom404() { return null; }\n`
+  );
 
   // Theme provider + toggle
   writeFileSync(join(storeDir, "src", "components", "ThemeProvider.tsx"), TEMPLATE_THEME_PROVIDER);
