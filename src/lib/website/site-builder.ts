@@ -27,13 +27,10 @@ import {
   getWebsiteSSRTrackingScript,
 } from "./templates/ssr-templates";
 import {
-  syncBasePath,
   validateAndFixImports,
   fixDataSyntax,
-  fixBareLinks,
   fixHamburgerMenu,
   injectAnalytics,
-  fixGenerateStaticParams,
   cleanupV3Patterns,
   fixTailwindV4Classes,
   fixGlobalsCss,
@@ -196,9 +193,6 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
       data: { buildStatus: "building" },
     });
 
-    // Sync basePath in next.config.ts and SITE_BASE in data.ts
-    syncBasePath(siteDir, basePath, website?.slug || "", "SITE_BASE", "src/lib/data.ts");
-
     // npm install — only if node_modules doesn't exist
     let installOutput = "";
     const nodeModulesExists = existsSync(join(siteDir, "node_modules", "next"));
@@ -225,16 +219,12 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
     fixDataSyntax(siteDir);
 
     // Pre-build: fix bare internal links that are missing the basePath prefix
-    fixBareLinks(siteDir, basePath);
 
     // Pre-build: fix hamburger menu animation (AnimatePresence breaks on static export)
     fixHamburgerMenu(siteDir);
 
     // Pre-build: inject Analytics + CookieConsent into layout.tsx if missing
     injectAnalytics(siteDir);
-
-    // Pre-build: auto-split "use client" + generateStaticParams conflicts
-    fixGenerateStaticParams(siteDir);
 
     // Clear build cache so changes are picked up
     const nextCacheDir = join(siteDir, ".next");

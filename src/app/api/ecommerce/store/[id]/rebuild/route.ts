@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { buildStore, deployStore, buildStoreV3, deployStoreV3, getStoreDir } from "@/lib/store-builder/store-site-builder";
+import { buildStoreV3, deployStoreV3, getStoreDir } from "@/lib/store-builder/store-site-builder";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 
-// POST /api/ecommerce/store/[id]/rebuild — Rebuild store without re-running agent (FREE)
+// POST /api/ecommerce/store/[id]/rebuild — Rebuild V3 store without re-running agent (FREE)
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession();
@@ -18,8 +18,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
     if (!store) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const isV2 = store.generatorVersion === "v2";
-
     const storeDir = store.generatedPath || getStoreDir(id);
     if (!existsSync(storeDir)) {
       return NextResponse.json({ error: "Store files not found — regenerate the store first" }, { status: 404 });
@@ -31,34 +29,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       await syncBrandKitToDataFile(store.id, session.userId, storeDir);
     }
 
-    console.log(`[StoreRebuild] Starting ${isV2 ? "V2" : "V3"} rebuild for store ${id}`);
+    console.log(`[StoreRebuild] Starting V3 rebuild for store ${id}`);
 
     // Fire-and-forget
     const rebuildPromise = (async () => {
-      if (isV2) {
-        // Legacy V2 (static export) rebuild
-        const buildResult = await buildStore(id);
-        if (!buildResult.success) {
-          console.error(`[StoreRebuild] V2 build failed: ${buildResult.error}`);
-          return;
-        }
-        const deployResult = await deployStore(id, store.slug);
-        if (!deployResult.success) {
-          console.error(`[StoreRebuild] V2 deploy failed: ${deployResult.error}`);
-          return;
-        }
-      } else {
-        // V3 SSR rebuild
-        const buildResult = await buildStoreV3(id);
-        if (!buildResult.success) {
-          console.error(`[StoreRebuild] V3 build failed: ${buildResult.error}`);
-          return;
-        }
-        const deployResult = await deployStoreV3(id, store.slug);
-        if (!deployResult.success) {
-          console.error(`[StoreRebuild] V3 deploy failed: ${deployResult.error}`);
-          return;
-        }
+      const buildResult = await buildStoreV3(id);
+      if (!buildResult.success) {
+        console.error(`[StoreRebuild] Build failed: ${buildResult.error}`);
+        return;
+      }
+      const deployResult = await deployStoreV3(id, store.slug);
+      if (!deployResult.success) {
+        console.error(`[StoreRebuild] Deploy failed: ${deployResult.error}`);
+        return;
       }
       // Clear cached site data so it gets re-parsed
       await prisma.store.update({

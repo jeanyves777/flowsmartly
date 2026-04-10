@@ -1,9 +1,9 @@
 /**
  * Product Sync Watchdog — auto-triggers store rebuild when products change.
  *
- * For V2 stores (static export), product data lives in products.ts on disk.
- * When users add/edit/delete products via the dashboard, we need to sync
- * the DB changes to the file and rebuild.
+ * For V3 stores (SSR), product data lives in the DB and is served via API proxy,
+ * so no file sync is needed. This module handles the case where stores cache
+ * product data in products.ts on disk and need a rebuild after changes.
  *
  * This is fire-and-forget — product CRUD returns immediately, rebuild happens async.
  */
@@ -12,7 +12,7 @@ import { prisma } from "@/lib/db/client";
 
 /**
  * Call this after any product create/update/delete.
- * If the store is V2, syncs products to products.ts and triggers a rebuild.
+ * Syncs products to products.ts and triggers a V3 rebuild if needed.
  */
 export async function triggerStoreRebuildIfV2(storeId: string): Promise<void> {
   try {
@@ -21,7 +21,7 @@ export async function triggerStoreRebuildIfV2(storeId: string): Promise<void> {
       select: { generatorVersion: true, slug: true, generatedPath: true, buildStatus: true },
     });
 
-    if (!store || store.generatorVersion !== "v2" || !store.generatedPath) return;
+    if (!store || !store.generatedPath) return;
 
     // Don't stack rebuilds
     if (store.buildStatus === "building") {
@@ -29,18 +29,16 @@ export async function triggerStoreRebuildIfV2(storeId: string): Promise<void> {
       return;
     }
 
-    console.log(`[ProductSync] Product changed in V2 store ${storeId} — syncing and rebuilding`);
+    console.log(`[ProductSync] Product changed in store ${storeId} — syncing and rebuilding`);
 
     // Sync products from DB to products.ts
     await syncProductsToFile(storeId, store.generatedPath);
 
-    // Trigger rebuild (fire-and-forget via internal API call or direct import)
-    // We use dynamic import to avoid circular dependencies
-    const { buildStore, deployStore } = await import("./store-site-builder");
+    const { buildStoreV3, deployStoreV3 } = await import("./store-site-builder");
 
-    const buildResult = await buildStore(storeId);
+    const buildResult = await buildStoreV3(storeId);
     if (buildResult.success) {
-      await deployStore(storeId, store.slug);
+      await deployStoreV3(storeId, store.slug);
       console.log(`[ProductSync] Store ${storeId} rebuilt and deployed`);
     } else {
       console.error(`[ProductSync] Rebuild failed for ${storeId}:`, buildResult.error?.substring(0, 200));
