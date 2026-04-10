@@ -186,7 +186,6 @@ export default function EcommerceSettingsPage() {
         setShowBrandName(storeContentSettings.showBrandName !== false);
         // Parse theme
         const theme = s.theme || {};
-        setSelectedTemplate((theme.template as string) || "minimal");
         const colors = (theme.colors || {}) as Record<string, string>;
         setPrimaryColor(colors.primary || "#6366f1");
         setSecondaryColor(colors.secondary || "#8b5cf6");
