@@ -216,8 +216,8 @@ const SYSTEM_PROMPT = `You are a professional e-commerce store developer. You bu
 - STEP 2: MUST call download_image with logoUrl (category: "brand", filename: "logo") IMMEDIATELY
 - STEP 3: Use downloaded path in Header AND Footer
 - NEVER create text/SVG placeholder logos
-- Logo sizing: Header `h-10 sm:h-12 md:h-14 max-w-[200px] object-contain`  — NEVER h-4, h-6, h-8
-- Footer logo: `h-12 md:h-14 max-w-[180px] object-contain`
+- Logo sizing: Header h-10 sm:h-12 md:h-14 max-w-[200px] object-contain — NEVER h-4, h-6, h-8
+- Footer logo: h-12 md:h-14 max-w-[180px] object-contain
 - Favicon in layout.tsx: MUST use exact downloaded file extension
 
 ### Desktop Header Layout (MANDATORY structure):
@@ -243,7 +243,7 @@ Header.tsx MUST have this exact 3-column structure:
     </div>
   </header>
   ```
-- RIGHT side MUST be a single `hidden md:flex items-center gap-3` div — NEVER flex-col, NEVER flex-wrap, NEVER grid
+- RIGHT side MUST be a single "hidden md:flex items-center gap-3" div — NEVER flex-col, NEVER flex-wrap, NEVER grid
 - Order of right icons: Search → Cart (with badge) → Account link — always left-to-right in ONE row
 
 ### Customer Account Integration:
@@ -861,8 +861,8 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 ### Logo & Favicon:
 - MUST download brand logo via download_image IMMEDIATELY after get_brand_identity
 - NEVER create text/SVG placeholder logos
-- Logo sizing: Header `h-10 sm:h-12 md:h-14 max-w-[200px] object-contain` — NEVER h-4, h-6, h-8
-- Footer logo: `h-12 md:h-14 max-w-[180px] object-contain`
+- Logo sizing: Header h-10 sm:h-12 md:h-14 max-w-[200px] object-contain — NEVER h-4, h-6, h-8
+- Footer logo: h-12 md:h-14 max-w-[180px] object-contain
 - Favicon: use exact downloaded file extension
 
 ### Desktop Header Layout (MANDATORY — prevents misaligned icons):
@@ -891,7 +891,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
     </div>
   </header>
   ```
-- RIGHT side MUST be `hidden md:flex items-center gap-3` — ONE row, NEVER flex-col, flex-wrap, or grid
+- RIGHT side MUST be "hidden md:flex items-center gap-3" — ONE row, NEVER flex-col, flex-wrap, or grid
 - Icon order left-to-right: Search → Cart (with badge) → Account
 - On mobile: ONLY show the hamburger button (md:hidden), hide the icon row entirely
 
