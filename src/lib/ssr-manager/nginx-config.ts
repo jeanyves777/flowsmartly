@@ -77,6 +77,13 @@ export async function regenerateAndReload(): Promise<void> {
     mkdirSync(LOCATIONS_DIR, { recursive: true });
   }
 
+  // Remove legacy flowsmartly-apps.conf if it exists (V2 artifact — had location blocks at http level)
+  const legacyAppsConf = "/etc/nginx/conf.d/flowsmartly-apps.conf";
+  if (existsSync(legacyAppsConf)) {
+    try { unlinkSync(legacyAppsConf); } catch {}
+    console.log("[nginx-config] Removed legacy flowsmartly-apps.conf");
+  }
+
   // Fetch all running SSR apps
   const [stores, websites] = await Promise.all([
     prisma.store.findMany({
