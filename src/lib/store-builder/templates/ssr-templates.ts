@@ -5,12 +5,18 @@
  * a fully independent SSR store that can be self-hosted.
  */
 
-// ─── next.config.ts (SSR — NO output: 'export', NO basePath) ────────────────
+// ─── next.config.ts ─────────────────────────────────────────────────────────
+// assetPrefix is required so that /_next/static/ requests are prefixed with
+// the store's nginx subpath (e.g. /stores/my-store). Without it the browser
+// requests /_next/… which nginx routes to the main FlowSmartly app instead
+// of the store, causing all CSS/JS to 404 (naked pages).
 
-export const TEMPLATE_SSR_NEXT_CONFIG = `import type { NextConfig } from "next";
+export function generateSSRNextConfig(assetPrefix: string): string {
+  return `import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
+  assetPrefix: "${assetPrefix}",
   images: { unoptimized: true },
   typescript: { ignoreBuildErrors: true },
   // Prevent Next.js from walking up to a parent workspace when nested inside a monorepo
@@ -19,6 +25,10 @@ const nextConfig: NextConfig = {
 
 export default nextConfig;
 `;
+}
+
+/** @deprecated Use generateSSRNextConfig(slug) instead */
+export const TEMPLATE_SSR_NEXT_CONFIG = generateSSRNextConfig("");
 
 // ─── app/not-found.tsx ───────────────────────────────────────────────────────
 // Required to prevent Next.js from falling back to the Pages Router /404 page,

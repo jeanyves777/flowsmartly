@@ -21,7 +21,7 @@ import {
   TEMPLATE_THEME_TOGGLE,
 } from "./templates";
 import {
-  TEMPLATE_SSR_NEXT_CONFIG,
+  generateSSRNextConfig,
   TEMPLATE_SSR_NOT_FOUND,
   TEMPLATE_API_CLIENT,
   TEMPLATE_API_PROXY,
@@ -171,7 +171,7 @@ export function initStoreDirV3(storeId: string, slug: string): string {
   // Package.json + config
   writeFileSync(join(storeDir, "package.json"), TEMPLATE_STORE_PACKAGE_JSON);
   writeFileSync(join(storeDir, "tsconfig.json"), TEMPLATE_STORE_TSCONFIG);
-  writeFileSync(join(storeDir, "next.config.ts"), TEMPLATE_SSR_NEXT_CONFIG);
+  writeFileSync(join(storeDir, "next.config.ts"), generateSSRNextConfig(`/stores/${slug}`));
   writeFileSync(join(storeDir, "postcss.config.mjs"), TEMPLATE_STORE_POSTCSS_CONFIG);
 
   // Environment config
