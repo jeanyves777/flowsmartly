@@ -41,6 +41,7 @@ import {
   cleanupV3Patterns,
   fixTailwindV4Classes,
   fixGlobalsCss,
+  fixUseSearchParams,
 } from "@/lib/build-utils/validators";
 import {
   allocatePort,
@@ -446,6 +447,7 @@ export async function buildStoreV3(storeId: string): Promise<{ success: boolean;
     cleanupV3Patterns(storeDir);
     fixTailwindV4Classes(storeDir);
     fixGlobalsCss(storeDir);
+    fixUseSearchParams(storeDir);
     const stubs = validateAndFixImports(storeDir);
     if (stubs.length > 0) {
       console.log(`[StoreBuilder:V3] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);

@@ -37,6 +37,7 @@ import {
   cleanupV3Patterns,
   fixTailwindV4Classes,
   fixGlobalsCss,
+  fixUseSearchParams,
 } from "@/lib/build-utils/validators";
 import {
   allocatePort,
@@ -406,6 +407,7 @@ export async function buildSiteV3(websiteId: string): Promise<{ success: boolean
     cleanupV3Patterns(siteDir);
     fixTailwindV4Classes(siteDir);
     fixGlobalsCss(siteDir);
+    fixUseSearchParams(siteDir);
     const stubs = validateAndFixImports(siteDir);
     if (stubs.length > 0) {
       console.log(`[SiteBuilder:V3] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);

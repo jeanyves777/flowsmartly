@@ -13,7 +13,7 @@ export const TEMPLATE_STORE_PACKAGE_JSON = `{
     "start": "next start"
   },
   "dependencies": {
-    "next": "15.3.1",
+    "next": "15.5.12",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "framer-motion": "12.38.0",

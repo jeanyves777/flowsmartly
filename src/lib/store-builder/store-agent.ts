@@ -869,6 +869,23 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 - src/components/ThemeProvider.tsx, ThemeToggle.tsx, Analytics.tsx, CookieConsent.tsx
 - .env.local
 
+### Tailwind CSS v4 Colors (CRITICAL):
+- In globals.css @theme {}, define ONLY base colors: --color-primary: #xxx; --color-secondary: #xxx;
+- NEVER define numbered shades: --color-primary-600, --color-primary-700 are INVALID
+- In components: use bg-primary, text-primary, border-primary — NOT bg-primary-500 or text-primary-700
+- For lighter/darker: use opacity modifiers like bg-primary/80, bg-primary/20
+
+### Animations in globals.css (CRITICAL):
+- NEVER use @apply inside @keyframes blocks — Tailwind v4 forbids this
+- Use raw CSS in @keyframes: { opacity: 0; } not { @apply opacity-0; }
+- Use raw CSS transforms: { transform: translateY(1rem); } not { @apply translate-y-4; }
+
+### useSearchParams (CRITICAL):
+- Pages that use useSearchParams() MUST be wrapped in a Suspense boundary
+- Pattern: create a "use client" component file, import it in a server page.tsx wrapped with <Suspense>
+- Example: SearchClient.tsx ("use client" with useSearchParams) + page.tsx (import + Suspense wrapper)
+- This applies to: search pages, order-confirmation pages, any page reading URL params
+
 ### Import Order:
 - Write files in dependency order: data.ts → products.ts → globals.css → layout.tsx → components → pages → checkout → account`;
 

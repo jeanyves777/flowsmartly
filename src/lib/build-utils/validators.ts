@@ -622,6 +622,56 @@ export function fixTailwindV4Classes(siteDir: string): void {
   }
 }
 
+// ─── useSearchParams Suspense Fix ───────────────────────────────────────────
+
+/**
+ * Next.js 15+ requires useSearchParams() to be inside a Suspense boundary.
+ * If a page.tsx uses useSearchParams (directly or via "use client"), auto-wrap
+ * it by renaming to ClientComponent.tsx and creating a server wrapper with Suspense.
+ */
+export function fixUseSearchParams(siteDir: string): void {
+  const appDir = join(siteDir, "src", "app");
+  if (!existsSync(appDir)) return;
+
+  const pageFiles = collectSourceFiles(appDir).filter(f => f.endsWith("page.tsx"));
+  let fixCount = 0;
+
+  for (const file of pageFiles) {
+    const content = readFileSync(file, "utf-8");
+    if (!content.includes("useSearchParams")) continue;
+    if (!content.includes('"use client"') && !content.includes("'use client'")) continue;
+
+    // This is a "use client" page with useSearchParams — needs Suspense wrapper
+    const dir = dirname(file);
+    const pageName = dir.split(/[\\/]/).pop() || "Page";
+    const clientName = pageName.charAt(0).toUpperCase() + pageName.slice(1).replace(/-(\w)/g, (_, c) => c.toUpperCase()) + "Client";
+
+    // Rename page.tsx → {ClientName}.tsx
+    const clientPath = join(dir, `${clientName}.tsx`);
+    writeFileSync(clientPath, content, "utf-8");
+
+    // Write new server wrapper page.tsx with Suspense
+    const wrapper = `import { Suspense } from "react";
+import ${clientName} from "./${clientName}";
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin h-8 w-8 border-2 border-gray-900 border-t-transparent rounded-full" /></div>}>
+      <${clientName} />
+    </Suspense>
+  );
+}
+`;
+    writeFileSync(file, wrapper, "utf-8");
+    fixCount++;
+    console.log(`[BuildUtils] Wrapped ${file} in Suspense (useSearchParams fix)`);
+  }
+
+  if (fixCount > 0) {
+    console.log(`[BuildUtils] Fixed ${fixCount} pages with useSearchParams Suspense boundary`);
+  }
+}
+
 // ─── Fix globals.css common agent mistakes ──────────────────────────────────
 
 /**
