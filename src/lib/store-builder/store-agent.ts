@@ -243,7 +243,7 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 - Use Next.js <Image> component for optimized images — it handles basePath automatically
 - Internal link hrefs are root-relative ("/products", "/checkout", "/account") — Next.js Link/router handles basePath
 - CRITICAL — images in plain <img> src: use the FULL path returned by download_image (it already includes basePath)
-  - If you must hardcode: use "/stores/${storeSlug}/images/..." (NOT "/images/...")
+  - If you must hardcode: use "/stores/\${storeSlug}/images/..." (NOT "/images/...")
   - Plain <img> tags do NOT get basePath automatically — always use the full returned path
 - NO generateStaticParams() needed — SSR handles dynamic routes natively
 - Server components are default; add "use client" only when using hooks/state/motion
