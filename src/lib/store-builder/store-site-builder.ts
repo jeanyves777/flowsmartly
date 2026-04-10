@@ -8,7 +8,7 @@
  * Mirrors src/lib/website/site-builder.ts but for e-commerce stores.
  */
 
-import { execSync } from "child_process";
+import { execSync, spawn as spawnProcess } from "child_process";
 import { existsSync, mkdirSync, cpSync, writeFileSync } from "fs";
 import { join } from "path";
 import { prisma } from "@/lib/db/client";
@@ -69,6 +69,44 @@ export function getStoreDir(storeId: string): string {
 
 export function getStoreOutputDir(slug: string): string {
   return join(OUTPUT_BASE, slug);
+}
+
+/**
+ * Non-blocking command execution — doesn't freeze the event loop.
+ * Use this for long-running commands (npm install, next build).
+ */
+function execAsync(cmd: string, options: { cwd: string; env?: NodeJS.ProcessEnv; timeout?: number }): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const [bin, ...args] = cmd.split(" ");
+    const child = spawnProcess(bin, args, {
+      cwd: options.cwd,
+      env: options.env || process.env,
+      stdio: ["pipe", "pipe", "pipe"],
+      shell: true,
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout?.on("data", (d) => { stdout += d.toString(); });
+    child.stderr?.on("data", (d) => { stderr += d.toString(); });
+
+    const timer = options.timeout ? setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error(`Command timed out after ${options.timeout}ms`));
+    }, options.timeout) : null;
+
+    child.on("close", (code) => {
+      if (timer) clearTimeout(timer);
+      if (code === 0) resolve(stdout);
+      else reject(Object.assign(new Error(`Command failed with code ${code}`), { stdout, stderr }));
+    });
+
+    child.on("error", (err) => {
+      if (timer) clearTimeout(timer);
+      reject(err);
+    });
+  });
 }
 
 // ─── Initialize store directory ──────────────────────────────────────────────
@@ -359,6 +397,11 @@ export function initStoreDirV3(storeId: string, slug: string): string {
   // Cart with local checkout (no external redirect)
   writeFileSync(join(storeDir, "src", "lib", "cart.ts"), TEMPLATE_SSR_CART);
 
+  // Pages Router fallback — Next.js 15 needs these for internal prerender
+  mkdirSync(join(storeDir, "src", "pages"), { recursive: true });
+  writeFileSync(join(storeDir, "src", "pages", "_error.tsx"), `export default function Error() { return null; }\n`);
+  writeFileSync(join(storeDir, "src", "pages", "_document.tsx"), `import { Html, Head, Main, NextScript } from "next/document";\nexport default function Document() { return <Html><Head /><body><Main /><NextScript /></body></Html>; }\n`);
+
   // Theme provider + toggle
   writeFileSync(join(storeDir, "src", "components", "ThemeProvider.tsx"), TEMPLATE_THEME_PROVIDER);
   writeFileSync(join(storeDir, "src", "components", "ThemeToggle.tsx"), TEMPLATE_THEME_TOGGLE);
@@ -392,20 +435,17 @@ export async function buildStoreV3(storeId: string): Promise<{ success: boolean;
     const nodeModulesExists = existsSync(join(storeDir, "node_modules", "next"));
     if (!nodeModulesExists) {
       console.log(`[StoreBuilder:V3] Installing dependencies for ${storeId}...`);
-      installOutput = execSync("npm install --include=dev", {
+      installOutput = await execAsync("npm install --include=dev", {
         cwd: storeDir,
         timeout: 120000,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
         env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=2048", NODE_ENV: "development" },
       });
     }
 
     // 2. Pre-build validators (SSR-applicable only)
-    // Skip: syncBasePath, fixBareLinks, fixProductImages, fixGenerateStaticParams
-    cleanupV3Patterns(storeDir); // Remove storeUrl/siteUrl/STORE_BASE left by agent
-    fixTailwindV4Classes(storeDir); // Fix bg-primary-500 → bg-primary etc.
-    fixGlobalsCss(storeDir); // Fix @apply inside @keyframes etc.
+    cleanupV3Patterns(storeDir);
+    fixTailwindV4Classes(storeDir);
+    fixGlobalsCss(storeDir);
     const stubs = validateAndFixImports(storeDir);
     if (stubs.length > 0) {
       console.log(`[StoreBuilder:V3] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);
@@ -419,13 +459,11 @@ export async function buildStoreV3(storeId: string): Promise<{ success: boolean;
     const nextCacheDir = join(storeDir, ".next");
     try { const { rmSync } = await import("fs"); rmSync(nextCacheDir, { recursive: true, force: true }); } catch {}
 
-    // 3. next build (SSR — produces .next/, NOT out/)
+    // 3. next build (SSR — NON-BLOCKING so main app stays responsive)
     console.log(`[StoreBuilder:V3] Building SSR store ${storeId}...`);
-    const buildOutput = execSync("npx next build", {
+    const buildOutput = await execAsync("npx next build", {
       cwd: storeDir,
-      timeout: 180000,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 300000,
       env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=2048" },
     });
 

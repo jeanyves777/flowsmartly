@@ -5,7 +5,7 @@
  * V3: Independent SSR app → PM2 process + nginx reverse proxy
  */
 
-import { execSync } from "child_process";
+import { execSync, spawn as spawnProcess } from "child_process";
 import { existsSync, mkdirSync, cpSync, writeFileSync } from "fs";
 import { join } from "path";
 import { prisma } from "@/lib/db/client";
@@ -70,6 +70,25 @@ export function getSiteDir(websiteId: string): string {
  */
 export function getOutputDir(slug: string): string {
   return join(OUTPUT_BASE, slug);
+}
+
+/** Non-blocking command execution for long-running builds */
+function execAsync(cmd: string, options: { cwd: string; env?: NodeJS.ProcessEnv; timeout?: number }): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const [bin, ...args] = cmd.split(" ");
+    const child = spawnProcess(bin, args, {
+      cwd: options.cwd,
+      env: options.env || process.env,
+      stdio: ["pipe", "pipe", "pipe"],
+      shell: true,
+    });
+    let stdout = "", stderr = "";
+    child.stdout?.on("data", (d) => { stdout += d.toString(); });
+    child.stderr?.on("data", (d) => { stderr += d.toString(); });
+    const timer = options.timeout ? setTimeout(() => { child.kill("SIGTERM"); reject(new Error("Command timed out")); }, options.timeout) : null;
+    child.on("close", (code) => { if (timer) clearTimeout(timer); if (code === 0) resolve(stdout); else reject(Object.assign(new Error(`Command failed with code ${code}`), { stdout, stderr })); });
+    child.on("error", (err) => { if (timer) clearTimeout(timer); reject(err); });
+  });
 }
 
 /**
@@ -348,6 +367,11 @@ export function initSiteDirV3(websiteId: string, slug: string): string {
   writeFileSync(join(siteDir, "src", "components", "Analytics.tsx"), getWebsiteSSRTrackingScript(websiteId));
   writeFileSync(join(siteDir, "src", "components", "CookieConsent.tsx"), TEMPLATE_COOKIE_CONSENT);
 
+  // Pages Router fallback — Next.js 15 needs these for internal prerender
+  mkdirSync(join(siteDir, "src", "pages"), { recursive: true });
+  writeFileSync(join(siteDir, "src", "pages", "_error.tsx"), `export default function Error() { return null; }\n`);
+  writeFileSync(join(siteDir, "src", "pages", "_document.tsx"), `import { Html, Head, Main, NextScript } from "next/document";\nexport default function Document() { return <Html><Head /><body><Main /><NextScript /></body></Html>; }\n`);
+
   return siteDir;
 }
 
@@ -371,19 +395,17 @@ export async function buildSiteV3(websiteId: string): Promise<{ success: boolean
     let installOutput = "";
     if (!existsSync(join(siteDir, "node_modules", "next"))) {
       console.log(`[SiteBuilder:V3] Installing dependencies for ${websiteId}...`);
-      installOutput = execSync("npm install --include=dev", {
+      installOutput = await execAsync("npm install --include=dev", {
         cwd: siteDir,
         timeout: 120000,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
         env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=2048", NODE_ENV: "development" },
       });
     }
 
     // SSR-applicable validators only
-    cleanupV3Patterns(siteDir); // Remove siteUrl/SITE_BASE left by agent
-    fixTailwindV4Classes(siteDir); // Fix bg-primary-500 → bg-primary etc.
-    fixGlobalsCss(siteDir); // Fix @apply inside @keyframes etc.
+    cleanupV3Patterns(siteDir);
+    fixTailwindV4Classes(siteDir);
+    fixGlobalsCss(siteDir);
     const stubs = validateAndFixImports(siteDir);
     if (stubs.length > 0) {
       console.log(`[SiteBuilder:V3] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);
@@ -395,13 +417,11 @@ export async function buildSiteV3(websiteId: string): Promise<{ success: boolean
     // Clear cache
     try { const { rmSync } = await import("fs"); rmSync(join(siteDir, ".next"), { recursive: true, force: true }); } catch {}
 
-    // next build (SSR)
+    // next build (SSR — NON-BLOCKING so main app stays responsive)
     console.log(`[SiteBuilder:V3] Building SSR website ${websiteId}...`);
-    const buildOutput = execSync("npx next build", {
+    const buildOutput = await execAsync("npx next build", {
       cwd: siteDir,
-      timeout: 180000,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 300000,
       env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=2048" },
     });
 
