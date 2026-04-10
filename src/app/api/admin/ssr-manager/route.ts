@@ -103,9 +103,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session?.adminId) {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    const internalSecret = request.headers.get("x-admin-secret");
+    const validSecret = process.env.ADMIN_INTERNAL_SECRET;
+    const hasSecret = validSecret && internalSecret === validSecret;
+
+    if (!hasSecret) {
+      const session = await getSession();
+      if (!session?.adminId) {
+        return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      }
     }
 
     const { action } = await request.json();
