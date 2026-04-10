@@ -18,6 +18,9 @@ import path from "path";
 const nextConfig: NextConfig = {
   basePath: "${assetPrefix}",
   assetPrefix: "${assetPrefix}",
+  // Required: prevents Next.js from 308-redirecting /slug/ → /slug,
+  // which nginx cannot re-handle (nginx location block requires trailing slash).
+  trailingSlash: true,
   images: { unoptimized: true },
   typescript: { ignoreBuildErrors: true },
   // Prevent Next.js from walking up to a parent workspace when nested inside a monorepo

@@ -28,19 +28,24 @@ function upstreamBlock(name: string, port: number): string {
 
 function storeLocationBlock(slug: string, port: number): string {
   const safeName = `store_${slug.replace(/[^a-z0-9_-]/gi, "_")}`;
-  return `# Store: ${slug} -> port ${port}
-location /stores/${slug}/ {
-    proxy_pass http://${safeName}/stores/${slug}/;
-    proxy_set_header Host $host;
+  const proxyHeaders = `    proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Store-Slug ${slug};
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
     proxy_read_timeout 60s;
-    proxy_buffering off;
+    proxy_buffering off;`;
+  return `# Store: ${slug} -> port ${port}
+# Redirect no-trailing-slash → trailing-slash (trailingSlash:true in store next.config)
+location = /stores/${slug} {
+    return 301 /stores/${slug}/;
+}
+location /stores/${slug}/ {
+    proxy_pass http://${safeName}/stores/${slug}/;
+    proxy_set_header X-Store-Slug ${slug};
+${proxyHeaders}
 }
 `;
 }
