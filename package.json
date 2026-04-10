@@ -14,7 +14,10 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "npx tsx scripts/create-super-admin.ts",
     "db:seed-templates": "npx tsx scripts/seed-templates.ts",
-    "db:seed-plans": "npx tsx scripts/seed-plans.ts"
+    "db:seed-plans": "npx tsx scripts/seed-plans.ts",
+    "test:store-build": "npx tsx scripts/test-store-build.ts",
+    "test:store-build:validate": "npx tsx scripts/test-store-build.ts --validate-only",
+    "test:store-build:keep": "npx tsx scripts/test-store-build.ts --keep"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",

@@ -739,3 +739,74 @@ export function fixGlobalsCss(siteDir: string): void {
     console.log("[BuildUtils] Fixed globals.css (@keyframes, invalid classes, color shades)");
   }
 }
+
+// ─── fixCartImports ───────────────────────────────────────────────────────────
+
+/**
+ * Fix agent-generated files that import cart utilities (getCart, getCartCount,
+ * addToCart, removeFromCart, updateQuantity, clearCart, getCartTotal, goToCheckout,
+ * CartItem) from the wrong module (@/lib/data) instead of @/lib/cart.
+ *
+ * The agent occasionally conflates @/lib/data and @/lib/cart.
+ * This runs before next build to prevent "export X doesn't exist in target module".
+ */
+export function fixCartImports(siteDir: string): void {
+  const srcDir = join(siteDir, "src");
+  if (!existsSync(srcDir)) return;
+
+  const CART_SYMBOLS = new Set([
+    "CartItem",
+    "getCart",
+    "saveCart",
+    "addToCart",
+    "removeFromCart",
+    "updateQuantity",
+    "clearCart",
+    "getCartTotal",
+    "getCartCount",
+    "goToCheckout",
+    "redirectToCheckout",
+  ]);
+
+  const files = collectSourceFiles(srcDir);
+  let fixCount = 0;
+
+  for (const file of files) {
+    let content = readFileSync(file, "utf-8");
+    const original = content;
+
+    // Match: import { ..., getCart, ..., getCartCount, ... } from "@/lib/data"
+    content = content.replace(
+      /import\s*\{([^}]+)\}\s*from\s*(['"])@\/lib\/data\2/g,
+      (fullMatch, importList, quote) => {
+        const allImports = importList.split(",").map((s: string) => s.trim()).filter(Boolean);
+        const cartImports = allImports.filter((name: string) => {
+          const base = name.replace(/\s+as\s+\S+$/, "").trim();
+          return CART_SYMBOLS.has(base);
+        });
+        const dataImports = allImports.filter((name: string) => {
+          const base = name.replace(/\s+as\s+\S+$/, "").trim();
+          return !CART_SYMBOLS.has(base);
+        });
+
+        if (cartImports.length === 0) return fullMatch;
+
+        const parts: string[] = [];
+        if (dataImports.length > 0) {
+          parts.push(`import { ${dataImports.join(", ")} } from ${quote}@/lib/data${quote}`);
+        }
+        parts.push(`import { ${cartImports.join(", ")} } from ${quote}@/lib/cart${quote}`);
+        return parts.join("\n");
+      }
+    );
+
+    if (content !== original) {
+      writeFileSync(file, content, "utf-8");
+      fixCount++;
+    }
+  }
+
+  if (fixCount > 0) {
+    console.log(`[BuildUtils] Fixed cart imports in ${fixCount} file(s): moved cart symbols from @/lib/data → @/lib/cart`);
+  }
+}

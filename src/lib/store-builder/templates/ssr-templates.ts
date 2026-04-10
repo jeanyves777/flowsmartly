@@ -12,7 +12,6 @@ export const TEMPLATE_SSR_NEXT_CONFIG = `import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   images: { unoptimized: true },
   typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
 };
 
 export default nextConfig;

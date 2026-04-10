@@ -42,6 +42,7 @@ import {
   fixTailwindV4Classes,
   fixGlobalsCss,
   fixUseSearchParams,
+  fixCartImports,
 } from "@/lib/build-utils/validators";
 import {
   allocatePort,
@@ -239,6 +240,7 @@ export async function buildStore(storeId: string): Promise<{ success: boolean; o
       console.log(`[StoreBuilder] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);
     }
 
+    fixCartImports(storeDir); // Fix getCart/getCartCount imported from @/lib/data → @/lib/cart
     fixDataSyntax(storeDir, "src/lib/data.ts");
     fixDataSyntax(storeDir, "src/lib/products.ts"); // Also fix products file
     fixBareLinks(storeDir, basePath);
@@ -417,25 +419,23 @@ export function initStoreDirV3(storeId: string, slug: string): string {
 /**
  * Build a V3 SSR store (next build without static export).
  * Only runs the validators that apply to SSR builds.
+ *
+ * This is the DB-free core that `buildStoreV3` delegates to.
+ * Call it directly from scripts/tests to avoid needing a Prisma store record.
  */
-export async function buildStoreV3(storeId: string): Promise<{ success: boolean; output: string; error?: string }> {
-  const storeDir = getStoreDir(storeId);
-
+export async function buildStoreFromDir(
+  storeDir: string,
+): Promise<{ success: boolean; output: string; error?: string }> {
   if (!existsSync(storeDir)) {
-    return { success: false, output: "", error: "Store directory not found" };
+    return { success: false, output: "", error: `Store directory not found: ${storeDir}` };
   }
 
   try {
-    await prisma.store.update({
-      where: { id: storeId },
-      data: { buildStatus: "building" },
-    });
-
     // 1. npm install — only if node_modules doesn't exist
     let installOutput = "";
     const nodeModulesExists = existsSync(join(storeDir, "node_modules", "next"));
     if (!nodeModulesExists) {
-      console.log(`[StoreBuilder:V3] Installing dependencies for ${storeId}...`);
+      console.log(`[StoreBuilder] Installing dependencies in ${storeDir}...`);
       installOutput = await execAsync("npm install --include=dev", {
         cwd: storeDir,
         timeout: 120000,
@@ -450,8 +450,9 @@ export async function buildStoreV3(storeId: string): Promise<{ success: boolean;
     fixUseSearchParams(storeDir);
     const stubs = validateAndFixImports(storeDir);
     if (stubs.length > 0) {
-      console.log(`[StoreBuilder:V3] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);
+      console.log(`[StoreBuilder] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);
     }
+    fixCartImports(storeDir);
     fixDataSyntax(storeDir, "src/lib/data.ts");
     fixDataSyntax(storeDir, "src/lib/products.ts");
     fixHamburgerMenu(storeDir);
@@ -461,20 +462,48 @@ export async function buildStoreV3(storeId: string): Promise<{ success: boolean;
     const nextCacheDir = join(storeDir, ".next");
     try { const { rmSync } = await import("fs"); rmSync(nextCacheDir, { recursive: true, force: true }); } catch {}
 
-    // 3. next build (SSR — NON-BLOCKING so main app stays responsive)
-    console.log(`[StoreBuilder:V3] Building SSR store ${storeId}...`);
+    // 3. next build (SSR)
+    console.log(`[StoreBuilder] Building store at ${storeDir}...`);
     const buildOutput = await execAsync("npx next build", {
       cwd: storeDir,
       timeout: 300000,
       env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=2048" },
     });
 
+    return { success: true, output: installOutput + "\n" + buildOutput };
+  } catch (err: any) {
+    const errorMsg = err.stderr?.toString() || err.stdout?.toString() || err.message || "Build failed";
+    return { success: false, output: "", error: errorMsg };
+  }
+}
+
+/**
+ * Build a V3 SSR store (next build without static export).
+ * Only runs the validators that apply to SSR builds.
+ */
+export async function buildStoreV3(storeId: string): Promise<{ success: boolean; output: string; error?: string }> {
+  const storeDir = getStoreDir(storeId);
+
+  if (!existsSync(storeDir)) {
+    return { success: false, output: "", error: "Store directory not found" };
+  }
+
+  try {
     await prisma.store.update({
       where: { id: storeId },
-      data: { buildStatus: "built", lastBuildAt: new Date(), lastBuildError: null },
+      data: { buildStatus: "building" },
     });
 
-    return { success: true, output: installOutput + "\n" + buildOutput };
+    const result = await buildStoreFromDir(storeDir);
+
+    await prisma.store.update({
+      where: { id: storeId },
+      data: result.success
+        ? { buildStatus: "built", lastBuildAt: new Date(), lastBuildError: null }
+        : { buildStatus: "error", lastBuildError: result.error?.substring(0, 2000) },
+    });
+
+    return result;
   } catch (err: any) {
     const errorMsg = err.stderr?.toString() || err.stdout?.toString() || err.message || "Build failed";
     console.error(`[StoreBuilder:V3] Build failed for ${storeId}:`, errorMsg.substring(0, 500));
