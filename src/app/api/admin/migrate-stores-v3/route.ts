@@ -12,12 +12,20 @@ import { runStoreAgentV3 } from "@/lib/store-builder/store-agent";
  * Query params:
  *   ?dry=true  — just list stores that would be migrated (no action)
  *   ?storeId=xxx — migrate a single specific store
+ *
+ * Auth: admin cookie OR x-admin-secret header matching ADMIN_INTERNAL_SECRET env var
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getAdminSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const internalSecret = request.headers.get("x-admin-secret");
+    const validSecret = process.env.ADMIN_INTERNAL_SECRET;
+    const hasSecret = validSecret && internalSecret === validSecret;
+
+    if (!hasSecret) {
+      const session = await getAdminSession();
+      if (!session) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
     }
 
     const { searchParams } = new URL(request.url);
@@ -137,9 +145,15 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getAdminSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const internalSecret = request.headers.get("x-admin-secret");
+    const validSecret = process.env.ADMIN_INTERNAL_SECRET;
+    const hasSecret = validSecret && internalSecret === validSecret;
+
+    if (!hasSecret) {
+      const session = await getAdminSession();
+      if (!session) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
     }
 
     const [nonV3, v3] = await Promise.all([
