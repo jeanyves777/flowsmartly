@@ -489,16 +489,19 @@ export default function CheckoutPage() {
 }
 `.trimStart());
 
-  // ── src/app/order-confirmation/page.tsx ───────────────────────────────────
+  // ── src/app/order-confirmation/ ───────────────────────────────────────────
+  // Simulate Case B: server page.tsx imports a client component that uses useSearchParams
+  // WITHOUT wrapping in Suspense — this is the real AI-generated bug pattern
   mkdirSync(join(src, "app", "order-confirmation"), { recursive: true });
-  writeFileSync(join(src, "app", "order-confirmation", "page.tsx"), `
+
+  // The CLIENT component (has useSearchParams, no Suspense wrapper in page)
+  writeFileSync(join(src, "app", "order-confirmation", "OrderConfirmationClient.tsx"), `
 "use client";
 
-import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-function Confirmation() {
+export default function OrderConfirmationClient() {
   const params = useSearchParams();
   const orderId = params.get("order");
   return (
@@ -512,15 +515,14 @@ function Confirmation() {
     </div>
   );
 }
+`.trimStart());
 
-export default function OrderConfirmationPage() {
-  return (
-    <main className="min-h-screen">
-      <Suspense fallback={<div className="py-20 text-center">Loading...</div>}>
-        <Confirmation />
-      </Suspense>
-    </main>
-  );
+  // The SERVER page — renders the client component WITHOUT Suspense (AI bug pattern)
+  writeFileSync(join(src, "app", "order-confirmation", "page.tsx"), `
+import OrderConfirmationClient from "./OrderConfirmationClient";
+
+export default function Page() {
+  return <OrderConfirmationClient />;
 }
 `.trimStart());
 
@@ -781,7 +783,7 @@ async function main() {
   ok("data.ts, products.ts, globals.css, layout.tsx, page.tsx");
   ok("products/page.tsx, products/[slug]/page.tsx, about/page.tsx");
   ok("checkout/CheckoutClient.tsx  ⚠ (intentional bug: getCart from @/lib/data)");
-  ok("checkout/page.tsx, order-confirmation/page.tsx");
+  ok("checkout/page.tsx, order-confirmation/page.tsx + OrderConfirmationClient.tsx  ⚠ (no Suspense wrapper)");
   ok("components: Header, Hero, ProductCard, Footer");
 
   // ── Run validators ────────────────────────────────────────────────────────
@@ -809,6 +811,16 @@ async function main() {
     ok("fixCartImports: getCart/getCartCount successfully moved from @/lib/data → @/lib/cart");
   } else {
     fail("fixCartImports: CheckoutClient.tsx still has getCart from @/lib/data — validator did NOT fix it!");
+    process.exitCode = 1;
+  }
+
+  // Verify Suspense was added to order-confirmation/page.tsx (Case B fix)
+  const orderPagePath = join(storeDir, "src", "app", "order-confirmation", "page.tsx");
+  const orderPageContent = existsSync(orderPagePath) ? readFileSync(orderPagePath, "utf-8") : "";
+  if (orderPageContent.includes("Suspense")) {
+    ok("fixUseSearchParams (case B): Suspense added to order-confirmation/page.tsx");
+  } else {
+    fail("fixUseSearchParams (case B): order-confirmation/page.tsx is missing Suspense — server renders client with useSearchParams without boundary!");
     process.exitCode = 1;
   }
 

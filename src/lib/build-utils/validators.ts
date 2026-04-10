@@ -624,10 +624,53 @@ export function fixTailwindV4Classes(siteDir: string): void {
 
 // ─── useSearchParams Suspense Fix ───────────────────────────────────────────
 
+const SUSPENSE_FALLBACK = `<div className="min-h-screen flex items-center justify-center"><div className="animate-spin h-8 w-8 border-2 border-gray-900 border-t-transparent rounded-full" /></div>`;
+
+/**
+ * Adds Suspense import to page content (or adds new import line).
+ */
+function addSuspenseImport(content: string): string {
+  const reactImportRe = /import\s*\{([^}]*)\}\s*from\s*["']react["']/;
+  const match = content.match(reactImportRe);
+  if (match) {
+    if (match[1].includes("Suspense")) return content;
+    return content.replace(reactImportRe, `import {${match[1]}, Suspense } from "react"`);
+  }
+  return `import { Suspense } from "react";\n` + content;
+}
+
+/**
+ * Wraps a single self-closing or paired JSX component usage in <Suspense>.
+ * Handles common AI patterns:
+ *   return <Comp />  →  return (<Suspense ...><Comp /></Suspense>)
+ *   return (<Comp />)  →  return (<Suspense ...><Comp /></Suspense>)
+ *   return <Comp></Comp>  →  return (<Suspense ...><Comp></Comp></Suspense>)
+ */
+function wrapComponentInSuspense(content: string, componentName: string): string {
+  const escaped = componentName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  // Already wrapped — skip
+  if (content.includes(`<Suspense`) && content.includes(`<${componentName}`)) return content;
+
+  // Match: return (<Comp ... />) or return <Comp ... />; or return (<Comp>...</Comp>)
+  const re = new RegExp(
+    `(\\breturn\\s*\\(?\\s*)(<${escaped}(?:[\\s\\S]*?(?:/>|<\\/${escaped}>)))(\\s*\\)?)`,
+    "s"
+  );
+  return content.replace(re, (_, pre, jsx, post) => {
+    return `${pre}(\n    <Suspense fallback={${SUSPENSE_FALLBACK}}>\n      ${jsx.trim()}\n    </Suspense>\n  )`;
+  });
+}
+
 /**
  * Next.js 15+ requires useSearchParams() to be inside a Suspense boundary.
- * If a page.tsx uses useSearchParams (directly or via "use client"), auto-wrap
- * it by renaming to ClientComponent.tsx and creating a server wrapper with Suspense.
+ *
+ * Handles two AI patterns:
+ *   A) page.tsx IS the client component (has "use client" + useSearchParams)
+ *      → rename to XClient.tsx, write a server wrapper with Suspense
+ *
+ *   B) page.tsx is a SERVER component that imports XClient.tsx which uses useSearchParams
+ *      → add Suspense import to page.tsx and wrap the client component in Suspense
  */
 export function fixUseSearchParams(siteDir: string): void {
   const appDir = join(siteDir, "src", "app");
@@ -638,33 +681,78 @@ export function fixUseSearchParams(siteDir: string): void {
 
   for (const file of pageFiles) {
     const content = readFileSync(file, "utf-8");
-    if (!content.includes("useSearchParams")) continue;
-    if (!content.includes('"use client"') && !content.includes("'use client'")) continue;
-
-    // This is a "use client" page with useSearchParams — needs Suspense wrapper
     const dir = dirname(file);
-    const pageName = dir.split(/[\\/]/).pop() || "Page";
-    const clientName = pageName.charAt(0).toUpperCase() + pageName.slice(1).replace(/-(\w)/g, (_, c) => c.toUpperCase()) + "Client";
 
-    // Rename page.tsx → {ClientName}.tsx
-    const clientPath = join(dir, `${clientName}.tsx`);
-    writeFileSync(clientPath, content, "utf-8");
+    // ── Case A: page.tsx is itself a client component using useSearchParams ──
+    if (
+      content.includes("useSearchParams") &&
+      (content.includes('"use client"') || content.includes("'use client'"))
+    ) {
+      const pageName = dir.split(/[\\/]/).pop() || "Page";
+      const clientName =
+        pageName.charAt(0).toUpperCase() +
+        pageName.slice(1).replace(/-(\w)/g, (_, c: string) => c.toUpperCase()) +
+        "Client";
 
-    // Write new server wrapper page.tsx with Suspense
-    const wrapper = `import { Suspense } from "react";
+      // Save original as XClient.tsx
+      const clientPath = join(dir, `${clientName}.tsx`);
+      writeFileSync(clientPath, content, "utf-8");
+
+      // Write server wrapper with Suspense
+      const wrapper = `import { Suspense } from "react";
 import ${clientName} from "./${clientName}";
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin h-8 w-8 border-2 border-gray-900 border-t-transparent rounded-full" /></div>}>
+    <Suspense fallback={${SUSPENSE_FALLBACK}}>
       <${clientName} />
     </Suspense>
   );
 }
 `;
-    writeFileSync(file, wrapper, "utf-8");
-    fixCount++;
-    console.log(`[BuildUtils] Wrapped ${file} in Suspense (useSearchParams fix)`);
+      writeFileSync(file, wrapper, "utf-8");
+      fixCount++;
+      console.log(`[BuildUtils] Wrapped ${file} in Suspense (useSearchParams fix — case A)`);
+      continue;
+    }
+
+    // ── Case B: page.tsx is a server component, sibling *Client.tsx uses useSearchParams ──
+    if (content.includes("Suspense")) continue; // already has Suspense somewhere
+
+    let dirEntries: string[] = [];
+    try { dirEntries = readdirSync(dir); } catch { continue; }
+
+    for (const entry of dirEntries) {
+      if (!entry.endsWith(".tsx") || entry === "page.tsx") continue;
+
+      const siblingPath = join(dir, entry);
+      const siblingContent = readFileSync(siblingPath, "utf-8");
+      if (!siblingContent.includes("useSearchParams")) continue;
+
+      // Ensure sibling has "use client"
+      if (!siblingContent.includes('"use client"') && !siblingContent.includes("'use client'")) {
+        writeFileSync(siblingPath, `"use client";\n${siblingContent}`, "utf-8");
+      }
+
+      // Extract component name from import in page.tsx (e.g. import Foo from "./FooClient")
+      const importMatch = content.match(
+        new RegExp(`import\\s+(\\w+)\\s+from\\s+["']\\.\\/${entry.replace(".tsx", "")}["']`)
+      );
+      const componentName = importMatch?.[1] ?? entry.replace(".tsx", "");
+
+      // Rewrite page.tsx to add Suspense around the component usage
+      let fixed = addSuspenseImport(content);
+      fixed = wrapComponentInSuspense(fixed, componentName);
+
+      if (fixed !== content) {
+        writeFileSync(file, fixed, "utf-8");
+        fixCount++;
+        console.log(
+          `[BuildUtils] Wrapped ${componentName} in Suspense in ${file} (useSearchParams fix — case B)`
+        );
+      }
+      break; // only fix once per page
+    }
   }
 
   if (fixCount > 0) {
