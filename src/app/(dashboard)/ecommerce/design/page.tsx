@@ -75,7 +75,7 @@ export default function StoreDesignPage() {
     fetch("/api/ecommerce/store")
       .then((r) => r.json())
       .then(async (res) => {
-        const s: StoreRecord = res.store;
+        const s: StoreRecord = res.data?.store ?? res.store;
         setStore(s);
         if (s?.id) {
           try {

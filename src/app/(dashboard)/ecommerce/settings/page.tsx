@@ -40,7 +40,6 @@ import {
   ECOM_PRO_PRICE_CENTS,
   type EcomPlan,
 } from "@/lib/domains/pricing";
-import { STORE_TEMPLATES_FULL, type StoreTemplateConfig } from "@/lib/constants/store-templates";
 import { cn } from "@/lib/utils/cn";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
@@ -102,11 +101,8 @@ const BASE_FONT_OPTIONS = [
   "Space Grotesk",
 ];
 
-// Deduplicate and sort font options (includes all template fonts)
-const FONT_OPTIONS = Array.from(new Set([
-  ...BASE_FONT_OPTIONS,
-  ...STORE_TEMPLATES_FULL.flatMap((t) => [t.fonts.heading, t.fonts.body]),
-])).sort();
+// All font options for the branding tab
+const FONT_OPTIONS = BASE_FONT_OPTIONS.slice().sort();
 
 export default function EcommerceSettingsPage() {
   const [store, setStore] = useState<Store | null>(null);
@@ -159,7 +155,6 @@ export default function EcommerceSettingsPage() {
   const [localPickup, setLocalPickup] = useState(false);
 
   // Branding tab fields
-  const [selectedTemplate, setSelectedTemplate] = useState("minimal");
   const [primaryColor, setPrimaryColor] = useState("#6366f1");
   const [secondaryColor, setSecondaryColor] = useState("#8b5cf6");
   const [accentColor, setAccentColor] = useState("#f59e0b");
@@ -436,7 +431,6 @@ export default function EcommerceSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           theme: {
-            template: selectedTemplate,
             colors: {
               primary: primaryColor,
               secondary: secondaryColor,
@@ -951,63 +945,6 @@ export default function EcommerceSettingsPage() {
         {/* BRANDING TAB */}
         {activeTab === "branding" && (
           <div className="space-y-6">
-            {/* Template Selection */}
-            <div>
-              <label className="block text-sm font-medium mb-3">Store Template</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {STORE_TEMPLATES_FULL.map((template) => {
-                  const isSelected = selectedTemplate === template.id;
-                  return (
-                    <button
-                      key={template.id}
-                      onClick={() => {
-                        setSelectedTemplate(template.id);
-                        // Auto-fill colors and fonts from template defaults
-                        setPrimaryColor(template.colors.primary);
-                        setSecondaryColor(template.colors.secondary);
-                        setAccentColor(template.colors.accent);
-                        setBackgroundColor(template.colors.background);
-                        setTextColor(template.colors.text);
-                        setHeadingFont(template.fonts.heading);
-                        setBodyFont(template.fonts.body);
-                      }}
-                      className={cn(
-                        "text-left p-4 rounded-lg border-2 transition-all",
-                        isSelected
-                          ? "border-brand-500 bg-brand-500/5 ring-1 ring-brand-500/20"
-                          : "border-border hover:border-brand-500/30"
-                      )}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="font-semibold text-sm">{template.name}</p>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
-                          {template.category}
-                        </span>
-                      </div>
-                      {/* Color preview circles */}
-                      <div className="flex items-center gap-1.5 mb-2">
-                        {[
-                          template.colors.primary,
-                          template.colors.secondary,
-                          template.colors.accent,
-                          template.colors.background,
-                          template.colors.text,
-                        ].map((color, idx) => (
-                          <div
-                            key={idx}
-                            className="h-4 w-4 rounded-full border border-border"
-                            style={{ backgroundColor: color }}
-                            title={["Primary", "Secondary", "Accent", "Background", "Text"][idx]}
-                          />
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{template.description}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* Colors */}
             <div>
               <label className="block text-sm font-medium mb-3">Colors</label>

@@ -28,6 +28,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { storeInfo, heroConfig, navLinks, footerLinks, faq, products } = body;
 
     let data = readFileSync(dataPath, "utf-8");
+    const storeBasePath = `/stores/${store.slug}`;
 
     // Update storeInfo fields
     if (storeInfo) {
@@ -35,6 +36,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       for (const field of stringFields) {
         if (storeInfo[field] !== undefined) {
           data = replaceField(data, field, storeInfo[field]);
+        }
+      }
+
+      // Update image URL fields — ensure basePath prefix for relative paths
+      for (const field of ["logoUrl", "bannerUrl", "favicon"]) {
+        if (storeInfo[field] !== undefined) {
+          let url = storeInfo[field] as string;
+          // If root-relative /images/ path, prefix with basePath
+          if (url.startsWith("/images/")) url = storeBasePath + url;
+          data = replaceField(data, field, url);
         }
       }
 

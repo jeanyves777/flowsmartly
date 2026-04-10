@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShoppingBag, Search, Menu, X, ChevronRight } from "lucide-react";
+import { ShoppingBag, Search, Menu, X, ChevronRight, User } from "lucide-react";
 import { storeInfo, navLinks, storeUrl, categories } from "@/lib/data";
 import { getCart, getCartCount } from "@/lib/cart";
+import ThemeToggle from "./ThemeToggle";
 
 export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -46,22 +47,26 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-20">
-            {/* Hamburger — SIMPLE conditional, NEVER AnimatePresence for icon */}
-            <button
-              className="md:hidden p-2 -ml-2 text-gray-600 dark:text-gray-300"
-              onClick={() => setMenuOpen(true)}
-              aria-label="Open menu"
-            >
-              <Menu size={24} />
-            </button>
-
             {/* Logo */}
             <a href={storeUrl("/")} className="flex items-center gap-3">
-              <img
-                src={storeInfo.logoUrl}
-                alt={`${storeInfo.name} logo`}
-                className="h-10 sm:h-12 max-w-[160px] object-contain"
-              />
+              {storeInfo.logoUrl ? (
+                <img
+                  src={storeInfo.logoUrl}
+                  alt={`${storeInfo.name} logo`}
+                  className="h-10 sm:h-12 max-w-[160px] object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                    const sibling = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
+                    if (sibling) sibling.style.display = "flex";
+                  }}
+                />
+              ) : null}
+              <span
+                className="font-bold text-lg text-gray-900 dark:text-white"
+                style={{ display: storeInfo.logoUrl ? "none" : "flex" }}
+              >
+                {storeInfo.name}
+              </span>
             </a>
 
             {/* Desktop nav */}
@@ -78,7 +83,7 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
             </nav>
 
             {/* Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <a
                 href={storeUrl("/products")}
                 className="hidden sm:flex p-2 text-gray-600 dark:text-gray-300 hover:text-primary-600 transition-colors"
@@ -87,6 +92,16 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
                 <Search size={20} />
               </a>
 
+              <a
+                href={storeInfo.accountUrl || storeUrl("/account/")}
+                className="hidden md:flex p-2 text-gray-600 dark:text-gray-300 hover:text-primary-600 transition-colors"
+                aria-label="Account"
+              >
+                <User size={20} />
+              </a>
+
+              <ThemeToggle className="hidden sm:flex" />
+
               <button
                 onClick={onCartOpen}
                 className="relative p-2 text-gray-600 dark:text-gray-300 hover:text-primary-600 transition-colors"
@@ -94,10 +109,18 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
               >
                 <ShoppingBag size={20} />
                 {cartCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-primary-600 text-white text-[10px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center min-w-[18px] h-[18px]">
+                  <span className="absolute -top-0.5 -right-0.5 bg-primary-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center min-w-[18px] h-[18px]">
                     {cartCount > 9 ? "9+" : cartCount}
                   </span>
                 )}
+              </button>
+
+              <button
+                className="md:hidden p-2 text-gray-600 dark:text-gray-300"
+                onClick={() => setMenuOpen(true)}
+                aria-label="Open menu"
+              >
+                <Menu size={24} />
               </button>
             </div>
           </div>

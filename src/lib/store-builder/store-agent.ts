@@ -240,8 +240,11 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 
 ### This is an SSR App (NOT static export):
 - Use Next.js <Link> component for ALL internal navigation — NEVER bare <a> tags for internal links
-- Use Next.js <Image> component for optimized images
-- NO basePath, NO storeUrl() — all links are root-relative ("/products", "/checkout", "/account")
+- Use Next.js <Image> component for optimized images — it handles basePath automatically
+- Internal link hrefs are root-relative ("/products", "/checkout", "/account") — Next.js Link/router handles basePath
+- CRITICAL — images in plain <img> src: use the FULL path returned by download_image (it already includes basePath)
+  - If you must hardcode: use "/stores/${storeSlug}/images/..." (NOT "/images/...")
+  - Plain <img> tags do NOT get basePath automatically — always use the full returned path
 - NO generateStaticParams() needed — SSR handles dynamic routes natively
 - Server components are default; add "use client" only when using hooks/state/motion
 
@@ -573,14 +576,15 @@ async function executeToolV3(name: string, input: Record<string, unknown>, ctx: 
 
       try {
         const localPath = await downloadImageToStoreDir(url, ctx.siteDir, category, filename);
-        // V3: paths are root-relative (no basePath needed)
+        // V3: prefix with basePath so <img src> works in the browser
+        const fullPath = `/stores/${ctx.storeSlug}${localPath}`;
         return JSON.stringify({
           success: true,
-          localPath: localPath,
-          usage: `Use as: src="${localPath}" in <Image> or <img> tags.`,
+          localPath: fullPath,
+          usage: `Use as: src="${fullPath}" in <img> tags. For Next.js <Image>, you can use localPath="${localPath}" since Image auto-prepends basePath.`,
         });
       } catch (err: any) {
-        return JSON.stringify({ error: err.message, localPath: `/images/${category}/placeholder.jpg` });
+        return JSON.stringify({ error: err.message, localPath: `/stores/${ctx.storeSlug}/images/${category}/placeholder.jpg` });
       }
     }
 
