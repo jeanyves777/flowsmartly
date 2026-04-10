@@ -222,7 +222,7 @@ const SYSTEM_PROMPT = `You are a professional e-commerce store developer. You bu
 
 ### Desktop Header Layout (MANDATORY structure):
 Header.tsx MUST have this exact 3-column structure:
-  ```
+  EXAMPLE JSX:
   <header>
     <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
       {/* LEFT: Logo */}
@@ -242,7 +242,7 @@ Header.tsx MUST have this exact 3-column structure:
       <button className="md:hidden"><Menu size={24} /></button>
     </div>
   </header>
-  ```
+  END EXAMPLE
 - RIGHT side MUST be a single "hidden md:flex items-center gap-3" div — NEVER flex-col, NEVER flex-wrap, NEVER grid
 - Order of right icons: Search → Cart (with badge) → Account link — always left-to-right in ONE row
 
@@ -867,7 +867,7 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 
 ### Desktop Header Layout (MANDATORY — prevents misaligned icons):
 Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon row:
-  ```tsx
+  EXAMPLE JSX:
   <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b shadow-sm">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
       {/* Logo */}
@@ -890,7 +890,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
       <button className="md:hidden p-2" onClick={() => setMenuOpen(true)} aria-label="Open menu"><Menu size={24} /></button>
     </div>
   </header>
-  ```
+  END EXAMPLE
 - RIGHT side MUST be "hidden md:flex items-center gap-3" — ONE row, NEVER flex-col, flex-wrap, or grid
 - Icon order left-to-right: Search → Cart (with badge) → Account
 - On mobile: ONLY show the hamburger button (md:hidden), hide the icon row entirely
