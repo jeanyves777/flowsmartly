@@ -143,16 +143,18 @@ export default function WebsiteEditPage() {
   };
 
   const update = (path: string, value: any) => {
-    if (!data) return;
-    const d = JSON.parse(JSON.stringify(data));
-    const parts = path.split(".");
-    let obj: any = d;
-    for (let i = 0; i < parts.length - 1; i++) {
-      const k = isNaN(Number(parts[i])) ? parts[i] : Number(parts[i]);
-      obj = obj[k];
-    }
-    obj[parts[parts.length - 1]] = value;
-    setData(d);
+    setData(prev => {
+      if (!prev) return prev;
+      const d = JSON.parse(JSON.stringify(prev));
+      const parts = path.split(".");
+      let obj: any = d;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const k = isNaN(Number(parts[i])) ? parts[i] : Number(parts[i]);
+        obj = obj[k];
+      }
+      obj[parts[parts.length - 1]] = value;
+      return d;
+    });
     setChanged(true);
   };
 

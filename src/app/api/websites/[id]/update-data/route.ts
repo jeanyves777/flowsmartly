@@ -396,13 +396,13 @@ STATIC EXPORT RULES:
             let fileContent = readFileSync(filePath, "utf-8");
             const newTag = `<img src="${escapeStr(imgPath)}" alt="${capitalSlug}" className="w-full h-full object-cover rounded-2xl" />`;
             const svgComponentRegex = /<(?:ChurchBuilding|OfficeBuildingSVG|WorkersSVG|Illustration|SvgIllustration|[A-Z]\w*SVG|[A-Z]\w*Illustration)\s*\/>/g;
-            const existingImgRegex = new RegExp(`<img\\b[^>]*\\balt="${capitalSlug}"\\b[^>]*\\/>`,"g");
+            const existingImgRegex = new RegExp(`<img\\b[^>]*\\balt="${capitalSlug}"[^>]*\\/>`,"g");
             if (svgComponentRegex.test(fileContent)) {
               fileContent = fileContent.replace(/<(?:ChurchBuilding|OfficeBuildingSVG|WorkersSVG|Illustration|SvgIllustration|[A-Z]\w*SVG|[A-Z]\w*Illustration)\s*\/>/g, newTag);
               writeFileSync(filePath, fileContent);
               console.log(`[UpdateData] Replaced SVG illustration in ${filePath} with ${imgPath}`);
             } else if (existingImgRegex.test(fileContent)) {
-              fileContent = fileContent.replace(new RegExp(`<img\\b[^>]*\\balt="${capitalSlug}"\\b[^>]*\\/>`, "g"), newTag);
+              fileContent = fileContent.replace(new RegExp(`<img\\b[^>]*\\balt="${capitalSlug}"[^>]*\\/>`, "g"), newTag);
               writeFileSync(filePath, fileContent);
               console.log(`[UpdateData] Updated existing image in ${filePath} with ${imgPath}`);
             }
@@ -419,13 +419,13 @@ STATIC EXPORT RULES:
         if (imgPath.startsWith("http")) imgPath = await localizeImage(imgPath, siteDir, "about", basePath);
         const newTag = `<img src="${escapeStr(imgPath)}" alt="About" className="w-full h-full object-cover rounded-2xl" />`;
         const svgRegex = /<(?:ChurchBuilding|OfficeBuildingSVG|WorkersSVG|[A-Z]\w*SVG|[A-Z]\w*Illustration)\s*\/>/g;
-        const existingImgRegex = /<img\b[^>]*\balt="About"\b[^>]*\/>/g;
+        const existingImgRegex = /<img\b[^>]*\balt="About"[^>]*\/>/g;
         if (svgRegex.test(c)) {
           c = c.replace(/<(?:ChurchBuilding|OfficeBuildingSVG|WorkersSVG|[A-Z]\w*SVG|[A-Z]\w*Illustration)\s*\/>/g, newTag);
           writeFileSync(aboutPath, c);
           console.log(`[UpdateData] Replaced About SVG with image`);
         } else if (existingImgRegex.test(c)) {
-          c = c.replace(/<img\b[^>]*\balt="About"\b[^>]*\/>/g, newTag);
+          c = c.replace(/<img\b[^>]*\balt="About"[^>]*\/>/g, newTag);
           writeFileSync(aboutPath, c);
           console.log(`[UpdateData] Updated About image src`);
         }
