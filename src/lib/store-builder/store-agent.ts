@@ -337,7 +337,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - layout.tsx imports: Header, Footer, MobileBottomNav, CartDrawer, Analytics, CookieConsent
 - Main content pb-16 md:pb-0 for MobileBottomNav space
 - CartDrawer shared between Header cart icon and MobileBottomNav cart button
-- **CRITICAL**: `<html>` tag MUST be `<html lang="en" suppressHydrationWarning>` — NO `className="dark"`. Adding `className="dark"` hardcodes dark mode and breaks the light/dark toggle permanently.
+- **CRITICAL**: \`<html>\` tag MUST be \`<html lang="en" suppressHydrationWarning>\` — NO \`className="dark"\`. Adding \`className="dark"\` hardcodes dark mode and breaks the light/dark toggle permanently.
 
 ### Mobile UX:
 - Header hamburger → side drawer from LEFT (motion.div x:"-100%" → x:0)
