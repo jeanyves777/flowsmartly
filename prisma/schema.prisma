@@ -3245,6 +3245,7 @@ model Product {
   category            String?
   categoryId          String?
   tags                String    @default("[]") // JSON array
+  labels              String    @default("[]") // JSON array of labels: "new", "sale", "bestseller", "limited", "discount", "featured"
 
   // Pricing (cents)
   priceCents          Int

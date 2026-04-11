@@ -51,24 +51,34 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
 
         {/* Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-          {product.badges.includes("sale") && discount > 0 && (
+          {product.labels.includes("sale") && discount > 0 && (
             <span className="px-2.5 py-1 bg-red-500 text-white text-xs font-bold rounded-full">
               -{discount}%
             </span>
           )}
-          {product.badges.includes("new") && (
+          {product.labels.includes("discount") && discount > 0 && !product.labels.includes("sale") && (
+            <span className="px-2.5 py-1 bg-red-500 text-white text-xs font-bold rounded-full">
+              -{discount}%
+            </span>
+          )}
+          {product.labels.includes("new") && (
             <span className="px-2.5 py-1 bg-primary-600 text-white text-xs font-bold rounded-full">
               New
             </span>
           )}
-          {product.badges.includes("bestseller") && (
+          {product.labels.includes("bestseller") && (
             <span className="px-2.5 py-1 bg-amber-500 text-white text-xs font-bold rounded-full">
               Bestseller
             </span>
           )}
-          {product.badges.includes("limited") && (
+          {product.labels.includes("limited") && (
             <span className="px-2.5 py-1 bg-purple-600 text-white text-xs font-bold rounded-full">
               Limited
+            </span>
+          )}
+          {product.labels.includes("featured") && (
+            <span className="px-2.5 py-1 bg-pink-600 text-white text-xs font-bold rounded-full">
+              Featured
             </span>
           )}
         </div>

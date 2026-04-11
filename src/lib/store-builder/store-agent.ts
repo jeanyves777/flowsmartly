@@ -29,6 +29,7 @@ export interface ProductInput {
   images?: string[]; // URLs (user-uploaded or AI-generated)
   variants?: Array<{ name: string; options: Record<string, string>; priceCents: number }>;
   tags?: string[];
+  labels?: string[]; // Product labels: "new", "sale", "bestseller", "limited", "discount", "featured"
 }
 
 interface StoreAgentContext {
@@ -114,6 +115,7 @@ async function syncProductsToDB(storeId: string, siteDir: string): Promise<void>
           comparePriceCents: p.comparePriceCents || null,
           categoryId: p.categoryId || null,
           tags: JSON.stringify(p.tags || []),
+          labels: JSON.stringify(p.labels || []),
           images: JSON.stringify(p.images || []),
           status: "ACTIVE",
         },
@@ -124,6 +126,7 @@ async function syncProductsToDB(storeId: string, siteDir: string): Promise<void>
           priceCents: p.priceCents || 0,
           comparePriceCents: p.comparePriceCents || null,
           tags: JSON.stringify(p.tags || []),
+          labels: JSON.stringify(p.labels || []),
           images: JSON.stringify(p.images || []),
         },
       });
@@ -238,6 +241,14 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 
 ## CRITICAL RULES:
 
+### Product Management (LEGAL REQUIREMENT):
+- NEVER HARDCODE product attributes like labels, "featured", "inStock" status, or badges
+- These attributes MUST be user-controlled through the admin Product Management dashboard
+- Product labels ("new", "sale", "bestseller", "limited", "discount", "featured") are ONLY set by users via the dashboard, NOT in the codebase
+- Generate all products with EMPTY labels array: `labels: []`
+- Generate all products with default values: `featured: false`, `inStock: true`
+- Violating this rule creates locked-in product data that users cannot manage, degrading the product UI and user trust
+
 ### This is an SSR App (NOT static export):
 - Use Next.js <Link> component for ALL internal navigation — NEVER bare <a> tags for internal links
 - Use Next.js <Image> component for optimized images — it handles basePath automatically
@@ -287,9 +298,16 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
   export const policies = { shipping, returns, privacy, terms }
 
 - src/lib/products.ts MUST contain:
-  export interface Product { id, slug, name, description, shortDescription, priceCents, comparePriceCents, categoryId, tags, images, variants, badges, featured, inStock }
+  export interface Product { id, slug, name, description, shortDescription, priceCents, comparePriceCents, categoryId, tags, images, variants, labels, featured, inStock }
   export const products: Product[] = [...]
   export function getProductBySlug, getProductsByCategory, getFeaturedProducts, searchProducts
+
+- Product labels (CRITICAL — NEVER hardcode):
+  - NEVER hardcode product.labels (badges, bestseller tags, "New", "Sale") in products.ts
+  - Labels are ONLY managed through the Product Management dashboard
+  - Generate ALL products with EMPTY labels array: labels: []
+  - Labels like "new", "sale", "bestseller", "limited", "discount", "featured" are set by users via the admin UI, NOT in code
+  - Never set product.featured, product.inStock, or product.labels to hardcoded values — all controlled by the user
 
 ### Logo & Favicon:
 - MUST download brand logo via download_image IMMEDIATELY after get_brand_identity
@@ -392,7 +410,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - 2-column on mobile, 3 on md, 4 on lg
 - Products with variants show "Select Options" button instead of "Add to Cart"
 - Clicking "Select Options" opens the product detail page
-- ProductCard: image hover zoom, "NEW" / "SALE" / "BESTSELLER" / "LIMITED" badges from product.tags
+- ProductCard: image hover zoom, "NEW" / "SALE" / "BESTSELLER" / "LIMITED" / "DISCOUNT" / "FEATURED" badges from product.labels
 - Price: if comparePriceCents > 0 show original crossed out + sale price in red
 
 **Filter Drawer (ProductGrid page):**
@@ -550,6 +568,7 @@ async function executeToolV3(name: string, input: Record<string, unknown>, ctx: 
         images: p.images || [],
         variants: p.variants || [],
         tags: p.tags || [],
+        labels: p.labels || [],
       }));
 
       const brandData: Record<string, unknown> = {

@@ -29,7 +29,7 @@ export interface Product {
   tags: string[];
   images: ProductImage[];
   variants: ProductVariant[];
-  badges: ("new" | "sale" | "bestseller" | "limited")[];
+  labels: ("new" | "sale" | "bestseller" | "limited" | "discount" | "featured")[];
   featured: boolean;
   inStock: boolean;
 }
@@ -56,8 +56,8 @@ export const products: Product[] = [
       { id: "v1-black", name: "Matte Black", options: { color: "Black" }, priceCents: 8900, inStock: true },
       { id: "v1-brass", name: "Brushed Brass", options: { color: "Brass" }, priceCents: 10900, inStock: true },
     ],
-    badges: ["sale", "bestseller"],
-    featured: true,
+    labels: [],
+    featured: false,
     inStock: true,
   },
   {
@@ -76,8 +76,8 @@ export const products: Product[] = [
       { id: "v2-terracotta", name: "Terracotta", options: { color: "Terracotta" }, priceCents: 4500, inStock: true },
       { id: "v2-sage", name: "Sage Green", options: { color: "Sage" }, priceCents: 4500, inStock: true },
     ],
-    badges: ["new"],
-    featured: true,
+    labels: [],
+    featured: false,
     inStock: true,
   },
   {
@@ -97,7 +97,7 @@ export const products: Product[] = [
       { id: "v3-charcoal", name: "Charcoal", options: { color: "Charcoal" }, priceCents: 7900, inStock: true },
       { id: "v3-blush", name: "Blush", options: { color: "Blush" }, priceCents: 7900, inStock: false },
     ],
-    badges: [],
+    labels: [],
     featured: false,
     inStock: true,
   },
@@ -118,8 +118,8 @@ export const products: Product[] = [
       { id: "v4-tan", name: "Tan", options: { color: "Tan" }, priceCents: 3900, inStock: true },
       { id: "v4-black", name: "Black", options: { color: "Black" }, priceCents: 3900, inStock: true },
     ],
-    badges: ["bestseller"],
-    featured: true,
+    labels: [],
+    featured: false,
     inStock: true,
   },
   {
@@ -139,8 +139,8 @@ export const products: Product[] = [
       { id: "v5-natural", name: "Natural Canvas", options: { color: "Natural" }, priceCents: 5500, inStock: true },
       { id: "v5-olive", name: "Olive", options: { color: "Olive" }, priceCents: 5500, inStock: true },
     ],
-    badges: ["sale"],
-    featured: true,
+    labels: [],
+    featured: false,
     inStock: true,
   },
   {
@@ -156,7 +156,7 @@ export const products: Product[] = [
       { url: storeUrl("/images/products/keychain-1.jpg"), alt: "Brass keychain" },
     ],
     variants: [],
-    badges: ["new"],
+    labels: [],
     featured: false,
     inStock: true,
   },
@@ -173,8 +173,8 @@ export const products: Product[] = [
       { url: storeUrl("/images/products/candle-trio-1.jpg"), alt: "Soy candle trio in glass jars" },
     ],
     variants: [],
-    badges: ["bestseller"],
-    featured: true,
+    labels: [],
+    featured: false,
     inStock: true,
   },
   {
@@ -193,7 +193,7 @@ export const products: Product[] = [
       { id: "v8-white", name: "Stone White", options: { color: "White" }, priceCents: 4900, inStock: true },
       { id: "v8-sand", name: "Desert Sand", options: { color: "Sand" }, priceCents: 4900, inStock: true },
     ],
-    badges: [],
+    labels: [],
     featured: false,
     inStock: true,
   },
@@ -211,7 +211,7 @@ export const products: Product[] = [
       { url: storeUrl("/images/products/bath-set-1.jpg"), alt: "Bamboo bath set" },
     ],
     variants: [],
-    badges: ["sale", "limited"],
+    labels: [],
     featured: false,
     inStock: true,
   },
@@ -228,7 +228,7 @@ export const products: Product[] = [
       { url: storeUrl("/images/products/wall-art-1.jpg"), alt: "Woven macrame wall art" },
     ],
     variants: [],
-    badges: ["new"],
+    labels: [],
     featured: false,
     inStock: true,
   },
@@ -253,7 +253,7 @@ export function getDeals(): Product[] {
 }
 
 export function getNewArrivals(): Product[] {
-  return products.filter(p => p.badges.includes("new"));
+  return products.filter(p => p.labels.includes("new"));
 }
 
 export function searchProducts(query: string): Product[] {

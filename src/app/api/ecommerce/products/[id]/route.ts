@@ -32,6 +32,7 @@ const updateProductSchema = z.object({
   category: z.string().optional().nullable(),
   categoryId: z.string().optional().nullable(),
   tags: z.array(z.string()).optional(),
+  labels: z.array(z.enum(["new", "sale", "bestseller", "limited", "discount", "featured"])).optional(),
   priceCents: z.number().int().positive().optional(),
   comparePriceCents: z.number().int().positive().optional().nullable(),
   costCents: z.number().int().min(0).optional().nullable(),
@@ -97,6 +98,7 @@ export async function GET(
         ...product,
         images: JSON.parse(product.images || "[]"),
         tags: JSON.parse(product.tags || "[]"),
+        labels: JSON.parse(product.labels || "[]"),
         variants: product.variants.map((v) => ({
           ...v,
           options: JSON.parse(v.options || "{}"),
@@ -174,6 +176,7 @@ export async function PATCH(
     if (data.category !== undefined) updateData.category = data.category;
     if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
     if (data.tags !== undefined) updateData.tags = JSON.stringify(data.tags);
+    if (data.labels !== undefined) updateData.labels = JSON.stringify(data.labels);
     if (data.priceCents !== undefined) updateData.priceCents = data.priceCents;
     if (data.comparePriceCents !== undefined) updateData.comparePriceCents = data.comparePriceCents;
     if (data.costCents !== undefined) updateData.costCents = data.costCents;
@@ -259,6 +262,7 @@ export async function PATCH(
         ...updated,
         images: JSON.parse(updated?.images || "[]"),
         tags: JSON.parse(updated?.tags || "[]"),
+        labels: JSON.parse(updated?.labels || "[]"),
         variants: updated?.variants.map((v) => ({
           ...v,
           options: JSON.parse(v.options || "{}"),

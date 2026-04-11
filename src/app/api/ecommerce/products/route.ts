@@ -30,6 +30,7 @@ const createProductSchema = z.object({
   category: z.string().optional(),
   categoryId: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  labels: z.array(z.enum(["new", "sale", "bestseller", "limited", "discount", "featured"])).optional(),
   priceCents: z.number().int().positive(),
   comparePriceCents: z.number().int().positive().optional(),
   costCents: z.number().int().min(0).optional(),
@@ -139,6 +140,7 @@ export async function GET(request: NextRequest) {
           ...p,
           images: JSON.parse(p.images || "[]"),
           tags: JSON.parse(p.tags || "[]"),
+          labels: JSON.parse(p.labels || "[]"),
           variantCount: p._count.variants,
           categoryName: p.productCategory?.name || null,
           _count: undefined,
@@ -219,6 +221,7 @@ export async function POST(request: NextRequest) {
           category: data.category,
           categoryId: data.categoryId,
           tags: JSON.stringify(data.tags || []),
+          labels: JSON.stringify(data.labels || []),
           priceCents: data.priceCents,
           comparePriceCents: data.comparePriceCents,
           costCents: data.costCents,
@@ -270,6 +273,7 @@ export async function POST(request: NextRequest) {
         ...product,
         images: JSON.parse(product?.images || "[]"),
         tags: JSON.parse(product?.tags || "[]"),
+        labels: JSON.parse(product?.labels || "[]"),
       },
     }, { status: 201 });
   } catch (error) {

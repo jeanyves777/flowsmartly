@@ -93,7 +93,7 @@ async function syncProductsToFile(storeId: string, storeDir: string): Promise<vo
     tags: ${JSON.stringify(tags)},
     images: ${JSON.stringify(images)},
     variants: [],
-    badges: [],
+    labels: [],
     featured: false,
     inStock: true,
   }`;
