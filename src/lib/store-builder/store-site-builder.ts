@@ -202,6 +202,13 @@ export function initStoreDirV3(storeId: string, slug: string): string {
     `export default function Custom404() { return null; }\n`
   );
 
+  // Base globals.css — @custom-variant dark is CRITICAL for class-based dark mode.
+  // The agent will update @theme {} colors, but this ensures the variant is always present.
+  writeFileSync(
+    join(storeDir, "src", "app", "globals.css"),
+    `@import "tailwindcss";\n\n/* Class-based dark mode — REQUIRED for ThemeProvider toggle to work */\n@custom-variant dark (&:where(.dark, .dark *));\n\n@theme {\n  --color-primary: #6366f1;\n  --color-secondary: #8b5cf6;\n  --color-accent: #f59e0b;\n}\n`
+  );
+
   // Theme provider + toggle
   writeFileSync(join(storeDir, "src", "components", "ThemeProvider.tsx"), TEMPLATE_THEME_PROVIDER);
   writeFileSync(join(storeDir, "src", "components", "ThemeToggle.tsx"), TEMPLATE_THEME_TOGGLE);

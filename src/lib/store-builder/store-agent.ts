@@ -351,7 +351,14 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - Touch targets: min 44px
 
 ### Technical:
-- Tailwind CSS v4: @import "tailwindcss", @theme {}, @custom-variant dark
+- Tailwind CSS v4 globals.css MUST start with EXACTLY these lines (dark mode will break without @custom-variant):
+  ```
+  @import "tailwindcss";
+
+  /* Class-based dark mode — REQUIRED for ThemeProvider toggle */
+  @custom-variant dark (&:where(.dark, .dark *));
+  ```
+  Then @theme {} block with brand colors. NEVER omit the @custom-variant line.
 - NO tailwind.config.ts
 - Icons from lucide-react
 - Use double-quoted strings for text with apostrophes: "What's New"
