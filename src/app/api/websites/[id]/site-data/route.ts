@@ -140,13 +140,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         }
       }
 
-      // Save to DB for faster future loads
+      // Save to DB for faster future loads — merge with existing so extra fields
+      // like aboutImage and pageImages aren't wiped by a re-parse
+      const existingCached = website.siteData ? (() => { try { return JSON.parse(website.siteData); } catch { return {}; } })() : {};
+      // Only override existing fields with freshly parsed values that are non-empty
+      const cleanData = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined && v !== null && v !== "" && !(Array.isArray(v) && v.length === 0)));
+      const mergedData = { ...existingCached, ...cleanData };
       await prisma.website.update({
         where: { id },
-        data: { siteData: JSON.stringify(data) },
+        data: { siteData: JSON.stringify(mergedData) },
       });
 
-      return NextResponse.json({ data, pages });
+      return NextResponse.json({ data: mergedData, pages });
     } catch {
       return NextResponse.json({ data: null, pages });
     }
