@@ -29,8 +29,8 @@ export async function GET(request: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        client_id: process.env.STORE_GOOGLE_CLIENT_ID,
+        client_secret: process.env.STORE_GOOGLE_CLIENT_SECRET,
         redirect_uri: redirectUri,
         code,
         grant_type: "authorization_code",

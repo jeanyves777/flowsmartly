@@ -9,9 +9,9 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com";
  * Usage: GET /api/store-auth/google?callbackUrl=<storeUrl>&storeSlug=<slug>
  */
 export async function GET(request: NextRequest) {
-  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  const googleClientId = process.env.STORE_GOOGLE_CLIENT_ID;
   if (!googleClientId) {
-    return NextResponse.json({ error: "Google OAuth not configured" }, { status: 500 });
+    return NextResponse.json({ error: "Store Google OAuth not configured" }, { status: 500 });
   }
 
   const callbackUrl = request.nextUrl.searchParams.get("callbackUrl") || APP_URL;
