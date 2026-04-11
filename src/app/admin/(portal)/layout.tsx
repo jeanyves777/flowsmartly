@@ -302,6 +302,8 @@ export default function AdminPortalLayout({
                 width={40}
                 height={40}
                 className="w-10 h-10 rounded-xl"
+                priority
+                unoptimized
               />
               <div>
                 <span className="font-bold text-lg">Admin</span>
@@ -317,6 +319,8 @@ export default function AdminPortalLayout({
                 width={40}
                 height={40}
                 className="w-10 h-10 rounded-xl mx-auto"
+                priority
+                unoptimized
               />
             </Link>
           )}
@@ -438,6 +442,8 @@ export default function AdminPortalLayout({
                     width={40}
                     height={40}
                     className="w-10 h-10 rounded-xl"
+                    priority
+                    unoptimized
                   />
                   <div>
                     <span className="font-bold text-lg">Admin</span>

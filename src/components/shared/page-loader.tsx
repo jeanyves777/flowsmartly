@@ -93,7 +93,7 @@ export function PageLoader({ tips, className }: PageLoaderProps) {
           }}
           transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
         >
-          <Image src="/icon.png" alt="FlowSmartly" width={40} height={40} className="rounded-xl" priority />
+          <Image src="/icon.png" alt="FlowSmartly" width={40} height={40} className="rounded-xl" priority unoptimized />
         </motion.div>
       </motion.div>
 

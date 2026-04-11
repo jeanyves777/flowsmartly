@@ -30,6 +30,7 @@ export function AuthShell({
               height={40}
               className="h-9 w-auto"
               priority
+              unoptimized
             />
           </Link>
           {children}

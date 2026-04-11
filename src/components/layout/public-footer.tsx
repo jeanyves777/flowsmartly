@@ -33,6 +33,7 @@ export function PublicFooter() {
                 width={140}
                 height={35}
                 className="h-7 w-auto"
+                unoptimized
               />
             </Link>
             <p className="text-sm text-muted-foreground leading-relaxed">

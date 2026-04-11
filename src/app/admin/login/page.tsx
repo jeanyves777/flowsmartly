@@ -63,6 +63,7 @@ export default function AdminLoginPage() {
               height={40}
               className="h-9 w-auto mx-auto mb-4"
               priority
+              unoptimized
             />
             <div className="flex items-center justify-center gap-2 mb-2">
               <Shield className="w-5 h-5 text-orange-500" />

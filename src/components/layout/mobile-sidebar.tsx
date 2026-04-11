@@ -231,6 +231,8 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
                   width={140}
                   height={35}
                   className="h-8 w-auto"
+                  priority
+                  unoptimized
                 />
               </Link>
               <Button variant="ghost" size="icon" onClick={onClose}>

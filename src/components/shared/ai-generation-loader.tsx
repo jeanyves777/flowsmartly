@@ -285,7 +285,7 @@ export function AIGenerationLoader({
               }}
               transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
             >
-              <Image src="/icon.png" alt="FlowSmartly" width={logoSize} height={logoSize} className="rounded-lg" priority />
+              <Image src="/icon.png" alt="FlowSmartly" width={logoSize} height={logoSize} className="rounded-lg" priority unoptimized />
             </motion.div>
           </div>
 
@@ -380,6 +380,7 @@ export function AIGenerationLoader({
                 height={64}
                 className="rounded-2xl"
                 priority
+                unoptimized
               />
             </motion.div>
           </div>

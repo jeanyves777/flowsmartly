@@ -43,6 +43,7 @@ export function PublicHeader() {
               height={40}
               className="h-8 w-auto"
               priority
+              unoptimized
             />
           </Link>
 
@@ -110,6 +111,7 @@ export function PublicHeader() {
                       width={140}
                       height={35}
                       className="h-7 w-auto"
+                      unoptimized
                     />
                   </Link>
                   {navLinks.map((link) => (
