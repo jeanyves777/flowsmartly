@@ -26,14 +26,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     // Detect pages from the generated site
     const pages = detectPages(siteDir);
 
-    // Try siteData from DB first — but if logo or heroImages are missing, re-parse
+    // Try siteData from DB first — re-parse if logo, heroImages, or navLinks are missing
     if (website.siteData && website.siteData !== "{}") {
       try {
         const cached = JSON.parse(website.siteData);
-        if (cached.logo && cached.heroImages?.length) {
+        if (cached.logo && cached.heroImages?.length && cached.navLinks?.length) {
           return NextResponse.json({ data: cached, pages });
         }
-        // Missing logo or heroImages — fall through to re-parse from files
+        // Missing key fields — fall through to re-parse from files
       } catch {}
     }
 
@@ -236,9 +236,7 @@ function extractArray(text: string, key: string): string[] {
 
 /**
  * Extract link arrays (navLinks, footerLinks) that may use siteUrl() or plain strings.
- * Handles: { href: siteUrl('/about'), label: 'About' }
- *          { href: '/about', label: 'About' }
- *          { href: 'https://external.com', label: 'Shop' }
+ * Handles both { href: ..., label: ... } and { label: ..., href: ... } field orders.
  */
 function extractLinkArray(content: string, exportName: string): Array<{ href: string; label: string }> {
   const startRegex = new RegExp(`export const ${exportName}\\s*=\\s*\\[`);
@@ -255,16 +253,18 @@ function extractLinkArray(content: string, exportName: string): Array<{ href: st
   }
   const arrayContent = content.substring(startMatch.index + startMatch[0].length, i - 1);
 
-  // Match each { href: ..., label: ... } entry
+  // Split into individual object blocks (handles both }, { and },\n  { patterns)
   const links: Array<{ href: string; label: string }> = [];
-  // Match href with siteUrl(): href: siteUrl('/path')
-  // Match href with plain string: href: '/path' or href: "https://..."
-  const entryRegex = /href:\s*(?:siteUrl\(\s*['"]([^'"]*)['"]\s*\)|['"]([^'"]*)['"]),\s*label:\s*['"]([^'"]*)['"]/g;
-  let m;
-  while ((m = entryRegex.exec(arrayContent)) !== null) {
-    const href = m[1] !== undefined ? m[1] : m[2]; // siteUrl arg or plain string
-    const label = m[3];
-    links.push({ href, label });
+  const objectBlocks = arrayContent.split(/\},?\s*\n?\s*\{/);
+  for (const block of objectBlocks) {
+    if (block.trim().startsWith("...")) continue; // skip spread entries like ...navLinks
+    // Extract href — handles siteUrl('/path'), plain '/path', or "https://..." in any field order
+    const hrefMatch = block.match(/href:\s*(?:siteUrl\(\s*['"]([^'"]*)['"]\s*\)|['"]([^'"]*)['"]\s*)/);
+    const labelMatch = block.match(/label:\s*['"]([^'"]*)['"]/);
+    if (hrefMatch && labelMatch) {
+      const href = hrefMatch[1] !== undefined ? hrefMatch[1] : hrefMatch[2];
+      links.push({ href, label: labelMatch[1] });
+    }
   }
   return links;
 }
