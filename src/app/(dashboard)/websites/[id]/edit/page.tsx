@@ -116,12 +116,13 @@ export default function WebsiteEditPage() {
       const d = await res.json();
       setWebsite(d.website);
 
-      if (elapsed < 15) setBuildStep(action === "fix-links" ? "Rewriting links and rebuilding..." : "Building your website...");
+      if (d.website.buildStatus === "deploying") setBuildStep("Deploying site files...");
+      else if (elapsed < 15) setBuildStep(action === "fix-links" ? "Rewriting links and rebuilding..." : "Building your website...");
       else if (elapsed < 30) setBuildStep("Compiling pages...");
       else if (elapsed < 60) setBuildStep("Generating static files...");
       else setBuildStep("Almost done...");
 
-      if (d.website.buildStatus !== "building") {
+      if (d.website.buildStatus !== "building" && d.website.buildStatus !== "deploying") {
         clearInterval(iv);
         setRebuilding(false);
         setFixingLinks(false);
@@ -322,8 +323,8 @@ export default function WebsiteEditPage() {
               </div>
             </div>
           ) : (
-            <div className="text-center py-20"><p className="text-muted-foreground mb-4">{website.buildStatus === "building" ? "Building..." : "Not built yet"}</p>
-              {website.buildStatus !== "building" && <button onClick={rebuild} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm">Build Now</button>}
+            <div className="text-center py-20"><p className="text-muted-foreground mb-4">{website.buildStatus === "building" ? "Building..." : website.buildStatus === "deploying" ? "Deploying..." : "Not built yet"}</p>
+              {website.buildStatus !== "building" && website.buildStatus !== "deploying" && <button onClick={rebuild} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm">Build Now</button>}
             </div>
           )}
         </div>
@@ -734,6 +735,7 @@ export default function WebsiteEditPage() {
               <span className="text-sm font-medium">Status:</span>
               {website.buildStatus === "built" ? <span className="flex items-center gap-1 text-sm text-green-600"><Check className="w-4 h-4" /> Live</span>
                : website.buildStatus === "building" ? <span className="flex items-center gap-1 text-sm text-blue-600"><Loader2 className="w-4 h-4 animate-spin" /> Building...</span>
+               : website.buildStatus === "deploying" ? <span className="flex items-center gap-1 text-sm text-blue-600"><Loader2 className="w-4 h-4 animate-spin" /> Deploying...</span>
                : website.buildStatus === "error" ? <span className="flex items-center gap-1 text-sm text-red-600"><AlertCircle className="w-4 h-4" /> Error</span>
                : <span className="text-sm text-muted-foreground">Idle</span>}
             </div>

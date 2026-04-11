@@ -240,10 +240,10 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
       env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=2048" },
     });
 
-    // Update build status
+    // Update build status — "deploying" keeps the UI spinner running until deploy finishes
     await prisma.website.update({
       where: { id: websiteId },
-      data: { buildStatus: "built", lastBuildAt: new Date(), lastBuildError: null },
+      data: { buildStatus: "deploying", lastBuildAt: new Date(), lastBuildError: null },
     });
 
     return { success: true, output: installOutput + "\n" + buildOutput };
@@ -281,10 +281,10 @@ export async function deploySite(websiteId: string, slug: string): Promise<{ suc
     try { rmSync(outputDir, { recursive: true, force: true }); } catch {}
     cpSync(outDir, outputDir, { recursive: true, force: true });
 
-    // Update website status
+    // Update website status — "built" is set here (after deploy) so the UI only shows done when live
     await prisma.website.update({
       where: { id: websiteId },
-      data: { status: "PUBLISHED", publishedAt: new Date(), publishedVersion: { increment: 1 } },
+      data: { buildStatus: "built", status: "PUBLISHED", publishedAt: new Date(), publishedVersion: { increment: 1 } },
     });
 
     console.log(`[SiteBuilder] Deployed ${websiteId} to ${outputDir}`);
@@ -419,7 +419,7 @@ export async function buildSiteV3(websiteId: string): Promise<{ success: boolean
 
     await prisma.website.update({
       where: { id: websiteId },
-      data: { buildStatus: "built", lastBuildAt: new Date(), lastBuildError: null },
+      data: { buildStatus: "deploying", lastBuildAt: new Date(), lastBuildError: null },
     });
 
     return { success: true, output: installOutput + "\n" + buildOutput };
@@ -481,7 +481,7 @@ export async function deploySiteV3(websiteId: string, slug: string): Promise<{ s
 
     await prisma.website.update({
       where: { id: websiteId },
-      data: { ssrStatus: healthy ? "running" : "starting" },
+      data: { ssrStatus: healthy ? "running" : "starting", buildStatus: "built" },
     });
 
     await regenerateAndReload();
