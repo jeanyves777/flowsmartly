@@ -5,7 +5,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, ExternalLink, RefreshCw, Loader2, Check, AlertCircle, Globe,
   FileText, Save, Plus, Trash2, Link2, Upload, X, Image as ImageIcon,
-  Phone, Mail, MapPin, Star, Users, MessageSquare, HelpCircle, Flag, AlertTriangle, Sparkles,
+  Phone, Mail, MapPin, Star, Users, MessageSquare, HelpCircle, Flag, AlertTriangle, Sparkles, Rocket,
 } from "lucide-react";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
@@ -56,6 +56,7 @@ export default function WebsiteEditPage() {
   const [buildResult, setBuildResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerCallback, setPickerCallback] = useState<((url: string) => void) | null>(null);
+  const [isUpgrading, setIsUpgrading] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -98,6 +99,15 @@ export default function WebsiteEditPage() {
     poll("fix-links");
   };
 
+  const handleUpgradeToV3 = async () => {
+    setIsUpgrading(true);
+    setBuildResult(null);
+    setBuildStep("Starting V3 SSR upgrade...");
+    await fetch(`/api/websites/${id}/upgrade-v3`, { method: "POST" });
+    setBuildStep("Converting to V3 SSR — compiling...");
+    poll("upgrade");
+  };
+
   const poll = (action: string) => {
     let elapsed = 0;
     const iv = setInterval(async () => {
@@ -115,6 +125,7 @@ export default function WebsiteEditPage() {
         clearInterval(iv);
         setRebuilding(false);
         setFixingLinks(false);
+        setIsUpgrading(false);
         setBuildStep("");
 
         if (d.website.buildStatus === "built") {
@@ -181,7 +192,7 @@ export default function WebsiteEditPage() {
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   if (!website) return <div className="text-center py-20"><p className="text-muted-foreground">Website not found</p></div>;
 
-  const busy = rebuilding || fixingLinks || saving;
+  const busy = rebuilding || fixingLinks || saving || isUpgrading;
   // Build tabs dynamically from detected pages + data sections
   const hasImageHero = !!(data?.heroImages?.length || data?.logo);
   const tabs: Array<{ id: string; label: string; icon: any }> = [
@@ -218,6 +229,27 @@ export default function WebsiteEditPage() {
         </div>
       </div>
 
+      {/* V2 → V3 Upgrade Banner */}
+      {website.generatorVersion !== "v3" && !isUpgrading && (
+        <div className="mb-4 flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Legacy V2 static site</p>
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+              Upgrade to V3 SSR for a self-contained app with better analytics, API proxy support, and full VPS portability.
+            </p>
+          </div>
+          <button
+            onClick={handleUpgradeToV3}
+            disabled={busy}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 shrink-0"
+          >
+            <Rocket className="w-3 h-3" />
+            Upgrade to V3 SSR
+          </button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border mb-4 overflow-x-auto">
         {tabs.map((t) => (
@@ -228,7 +260,7 @@ export default function WebsiteEditPage() {
       </div>
 
       {/* Build Progress Overlay */}
-      {(rebuilding || fixingLinks || saving) && buildStep && (
+      {(rebuilding || fixingLinks || saving || isUpgrading) && buildStep && (
         <div className="mb-4">
           <AIGenerationLoader
             currentStep={buildStep}

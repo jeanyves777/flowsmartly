@@ -6,7 +6,7 @@
  */
 
 import { execSync, spawn as spawnProcess } from "child_process";
-import { existsSync, mkdirSync, cpSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, cpSync, writeFileSync, unlinkSync, readFileSync } from "fs";
 import { join } from "path";
 import { prisma } from "@/lib/db/client";
 import {
@@ -539,3 +539,56 @@ export async function restartSiteV3(websiteId: string, slug: string): Promise<{ 
 
   return deploySiteV3(websiteId, slug);
 }
+
+/**
+ * Check if a generated website is a V2 static export site (not V3 SSR).
+ * V2 sites have next.config.js with output: 'export'.
+ * V3 sites use next.config.ts (SSR) and have generatorVersion = "v3" in DB.
+ */
+export function isV2Site(websiteId: string): boolean {
+  const siteDir = getSiteDir(websiteId);
+  return existsSync(join(siteDir, "next.config.js"));
+}
+
+/**
+ * Upgrade a V2 static-export site to a V3 self-contained SSR app.
+ * - Rewrites config, API proxy, analytics, theme templates to V3 versions
+ * - Removes output: 'export' and basePath
+ * - Patches data.ts to use V3 siteUrl (no basePath prefix)
+ * - Re-runs npm install
+ * Caller should then invoke buildSiteV3 + deploySiteV3.
+ */
+export function upgradeToV3(websiteId: string, slug: string): void {
+  const siteDir = getSiteDir(websiteId);
+
+  // Re-write all V3 template files (overwrites V2 config files)
+  initSiteDirV3(websiteId, slug);
+
+  // Remove V2 next.config.js — V3 uses next.config.ts
+  const v2Config = join(siteDir, "next.config.js");
+  if (existsSync(v2Config)) unlinkSync(v2Config);
+
+  // Patch data.ts: replace V2 siteUrl (with SITE_BASE) with V3 siteUrl (returns path directly)
+  const dataPath = join(siteDir, "src", "lib", "data.ts");
+  if (existsSync(dataPath)) {
+    let data = readFileSync(dataPath, "utf-8");
+    // Remove SITE_BASE constant
+    data = data.replace(/^export const SITE_BASE\s*=\s*['"][^'"]*['"];\s*\r?\n/m, "");
+    // Replace V2 siteUrl: (path) => `${SITE_BASE}${path}` with V3: (path) => path
+    data = data.replace(
+      /export const siteUrl\s*=\s*\([^)]*\)\s*=>\s*`\$\{SITE_BASE\}[^`]*`;/,
+      "export const siteUrl = (path: string) => path;"
+    );
+    writeFileSync(dataPath, data);
+  }
+
+  // Re-install node_modules with V3 package.json
+  const nodeModulesNext = join(siteDir, "node_modules", "next");
+  if (!existsSync(nodeModulesNext)) {
+    execSync("npm install --legacy-peer-deps", { cwd: siteDir, stdio: "ignore" });
+  } else {
+    // Force reinstall so new packages in V3 template are included
+    execSync("npm install --legacy-peer-deps", { cwd: siteDir, stdio: "ignore" });
+  }
+}
+

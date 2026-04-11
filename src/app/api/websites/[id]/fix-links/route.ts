@@ -19,9 +19,14 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     const website = await prisma.website.findFirst({
       where: { id, userId: session.userId, deletedAt: null },
-      select: { id: true, slug: true, generatedPath: true },
+      select: { id: true, slug: true, generatedPath: true, generatorVersion: true },
     });
     if (!website) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    // V3 SSR sites don't use basePath — link fixing is not needed
+    if (website.generatorVersion === "v3") {
+      return NextResponse.json({ success: true, message: "V3 SSR sites don't need link fixing — basePath is not used." });
+    }
 
     const siteDir = website.generatedPath || getSiteDir(id);
     const basePath = `/sites/${website.slug}`;

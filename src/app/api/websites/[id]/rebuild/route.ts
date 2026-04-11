@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import { buildSite, deploySite, getSiteDir } from "@/lib/website/site-builder";
+import { buildSite, deploySite, getSiteDir, buildSiteV3, deploySiteV3 } from "@/lib/website/site-builder";
 
 /**
  * POST /api/websites/[id]/rebuild
@@ -20,7 +20,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     const website = await prisma.website.findFirst({
       where: { id, userId: session.userId, deletedAt: null },
-      select: { id: true, slug: true, generatedPath: true, brandKitId: true, siteData: true },
+      select: { id: true, slug: true, generatedPath: true, brandKitId: true, siteData: true, generatorVersion: true },
     });
     if (!website) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -98,27 +98,31 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    // basePath sync (custom domain detection) is handled inside buildSite()
-
-    // Build and deploy in background, then sync page count
+    // Build and deploy in background using correct builder for the site version
+    const isV3 = website.generatorVersion === "v3";
     (async () => {
-      const buildResult = await buildSite(id);
-      if (buildResult.success) {
-        await deploySite(id, website.slug);
-        // Update page count from output
-        const outputDir = process.platform === "win32"
-          ? join(siteDir, "..", "..", "sites-output", website.slug)
-          : `/var/www/flowsmartly/sites-output/${website.slug}`;
-        try {
-          const { readdirSync } = await import("fs");
-          const htmlFiles = readdirSync(outputDir).filter(
-            (f: string) => f.endsWith(".html") && f !== "404.html" && f !== "_error.html"
-          );
-          await prisma.website.update({
-            where: { id },
-            data: { pageCount: htmlFiles.length },
-          });
-        } catch {}
+      if (isV3) {
+        const buildResult = await buildSiteV3(id);
+        if (buildResult.success) await deploySiteV3(id, website.slug);
+      } else {
+        const buildResult = await buildSite(id);
+        if (buildResult.success) {
+          await deploySite(id, website.slug);
+          // Update page count from output
+          const outputDir = process.platform === "win32"
+            ? join(siteDir, "..", "..", "sites-output", website.slug)
+            : `/var/www/flowsmartly/sites-output/${website.slug}`;
+          try {
+            const { readdirSync } = await import("fs");
+            const htmlFiles = readdirSync(outputDir).filter(
+              (f: string) => f.endsWith(".html") && f !== "404.html" && f !== "_error.html"
+            );
+            await prisma.website.update({
+              where: { id },
+              data: { pageCount: htmlFiles.length },
+            });
+          } catch {}
+        }
       }
     })().catch((err) => console.error("[Rebuild] Failed:", err));
 
