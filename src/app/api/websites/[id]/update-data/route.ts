@@ -394,13 +394,17 @@ STATIC EXPORT RULES:
         for (const filePath of filesToCheck) {
           try {
             let fileContent = readFileSync(filePath, "utf-8");
-            // Replace SVG component references with img tag
-            // Pattern: <SomeIllustration /> or <ChurchBuilding /> etc
+            const newTag = `<img src="${escapeStr(imgPath)}" alt="${capitalSlug}" className="w-full h-full object-cover rounded-2xl" />`;
             const svgComponentRegex = /<(?:ChurchBuilding|OfficeBuildingSVG|WorkersSVG|Illustration|SvgIllustration|[A-Z]\w*SVG|[A-Z]\w*Illustration)\s*\/>/g;
+            const existingImgRegex = new RegExp(`<img\\b[^>]*\\balt="${capitalSlug}"\\b[^>]*\\/>`,"g");
             if (svgComponentRegex.test(fileContent)) {
-              fileContent = fileContent.replace(svgComponentRegex, `<img src="${escapeStr(imgPath)}" alt="${capitalSlug}" className="w-full h-full object-cover rounded-2xl" />`);
+              fileContent = fileContent.replace(/<(?:ChurchBuilding|OfficeBuildingSVG|WorkersSVG|Illustration|SvgIllustration|[A-Z]\w*SVG|[A-Z]\w*Illustration)\s*\/>/g, newTag);
               writeFileSync(filePath, fileContent);
               console.log(`[UpdateData] Replaced SVG illustration in ${filePath} with ${imgPath}`);
+            } else if (existingImgRegex.test(fileContent)) {
+              fileContent = fileContent.replace(new RegExp(`<img\\b[^>]*\\balt="${capitalSlug}"\\b[^>]*\\/>`, "g"), newTag);
+              writeFileSync(filePath, fileContent);
+              console.log(`[UpdateData] Updated existing image in ${filePath} with ${imgPath}`);
             }
           } catch {}
         }
@@ -411,13 +415,19 @@ STATIC EXPORT RULES:
       const aboutPath = join(siteDir, "src", "components", "About.tsx");
       try {
         let c = readFileSync(aboutPath, "utf-8");
+        let imgPath = data.aboutImage;
+        if (imgPath.startsWith("http")) imgPath = await localizeImage(imgPath, siteDir, "about", basePath);
+        const newTag = `<img src="${escapeStr(imgPath)}" alt="About" className="w-full h-full object-cover rounded-2xl" />`;
         const svgRegex = /<(?:ChurchBuilding|OfficeBuildingSVG|WorkersSVG|[A-Z]\w*SVG|[A-Z]\w*Illustration)\s*\/>/g;
+        const existingImgRegex = /<img\b[^>]*\balt="About"\b[^>]*\/>/g;
         if (svgRegex.test(c)) {
-          let imgPath = data.aboutImage;
-          if (imgPath.startsWith("http")) imgPath = await localizeImage(imgPath, siteDir, "about", basePath);
-          c = c.replace(svgRegex, `<img src="${escapeStr(imgPath)}" alt="About" className="w-full h-full object-cover rounded-2xl" />`);
+          c = c.replace(/<(?:ChurchBuilding|OfficeBuildingSVG|WorkersSVG|[A-Z]\w*SVG|[A-Z]\w*Illustration)\s*\/>/g, newTag);
           writeFileSync(aboutPath, c);
           console.log(`[UpdateData] Replaced About SVG with image`);
+        } else if (existingImgRegex.test(c)) {
+          c = c.replace(/<img\b[^>]*\balt="About"\b[^>]*\/>/g, newTag);
+          writeFileSync(aboutPath, c);
+          console.log(`[UpdateData] Updated About image src`);
         }
       } catch {}
     }
