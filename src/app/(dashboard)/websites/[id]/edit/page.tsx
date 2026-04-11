@@ -297,13 +297,26 @@ export default function WebsiteEditPage() {
 
       {/* Hero & Branding */}
       {activeTab === "hero" && data && (
-        <div className="space-y-6">
-          <Section title="Logo">
-            <ImagePicker label="Site Logo" value={data.logo} onChange={(v) => { update("logo", v); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "brand")} onAiGenerate={aiGenerateImage} compact square />
-          </Section>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            <Section title="Logo">
+              <ImagePicker label="Site Logo" value={data.logo} onChange={(v) => { update("logo", v); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "brand")} onAiGenerate={aiGenerateImage} compact square />
+            </Section>
+            <Section title="About Page Image">
+              <p className="text-sm text-muted-foreground mb-3">Replaces the About page illustration with your own photo.</p>
+              <ImagePicker
+                label=""
+                value={data.aboutImage || data.pageImages?.about || ""}
+                onChange={(v) => { update("aboutImage", v); update("pageImages", { ...(data.pageImages || {}), about: v }); }}
+                onBrowse={openPicker}
+                onUpload={(f) => uploadImageToSite(f, "about")}
+                onAiGenerate={aiGenerateImage}
+              />
+            </Section>
+          </div>
           <Section title="Hero Slideshow Images">
-            <p className="text-sm text-muted-foreground mb-3">Add images for the hero section slideshow. Upload your own photos or pick from your media library.</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <p className="text-sm text-muted-foreground mb-3">Images for the hero section slideshow. Upload your own or pick from your media library.</p>
+            <div className="grid grid-cols-2 gap-3">
               {(data.heroImages || []).map((img, i) => (
                 <div key={i} className="relative group aspect-video rounded-lg overflow-hidden border border-border bg-muted">
                   <img src={img} alt="" className="w-full h-full object-cover" />
@@ -320,47 +333,57 @@ export default function WebsiteEditPage() {
 
       {/* Company */}
       {activeTab === "company" && data && (
-        <div className="space-y-6">
-          <Section title="Company Information">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Company Name" value={data.company.name} onChange={(v) => update("company.name", v)} />
-              <Field label="Short Name" value={data.company.shortName} onChange={(v) => update("company.shortName", v)} />
-              <Field label="Tagline" value={data.company.tagline} onChange={(v) => update("company.tagline", v)} span={2} />
-              <Field label="Description" value={data.company.description} onChange={(v) => update("company.description", v)} multiline span={2} />
-              <Field label="About" value={data.company.about} onChange={(v) => update("company.about", v)} multiline span={2} />
-              <Field label="Mission" value={data.company.mission} onChange={(v) => update("company.mission", v)} multiline span={2} />
-              <Field label="Address" value={data.company.address} onChange={(v) => update("company.address", v)} icon={<MapPin className="w-4 h-4" />} />
-              <Field label="City" value={data.company.city} onChange={(v) => update("company.city", v)} />
-              <Field label="State" value={data.company.state} onChange={(v) => update("company.state", v)} />
-              <Field label="Country" value={data.company.country} onChange={(v) => update("company.country", v)} />
-              <Field label="Phone" value={data.company.phones?.[0]} onChange={(v) => update("company.phones", [v])} icon={<Phone className="w-4 h-4" />} />
-              <Field label="Email" value={data.company.emails?.[0]} onChange={(v) => update("company.emails", [v])} icon={<Mail className="w-4 h-4" />} />
-              <Field label="Website" value={data.company.website} onChange={(v) => update("company.website", v)} span={2} />
-            </div>
-          </Section>
-          <Section title="Call-to-Action Button">
-            <p className="text-sm text-muted-foreground mb-3">
-              Configure the main CTA button shown in your site header and hero section. Point it to your online shop, booking page, or any external URL.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Button Text" value={data.company.ctaText || ""} onChange={(v) => update("company.ctaText", v)} icon={<Star className="w-4 h-4" />} />
-              <Field label="Button URL" value={data.company.ctaUrl || ""} onChange={(v) => update("company.ctaUrl", v)} icon={<ExternalLink className="w-4 h-4" />} />
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Examples: "Shop Now" → https://your-store.com &nbsp;|&nbsp; "Book Appointment" → https://calendly.com/you &nbsp;|&nbsp; Leave empty to link to your contact page.
-            </p>
-          </Section>
-          <Section title="About Page Illustration">
-            <p className="text-sm text-muted-foreground mb-3">Replace the About page illustration (SVG artwork) with your own image.</p>
-            <ImagePicker
-              label="About Section Image"
-              value={data.aboutImage || data.pageImages?.about || ""}
-              onChange={(v) => { update("aboutImage", v); update("pageImages", { ...(data.pageImages || {}), about: v }); }}
-              onBrowse={openPicker}
-              onUpload={(f) => uploadImageToSite(f, "about")}
-              onAiGenerate={aiGenerateImage}
-            />
-          </Section>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <Section title="Company Information">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="Company Name" value={data.company.name} onChange={(v) => update("company.name", v)} />
+                <Field label="Short Name" value={data.company.shortName} onChange={(v) => update("company.shortName", v)} />
+                <Field label="Tagline" value={data.company.tagline} onChange={(v) => update("company.tagline", v)} span={2} />
+                <Field label="Description" value={data.company.description} onChange={(v) => update("company.description", v)} multiline span={2} />
+                <Field label="About" value={data.company.about} onChange={(v) => update("company.about", v)} multiline span={2} />
+                <Field label="Mission" value={data.company.mission} onChange={(v) => update("company.mission", v)} multiline span={2} />
+                <Field label="Address" value={data.company.address} onChange={(v) => update("company.address", v)} icon={<MapPin className="w-4 h-4" />} />
+                <Field label="City" value={data.company.city} onChange={(v) => update("company.city", v)} />
+                <Field label="State" value={data.company.state} onChange={(v) => update("company.state", v)} />
+                <Field label="Country" value={data.company.country} onChange={(v) => update("company.country", v)} />
+                <Field label="Phone" value={data.company.phones?.[0]} onChange={(v) => update("company.phones", [v])} icon={<Phone className="w-4 h-4" />} />
+                <Field label="Email" value={data.company.emails?.[0]} onChange={(v) => update("company.emails", [v])} icon={<Mail className="w-4 h-4" />} />
+                <Field label="Website" value={data.company.website} onChange={(v) => update("company.website", v)} span={2} />
+              </div>
+            </Section>
+          </div>
+          <div className="space-y-6">
+            <Section title="Call-to-Action Button">
+              <p className="text-sm text-muted-foreground mb-4">
+                The main CTA button shown in your header and hero section. Point it to your shop, booking page, or any URL.
+              </p>
+              <div className="space-y-3">
+                <Field label="Button Text" value={data.company.ctaText || ""} onChange={(v) => update("company.ctaText", v)} icon={<Star className="w-4 h-4" />} />
+                <Field label="Button URL" value={data.company.ctaUrl || ""} onChange={(v) => update("company.ctaUrl", v)} icon={<ExternalLink className="w-4 h-4" />} />
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                Leave empty to link to your contact page.
+              </p>
+              <div className="mt-4 p-3 bg-muted/40 rounded-lg space-y-1.5">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Examples</p>
+                <p className="text-xs text-muted-foreground">"Shop Now" → your-store.com</p>
+                <p className="text-xs text-muted-foreground">"Book Now" → calendly.com/you</p>
+                <p className="text-xs text-muted-foreground">"Get Quote" → /contact</p>
+              </div>
+            </Section>
+            <Section title="About Page Image">
+              <p className="text-sm text-muted-foreground mb-3">Replace the About page illustration with your own photo. Also editable in the Hero & Branding tab.</p>
+              <ImagePicker
+                label=""
+                value={data.aboutImage || data.pageImages?.about || ""}
+                onChange={(v) => { update("aboutImage", v); update("pageImages", { ...(data.pageImages || {}), about: v }); }}
+                onBrowse={openPicker}
+                onUpload={(f) => uploadImageToSite(f, "about")}
+                onAiGenerate={aiGenerateImage}
+              />
+            </Section>
+          </div>
         </div>
       )}
 
@@ -470,16 +493,18 @@ export default function WebsiteEditPage() {
             <h2 className="text-lg font-semibold">FAQ ({data.faq?.length || 0})</h2>
             <button onClick={() => update("faq", [...(data.faq || []), { question: "", answer: "" }])} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add</button>
           </div>
-          {(data.faq || []).map((item, i) => (
-            <div key={i} className="bg-card border border-border rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-muted-foreground">Question {i + 1}</span>
-                <button onClick={() => update("faq", (data.faq || []).filter((_, j) => j !== i))} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {(data.faq || []).map((item, i) => (
+              <div key={i} className="bg-card border border-border rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-medium text-muted-foreground">Question {i + 1}</span>
+                  <button onClick={() => update("faq", (data.faq || []).filter((_, j) => j !== i))} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                </div>
+                <Field label="Question" value={item.question} onChange={(v) => { const f = [...(data.faq || [])]; f[i] = { ...f[i], question: v }; update("faq", f); }} />
+                <div className="mt-3"><Field label="Answer" value={item.answer} onChange={(v) => { const f = [...(data.faq || [])]; f[i] = { ...f[i], answer: v }; update("faq", f); }} multiline /></div>
               </div>
-              <Field label="Question" value={item.question} onChange={(v) => { const f = [...(data.faq || [])]; f[i] = { ...f[i], question: v }; update("faq", f); }} />
-              <div className="mt-3"><Field label="Answer" value={item.answer} onChange={(v) => { const f = [...(data.faq || [])]; f[i] = { ...f[i], answer: v }; update("faq", f); }} multiline /></div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
@@ -586,71 +611,81 @@ export default function WebsiteEditPage() {
             </Section>
           )}
 
-          <Section title="Navigation Links">
-            <p className="text-sm text-muted-foreground mb-3">
-              These appear in the header navbar. Point them to your site pages or external URLs (e.g. your shop).
-            </p>
-            <div className="space-y-3">
-              {(data.navLinks || []).map((link, i) => (
-                <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
-                  <Field label="" value={link.label} onChange={(v) => { const links = [...(data.navLinks || [])]; links[i] = { ...links[i], label: v }; update("navLinks", links); }} />
-                  <Field label="" value={link.href} onChange={(v) => { const links = [...(data.navLinks || [])]; links[i] = { ...links[i], href: v }; update("navLinks", links); }} />
-                  <button onClick={() => { const links = [...(data.navLinks || [])]; links.splice(i, 1); update("navLinks", links); }} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"><Trash2 className="w-4 h-4" /></button>
-                </div>
-              ))}
-              <button onClick={() => update("navLinks", [...(data.navLinks || []), { label: "New Link", href: "/" }])} className="flex items-center gap-1.5 px-3 py-2 text-sm border border-dashed border-border rounded-lg hover:border-primary/50 text-muted-foreground hover:text-primary">
-                <Plus className="w-3.5 h-3.5" /> Add Nav Link
-              </button>
-            </div>
-          </Section>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Section title="Navigation Links">
+              <p className="text-sm text-muted-foreground mb-3">
+                These appear in the header navbar. Point them to your site pages or external URLs (e.g. your shop).
+              </p>
+              <div className="space-y-3">
+                {(data.navLinks || []).map((link, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                    <Field label="" value={link.label} onChange={(v) => { const links = [...(data.navLinks || [])]; links[i] = { ...links[i], label: v }; update("navLinks", links); }} />
+                    <Field label="" value={link.href} onChange={(v) => { const links = [...(data.navLinks || [])]; links[i] = { ...links[i], href: v }; update("navLinks", links); }} />
+                    <button onClick={() => { const links = [...(data.navLinks || [])]; links.splice(i, 1); update("navLinks", links); }} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                ))}
+                <button onClick={() => update("navLinks", [...(data.navLinks || []), { label: "New Link", href: "/" }])} className="flex items-center gap-1.5 px-3 py-2 text-sm border border-dashed border-border rounded-lg hover:border-primary/50 text-muted-foreground hover:text-primary">
+                  <Plus className="w-3.5 h-3.5" /> Add Nav Link
+                </button>
+              </div>
+            </Section>
 
-          <Section title="Footer Links">
-            <p className="text-sm text-muted-foreground mb-3">
-              Additional links shown in the footer (legal pages, extra pages, external links). Navigation links also appear in the footer automatically.
-            </p>
-            <div className="space-y-3">
-              {(data.footerLinks || []).map((link, i) => (
-                <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
-                  <Field label="" value={link.label} onChange={(v) => { const links = [...(data.footerLinks || [])]; links[i] = { ...links[i], label: v }; update("footerLinks", links); }} />
-                  <Field label="" value={link.href} onChange={(v) => { const links = [...(data.footerLinks || [])]; links[i] = { ...links[i], href: v }; update("footerLinks", links); }} />
-                  <button onClick={() => { const links = [...(data.footerLinks || [])]; links.splice(i, 1); update("footerLinks", links); }} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+            <div className="space-y-6">
+              <Section title="Footer Links">
+                <p className="text-sm text-muted-foreground mb-3">
+                  Extra links in the footer (legal pages, external links). Nav links also appear in footer automatically.
+                </p>
+                <div className="space-y-3">
+                  {(data.footerLinks || []).map((link, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                      <Field label="" value={link.label} onChange={(v) => { const links = [...(data.footerLinks || [])]; links[i] = { ...links[i], label: v }; update("footerLinks", links); }} />
+                      <Field label="" value={link.href} onChange={(v) => { const links = [...(data.footerLinks || [])]; links[i] = { ...links[i], href: v }; update("footerLinks", links); }} />
+                      <button onClick={() => { const links = [...(data.footerLinks || [])]; links.splice(i, 1); update("footerLinks", links); }} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  ))}
+                  <button onClick={() => update("footerLinks", [...(data.footerLinks || []), { label: "New Link", href: "/" }])} className="flex items-center gap-1.5 px-3 py-2 text-sm border border-dashed border-border rounded-lg hover:border-primary/50 text-muted-foreground hover:text-primary">
+                    <Plus className="w-3.5 h-3.5" /> Add Footer Link
+                  </button>
                 </div>
-              ))}
-              <button onClick={() => update("footerLinks", [...(data.footerLinks || []), { label: "New Link", href: "/" }])} className="flex items-center gap-1.5 px-3 py-2 text-sm border border-dashed border-border rounded-lg hover:border-primary/50 text-muted-foreground hover:text-primary">
-                <Plus className="w-3.5 h-3.5" /> Add Footer Link
-              </button>
-            </div>
-          </Section>
+              </Section>
 
-          <Section title="How Links Work">
-            <div className="text-sm text-muted-foreground space-y-2">
-              <p><strong>Internal pages:</strong> Use paths like <code className="px-1 py-0.5 bg-muted rounded text-xs">/about</code> or <code className="px-1 py-0.5 bg-muted rounded text-xs">/contact</code></p>
-              <p><strong>Your shop:</strong> Use full URLs like <code className="px-1 py-0.5 bg-muted rounded text-xs">https://your-store.com</code> or <code className="px-1 py-0.5 bg-muted rounded text-xs">https://your-store.com/products</code></p>
-              <p><strong>CTA button:</strong> Edit in the Company tab under "Call-to-Action Button"</p>
+              <Section title="How Links Work">
+                <div className="text-sm text-muted-foreground space-y-2">
+                  <p><strong>Internal pages:</strong> Use paths like <code className="px-1 py-0.5 bg-muted rounded text-xs">/about</code> or <code className="px-1 py-0.5 bg-muted rounded text-xs">/contact</code></p>
+                  <p><strong>Your shop:</strong> Use full URLs like <code className="px-1 py-0.5 bg-muted rounded text-xs">https://your-store.com</code></p>
+                  <p><strong>CTA button:</strong> Edit in the Company tab under "Call-to-Action Button"</p>
+                </div>
+              </Section>
             </div>
-          </Section>
+          </div>
         </div>
         );
       })()}
 
       {/* AI Section Update */}
       {activeTab === "ai-update" && (
-        <div className="space-y-6">
-          <SectionUpdater
-            apiBase={`/api/websites/${id}/update-section`}
-            onUpdated={() => rebuild()}
-          />
-          <div className="rounded-lg border border-border bg-muted/30 p-4">
-            <h3 className="text-sm font-semibold mb-2">What can AI update?</h3>
-            <ul className="text-xs text-muted-foreground space-y-1.5">
-              <li>Change layouts, colors, fonts, spacing</li>
-              <li>Add new content sections or features</li>
-              <li>Update hero images, slideshow, animations</li>
-              <li>Modify navigation, footer, header</li>
-              <li>Add registration forms, contact forms</li>
-              <li>Update company info, stats, team members</li>
-              <li>Any design or content change you can describe</li>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <SectionUpdater
+              apiBase={`/api/websites/${id}/update-section`}
+              onUpdated={() => rebuild()}
+            />
+          </div>
+          <div className="rounded-xl border border-border bg-muted/30 p-5">
+            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> What can AI update?</h3>
+            <ul className="text-sm text-muted-foreground space-y-2">
+              <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span> Change layouts, colors, fonts, spacing</li>
+              <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span> Add new content sections or features</li>
+              <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span> Update hero images, slideshow, animations</li>
+              <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span> Modify navigation, footer, header</li>
+              <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span> Add registration forms, contact forms</li>
+              <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span> Update company info, stats, team members</li>
+              <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span> Any design or content change you can describe</li>
             </ul>
+            <div className="mt-5 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+              <p className="text-xs text-amber-800 dark:text-amber-300 font-medium mb-1">Tip</p>
+              <p className="text-xs text-amber-700 dark:text-amber-400">Be specific! "Make the hero section have a dark gradient overlay with white text" works better than "update the hero".</p>
+            </div>
           </div>
         </div>
       )}
@@ -659,7 +694,7 @@ export default function WebsiteEditPage() {
 
       {/* Build */}
       {activeTab === "build" && (
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Section title="Build Status">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-sm font-medium">Status:</span>
@@ -701,10 +736,17 @@ export default function WebsiteEditPage() {
                 </div>
               </>
             )}
+            {website.buildStatus === "built" && (
+              <div className="mt-2">
+                <button onClick={rebuild} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">
+                  {rebuilding ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Building...</> : <><RefreshCw className="w-3.5 h-3.5" /> Rebuild Site</>}
+                </button>
+              </div>
+            )}
           </Section>
 
           {/* Deploy to VPS — future feature */}
-          {website.generatorVersion === "v3" && (
+          {website.generatorVersion === "v3" ? (
             <Section title="Deploy to Your Server">
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
@@ -726,6 +768,15 @@ export default function WebsiteEditPage() {
                     Purchase a VPS plan to unlock one-click deployment to your own server.
                   </p>
                 </div>
+              </div>
+            </Section>
+          ) : (
+            <Section title="When to Rebuild">
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="flex items-start gap-2"><Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" /> After saving changes to text, images, or links</p>
+                <p className="flex items-start gap-2"><Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" /> After using AI Update to redesign a section</p>
+                <p className="flex items-start gap-2"><Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" /> When your domain DNS settings are updated</p>
+                <p className="flex items-start gap-2"><AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" /> Build takes 30–90 seconds depending on site size</p>
               </div>
             </Section>
           )}
@@ -782,22 +833,47 @@ function ReportErrorButton({ websiteId }: { websiteId: string }) {
 
 function DomainsTab({ websiteSlug, customDomain }: { websiteSlug: string; customDomain?: string | null }) {
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div className="bg-card border border-border rounded-xl p-6">
-        <h2 className="text-lg font-semibold mb-2">Custom Domain</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Your site is currently accessible at:
-        </p>
-        <div className="p-3 bg-muted/30 rounded-lg border border-border mb-6">
-          <code className="text-sm font-mono">{customDomain || `flowsmartly.com/sites/${websiteSlug}`}</code>
+        <h2 className="text-lg font-semibold mb-2">Current URL</h2>
+        <p className="text-sm text-muted-foreground mb-4">Your site is accessible at:</p>
+        <div className="p-3 bg-muted/30 rounded-lg border border-border mb-5">
+          <code className="text-sm font-mono break-all">{customDomain ? `https://${customDomain}` : `flowsmartly.com/sites/${websiteSlug}`}</code>
         </div>
-        <p className="text-sm text-muted-foreground mb-4">
-          To use a custom domain (e.g. <strong>yourbusiness.com</strong>), go to the Domains page to register a new domain or connect one you already own. Once set up, your website will be accessible at your custom domain.
-        </p>
+        {customDomain ? (
+          <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 mb-5">
+            <Check className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+            <p className="text-sm text-green-700 dark:text-green-300">Custom domain is active</p>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground mb-5">
+            To use a custom domain like <strong>yourbusiness.com</strong>, go to the Domains page to register or connect one you own.
+          </p>
+        )}
         <a href="/domains" className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-all">
           <Globe className="w-4 h-4" />
           Manage Domains
         </a>
+      </div>
+      <div className="bg-card border border-border rounded-xl p-6">
+        <h2 className="text-lg font-semibold mb-2">Custom Domain Setup</h2>
+        <p className="text-sm text-muted-foreground mb-4">Steps to connect your own domain:</p>
+        <ol className="space-y-4">
+          {[
+            { step: "1", title: "Register or use existing domain", desc: "Buy a new domain on the Domains page or use one you already own." },
+            { step: "2", title: "Add domain to this website", desc: "On the Domains page, click your domain and link it to this website." },
+            { step: "3", title: "Update DNS records", desc: "Point your domain's A record to our server IP. Instructions shown after linking." },
+            { step: "4", title: "Wait for propagation", desc: "DNS changes take 5–30 minutes to go live worldwide." },
+          ].map(({ step, title, desc }) => (
+            <li key={step} className="flex items-start gap-3">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">{step}</span>
+              <div>
+                <p className="text-sm font-medium">{title}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
       </div>
     </div>
   );
