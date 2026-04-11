@@ -245,8 +245,8 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 - NEVER HARDCODE product attributes like labels, "featured", "inStock" status, or badges
 - These attributes MUST be user-controlled through the admin Product Management dashboard
 - Product labels ("new", "sale", "bestseller", "limited", "discount", "featured") are ONLY set by users via the dashboard, NOT in the codebase
-- Generate all products with EMPTY labels array: `labels: []`
-- Generate all products with default values: `featured: false`, `inStock: true`
+- Generate all products with EMPTY labels array: labels: []
+- Generate all products with default values: featured: false, inStock: true
 - Violating this rule creates locked-in product data that users cannot manage, degrading the product UI and user trust
 
 ### This is an SSR App (NOT static export):
