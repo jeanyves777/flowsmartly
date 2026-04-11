@@ -22,10 +22,7 @@ export async function GET() {
     });
 
     if (!profile) {
-      return NextResponse.json(
-        { success: false, error: { message: "No agent profile found" } },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, data: { profile: null } });
     }
 
     return NextResponse.json({ success: true, data: await presignAllUrls({ profile }) });
