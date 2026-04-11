@@ -3,50 +3,41 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 
 /**
- * GET /api/websites/[id]/analytics?range=7d|30d|90d|today
- * Returns aggregated analytics for this website
+ * GET /api/ecommerce/visitor-analytics?range=7d|30d|90d|today
+ * Returns visitor analytics for the user's store
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const { id } = await params;
 
-    const website = await prisma.website.findFirst({
-      where: { id, userId: session.userId, deletedAt: null },
-      select: { id: true, slug: true, totalViews: true, createdAt: true },
+    const store = await prisma.store.findFirst({
+      where: { userId: session.userId },
+      select: { id: true, slug: true, name: true, createdAt: true },
     });
-    if (!website) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!store) return NextResponse.json({ error: "No store found" }, { status: 404 });
 
     const range = request.nextUrl.searchParams.get("range") || "30d";
     const days = range === "today" ? 1 : range === "7d" ? 7 : range === "90d" ? 90 : 30;
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    // Query PageViews linked to this website
-    // Match by websiteId (custom domain tracking) OR path prefix (direct access)
-    const sitePrefix = `/sites/${website.slug}`;
     const pageViews = await prisma.pageView.findMany({
       where: {
-        OR: [
-          { websiteId: website.id },
-          { path: { startsWith: sitePrefix } },
-        ],
+        websiteId: store.id,
         createdAt: { gte: since },
       },
       select: {
-        id: true, visitorId: true, path: true, country: true, countryCode: true, city: true, deviceType: true,
-        browser: true, os: true, referrer: true, createdAt: true,
-        utmSource: true, utmMedium: true, utmCampaign: true,
+        id: true, visitorId: true, path: true, country: true, countryCode: true,
+        city: true, deviceType: true, browser: true, os: true, referrer: true,
+        createdAt: true, utmSource: true, utmMedium: true, utmCampaign: true,
       },
       orderBy: { createdAt: "desc" },
       take: 10000,
     });
 
-    // Aggregate stats
     const totalViews = pageViews.length;
     const uniqueVisitors = new Set(pageViews.map((pv) => pv.visitorId)).size;
 
-    // Country breakdown
     const countryMap: Record<string, number> = {};
     const countryCodeMap: Record<string, string> = {};
     const cityMap: Record<string, number> = {};
@@ -66,10 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       if (pv.deviceType) deviceMap[pv.deviceType] = (deviceMap[pv.deviceType] || 0) + 1;
       if (pv.browser) browserMap[pv.browser] = (browserMap[pv.browser] || 0) + 1;
       if (pv.os) osMap[pv.os] = (osMap[pv.os] || 0) + 1;
-      if (pv.path) {
-        const cleanPath = pv.path.replace(`/sites/${website.slug}`, "") || "/";
-        pageMap[cleanPath] = (pageMap[cleanPath] || 0) + 1;
-      }
+      if (pv.path) pageMap[pv.path] = (pageMap[pv.path] || 0) + 1;
       if (pv.referrer) {
         try {
           const ref = new URL(pv.referrer).hostname;
@@ -85,23 +73,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const sortObj = (obj: Record<string, number>, limit = 10) =>
       Object.entries(obj).sort(([, a], [, b]) => b - a).slice(0, limit).map(([name, count]) => ({ name, count }));
 
-    // Real-time visitors for this website (active in last 5 min)
     const realtimeResult = await prisma.pageView.groupBy({
       by: ["visitorId"],
       where: {
-        OR: [{ websiteId: website.id }, { path: { startsWith: sitePrefix } }],
+        websiteId: store.id,
         createdAt: { gte: new Date(Date.now() - 5 * 60 * 1000) },
       },
     });
     const realtimeVisitors = realtimeResult.length;
 
     return NextResponse.json({
+      store: { name: store.name },
       overview: {
-        totalViews: website.totalViews,
+        totalViews,
         periodViews: totalViews,
         uniqueVisitors,
         realtimeVisitors,
-        siteAge: Math.floor((Date.now() - website.createdAt.getTime()) / (1000 * 60 * 60 * 24)),
+        storeAge: Math.floor((Date.now() - store.createdAt.getTime()) / (1000 * 60 * 60 * 24)),
       },
       geo: {
         countries: sortObj(countryMap).map(({ name, count }) => ({ name, count, code: countryCodeMap[name] || "" })),
@@ -117,7 +105,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       daily: Object.entries(dailyMap).sort(([a], [b]) => a.localeCompare(b)).map(([date, views]) => ({ date, views })),
     });
   } catch (err) {
-    console.error("Website analytics error:", err);
+    console.error("Store visitor analytics error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

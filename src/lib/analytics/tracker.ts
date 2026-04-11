@@ -120,31 +120,25 @@ export async function getGeoFromIp(ip: string | null): Promise<GeoData> {
     return { country: "Local", city: "Localhost" };
   }
 
-  // TODO: Integrate with IP geolocation API (MaxMind, ip-api.com, etc.)
-  // For production, use a service like:
-  // - MaxMind GeoIP2
-  // - ip-api.com (free tier available)
-  // - ipinfo.io
-
   try {
-    // Example with ip-api.com (free, no API key needed for limited use)
-    // Uncomment for production:
-    // const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,countryCode,region,city,zip,lat,lon,timezone,isp`);
-    // const data = await response.json();
-    // if (data.status === "success") {
-    //   return {
-    //     country: data.country,
-    //     countryCode: data.countryCode,
-    //     city: data.city,
-    //     region: data.region,
-    //     postalCode: data.zip,
-    //     latitude: data.lat,
-    //     longitude: data.lon,
-    //     timezone: data.timezone,
-    //     isp: data.isp,
-    //   };
-    // }
-
+    const response = await fetch(
+      `http://ip-api.com/json/${ip}?fields=status,country,countryCode,region,city,zip,lat,lon,timezone,isp`,
+      { signal: AbortSignal.timeout(3000) }
+    );
+    const geoData = await response.json();
+    if (geoData.status === "success") {
+      return {
+        country: geoData.country,
+        countryCode: geoData.countryCode,
+        city: geoData.city,
+        region: geoData.region,
+        postalCode: geoData.zip,
+        latitude: geoData.lat,
+        longitude: geoData.lon,
+        timezone: geoData.timezone,
+        isp: geoData.isp,
+      };
+    }
     return { country: "Unknown" };
   } catch {
     return { country: "Unknown" };

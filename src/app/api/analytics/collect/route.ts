@@ -16,6 +16,7 @@ import { cookies } from "next/headers";
 const pageViewSchema = z.object({
   type: z.literal("pageview"),
   websiteId: z.string().optional(),
+  storeId: z.string().optional(), // stores send storeId, mapped to websiteId
   path: z.string(),
   title: z.string().optional(),
   referrer: z.string().optional(),
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
         await trackPageView({
           visitorId,
           sessionId,
-          websiteId: data.websiteId || null,
+          websiteId: data.websiteId || data.storeId || null,
           path: data.path,
           title: data.title,
           referrer: data.referrer,
