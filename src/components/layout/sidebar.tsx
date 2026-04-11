@@ -392,6 +392,8 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
               width={40}
               height={40}
               className="w-10 h-10 rounded-xl shrink-0"
+              priority
+              unoptimized
             />
           ) : (
             <Image
@@ -400,6 +402,8 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
               width={160}
               height={40}
               className="h-8 w-auto"
+              priority
+              unoptimized
             />
           )}
         </Link>
