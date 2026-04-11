@@ -191,7 +191,8 @@ function extractLinkArray(source: string, arrayName: string): Array<{ href: stri
 function extractObjectArray(source: string, arrayName: string, fields: string[]): Record<string, string>[] {
   const result: Record<string, string>[] = [];
 
-  const arrayMatch = source.match(new RegExp(`${arrayName}[^=]*=\\s*\\[([\\s\\S]*?)\\];`));
+  // Use word boundary so "faq" doesn't match "/faq" inside href strings
+  const arrayMatch = source.match(new RegExp(`(?:^|\\s)${arrayName}\\s*=\\s*\\[([\\s\\S]*?)\\];`, "m"));
   if (!arrayMatch) return result;
 
   const content = arrayMatch[1];
