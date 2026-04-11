@@ -25,6 +25,18 @@ const nextConfig: NextConfig = {
   typescript: { ignoreBuildErrors: true },
   // Prevent Next.js from walking up to a parent workspace when nested inside a monorepo
   outputFileTracingRoot: path.resolve(__dirname),
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          // Allow the store to be embedded in the FlowSmartly dashboard preview iframe
+          { key: "X-Frame-Options", value: "ALLOWALL" },
+          { key: "Content-Security-Policy", value: "frame-ancestors *" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

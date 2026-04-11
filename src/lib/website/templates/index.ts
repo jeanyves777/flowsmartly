@@ -171,9 +171,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setMounted(true);
     const stored = localStorage.getItem("site-theme") as Theme | null;
-    if (stored === "dark" || stored === "light") {
-      setTheme(stored);
-      if (stored === "dark") document.documentElement.classList.add("dark");
+    const resolved: Theme = stored === "dark" ? "dark" : "light";
+    setTheme(resolved);
+    if (resolved === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
     }
   }, []);
 

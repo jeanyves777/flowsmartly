@@ -74,6 +74,12 @@ export default function StoreDesignPage() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const storeUrl = store?.storeUrl || (store?.slug ? `/stores/${store.slug}/` : null);
+  // Route preview through proxy to strip X-Frame-Options headers that nginx may add
+  const previewUrl = storeUrl
+    ? `/api/proxy?url=${encodeURIComponent(
+        storeUrl.startsWith("http") ? storeUrl : `${typeof window !== "undefined" ? window.location.origin : ""}${storeUrl}`
+      )}`
+    : null;
 
   async function loadStoreData(storeId: string, forceRefresh = false) {
     const url = `/api/ecommerce/store/${storeId}/site-data${forceRefresh ? "?refresh=true" : ""}`;
@@ -240,8 +246,8 @@ export default function StoreDesignPage() {
         {/* Preview */}
         {activeTab === "preview" && (
           <div className="w-full rounded-xl overflow-hidden border border-border bg-muted" style={{ height: "calc(100vh - 200px)" }}>
-            {storeUrl ? (
-              <iframe ref={iframeRef} src={storeUrl} className="w-full h-full" title="Store Preview" />
+            {previewUrl ? (
+              <iframe ref={iframeRef} src={previewUrl} className="w-full h-full" title="Store Preview" />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>Store not yet deployed</p>
