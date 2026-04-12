@@ -31,8 +31,9 @@ export async function triggerStoreRebuildIfV2(storeId: string): Promise<void> {
 
     console.log(`[ProductSync] Product changed in store ${storeId} — syncing and rebuilding`);
 
-    // Sync products from DB to products.ts
+    // Sync products and categories from DB to store files
     await syncProductsToFile(storeId, store.generatedPath);
+    await syncCategoriesToDataFile(storeId, store.generatedPath);
 
     const { buildStoreV3, deployStoreV3 } = await import("./store-site-builder");
 
@@ -112,6 +113,42 @@ async function syncProductsToFile(storeId: string, storeDir: string): Promise<vo
   if (newContent !== content) {
     writeFileSync(productsPath, newContent, "utf-8");
     console.log(`[ProductSync] Synced ${products.length} products to products.ts`);
+  }
+}
+
+/**
+ * Sync categories from DB to the store's data.ts file.
+ * Replaces the `export const categories = [...]` array.
+ */
+async function syncCategoriesToDataFile(storeId: string, storeDir: string): Promise<void> {
+  const { readFileSync, writeFileSync, existsSync } = await import("fs");
+  const { join } = await import("path");
+
+  const dataPath = join(storeDir, "src", "lib", "data.ts");
+  if (!existsSync(dataPath)) return;
+
+  const categories = await prisma.productCategory.findMany({
+    where: { storeId },
+    select: { id: true, name: true, slug: true, description: true, imageUrl: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const content = readFileSync(dataPath, "utf-8");
+
+  // Build categories array
+  const categoriesArrayStr = categories.map((c) => {
+    return `  { id: "${c.id}", name: "${escapeStr(c.name)}", slug: "${c.slug}", description: "${escapeStr(c.description || "")}", image: "${escapeStr(c.imageUrl || "")}" }`;
+  }).join(",\n");
+
+  // Replace the categories array in the file
+  const newContent = content.replace(
+    /export const categories[^=]*=\s*\[[\s\S]*?\];/,
+    `export const categories = [\n${categoriesArrayStr},\n];`
+  );
+
+  if (newContent !== content) {
+    writeFileSync(dataPath, newContent, "utf-8");
+    console.log(`[ProductSync] Synced ${categories.length} categories to data.ts`);
   }
 }
 

@@ -159,8 +159,8 @@ function buildStorePrompt(
     : "\n\nNo products provided — generate 6-10 starter products appropriate for this store type.";
 
   const categorySummary = categories.length > 0
-    ? `\nCategories: ${categories.join(", ")}`
-    : "\nNo categories provided — create 2-4 appropriate categories.";
+    ? `\nCategories (USE THESE EXACT NAMES — do NOT rename or invent new ones): ${categories.join(", ")}`
+    : "\nNo categories provided — derive categories from the products' category field. Do NOT invent category names.";
 
   return [
     `Build a complete, production-quality e-commerce store for:`,
@@ -319,6 +319,14 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
   - Generate ALL products with EMPTY labels array: labels: []
   - Labels like "new", "sale", "bestseller", "limited", "discount", "featured" are set by users via the admin UI, NOT in code
   - Never set product.featured, product.inStock, or product.labels to hardcoded values — all controlled by the user
+
+- Categories (CRITICAL — NEVER invent):
+  - Categories in data.ts MUST be EXACTLY the categories provided in get_brand_identity response
+  - NEVER invent, rename, or create new categories — use ONLY the user's existing categories from the database
+  - If the user has categories ["Electronics", "Fashion & Accessories", "Home & Garden", "Health & Fitness"], use those EXACT names
+  - Category slugs must be derived from the exact category names (slugified)
+  - Category images should be downloaded from search, but the category NAME and ID must match the database exactly
+  - If no categories are provided, use the product.category field to derive categories — do NOT invent new ones
 
 ### Logo & Favicon:
 - MUST download brand logo via download_image IMMEDIATELY after get_brand_identity
