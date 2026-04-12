@@ -8,7 +8,7 @@ import { z } from "zod";
 // ── Validation Schema ──
 
 const imageSchema = z.object({
-  url: z.string().url(),
+  url: z.string().min(1),
   alt: z.string().optional().default(""),
   position: z.number().int().min(0).optional().default(0),
 });
