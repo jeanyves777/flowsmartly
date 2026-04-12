@@ -1031,39 +1031,24 @@ export default function EditProductPage() {
           })}
         </div>
 
-        {/* Discount / Sale: show compare price input inline */}
+        {/* Discount / Sale: show calculated discount or prompt to set compare price */}
         {(labels.includes("discount") || labels.includes("sale")) && (
-          <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-900/10 p-4 space-y-3">
-            <p className="text-sm font-medium text-foreground">
-              Set the original price to show the discount
-            </p>
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Original Price ($)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="e.g. 99.99"
-                  value={comparePriceStr}
-                  onChange={(e) => setComparePriceStr(e.target.value)}
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
-                />
-              </div>
-              {priceStr && comparePriceStr && Number(comparePriceStr) > Number(priceStr) && (
-                <div className="text-center pt-4">
-                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                    -{Math.round((1 - Number(priceStr) / Number(comparePriceStr)) * 100)}% OFF
-                  </span>
-                </div>
-              )}
+          priceStr && comparePriceStr && Number(comparePriceStr) > Number(priceStr) ? (
+            <div className="flex items-center gap-3 rounded-lg border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10 p-4">
+              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                -{Math.round((1 - Number(priceStr) / Number(comparePriceStr)) * 100)}% OFF
+              </span>
+              <span className="text-sm text-muted-foreground">
+                <span className="line-through">${comparePriceStr}</span> → <span className="font-semibold text-foreground">${priceStr}</span>
+              </span>
             </div>
-            {!comparePriceStr && (
-              <p className="text-xs text-orange-600 dark:text-orange-400">
-                Enter the original price above. The discount badge will show the percentage calculated from current price vs original price.
+          ) : (
+            <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-900/10 p-4">
+              <p className="text-sm text-orange-600 dark:text-orange-400">
+                Set the <strong>Compare at Price</strong> in the Pricing section above to show the discount percentage on product cards.
               </p>
-            )}
-          </div>
+            </div>
+          )
         )}
 
         {comparePriceStr && !labels.includes("discount") && !labels.includes("sale") && (
