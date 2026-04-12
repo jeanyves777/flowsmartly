@@ -24,6 +24,15 @@ export default async function StoreAccountPage({ params }: AccountPageProps) {
   });
   if (!store || payload.storeId !== store.id) redirect(`/store/${slug}/account/login`);
 
+  // Redirect incomplete profiles (new Google OAuth users) to finish setup
+  const customerCheck = await prisma.storeCustomer.findUnique({
+    where: { id: payload.customerId },
+    select: { profileComplete: true },
+  });
+  if (customerCheck && customerCheck.profileComplete === false) {
+    redirect(`/store/${slug}/account/complete-profile`);
+  }
+
   // Fetch customer + recent orders in parallel
   const [customer, recentOrders] = await Promise.all([
     prisma.storeCustomer.findUnique({
@@ -164,6 +173,27 @@ export default async function StoreAccountPage({ params }: AccountPageProps) {
             <div>
               <p className="font-semibold">Addresses</p>
               <p className="text-xs opacity-50">{addressCount} saved</p>
+            </div>
+          </div>
+        </Link>
+
+        <Link
+          href={`/store/${slug}/account/payment-methods`}
+          className="block rounded-lg border p-5 transition-shadow hover:shadow-md"
+          style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="h-10 w-10 rounded-lg flex items-center justify-center text-white"
+              style={{ backgroundColor: "var(--store-primary)" }}
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-semibold">Payment</p>
+              <p className="text-xs opacity-50">Saved cards</p>
             </div>
           </div>
         </Link>

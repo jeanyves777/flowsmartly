@@ -36,9 +36,9 @@ export default function StoreSettingsPage() {
         return;
       }
       const data = await res.json();
-      setName(data.name || "");
-      setPhone(data.phone || "");
-      setEmail(data.email || "");
+      setName(data.customer?.name || data.name || "");
+      setPhone(data.customer?.phone || data.phone || "");
+      setEmail(data.customer?.email || data.email || "");
     } catch {
       // ignore
     } finally {

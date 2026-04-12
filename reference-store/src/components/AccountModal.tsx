@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Mail, Lock, User, Eye, EyeOff, AlertCircle,
-  ArrowRight, LogOut, Package, MapPin, Settings, CheckCircle2, Shield, Heart, Bookmark
+  ArrowRight, LogOut, Package, MapPin, Settings, CheckCircle2, Shield, Heart, Bookmark, CreditCard
 } from "lucide-react";
 import { storeInfo } from "@/lib/data";
 
@@ -295,6 +295,7 @@ export default function AccountModal({ isOpen, onClose }: Props) {
                       { href: `${API_BASE}/store/${STORE_SLUG}/account/orders`, icon: Package, label: "My Orders" },
                       { href: `${API_BASE}/store/${STORE_SLUG}/account/wishlist`, icon: Heart, label: "Wishlist" },
                       { href: `${API_BASE}/store/${STORE_SLUG}/account/saved`, icon: Bookmark, label: "Saved for Later" },
+                      { href: `${API_BASE}/store/${STORE_SLUG}/account/payment-methods`, icon: CreditCard, label: "Payment Methods" },
                       { href: `${API_BASE}/store/${STORE_SLUG}/account/addresses`, icon: MapPin, label: "Addresses" },
                       { href: `${API_BASE}/store/${STORE_SLUG}/account/settings`, icon: Settings, label: "Account Settings" },
                     ].map(({ href, icon: Icon, label }) => (

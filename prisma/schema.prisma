@@ -3592,15 +3592,17 @@ model MarketResearchReport {
 // ============================================
 
 model StoreCustomer {
-  id             String    @id @default(cuid())
-  storeId        String
-  email          String
-  name           String
-  phone          String?
-  passwordHash   String
-  addresses      String    @default("[]") // JSON array of shipping addresses
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  storeId          String
+  email            String
+  name             String
+  phone            String?
+  passwordHash     String
+  stripeCustomerId String?   // Stripe customer ID for saved payment methods
+  profileComplete  Boolean   @default(true) // false for new Google OAuth signups until profile is completed
+  addresses        String    @default("[]") // JSON array of shipping addresses
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   store          Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
   cartItems      StoreCartItem[]

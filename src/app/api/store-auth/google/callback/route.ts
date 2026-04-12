@@ -67,6 +67,7 @@ export async function GET(request: NextRequest) {
       where: { storeId_email: { storeId: store.id, email: profile.email.toLowerCase() } },
     });
 
+    let isNewCustomer = false;
     if (!customer) {
       // Create new customer — passwordHash is a secure random token (Google users won't use it)
       const randomHash = crypto.randomBytes(32).toString("hex");
@@ -76,14 +77,23 @@ export async function GET(request: NextRequest) {
           email: profile.email.toLowerCase(),
           name: profile.name || profile.email.split("@")[0],
           passwordHash: randomHash,
+          profileComplete: false, // Must complete profile (add phone) before accessing account
         },
       });
+      isNewCustomer = true;
     }
 
     // Issue JWT session cookie — set directly on the redirect response (not via next/headers)
     // so the Set-Cookie header is guaranteed to be included in the 302 response.
     const token = await createCustomerToken(customer.id, store.id, customer.email);
-    return clearAndRedirect(callbackUrl, token);
+
+    // New Google OAuth customers must complete their profile (add phone number)
+    const APP_URL_BASE = process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com";
+    const finalUrl = (isNewCustomer || !customer.profileComplete)
+      ? `${APP_URL_BASE}/store/${storeSlug}/account/complete-profile`
+      : callbackUrl;
+
+    return clearAndRedirect(finalUrl, token);
   } catch (err) {
     console.error("[store-auth/google/callback]", err);
     return clearAndRedirect(`${callbackUrl}?auth_error=oauth_failed`);

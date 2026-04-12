@@ -42,6 +42,7 @@ const updateSchema = z.object({
   phone: z.string().max(20).optional(),
   currentPassword: z.string().optional(),
   newPassword: z.string().min(6).optional(),
+  profileComplete: z.boolean().optional(),
 });
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
@@ -57,11 +58,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400, headers: corsHeaders(request) });
 
-    const { name, phone, currentPassword, newPassword } = parsed.data;
-    const data: Record<string, string> = {};
+    const { name, phone, currentPassword, newPassword, profileComplete } = parsed.data;
+    const data: Record<string, unknown> = {};
 
     if (name) data.name = name;
     if (phone !== undefined) data.phone = phone;
+    if (profileComplete !== undefined) data.profileComplete = profileComplete;
 
     if (newPassword) {
       if (!currentPassword) {
