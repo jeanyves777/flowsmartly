@@ -132,6 +132,10 @@ export default function OnboardingPage() {
   // Step 6: Launching
   const [launching, setLaunching] = useState(false);
 
+  // Brand Kit & Email Config readiness
+  const [brandKitReady, setBrandKitReady] = useState(false);
+  const [emailConfigReady, setEmailConfigReady] = useState(false);
+
   // Brand template
   const [brandTemplate, setBrandTemplate] = useState<StoreTemplateConfig | null>(null);
 
@@ -203,7 +207,7 @@ export default function OnboardingPage() {
         initPaymentMethods(userRegion);
       }
 
-      // Fetch brand kit for "My Brand" template
+      // Fetch brand kit for "My Brand" template + check readiness
       try {
         const brandRes = await fetch("/api/brand");
         const brandJson = await brandRes.json();
@@ -211,6 +215,11 @@ export default function OnboardingPage() {
           const bk = brandJson.data.brandKit;
           const bColors = typeof bk.colors === 'string' ? JSON.parse(bk.colors) : (bk.colors || {});
           const bFonts = typeof bk.fonts === 'string' ? JSON.parse(bk.fonts) : (bk.fonts || {});
+
+          // Brand kit is ready if it has name + logo + primary color + email
+          const hasBrand = !!(bk.name && (bk.logo || bk.iconLogo) && bColors.primary && bk.email);
+          setBrandKitReady(hasBrand);
+
           if (bColors.primary) {
             setBrandTemplate({
               id: "my-brand",
@@ -239,7 +248,20 @@ export default function OnboardingPage() {
           }
         }
       } catch {
-        // Brand kit fetch is optional
+        // Brand kit fetch is optional for template, but needed for launch gate
+      }
+
+      // Check email config readiness
+      try {
+        const emailRes = await fetch("/api/marketing-config");
+        const emailJson = await emailRes.json();
+        if (emailJson.success && emailJson.data?.config) {
+          const cfg = emailJson.data.config;
+          const hasEmail = !!(cfg.emailProvider && cfg.emailProvider !== "NONE" && cfg.emailVerified);
+          setEmailConfigReady(hasEmail);
+        }
+      } catch {
+        // Email config fetch is non-critical at init
       }
     } catch (error) {
       console.error("Failed to initialize onboarding:", error);
@@ -626,7 +648,7 @@ export default function OnboardingPage() {
         <div>
           <h1 className="text-xl font-bold">Set Up FlowShop</h1>
           <p className="text-sm text-muted-foreground">
-            Step {currentStep + 1} of 6 — {STEP_CONFIG[currentStep].label}
+            Step {currentStep + 1} of {STEP_CONFIG.length} — {STEP_CONFIG[currentStep].label}
           </p>
         </div>
       </div>
@@ -876,11 +898,103 @@ export default function OnboardingPage() {
               <div>
                 <h2 className="text-lg font-bold mb-1">Review & Launch</h2>
                 <p className="text-sm text-muted-foreground">
-                  Everything looks good? Launch your AI-powered store!
+                  Complete all requirements below, then launch your AI-powered store!
                 </p>
               </div>
 
+              {/* Launch Requirements */}
               <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Requirements</h3>
+
+                {/* Brand Identity Check */}
+                <div className={`flex items-center gap-3 p-3 rounded-lg border ${brandKitReady ? "border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20" : "border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20"}`}>
+                  {brandKitReady ? (
+                    <Check className="h-5 w-5 text-green-600 flex-shrink-0" />
+                  ) : (
+                    <X className="h-5 w-5 text-red-500 flex-shrink-0" />
+                  )}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Brand Identity</p>
+                    <p className="text-xs text-muted-foreground">
+                      {brandKitReady
+                        ? "Brand name, logo, colors, and business email configured"
+                        : "Set up your brand name, logo, colors, and business email in Brand Kit"}
+                    </p>
+                  </div>
+                  {!brandKitReady && (
+                    <a
+                      href="/brand"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-blue-600 hover:underline flex-shrink-0"
+                    >
+                      Set Up →
+                    </a>
+                  )}
+                </div>
+
+                {/* Email Config Check */}
+                <div className={`flex items-center gap-3 p-3 rounded-lg border ${emailConfigReady ? "border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20" : "border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20"}`}>
+                  {emailConfigReady ? (
+                    <Check className="h-5 w-5 text-green-600 flex-shrink-0" />
+                  ) : (
+                    <X className="h-5 w-5 text-red-500 flex-shrink-0" />
+                  )}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Email Configuration</p>
+                    <p className="text-xs text-muted-foreground">
+                      {emailConfigReady
+                        ? "Email provider configured and verified"
+                        : "Configure your email provider (SMTP, SendGrid, etc.) so order emails come from your domain"}
+                    </p>
+                  </div>
+                  {!emailConfigReady && (
+                    <a
+                      href="/settings/marketing"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-blue-600 hover:underline flex-shrink-0"
+                    >
+                      Set Up →
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Refresh readiness after setup */}
+              {(!brandKitReady || !emailConfigReady) && (
+                <button
+                  onClick={async () => {
+                    try {
+                      const [brandRes, emailRes] = await Promise.all([
+                        fetch("/api/brand"),
+                        fetch("/api/marketing-config"),
+                      ]);
+                      const brandJson = await brandRes.json();
+                      const emailJson = await emailRes.json();
+                      if (brandJson.success && brandJson.data.brandKit) {
+                        const bk = brandJson.data.brandKit;
+                        const bColors = typeof bk.colors === "string" ? JSON.parse(bk.colors) : (bk.colors || {});
+                        setBrandKitReady(!!(bk.name && (bk.logo || bk.iconLogo) && bColors.primary && bk.email));
+                      }
+                      if (emailJson.success && emailJson.data?.config) {
+                        const cfg = emailJson.data.config;
+                        setEmailConfigReady(!!(cfg.emailProvider && cfg.emailProvider !== "NONE" && cfg.emailVerified));
+                      }
+                      toast({ title: "Status refreshed" });
+                    } catch {
+                      toast({ title: "Failed to refresh", variant: "destructive" });
+                    }
+                  }}
+                  className="w-full text-sm text-blue-600 hover:underline font-medium py-2"
+                >
+                  I&apos;ve completed the setup — refresh status
+                </button>
+              )}
+
+              {/* Summary */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Store Summary</h3>
                 <SummaryRow icon={Globe} label="Region" value={regionName} />
                 <SummaryRow icon={CreditCard} label="Currency" value={currency} />
                 <SummaryRow icon={CreditCard} label="Payment Methods" value={`${enabledPaymentCount} enabled`} />
@@ -910,7 +1024,7 @@ export default function OnboardingPage() {
               {/* Launch Button */}
               <Button
                 onClick={handleLaunch}
-                disabled={launching || !storeName}
+                disabled={launching || !storeName || !brandKitReady || !emailConfigReady}
                 className="w-full h-12 text-base"
                 size="lg"
               >
@@ -918,6 +1032,11 @@ export default function OnboardingPage() {
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     Launching your store...
+                  </>
+                ) : !brandKitReady || !emailConfigReady ? (
+                  <>
+                    <X className="h-4 w-4 mr-2" />
+                    Complete Requirements Above to Launch
                   </>
                 ) : (
                   <>

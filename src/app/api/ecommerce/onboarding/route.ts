@@ -61,6 +61,40 @@ export async function POST(request: NextRequest) {
 
     const data = validation.data;
 
+    // ── Validate Brand Kit ──
+    const brandKit = await prisma.brandKit.findFirst({
+      where: { userId: session.userId },
+      select: { name: true, logo: true, iconLogo: true, colors: true, email: true },
+    });
+
+    if (!brandKit) {
+      return NextResponse.json(
+        { success: false, error: { code: "BRAND_KIT_REQUIRED", message: "Please set up your Brand Identity (name, logo, colors, email) before launching your store." } },
+        { status: 400 }
+      );
+    }
+
+    const bkColors = typeof brandKit.colors === "string" ? JSON.parse(brandKit.colors || "{}") : (brandKit.colors || {});
+    if (!brandKit.name || !(brandKit.logo || brandKit.iconLogo) || !bkColors.primary || !brandKit.email) {
+      return NextResponse.json(
+        { success: false, error: { code: "BRAND_KIT_INCOMPLETE", message: "Your Brand Kit is incomplete. Please add your brand name, logo, primary color, and business email." } },
+        { status: 400 }
+      );
+    }
+
+    // ── Validate Email Config ──
+    const marketingConfig = await prisma.marketingConfig.findFirst({
+      where: { userId: session.userId },
+      select: { emailProvider: true, emailVerified: true },
+    });
+
+    if (!marketingConfig || !marketingConfig.emailProvider || marketingConfig.emailProvider === "NONE" || !marketingConfig.emailVerified) {
+      return NextResponse.json(
+        { success: false, error: { code: "EMAIL_CONFIG_REQUIRED", message: "Please configure and verify your email provider (SMTP, SendGrid, etc.) before launching. This ensures order emails come from your domain, not ours." } },
+        { status: 400 }
+      );
+    }
+
     // Delete existing payment methods for this store (re-onboarding scenario)
     await prisma.storePaymentMethod.deleteMany({
       where: { storeId: store.id },
