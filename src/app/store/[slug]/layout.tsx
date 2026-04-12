@@ -89,8 +89,8 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
-              {/* Logo + store name */}
-              <a href={storeUrl} className="flex items-center gap-3">
+              {/* Logo only — no store name text when logo exists */}
+              <a href={storeUrl} className="flex items-center">
                 {logoUrl ? (
                   <Image
                     src={logoUrl}
@@ -107,12 +107,6 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                     <ShoppingBag className="h-5 w-5" />
                   </div>
                 )}
-                <span
-                  className="text-lg font-semibold hidden sm:block"
-                  style={{ fontFamily: "var(--store-font-heading), sans-serif" }}
-                >
-                  {store.name}
-                </span>
               </a>
 
               {/* Back to store link */}
