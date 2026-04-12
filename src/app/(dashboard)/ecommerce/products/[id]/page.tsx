@@ -84,7 +84,7 @@ export default function EditProductPage() {
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
   const [status, setStatus] = useState<"DRAFT" | "ACTIVE" | "ARCHIVED">("DRAFT");
-  const [tags, setTags] = useState<string[]>([]);
+  const [labels, setLabels] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
 
@@ -137,7 +137,7 @@ export default function EditProductPage() {
       setSeoTitle(p.seoTitle || "");
       setSeoDescription(p.seoDescription || "");
       setStatus(p.status);
-      setTags(p.tags || []);
+      setLabels(p.labels || []);
 
       if (p.variants && p.variants.length > 0) {
         setHasVariants(true);
@@ -489,7 +489,7 @@ export default function EditProductPage() {
         seoTitle: seoTitle || null,
         seoDescription: seoDescription || null,
         status,
-        tags,
+        labels,
       };
 
       if (hasVariants) {
@@ -1005,7 +1005,7 @@ export default function EditProductPage() {
         <p className="text-xs text-muted-foreground">Labels appear as badges on product cards and detail pages.</p>
         <div className="flex flex-wrap gap-2">
           {(["bestseller", "new", "limited", "sale", "discount", "featured"] as const).map((badge) => {
-            const active = tags.includes(badge);
+            const active = labels.includes(badge);
             const colors: Record<string, string> = {
               bestseller: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
               new: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700",
@@ -1018,7 +1018,7 @@ export default function EditProductPage() {
               <button
                 key={badge}
                 type="button"
-                onClick={() => setTags(active ? tags.filter((t) => t !== badge) : [...tags, badge])}
+                onClick={() => setLabels(active ? labels.filter((l) => l !== badge) : [...labels, badge])}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-all capitalize ${
                   active
                     ? colors[badge]
@@ -1030,9 +1030,45 @@ export default function EditProductPage() {
             );
           })}
         </div>
-        {comparePriceStr && (
+
+        {/* Discount / Sale: show compare price input inline */}
+        {(labels.includes("discount") || labels.includes("sale")) && (
+          <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-900/10 p-4 space-y-3">
+            <p className="text-sm font-medium text-foreground">
+              Set the original price to show the discount
+            </p>
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Original Price ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="e.g. 99.99"
+                  value={comparePriceStr}
+                  onChange={(e) => setComparePriceStr(e.target.value)}
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                />
+              </div>
+              {priceStr && comparePriceStr && Number(comparePriceStr) > Number(priceStr) && (
+                <div className="text-center pt-4">
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                    -{Math.round((1 - Number(priceStr) / Number(comparePriceStr)) * 100)}% OFF
+                  </span>
+                </div>
+              )}
+            </div>
+            {!comparePriceStr && (
+              <p className="text-xs text-orange-600 dark:text-orange-400">
+                Enter the original price above. The discount badge will show the percentage calculated from current price vs original price.
+              </p>
+            )}
+          </div>
+        )}
+
+        {comparePriceStr && !labels.includes("discount") && !labels.includes("sale") && (
           <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2">
-            💡 Compare price set — add the <strong>sale</strong> or <strong>discount</strong> label to show the crossed-out original price on product cards.
+            Compare price is set — add the <strong>sale</strong> or <strong>discount</strong> label to show the badge on product cards.
           </div>
         )}
       </div>

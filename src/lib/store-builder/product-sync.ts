@@ -81,6 +81,9 @@ async function syncProductsToFile(storeId: string, storeDir: string): Promise<vo
     let tags: string[] = [];
     try { tags = JSON.parse(p.tags || "[]"); } catch {}
 
+    let labels: string[] = [];
+    try { labels = JSON.parse(p.labels || "[]"); } catch {}
+
     return `  {
     id: "${p.id}",
     slug: "${p.slug}",
@@ -93,8 +96,8 @@ async function syncProductsToFile(storeId: string, storeDir: string): Promise<vo
     tags: ${JSON.stringify(tags)},
     images: ${JSON.stringify(images)},
     variants: [],
-    labels: [],
-    featured: false,
+    labels: ${JSON.stringify(labels)},
+    featured: ${labels.includes("featured")},
     inStock: true,
   }`;
   }).join(",\n");
