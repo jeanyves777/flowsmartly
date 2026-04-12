@@ -170,8 +170,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setMounted(true);
-    const stored = localStorage.getItem("site-theme") as Theme | null;
-    const resolved: Theme = stored === "dark" ? "dark" : "light";
+    // Use "theme" key — same as next-themes — so dark mode syncs with
+    // the main app's account/checkout pages on flowsmartly.com
+    const stored = localStorage.getItem("theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const resolved: Theme = stored === "dark" ? "dark" : stored === "light" ? "light" : prefersDark ? "dark" : "light";
     setTheme(resolved);
     if (resolved === "dark") {
       document.documentElement.classList.add("dark");
@@ -183,7 +186,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const toggleTheme = () => {
     const next = theme === "light" ? "dark" : "light";
     setTheme(next);
-    localStorage.setItem("site-theme", next);
+    localStorage.setItem("theme", next);
     if (next === "dark") {
       document.documentElement.classList.add("dark");
     } else {
