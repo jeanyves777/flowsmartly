@@ -48,17 +48,34 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
   const fontsUrl = getGoogleFontsUrl(theme);
   const cssVars = getThemeCSSVars(theme);
 
+  // Move background + text to a <style> block so html.dark can override them.
+  // Inline CSS vars have highest specificity and cannot be overridden by any rule.
+  const { "--store-background": storeBg, "--store-text": storeText, ...inlineCssVars } = cssVars as Record<string, string>;
+  const darkModeStyle = `
+    :root {
+      --store-background: ${storeBg};
+      --store-text: ${storeText};
+    }
+    html.dark {
+      --store-background: #0f172a;
+      --store-text: #f1f5f9;
+      --store-input-bg: #1e293b;
+    }
+  `;
+
   // Static store URL (where the storefront lives)
   const storeUrl = `/stores/${store.slug}`;
 
   return (
     <CartProvider storeSlug={store.slug} currency={store.currency}>
+      {/* Dark mode CSS vars — background/text must live here so html.dark can override them */}
+      <style dangerouslySetInnerHTML={{ __html: darkModeStyle }} />
       <div
         style={{
           fontFamily: "var(--store-font-body), sans-serif",
           color: "var(--store-text)",
           backgroundColor: "var(--store-background)",
-          ...cssVars,
+          ...inlineCssVars,
         } as React.CSSProperties}
         className="min-h-screen flex flex-col"
       >

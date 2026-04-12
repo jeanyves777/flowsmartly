@@ -94,7 +94,7 @@ export default function StoreRegisterPage() {
               className="w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2"
               style={{
                 borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)",
-                backgroundColor: "var(--store-background)",
+                backgroundColor: "var(--store-input-bg, var(--store-background))",
                 "--tw-ring-color": "var(--store-primary)",
               } as React.CSSProperties}
               autoComplete="name"
@@ -111,7 +111,7 @@ export default function StoreRegisterPage() {
               className="w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2"
               style={{
                 borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)",
-                backgroundColor: "var(--store-background)",
+                backgroundColor: "var(--store-input-bg, var(--store-background))",
                 "--tw-ring-color": "var(--store-primary)",
               } as React.CSSProperties}
               autoComplete="email"
@@ -129,7 +129,7 @@ export default function StoreRegisterPage() {
                 className="w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 pr-10"
                 style={{
                   borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)",
-                  backgroundColor: "var(--store-background)",
+                  backgroundColor: "var(--store-input-bg, var(--store-background))",
                   "--tw-ring-color": "var(--store-primary)",
                 } as React.CSSProperties}
                 autoComplete="new-password"
@@ -163,7 +163,7 @@ export default function StoreRegisterPage() {
               className="w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2"
               style={{
                 borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)",
-                backgroundColor: "var(--store-background)",
+                backgroundColor: "var(--store-input-bg, var(--store-background))",
                 "--tw-ring-color": "var(--store-primary)",
               } as React.CSSProperties}
               autoComplete="new-password"

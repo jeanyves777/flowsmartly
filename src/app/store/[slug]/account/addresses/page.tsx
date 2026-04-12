@@ -154,7 +154,7 @@ export default function StoreAddressesPage() {
 
   const inputStyle = {
     borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)",
-    backgroundColor: "var(--store-background)",
+    backgroundColor: "var(--store-input-bg, var(--store-background))",
     "--tw-ring-color": "var(--store-primary)",
   } as React.CSSProperties;
 
