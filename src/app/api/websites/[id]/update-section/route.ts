@@ -6,6 +6,26 @@ import { join } from "path";
 import { getSiteDir } from "@/lib/website/site-builder";
 import Anthropic from "@anthropic-ai/sdk";
 
+/** Parse @/components/* imports from a TSX file and return existing file paths */
+function resolveComponentImports(fileContent: string, siteDir: string): string[] {
+  const matches = fileContent.matchAll(/from\s+['"]@\/components\/([^'"]+)['"]/g);
+  const result: string[] = [];
+  for (const m of matches) {
+    const candidates = [
+      join(siteDir, "src", "components", m[1] + ".tsx"),
+      join(siteDir, "src", "components", m[1] + ".ts"),
+      join(siteDir, "src", "components", m[1], "index.tsx"),
+    ];
+    for (const c of candidates) {
+      if (existsSync(c) && !result.includes(c)) {
+        result.push(c);
+        break;
+      }
+    }
+  }
+  return result;
+}
+
 // Default credit cost — can be overridden by admin via SystemSetting key: "section_update_credit_cost"
 const DEFAULT_CREDIT_COST = 50;
 
@@ -160,9 +180,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: `Section "${section}" not found in this site` }, { status: 404 });
     }
 
+    // For homepage: also load component files it imports so Claude can edit them directly
+    const primaryFile = files[0];
+    const primaryContent = readFileSync(primaryFile, "utf-8");
+    const extraComponentFiles = section === "homepage"
+      ? resolveComponentImports(primaryContent, siteDir)
+      : [];
+
+    // All writable files: primary + imported components (homepage only)
+    const allWritableFiles = [primaryFile, ...extraComponentFiles];
+
     // Read the current section file(s)
-    const fileContents = files.map((f) => ({
+    const fileContents = allWritableFiles.map((f) => ({
       path: f.replace(siteDir, "").replace(/\\/g, "/"),
+      absPath: f,
       content: readFileSync(f, "utf-8"),
     }));
 
@@ -180,18 +211,31 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const systemPrompt = `You are a web developer updating a specific section of a Next.js website.
 
 RULES:
-- Return ONLY the updated file content, nothing else (no markdown, no explanations)
-- Keep the same imports, exports, and component structure
 - Use Tailwind CSS for styling (v4 syntax — no tailwind.config needed)
 - The site uses basePath "${basePath}" — all image src paths must start with "${basePath}/images/"
 - All internal href links must start with "${basePath}/"
-- Keep "use client" directive if present
+- Keep "use client" directive if present in each file
 - Keep existing functionality (animations, responsive design)
-- Support BOTH light and dark modes — use Tailwind "dark:" prefix for all color/background classes. NEVER hardcode dark-only backgrounds (bg-black, bg-neutral-900) without a light-mode default. Example: bg-white dark:bg-neutral-950
-- Make the requested change while preserving everything else
+- Support BOTH light and dark modes — use Tailwind "dark:" prefix for all color/background classes
 - Use the brand data from data.ts for company info, colors, etc.
 - If the section has a slideshow/carousel with images, preserve all image src paths exactly as they are
-- For slideshows: render ALL slides with z-0 (NEVER negative z-index), use opacity-100/opacity-0 + transition-opacity, first slide must be visible without JS
+- For slideshows: render ALL slides with z-0 (NEVER negative z-index), use opacity-100/opacity-0 + transition-opacity
+
+CRITICAL — IMPORT RULES:
+- NEVER add import statements for @/components/* files that are not already in the provided files
+- NEVER create new component names that require new files (e.g. do NOT import ServicesWithImages if it doesn't exist)
+- To add images or change layouts for a section, MODIFY THE EXISTING COMPONENT FILE directly (e.g. edit Services.tsx to add images, do not create ServicesWithImages.tsx)
+- Only use imports that already exist in the provided files
+
+RESPONSE FORMAT — you may update one or more of the provided files:
+- If updating a SINGLE file, return just the file content (no markdown fences)
+- If updating MULTIPLE files, wrap each one like this (no markdown fences inside):
+<file path="/src/components/Services.tsx">
+...updated content...
+</file>
+<file path="/src/app/page.tsx">
+...updated content...
+</file>
 
 SITE DATA (data.ts) for context:
 \`\`\`typescript
@@ -200,7 +244,7 @@ ${dataContent.substring(0, 3000)}
 
     const userMessage = fileContents.map((f) =>
       `FILE: ${f.path}\n\`\`\`tsx\n${f.content}\n\`\`\``
-    ).join("\n\n") + `\n\nUSER REQUEST: ${prompt}\n\nReturn the updated content for ${fileContents[0].path}. Return ONLY the code, no markdown fences.`;
+    ).join("\n\n") + `\n\nUSER REQUEST: ${prompt}\n\nUpdate the relevant file(s) listed above. Do NOT create new component imports. Return ONLY code using the format described in the system prompt.`;
 
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
@@ -209,27 +253,50 @@ ${dataContent.substring(0, 3000)}
       messages: [{ role: "user", content: userMessage }],
     });
 
-    let updatedContent = response.content
+    const rawResponse = response.content
       .filter((c) => c.type === "text")
       .map((c) => c.type === "text" ? c.text : "")
       .join("")
-      .replace(/^```(?:tsx|typescript|ts|javascript|jsx)?\n?/, "")
-      .replace(/\n?```$/, "")
-      .replace(/^(?:javascript|tsx?|jsx)\s*\n/i, "")
       .trim();
 
-    // Preserve 'use client' directive
-    const originalContent = fileContents[0].content;
-    if (originalContent.includes("'use client'") && !updatedContent.startsWith("'use client'") && !updatedContent.startsWith('"use client"')) {
-      updatedContent = "'use client'\n\n" + updatedContent;
-    }
+    // Parse multi-file response format: <file path="...">...</file>
+    const multiFileMatches = [...rawResponse.matchAll(/<file path="([^"]+)">([\s\S]*?)<\/file>/g)];
 
-    if (!updatedContent || updatedContent.length < 50) {
-      return NextResponse.json({ error: "AI returned empty or invalid content" }, { status: 500 });
-    }
+    if (multiFileMatches.length > 0) {
+      // Multi-file response: write each matched file
+      let writtenCount = 0;
+      for (const [, relPath, content] of multiFileMatches) {
+        const cleanedPath = relPath.replace(/\\/g, "/").replace(/^\//, "");
+        const target = fileContents.find((f) =>
+          f.path.replace(/\\/g, "/").replace(/^\//, "") === cleanedPath
+        );
+        if (target && content.trim().length > 50) {
+          writeFileSync(target.absPath, content.trim(), "utf-8");
+          writtenCount++;
+        }
+      }
+      if (writtenCount === 0) {
+        return NextResponse.json({ error: "AI returned file paths that don't match any editable files" }, { status: 500 });
+      }
+    } else {
+      // Single-file response: write to primary file
+      let updatedContent = rawResponse
+        .replace(/^```(?:tsx|typescript|ts|javascript|jsx)?\n?/, "")
+        .replace(/\n?```$/, "")
+        .replace(/^(?:javascript|tsx?|jsx)\s*\n/i, "")
+        .trim();
 
-    // Write the updated file
-    writeFileSync(files[0], updatedContent, "utf-8");
+      // Preserve 'use client' directive
+      if (primaryContent.includes("'use client'") && !updatedContent.startsWith("'use client'") && !updatedContent.startsWith('"use client"')) {
+        updatedContent = "'use client'\n\n" + updatedContent;
+      }
+
+      if (!updatedContent || updatedContent.length < 50) {
+        return NextResponse.json({ error: "AI returned empty or invalid content" }, { status: 500 });
+      }
+
+      writeFileSync(primaryFile, updatedContent, "utf-8");
+    }
 
     // Deduct credits
     await prisma.user.update({
