@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Turnstile } from "@marsidev/react-turnstile";
 
 export default function StoreLoginPage() {
-  const router = useRouter();
   const { slug } = useParams<{ slug: string }>();
 
   const [email, setEmail] = useState("");
@@ -45,7 +44,7 @@ export default function StoreLoginPage() {
         return;
       }
 
-      router.push(`/store/${slug}/account`);
+      window.location.href = `/store/${slug}/account`;
     } catch {
       setError("Something went wrong. Please try again.");
       setLoading(false);
@@ -154,7 +153,7 @@ export default function StoreLoginPage() {
         </div>
 
         <a
-          href={`/api/store/${slug}/auth/google`}
+          href={`/api/store-auth/google?storeSlug=${slug}&callbackUrl=/store/${slug}/account`}
           className="flex items-center justify-center gap-2 w-full rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors hover:opacity-80"
           style={{ borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)" }}
         >

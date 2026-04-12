@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Turnstile } from "@marsidev/react-turnstile";
 
 export default function StoreRegisterPage() {
-  const router = useRouter();
   const { slug } = useParams<{ slug: string }>();
 
   const [name, setName] = useState("");
@@ -55,7 +54,7 @@ export default function StoreRegisterPage() {
         return;
       }
 
-      router.push(`/store/${slug}/account`);
+      window.location.href = `/store/${slug}/account`;
     } catch {
       setError("Something went wrong. Please try again.");
       setLoading(false);

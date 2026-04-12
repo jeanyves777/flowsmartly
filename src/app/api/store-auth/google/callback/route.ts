@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { createCustomerToken, setCustomerCookie } from "@/lib/store/customer-auth";
+import { createCustomerToken } from "@/lib/store/customer-auth";
 import crypto from "crypto";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com";
@@ -80,20 +80,30 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Issue JWT session cookie
+    // Issue JWT session cookie — set directly on the redirect response (not via next/headers)
+    // so the Set-Cookie header is guaranteed to be included in the 302 response.
     const token = await createCustomerToken(customer.id, store.id, customer.email);
-    await setCustomerCookie(token);
-
-    return clearAndRedirect(callbackUrl);
+    return clearAndRedirect(callbackUrl, token);
   } catch (err) {
     console.error("[store-auth/google/callback]", err);
     return clearAndRedirect(`${callbackUrl}?auth_error=oauth_failed`);
   }
 }
 
-function clearAndRedirect(url: string) {
+const SESSION_DURATION = 30 * 24 * 60 * 60;
+
+function clearAndRedirect(url: string, sessionToken?: string) {
   const res = NextResponse.redirect(url);
   res.cookies.delete("store_oauth_callback");
   res.cookies.delete("store_oauth_slug");
+  if (sessionToken) {
+    res.cookies.set("sc_session", sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: SESSION_DURATION,
+    });
+  }
   return res;
 }
