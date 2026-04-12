@@ -99,6 +99,24 @@ export async function GET(request: NextRequest) {
       where.name = { contains: search, mode: "insensitive" };
     }
 
+    // Label filter — matches products whose JSON labels column contains the value
+    const label = searchParams.get("label");
+    if (label) {
+      where.labels = { contains: label };
+    }
+
+    // Inventory filter
+    const inventory = searchParams.get("inventory");
+    if (inventory === "out_of_stock") {
+      where.trackInventory = true;
+      where.quantity = 0;
+    } else if (inventory === "in_stock") {
+      where.trackInventory = true;
+      where.quantity = { gt: 0 };
+    } else if (inventory === "has_discount") {
+      where.comparePriceCents = { not: null };
+    }
+
     // Build orderBy
     let orderBy: Record<string, string> = { createdAt: "desc" };
     switch (sort) {
@@ -110,6 +128,9 @@ export async function GET(request: NextRequest) {
         break;
       case "name_asc":
         orderBy = { name: "asc" };
+        break;
+      case "quantity_asc":
+        orderBy = { quantity: "asc" };
         break;
       case "createdAt_desc":
       default:

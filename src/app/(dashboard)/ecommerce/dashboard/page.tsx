@@ -18,6 +18,10 @@ import {
   Loader2,
   Flag,
   Check,
+  AlertTriangle,
+  Star,
+  RotateCcw,
+  ShieldAlert,
 } from "lucide-react";
 import { ORDER_STATUSES } from "@/lib/constants/ecommerce";
 import { formatPrice } from "@/lib/store/currency";
@@ -51,23 +55,35 @@ interface Order {
   createdAt: string;
 }
 
+interface StoreAlerts {
+  lowStock: { count: number; outOfStock: number; products: { name: string; quantity: number }[] };
+  newOrders: number;
+  unfulfilled: number;
+  returnRequests: number;
+  compliance: { status: string; warningCount: number; lastReason: string | null; suspendedReason: string | null };
+  feedback: { averageRating: number | null; totalReviews: number };
+}
+
 export default function EcommerceDashboardPage() {
   const [store, setStore] = useState<Store | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
+  const [alerts, setAlerts] = useState<StoreAlerts | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
-        const [storeRes, ordersRes] = await Promise.all([
+        const [storeRes, ordersRes, alertsRes] = await Promise.all([
           fetch("/api/ecommerce/store"),
           fetch("/api/ecommerce/orders?limit=10"),
+          fetch("/api/ecommerce/store-alerts"),
         ]);
 
         const storeData = await storeRes.json();
         const ordersData = await ordersRes.json();
+        const alertsData = await alertsRes.json();
 
         if (storeData.success && storeData.data?.store) {
           setStore(storeData.data.store);
@@ -78,6 +94,10 @@ export default function EcommerceDashboardPage() {
         if (ordersData.success && ordersData.data) {
           setOrders(ordersData.data.orders || []);
           setPendingCount(ordersData.data.stats?.pendingCount || 0);
+        }
+
+        if (alertsData.success && alertsData.data) {
+          setAlerts(alertsData.data);
         }
       } catch {
         setError("Failed to load store data.");
@@ -247,6 +267,123 @@ export default function EcommerceDashboardPage() {
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
+        </div>
+      )}
+
+      {/* Store Health Alerts */}
+      {alerts && (
+        <div className="space-y-3">
+          {/* Compliance: Suspended */}
+          {alerts.compliance.status === "suspended" && (
+            <div className="rounded-xl border-2 border-red-400 dark:border-red-700 bg-red-50 dark:bg-red-950/30 p-5">
+              <div className="flex items-start gap-3">
+                <ShieldAlert className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-red-800 dark:text-red-300">Store Suspended</h3>
+                  <p className="text-sm text-red-700 dark:text-red-400 mt-1">
+                    Your store has been suspended: <strong>{alerts.compliance.suspendedReason}</strong>. Please resolve the issue and contact support.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Compliance: Warning */}
+          {alerts.compliance.status === "warning" && (
+            <div className="rounded-xl border-2 border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-950/30 p-5">
+              <div className="flex items-start gap-3">
+                <ShieldAlert className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-orange-800 dark:text-orange-300">
+                    Compliance Warning ({alerts.compliance.warningCount}/2)
+                  </h3>
+                  <p className="text-sm text-orange-700 dark:text-orange-400 mt-1">
+                    {alerts.compliance.lastReason}. Please resolve this to avoid suspension.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Low Stock / Out of Stock */}
+          {alerts.lowStock.count > 0 && (
+            <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                    {alerts.lowStock.outOfStock > 0
+                      ? `${alerts.lowStock.outOfStock} product${alerts.lowStock.outOfStock > 1 ? "s" : ""} out of stock`
+                      : `${alerts.lowStock.count} product${alerts.lowStock.count > 1 ? "s" : ""} low on stock`}
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                    {alerts.lowStock.products.map((p) => `${p.name} (${p.quantity})`).join(", ")}
+                  </p>
+                </div>
+                <Link href="/ecommerce/products" className="text-xs text-amber-700 hover:underline font-medium flex-shrink-0">
+                  View
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Unfulfilled Orders */}
+          {alerts.unfulfilled > 0 && (
+            <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 p-4">
+              <div className="flex items-center gap-3">
+                <Clock className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-300 flex-1">
+                  {alerts.unfulfilled} unfulfilled order{alerts.unfulfilled > 1 ? "s" : ""} waiting to be processed
+                </p>
+                <Link href="/ecommerce/orders" className="text-xs text-blue-700 hover:underline font-medium flex-shrink-0">
+                  View Orders
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Return Requests */}
+          {alerts.returnRequests > 0 && (
+            <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20 p-4">
+              <div className="flex items-center gap-3">
+                <RotateCcw className="w-5 h-5 text-orange-600 flex-shrink-0" />
+                <p className="text-sm font-medium text-orange-800 dark:text-orange-300 flex-1">
+                  {alerts.returnRequests} return request{alerts.returnRequests > 1 ? "s" : ""} pending review
+                </p>
+                <Link href="/ecommerce/orders" className="text-xs text-orange-700 hover:underline font-medium flex-shrink-0">
+                  View
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* New Orders */}
+          {alerts.newOrders > 0 && (
+            <div className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20 p-4">
+              <div className="flex items-center gap-3">
+                <ShoppingCart className="w-5 h-5 text-green-600 flex-shrink-0" />
+                <p className="text-sm font-medium text-green-800 dark:text-green-300 flex-1">
+                  {alerts.newOrders} new order{alerts.newOrders > 1 ? "s" : ""} in the last 24 hours
+                </p>
+                <Link href="/ecommerce/orders" className="text-xs text-green-700 hover:underline font-medium flex-shrink-0">
+                  View
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Store Rating */}
+          {alerts.feedback.totalReviews > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center gap-3">
+                <Star className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+                <p className="text-sm text-foreground flex-1">
+                  Store Rating: <strong>{alerts.feedback.averageRating}/5</strong>
+                  <span className="text-muted-foreground ml-1">({alerts.feedback.totalReviews} review{alerts.feedback.totalReviews > 1 ? "s" : ""})</span>
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

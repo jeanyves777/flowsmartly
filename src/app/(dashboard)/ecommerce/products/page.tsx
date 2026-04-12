@@ -40,6 +40,7 @@ interface ProductItem {
   comparePriceCents: number | null;
   status: string;
   images: ProductImage[];
+  labels: string[];
   trackInventory: boolean;
   quantity: number;
   lowStockThreshold: number;
@@ -82,6 +83,8 @@ export default function ProductsListPage() {
   // Filters
   const [statusFilter, setStatusFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [labelFilter, setLabelFilter] = useState("");
+  const [inventoryFilter, setInventoryFilter] = useState("");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [sortBy, setSortBy] = useState("createdAt_desc");
@@ -135,6 +138,8 @@ export default function ProductsListPage() {
       params.set("sort", sortBy);
       if (statusFilter) params.set("status", statusFilter);
       if (categoryFilter) params.set("categoryId", categoryFilter);
+      if (labelFilter) params.set("label", labelFilter);
+      if (inventoryFilter) params.set("inventory", inventoryFilter);
       if (search) params.set("search", search);
 
       const res = await fetch(`/api/ecommerce/products?${params.toString()}`);
@@ -152,7 +157,7 @@ export default function ProductsListPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, categoryFilter, search, sortBy, toast]);
+  }, [page, statusFilter, categoryFilter, labelFilter, inventoryFilter, search, sortBy, toast]);
 
   // Fetch categories for filter dropdown
   const fetchCategories = useCallback(async () => {
@@ -298,44 +303,107 @@ export default function ProductsListPage() {
 
         {/* Expanded filters */}
         {showFilters && (
-          <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-border">
-            {/* Status */}
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              className="px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
-            >
-              <option value="">All Statuses</option>
-              <option value="ACTIVE">Active</option>
-              <option value="DRAFT">Draft</option>
-              <option value="ARCHIVED">Archived</option>
-            </select>
+          <div className="flex flex-col gap-3 pt-2 border-t border-border">
+            <div className="flex flex-wrap gap-3">
+              {/* Status */}
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                className="px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+              >
+                <option value="">All Statuses</option>
+                <option value="ACTIVE">Active</option>
+                <option value="DRAFT">Draft</option>
+                <option value="ARCHIVED">Archived</option>
+              </select>
 
-            {/* Category */}
-            <select
-              value={categoryFilter}
-              onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-              className="px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
-            >
-              <option value="">All Categories</option>
-              {flatCategories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {"  ".repeat(cat.depth)}{cat.name}
-                </option>
-              ))}
-            </select>
+              {/* Category */}
+              <select
+                value={categoryFilter}
+                onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+                className="px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+              >
+                <option value="">All Categories</option>
+                {flatCategories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {"  ".repeat(cat.depth)}{cat.name}
+                  </option>
+                ))}
+              </select>
 
-            {/* Sort */}
-            <select
-              value={sortBy}
-              onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
-              className="px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
-            >
-              <option value="createdAt_desc">Newest First</option>
-              <option value="name_asc">Name A-Z</option>
-              <option value="priceCents_asc">Price: Low to High</option>
-              <option value="priceCents_desc">Price: High to Low</option>
-            </select>
+              {/* Label */}
+              <select
+                value={labelFilter}
+                onChange={(e) => { setLabelFilter(e.target.value); setPage(1); }}
+                className="px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+              >
+                <option value="">All Labels</option>
+                <option value="new">New</option>
+                <option value="sale">Sale</option>
+                <option value="discount">Discount</option>
+                <option value="bestseller">Bestseller</option>
+                <option value="limited">Limited</option>
+                <option value="featured">Featured</option>
+              </select>
+
+              {/* Inventory */}
+              <select
+                value={inventoryFilter}
+                onChange={(e) => { setInventoryFilter(e.target.value); setPage(1); }}
+                className="px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+              >
+                <option value="">All Inventory</option>
+                <option value="in_stock">In Stock</option>
+                <option value="out_of_stock">Out of Stock</option>
+                <option value="has_discount">Has Discount</option>
+              </select>
+
+              {/* Sort */}
+              <select
+                value={sortBy}
+                onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
+                className="px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+              >
+                <option value="createdAt_desc">Newest First</option>
+                <option value="name_asc">Name A-Z</option>
+                <option value="priceCents_asc">Price: Low to High</option>
+                <option value="priceCents_desc">Price: High to Low</option>
+                <option value="quantity_asc">Stock: Low to High</option>
+              </select>
+            </div>
+
+            {/* Active filter chips */}
+            {(statusFilter || categoryFilter || labelFilter || inventoryFilter || search) && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">Active:</span>
+                {statusFilter && (
+                  <button onClick={() => { setStatusFilter(""); setPage(1); }} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 text-xs font-medium hover:opacity-80">
+                    {statusFilter} ×
+                  </button>
+                )}
+                {labelFilter && (
+                  <button onClick={() => { setLabelFilter(""); setPage(1); }} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 text-xs font-medium capitalize hover:opacity-80">
+                    {labelFilter} ×
+                  </button>
+                )}
+                {inventoryFilter && (
+                  <button onClick={() => { setInventoryFilter(""); setPage(1); }} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 text-xs font-medium hover:opacity-80">
+                    {inventoryFilter.replace("_", " ")} ×
+                  </button>
+                )}
+                {search && (
+                  <button onClick={() => { setSearch(""); setSearchInput(""); setPage(1); }} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-muted text-foreground text-xs font-medium hover:opacity-80">
+                    &quot;{search}&quot; ×
+                  </button>
+                )}
+                <button
+                  onClick={() => { setStatusFilter(""); setCategoryFilter(""); setLabelFilter(""); setInventoryFilter(""); setSearch(""); setSearchInput(""); setPage(1); }}
+                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -394,6 +462,15 @@ export default function ProductsListPage() {
                             )}
                             {product.variantCount > 0 && (
                               <p className="text-xs text-muted-foreground">{product.variantCount} variant{product.variantCount !== 1 ? "s" : ""}</p>
+                            )}
+                            {product.labels && product.labels.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {product.labels.map((l: string) => (
+                                  <span key={l} className="px-1.5 py-0.5 rounded text-[10px] font-medium capitalize bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+                                    {l}
+                                  </span>
+                                ))}
+                              </div>
                             )}
                           </div>
                         </div>

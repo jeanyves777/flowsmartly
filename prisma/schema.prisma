@@ -3206,6 +3206,17 @@ model Store {
   isActive               Boolean   @default(false)
   setupComplete          Boolean   @default(false)
 
+  // Compliance / Store Health
+  warningCount           Int       @default(0)
+  complianceStatus       String    @default("good")  // good, warning, suspended
+  lastWarningAt          DateTime?
+  lastWarningReason      String?
+  suspendedAt            DateTime?
+  suspendedReason        String?
+
+  // Low stock alert tracking
+  lastLowStockAlertAt    DateTime?
+
   // Denormalized stats
   productCount           Int       @default(0)
   orderCount             Int       @default(0)
@@ -3227,10 +3238,48 @@ model Store {
   marketResearchReports  MarketResearchReport[]
   productFeeds           ProductFeed[]
   customers              StoreCustomer[]
+  warnings               StoreWarning[]
+  feedbacks              OrderFeedback[]
 
   @@index([slug])
   @@index([userId])
   @@index([isActive])
+}
+
+// Store compliance warnings issued by FlowSmartly admin
+model StoreWarning {
+  id          String   @id @default(cuid())
+  storeId     String
+  reason      String   // e.g. "Suspected scam activity", "Customer complaints"
+  details     String?  // Detailed explanation
+  severity    String   @default("warning") // warning, final_warning, suspension
+  issuedBy    String?  // Admin user name or "system"
+  resolvedAt  DateTime?
+  resolvedBy  String?
+  resolution  String?  // How the issue was resolved
+  createdAt   DateTime @default(now())
+
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+}
+
+// Customer feedback after order delivery / service completion
+model OrderFeedback {
+  id            String   @id @default(cuid())
+  orderId       String   @unique
+  storeId       String
+  customerEmail String
+  customerName  String
+  rating        Int      // 1-5 stars
+  comment       String?
+  createdAt     DateTime @default(now())
+
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([orderId])
 }
 
 model Product {
@@ -3404,6 +3453,7 @@ model Order {
   // Relations
   store               Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
   deliveryAssignment  DeliveryAssignment?
+  feedback            OrderFeedback?
 
   @@index([storeId])
   @@index([storeId, status])
