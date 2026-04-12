@@ -435,18 +435,26 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - DO NOT use a full /account/login page as the entry point
 - Instead: clicking Account icon in Header/MobileBottomNav opens an AccountModal component
 - AccountModal is a slide-in drawer from RIGHT (like cart), with:
-  - "Sign In" heading
-  - Email + Password fields
-  - Cloudflare Turnstile widget: import { Turnstile } from "@marsidev/react-turnstile"; add turnstileToken state; render <Turnstile siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ""} onSuccess={setTurnstileToken} onError={() => setTurnstileToken("")} onExpire={() => setTurnstileToken("")} />
-  - "Log In" button → POST /api/auth/login (with turnstileToken in body); disabled={loading || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
-  - Divider with "or" text
-  - "No account yet? Create An Account" → shows registration form in same drawer (registration form also has Turnstile, same disabled pattern)
-  - Google Sign In button: disabled or onClick-blocked when Turnstile not yet validated (same pattern as login button)
-  - After login success: close drawer, refresh page state
-- ANTI-SPAM RULE: ALL buttons AND social login in the modal are disabled/blocked until Turnstile validates — no exceptions
-- If user IS logged in: clicking Account goes directly to /account (full page)
+  - Tab switcher: "Sign In" / "Sign Up"
+  - Email + Password fields (with show/hide toggle)
+  - Google Sign In button above the divider
+  - Cloudflare Turnstile (MANDATORY — loaded via CDN, NO npm package):
+    Load script in useEffect: script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+    Render widget: window.turnstile.render(divRef.current, { sitekey: "0x4AAAAAAC121vHcMbDFP4WY", theme: "auto", callback: token => setTurnstileToken(token), "expired-callback": () => setTurnstileToken(""), "error-callback": () => setTurnstileToken("") })
+    Re-render the widget on tab switch; reset on error.
+  - ANTI-SPAM RULE: ALL buttons (Sign In, Create Account, Google) are disabled/blocked until turnstileToken is non-empty — no exceptions
+  - isReady = !!turnstileToken; button disabled={loading || !isReady}; Google <a> gets href={isReady ? url : undefined} onClick={(e) => { if (!isReady) e.preventDefault(); }}
+- REAL AUTH (MANDATORY — NOT localStorage):
+  Extract storeSlug from storeInfo.logoUrl: const STORE_SLUG = storeInfo.logoUrl.match(/\\/stores\\/([^/]+)\\//)?.[1] || "";
+  const API_BASE = "https://flowsmartly.com";
+  Login: POST to API_BASE + "/api/store/" + STORE_SLUG + "/auth/login" with credentials: "include"
+  Register: POST to API_BASE + "/api/store/" + STORE_SLUG + "/auth/register" with credentials: "include"
+  Logout: POST to API_BASE + "/api/store/" + STORE_SLUG + "/auth/logout" with credentials: "include"
+  Check session: GET API_BASE + "/api/store/" + STORE_SLUG + "/account/profile" with credentials: "include" (on mount)
+  Google OAuth: href = API_BASE + "/api/store-auth/google?storeSlug=" + STORE_SLUG + "&callbackUrl=" + encodeURIComponent(window.location.href)
+- If user IS logged in: show logged-in view with links to /store/SLUG/account/orders, /addresses, /settings on flowsmartly.com
 - AccountModal context provider: wrap in layout.tsx — provides openAccountModal() function
-- Header and MobileBottomNav call openAccountModal() if !user, else navigate to /account
+- Header and MobileBottomNav call openAccountModal() if !user, else navigate to account page
 
 **MobileBottomNav (5 items — MANDATORY):**
 - Fixed bottom, md:hidden
