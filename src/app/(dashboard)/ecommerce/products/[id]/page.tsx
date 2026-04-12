@@ -1031,29 +1031,52 @@ export default function EditProductPage() {
           })}
         </div>
 
-        {/* Discount / Sale: show calculated discount or prompt to set compare price */}
+        {/* Discount / Sale: percentage input → auto-calculates compare price */}
         {(labels.includes("discount") || labels.includes("sale")) && (
-          priceStr && comparePriceStr && Number(comparePriceStr) > Number(priceStr) ? (
-            <div className="flex items-center gap-3 rounded-lg border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10 p-4">
-              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                -{Math.round((1 - Number(priceStr) / Number(comparePriceStr)) * 100)}% OFF
-              </span>
-              <span className="text-sm text-muted-foreground">
-                <span className="line-through">${comparePriceStr}</span> → <span className="font-semibold text-foreground">${priceStr}</span>
-              </span>
+          <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-900/10 p-4 space-y-3">
+            <p className="text-sm font-medium text-foreground">Discount Percentage</p>
+            <div className="flex items-center gap-3">
+              <div className="relative w-32">
+                <input
+                  type="number"
+                  min="1"
+                  max="99"
+                  step="1"
+                  placeholder="e.g. 20"
+                  value={
+                    priceStr && comparePriceStr && Number(comparePriceStr) > Number(priceStr)
+                      ? Math.round((1 - Number(priceStr) / Number(comparePriceStr)) * 100)
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const pct = Number(e.target.value);
+                    if (pct > 0 && pct < 100 && priceStr) {
+                      const original = (Number(priceStr) / (1 - pct / 100)).toFixed(2);
+                      setComparePriceStr(original);
+                    } else if (!e.target.value) {
+                      setComparePriceStr("");
+                    }
+                  }}
+                  className="w-full px-3 py-2 pr-8 border border-border rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">%</span>
+              </div>
+              {priceStr && comparePriceStr && Number(comparePriceStr) > Number(priceStr) && (
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                    -{Math.round((1 - Number(priceStr) / Number(comparePriceStr)) * 100)}% OFF
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    <span className="line-through">${comparePriceStr}</span> → <span className="font-semibold text-foreground">${priceStr}</span>
+                  </span>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-900/10 p-4">
-              <p className="text-sm text-orange-600 dark:text-orange-400">
-                Set the <strong>Compare at Price</strong> in the Pricing section above to show the discount percentage on product cards.
+            {!priceStr && (
+              <p className="text-xs text-orange-600 dark:text-orange-400">
+                Set the product price first to calculate the discount.
               </p>
-            </div>
-          )
-        )}
-
-        {comparePriceStr && !labels.includes("discount") && !labels.includes("sale") && (
-          <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2">
-            Compare price is set — add the <strong>sale</strong> or <strong>discount</strong> label to show the badge on product cards.
+            )}
           </div>
         )}
       </div>
