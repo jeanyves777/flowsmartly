@@ -288,7 +288,12 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 
 ### Quality Standard:
 - Every component MUST use Framer Motion (whileInView, AnimatePresence, motion.div)
-- Every component MUST have dark: Tailwind variants
+- Every component MUST have dark: Tailwind variants — NO exceptions:
+  - Backgrounds: bg-white → bg-white dark:bg-gray-900 (panels), bg-gray-50 → bg-gray-50 dark:bg-gray-800 (sections)
+  - Inputs/textareas: always include dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder-gray-500
+  - Text: text-gray-900 → dark:text-white, text-gray-600 → dark:text-gray-300, text-gray-400 → dark:text-gray-500
+  - Borders: border-gray-200 → dark:border-gray-700, divide-gray-200 → dark:divide-gray-700
+  - Cards/drawers: bg-white dark:bg-gray-900 or bg-gray-50 dark:bg-gray-800
 - Import data from '@/lib/data' and products from '@/lib/products' — NEVER hardcode content
 - Use brand colors from the brand identity throughout
 
@@ -438,6 +443,13 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
   - Tab switcher: "Sign In" / "Sign Up"
   - Email + Password fields (with show/hide toggle)
   - Google Sign In button above the divider
+  - DARK MODE (MANDATORY — all AccountModal elements MUST support dark mode):
+    Panel: bg-white dark:bg-gray-900
+    Inputs: border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500
+    Labels: text-gray-700 dark:text-gray-300
+    Secondary text: text-gray-500 dark:text-gray-400
+    Google button border: border-gray-200 dark:border-gray-700
+    Overlay backdrop: bg-black/50
   - Cloudflare Turnstile (MANDATORY — loaded via CDN, NO npm package):
     Load script in useEffect: script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
     Render widget: window.turnstile.render(divRef.current, { sitekey: "0x4AAAAAAC121vHcMbDFP4WY", theme: "auto", callback: token => setTurnstileToken(token), "expired-callback": () => setTurnstileToken(""), "error-callback": () => setTurnstileToken("") })
@@ -475,6 +487,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 7. ✅ MobileBottomNav exists with 5 items including Filters and My Account
 8. ✅ AccountModal drawer exists for sign-in (NOT a plain redirect to /account/login)
 9. ✅ ThemeToggle in Header — dark/light mode switch works
+9b. ✅ ALL components use dark: Tailwind variants — bg-white components have dark:bg-gray-900, all inputs have dark:bg-gray-800 dark:border-gray-700 dark:text-white, all text has dark: counterparts
 10. ✅ Footer sticks to bottom (min-h-screen flex flex-col on root layout, flex-1 on main)
 11. ✅ All internal links use Next.js <Link> component — no <a href="..."> for internal pages
 12. ✅ CartDrawer slides from right, AccountModal slides from right, FilterDrawer slides from left
