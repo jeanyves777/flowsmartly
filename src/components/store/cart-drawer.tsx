@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { X, Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
+import { X, Minus, Plus, Trash2, ShoppingBag, Bookmark } from "lucide-react";
 import { useCart } from "./cart-provider";
 import { formatCents } from "@/lib/store/cart";
 
@@ -21,6 +21,21 @@ export function CartDrawer() {
   } = useCart();
 
   const drawerRef = useRef<HTMLDivElement>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  const handleSaveForLater = async (productId: string, variantId?: string) => {
+    setSavingId(productId);
+    try {
+      await fetch(`/api/store/${storeSlug}/account/cart/save-for-later`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId, variantId }),
+      });
+      removeItem(productId, variantId);
+    } catch { /* silent */ } finally {
+      setSavingId(null);
+    }
+  };
 
   // Close on Escape
   useEffect(() => {
@@ -116,7 +131,7 @@ export function CartDrawer() {
                     </p>
 
                     {/* Quantity Controls */}
-                    <div className="flex items-center gap-2 mt-2">
+                    <div className="flex items-center gap-1 mt-2">
                       <button
                         onClick={() =>
                           updateQuantity(item.productId, item.variantId, item.quantity - 1)
@@ -137,12 +152,24 @@ export function CartDrawer() {
                       >
                         <Plus className="h-3 w-3" />
                       </button>
+                      <div className="ml-auto flex items-center gap-1">
                       <button
                         onClick={() => removeItem(item.productId, item.variantId)}
-                        className="ml-auto p-1 text-gray-400 hover:text-red-500 transition-colors"
+                        className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                        title="Remove"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
+                      <button
+                        onClick={() => handleSaveForLater(item.productId, item.variantId)}
+                        disabled={savingId === item.productId}
+                        className="p-1 text-gray-400 hover:text-blue-500 transition-colors"
+                        title="Save for later"
+                      >
+                        <Bookmark className="h-4 w-4" />
+                      </button>
+                      </div>
+                    </div>
                     </div>
                   </div>
                 </div>

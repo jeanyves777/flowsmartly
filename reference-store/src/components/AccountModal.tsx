@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Mail, Lock, User, Eye, EyeOff, AlertCircle,
-  ArrowRight, LogOut, Package, MapPin, Settings, CheckCircle2, Shield
+  ArrowRight, LogOut, Package, MapPin, Settings, CheckCircle2, Shield, Heart, Bookmark
 } from "lucide-react";
 import { storeInfo } from "@/lib/data";
 
@@ -33,7 +33,53 @@ declare global {
       reset: (widgetId: string) => void;
       remove: (widgetId: string) => void;
     };
+    __storeCustomer?: { id: string; name: string; email: string } | null;
+    __storeWishlist?: string[];
   }
+}
+
+// Sync local cart to server and return merged items
+async function syncCartToServer(storeSlug: string) {
+  try {
+    const cartKey = `flowshop-cart-${storeSlug}`;
+    const raw = localStorage.getItem(cartKey);
+    const localItems = raw ? JSON.parse(raw) : [];
+    const res = await fetch(`${API_BASE}/api/store/${storeSlug}/account/cart/sync`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: localItems }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.items?.length) {
+        // Merge server items back to localStorage (preserve name/price from local)
+        const serverMap: Record<string, number> = {};
+        for (const si of data.items) {
+          const key = `${si.productId}:${si.variantId ?? ""}`;
+          serverMap[key] = si.quantity;
+        }
+        const merged = localItems.map((li: { productId: string; variantId?: string; quantity: number }) => {
+          const key = `${li.productId}:${li.variantId ?? ""}`;
+          return { ...li, quantity: serverMap[key] ?? li.quantity };
+        });
+        localStorage.setItem(cartKey, JSON.stringify(merged));
+        window.dispatchEvent(new Event("storage"));
+      }
+    }
+  } catch { /* silent */ }
+}
+
+// Load wishlist productIds into window.__storeWishlist
+async function loadWishlist(storeSlug: string) {
+  try {
+    const res = await fetch(`${API_BASE}/api/store/${storeSlug}/account/wishlist`, { credentials: "include" });
+    if (res.ok) {
+      const data = await res.json();
+      window.__storeWishlist = data.productIds || [];
+      window.dispatchEvent(new CustomEvent("wishlist-updated"));
+    }
+  } catch { /* silent */ }
 }
 
 export default function AccountModal({ isOpen, onClose }: Props) {
@@ -56,10 +102,18 @@ export default function AccountModal({ isOpen, onClose }: Props) {
     fetch(`${API_BASE}/api/store/${STORE_SLUG}/account/profile`, { credentials: "include" })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (data?.customer) setUser({ id: data.customer.id, name: data.customer.name, email: data.customer.email });
-        else setUser(null);
+        if (data?.customer) {
+          const c = { id: data.customer.id, name: data.customer.name, email: data.customer.email };
+          setUser(c);
+          window.__storeCustomer = c;
+          syncCartToServer(STORE_SLUG);
+          loadWishlist(STORE_SLUG);
+        } else {
+          setUser(null);
+          window.__storeCustomer = null;
+        }
       })
-      .catch(() => setUser(null))
+      .catch(() => { setUser(null); window.__storeCustomer = null; })
       .finally(() => setCheckingAuth(false));
   }, []);
 
@@ -143,7 +197,11 @@ export default function AccountModal({ isOpen, onClose }: Props) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Login failed");
-      setUser({ id: data.customer.id, name: data.customer.name, email: data.customer.email });
+      const c = { id: data.customer.id, name: data.customer.name, email: data.customer.email };
+      setUser(c);
+      window.__storeCustomer = c;
+      await syncCartToServer(STORE_SLUG);
+      await loadWishlist(STORE_SLUG);
       setSuccess("Welcome back!");
       setTimeout(() => { setSuccess(""); onClose(); }, 1200);
     } catch (err) {
@@ -166,7 +224,11 @@ export default function AccountModal({ isOpen, onClose }: Props) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Registration failed");
-      setUser({ id: data.customer.id, name: data.customer.name, email: data.customer.email });
+      const c = { id: data.customer.id, name: data.customer.name, email: data.customer.email };
+      setUser(c);
+      window.__storeCustomer = c;
+      await syncCartToServer(STORE_SLUG);
+      await loadWishlist(STORE_SLUG);
       setSuccess("Account created! Welcome!");
       setTimeout(() => { setSuccess(""); onClose(); }, 1200);
     } catch (err) {
@@ -178,6 +240,9 @@ export default function AccountModal({ isOpen, onClose }: Props) {
   const handleLogout = async () => {
     await fetch(`${API_BASE}/api/store/${STORE_SLUG}/auth/logout`, { method: "POST", credentials: "include" });
     setUser(null);
+    window.__storeCustomer = null;
+    window.__storeWishlist = [];
+    window.dispatchEvent(new CustomEvent("wishlist-updated"));
     onClose();
   };
 
@@ -228,6 +293,8 @@ export default function AccountModal({ isOpen, onClose }: Props) {
                   <div className="space-y-2">
                     {[
                       { href: `${API_BASE}/store/${STORE_SLUG}/account/orders`, icon: Package, label: "My Orders" },
+                      { href: `${API_BASE}/store/${STORE_SLUG}/account/wishlist`, icon: Heart, label: "Wishlist" },
+                      { href: `${API_BASE}/store/${STORE_SLUG}/account/saved`, icon: Bookmark, label: "Saved for Later" },
                       { href: `${API_BASE}/store/${STORE_SLUG}/account/addresses`, icon: MapPin, label: "Addresses" },
                       { href: `${API_BASE}/store/${STORE_SLUG}/account/settings`, icon: Settings, label: "Account Settings" },
                     ].map(({ href, icon: Icon, label }) => (

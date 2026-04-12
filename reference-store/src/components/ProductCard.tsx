@@ -1,10 +1,20 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ShoppingBag, Heart } from "lucide-react";
 import { storeUrl, formatPrice } from "@/lib/data";
 import { addToCart } from "@/lib/cart";
 import type { Product } from "@/lib/products";
+
+const STORE_SLUG = (() => {
+  if (typeof window === "undefined") return "";
+  try {
+    const m = window.location.pathname.match(/\/stores\/([^/]+)/);
+    return m?.[1] || "";
+  } catch { return ""; }
+})();
+const API_BASE = "https://flowsmartly.com";
 
 interface ProductCardProps {
   product: Product;
@@ -15,6 +25,19 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
   const discount = product.comparePriceCents
     ? Math.round((1 - product.priceCents / product.comparePriceCents) * 100)
     : 0;
+
+  const [wishlisted, setWishlisted] = useState(false);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
+
+  // Sync with global wishlist state
+  useEffect(() => {
+    const sync = () => {
+      setWishlisted((window.__storeWishlist || []).includes(product.id));
+    };
+    sync();
+    window.addEventListener("wishlist-updated", sync);
+    return () => window.removeEventListener("wishlist-updated", sync);
+  }, [product.id]);
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -27,6 +50,39 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
       priceCents: product.priceCents,
       imageUrl: product.images[0]?.url || "",
     });
+  };
+
+  const handleWishlist = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.__storeCustomer) {
+      window.dispatchEvent(new CustomEvent("open-account-modal"));
+      return;
+    }
+    if (wishlistLoading) return;
+    setWishlistLoading(true);
+    try {
+      if (wishlisted) {
+        await fetch(`${API_BASE}/api/store/${STORE_SLUG}/account/wishlist`, {
+          method: "DELETE",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ productId: product.id }),
+        });
+        window.__storeWishlist = (window.__storeWishlist || []).filter((id) => id !== product.id);
+      } else {
+        await fetch(`${API_BASE}/api/store/${STORE_SLUG}/account/wishlist`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ productId: product.id }),
+        });
+        window.__storeWishlist = [...(window.__storeWishlist || []), product.id];
+      }
+      window.dispatchEvent(new CustomEvent("wishlist-updated"));
+    } catch { /* silent */ } finally {
+      setWishlistLoading(false);
+    }
   };
 
   return (
@@ -94,11 +150,12 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
               Add to Cart
             </button>
             <button
-              onClick={(e) => e.preventDefault()}
-              className="p-2.5 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 rounded-full shadow-lg hover:text-red-500 transition-colors"
-              aria-label="Add to wishlist"
+              onClick={handleWishlist}
+              disabled={wishlistLoading}
+              className={`p-2.5 bg-white dark:bg-gray-900 rounded-full shadow-lg transition-colors ${wishlisted ? "text-red-500" : "text-gray-600 dark:text-gray-300 hover:text-red-500"}`}
+              aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
             >
-              <Heart size={16} />
+              <Heart size={16} fill={wishlisted ? "currentColor" : "none"} />
             </button>
           </div>
         </div>

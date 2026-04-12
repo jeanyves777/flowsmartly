@@ -3602,11 +3602,45 @@ model StoreCustomer {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  store          Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store          Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  cartItems      StoreCartItem[]
+  wishlistItems  StoreWishlistItem[]
 
   @@unique([storeId, email])
   @@index([storeId])
   @@index([email])
+}
+
+model StoreCartItem {
+  id            String   @id @default(cuid())
+  customerId    String
+  storeId       String
+  productId     String
+  variantId     String?
+  quantity      Int      @default(1)
+  savedForLater Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  customer      StoreCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, productId, variantId])
+  @@index([customerId])
+  @@index([storeId])
+}
+
+model StoreWishlistItem {
+  id         String   @id @default(cuid())
+  customerId String
+  storeId    String
+  productId  String
+  createdAt  DateTime @default(now())
+
+  customer   StoreCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, productId])
+  @@index([customerId])
+  @@index([storeId])
 }
 
 // STORE DOMAINS
