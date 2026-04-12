@@ -137,8 +137,8 @@ export default function StoreLoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            disabled={loading || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
+            className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: "var(--store-primary)" }}
           >
             {loading ? "Signing in..." : "Sign In"}
@@ -153,8 +153,9 @@ export default function StoreLoginPage() {
         </div>
 
         <a
-          href={`/api/store-auth/google?storeSlug=${slug}&callbackUrl=/store/${slug}/account`}
-          className="flex items-center justify-center gap-2 w-full rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors hover:opacity-80"
+          href={(!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || turnstileToken) ? `/api/store-auth/google?storeSlug=${slug}&callbackUrl=/store/${slug}/account` : undefined}
+          onClick={(e) => { if (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken) e.preventDefault(); }}
+          className={`flex items-center justify-center gap-2 w-full rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken ? "opacity-50 cursor-not-allowed" : "hover:opacity-80"}`}
           style={{ borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)" }}
         >
           <svg className="h-4 w-4" viewBox="0 0 24 24">
