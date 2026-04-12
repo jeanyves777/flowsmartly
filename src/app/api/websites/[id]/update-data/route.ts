@@ -515,7 +515,7 @@ STATIC EXPORT RULES:
 
     // ========== STEP 5: Detect & fix component mismatches ==========
     // If user added data that the component doesn't support, trigger AI rewrite
-    detectAndFixMismatches(siteDir, data, basePath);
+    await detectAndFixMismatches(siteDir, data, basePath);
 
     // ========== STEP 6: Enhance newly added nav pages ==========
     // If user added new pages to navLinks, check if they have sparse/placeholder content
@@ -590,6 +590,7 @@ async function detectAndFixMismatches(siteDir: string, data: any, basePath: stri
     filePath: string;
     detectField: string;
     prompt: string;
+    force?: boolean; // always rewrite even if detectField already exists in component
   }> = [
     {
       condition: data.services?.some((s: any) => s.image),
@@ -634,6 +635,7 @@ async function detectAndFixMismatches(siteDir: string, data: any, basePath: stri
       condition: !!data.testimonialsLayout && data.testimonialsLayout !== "cards",
       filePath: join(siteDir, "src", "components", "Testimonials.tsx"),
       detectField: "testimonialsLayout",
+      force: true,
       prompt: `The user wants the testimonials layout to be "${data.testimonialsLayout}". Import testimonialsLayout from data.ts and switch the rendering: "cards" = 3-col grid cards, "carousel" = horizontal auto-scrolling carousel with prev/next buttons, "list" = full-width stacked items, "masonry" = 2-col masonry grid. Implement the requested layout now.`,
     },
     // Contact: Google Map embed
@@ -641,6 +643,7 @@ async function detectAndFixMismatches(siteDir: string, data: any, basePath: stri
       condition: !!(data.contactInfo?.mapEmbedUrl),
       filePath: join(siteDir, "src", "components", "ContactSection.tsx"),
       detectField: "contactInfo",
+      force: true,
       prompt: `The user has added a Google Map embed URL (contactInfo.mapEmbedUrl) and optional label (contactInfo.mapAddress) in data.ts. Import contactInfo from data.ts. Add a full-width map section below the contact form/info: show contactInfo.mapAddress as a label if present, then render an <iframe src={contactInfo.mapEmbedUrl} width="100%" height="400" ... /> in a rounded container. Only show if mapEmbedUrl is truthy.`,
     },
     // Google Reviews: embed as a section inside or below Testimonials
@@ -658,7 +661,7 @@ async function detectAndFixMismatches(siteDir: string, data: any, basePath: stri
 
     try {
       const code = readFileSync(check.filePath, "utf-8");
-      if (!code.includes(check.detectField)) {
+      if (check.force || !code.includes(check.detectField)) {
         console.log(`[UpdateData] Mismatch: ${check.filePath.split("/").pop()} missing '${check.detectField}' — AI fixing`);
         await rewriteComponent(check.filePath, code, check.prompt, basePath);
       }
