@@ -222,7 +222,13 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
     - Styled with brand colors, dark mode, Framer Motion
 11. Write ACCOUNT pages — all "use client", all fetch from /api/:
     - src/app/account/login/page.tsx: email + password form → POST /api/auth/login → redirect /account
+      MANDATORY ANTI-SPAM: import { Turnstile } from "@marsidev/react-turnstile"; add turnstileToken state;
+      render <Turnstile siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ""} onSuccess={setTurnstileToken} onError={() => setTurnstileToken("")} onExpire={() => setTurnstileToken("")} />;
+      Submit button: disabled={loading || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)};
+      Google Sign In link: add onClick={(e) => { if (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken) e.preventDefault(); }} and apply opacity-50 cursor-not-allowed when token missing;
+      Send turnstileToken in POST body.
     - src/app/account/register/page.tsx: name + email + password + confirm → POST /api/auth/register → redirect /account
+      MANDATORY ANTI-SPAM: same Turnstile pattern as login — import, state, widget, disabled button until validated, send token in body.
     - src/app/account/page.tsx: dashboard with greeting, recent orders, quick links (orders/addresses/settings). Fetch from /api/account/profile + /api/account/orders. If 401 → redirect to /account/login
     - src/app/account/orders/page.tsx: full order history from /api/account/orders
     - src/app/account/orders/[orderId]/page.tsx: order detail from /api/account/orders/{orderId}
@@ -431,11 +437,13 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - AccountModal is a slide-in drawer from RIGHT (like cart), with:
   - "Sign In" heading
   - Email + Password fields
-  - "Log In" button → POST /api/auth/login
+  - Cloudflare Turnstile widget: import { Turnstile } from "@marsidev/react-turnstile"; add turnstileToken state; render <Turnstile siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ""} onSuccess={setTurnstileToken} onError={() => setTurnstileToken("")} onExpire={() => setTurnstileToken("")} />
+  - "Log In" button → POST /api/auth/login (with turnstileToken in body); disabled={loading || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
   - Divider with "or" text
-  - "No account yet? Create An Account" → shows registration form in same drawer
-  - Google Sign In button (if configured)
+  - "No account yet? Create An Account" → shows registration form in same drawer (registration form also has Turnstile, same disabled pattern)
+  - Google Sign In button: disabled or onClick-blocked when Turnstile not yet validated (same pattern as login button)
   - After login success: close drawer, refresh page state
+- ANTI-SPAM RULE: ALL buttons AND social login in the modal are disabled/blocked until Turnstile validates — no exceptions
 - If user IS logged in: clicking Account goes directly to /account (full page)
 - AccountModal context provider: wrap in layout.tsx — provides openAccountModal() function
 - Header and MobileBottomNav call openAccountModal() if !user, else navigate to /account
@@ -461,7 +469,8 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 9. ✅ ThemeToggle in Header — dark/light mode switch works
 10. ✅ Footer sticks to bottom (min-h-screen flex flex-col on root layout, flex-1 on main)
 11. ✅ All internal links use Next.js <Link> component — no <a href="..."> for internal pages
-12. ✅ CartDrawer slides from right, AccountModal slides from right, FilterDrawer slides from left`;
+12. ✅ CartDrawer slides from right, AccountModal slides from right, FilterDrawer slides from left
+13. ✅ Turnstile anti-spam in AccountModal, login/page.tsx, register/page.tsx — ALL submit + social buttons disabled until Turnstile validates`;
 
 
 // ─── V3 Tool Definitions ─────────────────────────────────────────────────────
