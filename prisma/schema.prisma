@@ -3384,9 +3384,11 @@ model Order {
   trackingNumber      String?
   estimatedDelivery   DateTime?
 
-  // Notes
+  // Notes / Returns
   notes               String?
   cancelReason        String?
+  returnRequested     Boolean   @default(false)
+  returnReason        String?
 
   // Ad attribution (UTM tracking for ROAS)
   utmSource           String?

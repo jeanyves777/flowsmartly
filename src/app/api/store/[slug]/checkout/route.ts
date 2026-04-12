@@ -97,6 +97,9 @@ export async function POST(
         settings: true,
         isActive: true,
         userId: true,
+        stripeConnectAccountId: true,
+        stripeOnboardingComplete: true,
+        platformFeePercent: true,
         user: { select: { email: true, name: true } },
       },
     });
@@ -232,6 +235,13 @@ export async function POST(
     const taxCents = 0; // Deferred: tax calculation
     const totalCents = subtotalCents + shippingCents + taxCents;
 
+    // ── Platform fee calculation (for Stripe Connect stores) ──
+    const connectReady = !!(store.stripeConnectAccountId && store.stripeOnboardingComplete);
+    const platformFeeCents = connectReady
+      ? Math.round(totalCents * (store.platformFeePercent / 100))
+      : 0;
+    const storeOwnerAmountCents = connectReady ? totalCents - platformFeeCents : 0;
+
     // ── Prisma transaction: create Order + deduct inventory ──
 
     const orderNumber = generateOrderNumber();
@@ -259,6 +269,8 @@ export async function POST(
           shippingCents,
           taxCents,
           totalCents,
+          platformFeeCents,
+          storeOwnerAmountCents,
           currency: store.currency,
           paymentMethod,
           shippingMethod: shippingMethod || "standard",
@@ -293,6 +305,8 @@ export async function POST(
     );
 
     // ── Fire-and-forget notification emails ──
+    // For card payments, emails are sent ONLY after the webhook confirms payment.
+    // For all other methods (COD, mobile_money, bank_transfer), send immediately.
 
     const emailItems = validatedItems.map((i) => ({
       name: i.name,
@@ -300,41 +314,43 @@ export async function POST(
       priceCents: i.priceCents,
     }));
 
-    // Buyer confirmation
-    notifyOrderConfirmation({
-      buyerEmail: customerEmail,
-      customerName,
-      orderNumber: order.orderNumber,
-      items: emailItems,
-      subtotalCents,
-      shippingCents,
-      taxCents,
-      totalCents,
-      currency: store.currency,
-      paymentMethod,
-      storeSlug: store.slug,
-      storeName: store.name,
-    }).catch((err) =>
-      console.error("Failed to send order confirmation email:", err)
-    );
+    if (paymentMethod !== "card") {
+      // Buyer confirmation
+      notifyOrderConfirmation({
+        buyerEmail: customerEmail,
+        customerName,
+        orderNumber: order.orderNumber,
+        items: emailItems,
+        subtotalCents,
+        shippingCents,
+        taxCents,
+        totalCents,
+        currency: store.currency,
+        paymentMethod,
+        storeSlug: store.slug,
+        storeName: store.name,
+      }).catch((err) =>
+        console.error("Failed to send order confirmation email:", err)
+      );
 
-    // Store owner notification
-    notifyNewOrder({
-      storeOwnerUserId: store.userId,
-      storeOwnerEmail: store.user.email || "",
-      storeOwnerName: store.user.name || "Store Owner",
-      orderNumber: order.orderNumber,
-      orderId: order.id,
-      customerName,
-      customerEmail,
-      itemCount: validatedItems.length,
-      totalCents,
-      currency: store.currency,
-      paymentMethod,
-      storeName: store.name,
-    }).catch((err) =>
-      console.error("Failed to send new order alert email:", err)
-    );
+      // Store owner notification
+      notifyNewOrder({
+        storeOwnerUserId: store.userId,
+        storeOwnerEmail: store.user.email || "",
+        storeOwnerName: store.user.name || "Store Owner",
+        orderNumber: order.orderNumber,
+        orderId: order.id,
+        customerName,
+        customerEmail,
+        itemCount: validatedItems.length,
+        totalCents,
+        currency: store.currency,
+        paymentMethod,
+        storeName: store.name,
+      }).catch((err) =>
+        console.error("Failed to send new order alert email:", err)
+      );
+    }
 
     // ── Payment method handling ──
 
@@ -347,6 +363,10 @@ export async function POST(
         totalCents,
         currency: store.currency,
         customerEmail,
+        ...(connectReady && {
+          stripeConnectAccountId: store.stripeConnectAccountId!,
+          platformFeeCents,
+        }),
       });
 
       // Update order with paymentIntentId for webhook matching

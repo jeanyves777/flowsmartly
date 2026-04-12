@@ -10,6 +10,35 @@ import { formatPrice as formatCents } from "@/lib/store/currency";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 /**
+ * Send welcome email to a new store customer after registration
+ */
+export async function sendStoreWelcomeEmail(params: {
+  to: string;
+  customerName: string;
+  storeName: string;
+  storeSlug: string;
+}) {
+  const html = baseTemplate(
+    `
+    <h2>Welcome to ${params.storeName}!</h2>
+    <p>Hi ${params.customerName}, your account has been created successfully.</p>
+    <div class="highlight">
+      You can now track orders, save favorites, and check out faster.
+    </div>
+    <p style="margin-top:16px;">Start exploring the store and enjoy your shopping experience!</p>
+    <a href="${APP_URL}/store/${params.storeSlug}" class="button">Shop Now</a>
+    `,
+    `Welcome to ${params.storeName}!`
+  );
+
+  return sendEmail({
+    to: params.to,
+    subject: `Welcome to ${params.storeName}!`,
+    html,
+  });
+}
+
+/**
  * Send order confirmation email to the buyer
  */
 export async function sendOrderConfirmationEmail(params: {

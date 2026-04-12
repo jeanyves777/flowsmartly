@@ -43,6 +43,8 @@ interface OrderDetail {
   trackingNumber: string | null;
   estimatedDelivery: string | null;
   notes: string | null;
+  returnRequested: boolean;
+  returnReason: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,6 +61,19 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_TIMELINE = ["PENDING", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED"];
 
+function detectCarrier(tracking: string): { name: string; url: string } | null {
+  const t = tracking.trim();
+  if (/^1Z[0-9A-Z]{16}$/i.test(t))
+    return { name: "UPS", url: `https://www.ups.com/track?tracknum=${t}` };
+  if (/^[0-9]{15,22}$/.test(t) && !t.startsWith("9"))
+    return { name: "FedEx", url: `https://www.fedex.com/en-us/tracking.html?tracknumbers=${t}` };
+  if (/^9[2345][0-9]{18,20}$/.test(t) || /^[0-9]{20,22}$/.test(t))
+    return { name: "USPS", url: `https://tools.usps.com/go/TrackConfirmAction?tLabels=${t}` };
+  if (/^JD[0-9]{18}$/.test(t) || /^[0-9]{10}[A-Z]{2}$/.test(t))
+    return { name: "DHL", url: `https://www.dhl.com/en/express/tracking.html?AWB=${t}` };
+  return null;
+}
+
 export default function StoreOrderDetailPage() {
   const router = useRouter();
   const { slug, orderId } = useParams<{ slug: string; orderId: string }>();
@@ -66,6 +81,13 @@ export default function StoreOrderDetailPage() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Return request
+  const [showReturnForm, setShowReturnForm] = useState(false);
+  const [returnReason, setReturnReason] = useState("");
+  const [submittingReturn, setSubmittingReturn] = useState(false);
+  const [returnSuccess, setReturnSuccess] = useState(false);
+  const [returnError, setReturnError] = useState("");
 
   useEffect(() => {
     async function fetchOrder() {
@@ -90,6 +112,32 @@ export default function StoreOrderDetailPage() {
     }
     fetchOrder();
   }, [slug, orderId, router]);
+
+  async function handleReturnSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!returnReason.trim()) return;
+    setSubmittingReturn(true);
+    setReturnError("");
+    try {
+      const res = await fetch(`/api/store/${slug}/account/orders/${orderId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: returnReason.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setReturnError(data.error || "Failed to submit return request.");
+        return;
+      }
+      setOrder((prev) => prev ? { ...prev, returnRequested: true, returnReason: returnReason.trim() } : prev);
+      setReturnSuccess(true);
+      setShowReturnForm(false);
+    } catch {
+      setReturnError("Something went wrong. Please try again.");
+    } finally {
+      setSubmittingReturn(false);
+    }
+  }
 
   function formatMoney(cents: number) {
     return new Intl.NumberFormat("en-US", {
@@ -128,6 +176,8 @@ export default function StoreOrderDetailPage() {
 
   const currentStatusIndex = STATUS_TIMELINE.indexOf(order.status);
   const isCancelled = order.status === "CANCELLED" || order.status === "REFUNDED";
+  const carrier = order.trackingNumber ? detectCarrier(order.trackingNumber) : null;
+  const canRequestReturn = order.status === "DELIVERED" && !order.returnRequested;
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8">
@@ -190,12 +240,8 @@ export default function StoreOrderDetailPage() {
                 <div key={step} className="flex-1 flex items-center gap-1">
                   <div className="flex flex-col items-center flex-1">
                     <div
-                      className={`h-2.5 w-full rounded-full transition-colors ${
-                        isActive ? "" : "opacity-20"
-                      }`}
-                      style={{
-                        backgroundColor: isActive ? "var(--store-primary)" : "currentColor",
-                      }}
+                      className={`h-2.5 w-full rounded-full transition-colors ${isActive ? "" : "opacity-20"}`}
+                      style={{ backgroundColor: isActive ? "var(--store-primary)" : "currentColor" }}
                     />
                     <span className={`text-[10px] mt-1.5 ${isCurrent ? "font-semibold" : "opacity-40"}`}>
                       {step.charAt(0) + step.slice(1).toLowerCase()}
@@ -211,7 +257,18 @@ export default function StoreOrderDetailPage() {
           <div className="mt-4 pt-4" style={{ borderTop: "1px solid color-mix(in srgb, var(--store-text) 8%, transparent)" }}>
             <p className="text-sm">
               <span className="opacity-60">Tracking: </span>
-              <span className="font-medium">{order.trackingNumber}</span>
+              <span className="font-mono font-medium">{order.trackingNumber}</span>
+              {carrier && (
+                <a
+                  href={carrier.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-3 text-xs font-medium hover:underline"
+                  style={{ color: "var(--store-primary)" }}
+                >
+                  Track via {carrier.name} →
+                </a>
+              )}
             </p>
             {order.estimatedDelivery && (
               <p className="text-sm mt-1">
@@ -228,6 +285,28 @@ export default function StoreOrderDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Return Request Banner */}
+      {order.returnRequested && (
+        <div
+          className="rounded-lg border p-4 mb-6"
+          style={{
+            borderColor: "color-mix(in srgb, #f97316 30%, transparent)",
+            backgroundColor: "color-mix(in srgb, #f97316 8%, transparent)",
+          }}
+        >
+          <p className="text-sm font-semibold" style={{ color: "#ea580c" }}>Return Request Submitted</p>
+          <p className="text-sm opacity-70 mt-0.5">{order.returnReason}</p>
+          <p className="text-xs opacity-50 mt-1">A store representative will review your request and contact you.</p>
+        </div>
+      )}
+
+      {returnSuccess && (
+        <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4 mb-6">
+          <p className="text-sm font-semibold text-green-700 dark:text-green-300">Return request submitted!</p>
+          <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">We&apos;ve notified the store. They&apos;ll reach out to you soon.</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Items */}
@@ -300,6 +379,81 @@ export default function StoreOrderDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Return Request Section */}
+          {canRequestReturn && !showReturnForm && (
+            <div
+              className="mt-4 rounded-lg border p-4"
+              style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}
+            >
+              <h3 className="text-sm font-semibold mb-1">Need to Return?</h3>
+              <p className="text-sm opacity-60 mb-3">
+                Not satisfied with your order? Submit a return or refund request.
+              </p>
+              <button
+                onClick={() => setShowReturnForm(true)}
+                className="rounded-lg border px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+                style={{
+                  borderColor: "color-mix(in srgb, var(--store-text) 20%, transparent)",
+                  color: "var(--store-primary)",
+                }}
+              >
+                Request Return / Refund
+              </button>
+            </div>
+          )}
+
+          {showReturnForm && (
+            <div
+              className="mt-4 rounded-lg border p-5"
+              style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}
+            >
+              <h3 className="text-sm font-semibold mb-3">Return / Refund Request</h3>
+              {returnError && (
+                <div className="mb-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                  {returnError}
+                </div>
+              )}
+              <form onSubmit={handleReturnSubmit} className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1.5 opacity-70">
+                    Reason for return
+                  </label>
+                  <textarea
+                    value={returnReason}
+                    onChange={(e) => setReturnReason(e.target.value)}
+                    placeholder="Please describe why you want to return this order..."
+                    rows={3}
+                    className="w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 resize-none"
+                    style={{
+                      borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)",
+                      backgroundColor: "var(--store-input-bg, var(--store-background))",
+                      "--tw-ring-color": "var(--store-primary)",
+                    } as React.CSSProperties}
+                    required
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={submittingReturn || !returnReason.trim()}
+                    className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: "var(--store-primary)" }}
+                  >
+                    {submittingReturn ? "Submitting..." : "Submit Request"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowReturnForm(false); setReturnReason(""); setReturnError(""); }}
+                    className="rounded-lg border px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+                    style={{ borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
         </div>
 
         {/* Sidebar: Shipping + Payment */}
@@ -353,9 +507,6 @@ export default function StoreOrderDetailPage() {
             className="sm:hidden w-full flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-opacity hover:opacity-80"
             style={{ borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)" }}
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" />
-            </svg>
             Print Invoice
           </button>
         </div>

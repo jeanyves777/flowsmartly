@@ -81,6 +81,14 @@ export async function GET(request: NextRequest) {
         },
       });
       isNewCustomer = true;
+
+      // Send welcome email (fire-and-forget)
+      const storeFull = await prisma.store.findUnique({ where: { id: store.id }, select: { name: true, slug: true } });
+      if (storeFull) {
+        const { sendStoreWelcomeEmail } = await import("@/lib/email/commerce");
+        sendStoreWelcomeEmail({ to: customer.email, customerName: customer.name, storeName: storeFull.name, storeSlug: storeFull.slug })
+          .catch((e) => console.error("Welcome email error:", e));
+      }
     }
 
     // Issue JWT session cookie — set directly on the redirect response (not via next/headers)

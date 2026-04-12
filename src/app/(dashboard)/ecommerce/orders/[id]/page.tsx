@@ -16,6 +16,9 @@ import {
   AlertTriangle,
   ArrowLeft,
   Navigation,
+  Edit2,
+  ExternalLink,
+  RotateCcw,
 } from "lucide-react";
 import { ORDER_STATUSES } from "@/lib/constants/ecommerce";
 import { formatPrice } from "@/lib/store/currency";
@@ -88,6 +91,8 @@ interface Order {
   estimatedDelivery: string | null;
   notes: string | null;
   cancelReason: string | null;
+  returnRequested: boolean;
+  returnReason: string | null;
   createdAt: string;
   updatedAt: string;
   deliveryAssignment: DeliveryAssignment | null;
@@ -96,6 +101,20 @@ interface Order {
 function formatAddress(addr: Address): string {
   const parts = [addr.line1, addr.line2, addr.city, addr.state, addr.zip, addr.country].filter(Boolean);
   return parts.join(", ") || "No address provided";
+}
+
+/** Detect carrier from tracking number format and return a tracking URL */
+function detectCarrier(tracking: string): { name: string; url: string } | null {
+  const t = tracking.trim();
+  if (/^1Z[0-9A-Z]{16}$/i.test(t))
+    return { name: "UPS", url: `https://www.ups.com/track?tracknum=${t}` };
+  if (/^[0-9]{15,22}$/.test(t) && !t.startsWith("9"))
+    return { name: "FedEx", url: `https://www.fedex.com/en-us/tracking.html?tracknumbers=${t}` };
+  if (/^9[2345][0-9]{18,20}$/.test(t) || /^[0-9]{20,22}$/.test(t))
+    return { name: "USPS", url: `https://tools.usps.com/go/TrackConfirmAction?tLabels=${t}` };
+  if (/^JD[0-9]{18}$/.test(t) || /^[0-9]{10}[A-Z]{2}$/.test(t))
+    return { name: "DHL", url: `https://www.dhl.com/en/express/tracking.html?AWB=${t}` };
+  return null;
 }
 
 // Status timeline: all statuses in order
@@ -176,6 +195,12 @@ export default function OrderDetailPage() {
   const [newNote, setNewNote] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refunding, setRefunding] = useState(false);
+
+  // Tracking number editing
+  const [editingTracking, setEditingTracking] = useState(false);
+  const [trackingInput, setTrackingInput] = useState("");
 
   // Assign driver modal
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -189,6 +214,7 @@ export default function OrderDetailPage() {
       const json = await res.json();
       if (json.success) {
         setOrder(json.data.order);
+        setTrackingInput(json.data.order.trackingNumber || "");
       } else {
         setError(json.error?.message || "Failed to load order");
       }
@@ -216,8 +242,10 @@ export default function OrderDetailPage() {
       const json = await res.json();
       if (json.success) {
         setOrder(json.data.order);
+        setTrackingInput(json.data.order.trackingNumber || "");
         setShowCancelModal(false);
         setCancelReason("");
+        setEditingTracking(false);
       } else {
         setError(json.error?.message || "Failed to update order");
       }
@@ -240,6 +268,30 @@ export default function OrderDetailPage() {
   const handleCancel = () => {
     if (!cancelReason.trim()) return;
     updateOrder({ status: "CANCELLED", cancelReason: cancelReason.trim() });
+  };
+
+  const handleSaveTracking = () => {
+    updateOrder({ trackingNumber: trackingInput.trim() || null });
+  };
+
+  const handleRefund = async () => {
+    setRefunding(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/ecommerce/orders/${orderId}/refund`, { method: "POST" });
+      const json = await res.json();
+      if (json.success) {
+        setOrder(json.data.order);
+        setShowRefundModal(false);
+      } else {
+        setError(json.error?.message || "Refund failed");
+      }
+    } catch (err) {
+      console.error("Refund error:", err);
+      setError("Refund failed");
+    } finally {
+      setRefunding(false);
+    }
   };
 
   const handleAddNote = () => {
@@ -282,7 +334,7 @@ export default function OrderDetailPage() {
       if (json.success) {
         setShowAssignModal(false);
         setSelectedDriverId("");
-        fetchOrder(); // Refresh order to show assignment
+        fetchOrder();
       } else {
         setError(json.error?.message || "Failed to assign driver");
       }
@@ -320,6 +372,8 @@ export default function OrderDetailPage() {
 
   const statusConfig = ORDER_STATUSES[order.status];
   const allowedTransitions = statusConfig?.allowedTransitions || [];
+  const carrier = order.trackingNumber ? detectCarrier(order.trackingNumber) : null;
+  const canRefund = order.paymentMethod === "card" && order.paymentStatus === "paid" && order.status !== "REFUNDED" && order.status !== "CANCELLED";
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
@@ -334,6 +388,11 @@ export default function OrderDetailPage() {
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig?.color || "bg-muted text-foreground"}`}>
               {statusConfig?.label || order.status}
             </span>
+            {order.returnRequested && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                <RotateCcw className="w-3 h-3" /> Return Requested
+              </span>
+            )}
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
             Placed on {new Date(order.createdAt).toLocaleDateString()} at {new Date(order.createdAt).toLocaleTimeString()}
@@ -397,26 +456,86 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
-          {/* Shipping Address */}
+          {/* Shipping Address + Tracking */}
           <div className="bg-card rounded-lg border border-border p-5">
-            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">Shipping Address</h2>
-            <div className="flex items-start gap-2">
+            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">Shipping</h2>
+            <div className="flex items-start gap-2 mb-4">
               <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
               <div className="text-sm text-muted-foreground">
                 {order.shippingAddress.name && <p className="font-medium text-foreground">{order.shippingAddress.name}</p>}
                 <p>{formatAddress(order.shippingAddress)}</p>
               </div>
             </div>
-            {order.trackingNumber && (
-              <div className="mt-3 pt-3 border-t border-border">
-                <p className="text-xs text-muted-foreground">Tracking Number</p>
-                <p className="text-sm font-mono text-foreground">{order.trackingNumber}</p>
-              </div>
-            )}
             {order.shippingMethod && (
-              <div className="mt-2">
+              <div className="mb-3">
                 <p className="text-xs text-muted-foreground">Shipping Method</p>
                 <p className="text-sm text-foreground">{order.shippingMethod}</p>
+              </div>
+            )}
+
+            {/* Tracking Number */}
+            <div className="pt-3 border-t border-border">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tracking Number</p>
+                {!editingTracking && (
+                  <button
+                    onClick={() => setEditingTracking(true)}
+                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    <Edit2 className="w-3 h-3" />
+                    {order.trackingNumber ? "Edit" : "Add"}
+                  </button>
+                )}
+              </div>
+
+              {editingTracking ? (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={trackingInput}
+                    onChange={(e) => setTrackingInput(e.target.value)}
+                    placeholder="Enter tracking number"
+                    className="flex-1 px-3 py-1.5 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveTracking}
+                    disabled={updating}
+                    className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {updating ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    onClick={() => { setEditingTracking(false); setTrackingInput(order.trackingNumber || ""); }}
+                    className="px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : order.trackingNumber ? (
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-mono text-foreground">{order.trackingNumber}</p>
+                  {carrier && (
+                    <a
+                      href={carrier.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      Track via {carrier.name} <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">No tracking number yet</p>
+              )}
+            </div>
+
+            {/* Return Request */}
+            {order.returnRequested && (
+              <div className="mt-3 pt-3 border-t border-border">
+                <p className="text-xs font-medium text-orange-600 uppercase tracking-wider mb-1">Return Request</p>
+                <p className="text-sm text-foreground">{order.returnReason}</p>
               </div>
             )}
           </div>
@@ -446,11 +565,6 @@ export default function OrderDetailPage() {
                         {order.deliveryAssignment.driver.currentLatitude.toFixed(6)},{" "}
                         {order.deliveryAssignment.driver.currentLongitude.toFixed(6)}
                       </span>
-                      {order.deliveryAssignment.driver.lastLocationUpdate && (
-                        <span className="text-xs text-muted-foreground">
-                          ({new Date(order.deliveryAssignment.driver.lastLocationUpdate).toLocaleTimeString()})
-                        </span>
-                      )}
                     </div>
                   )}
                 {order.deliveryAssignment.codAmountCents != null && (
@@ -566,6 +680,8 @@ export default function OrderDetailPage() {
                 <span className={`font-medium capitalize ${
                   order.paymentStatus === "paid"
                     ? "text-green-600"
+                    : order.paymentStatus === "refunded"
+                    ? "text-gray-500"
                     : order.paymentStatus === "failed"
                     ? "text-red-600"
                     : "text-yellow-600"
@@ -588,6 +704,15 @@ export default function OrderDetailPage() {
               >
                 <DollarSign className="w-4 h-4 inline mr-1.5" />
                 {updating ? "Updating..." : "Mark as Paid"}
+              </button>
+            )}
+            {canRefund && (
+              <button
+                onClick={() => setShowRefundModal(true)}
+                className="mt-2 w-full px-4 py-2 bg-red-50 text-red-700 text-sm font-medium rounded-lg hover:bg-red-100 border border-red-200"
+              >
+                <RotateCcw className="w-4 h-4 inline mr-1.5" />
+                Issue Refund
               </button>
             )}
           </div>
@@ -652,10 +777,7 @@ export default function OrderDetailPage() {
             />
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => {
-                  setShowCancelModal(false);
-                  setCancelReason("");
-                }}
+                onClick={() => { setShowCancelModal(false); setCancelReason(""); }}
                 className="px-4 py-2 text-sm text-foreground hover:bg-muted rounded-lg"
               >
                 Keep Order
@@ -666,6 +788,36 @@ export default function OrderDetailPage() {
                 className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
               >
                 {updating ? "Cancelling..." : "Cancel Order"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Refund Confirmation Modal */}
+      {showRefundModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-2">Issue Refund</h3>
+            <p className="text-sm text-muted-foreground mb-1">
+              You are about to issue a full refund of{" "}
+              <strong>{formatPrice(order.totalCents, order.currency)}</strong> for order{" "}
+              <strong>{order.orderNumber}</strong>.
+            </p>
+            <p className="text-sm text-muted-foreground mb-4">This action cannot be undone. The refund will be processed via Stripe.</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowRefundModal(false)}
+                className="px-4 py-2 text-sm text-foreground hover:bg-muted rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRefund}
+                disabled={refunding}
+                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {refunding ? "Processing..." : "Confirm Refund"}
               </button>
             </div>
           </div>
@@ -728,10 +880,7 @@ export default function OrderDetailPage() {
             )}
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => {
-                  setShowAssignModal(false);
-                  setSelectedDriverId("");
-                }}
+                onClick={() => { setShowAssignModal(false); setSelectedDriverId(""); }}
                 className="px-4 py-2 text-sm text-foreground hover:bg-muted rounded-lg"
               >
                 Cancel

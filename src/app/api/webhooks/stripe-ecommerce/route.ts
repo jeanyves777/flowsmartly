@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { purchaseDomain } from "@/lib/domains/manager";
+import { restoreInventory } from "@/lib/store/inventory";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -185,12 +186,68 @@ async function handlePaymentSucceeded(
   // ── Order payment ──
   if (!orderId) return;
 
-  await prisma.order.update({
+  const order = await prisma.order.update({
     where: { id: orderId },
     data: { paymentStatus: "paid" },
+    include: {
+      store: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          currency: true,
+          userId: true,
+          user: { select: { email: true, name: true } },
+        },
+      },
+    },
   });
 
-  console.log(`Payment succeeded for order ${orderId}`);
+  // Update store stats
+  await prisma.store.update({
+    where: { id: order.storeId },
+    data: {
+      orderCount: { increment: 1 },
+      totalRevenueCents: { increment: order.storeOwnerAmountCents || order.totalCents },
+      platformFeesCollectedCents: { increment: order.platformFeeCents },
+    },
+  });
+
+  // Send confirmation emails (fire-and-forget)
+  const { notifyOrderConfirmation, notifyNewOrder } = await import("@/lib/notifications/commerce");
+  const items = JSON.parse(order.items) as Array<{ name: string; quantity: number; priceCents: number }>;
+
+  notifyOrderConfirmation({
+    buyerEmail: order.customerEmail,
+    customerName: order.customerName,
+    orderNumber: order.orderNumber,
+    items,
+    subtotalCents: order.subtotalCents,
+    shippingCents: order.shippingCents,
+    taxCents: order.taxCents,
+    totalCents: order.totalCents,
+    currency: order.currency,
+    paymentMethod: order.paymentMethod || "card",
+    storeSlug: order.store.slug,
+    storeName: order.store.name,
+  }).catch((err) => console.error("Failed to send confirmation email:", err));
+
+  notifyNewOrder({
+    storeOwnerUserId: order.store.userId,
+    storeOwnerEmail: order.store.user?.email || "",
+    storeOwnerName: order.store.user?.name || "Store Owner",
+    orderNumber: order.orderNumber,
+    orderId: order.id,
+    customerName: order.customerName,
+    customerEmail: order.customerEmail,
+    itemCount: items.length,
+    totalCents: order.totalCents,
+    currency: order.currency,
+    paymentMethod: order.paymentMethod || "card",
+    storeName: order.store.name,
+  }).catch((err) => console.error("Failed to send new order alert:", err));
+
+  console.log(`Payment succeeded for order ${orderId}, emails dispatched`);
 }
 
 async function handleRefund(charge: Stripe.Charge) {
@@ -213,6 +270,11 @@ async function handleRefund(charge: Stripe.Charge) {
       status: "REFUNDED",
     },
   });
+
+  // Restore inventory
+  restoreInventory(order.id).catch((err) =>
+    console.error("Failed to restore inventory on refund:", err)
+  );
 
   // Reverse platform fees (subtract from collected fees)
   await prisma.store.update({
