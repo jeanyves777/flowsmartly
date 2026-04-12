@@ -10,8 +10,11 @@ import {
   ChevronRight,
   X,
   Check,
+  Image as ImageIcon,
+  Upload,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 
 // ── Types ──
 
@@ -40,8 +43,10 @@ export default function CategoriesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
+  const [formImageUrl, setFormImageUrl] = useState("");
   const [formParentId, setFormParentId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
 
   // Delete confirmation
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -102,6 +107,7 @@ export default function CategoriesPage() {
     setEditingId(null);
     setFormName("");
     setFormDescription("");
+    setFormImageUrl("");
     setFormParentId(parentId || "");
     setShowModal(true);
   };
@@ -112,6 +118,7 @@ export default function CategoriesPage() {
     setEditingId(id);
     setFormName(cat.name);
     setFormDescription(cat.description || "");
+    setFormImageUrl(cat.imageUrl || "");
     setFormParentId(cat.parentId || "");
     setShowModal(true);
   };
@@ -121,6 +128,7 @@ export default function CategoriesPage() {
     setEditingId(null);
     setFormName("");
     setFormDescription("");
+    setFormImageUrl("");
     setFormParentId("");
   };
 
@@ -135,6 +143,7 @@ export default function CategoriesPage() {
       const payload: Record<string, unknown> = {
         name: formName.trim(),
         description: formDescription || undefined,
+        imageUrl: formImageUrl || undefined,
         parentId: formParentId || undefined,
       };
 
@@ -240,13 +249,22 @@ export default function CategoriesPage() {
             <span className="w-5" />
           )}
 
-          {/* Icon */}
-          <FolderOpen className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          {/* Thumbnail */}
+          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+            {cat.imageUrl ? (
+              <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover" />
+            ) : (
+              <FolderOpen className="w-4 h-4 text-muted-foreground" />
+            )}
+          </div>
 
-          {/* Name */}
-          <span className="text-sm font-medium text-foreground flex-1 min-w-0 truncate">
-            {cat.name}
-          </span>
+          {/* Name + description */}
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-medium text-foreground truncate block">{cat.name}</span>
+            {cat.description && (
+              <span className="text-xs text-muted-foreground truncate block">{cat.description}</span>
+            )}
+          </div>
 
           {/* Product count */}
           <span className="text-xs text-muted-foreground flex-shrink-0">
@@ -372,6 +390,37 @@ export default function CategoriesPage() {
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Category Image</label>
+                {formImageUrl && (
+                  <div className="mb-2 relative w-full aspect-video rounded-lg overflow-hidden bg-muted">
+                    <img src={formImageUrl} alt="Category" className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => setFormImageUrl("")}
+                      className="absolute top-2 right-2 p-1 bg-black/50 hover:bg-black/70 rounded-full text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={formImageUrl}
+                    onChange={(e) => setFormImageUrl(e.target.value)}
+                    placeholder="Image URL or use media library →"
+                    className="flex-1 px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowMediaPicker(true)}
+                    className="px-3 py-2 border border-border rounded-lg hover:bg-muted text-sm flex items-center gap-1"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Parent Category</label>
                 <select
                   value={formParentId}
@@ -441,6 +490,17 @@ export default function CategoriesPage() {
           </div>
         </div>
       )}
+
+      {/* Media Library Picker */}
+      <MediaLibraryPicker
+        open={showMediaPicker}
+        onClose={() => setShowMediaPicker(false)}
+        onSelect={(url) => {
+          setFormImageUrl(url);
+          setShowMediaPicker(false);
+        }}
+        filterTypes={["image"]}
+      />
     </div>
   );
 }
