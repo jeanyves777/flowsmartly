@@ -177,6 +177,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Sync categories to store and rebuild
+    const { triggerStoreRebuildIfV2 } = await import("@/lib/store-builder/product-sync");
+    triggerStoreRebuildIfV2(store.id).catch((e) => console.error("Category sync error:", e));
+
     return NextResponse.json({
       success: true,
       data: category,

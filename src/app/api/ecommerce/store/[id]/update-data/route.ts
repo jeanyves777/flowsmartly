@@ -115,12 +115,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     writeFileSync(dataPath, data, "utf-8");
 
-    // Update categories in data.ts if provided
+    // Update categories: sync to DB + write to data.ts
     if (categories && Array.isArray(categories)) {
+      // Sync category changes (name, description, image) back to DB
+      for (const cat of categories as Array<{ id: string; name: string; slug: string; description: string; image: string }>) {
+        if (!cat.id) continue;
+        await prisma.productCategory.update({
+          where: { id: cat.id },
+          data: {
+            name: cat.name,
+            description: cat.description || null,
+            imageUrl: cat.image || null,
+          },
+        }).catch(() => {}); // Skip if category doesn't exist in DB
+      }
+
+      // Write updated categories to data.ts
       data = readFileSync(dataPath, "utf-8");
       const catStr = categories
         .map((c: { id: string; name: string; slug: string; description: string; image: string }) =>
-          `  {\n    id: "${escapeStr(c.id)}",\n    name: "${escapeStr(c.name)}",\n    slug: "${escapeStr(c.slug)}",\n    description: "${escapeStr(c.description || "")}",\n    image: storeUrl("${escapeStr(c.image || "")}"),\n  }`
+          `  { id: "${escapeStr(c.id)}", name: "${escapeStr(c.name)}", slug: "${escapeStr(c.slug)}", description: "${escapeStr(c.description || "")}", image: "${escapeStr(c.image || "")}" }`
         )
         .join(",\n");
       const updatedData = data.replace(

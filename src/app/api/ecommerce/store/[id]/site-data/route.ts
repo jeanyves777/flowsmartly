@@ -68,8 +68,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     result.navLinks = extractLinkArray(dataContent, "navLinks");
     result.footerLinks = extractLinkArray(dataContent, "footerLinks");
 
-    // Extract categories
-    result.categories = extractObjectArray(dataContent, "categories", ["id", "name", "slug", "description", "image"]);
+    // Categories: ALWAYS from DB (not from data.ts) so they match user's category management
+    const dbCategories = await prisma.productCategory.findMany({
+      where: { storeId: id },
+      select: { id: true, name: true, slug: true, description: true, imageUrl: true },
+      orderBy: { createdAt: "asc" },
+    });
+    result.categories = dbCategories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      description: c.description || "",
+      image: c.imageUrl || "",
+    }));
 
     // Extract FAQ
     result.faq = extractObjectArray(dataContent, "faq", ["question", "answer"]);
