@@ -32,11 +32,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   const { productId, variantId, quantity = 1 } = await req.json();
   if (!productId) return NextResponse.json({ error: "productId required" }, { status: 400 });
 
-  const item = await prisma.storeCartItem.upsert({
-    where: { customerId_productId_variantId: { customerId: customer.id, productId, variantId: variantId ?? null } },
-    update: { quantity, savedForLater: false },
-    create: { customerId: customer.id, storeId: store.id, productId, variantId: variantId ?? null, quantity, savedForLater: false },
+  const vid = variantId ?? null;
+  const existing = await prisma.storeCartItem.findFirst({
+    where: { customerId: customer.id, productId, variantId: vid },
   });
+  let item;
+  if (existing) {
+    await prisma.storeCartItem.updateMany({
+      where: { customerId: customer.id, productId, variantId: vid },
+      data: { quantity, savedForLater: false },
+    });
+    item = { ...existing, quantity, savedForLater: false };
+  } else {
+    item = await prisma.storeCartItem.create({
+      data: { customerId: customer.id, storeId: store.id, productId, variantId: vid, quantity, savedForLater: false },
+    });
+  }
   return NextResponse.json({ item });
 }
 

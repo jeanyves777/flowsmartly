@@ -11,11 +11,19 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ sl
   if (!customer) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Add to cart
-  await prisma.storeCartItem.upsert({
-    where: { customerId_productId_variantId: { customerId: customer.id, productId, variantId: null } },
-    update: { savedForLater: false, quantity: 1 },
-    create: { customerId: customer.id, storeId: store.id, productId, variantId: null, quantity: 1, savedForLater: false },
+  const existing = await prisma.storeCartItem.findFirst({
+    where: { customerId: customer.id, productId, variantId: null },
   });
+  if (existing) {
+    await prisma.storeCartItem.updateMany({
+      where: { customerId: customer.id, productId, variantId: null },
+      data: { savedForLater: false, quantity: 1 },
+    });
+  } else {
+    await prisma.storeCartItem.create({
+      data: { customerId: customer.id, storeId: store.id, productId, variantId: null, quantity: 1, savedForLater: false },
+    });
+  }
 
   // Remove from wishlist
   await prisma.storeWishlistItem.deleteMany({
