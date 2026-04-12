@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { hashPassword, createCustomerToken, setCustomerCookie } from "@/lib/store/customer-auth";
+import { hashPassword, createCustomerToken } from "@/lib/store/customer-auth";
 import { verifyTurnstile } from "@/lib/auth/turnstile";
 import { z } from "zod";
+
+const SESSION_DURATION = 30 * 24 * 60 * 60;
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(100),
@@ -61,12 +63,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Set session cookie
     const token = await createCustomerToken(customer.id, store.id, customer.email);
-    await setCustomerCookie(token);
-
-    return NextResponse.json({
+    const res = NextResponse.json({
       success: true,
       customer: { id: customer.id, name: customer.name, email: customer.email },
     });
+    res.cookies.set("sc_session", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: SESSION_DURATION,
+    });
+    return res;
   } catch (err) {
     console.error("Store customer register error:", err);
     return NextResponse.json({ error: "Registration failed" }, { status: 500 });

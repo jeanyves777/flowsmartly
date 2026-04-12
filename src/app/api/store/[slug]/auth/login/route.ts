@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { verifyPassword, createCustomerToken, setCustomerCookie } from "@/lib/store/customer-auth";
+import { verifyPassword, createCustomerToken } from "@/lib/store/customer-auth";
 import { verifyTurnstile } from "@/lib/auth/turnstile";
 import { z } from "zod";
+
+const SESSION_DURATION = 30 * 24 * 60 * 60;
 
 const schema = z.object({
   email: z.string().email("Invalid email"),
@@ -51,12 +53,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const token = await createCustomerToken(customer.id, store.id, customer.email);
-    await setCustomerCookie(token);
-
-    return NextResponse.json({
+    const res = NextResponse.json({
       success: true,
       customer: { id: customer.id, name: customer.name, email: customer.email },
     });
+    res.cookies.set("sc_session", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: SESSION_DURATION,
+    });
+    return res;
   } catch (err) {
     console.error("Store customer login error:", err);
     return NextResponse.json({ error: "Login failed" }, { status: 500 });
