@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ShoppingBag, Heart } from "lucide-react";
-import { storeUrl, formatPrice } from "@/lib/data";
+import { formatPrice } from "@/lib/data";
 import { addToCart } from "@/lib/cart";
 import type { Product } from "@/lib/products";
 
@@ -87,7 +87,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
 
   return (
     <motion.a
-      href={storeUrl(`/products/${product.slug}`)}
+      href={STORE_SLUG ? `/stores/${STORE_SLUG}/products/${product.slug}` : `/products/${product.slug}`}
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
