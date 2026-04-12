@@ -26,15 +26,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   if (Array.isArray(items) && items.length > 0) {
     for (const item of items) {
       if (!item.productId) continue;
-      const existing = await prisma.storeCartItem.findUnique({
-        where: { customerId_productId_variantId: { customerId: customer.id, productId: item.productId, variantId: item.variantId ?? null } },
+      const variantId = item.variantId ?? null;
+      const existing = await prisma.storeCartItem.findFirst({
+        where: { customerId: customer.id, productId: item.productId, variantId },
       });
       const finalQty = existing ? Math.max(existing.quantity, item.quantity) : item.quantity;
-      await prisma.storeCartItem.upsert({
-        where: { customerId_productId_variantId: { customerId: customer.id, productId: item.productId, variantId: item.variantId ?? null } },
-        update: { quantity: finalQty, savedForLater: false },
-        create: { customerId: customer.id, storeId: store.id, productId: item.productId, variantId: item.variantId ?? null, quantity: finalQty, savedForLater: false },
-      });
+      if (existing) {
+        await prisma.storeCartItem.updateMany({
+          where: { customerId: customer.id, productId: item.productId, variantId },
+          data: { quantity: finalQty, savedForLater: false },
+        });
+      } else {
+        await prisma.storeCartItem.create({
+          data: { customerId: customer.id, storeId: store.id, productId: item.productId, variantId, quantity: finalQty, savedForLater: false },
+        });
+      }
     }
   }
 
