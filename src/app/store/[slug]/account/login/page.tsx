@@ -88,6 +88,7 @@ export default function StoreLoginPage() {
                 "--tw-ring-color": "var(--store-primary)",
               } as React.CSSProperties}
               autoComplete="email"
+            />
           </div>
 
           <div>
