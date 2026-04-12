@@ -30,6 +30,16 @@ interface SiteData {
   stats: Array<{ label: string; value: number }>;
   team?: Array<Record<string, any>>;
   testimonials?: Array<Record<string, any>>;
+  testimonialsLayout?: string;
+  googleReviews?: {
+    enabled: boolean;
+    businessName: string;
+    rating: number;
+    totalReviews: number;
+    googleUrl: string;
+    reviews: Array<{ name: string; date: string; rating: number; text: string }>;
+  };
+  contactInfo?: { mapEmbedUrl?: string; mapAddress?: string };
   faq?: Array<{ question: string; answer: string }>;
   blogPosts?: Array<Record<string, any>>;
   galleryImages?: Array<Record<string, any>>;
@@ -209,6 +219,7 @@ export default function WebsiteEditPage() {
   if (data?.faq?.length || pages.some((p) => p.slug === "faq")) tabs.push({ id: "faq", label: "FAQ", icon: HelpCircle });
   if (data?.blogPosts?.length || pages.some((p) => p.slug === "blog")) tabs.push({ id: "blog", label: "Blog", icon: FileText });
   if (data?.galleryImages?.length || pages.some((p) => p.slug === "gallery")) tabs.push({ id: "gallery", label: "Gallery", icon: ImageIcon });
+  tabs.push({ id: "contact", label: "Contact", icon: MapPin });
   tabs.push({ id: "ai-update", label: "AI Update", icon: Sparkles });
   tabs.push({ id: "links", label: "Links", icon: Link2 });
   tabs.push({ id: "domains", label: "Domains", icon: Globe });
@@ -494,30 +505,108 @@ export default function WebsiteEditPage() {
               ))}
             </div>
           </Section>
+
+          {/* Member Testimonials */}
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Testimonials ({data.testimonials?.length || 0})</h2>
-              <button onClick={() => update("testimonials", [...(data.testimonials || []), { name: "", role: "", text: "", rating: 5 }])} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add</button>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold">Member Stories / Testimonials ({data.testimonials?.length || 0})</h2>
+              <button onClick={() => update("testimonials", [...(data.testimonials || []), { name: "", role: "", text: "", rating: 5, image: "", video: "" }])} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add</button>
             </div>
+
+            {/* Layout picker */}
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <span className="text-xs font-medium text-muted-foreground">Layout:</span>
+              {["cards", "carousel", "list", "masonry"].map((layout) => (
+                <button key={layout} onClick={() => update("testimonialsLayout", layout)}
+                  className={`px-3 py-1 text-xs rounded-full border capitalize transition-colors ${(data.testimonialsLayout || "cards") === layout ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary"}`}>
+                  {layout}
+                </button>
+              ))}
+            </div>
+
             {(data.testimonials || []).map((t, i) => (
               <div key={i} className="bg-card border border-border rounded-xl p-4 mb-3">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-medium text-muted-foreground">Review {i + 1}</span>
                   <button onClick={() => update("testimonials", (data.testimonials || []).filter((_, j) => j !== i))} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                  <Field label="Name" value={t.name} onChange={(v) => { const ts = [...(data.testimonials || [])]; ts[i] = { ...ts[i], name: v }; update("testimonials", ts); }} />
-                  <Field label="Role" value={t.role} onChange={(v) => { const ts = [...(data.testimonials || [])]; ts[i] = { ...ts[i], role: v }; update("testimonials", ts); }} />
-                  <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Rating</label>
-                    <select value={t.rating} onChange={(e) => { const ts = [...(data.testimonials || [])]; ts[i] = { ...ts[i], rating: Number(e.target.value) }; update("testimonials", ts); }} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
-                      {[5,4,3,2,1].map((r) => <option key={r} value={r}>{r} Stars</option>)}
-                    </select>
+                <div className="flex gap-4">
+                  {/* Photo picker */}
+                  <div className="flex-shrink-0">
+                    <ImagePicker label="Photo" value={t.image || ""} onChange={(v) => { const ts = [...(data.testimonials || [])]; ts[i] = { ...ts[i], image: v }; update("testimonials", ts); }} onBrowse={openPicker} onUpload={(f) => uploadImageToSite(f, "testimonials")} onAiGenerate={aiGenerateImage} compact />
+                  </div>
+                  <div className="flex-1 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <Field label="Name" value={t.name} onChange={(v) => { const ts = [...(data.testimonials || [])]; ts[i] = { ...ts[i], name: v }; update("testimonials", ts); }} />
+                      <Field label="Role / Title" value={t.role} onChange={(v) => { const ts = [...(data.testimonials || [])]; ts[i] = { ...ts[i], role: v }; update("testimonials", ts); }} />
+                      <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Rating</label>
+                        <select value={t.rating} onChange={(e) => { const ts = [...(data.testimonials || [])]; ts[i] = { ...ts[i], rating: Number(e.target.value) }; update("testimonials", ts); }} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background">
+                          {[5,4,3,2,1].map((r) => <option key={r} value={r}>{r} Stars</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <Field label="Review Text" value={t.text} onChange={(v) => { const ts = [...(data.testimonials || [])]; ts[i] = { ...ts[i], text: v }; update("testimonials", ts); }} multiline />
+                    <Field label="Video URL (optional — YouTube, Vimeo, MP4 link)" value={t.video || ""} onChange={(v) => { const ts = [...(data.testimonials || [])]; ts[i] = { ...ts[i], video: v }; update("testimonials", ts); }} icon={<Upload className="w-4 h-4" />} />
                   </div>
                 </div>
-                <Field label="Review" value={t.text} onChange={(v) => { const ts = [...(data.testimonials || [])]; ts[i] = { ...ts[i], text: v }; update("testimonials", ts); }} multiline />
               </div>
             ))}
           </div>
+
+          {/* Google Reviews */}
+          <Section title="Google Reviews">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <button onClick={() => update("googleReviews", { ...(data.googleReviews || { businessName: "", rating: 5, totalReviews: 0, googleUrl: "", reviews: [] }), enabled: !data.googleReviews?.enabled })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${data.googleReviews?.enabled ? "bg-primary" : "bg-muted"}`}>
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${data.googleReviews?.enabled ? "translate-x-6" : "translate-x-1"}`} />
+                </button>
+                <span className="text-sm font-medium">Show Google Reviews section on site</span>
+              </div>
+
+              {data.googleReviews?.enabled && (
+                <div className="space-y-4 pt-2 border-t border-border">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Field label="Business Name" value={data.googleReviews?.businessName || ""} onChange={(v) => update("googleReviews", { ...data.googleReviews, businessName: v })} icon={<Star className="w-4 h-4" />} />
+                    <Field label="Google Maps / Reviews URL" value={data.googleReviews?.googleUrl || ""} onChange={(v) => update("googleReviews", { ...data.googleReviews, googleUrl: v })} icon={<ExternalLink className="w-4 h-4" />} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Overall Rating</label>
+                      <input type="number" step="0.1" min="1" max="5" value={data.googleReviews?.rating || 5} onChange={(e) => update("googleReviews", { ...data.googleReviews, rating: Number(e.target.value) })} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background" />
+                    </div>
+                    <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Total Reviews Count</label>
+                      <input type="number" min="0" value={data.googleReviews?.totalReviews || 0} onChange={(e) => update("googleReviews", { ...data.googleReviews, totalReviews: Number(e.target.value) })} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium">Individual Google Reviews ({data.googleReviews?.reviews?.length || 0})</span>
+                      <button onClick={() => update("googleReviews", { ...data.googleReviews, reviews: [...(data.googleReviews?.reviews || []), { name: "", date: "", rating: 5, text: "" }] })} className="flex items-center gap-1 px-2.5 py-1 text-xs bg-primary text-primary-foreground rounded-lg"><Plus className="w-3 h-3" /> Add</button>
+                    </div>
+                    {(data.googleReviews?.reviews || []).map((gr, i) => (
+                      <div key={i} className="border border-border rounded-lg p-3 mb-2 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">Review {i + 1}</span>
+                          <button onClick={() => update("googleReviews", { ...data.googleReviews, reviews: (data.googleReviews?.reviews || []).filter((_, j) => j !== i) })} className="p-0.5 text-muted-foreground hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          <Field label="Reviewer Name" value={gr.name} onChange={(v) => { const rs = [...(data.googleReviews?.reviews || [])]; rs[i] = { ...rs[i], name: v }; update("googleReviews", { ...data.googleReviews, reviews: rs }); }} />
+                          <Field label="Date (e.g. 2 months ago)" value={gr.date} onChange={(v) => { const rs = [...(data.googleReviews?.reviews || [])]; rs[i] = { ...rs[i], date: v }; update("googleReviews", { ...data.googleReviews, reviews: rs }); }} />
+                          <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Rating</label>
+                            <select value={gr.rating} onChange={(e) => { const rs = [...(data.googleReviews?.reviews || [])]; rs[i] = { ...rs[i], rating: Number(e.target.value) }; update("googleReviews", { ...data.googleReviews, reviews: rs }); }} className="w-full px-2 py-1.5 text-sm border border-border rounded-lg bg-background">
+                              {[5,4,3,2,1].map((r) => <option key={r} value={r}>{r} Stars</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <Field label="Review Text" value={gr.text} onChange={(v) => { const rs = [...(data.googleReviews?.reviews || [])]; rs[i] = { ...rs[i], text: v }; update("googleReviews", { ...data.googleReviews, reviews: rs }); }} multiline />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </Section>
         </div>
       )}
 
@@ -696,6 +785,45 @@ export default function WebsiteEditPage() {
         </div>
         );
       })()}
+
+      {/* Contact Section Editor */}
+      {activeTab === "contact" && data && (
+        <div className="space-y-6">
+          <Section title="Contact Information">
+            <p className="text-sm text-muted-foreground mb-4">Edit the contact details shown on your contact page and in the footer.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Field label="Address" value={data.company.address || ""} onChange={(v) => update("company.address", v)} icon={<MapPin className="w-4 h-4" />} span={2} />
+              <Field label="City" value={data.company.city || ""} onChange={(v) => update("company.city", v)} />
+              <Field label="State / Province" value={data.company.state || ""} onChange={(v) => update("company.state", v)} />
+              <Field label="Country" value={data.company.country || ""} onChange={(v) => update("company.country", v)} />
+              <Field label="Phone" value={data.company.phones?.[0] || ""} onChange={(v) => update("company.phones", [v])} icon={<Phone className="w-4 h-4" />} />
+              <Field label="Email" value={data.company.emails?.[0] || ""} onChange={(v) => update("company.emails", [v])} icon={<Mail className="w-4 h-4" />} />
+            </div>
+          </Section>
+
+          <Section title="Google Map Embed">
+            <p className="text-sm text-muted-foreground mb-3">Add an interactive map below your contact section. Get your embed URL from <strong>Google Maps → Share → Embed a map → copy the src URL</strong>.</p>
+            <Field
+              label='Google Maps Embed URL (the src="..." value from the iframe code)'
+              value={data.contactInfo?.mapEmbedUrl || ""}
+              onChange={(v) => update("contactInfo", { ...(data.contactInfo || {}), mapEmbedUrl: v })}
+              icon={<MapPin className="w-4 h-4" />}
+            />
+            <Field
+              label="Map Address Label (shown above map, e.g. 123 Main St, Albany NY)"
+              value={data.contactInfo?.mapAddress || ""}
+              onChange={(v) => update("contactInfo", { ...(data.contactInfo || {}), mapAddress: v })}
+              icon={<MapPin className="w-4 h-4" />}
+            />
+            {data.contactInfo?.mapEmbedUrl && (
+              <div className="mt-4">
+                <p className="text-xs text-muted-foreground mb-2">Preview:</p>
+                <iframe src={data.contactInfo.mapEmbedUrl} width="100%" height="250" className="rounded-lg border border-border" loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" />
+              </div>
+            )}
+          </Section>
+        </div>
+      )}
 
       {/* AI Section Update */}
       {activeTab === "ai-update" && (

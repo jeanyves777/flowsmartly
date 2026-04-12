@@ -104,6 +104,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
       }
     }
+    if (data.testimonials) {
+      for (const t of data.testimonials) {
+        if (t.image?.startsWith("http")) {
+          t.image = await localizeImage(t.image, siteDir, "testimonials", basePath);
+        }
+      }
+    }
 
     // ========== STEP 2: Save to DB ==========
     await prisma.website.update({
@@ -214,16 +221,66 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         content = content.replace(/export const (?:faqItems|faqs?)\s*=\s*\[[\s\S]*?\n\]/, `export const ${exportName} = [\n${code}\n]`);
       }
 
-      // --- Testimonials (full rebuild) ---
+      // --- Testimonials (full rebuild with image, video, layout) ---
       if (data.testimonials) {
         const code = data.testimonials.map((t: any) => `  {
     name: '${escapeStr(t.name || "")}',
     role: '${escapeStr(t.role || "")}',
     rating: ${t.rating || 5},
     text: '${escapeStr(t.text || "")}',
-    avatar: '${(t.name || "").split(" ").map((w: string) => w[0] || "").join("").substring(0, 2).toUpperCase()}',
+    avatar: '${(t.name || "").split(" ").map((w: string) => w[0] || "").join("").substring(0, 2).toUpperCase()}',${t.image ? `\n    image: '${escapeStr(t.image)}',` : ""}${t.video ? `\n    video: '${escapeStr(t.video)}',` : ""}
   }`).join(",\n");
         content = content.replace(/export const testimonials\s*=\s*\[[\s\S]*?\n\]/, `export const testimonials = [\n${code}\n]`);
+      }
+
+      // --- Testimonials layout ---
+      if (data.testimonialsLayout) {
+        const layout = escapeStr(data.testimonialsLayout);
+        if (content.includes("testimonialsLayout")) {
+          content = content.replace(/export const testimonialsLayout\s*=\s*['"][^'"]*['"]/, `export const testimonialsLayout = '${layout}'`);
+        } else {
+          // append after testimonials array
+          content = content.replace(/(export const testimonials\s*=\s*\[[\s\S]*?\n\])/, `$1\nexport const testimonialsLayout = '${layout}'`);
+        }
+      }
+
+      // --- Google Reviews ---
+      if (data.googleReviews) {
+        const gr = data.googleReviews;
+        const reviewsCode = (gr.reviews || []).map((r: any) => `    {
+      name: '${escapeStr(r.name || "")}',
+      date: '${escapeStr(r.date || "")}',
+      rating: ${r.rating || 5},
+      text: '${escapeStr(r.text || "")}',
+      avatar: '${(r.name || "").split(" ").map((w: string) => w[0] || "").join("").substring(0, 2).toUpperCase()}',
+    }`).join(",\n");
+        const grCode = `export const googleReviews = {
+  enabled: ${!!gr.enabled},
+  businessName: '${escapeStr(gr.businessName || "")}',
+  rating: ${gr.rating || 5},
+  totalReviews: ${gr.totalReviews || 0},
+  googleUrl: '${escapeStr(gr.googleUrl || "")}',
+  reviews: [\n${reviewsCode}\n  ],
+}`;
+        if (content.includes("export const googleReviews")) {
+          content = content.replace(/export const googleReviews\s*=\s*\{[\s\S]*?\n\}/, grCode);
+        } else {
+          content += `\n\n${grCode}\n`;
+        }
+      }
+
+      // --- Contact section map embed ---
+      if (data.contactInfo) {
+        const ci = data.contactInfo;
+        const contactCode = `export const contactInfo = {
+  mapEmbedUrl: '${escapeStr(ci.mapEmbedUrl || "")}',
+  mapAddress: '${escapeStr(ci.mapAddress || "")}',
+}`;
+        if (content.includes("export const contactInfo")) {
+          content = content.replace(/export const contactInfo\s*=\s*\{[\s\S]*?\n\}/, contactCode);
+        } else {
+          content += `\n\n${contactCode}\n`;
+        }
       }
 
       // --- Blog posts (full rebuild) ---
@@ -557,6 +614,41 @@ async function detectAndFixMismatches(siteDir: string, data: any, basePath: stri
       filePath: join(siteDir, "src", "app", "blog", "page.tsx"),
       detectField: ".image",
       prompt: `The user has added images to blog posts. Update this component to display each blog post's image (from blogPosts in data.ts). Show images as card thumbnails.`,
+    },
+    // Testimonials: image support
+    {
+      condition: data.testimonials?.some((t: any) => t.image),
+      filePath: join(siteDir, "src", "components", "Testimonials.tsx"),
+      detectField: "t.image",
+      prompt: `The user has added photos to testimonials. Update this component to display each testimonial's photo (t.image from the testimonials array). Show a circular avatar photo if available, falling back to the avatar initials. Use a clean card layout with the photo alongside the review text.`,
+    },
+    // Testimonials: video support
+    {
+      condition: data.testimonials?.some((t: any) => t.video),
+      filePath: join(siteDir, "src", "components", "Testimonials.tsx"),
+      detectField: "t.video",
+      prompt: `The user has added video testimonials (t.video field). Update this component to render a video player (HTML5 <video> tag or YouTube/Vimeo embed) when t.video is present. Show the video above or alongside the text review.`,
+    },
+    // Testimonials: layout support
+    {
+      condition: !!data.testimonialsLayout && data.testimonialsLayout !== "cards",
+      filePath: join(siteDir, "src", "components", "Testimonials.tsx"),
+      detectField: "testimonialsLayout",
+      prompt: `The user wants the testimonials layout to be "${data.testimonialsLayout}". Import testimonialsLayout from data.ts and switch the rendering: "cards" = 3-col grid cards, "carousel" = horizontal auto-scrolling carousel with prev/next buttons, "list" = full-width stacked items, "masonry" = 2-col masonry grid. Implement the requested layout now.`,
+    },
+    // Contact: Google Map embed
+    {
+      condition: !!(data.contactInfo?.mapEmbedUrl),
+      filePath: join(siteDir, "src", "components", "ContactSection.tsx"),
+      detectField: "contactInfo",
+      prompt: `The user has added a Google Map embed URL (contactInfo.mapEmbedUrl) and optional label (contactInfo.mapAddress) in data.ts. Import contactInfo from data.ts. Add a full-width map section below the contact form/info: show contactInfo.mapAddress as a label if present, then render an <iframe src={contactInfo.mapEmbedUrl} width="100%" height="400" ... /> in a rounded container. Only show if mapEmbedUrl is truthy.`,
+    },
+    // Google Reviews: embed as a section inside or below Testimonials
+    {
+      condition: !!(data.googleReviews?.enabled && data.googleReviews?.reviews?.length),
+      filePath: join(siteDir, "src", "components", "Testimonials.tsx"),
+      detectField: "googleReviews",
+      prompt: `The user has enabled Google Reviews (googleReviews in data.ts with: enabled, businessName, rating, totalReviews, googleUrl, reviews[]). Import googleReviews from data.ts. Add a second section BELOW the existing testimonials: a full-width "Google Reviews" block showing the Google G icon (colored svg or a colored circle with "G"), businessName, overall rating (as stars), totalReviews count, individual review cards (name, date, rating stars, text excerpt with read more link), and a "See all reviews on Google" link using googleReviews.googleUrl. Only render this section if googleReviews.enabled is true.`,
     },
   ];
 
