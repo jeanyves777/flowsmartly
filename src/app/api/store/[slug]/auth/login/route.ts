@@ -6,6 +6,20 @@ import { z } from "zod";
 
 const SESSION_DURATION = 30 * 24 * 60 * 60;
 
+function corsHeaders(request: NextRequest) {
+  const origin = request.headers.get("origin") || "";
+  return {
+    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, { status: 204, headers: corsHeaders(request) });
+}
+
 const schema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(1, "Password is required"),
@@ -53,20 +67,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const token = await createCustomerToken(customer.id, store.id, customer.email);
-    const res = NextResponse.json({
-      success: true,
-      customer: { id: customer.id, name: customer.name, email: customer.email },
-    });
+    const res = NextResponse.json(
+      { success: true, customer: { id: customer.id, name: customer.name, email: customer.email } },
+      { headers: corsHeaders(request) },
+    );
     res.cookies.set("sc_session", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      secure: true,
+      sameSite: "none",
       path: "/",
       maxAge: SESSION_DURATION,
     });
     return res;
   } catch (err) {
     console.error("Store customer login error:", err);
-    return NextResponse.json({ error: "Login failed" }, { status: 500 });
+    return NextResponse.json({ error: "Login failed" }, { status: 500, headers: corsHeaders(request) });
   }
 }

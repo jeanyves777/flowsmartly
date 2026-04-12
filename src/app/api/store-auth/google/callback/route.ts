@@ -99,8 +99,8 @@ function clearAndRedirect(url: string, sessionToken?: string) {
   if (sessionToken) {
     res.cookies.set("sc_session", sessionToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      secure: true,
+      sameSite: "none",
       path: "/",
       maxAge: SESSION_DURATION,
     });

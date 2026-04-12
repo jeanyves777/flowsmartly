@@ -3,24 +3,36 @@ import { prisma } from "@/lib/db/client";
 import { getStoreCustomer, hashPassword, verifyPassword } from "@/lib/store/customer-auth";
 import { z } from "zod";
 
+function corsHeaders(request: NextRequest) {
+  const origin = request.headers.get("origin") || "";
+  return {
+    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, { status: 204, headers: corsHeaders(request) });
+}
+
 // GET /api/store/[slug]/account/profile
 export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
     const store = await prisma.store.findUnique({ where: { slug }, select: { id: true } });
-    if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 });
+    if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404, headers: corsHeaders(request) });
 
     const customer = await getStoreCustomer(store.id);
-    if (!customer) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    if (!customer) return NextResponse.json({ error: "Not authenticated" }, { status: 401, headers: corsHeaders(request) });
 
-    return NextResponse.json({
-      id: customer.id,
-      name: customer.name,
-      email: customer.email,
-      phone: customer.phone,
-    });
+    return NextResponse.json(
+      { customer: { id: customer.id, name: customer.name, email: customer.email, phone: customer.phone } },
+      { headers: corsHeaders(request) },
+    );
   } catch (err) {
-    return NextResponse.json({ error: "Failed to fetch profile" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch profile" }, { status: 500, headers: corsHeaders(request) });
   }
 }
 
@@ -36,14 +48,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { slug } = await params;
     const store = await prisma.store.findUnique({ where: { slug }, select: { id: true } });
-    if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 });
+    if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404, headers: corsHeaders(request) });
 
     const customer = await getStoreCustomer(store.id);
-    if (!customer) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    if (!customer) return NextResponse.json({ error: "Not authenticated" }, { status: 401, headers: corsHeaders(request) });
 
     const body = await request.json();
     const parsed = updateSchema.safeParse(body);
-    if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400, headers: corsHeaders(request) });
 
     const { name, phone, currentPassword, newPassword } = parsed.data;
     const data: Record<string, string> = {};
@@ -51,22 +63,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (name) data.name = name;
     if (phone !== undefined) data.phone = phone;
 
-    // Password change requires current password
     if (newPassword) {
       if (!currentPassword) {
-        return NextResponse.json({ error: "Current password required" }, { status: 400 });
+        return NextResponse.json({ error: "Current password required" }, { status: 400, headers: corsHeaders(request) });
       }
       const valid = await verifyPassword(currentPassword, customer.passwordHash);
       if (!valid) {
-        return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 });
+        return NextResponse.json({ error: "Current password is incorrect" }, { status: 400, headers: corsHeaders(request) });
       }
       data.passwordHash = await hashPassword(newPassword);
     }
 
     await prisma.storeCustomer.update({ where: { id: customer.id }, data });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, { headers: corsHeaders(request) });
   } catch (err) {
-    return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to update profile" }, { status: 500, headers: corsHeaders(request) });
   }
 }
