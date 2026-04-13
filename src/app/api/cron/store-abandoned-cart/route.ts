@@ -4,7 +4,7 @@ import { sendAbandonedCartEmail } from "@/lib/email/commerce";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
-// POST /api/cron/store-abandoned-cart
+// GET /api/cron/store-abandoned-cart
 // Sends retargeting emails to store customers with carts idle 2-48h
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("x-cron-secret") || req.nextUrl.searchParams.get("secret");
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
     // Fetch store info
     const store = await prisma.store.findUnique({
       where: { id: customer.storeId },
-      select: { name: true, slug: true, currency: true, domain: true },
+      select: { name: true, slug: true, currency: true },
     });
     if (!store) continue;
 
@@ -83,9 +83,7 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    const storeUrl = store.domain
-      ? `https://${store.domain}`
-      : `https://flowsmartly.com/stores/${store.slug}`;
+    const storeUrl = `https://flowsmartly.com/stores/${store.slug}`;
 
     try {
       await sendAbandonedCartEmail({
