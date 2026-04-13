@@ -11,7 +11,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
 import { getCart, getCartTotal, clearCart } from "@/lib/cart";
-import { formatPrice, storeInfo, shippingMethods, paymentMethods } from "@/lib/data";
+import { formatPrice, storeInfo, shippingMethods } from "@/lib/data";
 import type { CartItem } from "@/lib/cart";
 
 const API_BASE = "https://flowsmartly.com";
@@ -46,7 +46,6 @@ export default function CheckoutPage() {
     zip: "",
     country: "US",
     shippingMethodId: "",
-    paymentMethod: "card",
   });
 
   useEffect(() => {
@@ -117,19 +116,21 @@ export default function CheckoutPage() {
             country: form.country,
           },
           shippingMethod: selectedMethod?.name || "Standard",
-          paymentMethod: form.paymentMethod,
+          paymentMethod: "card",
         }),
       });
       const json = await res.json();
       if (json.success) {
-        clearCart();
-        setOrderComplete(true);
-        setOrderNumber(json.data?.orderNumber || "");
-        if (json.data?.clientSecret && form.paymentMethod === "card") {
-          // Stripe payment — redirect handled by store
+        if (json.data?.clientSecret) {
+          // Stripe payment — redirect to confirmation page with Stripe Elements
+          clearCart();
           window.location.href = `/checkout/confirm?secret=${json.data.clientSecret}&order=${json.data.orderId}`;
           return;
         }
+        // Non-card payment (COD etc) — show success
+        clearCart();
+        setOrderComplete(true);
+        setOrderNumber(json.data?.orderNumber || "");
       } else {
         setError(json.error?.message || "Checkout failed. Please try again.");
       }
@@ -303,31 +304,24 @@ export default function CheckoutPage() {
               </motion.div>
             )}
 
-            {/* Step 3: Payment */}
+            {/* Step 3: Payment — Stripe handles everything */}
             {step === 2 && (
               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 space-y-5">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <CreditCard size={20} /> Payment Method
+                  <CreditCard size={20} /> Payment
                 </h2>
-                <div className="space-y-3">
-                  {(paymentMethods || []).map((pm: any) => (
-                    <label key={pm.value} className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      form.paymentMethod === pm.value
-                        ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10"
-                        : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-                    }`}>
-                      <input
-                        type="radio"
-                        name="paymentMethod"
-                        value={pm.value}
-                        checked={form.paymentMethod === pm.value}
-                        onChange={handleChange}
-                        className="w-4 h-4 text-primary-600"
-                      />
-                      <span className="text-lg">{pm.icon}</span>
-                      <span className="font-medium text-gray-900 dark:text-white">{pm.label}</span>
-                    </label>
-                  ))}
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Your payment is processed securely via Stripe. Card, Apple Pay, and Google Pay are accepted based on your device.
+                </p>
+                <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-3 mb-3">
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" strokeWidth={1.5}><rect x={2} y={5} width={20} height={14} rx={2} /><path d="M2 10h20" /></svg>
+                    <span className="text-sm text-gray-600 dark:text-gray-300">Secure checkout powered by Stripe</span>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-gray-400">
+                    <span className="flex items-center gap-1"><svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg> SSL Encrypted</span>
+                    <span>Visa</span><span>Mastercard</span><span>Amex</span>
+                  </div>
                 </div>
               </motion.div>
             )}
