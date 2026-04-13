@@ -168,7 +168,7 @@ export async function PATCH(
           item.productId
             ? prisma.product.updateMany({
                 where: { id: item.productId },
-                data: { stock: { increment: item.quantity } },
+                data: { quantity: { increment: item.quantity } },
               })
             : Promise.resolve()
         )
