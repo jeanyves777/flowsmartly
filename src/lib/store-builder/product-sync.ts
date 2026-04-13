@@ -34,7 +34,7 @@ export async function triggerStoreRebuildIfV2(storeId: string): Promise<void> {
     // Sync products, categories, and store settings from DB to store files
     await syncProductsToFile(storeId, store.generatedPath);
     await syncCategoriesToDataFile(storeId, store.generatedPath);
-    await syncShippingToDataFile(store.generatedPath, store.flatRateShippingCents, store.freeShippingThresholdCents);
+    await syncShippingToDataFile(storeId, store.generatedPath, store.freeShippingThresholdCents);
 
     const { buildStoreV3, deployStoreV3 } = await import("./store-site-builder");
 
@@ -154,9 +154,10 @@ async function syncCategoriesToDataFile(storeId: string, storeDir: string): Prom
 }
 
 /**
- * Sync shipping config from DB to the store's data.ts storeInfo object.
+ * Sync shipping methods + config from DB to the store's data.ts.
+ * Writes shippingMethods array and updates freeShippingThresholdCents.
  */
-async function syncShippingToDataFile(storeDir: string, flatRateCents: number, freeThresholdCents: number): Promise<void> {
+async function syncShippingToDataFile(storeId: string, storeDir: string, freeThresholdCents: number): Promise<void> {
   const { readFileSync, writeFileSync, existsSync } = await import("fs");
   const { join } = await import("path");
 
@@ -165,17 +166,34 @@ async function syncShippingToDataFile(storeDir: string, flatRateCents: number, f
 
   let content = readFileSync(dataPath, "utf-8");
 
-  // Replace or add flatRateShippingCents
-  if (content.includes("flatRateShippingCents:")) {
-    content = content.replace(/flatRateShippingCents:\s*\d+/, `flatRateShippingCents: ${flatRateCents}`);
-  }
-
-  // Replace or add freeShippingThresholdCents
+  // Update freeShippingThresholdCents
   if (content.includes("freeShippingThresholdCents:")) {
     content = content.replace(/freeShippingThresholdCents:\s*\d+/, `freeShippingThresholdCents: ${freeThresholdCents}`);
   }
 
+  // Fetch shipping methods from DB
+  const methods = await prisma.storeShippingMethod.findMany({
+    where: { storeId, isActive: true },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  const methodsStr = methods.map(m =>
+    `  { id: "${m.id}", name: "${escapeStr(m.name)}", description: "${escapeStr(m.description || "")}", priceCents: ${m.priceCents}, estimatedDays: "${escapeStr(m.estimatedDays || "")}" }`
+  ).join(",\n");
+
+  // Replace or add shippingMethods array
+  if (content.includes("export const shippingMethods")) {
+    content = content.replace(
+      /export const shippingMethods\s*=\s*\[[\s\S]*?\];/,
+      `export const shippingMethods = [\n${methodsStr},\n];`
+    );
+  } else {
+    // Append after the last export
+    content += `\n\nexport const shippingMethods = [\n${methodsStr},\n];\n`;
+  }
+
   writeFileSync(dataPath, content, "utf-8");
+  console.log(`[ProductSync] Synced ${methods.length} shipping methods to data.ts`);
 }
 
 function escapeStr(str: string): string {

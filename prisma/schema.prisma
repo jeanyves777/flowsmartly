@@ -3244,10 +3244,29 @@ model Store {
   customers              StoreCustomer[]
   warnings               StoreWarning[]
   feedbacks              OrderFeedback[]
+  shippingMethods        StoreShippingMethod[]
 
   @@index([slug])
   @@index([userId])
   @@index([isActive])
+}
+
+// Store shipping methods — fully user-controlled, NEVER hardcoded
+model StoreShippingMethod {
+  id              String   @id @default(cuid())
+  storeId         String
+  name            String   // e.g. "Standard Shipping", "Express", "Local Pickup"
+  description     String?  // e.g. "3-5 business days"
+  priceCents      Int      @default(0)    // 0 = free
+  estimatedDays   String?  // e.g. "3-5", "1-2", "Same day"
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
 }
 
 // Store compliance warnings issued by FlowSmartly admin

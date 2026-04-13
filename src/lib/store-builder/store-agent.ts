@@ -279,10 +279,17 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 - goToCheckout() in cart.ts navigates to /checkout (local page)
 - Checkout page is WITHIN the store at /checkout — NOT a redirect to FlowSmartly
 - Payment processing happens via /api/checkout → FlowSmartly gateway → Stripe
-- Checkout shipping costs MUST come from storeInfo (NOT hardcoded):
-  const shippingConfig = { flatRateCents: storeInfo.flatRateShippingCents || 0, freeThresholdCents: storeInfo.freeShippingThresholdCents || 0 };
-  const shippingCost = orderData.shippingMethod === "pickup" ? 0 : (shippingConfig.freeThresholdCents > 0 && total >= shippingConfig.freeThresholdCents) ? 0 : shippingConfig.flatRateCents;
-- NEVER hardcode shipping prices like 599 or 1499 — always read from storeInfo
+- Checkout shipping methods MUST come from data.ts shippingMethods array (NEVER hardcoded):
+  import { shippingMethods } from "@/lib/data";
+  import { storeInfo } from "@/lib/data";
+  // Display only active methods from shippingMethods array
+  // Each has: id, name, description, priceCents, estimatedDays
+  // Free shipping: if storeInfo.freeShippingThresholdCents > 0 && total >= threshold → shipping is free
+  const freeThreshold = (storeInfo as any).freeShippingThresholdCents || 0;
+  const isFreeShipping = freeThreshold > 0 && cartTotal >= freeThreshold;
+  const shippingCost = isFreeShipping ? 0 : selectedMethod.priceCents;
+- NEVER hardcode shipping method names, prices, or delivery times (no "599", no "Standard Shipping")
+- NEVER create static shipping options — always read from shippingMethods[]
 - Checkout MUST pre-fill customer data from window.__storeCustomer on mount:
   useEffect(() => {
     setCart(getCart());

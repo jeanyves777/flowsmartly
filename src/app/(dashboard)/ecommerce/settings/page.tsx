@@ -19,6 +19,7 @@ import {
   Link2,
   Shield,
   Trash2,
+  Plus,
   Star,
   Search,
   Sparkles,
@@ -150,9 +151,11 @@ export default function EcommerceSettingsPage() {
   const [brandLogos, setBrandLogos] = useState<{ full: string | null; icon: string | null }>({ full: null, icon: null });
 
   // Shipping tab fields
-  const [flatRateCents, setFlatRateCents] = useState(0);
   const [freeShippingThresholdCents, setFreeShippingThresholdCents] = useState(0);
-  const [localPickup, setLocalPickup] = useState(false);
+  const [shippingMethods, setShippingMethods] = useState<Array<{
+    id?: string; name: string; description: string; priceCents: number; estimatedDays: string; isActive: boolean; sortOrder: number;
+  }>>([]);
+  const [shippingLoaded, setShippingLoaded] = useState(false);
 
   // Branding tab fields
   const [primaryColor, setPrimaryColor] = useState("#6366f1");
@@ -178,9 +181,14 @@ export default function EcommerceSettingsPage() {
         // Parse shipping settings
         const settings = (s.settings || {}) as Record<string, unknown>;
         const shipping = (settings.shipping || {}) as Record<string, unknown>;
-        setFlatRateCents(typeof shipping.flatRateCents === "number" ? shipping.flatRateCents : 0);
         setFreeShippingThresholdCents(typeof shipping.freeShippingThresholdCents === "number" ? shipping.freeShippingThresholdCents : 0);
-        setLocalPickup(!!shipping.localPickup);
+        // Fetch shipping methods from DB
+        fetch("/api/ecommerce/shipping-methods").then(r => r.json()).then(json => {
+          if (json.success && json.data?.methods) {
+            setShippingMethods(json.data.methods);
+          }
+          setShippingLoaded(true);
+        }).catch(() => setShippingLoaded(true));
         // Parse showBrandName from storeContent
         const storeContentSettings = (settings.storeContent || {}) as Record<string, unknown>;
         setShowBrandName(storeContentSettings.showBrandName !== false);
@@ -463,27 +471,46 @@ export default function EcommerceSettingsPage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/ecommerce/store/settings", {
+      // Save free shipping threshold to store settings
+      const settingsRes = await fetch("/api/ecommerce/store/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           settings: {
             ...store.settings,
-            shipping: {
-              flatRateCents,
-              freeShippingThresholdCents,
-              localPickup,
-            },
+            shipping: { freeShippingThresholdCents },
           },
         }),
       });
-      const data = await res.json();
-      if (data.success) {
-        setStore(data.data.store);
-        setSuccessMessage("Shipping settings saved.");
-      } else {
-        setError(data.error?.message || "Failed to save.");
+      const settingsData = await settingsRes.json();
+      if (!settingsData.success) {
+        setError(settingsData.error?.message || "Failed to save.");
+        return;
       }
+      setStore(settingsData.data.store);
+
+      // Save each shipping method
+      for (const method of shippingMethods) {
+        if (method.id) {
+          await fetch(`/api/ecommerce/shipping-methods/${method.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(method),
+          });
+        } else {
+          const res = await fetch("/api/ecommerce/shipping-methods", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(method),
+          });
+          const json = await res.json();
+          if (json.success && json.data?.id) {
+            method.id = json.data.id;
+          }
+        }
+      }
+
+      setSuccessMessage("Shipping settings saved.");
     } catch {
       setError("Failed to save shipping settings.");
     } finally {
@@ -868,29 +895,14 @@ export default function EcommerceSettingsPage() {
 
         {/* SHIPPING TAB */}
         {activeTab === "shipping" && (
-          <div className="space-y-5">
+          <div className="space-y-6">
             <p className="text-sm text-muted-foreground">
-              Configure shipping rates for your store. These apply to all orders.
+              Configure shipping methods for your store. Customers see these at checkout.
             </p>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">
-                Flat Rate Shipping ({store.currency})
-              </label>
-              <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={(flatRateCents / 100).toFixed(2)}
-                onChange={(e) => setFlatRateCents(Math.round(parseFloat(e.target.value || "0") * 100))}
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                placeholder="0.00"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Flat shipping rate charged per order. Set to 0 for free shipping.
-              </p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">
+
+            {/* Free Shipping Threshold */}
+            <div className="p-4 rounded-lg border border-border bg-card space-y-3">
+              <label className="block text-sm font-semibold">
                 Free Shipping Threshold ({store.currency})
               </label>
               <input
@@ -902,32 +914,110 @@ export default function EcommerceSettingsPage() {
                 className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 placeholder="0.00"
               />
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground">
                 Orders above this amount get free shipping. Set to 0 to disable.
               </p>
             </div>
-            <div className="flex items-center justify-between p-4 rounded-lg border">
-              <div>
-                <p className="text-sm font-medium">Local Pickup</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Allow customers to pick up orders at your location
-                </p>
+
+            {/* Shipping Methods */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">Shipping Methods</h3>
+                <button
+                  onClick={() => setShippingMethods([...shippingMethods, { name: "", description: "", priceCents: 0, estimatedDays: "", isActive: true, sortOrder: shippingMethods.length }])}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-dashed border-border rounded-lg hover:border-brand-500 text-muted-foreground hover:text-brand-500"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Method
+                </button>
               </div>
-              <button
-                onClick={() => setLocalPickup(!localPickup)}
-                className={cn(
-                  "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                  localPickup ? "bg-brand-500" : "bg-muted"
-                )}
-              >
-                <span
-                  className={cn(
-                    "inline-block h-4 w-4 rounded-full bg-white transition-transform",
-                    localPickup ? "translate-x-6" : "translate-x-1"
-                  )}
-                />
-              </button>
+
+              {shippingMethods.length === 0 && shippingLoaded && (
+                <div className="text-center py-8 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
+                  No shipping methods yet. Add your first method above.
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {shippingMethods.map((method, i) => (
+                  <div key={method.id || `new-${i}`} className="p-4 rounded-lg border border-border bg-card space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Method #{i + 1}</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            const updated = [...shippingMethods];
+                            updated[i] = { ...updated[i], isActive: !updated[i].isActive };
+                            setShippingMethods(updated);
+                          }}
+                          className={cn(
+                            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+                            method.isActive ? "bg-brand-500" : "bg-muted"
+                          )}
+                        >
+                          <span className={cn("inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform", method.isActive ? "translate-x-4.5" : "translate-x-0.5")} />
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (method.id) {
+                              await fetch(`/api/ecommerce/shipping-methods/${method.id}`, { method: "DELETE" });
+                            }
+                            setShippingMethods(shippingMethods.filter((_, j) => j !== i));
+                          }}
+                          className="p-1 text-muted-foreground hover:text-red-500 rounded"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
+                        <input
+                          type="text"
+                          value={method.name}
+                          onChange={(e) => { const u = [...shippingMethods]; u[i] = { ...u[i], name: e.target.value }; setShippingMethods(u); }}
+                          placeholder="e.g. Standard Shipping"
+                          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">Price ({store.currency})</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={(method.priceCents / 100).toFixed(2)}
+                          onChange={(e) => { const u = [...shippingMethods]; u[i] = { ...u[i], priceCents: Math.round(parseFloat(e.target.value || "0") * 100) }; setShippingMethods(u); }}
+                          placeholder="0.00"
+                          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">Description</label>
+                        <input
+                          type="text"
+                          value={method.description || ""}
+                          onChange={(e) => { const u = [...shippingMethods]; u[i] = { ...u[i], description: e.target.value }; setShippingMethods(u); }}
+                          placeholder="e.g. 3-5 business days"
+                          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">Estimated Days</label>
+                        <input
+                          type="text"
+                          value={method.estimatedDays || ""}
+                          onChange={(e) => { const u = [...shippingMethods]; u[i] = { ...u[i], estimatedDays: e.target.value }; setShippingMethods(u); }}
+                          placeholder="e.g. 3-5"
+                          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
+
             <div className="pt-2">
               <button
                 onClick={handleSaveShipping}
