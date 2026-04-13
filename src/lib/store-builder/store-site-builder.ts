@@ -342,9 +342,19 @@ export async function deployStoreV3(storeId: string, slug: string): Promise<{ su
       return { success: false, error: `Max concurrent apps reached (${MAX_CONCURRENT_APPS}). Stop some apps first.` };
     }
 
-    // Allocate port
-    const port = await allocatePort("store");
-    const processName = `store-${slug}`;
+    // Reuse existing port if already assigned, otherwise allocate a new one
+    const existing = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { ssrPort: true, ssrProcessName: true },
+    });
+    const port = existing?.ssrPort || await allocatePort("store");
+    const processName = existing?.ssrProcessName || `store-${slug}`;
+
+    // Stop existing PM2 process if running (clean restart)
+    try {
+      const { execSync } = await import("child_process");
+      execSync(`pm2 delete ${processName} 2>/dev/null || true`, { stdio: "ignore" });
+    } catch {}
 
     // Update DB with port/process info
     await prisma.store.update({
@@ -361,7 +371,7 @@ export async function deployStoreV3(storeId: string, slug: string): Promise<{ su
       },
     });
 
-    // Start PM2 process
+    // Start PM2 process on the assigned port
     console.log(`[StoreBuilder:V3] Starting ${processName} on port ${port}...`);
     await startApp({
       name: processName,

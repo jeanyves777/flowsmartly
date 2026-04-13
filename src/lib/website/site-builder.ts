@@ -452,8 +452,19 @@ export async function deploySiteV3(websiteId: string, slug: string): Promise<{ s
       return { success: false, error: `Max concurrent apps reached (${MAX_CONCURRENT_APPS}).` };
     }
 
-    const port = await allocatePort("website");
-    const processName = `site-${slug}`;
+    // Reuse existing port if already assigned, otherwise allocate a new one
+    const existing = await prisma.website.findUnique({
+      where: { id: websiteId },
+      select: { ssrPort: true, ssrProcessName: true },
+    });
+    const port = existing?.ssrPort || await allocatePort("website");
+    const processName = existing?.ssrProcessName || `site-${slug}`;
+
+    // Stop existing PM2 process if running (clean restart)
+    try {
+      const { execSync } = await import("child_process");
+      execSync(`pm2 delete ${processName} 2>/dev/null || true`, { stdio: "ignore" });
+    } catch {}
 
     await prisma.website.update({
       where: { id: websiteId },
