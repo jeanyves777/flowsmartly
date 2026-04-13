@@ -279,6 +279,21 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 - goToCheckout() in cart.ts navigates to /checkout (local page)
 - Checkout page is WITHIN the store at /checkout — NOT a redirect to FlowSmartly
 - Payment processing happens via /api/checkout → FlowSmartly gateway → Stripe
+- Checkout MUST pre-fill customer data from window.__storeCustomer on mount:
+  useEffect(() => {
+    setCart(getCart());
+    const c = (window as any).__storeCustomer;
+    if (c) {
+      const names = (c.name || "").split(" ");
+      setOrderData(prev => ({ ...prev,
+        firstName: prev.firstName || names[0] || "",
+        lastName: prev.lastName || names.slice(1).join(" ") || "",
+        email: prev.email || c.email || "",
+        phone: prev.phone || c.phone || "",
+      }));
+    }
+  }, []);
+- NEVER leave checkout fields empty when customer is logged in
 
 ### Customer Accounts (CRITICAL — built into the store):
 - Login/register pages are WITHIN the store at /account/login and /account/register
@@ -522,6 +537,8 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 14. ✅ ProductCard has always-visible Heart wishlist button at top-right of image
 15. ✅ ProductDetail has wishlist heart, star ratings, reviews section, dynamic shipping threshold
 16. ✅ NO hardcoded "Free Shipping $50+" — uses storeInfo.freeShippingThresholdCents
+17. ✅ Checkout pre-fills customer name/email/phone from window.__storeCustomer
+18. ✅ All internal links use Next.js <Link> — NEVER <a href="/products"> (goes to main app)
 10. ✅ Footer sticks to bottom (min-h-screen flex flex-col on root layout, flex-1 on main)
 11. ✅ All internal links use Next.js <Link> component — no <a href="..."> for internal pages
 12. ✅ CartDrawer slides from right, AccountModal slides from right, FilterDrawer slides from left
