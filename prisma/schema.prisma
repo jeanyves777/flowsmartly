@@ -3203,6 +3203,7 @@ model Store {
   ssrStatus              String    @default("stopped") // stopped, starting, running, error
 
   // Shipping
+  flatRateShippingCents      Int   @default(0)    // Flat shipping rate per order (0 = free)
   freeShippingThresholdCents Int   @default(5000) // Free shipping above this amount (default $50)
 
   // Status

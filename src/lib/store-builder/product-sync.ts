@@ -18,7 +18,7 @@ export async function triggerStoreRebuildIfV2(storeId: string): Promise<void> {
   try {
     const store = await prisma.store.findUnique({
       where: { id: storeId },
-      select: { generatorVersion: true, slug: true, generatedPath: true, buildStatus: true },
+      select: { generatorVersion: true, slug: true, generatedPath: true, buildStatus: true, flatRateShippingCents: true, freeShippingThresholdCents: true },
     });
 
     if (!store || !store.generatedPath) return;
@@ -31,9 +31,10 @@ export async function triggerStoreRebuildIfV2(storeId: string): Promise<void> {
 
     console.log(`[ProductSync] Product changed in store ${storeId} — syncing and rebuilding`);
 
-    // Sync products and categories from DB to store files
+    // Sync products, categories, and store settings from DB to store files
     await syncProductsToFile(storeId, store.generatedPath);
     await syncCategoriesToDataFile(storeId, store.generatedPath);
+    await syncShippingToDataFile(store.generatedPath, store.flatRateShippingCents, store.freeShippingThresholdCents);
 
     const { buildStoreV3, deployStoreV3 } = await import("./store-site-builder");
 
@@ -150,6 +151,31 @@ async function syncCategoriesToDataFile(storeId: string, storeDir: string): Prom
     writeFileSync(dataPath, newContent, "utf-8");
     console.log(`[ProductSync] Synced ${categories.length} categories to data.ts`);
   }
+}
+
+/**
+ * Sync shipping config from DB to the store's data.ts storeInfo object.
+ */
+async function syncShippingToDataFile(storeDir: string, flatRateCents: number, freeThresholdCents: number): Promise<void> {
+  const { readFileSync, writeFileSync, existsSync } = await import("fs");
+  const { join } = await import("path");
+
+  const dataPath = join(storeDir, "src", "lib", "data.ts");
+  if (!existsSync(dataPath)) return;
+
+  let content = readFileSync(dataPath, "utf-8");
+
+  // Replace or add flatRateShippingCents
+  if (content.includes("flatRateShippingCents:")) {
+    content = content.replace(/flatRateShippingCents:\s*\d+/, `flatRateShippingCents: ${flatRateCents}`);
+  }
+
+  // Replace or add freeShippingThresholdCents
+  if (content.includes("freeShippingThresholdCents:")) {
+    content = content.replace(/freeShippingThresholdCents:\s*\d+/, `freeShippingThresholdCents: ${freeThresholdCents}`);
+  }
+
+  writeFileSync(dataPath, content, "utf-8");
 }
 
 function escapeStr(str: string): string {

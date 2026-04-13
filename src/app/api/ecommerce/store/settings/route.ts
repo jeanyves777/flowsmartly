@@ -78,12 +78,26 @@ export async function PATCH(request: NextRequest) {
       updateData.currency = data.currency.toUpperCase();
     }
     if (data.theme !== undefined) updateData.theme = JSON.stringify(data.theme);
-    if (data.settings !== undefined) updateData.settings = JSON.stringify(data.settings);
+    if (data.settings !== undefined) {
+      updateData.settings = JSON.stringify(data.settings);
+      // Sync shipping settings to dedicated DB columns for store data.ts
+      const shipping = (data.settings as Record<string, unknown>)?.shipping as Record<string, unknown> | undefined;
+      if (shipping) {
+        if (typeof shipping.flatRateCents === "number") updateData.flatRateShippingCents = shipping.flatRateCents;
+        if (typeof shipping.freeShippingThresholdCents === "number") updateData.freeShippingThresholdCents = shipping.freeShippingThresholdCents;
+      }
+    }
 
     const updatedStore = await prisma.store.update({
       where: { id: store.id },
       data: updateData,
     });
+
+    // Trigger store rebuild so shipping values sync to data.ts
+    if (data.settings !== undefined) {
+      const { triggerStoreRebuildIfV2 } = await import("@/lib/store-builder/product-sync");
+      triggerStoreRebuildIfV2(store.id).catch(e => console.error("Settings sync error:", e));
+    }
 
     return NextResponse.json({
       success: true,
