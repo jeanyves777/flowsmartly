@@ -279,6 +279,10 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 - goToCheckout() in cart.ts navigates to /checkout (local page)
 - Checkout page is WITHIN the store at /checkout — NOT a redirect to FlowSmartly
 - Payment processing happens via /api/checkout → FlowSmartly gateway → Stripe
+- Checkout shipping costs MUST come from storeInfo (NOT hardcoded):
+  const shippingConfig = { flatRateCents: storeInfo.flatRateShippingCents || 0, freeThresholdCents: storeInfo.freeShippingThresholdCents || 0 };
+  const shippingCost = orderData.shippingMethod === "pickup" ? 0 : (shippingConfig.freeThresholdCents > 0 && total >= shippingConfig.freeThresholdCents) ? 0 : shippingConfig.flatRateCents;
+- NEVER hardcode shipping prices like 599 or 1499 — always read from storeInfo
 - Checkout MUST pre-fill customer data from window.__storeCustomer on mount:
   useEffect(() => {
     setCart(getCart());
@@ -314,7 +318,7 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 
 ### Data Structure:
 - src/lib/data.ts MUST contain:
-  export const storeInfo = { name, tagline, description, about, mission, currency, region, logoUrl, email, phone, address, freeShippingThresholdCents, ... }
+  export const storeInfo = { name, tagline, description, about, mission, currency, region, logoUrl, email, phone, address, flatRateShippingCents, freeShippingThresholdCents, ... }
   export function formatPrice(cents: number): string { ... }
   export const categories = [...]
   export const navLinks = [{ href: "/products", label: "Shop" }, { href: "/about", label: "About" }, ...]
