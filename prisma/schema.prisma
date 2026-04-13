@@ -3202,6 +3202,9 @@ model Store {
   ssrProcessName         String?                       // PM2 process name: "store-{slug}"
   ssrStatus              String    @default("stopped") // stopped, starting, running, error
 
+  // Shipping
+  freeShippingThresholdCents Int   @default(5000) // Free shipping above this amount (default $50)
+
   // Status
   isActive               Boolean   @default(false)
   setupComplete          Boolean   @default(false)
@@ -3282,6 +3285,26 @@ model OrderFeedback {
   @@index([orderId])
 }
 
+// Customer product reviews (per-product, verified purchases)
+model ProductReview {
+  id            String   @id @default(cuid())
+  productId     String
+  storeId       String
+  customerEmail String
+  customerName  String
+  rating        Int      // 1-5 stars
+  title         String?
+  comment       String?
+  verified      Boolean  @default(false) // true if customer actually purchased this product
+  createdAt     DateTime @default(now())
+
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, customerEmail]) // One review per product per customer
+  @@index([productId])
+  @@index([storeId])
+}
+
 model Product {
   id                  String    @id @default(cuid())
   storeId             String
@@ -3321,6 +3344,8 @@ model Product {
   viewCount           Int       @default(0)
   orderCount          Int       @default(0)
   revenueCents        Int       @default(0)
+  reviewCount         Int       @default(0)
+  avgRating           Float     @default(0)
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -3334,6 +3359,7 @@ model Product {
   priceHistory        PriceHistory[]
   pricingRule         PricingRule?
   adCreativeVariants  AdCreativeVariant[]
+  reviews             ProductReview[]
 
   @@unique([storeId, slug])
   @@index([storeId])

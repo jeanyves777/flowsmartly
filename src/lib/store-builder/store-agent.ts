@@ -299,7 +299,7 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 
 ### Data Structure:
 - src/lib/data.ts MUST contain:
-  export const storeInfo = { name, tagline, description, about, mission, currency, region, logoUrl, email, phone, address, ... }
+  export const storeInfo = { name, tagline, description, about, mission, currency, region, logoUrl, email, phone, address, freeShippingThresholdCents, ... }
   export function formatPrice(cents: number): string { ... }
   export const categories = [...]
   export const navLinks = [{ href: "/products", label: "Shop" }, { href: "/about", label: "About" }, ...]
@@ -484,6 +484,18 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - "Cart" triggers cartDrawerOpen
 - "My Account" calls openAccountModal() if not logged in, else /account
 
+### Product Detail Page (MANDATORY features):
+- Wishlist heart button on product image (top-right, always visible)
+- Wishlist heart button next to Add to Cart button
+- Star rating display with review count and sales count (fetched from /api/store/{slug}/products/{productSlug}/reviews)
+- Customer reviews section with:
+  - Write a Review button (opens form)
+  - Review form: star rating selector, title, comment, submit
+  - Reviews list: avatar, name, verified badge, stars, date, title, comment
+- Trust badges (Quality Assured, Free Shipping, 30-Day Returns) — shipping threshold from storeInfo.freeShippingThresholdCents (NOT hardcoded)
+- NEVER hardcode "Free Shipping $50+" — read from storeInfo or data.ts
+- Labels/badges: use product.labels (or product.badges for compatibility), NOT product.badges only
+
 ### ProductCard Wishlist Heart (MANDATORY):
 - ProductCard MUST have a Heart icon button at top-right of the product image
 - Heart is ALWAYS visible (not hidden behind hover) — works on mobile and desktop
@@ -508,6 +520,8 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 9. ✅ ThemeToggle in Header — dark/light mode switch works
 9b. ✅ ALL components use dark: Tailwind variants — bg-white components have dark:bg-gray-900, all inputs have dark:bg-gray-800 dark:bg-gray-700 dark:text-white, all text has dark: counterparts
 14. ✅ ProductCard has always-visible Heart wishlist button at top-right of image
+15. ✅ ProductDetail has wishlist heart, star ratings, reviews section, dynamic shipping threshold
+16. ✅ NO hardcoded "Free Shipping $50+" — uses storeInfo.freeShippingThresholdCents
 10. ✅ Footer sticks to bottom (min-h-screen flex flex-col on root layout, flex-1 on main)
 11. ✅ All internal links use Next.js <Link> component — no <a href="..."> for internal pages
 12. ✅ CartDrawer slides from right, AccountModal slides from right, FilterDrawer slides from left
@@ -633,6 +647,7 @@ async function executeToolV3(name: string, input: Record<string, unknown>, ctx: 
         productCount: productList.length,
         storeId: ctx.storeId,
         storeSlug: ctx.storeSlug,
+        freeShippingThresholdCents: 5000, // Default $50 — store owner can change in settings
         // V3: NO basePath, NO external accountUrl
         accountUrl: "/account",
         checkoutUrl: "/checkout",
