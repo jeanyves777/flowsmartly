@@ -260,7 +260,8 @@ export async function buildStoreFromDir(
     fixHeaderLayout(storeDir); // Fix tiny logo + misaligned icon row in Header
     fixFooterLogoSize(storeDir); // Fix tiny logo in Footer
     fixDataSyntax(storeDir, "src/lib/data.ts");
-    fixDataSyntax(storeDir, "src/lib/products.ts");
+    // Do NOT run fixDataSyntax on products.ts — product-sync handles escaping properly
+    // and the validator breaks strings containing apostrophes + escaped quotes
     fixHamburgerMenu(storeDir);
     injectAnalytics(storeDir);
 
