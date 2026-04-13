@@ -22,6 +22,8 @@ export const TEMPLATE_STORE_PACKAGE_JSON = `{
     "tailwindcss": "4.1.3",
     "@tailwindcss/postcss": "4.1.3",
     "@tailwindcss/typography": "0.5.16",
+    "@stripe/stripe-js": "4.10.0",
+    "@stripe/react-stripe-js": "3.1.0",
     "@types/node": "22.14.1",
     "@types/react": "19.1.0",
     "@types/react-dom": "19.1.0",

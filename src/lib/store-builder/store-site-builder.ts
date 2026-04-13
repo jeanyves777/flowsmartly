@@ -26,6 +26,7 @@ import {
   TEMPLATE_API_CLIENT,
   TEMPLATE_API_PROXY,
   TEMPLATE_SSR_CART,
+  TEMPLATE_STRIPE_CONFIRM_PAGE,
   getEnvLocal,
   getSSRTrackingScript,
 } from "./templates/ssr-templates";
@@ -137,6 +138,7 @@ export function initStoreDirV3(storeId: string, slug: string): string {
     join(storeDir, "src", "app", "products", "[slug]"),
     join(storeDir, "src", "app", "category", "[slug]"),
     join(storeDir, "src", "app", "checkout"),
+    join(storeDir, "src", "app", "checkout", "confirm"),
     join(storeDir, "src", "app", "account"),
     join(storeDir, "src", "app", "account", "login"),
     join(storeDir, "src", "app", "account", "register"),
@@ -186,6 +188,12 @@ export function initStoreDirV3(storeId: string, slug: string): string {
 
   // Cart with local checkout (no external redirect)
   writeFileSync(join(storeDir, "src", "lib", "cart.ts"), TEMPLATE_SSR_CART);
+
+  // Stripe payment confirm page — pre-built, agent must NOT overwrite
+  writeFileSync(
+    join(storeDir, "src", "app", "checkout", "confirm", "page.tsx"),
+    TEMPLATE_STRIPE_CONFIRM_PAGE
+  );
 
   // App Router 404 — prevents cascading prerender error for /404
   writeFileSync(join(storeDir, "src", "app", "not-found.tsx"), TEMPLATE_SSR_NOT_FOUND);

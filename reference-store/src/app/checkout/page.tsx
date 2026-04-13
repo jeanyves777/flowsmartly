@@ -6,7 +6,10 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, CreditCard, Truck, MapPin, ShoppingBag, Loader2 } from "lucide-react";
+import {
+  ArrowLeft, ArrowRight, Check, CreditCard, Truck, MapPin,
+  ShoppingBag, Loader2, Smartphone, Banknote, Building2, AlertTriangle, Lock,
+} from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
@@ -15,16 +18,42 @@ import { formatPrice, storeInfo, shippingMethods } from "@/lib/data";
 import type { CartItem } from "@/lib/cart";
 
 const API_BASE = "https://flowsmartly.com";
-const STORE_SLUG = (() => {
+
+function getStoreSlug(): string {
   if (typeof window === "undefined") return "";
-  try { return window.location.pathname.match(/\/stores\/([^/]+)/)?.[1] || ""; } catch { return ""; }
-})();
+  try {
+    return window.location.pathname.match(/\/stores\/([^/]+)/)?.[1] || "";
+  } catch {
+    return "";
+  }
+}
 
 const STEPS = [
   { id: "info", label: "Info", icon: MapPin },
   { id: "shipping", label: "Shipping", icon: Truck },
   { id: "payment", label: "Payment", icon: CreditCard },
 ];
+
+const PAYMENT_ICONS: Record<string, React.ReactNode> = {
+  card: <CreditCard size={18} />,
+  mobile_money: <Smartphone size={18} />,
+  cod: <Banknote size={18} />,
+  bank_transfer: <Building2 size={18} />,
+};
+
+interface PaymentMethod {
+  method: string;
+  label: string;
+  detail: string | null;
+  provider: string | null;
+}
+
+interface CartIssue {
+  productId: string;
+  name: string;
+  issue: "unavailable" | "out_of_stock" | "insufficient_stock";
+  available?: number;
+}
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -35,6 +64,14 @@ export default function CheckoutPage() {
   const [error, setError] = useState("");
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
+
+  // Payment methods from store config
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [selectedPayment, setSelectedPayment] = useState("card");
+  const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
+
+  // Cart validation warnings
+  const [cartIssues, setCartIssues] = useState<CartIssue[]>([]);
 
   const [form, setForm] = useState({
     name: "",
@@ -48,12 +85,15 @@ export default function CheckoutPage() {
     shippingMethodId: "",
   });
 
+  // Load cart + pre-fill + validate stock
   useEffect(() => {
     const items = getCart();
     setCart(items);
-    if (items.length === 0 && !orderComplete) router.push("/products");
+    if (items.length === 0 && !orderComplete) {
+      router.push("/products");
+      return;
+    }
 
-    // Pre-fill from logged-in customer
     const cust = (window as any).__storeCustomer;
     if (cust) {
       setForm(prev => ({
@@ -64,11 +104,58 @@ export default function CheckoutPage() {
       }));
     }
 
-    // Default to first shipping method
     if (shippingMethods?.length > 0) {
       setForm(prev => ({ ...prev, shippingMethodId: prev.shippingMethodId || shippingMethods[0].id }));
     }
+
+    // Validate cart items against DB (stock + availability)
+    const slug = getStoreSlug() || (storeInfo as any).slug || "";
+    if (items.length > 0 && slug) {
+      fetch(`${API_BASE}/api/store/${slug}/cart/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: items.map(i => ({ productId: i.productId, variantId: i.variantId, quantity: i.quantity })),
+        }),
+      })
+        .then(r => r.json())
+        .then(json => {
+          if (json.success && json.data?.issues?.length > 0) {
+            setCartIssues(json.data.issues);
+          }
+        })
+        .catch(() => {}); // Silent — server re-validates at submit
+    }
   }, []);
+
+  // Fetch payment methods from store config when reaching payment step
+  useEffect(() => {
+    if (step !== 2) return;
+    const slug = getStoreSlug() || (storeInfo as any).slug || "";
+    if (!slug) return;
+
+    setLoadingPaymentMethods(true);
+    fetch(`${API_BASE}/api/store/${slug}/checkout/options`)
+      .then(r => r.json())
+      .then(json => {
+        if (json.success && json.data?.paymentMethods?.length > 0) {
+          setPaymentMethods(json.data.paymentMethods);
+          // Default to first method
+          setSelectedPayment(prev =>
+            json.data.paymentMethods.find((m: PaymentMethod) => m.method === prev)
+              ? prev
+              : json.data.paymentMethods[0].method
+          );
+        } else {
+          setPaymentMethods([{ method: "card", label: "Credit / Debit Card", detail: "Visa, Mastercard, Amex", provider: "stripe" }]);
+          setSelectedPayment("card");
+        }
+      })
+      .catch(() => {
+        setPaymentMethods([{ method: "card", label: "Credit / Debit Card", detail: "Visa, Mastercard, Amex", provider: "stripe" }]);
+      })
+      .finally(() => setLoadingPaymentMethods(false));
+  }, [step]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -91,7 +178,7 @@ export default function CheckoutPage() {
     setLoading(true);
     setError("");
     try {
-      const slug = STORE_SLUG || (storeInfo as any).slug || "";
+      const slug = getStoreSlug() || (storeInfo as any).slug || "";
       const res = await fetch(`${API_BASE}/api/store/${slug}/checkout`, {
         method: "POST",
         credentials: "include",
@@ -102,32 +189,28 @@ export default function CheckoutPage() {
             variantId: item.variantId,
             quantity: item.quantity,
           })),
-          customerInfo: {
-            name: form.name,
-            email: form.email,
-            phone: form.phone,
-          },
+          customerName: form.name,
+          customerEmail: form.email,
+          customerPhone: form.phone || undefined,
           shippingAddress: {
-            name: form.name,
-            line1: form.street,
+            street: form.street,
             city: form.city,
             state: form.state,
             zip: form.zip,
             country: form.country,
           },
-          shippingMethod: selectedMethod?.name || "Standard",
-          paymentMethod: "card",
+          shippingMethod: selectedMethod?.name?.toLowerCase().includes("pickup") ? "local_pickup" : "standard",
+          paymentMethod: selectedPayment,
         }),
       });
       const json = await res.json();
       if (json.success) {
         if (json.data?.clientSecret) {
-          // Stripe payment — redirect to confirmation page with Stripe Elements
-          clearCart();
-          window.location.href = `/checkout/confirm?secret=${json.data.clientSecret}&order=${json.data.orderId}`;
+          // Card payment — go to Stripe confirm page (cart cleared after payment succeeds)
+          window.location.href = `/checkout/confirm?secret=${json.data.clientSecret}&order=${json.data.orderId}&amount=${total}`;
           return;
         }
-        // Non-card payment (COD etc) — show success
+        // Non-card payment (COD, mobile money, bank transfer) — show inline success
         clearCart();
         setOrderComplete(true);
         setOrderNumber(json.data?.orderNumber || "");
@@ -169,10 +252,29 @@ export default function CheckoutPage() {
       <Header onCartOpen={() => setCartOpen(true)} />
       <main className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-24 pb-16">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
+
         {/* Back link */}
         <Link href="/products" className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 mb-6">
           <ArrowLeft size={16} /> Back to Shopping
         </Link>
+
+        {/* Cart warnings */}
+        {cartIssues.length > 0 && (
+          <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-400">
+              <AlertTriangle size={16} /> Some items in your cart have issues
+            </div>
+            {cartIssues.map((issue, i) => (
+              <p key={i} className="text-sm text-amber-700 dark:text-amber-300 ml-6">
+                <span className="font-medium">{issue.name}</span>
+                {issue.issue === "unavailable" && " — no longer available"}
+                {issue.issue === "out_of_stock" && " — out of stock"}
+                {issue.issue === "insufficient_stock" && ` — only ${issue.available} left in stock`}
+              </p>
+            ))}
+          </div>
+        )}
+
         {/* Stepper */}
         <div className="flex items-center justify-center gap-0 mb-10">
           {STEPS.map((s, i) => (
@@ -304,25 +406,79 @@ export default function CheckoutPage() {
               </motion.div>
             )}
 
-            {/* Step 3: Payment — Stripe handles everything */}
+            {/* Step 3: Payment — loaded from store config */}
             {step === 2 && (
               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 space-y-5">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <CreditCard size={20} /> Payment
+                  <CreditCard size={20} /> Payment Method
                 </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Your payment is processed securely via Stripe. Card, Apple Pay, and Google Pay are accepted based on your device.
-                </p>
-                <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center gap-3 mb-3">
-                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" strokeWidth={1.5}><rect x={2} y={5} width={20} height={14} rx={2} /><path d="M2 10h20" /></svg>
-                    <span className="text-sm text-gray-600 dark:text-gray-300">Secure checkout powered by Stripe</span>
+
+                {loadingPaymentMethods ? (
+                  <div className="flex items-center gap-3 py-6 text-sm text-gray-400">
+                    <Loader2 size={16} className="animate-spin" /> Loading payment options...
                   </div>
-                  <div className="flex items-center gap-4 text-xs text-gray-400">
-                    <span className="flex items-center gap-1"><svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg> SSL Encrypted</span>
-                    <span>Visa</span><span>Mastercard</span><span>Amex</span>
+                ) : (
+                  <div className="space-y-3">
+                    {paymentMethods.map(pm => (
+                      <label
+                        key={pm.method}
+                        className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                          selectedPayment === pm.method
+                            ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10"
+                            : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          value={pm.method}
+                          checked={selectedPayment === pm.method}
+                          onChange={() => setSelectedPayment(pm.method)}
+                          className="w-4 h-4 text-primary-600"
+                        />
+                        <span className="text-gray-400">
+                          {PAYMENT_ICONS[pm.method] ?? <CreditCard size={18} />}
+                        </span>
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900 dark:text-white">{pm.label}</p>
+                          {pm.detail && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{pm.detail}</p>
+                          )}
+                        </div>
+                        {pm.method === "card" && (
+                          <div className="flex items-center gap-1 text-xs text-gray-400">
+                            <Lock size={11} /> Secure
+                          </div>
+                        )}
+                      </label>
+                    ))}
                   </div>
-                </div>
+                )}
+
+                {selectedPayment === "card" && !loadingPaymentMethods && (
+                  <div className="flex items-center gap-3 text-xs text-gray-400 pt-1">
+                    <Lock size={12} className="flex-shrink-0" />
+                    <span>Your card details are entered on the next screen, secured by Stripe.</span>
+                  </div>
+                )}
+
+                {selectedPayment === "cod" && !loadingPaymentMethods && (
+                  <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-200 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-400">
+                    Pay in cash when your order is delivered. Please have the exact amount ready.
+                  </div>
+                )}
+
+                {selectedPayment === "bank_transfer" && !loadingPaymentMethods && (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-400">
+                    Bank transfer details will be sent to your email after placing the order.
+                  </div>
+                )}
+
+                {selectedPayment === "mobile_money" && !loadingPaymentMethods && (
+                  <div className="p-4 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-200 dark:border-green-800 text-sm text-green-700 dark:text-green-400">
+                    Mobile money payment instructions will be sent to your phone after placing the order.
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -352,11 +508,11 @@ export default function CheckoutPage() {
               ) : (
                 <button
                   onClick={handleSubmit}
-                  disabled={loading}
+                  disabled={loading || loadingPaymentMethods}
                   className="inline-flex items-center gap-2 px-8 py-3 bg-primary-600 text-white rounded-full font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-lg shadow-primary-600/25"
                 >
                   {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingBag size={16} />}
-                  {loading ? "Processing..." : "Place Order"}
+                  {loading ? "Processing..." : selectedPayment === "card" ? `Pay ${formatPrice(total)}` : "Place Order"}
                 </button>
               )}
             </div>
@@ -368,19 +524,23 @@ export default function CheckoutPage() {
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">Order Summary</h2>
 
               <div className="space-y-3 max-h-60 overflow-y-auto">
-                {cart.map((item, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    {item.imageUrl && (
-                      <img src={item.imageUrl} alt={item.name} className="w-14 h-14 rounded-lg object-cover bg-gray-100 dark:bg-gray-800 flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</p>
-                      {item.variantName && <p className="text-xs text-gray-500 dark:text-gray-400">{item.variantName}</p>}
-                      <p className="text-xs text-gray-400">Qty: {item.quantity}</p>
+                {cart.map((item, i) => {
+                  const hasIssue = cartIssues.some(issue => issue.productId === item.productId);
+                  return (
+                    <div key={i} className={`flex items-center gap-3 ${hasIssue ? "opacity-50" : ""}`}>
+                      {item.imageUrl && (
+                        <img src={item.imageUrl} alt={item.name} className="w-14 h-14 rounded-lg object-cover bg-gray-100 dark:bg-gray-800 flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</p>
+                        {item.variantName && <p className="text-xs text-gray-500 dark:text-gray-400">{item.variantName}</p>}
+                        <p className="text-xs text-gray-400">Qty: {item.quantity}</p>
+                        {hasIssue && <p className="text-xs text-red-500">Item unavailable</p>}
+                      </div>
+                      <p className="text-sm font-semibold text-primary-600 flex-shrink-0">{formatPrice(item.priceCents * item.quantity)}</p>
                     </div>
-                    <p className="text-sm font-semibold text-primary-600 flex-shrink-0">{formatPrice(item.priceCents * item.quantity)}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="border-t border-gray-100 dark:border-gray-800 pt-4 space-y-2">
@@ -403,7 +563,7 @@ export default function CheckoutPage() {
       </div>
       </main>
       <Footer />
-      <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} storeSlug={STORE_SLUG} />
+      <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} storeSlug={getStoreSlug()} />
     </>
   );
 }

@@ -46,6 +46,9 @@ interface StoreAgentContext {
   };
   products: ProductInput[];
   categories: string[];
+  shippingMethods: Array<{ id: string; name: string; description?: string | null; priceCents: number; estimatedDays?: string | null; isActive: boolean }>;
+  freeShippingThresholdCents: number;
+  flatRateShippingCents: number;
   siteDir: string;
   onProgress?: (step: string, detail?: string) => void;
 }
@@ -211,15 +214,29 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
    - src/app/faq/page.tsx
 10. Write CHECKOUT page — src/app/checkout/page.tsx:
     - "use client" — fully client-side
-    - Load cart from localStorage, show order summary sidebar
-    - Contact info form: name, email, phone
-    - Shipping address form: street, city, state, zip, country
-    - Shipping method selector: standard / local pickup
-    - Payment method selector: card, cod, mobile money, bank transfer
-    - Submit handler: POST to /api/checkout with items + customer info + shipping + payment method
-    - On success: clear cart, redirect to /order-confirmation?orderId={id}
+    - Load cart from localStorage, show order summary sidebar with per-item prices + subtotal + shipping + total
+    - 3-step checkout with animated stepper (Info → Shipping → Payment):
+      Step 0 (Info): contact form — Full Name, Email, Phone (pre-fill from window.__storeCustomer)
+      Step 1 (Shipping): address form (street, city, state, zip, country) + shipping method radio buttons from shippingMethods[] in data.ts
+      Step 2 (Payment): static info panel "Secure checkout powered by Stripe" with card logos
+    - Submit handler (on "Place Order" in Step 2):
+      POST to /api/checkout with EXACTLY these fields:
+      {
+        items: [{ productId, variantId?, quantity }],
+        customerName: form.name,
+        customerEmail: form.email,
+        customerPhone: form.phone || undefined,
+        shippingAddress: { street, city, state, zip, country },
+        shippingMethod: selectedMethod?.name?.toLowerCase().includes("pickup") ? "local_pickup" : "standard",
+        paymentMethod: "card"
+      }
+      If response has clientSecret: window.location.href = "/checkout/confirm?secret=" + clientSecret + "&order=" + orderId + "&amount=" + totalCents
+      If response has orderId only (non-card methods): clearCart(), show inline order success screen
+    - IMPORTANT: do NOT call clearCart() before redirecting to /checkout/confirm — cart is cleared AFTER payment succeeds in confirm page
     - Empty cart state with "Continue Shopping" link
     - Styled with brand colors, dark mode, Framer Motion
+    CRITICAL: DO NOT write src/app/checkout/confirm/page.tsx — it is PRE-BUILT by the system (Stripe
+    PaymentElement). Writing it would overwrite the Stripe integration and break all card payments.
 11. Write ACCOUNT pages — all "use client", all fetch from /api/:
     - src/app/account/login/page.tsx: email + password form → POST /api/auth/login → redirect /account
       MANDATORY ANTI-SPAM: import { Turnstile } from "@marsidev/react-turnstile"; add turnstileToken state;
@@ -276,6 +293,7 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 
 ### Cart & Checkout (CRITICAL — NO external redirects):
 - Cart uses localStorage via src/lib/cart.ts (already provided by builder — DO NOT overwrite)
+- src/app/checkout/confirm/page.tsx (Stripe PaymentElement) is already provided by the builder — DO NOT overwrite
 - goToCheckout() in cart.ts navigates to /checkout (local page)
 - Checkout page is WITHIN the store at /checkout — NOT a redirect to FlowSmartly
 - Checkout MUST use the store's own Header and Footer components — NEVER create a separate/fabricated nav
@@ -336,6 +354,12 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
   export const heroConfig = { headline, subheadline, ctaText, ctaUrl, ... }
   export const faq = [...]
   export const policies = { shipping, returns, privacy, terms }
+  export const shippingMethods = [{ id, name, description, priceCents, estimatedDays, isActive }]
+    // CRITICAL: Copy the EXACT shippingMethods array from the get_brand_identity response.
+    // Each entry MUST have the same id, name, priceCents, estimatedDays as the DB record.
+    // If shippingMethods was empty in get_brand_identity, use 1 default:
+    //   { id: "standard", name: "Standard Shipping", description: "5-7 business days", priceCents: 599, estimatedDays: "5-7 days", isActive: true }
+    // storeInfo.freeShippingThresholdCents and flatRateShippingCents MUST come from get_brand_identity values, not hardcoded
 
 - src/lib/products.ts MUST contain:
   export interface Product { id, slug, name, description, shortDescription, priceCents, comparePriceCents, categoryId, tags, images, variants, labels, featured, inStock }
@@ -430,6 +454,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - src/lib/api-client.ts, src/lib/cart.ts
 - src/app/api/[...path]/route.ts
 - src/components/ThemeProvider.tsx, ThemeToggle.tsx, Analytics.tsx, CookieConsent.tsx
+- src/app/checkout/confirm/page.tsx (Stripe PaymentElement — pre-built, DO NOT OVERWRITE)
 - .env.local
 
 ### Tailwind CSS v4 Colors (CRITICAL):
@@ -552,6 +577,8 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 15. ✅ ProductDetail has wishlist heart, star ratings, reviews section, dynamic shipping threshold
 16. ✅ NO hardcoded "Free Shipping $50+" — uses storeInfo.freeShippingThresholdCents
 17. ✅ Checkout pre-fills customer name/email/phone from window.__storeCustomer
+17b. ✅ Checkout 3-step flow: Info → Shipping → Payment (Stripe confirm at /checkout/confirm — pre-built, DO NOT write)
+17c. ✅ Checkout submit redirects to /checkout/confirm with clientSecret + orderId + amount (does NOT clear cart before redirect)
 18. ✅ All internal links use Next.js <Link> — NEVER <a href="/products"> (goes to main app)
 10. ✅ Footer sticks to bottom (min-h-screen flex flex-col on root layout, flex-1 on main)
 11. ✅ All internal links use Next.js <Link> component — no <a href="..."> for internal pages
@@ -678,7 +705,9 @@ async function executeToolV3(name: string, input: Record<string, unknown>, ctx: 
         productCount: productList.length,
         storeId: ctx.storeId,
         storeSlug: ctx.storeSlug,
-        freeShippingThresholdCents: 5000, // Default $50 — store owner can change in settings
+        shippingMethods: ctx.shippingMethods,
+        freeShippingThresholdCents: ctx.freeShippingThresholdCents,
+        flatRateShippingCents: ctx.flatRateShippingCents,
         // V3: NO basePath, NO external accountUrl
         accountUrl: "/account",
         checkoutUrl: "/checkout",
@@ -732,6 +761,7 @@ async function executeToolV3(name: string, input: Record<string, unknown>, ctx: 
         ".env.local",
         "src/lib/api-client.ts", "src/lib/cart.ts",
         "src/app/api/[...path]/route.ts",
+        "src/app/checkout/confirm/page.tsx",
         "src/components/ThemeProvider.tsx", "src/components/ThemeToggle.tsx",
         "src/components/Analytics.tsx", "src/components/CookieConsent.tsx",
       ];
@@ -823,6 +853,19 @@ export async function runStoreAgentV3(
   // Initialize V3 store directory (SSR templates, API proxy, cart, env)
   const siteDir = initStoreDirV3(storeId, storeSlug);
 
+  // Fetch real shipping config from DB
+  const [storeRecord, dbShippingMethods] = await Promise.all([
+    prisma.store.findUnique({
+      where: { id: storeId },
+      select: { freeShippingThresholdCents: true, flatRateShippingCents: true },
+    }),
+    prisma.storeShippingMethod.findMany({
+      where: { storeId, isActive: true },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, description: true, priceCents: true, estimatedDays: true, isActive: true },
+    }),
+  ]);
+
   const ctx: StoreAgentContext = {
     storeId,
     storeSlug,
@@ -830,6 +873,9 @@ export async function runStoreAgentV3(
     storeInfo,
     products,
     categories,
+    shippingMethods: dbShippingMethods,
+    freeShippingThresholdCents: storeRecord?.freeShippingThresholdCents ?? 5000,
+    flatRateShippingCents: storeRecord?.flatRateShippingCents ?? 599,
     siteDir,
     onProgress: (step, detail) => {
       onProgress?.({ step, detail, toolCalls, done: false });

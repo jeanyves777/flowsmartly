@@ -27,6 +27,8 @@ export const storeInfo = {
   websiteUrl: "", // populated by agent if user has a website
   ctaText: "Shop Now",
   ctaUrl: storeUrl("/products"),
+  flatRateShippingCents: 599,          // default flat-rate shipping cost
+  freeShippingThresholdCents: 5000,    // 0 = disabled; >0 = free shipping above this amount
   socialLinks: {
     instagram: "https://instagram.com/examplestore",
     facebook: "https://facebook.com/examplestore",
@@ -83,6 +85,28 @@ export const categories = [
     description: "Self-care essentials for mind and body",
     image: storeUrl("/images/categories/wellness.jpg"),
     productCount: 3,
+  },
+];
+
+// ─── Shipping methods ─────────────────────────────────────────────────────────
+// Agent MUST replace these with the store owner's actual shipping methods from DB
+
+export const shippingMethods = [
+  {
+    id: "standard",
+    name: "Standard Shipping",
+    description: "5-7 business days",
+    priceCents: 599,
+    estimatedDays: "5-7 days",
+    isActive: true,
+  },
+  {
+    id: "express",
+    name: "Express Shipping",
+    description: "2-3 business days",
+    priceCents: 1299,
+    estimatedDays: "2-3 days",
+    isActive: true,
   },
 ];
 
