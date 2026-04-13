@@ -237,10 +237,16 @@ export async function POST(
     const totalCents = subtotalCents + shippingCents + taxCents;
 
     // ── Deduplication: reuse existing pending card payment within 24h ──
-    // Prevents duplicate orders when a user abandons and retries checkout.
+    // Matches on exact items (productId + variantId + quantity) — different
+    // quantities or different products are NOT duplicates even if totals match.
     if (paymentMethod === "card" && stripe) {
+      const itemFingerprint = validatedItems
+        .map(i => `${i.productId}:${i.variantId || ""}:${i.quantity}`)
+        .sort()
+        .join("|");
+
       const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const existingPending = await prisma.order.findFirst({
+      const candidates = await prisma.order.findMany({
         where: {
           storeId: store.id,
           customerEmail,
@@ -249,19 +255,30 @@ export async function POST(
           totalCents,
           createdAt: { gte: cutoff },
         },
-        select: { id: true, paymentId: true },
+        select: { id: true, paymentId: true, items: true },
         orderBy: { createdAt: "desc" },
+        take: 5,
       });
-      if (existingPending?.paymentId) {
+
+      for (const candidate of candidates) {
         try {
-          const pi = await stripe.paymentIntents.retrieve(existingPending.paymentId);
+          const savedItems: Array<{ productId: string; variantId?: string; quantity: number }> =
+            JSON.parse(candidate.items || "[]");
+          const savedFingerprint = savedItems
+            .map(i => `${i.productId}:${i.variantId || ""}:${i.quantity}`)
+            .sort()
+            .join("|");
+          if (savedFingerprint !== itemFingerprint) continue; // different cart — skip
+
+          if (!candidate.paymentId) continue;
+          const pi = await stripe.paymentIntents.retrieve(candidate.paymentId);
           if (pi.status !== "canceled" && pi.status !== "succeeded") {
             return NextResponse.json({
               success: true,
-              data: { orderId: existingPending.id, clientSecret: pi.client_secret, total: totalCents },
+              data: { orderId: candidate.id, clientSecret: pi.client_secret, total: totalCents },
             });
           }
-        } catch { /* PI gone — fall through to create fresh order */ }
+        } catch { /* PI gone or parse error — try next */ }
       }
     }
 
