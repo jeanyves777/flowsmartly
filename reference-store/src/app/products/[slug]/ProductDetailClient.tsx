@@ -7,7 +7,8 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
 import ProductCard from "@/components/ProductCard";
-import { storeUrl, formatPrice, storeInfo } from "@/lib/data";
+import Link from "next/link";
+import { formatPrice, storeInfo } from "@/lib/data";
 import { products, getProductBySlug, getProductsByCategory } from "@/lib/products";
 import { addToCart } from "@/lib/cart";
 import type { ProductVariant } from "@/lib/products";
@@ -83,7 +84,7 @@ export default function ProductDetailClient({ params }: { params: { slug: string
         <Header onCartOpen={() => setCartOpen(true)} />
         <main className="pt-24 pb-16 px-4 max-w-7xl mx-auto text-center">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Product Not Found</h1>
-          <a href={storeUrl("/products")} className="text-primary-600 hover:underline">Browse all products</a>
+          <Link href="/products" className="text-primary-600 hover:underline">Browse all products</Link>
         </main>
         <Footer />
       </>
@@ -157,9 +158,9 @@ export default function ProductDetailClient({ params }: { params: { slug: string
     <>
       <Header onCartOpen={() => setCartOpen(true)} />
       <main className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <a href={storeUrl("/products")} className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 mb-8">
+        <Link href="/products" className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 mb-8">
           <ChevronLeft size={14} /> Back to Products
-        </a>
+        </Link>
 
         <div className="grid lg:grid-cols-2 gap-12">
           {/* Image gallery */}
