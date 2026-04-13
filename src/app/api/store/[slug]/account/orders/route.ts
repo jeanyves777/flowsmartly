@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getStoreCustomer } from "@/lib/store/customer-auth";
 
+const ORDER_SELECT = {
+  id: true,
+  orderNumber: true,
+  status: true,
+  paymentStatus: true,
+  paymentMethod: true,
+  paymentId: true,
+  totalCents: true,
+  subtotalCents: true,
+  shippingCents: true,
+  currency: true,
+  items: true,
+  createdAt: true,
+  trackingNumber: true,
+};
+
 // GET /api/store/[slug]/account/orders — Customer's order history
 export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
@@ -14,34 +30,40 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const page = parseInt(request.nextUrl.searchParams.get("page") || "1");
     const limit = 10;
+    const where = { storeId: store.id, customerEmail: customer.email };
 
+    // Pending card orders awaiting payment (show as "Payment Required" reminders)
+    const pendingPayments = await prisma.order.findMany({
+      where: { ...where, paymentMethod: "card", paymentStatus: "pending" },
+      orderBy: { createdAt: "desc" },
+      select: ORDER_SELECT,
+    });
+
+    // Confirmed orders (paid cards + all non-card methods)
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
-        where: { storeId: store.id, customerEmail: customer.email },
+        where: {
+          ...where,
+          NOT: { paymentMethod: "card", paymentStatus: "pending" },
+        },
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * limit,
         take: limit,
-        select: {
-          id: true,
-          orderNumber: true,
-          status: true,
-          paymentStatus: true,
-          totalCents: true,
-          subtotalCents: true,
-          shippingCents: true,
-          items: true,
-          createdAt: true,
-          trackingNumber: true,
+        select: ORDER_SELECT,
+      }),
+      prisma.order.count({
+        where: {
+          ...where,
+          NOT: { paymentMethod: "card", paymentStatus: "pending" },
         },
       }),
-      prisma.order.count({ where: { storeId: store.id, customerEmail: customer.email } }),
     ]);
 
+    const parse = (o: typeof orders[0]) => ({ ...o, items: JSON.parse(o.items || "[]") });
+
     return NextResponse.json({
-      orders: orders.map(o => ({
-        ...o,
-        items: JSON.parse(o.items || "[]"),
-      })),
+      orders: orders.map(parse),
+      pendingPayments: pendingPayments.map(parse),
       total,
       page,
       totalPages: Math.ceil(total / limit),
@@ -51,3 +73,4 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Failed to fetch orders" }, { status: 500 });
   }
 }
+

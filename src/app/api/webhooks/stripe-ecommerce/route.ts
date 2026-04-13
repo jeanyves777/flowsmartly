@@ -188,7 +188,7 @@ async function handlePaymentSucceeded(
 
   const order = await prisma.order.update({
     where: { id: orderId },
-    data: { paymentStatus: "paid" },
+    data: { paymentStatus: "paid", status: "CONFIRMED" },
     include: {
       store: {
         select: {

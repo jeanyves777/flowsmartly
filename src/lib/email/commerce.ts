@@ -317,3 +317,60 @@ export async function sendIntelligenceWeeklyReport(params: {
     html: baseTemplate(content, `Your weekly intelligence report for ${storeName} is ready`),
   });
 }
+
+/**
+ * Send abandoned cart reminder email to a store customer
+ */
+export async function sendAbandonedCartEmail(params: {
+  to: string;
+  customerName: string;
+  storeName: string;
+  storeUrl: string;
+  items: Array<{ name: string; imageUrl?: string; priceCents: number; quantity: number }>;
+  currency: string;
+}) {
+  const itemsHtml = params.items
+    .map(
+      (i) => `
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid #e4e4e7;">
+          ${i.imageUrl ? `<img src="${i.imageUrl}" width="48" height="48" style="border-radius:6px;vertical-align:middle;margin-right:10px;" />` : ""}
+          ${i.name}
+        </td>
+        <td style="padding:10px 0;border-bottom:1px solid #e4e4e7;text-align:center;">x${i.quantity}</td>
+        <td style="padding:10px 0;border-bottom:1px solid #e4e4e7;text-align:right;">${formatCents(i.priceCents * i.quantity, params.currency)}</td>
+      </tr>`
+    )
+    .join("");
+
+  const html = baseTemplate(
+    `
+    <h2>You left something behind!</h2>
+    <p>Hi ${params.customerName},</p>
+    <p>You have items waiting in your cart at <strong>${params.storeName}</strong>. Complete your purchase before they sell out!</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+      <thead>
+        <tr style="border-bottom:2px solid #e4e4e7;">
+          <th style="padding:8px 0;text-align:left;font-size:13px;color:#71717a;">Item</th>
+          <th style="padding:8px 0;text-align:center;font-size:13px;color:#71717a;">Qty</th>
+          <th style="padding:8px 0;text-align:right;font-size:13px;color:#71717a;">Price</th>
+        </tr>
+      </thead>
+      <tbody>${itemsHtml}</tbody>
+    </table>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${params.storeUrl}/checkout" style="display:inline-block;padding:14px 32px;background:#2563eb;color:#fff;border-radius:9999px;font-weight:600;text-decoration:none;font-size:16px;">
+        Complete Your Order
+      </a>
+    </div>
+    <p style="color:#71717a;font-size:13px;">Or browse more products at <a href="${params.storeUrl}/products" style="color:#2563eb;">${params.storeName}</a>.</p>
+    `,
+    `You left items in your cart at ${params.storeName}`
+  );
+
+  return sendEmail({
+    to: params.to,
+    subject: `You left something in your cart at ${params.storeName}!`,
+    html,
+  });
+}

@@ -122,6 +122,24 @@ export default function CheckoutPage() {
           }
         })
         .catch(() => {});
+
+      // Load saved shipping address
+      fetch(`${API_BASE}/api/store/${slug}/account/addresses`, { credentials: "include" })
+        .then(r => r.json())
+        .then(json => {
+          const saved = json.addresses?.[0];
+          if (saved) {
+            setForm(prev => ({
+              ...prev,
+              street: prev.street || saved.street || "",
+              city: prev.city || saved.city || "",
+              state: prev.state || saved.state || "",
+              zip: prev.zip || saved.zip || "",
+              country: prev.country || saved.country || "US",
+            }));
+          }
+        })
+        .catch(() => {});
     }
 
     if (shippingMethods?.length > 0) {
@@ -191,6 +209,32 @@ export default function CheckoutPage() {
     if (step === 0) return form.name && form.email;
     if (step === 1) return form.street && form.city && form.zip && form.shippingMethodId;
     return true;
+  };
+
+  // Advance step + silently persist info to customer profile
+  const handleNext = () => {
+    if (!canNext()) return;
+    const slug = getStoreSlug() || (storeInfo as any).slug || "";
+    if (slug) {
+      if (step === 0) {
+        // Save contact info
+        fetch(`${API_BASE}/api/store/${slug}/account/profile`, {
+          method: "PUT", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: form.name, phone: form.phone }),
+        }).catch(() => {});
+      } else if (step === 1) {
+        // Save shipping address
+        fetch(`${API_BASE}/api/store/${slug}/account/addresses`, {
+          method: "PUT", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            addresses: [{ street: form.street, city: form.city, state: form.state, zip: form.zip, country: form.country }],
+          }),
+        }).catch(() => {});
+      }
+    }
+    setStep(s => s + 1);
   };
 
   const handleSubmit = async () => {
@@ -519,7 +563,7 @@ export default function CheckoutPage() {
 
               {step < 2 ? (
                 <button
-                  onClick={() => canNext() && setStep(s => s + 1)}
+                  onClick={handleNext}
                   disabled={!canNext()}
                   className="inline-flex items-center gap-2 px-8 py-3 bg-primary-600 text-white rounded-full font-semibold hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary-600/25"
                 >

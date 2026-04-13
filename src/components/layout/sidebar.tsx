@@ -245,6 +245,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
     { name: "Products", href: "/ecommerce/products", icon: Package },
     { name: "Categories", href: "/ecommerce/categories", icon: FolderOpen },
     { name: "Orders", href: "/ecommerce/orders", icon: ClipboardList },
+    { name: "Customers", href: "/ecommerce/customers", icon: Users },
     { name: "Design", href: "/ecommerce/design", icon: Palette },
     { name: "Analytics", href: "/ecommerce/analytics", icon: BarChart3 },
     { name: "Visitor Analytics", href: "/ecommerce/visitor-analytics", icon: MapPin },
