@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
 
 // POST /api/ecommerce/customers/[customerId]/add-to-contacts
 export async function POST(
@@ -8,13 +8,13 @@ export async function POST(
   { params }: { params: Promise<{ customerId: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { customerId } = await params;
 
     // Verify the store customer belongs to this user's store
-    const store = await prisma.store.findFirst({ where: { userId: user.id }, select: { id: true } });
+    const store = await prisma.store.findFirst({ where: { userId: session.userId }, select: { id: true } });
     if (!store) return NextResponse.json({ error: "No store found" }, { status: 404 });
 
     const storeCustomer = await prisma.storeCustomer.findFirst({
@@ -30,7 +30,7 @@ export async function POST(
 
     // Upsert contact (by userId + email)
     const existing = await prisma.contact.findFirst({
-      where: { userId: user.id, email: storeCustomer.email },
+      where: { userId: session.userId, email: storeCustomer.email },
       select: { id: true },
     });
 
@@ -48,7 +48,7 @@ export async function POST(
     } else {
       contact = await prisma.contact.create({
         data: {
-          userId: user.id,
+          userId: session.userId,
           email: storeCustomer.email,
           firstName,
           lastName,

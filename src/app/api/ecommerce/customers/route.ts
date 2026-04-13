@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
 
 // GET /api/ecommerce/customers
 export async function GET(req: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const store = await prisma.store.findFirst({
-      where: { userId: user.id },
+      where: { userId: session.userId },
       select: { id: true },
     });
     if (!store) return NextResponse.json({ error: "No store found" }, { status: 404 });
