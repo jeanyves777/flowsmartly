@@ -89,6 +89,18 @@ export default function StoreOrderDetailPage() {
   const [returnSuccess, setReturnSuccess] = useState(false);
   const [returnError, setReturnError] = useState("");
 
+  // Cancel order
+  const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+
+  // Change address
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [addrForm, setAddrForm] = useState({ name: "", line1: "", line2: "", city: "", state: "", zip: "", country: "" });
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [addressError, setAddressError] = useState("");
+  const [addressSuccess, setAddressSuccess] = useState(false);
+
   useEffect(() => {
     async function fetchOrder() {
       try {
@@ -139,6 +151,42 @@ export default function StoreOrderDetailPage() {
     }
   }
 
+  async function handleCancel() {
+    setCancelling(true);
+    setCancelError("");
+    try {
+      const res = await fetch(`/api/store/${slug}/account/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel" }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setCancelError(data.error || "Failed to cancel order."); return; }
+      setOrder(prev => prev ? { ...prev, status: "CANCELLED", paymentStatus: data.paymentStatus } : prev);
+      setCancelConfirm(false);
+    } catch { setCancelError("Something went wrong. Please try again."); }
+    finally { setCancelling(false); }
+  }
+
+  async function handleAddressChange(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingAddress(true);
+    setAddressError("");
+    try {
+      const res = await fetch(`/api/store/${slug}/account/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update_address", address: addrForm }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setAddressError(data.error || "Failed to update address."); return; }
+      setOrder(prev => prev ? { ...prev, shippingAddress: data.shippingAddress } : prev);
+      setShowAddressForm(false);
+      setAddressSuccess(true);
+    } catch { setAddressError("Something went wrong. Please try again."); }
+    finally { setSavingAddress(false); }
+  }
+
   function formatMoney(cents: number) {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -178,6 +226,9 @@ export default function StoreOrderDetailPage() {
   const isCancelled = order.status === "CANCELLED" || order.status === "REFUNDED";
   const carrier = order.trackingNumber ? detectCarrier(order.trackingNumber) : null;
   const canRequestReturn = order.status === "DELIVERED" && !order.returnRequested;
+  const PRE_FULFILLMENT = ["PENDING", "CONFIRMED", "PROCESSING"];
+  const canCancel = PRE_FULFILLMENT.includes(order.status);
+  const canChangeAddress = PRE_FULFILLMENT.includes(order.status);
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8">
@@ -308,6 +359,12 @@ export default function StoreOrderDetailPage() {
         </div>
       )}
 
+      {addressSuccess && (
+        <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4 mb-6">
+          <p className="text-sm font-semibold text-green-700 dark:text-green-300">Shipping address updated!</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Items */}
         <div className="lg:col-span-2">
@@ -379,6 +436,62 @@ export default function StoreOrderDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Cancel Order Section */}
+          {canCancel && !isCancelled && (
+            <div
+              className="mt-4 rounded-lg border p-4"
+              style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}
+            >
+              {!cancelConfirm ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold">Need to cancel?</p>
+                    <p className="text-xs opacity-50 mt-0.5">
+                      {order.paymentMethod === "card" && order.paymentStatus === "paid"
+                        ? "A full refund will be issued automatically."
+                        : "This order has not been charged yet."}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setCancelConfirm(true)}
+                    className="shrink-0 rounded-lg border border-red-200 dark:border-red-800 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  >
+                    Cancel Order
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm font-semibold mb-1">Confirm cancellation?</p>
+                  <p className="text-xs opacity-60 mb-3">
+                    {order.paymentMethod === "card" && order.paymentStatus === "paid"
+                      ? "Your card will be refunded in 5–10 business days."
+                      : "This action cannot be undone."}
+                  </p>
+                  {cancelError && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mb-2">{cancelError}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCancel}
+                      disabled={cancelling}
+                      className="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-colors"
+                    >
+                      {cancelling ? "Cancelling..." : "Yes, Cancel Order"}
+                    </button>
+                    <button
+                      onClick={() => { setCancelConfirm(false); setCancelError(""); }}
+                      disabled={cancelling}
+                      className="rounded-lg border px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+                      style={{ borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)" }}
+                    >
+                      Keep Order
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Return Request Section */}
           {canRequestReturn && !showReturnForm && (
@@ -478,6 +591,69 @@ export default function StoreOrderDetailPage() {
               </div>
             ) : (
               <p className="text-sm opacity-40">No shipping address</p>
+            )}
+
+            {canChangeAddress && !showAddressForm && (
+              <button
+                onClick={() => {
+                  setAddrForm({
+                    name: order.shippingAddress?.name || "",
+                    line1: order.shippingAddress?.line1 || "",
+                    line2: order.shippingAddress?.line2 || "",
+                    city: order.shippingAddress?.city || "",
+                    state: order.shippingAddress?.state || "",
+                    zip: order.shippingAddress?.zip || "",
+                    country: order.shippingAddress?.country || "",
+                  });
+                  setShowAddressForm(true);
+                  setAddressSuccess(false);
+                }}
+                className="mt-3 text-xs font-medium hover:underline"
+                style={{ color: "var(--store-primary)" }}
+              >
+                Change address
+              </button>
+            )}
+
+            {canChangeAddress && showAddressForm && (
+              <form onSubmit={handleAddressChange} className="mt-4 space-y-2">
+                {addressError && (
+                  <p className="text-xs text-red-600 dark:text-red-400">{addressError}</p>
+                )}
+                {(["name","line1","line2","city","state","zip","country"] as const).map(field => (
+                  <input
+                    key={field}
+                    type="text"
+                    placeholder={field === "line1" ? "Address line 1 *" : field === "line2" ? "Address line 2" : field === "zip" ? "Postal code" : field.charAt(0).toUpperCase() + field.slice(1) + (["line1","city","country"].includes(field) ? " *" : "")}
+                    value={addrForm[field]}
+                    onChange={e => setAddrForm(prev => ({ ...prev, [field]: e.target.value }))}
+                    required={["line1","city","country"].includes(field)}
+                    className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1"
+                    style={{
+                      borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)",
+                      backgroundColor: "var(--store-input-bg, transparent)",
+                    }}
+                  />
+                ))}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={savingAddress}
+                    className="rounded-lg px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: "var(--store-primary)" }}
+                  >
+                    {savingAddress ? "Saving..." : "Save Address"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowAddressForm(false); setAddressError(""); }}
+                    className="rounded-lg border px-4 py-2 text-xs font-medium transition-opacity hover:opacity-80"
+                    style={{ borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
             )}
           </div>
 
