@@ -139,25 +139,29 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
           )}
         </div>
 
-        {/* Hover actions */}
-        <div className="absolute inset-0 flex items-end justify-center pb-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <div className="flex gap-2">
-            <button
-              onClick={handleAddToCart}
-              className="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-medium rounded-full shadow-lg hover:bg-primary-600 hover:text-white transition-colors"
-            >
-              <ShoppingBag size={16} />
-              Add to Cart
-            </button>
-            <button
-              onClick={handleWishlist}
-              disabled={wishlistLoading}
-              className={`p-2.5 bg-white dark:bg-gray-900 rounded-full shadow-lg transition-colors ${wishlisted ? "text-red-500" : "text-gray-600 dark:text-gray-300 hover:text-red-500"}`}
-              aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
-            >
-              <Heart size={16} fill={wishlisted ? "currentColor" : "none"} />
-            </button>
-          </div>
+        {/* Wishlist heart — always visible on mobile, top-right */}
+        <button
+          onClick={handleWishlist}
+          disabled={wishlistLoading}
+          className={`absolute top-3 right-3 z-10 p-2 rounded-full shadow-md transition-all ${
+            wishlisted
+              ? "bg-red-500 text-white"
+              : "bg-white/80 dark:bg-gray-800/80 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:text-red-500"
+          } ${wishlistLoading ? "opacity-50" : ""}`}
+          aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
+        >
+          <Heart size={18} fill={wishlisted ? "currentColor" : "none"} />
+        </button>
+
+        {/* Add to Cart — visible on hover (desktop) */}
+        <div className="absolute inset-0 flex items-end justify-center pb-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+          <button
+            onClick={handleAddToCart}
+            className="pointer-events-auto flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-medium rounded-full shadow-lg hover:bg-primary-600 hover:text-white transition-colors"
+          >
+            <ShoppingBag size={16} />
+            Add to Cart
+          </button>
         </div>
 
         {/* Out of stock overlay */}

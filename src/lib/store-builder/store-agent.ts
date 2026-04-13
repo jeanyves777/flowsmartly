@@ -484,6 +484,17 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - "Cart" triggers cartDrawerOpen
 - "My Account" calls openAccountModal() if not logged in, else /account
 
+### ProductCard Wishlist Heart (MANDATORY):
+- ProductCard MUST have a Heart icon button at top-right of the product image
+- Heart is ALWAYS visible (not hidden behind hover) — works on mobile and desktop
+- Uses absolute positioning: top-3 right-3 z-10
+- When not wishlisted: semi-transparent white bg, gray icon, hover turns red
+- When wishlisted: red bg, white filled heart icon
+- On click: if not logged in → opens AccountModal; if logged in → toggles wishlist via API
+- Wishlist API: POST/DELETE /api/store/{slug}/account/wishlist with { productId }
+- Global state via window.__storeWishlist array + "wishlist-updated" custom event
+- Add to Cart button appears on hover (desktop only) at bottom center
+
 ### Pre-deploy Verification Checklist (VERIFY ALL before calling finish):
 1. ✅ layout.tsx imports ThemeProvider (default from @/components/ThemeProvider)
 2. ✅ layout.tsx imports AccountModalProvider (default from @/components/AccountModalProvider)
@@ -495,7 +506,8 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 7. ✅ MobileBottomNav exists with 5 items including Filters and My Account
 8. ✅ AccountModal drawer exists for sign-in (NOT a plain redirect to /account/login)
 9. ✅ ThemeToggle in Header — dark/light mode switch works
-9b. ✅ ALL components use dark: Tailwind variants — bg-white components have dark:bg-gray-900, all inputs have dark:bg-gray-800 dark:border-gray-700 dark:text-white, all text has dark: counterparts
+9b. ✅ ALL components use dark: Tailwind variants — bg-white components have dark:bg-gray-900, all inputs have dark:bg-gray-800 dark:bg-gray-700 dark:text-white, all text has dark: counterparts
+14. ✅ ProductCard has always-visible Heart wishlist button at top-right of image
 10. ✅ Footer sticks to bottom (min-h-screen flex flex-col on root layout, flex-1 on main)
 11. ✅ All internal links use Next.js <Link> component — no <a href="..."> for internal pages
 12. ✅ CartDrawer slides from right, AccountModal slides from right, FilterDrawer slides from left
