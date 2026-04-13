@@ -207,7 +207,8 @@ export default function CheckoutPage() {
       if (json.success) {
         if (json.data?.clientSecret) {
           // Card payment — go to Stripe confirm page (cart cleared after payment succeeds)
-          window.location.href = `/checkout/confirm?secret=${json.data.clientSecret}&order=${json.data.orderId}&amount=${total}`;
+          const storeBase = slug ? `/stores/${slug}` : "";
+          window.location.href = `${storeBase}/checkout/confirm?secret=${json.data.clientSecret}&order=${json.data.orderId}&amount=${total}`;
           return;
         }
         // Non-card payment (COD, mobile money, bank transfer) — show inline success

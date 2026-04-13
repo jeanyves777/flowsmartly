@@ -444,7 +444,9 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - Tailwind CSS v4 globals.css MUST start with EXACTLY these lines (dark mode will break without @custom-variant):
     @import "tailwindcss";
     @custom-variant dark (&:where(.dark, .dark *));
-  Then @theme {} block with brand colors. NEVER omit the @custom-variant line.
+  Then @theme {} block with brand colors + all shade variants. NEVER omit the @custom-variant line.
+- globals.css @layer base MUST include cursor-pointer rule:
+    button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }
 - NO tailwind.config.ts
 - Icons from lucide-react
 - Use double-quoted strings for text with apostrophes: "What's New"
@@ -454,14 +456,27 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - src/lib/api-client.ts, src/lib/cart.ts
 - src/app/api/[...path]/route.ts
 - src/components/ThemeProvider.tsx, ThemeToggle.tsx, Analytics.tsx, CookieConsent.tsx
+- src/app/checkout/page.tsx (3-step checkout with payment methods — pre-built, DO NOT OVERWRITE)
 - src/app/checkout/confirm/page.tsx (Stripe PaymentElement — pre-built, DO NOT OVERWRITE)
 - .env.local
 
 ### Tailwind CSS v4 Colors (CRITICAL):
-- In globals.css @theme {}, define ONLY base colors: --color-primary: #xxx; --color-secondary: #xxx;
-- NEVER define numbered shades: --color-primary-600, --color-primary-700 are INVALID
-- In components: use bg-primary, text-primary, border-primary — NOT bg-primary-500 or text-primary-700
-- For lighter/darker: use opacity modifiers like bg-primary/80, bg-primary/20
+- In globals.css @theme {}, define the base color AND all shade variants using color-mix():
+    --color-primary: #xxx;
+    --color-primary-50: color-mix(in oklab, #xxx 15%, white);
+    --color-primary-100: color-mix(in oklab, #xxx 25%, white);
+    --color-primary-200: color-mix(in oklab, #xxx 45%, white);
+    --color-primary-300: color-mix(in oklab, #xxx 65%, white);
+    --color-primary-400: color-mix(in oklab, #xxx 80%, white);
+    --color-primary-500: #xxx;
+    --color-primary-600: color-mix(in oklab, #xxx 85%, black);
+    --color-primary-700: color-mix(in oklab, #xxx 70%, black);
+    --color-primary-800: color-mix(in oklab, #xxx 55%, black);
+    --color-primary-900: color-mix(in oklab, #xxx 40%, black);
+  Replace #xxx with the actual primary hex color throughout. Do the same for secondary and accent if used.
+- In components: use bg-primary-600, text-primary-600, border-primary-500 etc. — these work because shades are defined above
+- For subtle tints: bg-primary-50, bg-primary-100 for card backgrounds; bg-primary-600 for primary buttons
+- ALWAYS add cursor-pointer to button elements: <button className="... cursor-pointer ...">
 
 ### Animations in globals.css (CRITICAL):
 - NEVER use @apply inside @keyframes blocks — Tailwind v4 forbids this

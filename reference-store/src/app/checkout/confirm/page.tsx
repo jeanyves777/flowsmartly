@@ -32,11 +32,14 @@ function PaymentForm({ orderId, amount }: { orderId: string; amount?: number }) 
     setLoading(true);
     setError("");
 
+    const storeSlug = window.location.pathname.match(/\/stores\/([^/]+)/)?.[1] || "";
+    const storeBase = storeSlug ? `/stores/${storeSlug}` : "";
+
     const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
       elements,
       redirect: "if_required",
       confirmParams: {
-        return_url: `${window.location.origin}/checkout/success?order=${orderId}`,
+        return_url: `${window.location.origin}${storeBase}/products`,
       },
     });
 
