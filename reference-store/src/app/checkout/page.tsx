@@ -94,6 +94,9 @@ export default function CheckoutPage() {
       return;
     }
 
+    const slug = getStoreSlug() || (storeInfo as any).slug || "";
+
+    // Pre-fill from in-memory customer (set by AccountModal on current session)
     const cust = (window as any).__storeCustomer;
     if (cust) {
       setForm(prev => ({
@@ -104,12 +107,28 @@ export default function CheckoutPage() {
       }));
     }
 
+    // Always fetch from API too — works after page refresh when window.__storeCustomer is gone
+    if (slug) {
+      fetch(`${API_BASE}/api/store/${slug}/account/profile`, { credentials: "include" })
+        .then(r => r.json())
+        .then(json => {
+          if (json.customer) {
+            setForm(prev => ({
+              ...prev,
+              name: prev.name || json.customer.name || "",
+              email: prev.email || json.customer.email || "",
+              phone: prev.phone || json.customer.phone || "",
+            }));
+          }
+        })
+        .catch(() => {});
+    }
+
     if (shippingMethods?.length > 0) {
       setForm(prev => ({ ...prev, shippingMethodId: prev.shippingMethodId || shippingMethods[0].id }));
     }
 
     // Validate cart items against DB (stock + availability)
-    const slug = getStoreSlug() || (storeInfo as any).slug || "";
     if (items.length > 0 && slug) {
       fetch(`${API_BASE}/api/store/${slug}/cart/validate`, {
         method: "POST",
