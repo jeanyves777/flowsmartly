@@ -278,6 +278,9 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 - Cart uses localStorage via src/lib/cart.ts (already provided by builder — DO NOT overwrite)
 - goToCheckout() in cart.ts navigates to /checkout (local page)
 - Checkout page is WITHIN the store at /checkout — NOT a redirect to FlowSmartly
+- Checkout MUST use the store's own Header and Footer components — NEVER create a separate/fabricated nav
+  import Header from "@/components/Header"; import Footer from "@/components/Footer"; import CartDrawer from "@/components/CartDrawer";
+- Account pages MUST also use the store's Header and Footer — same consistent nav everywhere
 - Payment processing happens via /api/checkout → FlowSmartly gateway → Stripe
 - Checkout shipping methods MUST come from data.ts shippingMethods array (NEVER hardcoded):
   import { shippingMethods } from "@/lib/data";

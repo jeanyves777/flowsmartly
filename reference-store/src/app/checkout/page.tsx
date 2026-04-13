@@ -7,6 +7,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Check, CreditCard, Truck, MapPin, ShoppingBag, Loader2 } from "lucide-react";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import CartDrawer from "@/components/CartDrawer";
 import { getCart, getCartTotal, clearCart } from "@/lib/cart";
 import { formatPrice, storeInfo, shippingMethods } from "@/lib/data";
 import type { CartItem } from "@/lib/cart";
@@ -26,6 +29,7 @@ const STEPS = [
 export default function CheckoutPage() {
   const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartOpen, setCartOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -138,39 +142,36 @@ export default function CheckoutPage() {
 
   if (orderComplete) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center max-w-md">
-          <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Check className="w-8 h-8 text-green-600" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Order Placed!</h1>
-          {orderNumber && <p className="text-gray-500 dark:text-gray-400 mb-6">Order #{orderNumber}</p>}
-          <Link href="/products" className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-full font-medium hover:bg-primary-700 transition-colors">
-            Continue Shopping
-          </Link>
-        </motion.div>
-      </div>
+      <>
+        <Header onCartOpen={() => setCartOpen(true)} />
+        <main className="min-h-screen flex items-center justify-center px-4 pt-24">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center max-w-md">
+            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Check className="w-8 h-8 text-green-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Order Placed!</h1>
+            {orderNumber && <p className="text-gray-500 dark:text-gray-400 mb-6">Order #{orderNumber}</p>}
+            <Link href="/products" className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-full font-medium hover:bg-primary-700 transition-colors">
+              Continue Shopping
+            </Link>
+          </motion.div>
+        </main>
+        <Footer />
+      </>
     );
   }
 
   const inputClass = "w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none placeholder-gray-400 dark:placeholder-gray-500 transition-colors";
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <Link href="/products" className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
-            <ArrowLeft size={16} /> Back to Shopping
-          </Link>
-          {(storeInfo as any).logoUrl && (
-            <img src={(storeInfo as any).logoUrl} alt={(storeInfo as any).name || "Store"} className="h-8 object-contain" />
-          )}
-          <div className="text-sm font-medium text-gray-900 dark:text-white">Checkout</div>
-        </div>
-      </div>
-
-      <div className="max-w-5xl mx-auto px-4 py-8">
+    <>
+      <Header onCartOpen={() => setCartOpen(true)} />
+      <main className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-24 pb-16">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6">
+        {/* Back link */}
+        <Link href="/products" className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 mb-6">
+          <ArrowLeft size={16} /> Back to Shopping
+        </Link>
         {/* Stepper */}
         <div className="flex items-center justify-center gap-0 mb-10">
           {STEPS.map((s, i) => (
@@ -411,6 +412,9 @@ export default function CheckoutPage() {
           </div>
         </div>
       </div>
-    </div>
+      </main>
+      <Footer />
+      <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} storeSlug={STORE_SLUG} />
+    </>
   );
 }
