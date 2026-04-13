@@ -247,8 +247,8 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
     - src/app/account/register/page.tsx: name + email + password + confirm → POST /api/auth/register → redirect /account
       MANDATORY ANTI-SPAM: same Turnstile pattern as login — import, state, widget, disabled button until validated, send token in body.
     - src/app/account/page.tsx: dashboard with greeting, recent orders, quick links (orders/addresses/settings). Fetch from /api/account/profile + /api/account/orders. If 401 → redirect to /account/login
-    - src/app/account/orders/page.tsx: full order history from /api/account/orders
-    - src/app/account/orders/[orderId]/page.tsx: order detail from /api/account/orders/{orderId}
+    - src/app/account/orders/page.tsx: PRE-BUILT — DO NOT WRITE OR OVERWRITE. Includes real order list from /api/account/orders, pending card payment banner ("Payment Required") with "Complete Payment" CTA, pagination, status badges.
+    - src/app/account/orders/[orderId]/page.tsx: PRE-BUILT — DO NOT WRITE OR OVERWRITE. Includes real order detail, status timeline, items list, cancel (PENDING/CONFIRMED/PROCESSING only), change shipping address (PENDING/CONFIRMED/PROCESSING only), return/refund request (DELIVERED only). Uses getBasePath() for window.location.href navigations.
     - src/app/account/addresses/page.tsx: saved addresses from /api/account/addresses
     - src/app/account/settings/page.tsx: profile settings, update via POST /api/account/profile
 12. Write ORDER pages:
@@ -279,6 +279,10 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 - CRITICAL — images in plain <img> src: use the FULL path returned by download_image (it already includes basePath)
   - If you must hardcode: use "/stores/\${storeSlug}/images/..." (NOT "/images/...")
   - Plain <img> tags do NOT get basePath automatically — always use the full returned path
+- window.location.href does NOT respect Next.js basePath — NEVER use window.location.href = "/some-path"; instead use:
+  function getBasePath() { return window.location.pathname.match(/^(\/stores\/[^/]+)/)?.[1] || ""; }
+  window.location.href = getBasePath() + "/some-path";
+  Or prefer router.push("/path") when inside a component (Next.js router handles basePath automatically)
 - NO generateStaticParams() needed — SSR handles dynamic routes natively
 - Server components are default; add "use client" only when using hooks/state/motion
 
@@ -458,6 +462,8 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - src/components/ThemeProvider.tsx, ThemeToggle.tsx, Analytics.tsx, CookieConsent.tsx
 - src/app/checkout/page.tsx (3-step checkout with payment methods — pre-built, DO NOT OVERWRITE)
 - src/app/checkout/confirm/page.tsx (Stripe PaymentElement — pre-built, DO NOT OVERWRITE)
+- src/app/account/orders/page.tsx (real order list with pending CTA — pre-built, DO NOT OVERWRITE)
+- src/app/account/orders/[orderId]/page.tsx (order detail: cancel/address/return gating — pre-built, DO NOT OVERWRITE)
 - .env.local
 
 ### Tailwind CSS v4 Colors (CRITICAL):

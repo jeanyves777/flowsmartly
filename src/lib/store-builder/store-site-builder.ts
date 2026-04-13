@@ -9,8 +9,13 @@
  */
 
 import { spawn as spawnProcess } from "child_process";
-import { existsSync, mkdirSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
+
+// Reference store location (same as reference-reader.ts)
+const REFERENCE_BASE = process.platform === "win32"
+  ? "C:\\Users\\koffi\\Dev\\flowsmartly\\reference-store\\src"
+  : "/opt/reference-store/src";
 import { prisma } from "@/lib/db/client";
 import {
   TEMPLATE_STORE_PACKAGE_JSON,
@@ -194,6 +199,18 @@ export function initStoreDirV3(storeId: string, slug: string): string {
     join(storeDir, "src", "app", "checkout", "confirm", "page.tsx"),
     TEMPLATE_STRIPE_CONFIRM_PAGE
   );
+
+  // Account orders pages — pre-built from reference-store, agent must NOT overwrite
+  // These implement: real order list with pending CTA, order detail with
+  // cancel (pre-fulfillment), address change (pre-fulfillment), return request (DELIVERED only)
+  const refOrdersListPath = join(REFERENCE_BASE, "app", "account", "orders", "page.tsx");
+  const refOrderDetailPath = join(REFERENCE_BASE, "app", "account", "orders", "[orderId]", "page.tsx");
+  if (existsSync(refOrdersListPath)) {
+    writeFileSync(join(storeDir, "src", "app", "account", "orders", "page.tsx"), readFileSync(refOrdersListPath));
+  }
+  if (existsSync(refOrderDetailPath)) {
+    writeFileSync(join(storeDir, "src", "app", "account", "orders", "[orderId]", "page.tsx"), readFileSync(refOrderDetailPath));
+  }
 
   // App Router 404 — prevents cascading prerender error for /404
   writeFileSync(join(storeDir, "src", "app", "not-found.tsx"), TEMPLATE_SSR_NOT_FOUND);
