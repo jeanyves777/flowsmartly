@@ -78,7 +78,7 @@ export default async function WishlistPage({ params }: PageProps) {
             } catch { /* empty */ }
             return (
               <div key={item.id} className="rounded-xl border overflow-hidden group" style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}>
-                <Link href={`/store/${slug}/products?id=${product.id}`}>
+                <Link href={`/stores/${slug}/products/${product.slug}`}>
                   <div className="aspect-square bg-gray-100 dark:bg-gray-800 overflow-hidden">
                     {imageUrl ? (
                       <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />

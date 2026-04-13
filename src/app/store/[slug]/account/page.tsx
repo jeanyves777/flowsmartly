@@ -246,7 +246,7 @@ export default async function StoreAccountPage({ params }: AccountPageProps) {
           >
             <p className="opacity-50">No orders yet</p>
             <Link
-              href={`/store/${slug}/products`}
+              href={`/stores/${slug}/products`}
               className="inline-block mt-3 text-sm font-medium hover:underline"
               style={{ color: "var(--store-primary)" }}
             >
