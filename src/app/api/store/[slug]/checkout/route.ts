@@ -5,6 +5,7 @@ import { generateOrderNumber } from "@/lib/constants/ecommerce";
 import { calculateShipping, type ShippingConfig } from "@/lib/store/cart";
 import { validateInventory, deductInventory } from "@/lib/store/inventory";
 import { createStorePaymentIntent } from "@/lib/stripe/store-checkout";
+import { stripe } from "@/lib/stripe";
 import {
   notifyOrderConfirmation,
   notifyNewOrder,
@@ -234,6 +235,35 @@ export async function POST(
 
     const taxCents = 0; // Deferred: tax calculation
     const totalCents = subtotalCents + shippingCents + taxCents;
+
+    // ── Deduplication: reuse existing pending card payment within 24h ──
+    // Prevents duplicate orders when a user abandons and retries checkout.
+    if (paymentMethod === "card" && stripe) {
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const existingPending = await prisma.order.findFirst({
+        where: {
+          storeId: store.id,
+          customerEmail,
+          paymentMethod: "card",
+          paymentStatus: "pending",
+          totalCents,
+          createdAt: { gte: cutoff },
+        },
+        select: { id: true, paymentId: true },
+        orderBy: { createdAt: "desc" },
+      });
+      if (existingPending?.paymentId) {
+        try {
+          const pi = await stripe.paymentIntents.retrieve(existingPending.paymentId);
+          if (pi.status !== "canceled" && pi.status !== "succeeded") {
+            return NextResponse.json({
+              success: true,
+              data: { orderId: existingPending.id, clientSecret: pi.client_secret, total: totalCents },
+            });
+          }
+        } catch { /* PI gone — fall through to create fresh order */ }
+      }
+    }
 
     // ── Platform fee calculation (for Stripe Connect stores) ──
     const connectReady = !!(store.stripeConnectAccountId && store.stripeOnboardingComplete);

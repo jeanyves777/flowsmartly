@@ -62,7 +62,7 @@ export default async function WishlistPage({ params }: PageProps) {
       {wishlistItems.length === 0 ? (
         <div className="rounded-lg border p-10 text-center" style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}>
           <p className="opacity-50 mb-3">Your wishlist is empty</p>
-          <Link href={`/store/${slug}/products`} className="text-sm font-medium hover:underline" style={{ color: "var(--store-primary)" }}>
+          <Link href={`/stores/${slug}/products`} className="text-sm font-medium hover:underline" style={{ color: "var(--store-primary)" }}>
             Browse products
           </Link>
         </div>

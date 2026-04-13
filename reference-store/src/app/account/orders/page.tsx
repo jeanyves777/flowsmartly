@@ -54,11 +54,20 @@ export default function OrdersPage() {
 
   useEffect(() => { fetchOrders(page); }, [page]);
 
+  // Extract basePath from current URL so navigations stay within the store
+  function getBasePath() {
+    return window.location.pathname.match(/^(\/stores\/[^/]+)/)?.[1] || "";
+  }
+
   async function fetchOrders(p: number) {
     setLoading(true);
     try {
       const res = await fetch(`/api/account/orders?page=${p}`, { credentials: "include" });
-      if (res.status === 401) { window.location.href = "/account/login?return=/account/orders"; return; }
+      if (res.status === 401) {
+        const base = getBasePath();
+        window.location.href = `${base}/account/login?return=${base}/account/orders`;
+        return;
+      }
       const data = await res.json();
       setOrders(data.orders || []);
       setPendingPayments(data.pendingPayments || []);
@@ -78,7 +87,8 @@ export default function OrdersPage() {
       const data = await res.json();
       if (!res.ok) { setResumeError(data.error || "Unable to resume payment"); return; }
       const { clientSecret, amount, orderId } = data.data;
-      window.location.href = `/checkout/confirm?secret=${encodeURIComponent(clientSecret)}&order=${orderId}&amount=${amount}`;
+      const base = getBasePath();
+      window.location.href = `${base}/checkout/confirm?secret=${encodeURIComponent(clientSecret)}&order=${orderId}&amount=${amount}`;
     } catch {
       setResumeError("Network error — please try again");
     } finally {
