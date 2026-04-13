@@ -35,6 +35,7 @@ export async function triggerStoreRebuildIfV2(storeId: string): Promise<void> {
     await syncProductsToFile(storeId, store.generatedPath);
     await syncCategoriesToDataFile(storeId, store.generatedPath);
     await syncShippingToDataFile(storeId, store.generatedPath, store.freeShippingThresholdCents);
+    await syncPaymentMethodsToDataFile(storeId, store.generatedPath);
 
     const { buildStoreV3, deployStoreV3 } = await import("./store-site-builder");
 
@@ -194,6 +195,50 @@ async function syncShippingToDataFile(storeId: string, storeDir: string, freeThr
 
   writeFileSync(dataPath, content, "utf-8");
   console.log(`[ProductSync] Synced ${methods.length} shipping methods to data.ts`);
+}
+
+/**
+ * Sync active payment methods from DB to store data.ts.
+ */
+async function syncPaymentMethodsToDataFile(storeId: string, storeDir: string): Promise<void> {
+  const { readFileSync, writeFileSync, existsSync } = await import("fs");
+  const { join } = await import("path");
+
+  const dataPath = join(storeDir, "src", "lib", "data.ts");
+  if (!existsSync(dataPath)) return;
+
+  const methods = await prisma.storePaymentMethod.findMany({
+    where: { storeId, isActive: true },
+    select: { methodType: true, provider: true },
+  });
+
+  const LABELS: Record<string, { label: string; icon: string }> = {
+    card: { label: "Credit / Debit Card", icon: "💳" },
+    apple_pay: { label: "Apple Pay", icon: "🍎" },
+    google_pay: { label: "Google Pay", icon: "📱" },
+    cod: { label: "Cash on Delivery", icon: "💵" },
+    mobile_money: { label: "Mobile Money", icon: "📲" },
+    bank_transfer: { label: "Bank Transfer", icon: "🏦" },
+  };
+
+  const methodsStr = methods.map(m => {
+    const info = LABELS[m.methodType] || { label: m.methodType, icon: "💳" };
+    return `  { value: "${m.methodType}", label: "${info.label}", icon: "${info.icon}" }`;
+  }).join(",\n");
+
+  let content = readFileSync(dataPath, "utf-8");
+
+  if (content.includes("export const paymentMethods")) {
+    content = content.replace(
+      /export const paymentMethods\s*=\s*\[[\s\S]*?\];/,
+      `export const paymentMethods = [\n${methodsStr},\n];`
+    );
+  } else {
+    content += `\n\nexport const paymentMethods = [\n${methodsStr},\n];\n`;
+  }
+
+  writeFileSync(dataPath, content, "utf-8");
+  console.log(`[ProductSync] Synced ${methods.length} payment methods to data.ts`);
 }
 
 function escapeStr(str: string): string {

@@ -11,7 +11,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
 import { getCart, getCartTotal, clearCart } from "@/lib/cart";
-import { formatPrice, storeInfo, shippingMethods } from "@/lib/data";
+import { formatPrice, storeInfo, shippingMethods, paymentMethods } from "@/lib/data";
 import type { CartItem } from "@/lib/cart";
 
 const API_BASE = "https://flowsmartly.com";
@@ -310,12 +310,7 @@ export default function CheckoutPage() {
                   <CreditCard size={20} /> Payment Method
                 </h2>
                 <div className="space-y-3">
-                  {[
-                    { value: "card", label: "Credit / Debit Card", icon: "💳" },
-                    { value: "cod", label: "Cash on Delivery", icon: "💵" },
-                    { value: "mobile_money", label: "Mobile Money", icon: "📱" },
-                    { value: "bank_transfer", label: "Bank Transfer", icon: "🏦" },
-                  ].map((pm) => (
+                  {(paymentMethods || []).map((pm: any) => (
                     <label key={pm.value} className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
                       form.paymentMethod === pm.value
                         ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10"
