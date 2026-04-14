@@ -1,18 +1,18 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   CheckCircle,
   AlertCircle,
   Banknote,
-  ExternalLink,
   Loader2,
-  RefreshCw,
   Shield,
   Lock,
   Building2,
   Calendar,
   KeyRound,
+  ArrowRight,
 } from "lucide-react";
 
 type OnboardingState = "loading" | "idle" | "form" | "submitting" | "complete" | "error";
@@ -30,6 +30,7 @@ export function StripeConnectOnboarding({
   onExit,
   className = "",
 }: StripeConnectOnboardingProps) {
+  const router = useRouter();
   const [state, setState] = useState<OnboardingState>("loading");
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
@@ -132,18 +133,8 @@ export function StripeConnectOnboarding({
     }
   };
 
-  const handleOpenDashboard = async () => {
-    try {
-      const res = await fetch("/api/ecommerce/stripe-connect/login-link", {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (data.url) {
-        window.open(data.url, "_blank");
-      }
-    } catch {
-      // Silently fail
-    }
+  const handleOpenDashboard = () => {
+    router.push("/ecommerce/payouts");
   };
 
   // ── Render States ──
@@ -174,7 +165,7 @@ export function StripeConnectOnboarding({
                   onClick={handleOpenDashboard}
                   className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200"
                 >
-                  View Payout Dashboard <ExternalLink className="w-3.5 h-3.5" />
+                  View Payout Dashboard <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>

@@ -3245,10 +3245,35 @@ model Store {
   warnings               StoreWarning[]
   feedbacks              OrderFeedback[]
   shippingMethods        StoreShippingMethod[]
+  payouts                StorePayout[]
 
   @@index([slug])
   @@index([userId])
   @@index([isActive])
+}
+
+// Store payouts — tracks Stripe Connect payouts to store owners
+model StorePayout {
+  id                String   @id @default(cuid())
+  storeId           String
+  stripePayoutId    String   @unique  // Stripe payout ID (po_xxx)
+  amountCents       Int                // Gross payout amount
+  feeCents          Int      @default(0)  // Platform fee deducted
+  netCents          Int                // Net amount received by store owner
+  currency          String   @default("usd")
+  status            String   @default("pending") // pending, in_transit, paid, failed, canceled
+  failureMessage    String?
+  method            String?  // standard, instant
+  arrivalDate       DateTime?
+  description       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  store             Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 // Store shipping methods — fully user-controlled, NEVER hardcoded

@@ -54,6 +54,14 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case "payout.paid":
+      case "payout.failed":
+      case "payout.canceled": {
+        const payout = event.data.object as Stripe.Payout;
+        await handlePayoutEvent(payout, event.account);
+        break;
+      }
+
       default:
         console.log(`Unhandled event type: ${event.type}`);
     }
@@ -319,4 +327,42 @@ async function handleAccountUpdated(account: Stripe.Account) {
       `Store ${store.id} Connect status updated: onboardingComplete=${isComplete}`
     );
   }
+}
+
+async function handlePayoutEvent(payout: Stripe.Payout, connectedAccountId?: string) {
+  if (!connectedAccountId) return;
+
+  const store = await prisma.store.findFirst({
+    where: { stripeConnectAccountId: connectedAccountId },
+    select: { id: true },
+  });
+
+  if (!store) {
+    console.log(`No store found for Connect account ${connectedAccountId} (payout event)`);
+    return;
+  }
+
+  await prisma.storePayout.upsert({
+    where: { stripePayoutId: payout.id },
+    create: {
+      storeId: store.id,
+      stripePayoutId: payout.id,
+      amountCents: payout.amount,
+      feeCents: 0,
+      netCents: payout.amount,
+      currency: payout.currency,
+      status: payout.status,
+      failureMessage: payout.failure_message || null,
+      method: payout.method || null,
+      arrivalDate: payout.arrival_date ? new Date(payout.arrival_date * 1000) : null,
+      description: payout.description || null,
+    },
+    update: {
+      status: payout.status,
+      failureMessage: payout.failure_message || null,
+      arrivalDate: payout.arrival_date ? new Date(payout.arrival_date * 1000) : null,
+    },
+  });
+
+  console.log(`Payout ${payout.id} ${payout.status} for store ${store.id}`);
 }
