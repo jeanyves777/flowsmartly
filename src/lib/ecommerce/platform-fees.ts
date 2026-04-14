@@ -13,12 +13,12 @@ export interface PlatformFeeCalculation {
 /**
  * Calculate platform fee for an order
  * @param totalCents - Total order amount in cents
- * @param platformFeePercent - Platform fee percentage (default 5%)
+ * @param platformFeePercent - Platform fee percentage (default 3%)
  * @returns Breakdown of fees
  */
 export function calculatePlatformFee(
   totalCents: number,
-  platformFeePercent: number = 5
+  platformFeePercent: number = 3
 ): PlatformFeeCalculation {
   // Calculate platform fee (rounded to nearest cent)
   const platformFeeCents = Math.round((totalCents * platformFeePercent) / 100);

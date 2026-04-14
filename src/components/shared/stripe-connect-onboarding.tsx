@@ -10,7 +10,7 @@ import { loadConnectAndInitialize, type StripeConnectInstance } from "@stripe/co
 import {
   CheckCircle,
   AlertCircle,
-  CreditCard,
+  Banknote,
   ExternalLink,
   Loader2,
   RefreshCw,
@@ -47,7 +47,6 @@ export function StripeConnectOnboarding({
         setState("complete");
         onComplete?.();
       } else if (data.connected) {
-        // Account exists but not complete — go straight to onboarding
         initEmbeddedOnboarding();
       } else {
         setState("idle");
@@ -61,7 +60,6 @@ export function StripeConnectOnboarding({
     checkStatus();
   }, [checkStatus]);
 
-  // Create Express account then start embedded onboarding
   const handleStartConnect = async () => {
     setState("creating");
     setError("");
@@ -73,17 +71,16 @@ export function StripeConnectOnboarding({
       const data = await res.json();
 
       if (!res.ok || !data.accountId) {
-        throw new Error(data.error || "Failed to create account");
+        throw new Error(data.error || "Failed to set up payout account");
       }
 
       initEmbeddedOnboarding();
     } catch (err: any) {
-      setError(err.message || "Failed to create Stripe account");
+      setError(err.message || "Failed to set up payout account");
       setState("error");
     }
   };
 
-  // Initialize the Connect.js embedded component
   const initEmbeddedOnboarding = () => {
     setState("onboarding");
 
@@ -118,9 +115,7 @@ export function StripeConnectOnboarding({
     setConnectInstance(instance);
   };
 
-  // When the user exits the onboarding flow
   const handleOnboardingExit = async () => {
-    // Re-check status — the user may have completed it
     try {
       const res = await fetch("/api/ecommerce/stripe-connect");
       const data = await res.json();
@@ -129,7 +124,6 @@ export function StripeConnectOnboarding({
         setState("complete");
         onComplete?.();
       } else {
-        // User exited without completing
         onExit?.();
         setState("idle");
       }
@@ -139,7 +133,6 @@ export function StripeConnectOnboarding({
     }
   };
 
-  // Open Stripe Express Dashboard
   const handleOpenDashboard = async () => {
     try {
       const res = await fetch("/api/ecommerce/stripe-connect/login-link", {
@@ -172,17 +165,17 @@ export function StripeConnectOnboarding({
             <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
             <div className="flex-1">
               <h3 className={`font-semibold text-green-800 dark:text-green-300 ${compact ? "text-sm" : "text-base"}`}>
-                Stripe Connect Active
+                Payouts Active
               </h3>
               <p className="text-sm text-green-700 dark:text-green-400 mt-0.5">
-                Your account is verified. You will receive direct payouts from customer purchases.
+                Your bank account is verified. You will receive automatic payouts from customer purchases.
               </p>
               {!compact && (
                 <button
                   onClick={handleOpenDashboard}
                   className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200"
                 >
-                  View Stripe Dashboard <ExternalLink className="w-3.5 h-3.5" />
+                  View Payout Dashboard <ExternalLink className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
@@ -200,7 +193,7 @@ export function StripeConnectOnboarding({
             <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
             <div className="flex-1">
               <h3 className={`font-semibold text-red-800 dark:text-red-300 ${compact ? "text-sm" : "text-base"}`}>
-                Connection Failed
+                Setup Failed
               </h3>
               <p className="text-sm text-red-700 dark:text-red-400 mt-0.5">{error}</p>
               <button
@@ -222,7 +215,7 @@ export function StripeConnectOnboarding({
         {!compact && (
           <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
             <Shield className="w-4 h-4" />
-            <span>Your information is securely handled by Stripe. FlowSmartly never sees your bank details.</span>
+            <span>Your bank details are encrypted and securely processed. FlowSmartly never stores your banking information.</span>
           </div>
         )}
         <div className="rounded-lg border border-border overflow-hidden">
@@ -240,7 +233,7 @@ export function StripeConnectOnboarding({
     return (
       <div className={`flex items-center justify-center gap-2 py-8 ${className}`}>
         <Loader2 className="w-5 h-5 animate-spin text-brand-500" />
-        <span className="text-sm text-muted-foreground">Setting up your Stripe account...</span>
+        <span className="text-sm text-muted-foreground">Setting up your payout account...</span>
       </div>
     );
   }
@@ -252,12 +245,12 @@ export function StripeConnectOnboarding({
         {!compact && (
           <>
             <div className="flex items-center gap-2 mb-3">
-              <CreditCard className="w-5 h-5 text-brand-500" />
-              <h3 className="text-base font-semibold text-foreground">Receive Direct Payouts</h3>
+              <Banknote className="w-5 h-5 text-brand-500" />
+              <h3 className="text-base font-semibold text-foreground">Set Up Payouts</h3>
             </div>
             <p className="text-sm text-muted-foreground mb-1">
-              Connect your Stripe account to receive direct payouts from customer purchases.
-              FlowSmartly takes a small platform fee (5%) on each order.
+              Add your bank account to receive automatic payouts from customer purchases.
+              FlowSmartly handles all payment processing for you.
             </p>
             <ul className="text-sm text-muted-foreground mb-4 space-y-1">
               <li className="flex items-center gap-2">
@@ -266,20 +259,20 @@ export function StripeConnectOnboarding({
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                Full revenue dashboard in Stripe
+                Real-time earnings dashboard
               </li>
               <li className="flex items-center gap-2">
                 <Shield className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-                Secure — your bank details go directly to Stripe
+                Bank-level encryption for your financial data
               </li>
             </ul>
           </>
         )}
         {compact && (
           <div className="mb-3">
-            <h3 className="text-sm font-semibold text-foreground mb-1">Receive Direct Payouts</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-1">Set Up Payouts</h3>
             <p className="text-xs text-muted-foreground">
-              Connect Stripe to receive payouts from customer purchases (5% platform fee).
+              Add your bank account to receive automatic payouts from sales.
             </p>
           </div>
         )}
@@ -289,8 +282,8 @@ export function StripeConnectOnboarding({
             compact ? "px-3 py-1.5 text-sm" : "px-4 py-2 text-sm"
           }`}
         >
-          <CreditCard className="w-4 h-4" />
-          Connect with Stripe
+          <Banknote className="w-4 h-4" />
+          Set Up Bank Account
         </button>
       </div>
     </div>

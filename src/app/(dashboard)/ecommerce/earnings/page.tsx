@@ -145,15 +145,15 @@ export default function EarningsPage() {
         </p>
       </div>
 
-      {/* Stripe Connect Status */}
+      {/* Payout Status */}
       <div className="rounded-lg border border-border bg-card p-4 flex items-center gap-3">
         {data.store.stripeOnboardingComplete ? (
           <>
             <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
             <div>
-              <p className="text-sm font-medium text-foreground">Stripe Connect Active</p>
+              <p className="text-sm font-medium text-foreground">Payouts Active</p>
               <p className="text-xs text-muted-foreground">
-                Payments are routed to your Stripe account. Platform fee: {data.store.platformFeePercent}%
+                Earnings are automatically sent to your bank account. Platform fee: {data.store.platformFeePercent}%
               </p>
             </div>
           </>
@@ -161,9 +161,9 @@ export default function EarningsPage() {
           <>
             <XCircle className="w-5 h-5 text-yellow-500 flex-shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">Stripe Connect Not Set Up</p>
+              <p className="text-sm font-medium text-foreground">Bank Account Not Set Up</p>
               <p className="text-xs text-muted-foreground">
-                Complete Stripe onboarding to receive direct payouts from customer purchases.
+                Add your bank account to receive automatic payouts from customer purchases.
               </p>
             </div>
             <Link

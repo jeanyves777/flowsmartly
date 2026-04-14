@@ -856,10 +856,10 @@ export default function EcommerceSettingsPage() {
         {/* PAYMENTS TAB */}
         {activeTab === "payments" && (
           <div className="space-y-6">
-            {/* Stripe Connect Section */}
+            {/* Payout Setup Section */}
             <div>
               <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-3">
-                Stripe Connect — Direct Payouts
+                Payout Settings
               </h3>
               <StripeConnectOnboarding
                 onComplete={() => {

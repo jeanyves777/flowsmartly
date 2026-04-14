@@ -3176,7 +3176,7 @@ model Store {
   // Stripe Connect (for receiving payments)
   stripeConnectAccountId String?   // Stripe Connect account ID
   stripeOnboardingComplete Boolean @default(false)
-  platformFeePercent     Int       @default(5)  // FlowSmartly's cut (default 5%)
+  platformFeePercent     Int       @default(3)  // FlowSmartly's cut (default 3%)
   platformFeesCollectedCents Int   @default(0) // Lifetime platform fees collected
 
   // Custom Domain
