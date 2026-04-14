@@ -10,6 +10,7 @@ import {
   notifyOrderConfirmation,
   notifyNewOrder,
 } from "@/lib/notifications/commerce";
+import { getStoreCustomer } from "@/lib/store/customer-auth";
 import { attributeOrderToAd } from "@/lib/ads/roas-tracker";
 
 // ── Zod Schema ──
@@ -450,6 +451,36 @@ export async function POST(
     attributeOrderToAd(order.id).catch((err) =>
       console.error("ROAS attribution failed:", err)
     );
+
+    // ── Save shipping address to customer account (fire-and-forget) ──
+    (async () => {
+      try {
+        const customer = await getStoreCustomer(store.id);
+        if (!customer) return;
+        const existing: Array<Record<string, unknown>> = JSON.parse(customer.addresses || "[]");
+        // Check if this address already exists
+        const isDuplicate = existing.some(
+          (a) => (a.line1 || a.street) === shippingAddress.street && a.city === shippingAddress.city && a.zip === shippingAddress.zip
+        );
+        if (!isDuplicate) {
+          const newAddr = {
+            line1: shippingAddress.street,
+            city: shippingAddress.city,
+            state: shippingAddress.state,
+            zip: shippingAddress.zip,
+            country: shippingAddress.country,
+            isDefault: existing.length === 0,
+          };
+          existing.push(newAddr);
+          await prisma.storeCustomer.update({
+            where: { id: customer.id },
+            data: { addresses: JSON.stringify(existing) },
+          });
+        }
+      } catch (e) {
+        console.error("Failed to save customer address:", e);
+      }
+    })();
 
     // ── Fire-and-forget notification emails ──
     // For card payments, emails are sent ONLY after the webhook confirms payment.

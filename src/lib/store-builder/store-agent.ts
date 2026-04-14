@@ -340,6 +340,14 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
   }, []);
 - NEVER leave checkout fields empty when customer is logged in
 
+### Checkout & Order Flow Rules (CRITICAL — prevent broken logic):
+- CART CLEARING: NEVER call clearCart() on order creation. Cart items must ONLY be cleared AFTER payment is fully confirmed (card: after confirmCardPayment succeeds; non-card: after checkout API returns orderId). If payment fails, cart must remain intact so customer can retry.
+- RESUME PAYMENT: When a customer resumes payment for a pending order (e.g. from My Orders), redirect to the FULL checkout page with payment method selection (not directly to payment). The customer may want to choose a different payment method. Use: window.location.href = getBasePath() + "/checkout?resumeOrder=" + orderId
+- RESUME ORDER ITEMS: When checkout loads with resumeOrder param, use the order's items (from server) directly for display and submission. Do NOT depend on cart localStorage for resume orders — the cart may have different/newer items.
+- ADDRESS SAVING: When a logged-in customer completes checkout, always save the shipping address to their account (StoreCustomer.addresses) if it does not already exist. This enables address pre-fill on future orders.
+- CANCELLED ORDERS: When querying "Payment Required" / pending orders, ALWAYS exclude cancelled orders (status !== "CANCELLED"). An order can have paymentStatus "pending" AND status "CANCELLED" simultaneously.
+- API RESPONSE CHECK: When checking if an API call succeeded, use res.ok (HTTP status) not data.success — different endpoints return different shapes. Some return { success: true, data } while others return the object directly.
+
 ### Customer Accounts (CRITICAL — built into the store):
 - Login/register pages are WITHIN the store at /account/login and /account/register
 - Auth tokens managed via httpOnly cookies (set by the API)

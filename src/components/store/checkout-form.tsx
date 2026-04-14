@@ -78,28 +78,22 @@ export function CheckoutForm({
   const router = useRouter();
   const stripe = useStripe();
   const elements = useElements();
-  const { items, subtotalCents, clearCart, addItem } = useCart();
+  const { items, subtotalCents, clearCart, addItem, mounted } = useCart();
 
-  // Hydrate cart from resume order (pending payment)
-  const [resumeHydrated, setResumeHydrated] = useState(false);
-  useEffect(() => {
-    if (resumeOrder && !resumeHydrated) {
-      if (items.length === 0) {
-        for (const item of resumeOrder.items) {
-          addItem({
-            productId: item.productId,
-            variantId: item.variantId,
-            name: item.name,
-            quantity: item.quantity,
-            priceCents: item.priceCents,
-            imageUrl: item.image,
-            currency,
-          });
-        }
-      }
-      setResumeHydrated(true);
-    }
-  }, [resumeOrder, resumeHydrated, items.length, addItem]);
+  // For resume orders, use the order's items directly instead of cart
+  const checkoutItems = resumeOrder ? resumeOrder.items.map(item => ({
+    productId: item.productId,
+    variantId: item.variantId,
+    variantName: undefined as string | undefined,
+    name: item.name,
+    quantity: item.quantity,
+    priceCents: item.priceCents,
+    imageUrl: item.image,
+    currency,
+  })) : items;
+  const checkoutSubtotal = resumeOrder
+    ? resumeOrder.items.reduce((sum, i) => sum + i.priceCents * i.quantity, 0)
+    : subtotalCents;
 
   // Hydrate cart from URL param (V2 static store redirect)
   const [cartHydrated, setCartHydrated] = useState(false);
@@ -141,11 +135,18 @@ export function CheckoutForm({
   const [error, setError] = useState<string | null>(null);
 
   // Shipping calculation
-  const shippingCents = calculateShipping(subtotalCents, shippingConfig, shippingMethod);
-  const totalCents = subtotalCents + shippingCents;
+  const shippingCents = calculateShipping(checkoutSubtotal, shippingConfig, shippingMethod);
+  const totalCents = checkoutSubtotal + shippingCents;
 
-  // Empty cart state
-  if (items.length === 0) {
+  // Empty cart state — wait for cart hydration from localStorage before showing empty
+  if (!mounted && !resumeOrder) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+  if (checkoutItems.length === 0) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center px-4">
         <ShoppingBag className="w-16 h-16 text-gray-300 mb-4" />
@@ -189,7 +190,7 @@ export function CheckoutForm({
           shippingMethod,
           paymentMethod: selectedPayment,
           paymentProvider: selectedMethod?.provider || null,
-          items: items.map((item) => ({
+          items: checkoutItems.map((item) => ({
             productId: item.productId,
             variantId: item.variantId || undefined,
             quantity: item.quantity,
@@ -444,7 +445,7 @@ export function CheckoutForm({
                     {shippingConfig?.flatRateCents ? (
                       <span className="text-sm text-gray-500 ml-2">
                         {shippingConfig.freeShippingThresholdCents &&
-                        subtotalCents >= shippingConfig.freeShippingThresholdCents
+                        checkoutSubtotal >= shippingConfig.freeShippingThresholdCents
                           ? "Free"
                           : formatCents(shippingConfig.flatRateCents, currency)}
                       </span>
@@ -542,7 +543,7 @@ export function CheckoutForm({
 
               {/* Cart items */}
               <div className="space-y-4 mb-6">
-                {items.map((item) => (
+                {checkoutItems.map((item) => (
                   <div
                     key={`${item.productId}-${item.variantId || ""}`}
                     className="flex gap-3"
@@ -580,7 +581,7 @@ export function CheckoutForm({
               <div className="border-t border-gray-200 pt-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Subtotal</span>
-                  <span>{formatCents(subtotalCents, currency)}</span>
+                  <span>{formatCents(checkoutSubtotal, currency)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Shipping</span>

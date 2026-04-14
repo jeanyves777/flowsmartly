@@ -25,6 +25,7 @@ interface CartContextValue {
   setIsOpen: (open: boolean) => void;
   currency: string;
   storeSlug: string;
+  mounted: boolean;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -120,6 +121,7 @@ export function CartProvider({
         setIsOpen,
         currency,
         storeSlug,
+        mounted,
       }}
     >
       {children}
