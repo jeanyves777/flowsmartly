@@ -51,6 +51,7 @@ export default function OrdersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [resumingId, setResumingId] = useState<string | null>(null);
   const [resumeError, setResumeError] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   useEffect(() => { fetchOrders(page); }, [page]);
 
@@ -93,6 +94,29 @@ export default function OrdersPage() {
       setResumeError("Network error — please try again");
     } finally {
       setResumingId(null);
+    }
+  }
+
+  async function handleCancelOrder(order: Order) {
+    if (!confirm("Cancel this order? This action cannot be undone.")) return;
+    setCancellingId(order.id);
+    try {
+      const res = await fetch(`/api/account/orders/${order.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "cancel" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchOrders(page);
+      } else {
+        alert(data.error || "Unable to cancel order.");
+      }
+    } catch {
+      alert("Network error — please try again");
+    } finally {
+      setCancellingId(null);
     }
   }
 
@@ -152,9 +176,10 @@ export default function OrdersPage() {
                             <span className="font-medium">{formatPrice(order.totalCents, order.currency)}</span>
                           </p>
                         </div>
+                        <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleCompletePayment(order)}
-                          disabled={resumingId === order.id}
+                          disabled={resumingId === order.id || cancellingId === order.id}
                           className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors cursor-pointer flex-shrink-0"
                         >
                           {resumingId === order.id ? (
@@ -164,6 +189,19 @@ export default function OrdersPage() {
                           )}
                           Complete Payment
                         </button>
+                        <button
+                          onClick={() => handleCancelOrder(order)}
+                          disabled={cancellingId === order.id || resumingId === order.id}
+                          className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-60 text-gray-700 dark:text-gray-300 text-sm font-semibold rounded-xl transition-colors cursor-pointer flex-shrink-0"
+                        >
+                          {cancellingId === order.id ? (
+                            <Loader2 size={15} className="animate-spin" />
+                          ) : (
+                            <XCircle size={15} />
+                          )}
+                          Cancel
+                        </button>
+                        </div>
                       </div>
                     ))}
                   </div>

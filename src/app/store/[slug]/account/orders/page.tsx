@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 
+
 interface OrderSummary {
   id: string;
   orderNumber: string;
@@ -36,6 +37,7 @@ export default function StoreOrdersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [resumingId, setResumingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const fetchOrders = useCallback(async (p: number) => {
     setLoading(true);
@@ -59,8 +61,8 @@ export default function StoreOrdersPage() {
       const res = await fetch(`/api/store/${slug}/orders/${order.id}/resume-payment`);
       const data = await res.json();
       if (data.success) {
-        const storeBase = `/store/${slug}`;
-        window.location.href = `${storeBase}/checkout/confirm?secret=${data.data.clientSecret}&order=${data.data.orderId}&amount=${data.data.amount}`;
+        // checkout/confirm lives in the store app at /stores/[slug]/, NOT the main app /store/[slug]/
+        window.location.href = `/stores/${slug}/checkout/confirm?secret=${data.data.clientSecret}&order=${data.data.orderId}&amount=${data.data.amount}`;
       } else {
         alert(data.error || "Unable to resume payment. Please place a new order.");
       }
@@ -68,6 +70,28 @@ export default function StoreOrdersPage() {
       alert("Something went wrong. Please try again.");
     } finally {
       setResumingId(null);
+    }
+  }
+
+  async function cancelOrder(order: OrderSummary) {
+    if (!confirm("Cancel this order? This action cannot be undone.")) return;
+    setCancellingId(order.id);
+    try {
+      const res = await fetch(`/api/store/${slug}/account/orders/${order.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchOrders(page);
+      } else {
+        alert(data.error || "Unable to cancel order.");
+      }
+    } catch {
+      alert("Something went wrong. Please try again.");
+    } finally {
+      setCancellingId(null);
     }
   }
 
@@ -131,11 +155,19 @@ export default function StoreOrdersPage() {
                         <p className="font-semibold text-sm">{formatMoney(order.totalCents, order.currency)}</p>
                         <button
                           onClick={() => resumePayment(order)}
-                          disabled={resumingId === order.id}
+                          disabled={resumingId === order.id || cancellingId === order.id}
                           className="px-4 py-1.5 rounded-full text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                           style={{ background: "var(--store-primary)" }}
                         >
                           {resumingId === order.id ? "Loading..." : "Complete Payment"}
+                        </button>
+                        <button
+                          onClick={() => cancelOrder(order)}
+                          disabled={cancellingId === order.id || resumingId === order.id}
+                          className="px-4 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-70 disabled:opacity-50"
+                          style={{ borderColor: "color-mix(in srgb, var(--store-text) 20%, transparent)" }}
+                        >
+                          {cancellingId === order.id ? "Cancelling..." : "Cancel Order"}
                         </button>
                       </div>
                     </div>

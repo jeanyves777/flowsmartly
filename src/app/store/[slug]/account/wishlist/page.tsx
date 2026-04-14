@@ -1,53 +1,59 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import Link from "next/link";
-import { verifyCustomerToken } from "@/lib/store/customer-auth";
-import { prisma } from "@/lib/db/client";
+"use client";
 
-interface PageProps {
-  params: Promise<{ slug: string }>;
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+
+interface WishlistItem {
+  id: string;
+  productId: string;
+  product: {
+    id: string;
+    name: string;
+    slug: string;
+    priceCents: number;
+    currency: string;
+    images: string;
+  } | null;
 }
 
-export default async function WishlistPage({ params }: PageProps) {
-  const { slug } = await params;
+export default function WishlistPage() {
+  const { slug } = useParams<{ slug: string }>();
+  const router = useRouter();
+  const [items, setItems] = useState<WishlistItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
-  const cookieStore = await cookies();
-  const token = cookieStore.get("sc_session")?.value;
-  if (!token) redirect(`/store/${slug}/account/login`);
+  const fetchWishlist = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/store/${slug}/account/wishlist`);
+      if (res.status === 401) { router.push(`/store/${slug}/account/login`); return; }
+      const data = await res.json();
+      setItems(data.items || []);
+    } catch { /* network error */ } finally {
+      setLoading(false);
+    }
+  }, [slug, router]);
 
-  const payload = await verifyCustomerToken(token);
-  if (!payload) redirect(`/store/${slug}/account/login`);
+  useEffect(() => { fetchWishlist(); }, [fetchWishlist]);
 
-  const store = await prisma.store.findUnique({
-    where: { slug },
-    select: { id: true, currency: true },
-  });
-  if (!store || payload.storeId !== store.id) redirect(`/store/${slug}/account/login`);
+  async function removeFromWishlist(productId: string) {
+    setRemovingId(productId);
+    try {
+      await fetch(`/api/store/${slug}/account/wishlist`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId }),
+      });
+      setItems((prev) => prev.filter((i) => i.productId !== productId));
+    } catch { /* ignore */ } finally {
+      setRemovingId(null);
+    }
+  }
 
-  const wishlistItems = await prisma.storeWishlistItem.findMany({
-    where: { customerId: payload.customerId },
-    orderBy: { createdAt: "desc" },
-  });
-
-  // Fetch product data for each wishlist item
-  const productIds = wishlistItems.map((i) => i.productId);
-  const products = await prisma.product.findMany({
-    where: { id: { in: productIds } },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      priceCents: true,
-      currency: true,
-      images: true,
-    },
-  });
-
-  const productMap = new Map(products.map((p) => [p.id, p]));
-  const currency = store.currency || "USD";
-
-  function formatMoney(cents: number) {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
+  function formatMoney(cents: number, currency: string) {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: currency || "USD" }).format(cents / 100);
   }
 
   return (
@@ -59,7 +65,11 @@ export default async function WishlistPage({ params }: PageProps) {
         </h1>
       </div>
 
-      {wishlistItems.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-current border-t-transparent" style={{ color: "var(--store-primary)" }} />
+        </div>
+      ) : items.length === 0 ? (
         <div className="rounded-lg border p-10 text-center" style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}>
           <p className="opacity-50 mb-3">Your wishlist is empty</p>
           <Link href={`/stores/${slug}/products`} className="text-sm font-medium hover:underline" style={{ color: "var(--store-primary)" }}>
@@ -68,8 +78,8 @@ export default async function WishlistPage({ params }: PageProps) {
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {wishlistItems.map((item) => {
-            const product = productMap.get(item.productId);
+          {items.map((item) => {
+            const product = item.product;
             if (!product) return null;
             let imageUrl = "";
             try {
@@ -77,7 +87,22 @@ export default async function WishlistPage({ params }: PageProps) {
               imageUrl = imgs[0]?.url || "";
             } catch { /* empty */ }
             return (
-              <div key={item.id} className="rounded-xl border overflow-hidden group" style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}>
+              <div key={item.id} className="rounded-xl border overflow-hidden group relative" style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}>
+                {/* Remove button */}
+                <button
+                  onClick={() => removeFromWishlist(item.productId)}
+                  disabled={removingId === item.productId}
+                  className="absolute top-2 right-2 z-10 h-7 w-7 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/70 transition-colors disabled:opacity-50"
+                  title="Remove from wishlist"
+                >
+                  {removingId === item.productId ? (
+                    <span className="h-3 w-3 animate-spin rounded-full border border-white border-t-transparent block" />
+                  ) : (
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
+                </button>
                 <Link href={`/stores/${slug}/products/${product.slug}`}>
                   <div className="aspect-square bg-gray-100 dark:bg-gray-800 overflow-hidden">
                     {imageUrl ? (
@@ -94,17 +119,15 @@ export default async function WishlistPage({ params }: PageProps) {
                 <div className="p-3">
                   <p className="font-medium text-sm line-clamp-1">{product.name}</p>
                   <p className="text-sm font-semibold mt-0.5" style={{ color: "var(--store-primary)" }}>
-                    {formatMoney(product.priceCents)}
+                    {formatMoney(product.priceCents, product.currency)}
                   </p>
-                  <form action={`/api/store/${slug}/account/wishlist`} method="POST" className="mt-2 flex gap-2">
-                    <Link
-                      href={`/store/${slug}/checkout?add=${product.id}`}
-                      className="flex-1 text-center text-xs py-1.5 rounded-lg text-white font-medium"
-                      style={{ backgroundColor: "var(--store-primary)" }}
-                    >
-                      Add to Cart
-                    </Link>
-                  </form>
+                  <Link
+                    href={`/stores/${slug}/products/${product.slug}`}
+                    className="mt-2 block text-center text-xs py-1.5 rounded-lg text-white font-medium"
+                    style={{ backgroundColor: "var(--store-primary)" }}
+                  >
+                    Add to Cart
+                  </Link>
                 </div>
               </div>
             );

@@ -14,7 +14,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
     where: { customerId: customer.id },
     orderBy: { createdAt: "desc" },
   });
-  return NextResponse.json({ items, productIds: items.map((i) => i.productId) });
+
+  const productIds = items.map((i) => i.productId);
+  const products = await prisma.product.findMany({
+    where: { id: { in: productIds } },
+    select: { id: true, name: true, slug: true, priceCents: true, currency: true, images: true },
+  });
+  const productMap = Object.fromEntries(products.map((p) => [p.id, p]));
+
+  const enriched = items.map((i) => ({ ...i, product: productMap[i.productId] ?? null }));
+  return NextResponse.json({ items: enriched, productIds });
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
