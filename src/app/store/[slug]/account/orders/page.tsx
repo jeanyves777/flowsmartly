@@ -112,7 +112,7 @@ export default function StoreOrdersPage() {
 
   function resumePayment(order: OrderSummary) {
     setResumingId(order.id);
-    window.location.href = `/store/${slug}/checkout?resumeOrder=${order.id}`;
+    window.location.href = `/stores/${slug}/checkout?resumeOrder=${order.id}`;
   }
 
   async function confirmCancel() {
