@@ -256,7 +256,7 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
       - Confirmations: render an inline branded modal overlay with store CSS vars (--store-background, --store-text, --store-primary)
       - Errors: render an inline error message below the button, or a dismissible banner styled with CSS vars
       - Pattern: use a React state { type: "confirm"|"error", message, ... } | null and render a fixed inset-0 overlay div
-    - CRITICAL — products links: When linking to the products page, ALWAYS use /stores/${SLUG}/products (the store app). Never use /store/${SLUG}/products (that path does not exist on the main app and causes 404).
+    - CRITICAL — products links: When linking to the products page, ALWAYS use /stores/{SLUG}/products (the store app). Never use /store/{SLUG}/products (that path does not exist on the main app and causes 404).
     - src/app/account/wishlist/page.tsx (if written): MUST be a "use client" component. Fetch from /api/account/wishlist (GET returns items with product details). Remove button: DELETE /api/account/wishlist with { productId } body. No server-rendered wishlist pages — always client component for interactive remove.
     - src/app/account/addresses/page.tsx: saved addresses from /api/account/addresses
     - src/app/account/settings/page.tsx: profile settings, update via POST /api/account/profile
