@@ -52,12 +52,12 @@ interface Summary {
 
 interface StatusGroup {
   status: string;
-  _count: { id: number };
+  count: number;
 }
 
 interface PaymentGroup {
-  paymentMethod: string;
-  _count: { id: number };
+  method: string;
+  count: number;
 }
 
 interface AnalyticsData {
@@ -196,10 +196,10 @@ export default function EcommerceAnalyticsPage() {
 
   const pieData = ordersByStatus.map((s) => ({
     name: s.status,
-    value: s._count.id,
+    value: s.count,
   }));
 
-  const totalPaymentOrders = ordersByPayment.reduce((sum, p) => sum + p._count.id, 0);
+  const totalPaymentOrders = ordersByPayment.reduce((sum, p) => sum + p.count, 0);
 
   const stats = [
     {
@@ -432,13 +432,13 @@ export default function EcommerceAnalyticsPage() {
         ) : (
           <div className="space-y-3">
             {ordersByPayment.map((pm) => {
-              const count = pm._count.id;
+              const count = pm.count;
               const pct = totalPaymentOrders > 0 ? (count / totalPaymentOrders) * 100 : 0;
               return (
-                <div key={pm.paymentMethod}>
+                <div key={pm.method}>
                   <div className="flex items-center justify-between text-sm mb-1">
                     <span className="font-medium capitalize">
-                      {pm.paymentMethod.replace(/_/g, " ").toLowerCase()}
+                      {pm.method.replace(/_/g, " ").toLowerCase()}
                     </span>
                     <span className="text-muted-foreground tabular-nums">
                       {count} order{count !== 1 ? "s" : ""} ({pct.toFixed(1)}%)
