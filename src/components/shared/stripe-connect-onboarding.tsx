@@ -13,9 +13,10 @@ import {
   Calendar,
   KeyRound,
   ArrowRight,
+  RefreshCw,
 } from "lucide-react";
 
-type OnboardingState = "loading" | "idle" | "form" | "submitting" | "complete" | "error";
+type OnboardingState = "loading" | "idle" | "form" | "submitting" | "complete" | "error" | "update-bank" | "updating";
 
 interface StripeConnectOnboardingProps {
   compact?: boolean;
@@ -137,6 +138,52 @@ export function StripeConnectOnboarding({
     router.push("/ecommerce/payouts");
   };
 
+  const handleStartUpdateBank = () => {
+    setBankRouting("");
+    setBankAccount("");
+    setBankAccountConfirm("");
+    setAccountHolderName("");
+    setError("");
+    setFieldErrors({});
+    setState("update-bank");
+  };
+
+  const handleUpdateBank = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setFieldErrors({});
+
+    if (bankAccount !== bankAccountConfirm) {
+      setFieldErrors({ bankAccount: ["Account numbers do not match"] });
+      return;
+    }
+
+    setState("updating");
+
+    try {
+      const res = await fetch("/api/ecommerce/stripe-connect/update-bank", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bankRouting, bankAccount, accountHolderName }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (data.details) {
+          setFieldErrors(data.details);
+          setState("update-bank");
+          return;
+        }
+        throw new Error(data.error || "Failed to update bank account");
+      }
+
+      setState("complete");
+    } catch (err: any) {
+      setError(err.message || "Something went wrong. Please try again.");
+      setState("update-bank");
+    }
+  };
+
   // ── Render States ──
 
   if (state === "loading") {
@@ -161,16 +208,150 @@ export function StripeConnectOnboarding({
                 Your bank account is verified. You will receive automatic payouts from customer purchases.
               </p>
               {!compact && (
-                <button
-                  onClick={handleOpenDashboard}
-                  className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200"
-                >
-                  View Payout Dashboard <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                <div className="mt-3 flex items-center gap-4">
+                  <button
+                    onClick={handleOpenDashboard}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200"
+                  >
+                    View Payout Dashboard <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={handleStartUpdateBank}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Update Bank Account
+                  </button>
+                </div>
               )}
             </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (state === "updating") {
+    return (
+      <div className={`flex items-center justify-center gap-2 py-8 ${className}`}>
+        <Loader2 className="w-5 h-5 animate-spin text-brand-500" />
+        <span className="text-sm text-muted-foreground">Updating your bank account...</span>
+      </div>
+    );
+  }
+
+  if (state === "update-bank") {
+    return (
+      <div className={`${className}`}>
+        <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <Shield className="w-4 h-4" />
+          <span>Your information is encrypted and securely processed. FlowSmartly never stores your banking details.</span>
+        </div>
+
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30 p-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleUpdateBank} className="space-y-5">
+          <div>
+            <h4 className="flex items-center gap-1.5 text-sm font-medium text-foreground mb-3">
+              <Building2 className="w-4 h-4 text-muted-foreground" />
+              New Bank Account Details
+            </h4>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Account Holder Name</label>
+                <input
+                  type="text"
+                  placeholder="Full name on the account"
+                  value={accountHolderName}
+                  onChange={(e) => setAccountHolderName(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                {fieldErrors.accountHolderName && (
+                  <p className="mt-1 text-xs text-red-500">{fieldErrors.accountHolderName[0]}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Routing Number</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={9}
+                  placeholder="9-digit routing number"
+                  value={bankRouting}
+                  onChange={(e) => setBankRouting(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                  required
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                {fieldErrors.bankRouting && (
+                  <p className="mt-1 text-xs text-red-500">{fieldErrors.bankRouting[0]}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Account Number</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={17}
+                  placeholder="Account number"
+                  value={bankAccount}
+                  onChange={(e) => setBankAccount(e.target.value.replace(/\D/g, "").slice(0, 17))}
+                  required
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                {fieldErrors.bankAccount && (
+                  <p className="mt-1 text-xs text-red-500">{fieldErrors.bankAccount[0]}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Confirm Account Number</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={17}
+                  placeholder="Re-enter account number"
+                  value={bankAccountConfirm}
+                  onChange={(e) => setBankAccountConfirm(e.target.value.replace(/\D/g, "").slice(0, 17))}
+                  required
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 font-medium rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors px-5 py-2.5 text-sm"
+            >
+              <Lock className="w-4 h-4" />
+              Update Bank Account
+            </button>
+            <button
+              type="button"
+              onClick={() => setState("complete")}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1">
+            <Lock className="w-3 h-3" />
+            <span>256-bit encryption &middot; Your data is sent directly to our payment processor and never stored on our servers.</span>
+          </div>
+        </form>
       </div>
     );
   }
