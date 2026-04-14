@@ -29,6 +29,7 @@ const checkoutItemSchema = z.object({
 });
 
 const checkoutSchema = z.object({
+  resumeOrderId: z.string().optional(),
   customerName: z.string().min(1, "Customer name is required"),
   customerEmail: z.string().email("Valid email is required"),
   customerPhone: z.string().optional(),
@@ -71,6 +72,7 @@ export async function POST(
     }
 
     const {
+      resumeOrderId,
       customerName,
       customerEmail,
       customerPhone,
@@ -288,6 +290,104 @@ export async function POST(
       ? Math.round(totalCents * (store.platformFeePercent / 100))
       : 0;
     const storeOwnerAmountCents = connectReady ? totalCents - platformFeeCents : 0;
+
+    // ── Resume existing order (payment method change) ──
+    if (resumeOrderId) {
+      const existingOrder = await prisma.order.findFirst({
+        where: { id: resumeOrderId, storeId: store.id, paymentStatus: "pending", NOT: { status: "CANCELLED" } },
+      });
+
+      if (!existingOrder) {
+        return NextResponse.json(
+          { success: false, error: { code: "ORDER_NOT_FOUND", message: "Order not found or already processed." } },
+          { status: 400 }
+        );
+      }
+
+      // Cancel old payment intent if switching to non-card
+      if (existingOrder.paymentId && stripe) {
+        try {
+          const oldPi = await stripe.paymentIntents.retrieve(existingOrder.paymentId);
+          if (oldPi.status !== "canceled" && oldPi.status !== "succeeded") {
+            await stripe.paymentIntents.cancel(existingOrder.paymentId);
+          }
+        } catch { /* PI already gone */ }
+      }
+
+      // Update payment method on existing order
+      await prisma.order.update({
+        where: { id: existingOrder.id },
+        data: { paymentMethod, paymentId: null },
+      });
+
+      if (paymentMethod === "card") {
+        const { clientSecret, paymentIntentId } = await createStorePaymentIntent({
+          orderId: existingOrder.id,
+          storeId: store.id,
+          storeSlug: store.slug,
+          storeName: store.name,
+          totalCents: existingOrder.totalCents,
+          currency: store.currency,
+          customerEmail: existingOrder.customerEmail,
+          ...(connectReady && {
+            stripeConnectAccountId: store.stripeConnectAccountId!,
+            platformFeeCents: existingOrder.platformFeeCents,
+          }),
+        });
+
+        await prisma.order.update({
+          where: { id: existingOrder.id },
+          data: { paymentId: paymentIntentId },
+        });
+
+        return NextResponse.json({
+          success: true,
+          data: { orderId: existingOrder.id, orderNumber: existingOrder.orderNumber, clientSecret },
+        });
+      }
+
+      // Non-card: mark as confirmed, send emails
+      await prisma.order.update({
+        where: { id: existingOrder.id },
+        data: { status: "PENDING", paymentStatus: "pending" },
+      });
+
+      const resumeItems: Array<{ name: string; quantity: number; priceCents: number }> = JSON.parse(existingOrder.items || "[]");
+      notifyOrderConfirmation({
+        buyerEmail: existingOrder.customerEmail,
+        customerName: existingOrder.customerName,
+        orderNumber: existingOrder.orderNumber,
+        items: resumeItems,
+        subtotalCents: existingOrder.subtotalCents,
+        shippingCents: existingOrder.shippingCents,
+        taxCents: existingOrder.taxCents,
+        totalCents: existingOrder.totalCents,
+        currency: store.currency,
+        paymentMethod,
+        storeSlug: store.slug,
+        storeName: store.name,
+      }).catch((err) => console.error("Failed to send order confirmation email:", err));
+
+      notifyNewOrder({
+        storeOwnerUserId: store.userId,
+        storeOwnerEmail: store.user.email || "",
+        storeOwnerName: store.user.name || "Store Owner",
+        orderNumber: existingOrder.orderNumber,
+        orderId: existingOrder.id,
+        customerName: existingOrder.customerName,
+        customerEmail: existingOrder.customerEmail,
+        itemCount: resumeItems.length,
+        totalCents: existingOrder.totalCents,
+        currency: store.currency,
+        paymentMethod,
+        storeName: store.name,
+      }).catch((err) => console.error("Failed to send new order alert email:", err));
+
+      return NextResponse.json({
+        success: true,
+        data: { orderId: existingOrder.id, orderNumber: existingOrder.orderNumber },
+      });
+    }
 
     // ── Prisma transaction: create Order + deduct inventory ──
 

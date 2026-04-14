@@ -7,12 +7,12 @@ import { getStoreCustomer } from "@/lib/store/customer-auth";
 
 interface CheckoutPageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ cancelled?: string; cart?: string }>;
+  searchParams: Promise<{ cancelled?: string; cart?: string; resumeOrder?: string }>;
 }
 
 export default async function CheckoutPage({ params, searchParams }: CheckoutPageProps) {
   const { slug } = await params;
-  const { cancelled, cart: cartParam } = await searchParams;
+  const { cancelled, cart: cartParam, resumeOrder: resumeOrderId } = await searchParams;
 
   const store = await prisma.store.findUnique({
     where: { slug },
@@ -73,6 +73,36 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
     // Invalid settings JSON — no shipping config
   }
 
+  // Load order data for resume payment flow
+  let resumeOrderData: {
+    orderId: string;
+    items: Array<{ productId: string; variantId?: string; name: string; quantity: number; priceCents: number; image?: string }>;
+    customerName: string;
+    customerEmail: string;
+    customerPhone?: string;
+    shippingAddress?: Record<string, string>;
+    totalCents: number;
+  } | undefined;
+
+  if (resumeOrderId) {
+    const order = await prisma.order.findFirst({
+      where: { id: resumeOrderId, storeId: store.id, paymentStatus: "pending", NOT: { status: "CANCELLED" } },
+    });
+    if (order) {
+      const items = JSON.parse(order.items || "[]");
+      const addr = JSON.parse(order.shippingAddress || "{}");
+      resumeOrderData = {
+        orderId: order.id,
+        items,
+        customerName: order.customerName,
+        customerEmail: order.customerEmail,
+        customerPhone: order.customerPhone || undefined,
+        shippingAddress: addr,
+        totalCents: order.totalCents,
+      };
+    }
+  }
+
   return (
     <StripeProvider>
       <CheckoutForm
@@ -85,6 +115,7 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
         cancelled={cancelled === "true"}
         cartData={cartParam || undefined}
         customerPrefill={customerPrefill}
+        resumeOrder={resumeOrderData}
       />
     </StripeProvider>
   );

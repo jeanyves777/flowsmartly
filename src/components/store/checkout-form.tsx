@@ -32,6 +32,15 @@ interface CheckoutFormProps {
   primaryColor: string;
   cancelled?: boolean;
   cartData?: string; // Base64-encoded cart JSON from V2 static store redirect
+  resumeOrder?: {
+    orderId: string;
+    items: Array<{ productId: string; variantId?: string; name: string; quantity: number; priceCents: number; image?: string }>;
+    customerName: string;
+    customerEmail: string;
+    customerPhone?: string;
+    shippingAddress?: Record<string, string>;
+    totalCents: number;
+  };
   customerPrefill?: {
     name?: string;
     email?: string;
@@ -63,12 +72,34 @@ export function CheckoutForm({
   primaryColor,
   cancelled,
   cartData,
+  resumeOrder,
   customerPrefill,
 }: CheckoutFormProps) {
   const router = useRouter();
   const stripe = useStripe();
   const elements = useElements();
   const { items, subtotalCents, clearCart, addItem } = useCart();
+
+  // Hydrate cart from resume order (pending payment)
+  const [resumeHydrated, setResumeHydrated] = useState(false);
+  useEffect(() => {
+    if (resumeOrder && !resumeHydrated) {
+      if (items.length === 0) {
+        for (const item of resumeOrder.items) {
+          addItem({
+            productId: item.productId,
+            variantId: item.variantId,
+            name: item.name,
+            quantity: item.quantity,
+            priceCents: item.priceCents,
+            imageUrl: item.image,
+            currency,
+          });
+        }
+      }
+      setResumeHydrated(true);
+    }
+  }, [resumeOrder, resumeHydrated, items.length, addItem]);
 
   // Hydrate cart from URL param (V2 static store redirect)
   const [cartHydrated, setCartHydrated] = useState(false);
@@ -88,15 +119,19 @@ export function CheckoutForm({
     }
   }, [cartData, cartHydrated, items.length, addItem]);
 
-  // Form state (pre-fill from customer account if logged in)
-  const [customerName, setCustomerName] = useState(customerPrefill?.name || "");
-  const [email, setEmail] = useState(customerPrefill?.email || "");
-  const [phone, setPhone] = useState(customerPrefill?.phone || "");
-  const [street, setStreet] = useState(customerPrefill?.address?.line1 || "");
-  const [city, setCity] = useState(customerPrefill?.address?.city || "");
-  const [state, setState] = useState(customerPrefill?.address?.state || "");
-  const [zip, setZip] = useState(customerPrefill?.address?.zip || "");
-  const [country, setCountry] = useState(customerPrefill?.address?.country || "");
+  // Form state (pre-fill from customer account or resume order)
+  const prefillName = customerPrefill?.name || resumeOrder?.customerName || "";
+  const prefillEmail = customerPrefill?.email || resumeOrder?.customerEmail || "";
+  const prefillPhone = customerPrefill?.phone || resumeOrder?.customerPhone || "";
+  const prefillAddr = customerPrefill?.address || resumeOrder?.shippingAddress;
+  const [customerName, setCustomerName] = useState(prefillName);
+  const [email, setEmail] = useState(prefillEmail);
+  const [phone, setPhone] = useState(prefillPhone);
+  const [street, setStreet] = useState(prefillAddr?.line1 || prefillAddr?.street || "");
+  const [city, setCity] = useState(prefillAddr?.city || "");
+  const [state, setState] = useState(prefillAddr?.state || "");
+  const [zip, setZip] = useState(prefillAddr?.zip || "");
+  const [country, setCountry] = useState(prefillAddr?.country || "");
   const [shippingMethod, setShippingMethod] = useState("standard");
   const [selectedPayment, setSelectedPayment] = useState(
     paymentMethods.length > 0 ? paymentMethods[0].methodType : ""
@@ -140,6 +175,7 @@ export function CheckoutForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          resumeOrderId: resumeOrder?.orderId,
           customerName,
           customerEmail: email,
           customerPhone: phone || undefined,

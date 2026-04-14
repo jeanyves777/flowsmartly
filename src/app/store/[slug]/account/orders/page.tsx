@@ -110,21 +110,9 @@ export default function StoreOrdersPage() {
 
   useEffect(() => { fetchOrders(page); }, [page, fetchOrders]);
 
-  async function resumePayment(order: OrderSummary) {
+  function resumePayment(order: OrderSummary) {
     setResumingId(order.id);
-    try {
-      const res = await fetch(`/api/store/${slug}/orders/${order.id}/resume-payment`);
-      const data = await res.json();
-      if (data.success) {
-        window.location.href = `/stores/${slug}/checkout/confirm?secret=${data.data.clientSecret}&order=${data.data.orderId}&amount=${data.data.amount}`;
-      } else {
-        setModal({ type: "error", message: data.error || "Unable to resume payment. Please place a new order." });
-      }
-    } catch {
-      setModal({ type: "error", message: "Something went wrong. Please try again." });
-    } finally {
-      setResumingId(null);
-    }
+    window.location.href = `/store/${slug}/checkout?resumeOrder=${order.id}`;
   }
 
   async function confirmCancel() {
@@ -138,7 +126,7 @@ export default function StoreOrdersPage() {
         body: JSON.stringify({ action: "cancel" }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (res.ok) {
         setModal(null);
         fetchOrders(page);
       } else {

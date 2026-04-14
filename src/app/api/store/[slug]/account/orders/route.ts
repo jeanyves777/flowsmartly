@@ -34,7 +34,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Pending card orders awaiting payment (show as "Payment Required" reminders)
     const pendingPayments = await prisma.order.findMany({
-      where: { ...where, paymentMethod: "card", paymentStatus: "pending" },
+      where: { ...where, paymentMethod: "card", paymentStatus: "pending", NOT: { status: "CANCELLED" } },
       orderBy: { createdAt: "desc" },
       select: ORDER_SELECT,
     });
