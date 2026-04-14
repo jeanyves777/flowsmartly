@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 
-
 interface OrderSummary {
   id: string;
   orderNumber: string;
@@ -27,6 +26,57 @@ const STATUS_COLORS: Record<string, string> = {
   REFUNDED: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
 };
 
+// Branded overlay modal — replaces all window.confirm / window.alert
+function StoreModal({
+  type,
+  title,
+  message,
+  confirmLabel,
+  loading,
+  onConfirm,
+  onClose,
+}: {
+  type: "confirm" | "error";
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  loading?: boolean;
+  onConfirm?: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+      <div
+        className="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
+        style={{ backgroundColor: "var(--store-background)", color: "var(--store-text)", border: "1px solid color-mix(in srgb, var(--store-text) 12%, transparent)" }}
+      >
+        <h2 className="text-base font-semibold mb-2" style={{ fontFamily: "var(--store-font-heading), sans-serif" }}>{title}</h2>
+        <p className="text-sm opacity-70 mb-5">{message}</p>
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="rounded-xl border px-4 py-2 text-sm font-medium transition-opacity hover:opacity-70 disabled:opacity-40"
+            style={{ borderColor: "color-mix(in srgb, var(--store-text) 20%, transparent)" }}
+          >
+            {type === "error" ? "Close" : "Keep Order"}
+          </button>
+          {type === "confirm" && (
+            <button
+              onClick={onConfirm}
+              disabled={loading}
+              className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              style={{ backgroundColor: "#dc2626" }}
+            >
+              {loading ? "Cancelling..." : (confirmLabel || "Confirm")}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function StoreOrdersPage() {
   const router = useRouter();
   const { slug } = useParams<{ slug: string }>();
@@ -38,6 +88,11 @@ export default function StoreOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [resumingId, setResumingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  // Modal state
+  const [modal, setModal] = useState<
+    { type: "confirm"; order: OrderSummary } | { type: "error"; message: string } | null
+  >(null);
 
   const fetchOrders = useCallback(async (p: number) => {
     setLoading(true);
@@ -61,20 +116,20 @@ export default function StoreOrdersPage() {
       const res = await fetch(`/api/store/${slug}/orders/${order.id}/resume-payment`);
       const data = await res.json();
       if (data.success) {
-        // checkout/confirm lives in the store app at /stores/[slug]/, NOT the main app /store/[slug]/
         window.location.href = `/stores/${slug}/checkout/confirm?secret=${data.data.clientSecret}&order=${data.data.orderId}&amount=${data.data.amount}`;
       } else {
-        alert(data.error || "Unable to resume payment. Please place a new order.");
+        setModal({ type: "error", message: data.error || "Unable to resume payment. Please place a new order." });
       }
     } catch {
-      alert("Something went wrong. Please try again.");
+      setModal({ type: "error", message: "Something went wrong. Please try again." });
     } finally {
       setResumingId(null);
     }
   }
 
-  async function cancelOrder(order: OrderSummary) {
-    if (!confirm("Cancel this order? This action cannot be undone.")) return;
+  async function confirmCancel() {
+    if (!modal || modal.type !== "confirm") return;
+    const order = modal.order;
     setCancellingId(order.id);
     try {
       const res = await fetch(`/api/store/${slug}/account/orders/${order.id}`, {
@@ -84,12 +139,13 @@ export default function StoreOrdersPage() {
       });
       const data = await res.json();
       if (data.success) {
+        setModal(null);
         fetchOrders(page);
       } else {
-        alert(data.error || "Unable to cancel order.");
+        setModal({ type: "error", message: data.error || "Unable to cancel order." });
       }
     } catch {
-      alert("Something went wrong. Please try again.");
+      setModal({ type: "error", message: "Something went wrong. Please try again." });
     } finally {
       setCancellingId(null);
     }
@@ -103,6 +159,31 @@ export default function StoreOrdersPage() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8">
+      {/* Branded modal */}
+      {modal?.type === "confirm" && (
+        <StoreModal
+          type="confirm"
+          title="Cancel this order?"
+          message={
+            modal.order.paymentMethod === "card"
+              ? "If your card was charged, a full refund will be issued automatically. This cannot be undone."
+              : "This action cannot be undone."
+          }
+          confirmLabel="Yes, Cancel Order"
+          loading={cancellingId === modal.order.id}
+          onConfirm={confirmCancel}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal?.type === "error" && (
+        <StoreModal
+          type="error"
+          title="Something went wrong"
+          message={modal.message}
+          onClose={() => setModal(null)}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link href={`${storeBase}/account`} className="opacity-50 hover:opacity-80 transition-opacity">
@@ -162,12 +243,12 @@ export default function StoreOrdersPage() {
                           {resumingId === order.id ? "Loading..." : "Complete Payment"}
                         </button>
                         <button
-                          onClick={() => cancelOrder(order)}
+                          onClick={() => setModal({ type: "confirm", order })}
                           disabled={cancellingId === order.id || resumingId === order.id}
                           className="px-4 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-70 disabled:opacity-50"
                           style={{ borderColor: "color-mix(in srgb, var(--store-text) 20%, transparent)" }}
                         >
-                          {cancellingId === order.id ? "Cancelling..." : "Cancel Order"}
+                          Cancel Order
                         </button>
                       </div>
                     </div>
@@ -184,7 +265,7 @@ export default function StoreOrdersPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
               </svg>
               <p className="text-lg font-medium opacity-60">No orders yet</p>
-              <Link href={`${storeBase}/products`} className="inline-block mt-4 text-sm font-medium hover:underline" style={{ color: "var(--store-primary)" }}>
+              <Link href={`/stores/${slug}/products`} className="inline-block mt-4 text-sm font-medium hover:underline" style={{ color: "var(--store-primary)" }}>
                 Start shopping
               </Link>
             </div>
