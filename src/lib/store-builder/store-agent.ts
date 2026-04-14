@@ -252,6 +252,10 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
     - CRITICAL — getBasePath() pattern: Any page that does window.location.href navigation MUST use getBasePath() to prefix all paths:
       function getBasePath() { return window.location.pathname.match(/^(\/stores\/[^/]+)/)?.[1] || ""; }
       Use it for: checkout redirect, login redirect, any hard nav. Never hardcode /stores/slug/ — read it from the URL.
+    - CRITICAL — NO BROWSER DIALOGS: NEVER use window.alert(), window.confirm(), or window.prompt(). They are ugly, unstyled OS popups that break the store's brand. Instead:
+      - Confirmations: render an inline branded modal overlay with store CSS vars (--store-background, --store-text, --store-primary)
+      - Errors: render an inline error message below the button, or a dismissible banner styled with CSS vars
+      - Pattern: use a React state { type: "confirm"|"error", message, ... } | null and render a fixed inset-0 overlay div
     - CRITICAL — products links: When linking to the products page, ALWAYS use /stores/${SLUG}/products (the store app). Never use /store/${SLUG}/products (that path does not exist on the main app and causes 404).
     - src/app/account/wishlist/page.tsx (if written): MUST be a "use client" component. Fetch from /api/account/wishlist (GET returns items with product details). Remove button: DELETE /api/account/wishlist with { productId } body. No server-rendered wishlist pages — always client component for interactive remove.
     - src/app/account/addresses/page.tsx: saved addresses from /api/account/addresses
