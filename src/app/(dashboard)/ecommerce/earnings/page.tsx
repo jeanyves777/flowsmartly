@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   DollarSign,
   TrendingUp,
@@ -159,12 +160,18 @@ export default function EarningsPage() {
         ) : (
           <>
             <XCircle className="w-5 h-5 text-yellow-500 flex-shrink-0" />
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-medium text-foreground">Stripe Connect Not Set Up</p>
               <p className="text-xs text-muted-foreground">
-                Complete Stripe onboarding in Store Settings to receive direct payouts.
+                Complete Stripe onboarding to receive direct payouts from customer purchases.
               </p>
             </div>
+            <Link
+              href="/ecommerce/settings?tab=payments"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors flex-shrink-0"
+            >
+              Set Up Now
+            </Link>
           </>
         )}
       </div>

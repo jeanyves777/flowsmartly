@@ -23,6 +23,7 @@ import { PageLoader } from "@/components/shared/page-loader";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
+import { StripeConnectOnboarding } from "@/components/shared/stripe-connect-onboarding";
 import {
   PAYMENT_METHODS_BY_REGION,
   CURRENCIES_BY_REGION,
@@ -833,6 +834,11 @@ export default function OnboardingPage() {
               <p className="text-xs text-muted-foreground">
                 {enabledPaymentCount} of {paymentMethods.length} methods enabled
               </p>
+
+              {/* Stripe Connect — Direct Payouts */}
+              <div className="pt-4 border-t border-border">
+                <StripeConnectOnboarding compact />
+              </div>
             </div>
           )}
 

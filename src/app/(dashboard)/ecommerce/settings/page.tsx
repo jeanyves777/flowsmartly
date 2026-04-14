@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import {
   Settings,
@@ -42,6 +43,7 @@ import {
   type EcomPlan,
 } from "@/lib/domains/pricing";
 import { cn } from "@/lib/utils/cn";
+import { StripeConnectOnboarding } from "@/components/shared/stripe-connect-onboarding";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
 
@@ -66,6 +68,9 @@ interface Store {
   customDomain: string | null;
   freeTrialStartedAt: string | null;
   freeTrialEndsAt: string | null;
+  stripeConnectAccountId: string | null;
+  stripeOnboardingComplete: boolean;
+  platformFeePercent: number;
 }
 
 interface PaymentMethod {
@@ -106,9 +111,11 @@ const BASE_FONT_OPTIONS = [
 const FONT_OPTIONS = BASE_FONT_OPTIONS.slice().sort();
 
 export default function EcommerceSettingsPage() {
+  const searchParams = useSearchParams();
   const [store, setStore] = useState<Store | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [activeTab, setActiveTab] = useState<TabId>("general");
+  const tabParam = searchParams.get("tab") as TabId | null;
+  const [activeTab, setActiveTab] = useState<TabId>(tabParam && ["general", "payments", "shipping", "branding", "domain", "pixels", "subscription"].includes(tabParam) ? tabParam : "general");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -848,47 +855,69 @@ export default function EcommerceSettingsPage() {
 
         {/* PAYMENTS TAB */}
         {activeTab === "payments" && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Payment methods available for your region{store.region ? ` (${store.region.replace(/_/g, " ")})` : ""}. Toggle methods on or off.
-            </p>
-            <div className="space-y-3">
-              {regionPaymentMethods.map((pm) => {
-                const key = `${pm.methodType}_${pm.provider || "none"}`;
-                const isActive = pmSettings[key] !== false; // Default active
-                return (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between p-4 rounded-lg border"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-muted">
-                        <CreditCard className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{pm.label}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {pm.provider ? pm.provider.replace(/_/g, " ") : "Manual"}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleTogglePaymentMethod(pm.methodType, pm.provider, isActive)}
-                      className={cn(
-                        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                        isActive ? "bg-brand-500" : "bg-muted"
-                      )}
+          <div className="space-y-6">
+            {/* Stripe Connect Section */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-3">
+                Stripe Connect — Direct Payouts
+              </h3>
+              <StripeConnectOnboarding
+                onComplete={() => {
+                  // Refresh the store data to update status
+                  loadStore();
+                }}
+              />
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-border" />
+
+            {/* Payment Methods */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-3">
+                Payment Methods
+              </h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Payment methods available for your region{store.region ? ` (${store.region.replace(/_/g, " ")})` : ""}. Toggle methods on or off.
+              </p>
+              <div className="space-y-3">
+                {regionPaymentMethods.map((pm) => {
+                  const key = `${pm.methodType}_${pm.provider || "none"}`;
+                  const isActive = pmSettings[key] !== false; // Default active
+                  return (
+                    <div
+                      key={key}
+                      className="flex items-center justify-between p-4 rounded-lg border"
                     >
-                      <span
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-muted">
+                          <CreditCard className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{pm.label}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {pm.provider ? pm.provider.replace(/_/g, " ") : "Manual"}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleTogglePaymentMethod(pm.methodType, pm.provider, isActive)}
                         className={cn(
-                          "inline-block h-4 w-4 rounded-full bg-white transition-transform",
-                          isActive ? "translate-x-6" : "translate-x-1"
+                          "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                          isActive ? "bg-brand-500" : "bg-muted"
                         )}
-                      />
-                    </button>
-                  </div>
-                );
-              })}
+                      >
+                        <span
+                          className={cn(
+                            "inline-block h-4 w-4 rounded-full bg-white transition-transform",
+                            isActive ? "translate-x-6" : "translate-x-1"
+                          )}
+                        />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}

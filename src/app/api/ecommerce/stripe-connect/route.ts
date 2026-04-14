@@ -1,23 +1,26 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import Stripe from "stripe";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2026-01-28.clover",
-});
+import { stripe } from "@/lib/stripe";
 
 /**
- * POST - Create Stripe Connect account and return onboarding link
+ * POST - Create Stripe Connect Express account (if not exists)
+ * Returns the account ID for use with embedded onboarding
  */
 export async function POST() {
   try {
+    if (!stripe) {
+      return NextResponse.json(
+        { error: "Stripe is not configured" },
+        { status: 500 }
+      );
+    }
+
     const session = await getSession();
     if (!session?.userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get store
     const store = await prisma.store.findFirst({
       where: { userId: session.userId },
       include: { user: true },
@@ -27,16 +30,9 @@ export async function POST() {
       return NextResponse.json({ error: "Store not found" }, { status: 404 });
     }
 
-    // If already has Connect account, return refresh link
+    // If already has Connect account, return it
     if (store.stripeConnectAccountId) {
-      const accountLink = await stripe.accountLinks.create({
-        account: store.stripeConnectAccountId,
-        refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/ecommerce/settings?tab=payments`,
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/ecommerce/settings?tab=payments&connect=success`,
-        type: "account_onboarding",
-      });
-
-      return NextResponse.json({ url: accountLink.url });
+      return NextResponse.json({ accountId: store.stripeConnectAccountId });
     }
 
     // Create new Connect account
@@ -63,17 +59,9 @@ export async function POST() {
       data: { stripeConnectAccountId: account.id },
     });
 
-    // Create onboarding link
-    const accountLink = await stripe.accountLinks.create({
-      account: account.id,
-      refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/ecommerce/settings?tab=payments`,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/ecommerce/settings?tab=payments&connect=success`,
-      type: "account_onboarding",
-    });
-
-    return NextResponse.json({ url: accountLink.url });
+    return NextResponse.json({ accountId: account.id });
   } catch (error) {
-    console.error("Stripe Connect onboarding error:", error);
+    console.error("Stripe Connect account creation error:", error);
     return NextResponse.json(
       { error: "Failed to create Stripe Connect account" },
       { status: 500 }
@@ -86,6 +74,13 @@ export async function POST() {
  */
 export async function GET() {
   try {
+    if (!stripe) {
+      return NextResponse.json(
+        { error: "Stripe is not configured" },
+        { status: 500 }
+      );
+    }
+
     const session = await getSession();
     if (!session?.userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

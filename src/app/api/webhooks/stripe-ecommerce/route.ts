@@ -48,6 +48,12 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case "account.updated": {
+        const account = event.data.object as Stripe.Account;
+        await handleAccountUpdated(account);
+        break;
+      }
+
       default:
         console.log(`Unhandled event type: ${event.type}`);
     }
@@ -286,4 +292,31 @@ async function handleRefund(charge: Stripe.Charge) {
   });
 
   console.log(`Order ${order.orderNumber} refunded`);
+}
+
+async function handleAccountUpdated(account: Stripe.Account) {
+  const isComplete = !!(account.charges_enabled && account.payouts_enabled);
+
+  // Find store by Connect account ID
+  const store = await prisma.store.findFirst({
+    where: { stripeConnectAccountId: account.id },
+    select: { id: true, stripeOnboardingComplete: true },
+  });
+
+  if (!store) {
+    console.log(`No store found for Connect account ${account.id}`);
+    return;
+  }
+
+  // Only update if status actually changed
+  if (isComplete !== store.stripeOnboardingComplete) {
+    await prisma.store.update({
+      where: { id: store.id },
+      data: { stripeOnboardingComplete: isComplete },
+    });
+
+    console.log(
+      `Store ${store.id} Connect status updated: onboardingComplete=${isComplete}`
+    );
+  }
 }
