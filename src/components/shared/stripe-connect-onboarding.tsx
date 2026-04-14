@@ -1,12 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useTheme } from "next-themes";
-import {
-  ConnectComponentsProvider,
-  ConnectAccountOnboarding,
-} from "@stripe/react-connect-js";
-import { loadConnectAndInitialize, type StripeConnectInstance } from "@stripe/connect-js";
 import {
   CheckCircle,
   AlertCircle,
@@ -15,9 +9,13 @@ import {
   Loader2,
   RefreshCw,
   Shield,
+  Lock,
+  Building2,
+  Calendar,
+  KeyRound,
 } from "lucide-react";
 
-type OnboardingState = "loading" | "idle" | "creating" | "onboarding" | "complete" | "error";
+type OnboardingState = "loading" | "idle" | "form" | "submitting" | "complete" | "error";
 
 interface StripeConnectOnboardingProps {
   compact?: boolean;
@@ -32,12 +30,20 @@ export function StripeConnectOnboarding({
   onExit,
   className = "",
 }: StripeConnectOnboardingProps) {
-  const { resolvedTheme } = useTheme();
   const [state, setState] = useState<OnboardingState>("loading");
   const [error, setError] = useState("");
-  const [connectInstance, setConnectInstance] = useState<StripeConnectInstance | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
-  // Check the current Connect status on mount
+  // Form fields
+  const [dobMonth, setDobMonth] = useState("");
+  const [dobDay, setDobDay] = useState("");
+  const [dobYear, setDobYear] = useState("");
+  const [ssnLast4, setSsnLast4] = useState("");
+  const [bankRouting, setBankRouting] = useState("");
+  const [bankAccount, setBankAccount] = useState("");
+  const [bankAccountConfirm, setBankAccountConfirm] = useState("");
+  const [accountHolderName, setAccountHolderName] = useState("");
+
   const checkStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/ecommerce/stripe-connect");
@@ -47,7 +53,8 @@ export function StripeConnectOnboarding({
         setState("complete");
         onComplete?.();
       } else if (data.connected) {
-        initEmbeddedOnboarding();
+        // Account exists but not fully onboarded — show the form
+        setState("form");
       } else {
         setState("idle");
       }
@@ -60,76 +67,68 @@ export function StripeConnectOnboarding({
     checkStatus();
   }, [checkStatus]);
 
-  const handleStartConnect = async () => {
-    setState("creating");
+  const handleStartSetup = () => {
+    setState("form");
     setError("");
+    setFieldErrors({});
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setFieldErrors({});
+
+    // Client-side validation
+    if (bankAccount !== bankAccountConfirm) {
+      setFieldErrors({ bankAccount: ["Account numbers do not match"] });
+      return;
+    }
+
+    setState("submitting");
 
     try {
-      const res = await fetch("/api/ecommerce/stripe-connect", {
+      // Step 1: Create the Custom account (or get existing one)
+      const createRes = await fetch("/api/ecommerce/stripe-connect", {
         method: "POST",
       });
-      const data = await res.json();
+      const createData = await createRes.json();
 
-      if (!res.ok || !data.accountId) {
-        throw new Error(data.error || "Failed to set up payout account");
+      if (!createRes.ok || !createData.accountId) {
+        throw new Error(createData.error || "Failed to create payout account");
       }
 
-      initEmbeddedOnboarding();
-    } catch (err: any) {
-      setError(err.message || "Failed to set up payout account");
-      setState("error");
-    }
-  };
+      // Step 2: Submit the missing fields
+      const completeRes = await fetch("/api/ecommerce/stripe-connect/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dob: {
+            day: parseInt(dobDay),
+            month: parseInt(dobMonth),
+            year: parseInt(dobYear),
+          },
+          ssnLast4,
+          bankRouting,
+          bankAccount,
+          accountHolderName,
+        }),
+      });
+      const completeData = await completeRes.json();
 
-  const initEmbeddedOnboarding = () => {
-    setState("onboarding");
-
-    const isDark = resolvedTheme === "dark";
-    const instance = loadConnectAndInitialize({
-      publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
-      fetchClientSecret: async () => {
-        const res = await fetch("/api/ecommerce/stripe-connect/session", {
-          method: "POST",
-        });
-        const data = await res.json();
-        if (!data.client_secret) {
-          throw new Error("Failed to fetch client secret");
+      if (!completeRes.ok) {
+        if (completeData.details) {
+          setFieldErrors(completeData.details);
+          setState("form");
+          return;
         }
-        return data.client_secret;
-      },
-      appearance: {
-        overlays: "dialog",
-        variables: {
-          colorPrimary: "#6366f1",
-          colorBackground: isDark ? "#1e293b" : "#ffffff",
-          colorText: isDark ? "#e2e8f0" : "#1e293b",
-          colorDanger: "#ef4444",
-          borderRadius: "8px",
-          fontFamily: "Inter, system-ui, sans-serif",
-          colorSecondaryText: isDark ? "#94a3b8" : "#64748b",
-          colorBorder: isDark ? "#334155" : "#e2e8f0",
-        },
-      },
-    });
-
-    setConnectInstance(instance);
-  };
-
-  const handleOnboardingExit = async () => {
-    try {
-      const res = await fetch("/api/ecommerce/stripe-connect");
-      const data = await res.json();
-
-      if (data.onboardingComplete) {
-        setState("complete");
-        onComplete?.();
-      } else {
-        onExit?.();
-        setState("idle");
+        throw new Error(completeData.error || "Failed to complete payout setup");
       }
-    } catch {
-      onExit?.();
-      setState("idle");
+
+      setState("complete");
+      onComplete?.();
+    } catch (err: any) {
+      setError(err.message || "Something went wrong. Please try again.");
+      setState("form");
     }
   };
 
@@ -185,55 +184,209 @@ export function StripeConnectOnboarding({
     );
   }
 
-  if (state === "error") {
+  if (state === "submitting") {
     return (
-      <div className={`${className}`}>
-        <div className={`rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30 ${compact ? "p-4" : "p-5"}`}>
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <h3 className={`font-semibold text-red-800 dark:text-red-300 ${compact ? "text-sm" : "text-base"}`}>
-                Setup Failed
-              </h3>
-              <p className="text-sm text-red-700 dark:text-red-400 mt-0.5">{error}</p>
-              <button
-                onClick={handleStartConnect}
-                className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                <RefreshCw className="w-3.5 h-3.5" /> Try Again
-              </button>
-            </div>
-          </div>
-        </div>
+      <div className={`flex items-center justify-center gap-2 py-8 ${className}`}>
+        <Loader2 className="w-5 h-5 animate-spin text-brand-500" />
+        <span className="text-sm text-muted-foreground">Setting up your payouts...</span>
       </div>
     );
   }
 
-  if (state === "onboarding" && connectInstance) {
+  if (state === "form") {
     return (
       <div className={`${className}`}>
         {!compact && (
           <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
             <Shield className="w-4 h-4" />
-            <span>Your bank details are encrypted and securely processed. FlowSmartly never stores your banking information.</span>
+            <span>Your information is encrypted and securely processed. FlowSmartly never stores your banking details.</span>
           </div>
         )}
-        <div className="rounded-lg border border-border overflow-hidden">
-          <ConnectComponentsProvider connectInstance={connectInstance}>
-            <ConnectAccountOnboarding
-              onExit={handleOnboardingExit}
-            />
-          </ConnectComponentsProvider>
-        </div>
-      </div>
-    );
-  }
 
-  if (state === "creating") {
-    return (
-      <div className={`flex items-center justify-center gap-2 py-8 ${className}`}>
-        <Loader2 className="w-5 h-5 animate-spin text-brand-500" />
-        <span className="text-sm text-muted-foreground">Setting up your payout account...</span>
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30 p-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Date of Birth */}
+          <div>
+            <label className="flex items-center gap-1.5 text-sm font-medium text-foreground mb-2">
+              <Calendar className="w-4 h-4 text-muted-foreground" />
+              Date of Birth
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <select
+                  value={dobMonth}
+                  onChange={(e) => setDobMonth(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="">Month</option>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {new Date(2000, i).toLocaleString("default", { month: "long" })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <select
+                  value={dobDay}
+                  onChange={(e) => setDobDay(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="">Day</option>
+                  {Array.from({ length: 31 }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>{i + 1}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <input
+                  type="number"
+                  placeholder="Year"
+                  value={dobYear}
+                  onChange={(e) => setDobYear(e.target.value)}
+                  required
+                  min={1900}
+                  max={2010}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+            </div>
+            {fieldErrors.dob && (
+              <p className="mt-1 text-xs text-red-500">{fieldErrors.dob[0]}</p>
+            )}
+          </div>
+
+          {/* SSN Last 4 */}
+          <div>
+            <label className="flex items-center gap-1.5 text-sm font-medium text-foreground mb-2">
+              <KeyRound className="w-4 h-4 text-muted-foreground" />
+              Last 4 Digits of SSN
+            </label>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              placeholder="••••"
+              value={ssnLast4}
+              onChange={(e) => setSsnLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              required
+              className="w-full max-w-[120px] rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground tracking-widest focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Required for identity verification</p>
+            {fieldErrors.ssnLast4 && (
+              <p className="mt-1 text-xs text-red-500">{fieldErrors.ssnLast4[0]}</p>
+            )}
+          </div>
+
+          {/* Bank Account Section */}
+          <div className="border-t border-border pt-5">
+            <h4 className="flex items-center gap-1.5 text-sm font-medium text-foreground mb-3">
+              <Building2 className="w-4 h-4 text-muted-foreground" />
+              Bank Account Details
+            </h4>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Account Holder Name</label>
+                <input
+                  type="text"
+                  placeholder="Full name on the account"
+                  value={accountHolderName}
+                  onChange={(e) => setAccountHolderName(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                {fieldErrors.accountHolderName && (
+                  <p className="mt-1 text-xs text-red-500">{fieldErrors.accountHolderName[0]}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Routing Number</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={9}
+                  placeholder="9-digit routing number"
+                  value={bankRouting}
+                  onChange={(e) => setBankRouting(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                  required
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                {fieldErrors.bankRouting && (
+                  <p className="mt-1 text-xs text-red-500">{fieldErrors.bankRouting[0]}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Account Number</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={17}
+                  placeholder="Account number"
+                  value={bankAccount}
+                  onChange={(e) => setBankAccount(e.target.value.replace(/\D/g, "").slice(0, 17))}
+                  required
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                {fieldErrors.bankAccount && (
+                  <p className="mt-1 text-xs text-red-500">{fieldErrors.bankAccount[0]}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Confirm Account Number</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={17}
+                  placeholder="Re-enter account number"
+                  value={bankAccountConfirm}
+                  onChange={(e) => setBankAccountConfirm(e.target.value.replace(/\D/g, "").slice(0, 17))}
+                  required
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Submit */}
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 font-medium rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors px-5 py-2.5 text-sm"
+            >
+              <Lock className="w-4 h-4" />
+              Complete Payout Setup
+            </button>
+            {state === "form" && !compact && (
+              <button
+                type="button"
+                onClick={() => { setState("idle"); onExit?.(); }}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+
+          {/* Trust footer */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1">
+            <Lock className="w-3 h-3" />
+            <span>256-bit encryption &middot; Your data is sent directly to our payment processor and never stored on our servers.</span>
+          </div>
+        </form>
       </div>
     );
   }
@@ -259,7 +412,7 @@ export function StripeConnectOnboarding({
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                Real-time earnings dashboard
+                Only 3% platform fee
               </li>
               <li className="flex items-center gap-2">
                 <Shield className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
@@ -277,7 +430,7 @@ export function StripeConnectOnboarding({
           </div>
         )}
         <button
-          onClick={handleStartConnect}
+          onClick={handleStartSetup}
           className={`inline-flex items-center gap-2 font-medium rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors ${
             compact ? "px-3 py-1.5 text-sm" : "px-4 py-2 text-sm"
           }`}
