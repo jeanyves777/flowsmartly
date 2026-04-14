@@ -247,8 +247,13 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
     - src/app/account/register/page.tsx: name + email + password + confirm → POST /api/auth/register → redirect /account
       MANDATORY ANTI-SPAM: same Turnstile pattern as login — import, state, widget, disabled button until validated, send token in body.
     - src/app/account/page.tsx: dashboard with greeting, recent orders, quick links (orders/addresses/settings). Fetch from /api/account/profile + /api/account/orders. If 401 → redirect to /account/login
-    - src/app/account/orders/page.tsx: PRE-BUILT — DO NOT WRITE OR OVERWRITE. Includes real order list from /api/account/orders, pending card payment banner ("Payment Required") with "Complete Payment" CTA, pagination, status badges.
-    - src/app/account/orders/[orderId]/page.tsx: PRE-BUILT — DO NOT WRITE OR OVERWRITE. Includes real order detail, status timeline, items list, cancel (PENDING/CONFIRMED/PROCESSING only), change shipping address (PENDING/CONFIRMED/PROCESSING only), return/refund request (DELIVERED only). Uses getBasePath() for window.location.href navigations.
+    - src/app/account/orders/page.tsx: PRE-BUILT — DO NOT WRITE OR OVERWRITE. Includes real order list from /api/account/orders, pending card payment banner with "Complete Payment" CTA + "Cancel Order" button (PATCH /api/account/orders/{id} with { action: "cancel" }), pagination, status badges. getBasePath() used for all window.location.href navigations.
+    - src/app/account/orders/[orderId]/page.tsx: PRE-BUILT — DO NOT WRITE OR OVERWRITE. Real order detail: status timeline, items, cancel (PENDING/CONFIRMED/PROCESSING only via PATCH {action:"cancel"}), change address (PENDING/CONFIRMED/PROCESSING only via PATCH {action:"update_address"}), return request (DELIVERED only via PUT with reason). getBasePath() used for all window.location.href navigations.
+    - CRITICAL — getBasePath() pattern: Any page that does window.location.href navigation MUST use getBasePath() to prefix all paths:
+      function getBasePath() { return window.location.pathname.match(/^(\/stores\/[^/]+)/)?.[1] || ""; }
+      Use it for: checkout redirect, login redirect, any hard nav. Never hardcode /stores/slug/ — read it from the URL.
+    - CRITICAL — products links: When linking to the products page, ALWAYS use /stores/${SLUG}/products (the store app). Never use /store/${SLUG}/products (that path does not exist on the main app and causes 404).
+    - src/app/account/wishlist/page.tsx (if written): MUST be a "use client" component. Fetch from /api/account/wishlist (GET returns items with product details). Remove button: DELETE /api/account/wishlist with { productId } body. No server-rendered wishlist pages — always client component for interactive remove.
     - src/app/account/addresses/page.tsx: saved addresses from /api/account/addresses
     - src/app/account/settings/page.tsx: profile settings, update via POST /api/account/profile
 12. Write ORDER pages:
