@@ -34,6 +34,7 @@ interface OrderItem {
 
 interface Address {
   name?: string;
+  street?: string;
   line1?: string;
   line2?: string;
   city?: string;
@@ -99,7 +100,8 @@ interface Order {
 }
 
 function formatAddress(addr: Address): string {
-  const parts = [addr.line1, addr.line2, addr.city, addr.state, addr.zip, addr.country].filter(Boolean);
+  const street = addr.line1 || addr.street;
+  const parts = [street, addr.line2, addr.city, addr.state, addr.zip, addr.country].filter(Boolean);
   return parts.join(", ") || "No address provided";
 }
 
