@@ -25,19 +25,19 @@ interface AIBuildStepProps {
 }
 
 const BUILD_STEPS = [
-  { key: "template", label: "Selecting the perfect theme", icon: "palette" },
   { key: "content", label: "Writing your store copy", icon: "pen" },
   { key: "categories", label: "Organizing product categories", icon: "folder" },
   { key: "products", label: "Creating your product catalog", icon: "package" },
   { key: "seo", label: "Optimizing for search engines", icon: "search" },
+  { key: "build", label: "Building your store", icon: "palette" },
 ];
 
 const BUILD_SUMMARY_ITEMS = [
-  { icon: Palette, label: "A custom theme tailored to your brand" },
   { icon: PenLine, label: "Store copy, tagline, and about page" },
   { icon: FolderOpen, label: "Product categories for your industry" },
   { icon: Package, label: "6-10 starter products with descriptions" },
   { icon: Search, label: "SEO-optimized content and metadata" },
+  { icon: Palette, label: "A fully built store with your brand design" },
 ];
 
 export function AIBuildStep({
@@ -170,7 +170,7 @@ export function AIBuildStep({
 
         <h2 className="text-xl font-bold mb-1">Ready to build your store</h2>
         <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
-          AI will generate a theme, store copy, product categories, and 6-10 products for your{" "}
+          AI will build your store with custom branding, store copy, product categories, and 6-10 products for your{" "}
           <span className="font-medium text-foreground">{industry}</span> store.
         </p>
 

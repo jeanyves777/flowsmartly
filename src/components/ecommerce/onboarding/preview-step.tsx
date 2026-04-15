@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
-import { ThemePicker } from "./theme-picker";
 import { type StoreTemplateConfig } from "@/lib/constants/store-templates";
 
 interface PreviewProduct {
@@ -53,14 +52,14 @@ export function PreviewStep({
   brandTemplate,
 }: PreviewStepProps) {
   const [iframeSrc, setIframeSrc] = useState(
-    `/store/${storeSlug}?preview=true&t=${Date.now()}`
+    `/stores/${storeSlug}/?preview=true&t=${Date.now()}`
   );
   const [saving, setSaving] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>("theme");
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const refreshPreview = useCallback(() => {
-    setIframeSrc(`/store/${storeSlug}?preview=true&t=${Date.now()}`);
+    setIframeSrc(`/stores/${storeSlug}/?preview=true&t=${Date.now()}`);
   }, [storeSlug]);
 
   async function handleSaveAndRefresh() {
@@ -93,19 +92,6 @@ export function PreviewStep({
     <div className="flex gap-4 h-[600px]">
       {/* Left Sidebar — Editor */}
       <div className="w-72 flex-shrink-0 overflow-y-auto space-y-3 pr-2">
-        {/* Theme Section */}
-        <CollapsibleSection
-          title="Theme"
-          isOpen={expandedSection === "theme"}
-          onToggle={() => toggleSection("theme")}
-        >
-          <ThemePicker
-            selectedTemplateId={templateId}
-            onSelect={handleTemplateChange}
-            brandTemplate={brandTemplate}
-          />
-        </CollapsibleSection>
-
         {/* Hero Section */}
         <CollapsibleSection
           title="Hero"
@@ -198,7 +184,7 @@ export function PreviewStep({
 
         {/* Open in new tab */}
         <a
-          href={`/store/${storeSlug}?preview=true`}
+          href={`/stores/${storeSlug}/?preview=true`}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
@@ -219,7 +205,7 @@ export function PreviewStep({
           </div>
           <div className="flex-1 flex items-center gap-1 px-3 py-1 rounded-md bg-background text-xs text-muted-foreground">
             <Eye className="h-3 w-3" />
-            {storeSlug}.flowsmartly.com
+            flowsmartly.com/stores/{storeSlug}
           </div>
           <button
             type="button"

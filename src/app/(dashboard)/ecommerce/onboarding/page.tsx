@@ -304,7 +304,7 @@ export default function OnboardingPage() {
 
   // ── Step 2 callbacks ──
 
-  function handleAIBuildComplete(data: unknown) {
+  async function handleAIBuildComplete(data: unknown) {
     const d = data as typeof aiBlueprintData;
     setAiBuildComplete(true);
     setAiBlueprintData(d);
@@ -330,6 +330,24 @@ export default function OnboardingPage() {
 
     // Fetch products created by AI
     fetchPreviewProducts();
+
+    // Trigger V3 agent to actually build the store code
+    if (store?.id) {
+      try {
+        console.log("[Onboarding] Triggering V3 store agent build...");
+        await fetch(`/api/ecommerce/store/${store.id}/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            products: (d?.productIds || []).map((id: string) => ({ id })),
+            categories: [],
+          }),
+        });
+        // Agent runs in background — buildStatus will be polled in Preview step
+      } catch (err) {
+        console.error("[Onboarding] V3 agent trigger failed:", err);
+      }
+    }
 
     // Auto-advance to preview
     setCurrentStep(3);
@@ -605,8 +623,8 @@ export default function OnboardingPage() {
   function canGoNext(): boolean {
     switch (currentStep) {
       case 0: return !!storeName && !!industry;
-      case 1: return aiBuildComplete;
-      case 2: return true;
+      case 1: return true; // Products step — user can skip or add products
+      case 2: return aiBuildComplete; // AI Build must complete before proceeding
       case 3: return true;
       case 4: return true;
       default: return false;
@@ -855,16 +873,16 @@ export default function OnboardingPage() {
               <div>
                 <label className="text-sm font-medium">Your store URL</label>
                 <div className="mt-1 flex items-center">
+                  <div className="px-3 py-2.5 rounded-l-lg border border-r-0 bg-muted text-sm text-muted-foreground whitespace-nowrap">
+                    flowsmartly.com/stores/
+                  </div>
                   <input
                     type="text"
                     value={slug}
                     onChange={(e) => handleSlugChange(e.target.value)}
                     placeholder="my-store"
-                    className="flex-1 px-3 py-2.5 rounded-l-lg border border-r-0 bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="flex-1 px-3 py-2.5 rounded-r-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
-                  <div className="px-3 py-2.5 rounded-r-lg border bg-muted text-sm text-muted-foreground whitespace-nowrap">
-                    .flowsmartly.com
-                  </div>
                 </div>
 
                 <div className="mt-2 h-5">
@@ -877,13 +895,13 @@ export default function OnboardingPage() {
                   {!slugChecking && slugAvailable === true && slug.length >= 2 && (
                     <div className="flex items-center gap-1.5 text-xs text-green-600">
                       <Check className="h-3 w-3" />
-                      {slug}.flowsmartly.com is available
+                      flowsmartly.com/stores/{slug} is available
                     </div>
                   )}
                   {!slugChecking && slugAvailable === false && (
                     <div className="flex items-center gap-1.5 text-xs text-red-600">
                       <X className="h-3 w-3" />
-                      This domain is already taken
+                      This store URL is already taken
                     </div>
                   )}
                 </div>
@@ -892,7 +910,7 @@ export default function OnboardingPage() {
               <div className="p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground">
                 Your store will be accessible at{" "}
                 <span className="font-medium text-foreground">
-                  {slug || "your-store"}.flowsmartly.com
+                  flowsmartly.com/stores/{slug || "your-store"}
                 </span>
               </div>
             </div>
