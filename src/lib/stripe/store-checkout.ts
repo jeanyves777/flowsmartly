@@ -33,7 +33,7 @@ export async function createStorePaymentIntent(params: {
    * at checkout are persisted on the customer for future orders.
    */
   stripeCustomerId?: string;
-}): Promise<{ clientSecret: string; paymentIntentId: string }> {
+}): Promise<{ clientSecret: string; paymentIntentId: string; customerSessionClientSecret?: string }> {
   if (!stripe) {
     throw new Error("Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.");
   }
@@ -83,8 +83,39 @@ export async function createStorePaymentIntent(params: {
         }
   );
 
+  // When we've attached a Customer, also mint a Customer Session so
+  // PaymentElement renders the "Saved" tab with the shopper's previously
+  // saved cards. Without this, attaching the customer to the PI is a silent
+  // no-op from the UI perspective.
+  let customerSessionClientSecret: string | undefined;
+  if (params.stripeCustomerId) {
+    try {
+      // Cast because customerSessions typings trail the feature in some SDK versions.
+      const cs = await (stripe as unknown as {
+        customerSessions: { create: (args: Record<string, unknown>) => Promise<{ client_secret: string }> };
+      }).customerSessions.create({
+        customer: params.stripeCustomerId,
+        components: {
+          payment_element: {
+            enabled: true,
+            features: {
+              payment_method_save: "enabled",
+              payment_method_remove: "enabled",
+              payment_method_redisplay: "enabled",
+              payment_method_save_usage: "off_session",
+            },
+          },
+        },
+      });
+      customerSessionClientSecret = cs.client_secret;
+    } catch (err) {
+      console.warn("[store-checkout] Customer Session creation failed — saved cards won't be shown:", err);
+    }
+  }
+
   return {
     clientSecret: paymentIntent.client_secret!,
     paymentIntentId: paymentIntent.id,
+    customerSessionClientSecret,
   };
 }

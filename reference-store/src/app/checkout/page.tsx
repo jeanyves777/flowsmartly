@@ -148,6 +148,7 @@ export default function CheckoutPage() {
 
   // Inline Stripe state (card/stripe_* methods)
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [customerSessionSecret, setCustomerSessionSecret] = useState<string | null>(null);
   const [creatingIntent, setCreatingIntent] = useState(false);
   const [intentForMethod, setIntentForMethod] = useState<string>("");
 
@@ -319,11 +320,13 @@ export default function CheckoutPage() {
       .then(json => {
         if (json.success && json.data?.clientSecret) {
           setClientSecret(json.data.clientSecret);
+          setCustomerSessionSecret(json.data.customerSessionClientSecret || null);
           setIntentForMethod(selectedPayment);
           setOrderNumber(json.data.orderNumber || "");
         } else {
           setError(json.error?.message || "Could not start payment. Please try again.");
           setClientSecret(null);
+          setCustomerSessionSecret(null);
         }
       })
       .catch(() => setError("Network error. Please retry."))
@@ -400,13 +403,17 @@ export default function CheckoutPage() {
     () => (clientSecret
       ? {
           clientSecret,
+          // Enables the "Saved" tab in PaymentElement with the shopper's
+          // previously used cards (requires the server to mint a Customer
+          // Session scoped to this Stripe customer).
+          ...(customerSessionSecret && { customerSessionClientSecret: customerSessionSecret }),
           appearance: {
             theme: "stripe" as const,
             variables: { colorPrimary: "#6366f1", borderRadius: "12px", fontFamily: "inherit" },
           },
         }
       : undefined),
-    [clientSecret]
+    [clientSecret, customerSessionSecret]
   );
 
   // ── Success screen ──

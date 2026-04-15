@@ -299,7 +299,7 @@ export async function POST(
 
       // 2 — Create the PaymentIntent first so we know the PI id.
       const pendingId = `pc_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
-      const { clientSecret, paymentIntentId } = await createStorePaymentIntent({
+      const { clientSecret, paymentIntentId, customerSessionClientSecret } = await createStorePaymentIntent({
         orderId: pendingId, // we store the PendingCheckout id here — webhook looks it up
         storeId: store.id,
         storeSlug: store.slug,
@@ -364,6 +364,7 @@ export async function POST(
           orderId: pendingId,      // legacy field name — the client still uses this as an opaque token
           orderNumber,             // reserved; displayed in the confirm UI even before the Order exists
           clientSecret,
+          customerSessionClientSecret,  // present only for logged-in shoppers — unlocks saved cards in PaymentElement
         },
       });
     }
