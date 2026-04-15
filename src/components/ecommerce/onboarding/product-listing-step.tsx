@@ -78,8 +78,10 @@ export function ProductListingStep({
       });
 
       const data = await res.json();
-      if (data.products && Array.isArray(data.products)) {
-        const mapped: ProductEntry[] = data.products.map((p: any) => ({
+      // API returns { success, data: { products, count, creditsUsed } }
+      const products = data.data?.products || data.products;
+      if (products && Array.isArray(products)) {
+        const mapped: ProductEntry[] = products.map((p: any) => ({
           name: p.name || "",
           description: p.description || "",
           priceCents: p.priceCents || 0,
@@ -91,9 +93,11 @@ export function ProductListingStep({
         }));
         onProductsChange(mapped);
         setMode("manual"); // Switch to manual mode to let user review/edit
+      } else {
+        console.error("[ProductGen] No products in response:", data);
       }
-    } catch {
-      // Error handled silently
+    } catch (err) {
+      console.error("[ProductGen] Error:", err);
     } finally {
       setAiLoading(false);
     }
