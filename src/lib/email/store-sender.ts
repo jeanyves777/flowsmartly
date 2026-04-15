@@ -49,7 +49,11 @@ export async function sendStoreEmail(params: StoreEmailParams): Promise<{ succes
     console.error("[store-sender] MarketingConfig lookup failed:", err);
   }
 
-  const usable = cfg && cfg.emailEnabled && cfg.emailVerified && cfg.emailProvider && cfg.emailProvider !== "NONE";
+  // Verified is preferred but not required — if the owner has enabled a
+  // provider and filled in config, try to send through it. A failed send
+  // will be caught below and (for requireOwner) will skip rather than
+  // silently leak to the platform transporter.
+  const usable = cfg && cfg.emailEnabled && cfg.emailProvider && cfg.emailProvider !== "NONE" && !!cfg.emailConfig;
 
   if (!usable) {
     if (params.requireOwner) {
