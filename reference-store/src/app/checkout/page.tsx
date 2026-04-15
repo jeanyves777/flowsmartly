@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -10,6 +10,8 @@ import {
   ArrowLeft, ArrowRight, Check, CreditCard, Truck, MapPin,
   ShoppingBag, Loader2, Smartphone, Banknote, Building2, AlertTriangle, Lock,
 } from "lucide-react";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
@@ -18,6 +20,10 @@ import { formatPrice, storeInfo, shippingMethods } from "@/lib/data";
 import type { CartItem } from "@/lib/cart";
 
 const API_BASE = "https://flowsmartly.com";
+
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  : null;
 
 function getStoreSlug(): string {
   if (typeof window === "undefined") return "";
@@ -46,6 +52,7 @@ interface PaymentMethod {
   label: string;
   detail: string | null;
   provider: string | null;
+  stripeMethodId?: string;
   stripeMethods?: Array<{ id: string; label: string; description: string }>;
 }
 
@@ -55,6 +62,74 @@ interface CartIssue {
   issue: "unavailable" | "out_of_stock" | "insufficient_stock";
   available?: number;
 }
+
+// ─── Inline Stripe form ──────────────────────────────────────────────────────
+
+function InlineStripeForm({
+  amount,
+  onSuccess,
+  onError,
+  submitting,
+  setSubmitting,
+}: {
+  amount: number;
+  onSuccess: () => void;
+  onError: (msg: string) => void;
+  submitting: boolean;
+  setSubmitting: (b: boolean) => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+
+  const handlePay = async () => {
+    if (!stripe || !elements) return;
+    setSubmitting(true);
+    onError("");
+
+    const storeSlug = getStoreSlug();
+    const storeBase = storeSlug ? `/stores/${storeSlug}` : "";
+
+    const { error, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      redirect: "if_required",
+      confirmParams: {
+        return_url: `${window.location.origin}${storeBase}/account/orders`,
+      },
+    });
+
+    if (error) {
+      onError(error.message || "Payment failed. Please check your details and try again.");
+      setSubmitting(false);
+    } else if (paymentIntent?.status === "succeeded" || paymentIntent?.status === "processing") {
+      clearCart();
+      onSuccess();
+    } else {
+      onError("Payment could not be confirmed. Please try again.");
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl overflow-hidden">
+        <PaymentElement options={{ layout: "tabs" }} />
+      </div>
+      <button
+        onClick={handlePay}
+        disabled={!stripe || !elements || submitting}
+        className="w-full inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary-600 text-white rounded-full font-semibold hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary-600/25"
+      >
+        {submitting ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />}
+        {submitting ? "Processing..." : `Pay ${formatPrice(amount)}`}
+      </button>
+      <div className="flex items-center justify-center gap-3 text-xs text-gray-400">
+        <Lock size={12} /> SSL encrypted · Powered by Stripe
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Checkout Page ──────────────────────────────────────────────────────
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -71,6 +146,11 @@ export default function CheckoutPage() {
   const [selectedPayment, setSelectedPayment] = useState("card");
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
 
+  // Inline Stripe state (card/stripe_* methods)
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [creatingIntent, setCreatingIntent] = useState(false);
+  const [intentForMethod, setIntentForMethod] = useState<string>("");
+
   // Cart validation warnings
   const [cartIssues, setCartIssues] = useState<CartIssue[]>([]);
 
@@ -86,7 +166,7 @@ export default function CheckoutPage() {
     shippingMethodId: "",
   });
 
-  // Load cart + pre-fill + validate stock
+  // ── Load cart + prefill customer info + validate stock ──
   useEffect(() => {
     const items = getCart();
     setCart(items);
@@ -97,7 +177,6 @@ export default function CheckoutPage() {
 
     const slug = getStoreSlug() || (storeInfo as any).slug || "";
 
-    // Pre-fill from in-memory customer (set by AccountModal on current session)
     const cust = (window as any).__storeCustomer;
     if (cust) {
       setForm(prev => ({
@@ -108,7 +187,6 @@ export default function CheckoutPage() {
       }));
     }
 
-    // Always fetch from API too — works after page refresh when window.__storeCustomer is gone
     if (slug) {
       fetch(`${API_BASE}/api/store/${slug}/account/profile`, { credentials: "include" })
         .then(r => r.json())
@@ -124,7 +202,6 @@ export default function CheckoutPage() {
         })
         .catch(() => {});
 
-      // Load saved shipping address
       fetch(`${API_BASE}/api/store/${slug}/account/addresses`, { credentials: "include" })
         .then(r => r.json())
         .then(json => {
@@ -132,7 +209,7 @@ export default function CheckoutPage() {
           if (saved) {
             setForm(prev => ({
               ...prev,
-              street: prev.street || saved.street || "",
+              street: prev.street || saved.street || saved.line1 || "",
               city: prev.city || saved.city || "",
               state: prev.state || saved.state || "",
               zip: prev.zip || saved.zip || "",
@@ -147,7 +224,6 @@ export default function CheckoutPage() {
       setForm(prev => ({ ...prev, shippingMethodId: prev.shippingMethodId || shippingMethods[0].id }));
     }
 
-    // Validate cart items against DB (stock + availability)
     if (items.length > 0 && slug) {
       fetch(`${API_BASE}/api/store/${slug}/cart/validate`, {
         method: "POST",
@@ -158,15 +234,13 @@ export default function CheckoutPage() {
       })
         .then(r => r.json())
         .then(json => {
-          if (json.success && json.data?.issues?.length > 0) {
-            setCartIssues(json.data.issues);
-          }
+          if (json.success && json.data?.issues?.length > 0) setCartIssues(json.data.issues);
         })
-        .catch(() => {}); // Silent — server re-validates at submit
+        .catch(() => {});
     }
   }, []);
 
-  // Fetch payment methods from store config when reaching payment step
+  // ── Load payment methods on entering payment step ──
   useEffect(() => {
     if (step !== 2) return;
     const slug = getStoreSlug() || (storeInfo as any).slug || "";
@@ -178,7 +252,6 @@ export default function CheckoutPage() {
       .then(json => {
         if (json.success && json.data?.paymentMethods?.length > 0) {
           setPaymentMethods(json.data.paymentMethods);
-          // Default to first method
           setSelectedPayment(prev =>
             json.data.paymentMethods.find((m: PaymentMethod) => m.method === prev)
               ? prev
@@ -206,26 +279,74 @@ export default function CheckoutPage() {
   const shippingCost = isFreeShipping ? 0 : (selectedMethod?.priceCents || 0);
   const total = subtotal + shippingCost;
 
+  const selectedPmObj = paymentMethods.find(pm => pm.method === selectedPayment);
+  const isStripeMethod = selectedPmObj?.provider === "stripe";
+
+  // ── Lazily create the PendingCheckout + PI whenever the payment step is
+  //    active AND a Stripe method is selected AND we don't already have a PI
+  //    for this method. Recreates the PI if the user switches method.
+  useEffect(() => {
+    if (step !== 2) return;
+    if (!isStripeMethod) return;
+    if (!selectedPmObj) return;
+    if (intentForMethod === selectedPayment && clientSecret) return;
+    if (!form.name || !form.email || !form.street || !form.city || !form.zip) return;
+    if (cart.length === 0) return;
+
+    const slug = getStoreSlug() || (storeInfo as any).slug || "";
+    if (!slug) return;
+
+    setCreatingIntent(true);
+    setError("");
+
+    fetch(`${API_BASE}/api/store/${slug}/checkout`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: cart.map(item => ({ productId: item.productId, variantId: item.variantId, quantity: item.quantity })),
+        customerName: form.name,
+        customerEmail: form.email,
+        customerPhone: form.phone || undefined,
+        shippingAddress: {
+          street: form.street, city: form.city, state: form.state, zip: form.zip, country: form.country,
+        },
+        shippingMethod: selectedMethod?.name?.toLowerCase().includes("pickup") ? "local_pickup" : "standard",
+        paymentMethod: selectedPayment,
+      }),
+    })
+      .then(r => r.json())
+      .then(json => {
+        if (json.success && json.data?.clientSecret) {
+          setClientSecret(json.data.clientSecret);
+          setIntentForMethod(selectedPayment);
+          setOrderNumber(json.data.orderNumber || "");
+        } else {
+          setError(json.error?.message || "Could not start payment. Please try again.");
+          setClientSecret(null);
+        }
+      })
+      .catch(() => setError("Network error. Please retry."))
+      .finally(() => setCreatingIntent(false));
+  }, [step, selectedPayment, isStripeMethod, form.name, form.email, form.street, form.city, form.zip, cart.length]);
+
   const canNext = () => {
     if (step === 0) return form.name && form.email;
     if (step === 1) return form.street && form.city && form.zip && form.shippingMethodId;
     return true;
   };
 
-  // Advance step + silently persist info to customer profile
   const handleNext = () => {
     if (!canNext()) return;
     const slug = getStoreSlug() || (storeInfo as any).slug || "";
     if (slug) {
       if (step === 0) {
-        // Save contact info
         fetch(`${API_BASE}/api/store/${slug}/account/profile`, {
           method: "PUT", credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: form.name, phone: form.phone }),
         }).catch(() => {});
       } else if (step === 1) {
-        // Save shipping address
         fetch(`${API_BASE}/api/store/${slug}/account/addresses`, {
           method: "PUT", credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -238,7 +359,8 @@ export default function CheckoutPage() {
     setStep(s => s + 1);
   };
 
-  const handleSubmit = async () => {
+  // Non-Stripe (COD / mobile money / bank transfer) submit path
+  const handleNonCardSubmit = async () => {
     setLoading(true);
     setError("");
     try {
@@ -248,20 +370,12 @@ export default function CheckoutPage() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: cart.map(item => ({
-            productId: item.productId,
-            variantId: item.variantId,
-            quantity: item.quantity,
-          })),
+          items: cart.map(item => ({ productId: item.productId, variantId: item.variantId, quantity: item.quantity })),
           customerName: form.name,
           customerEmail: form.email,
           customerPhone: form.phone || undefined,
           shippingAddress: {
-            street: form.street,
-            city: form.city,
-            state: form.state,
-            zip: form.zip,
-            country: form.country,
+            street: form.street, city: form.city, state: form.state, zip: form.zip, country: form.country,
           },
           shippingMethod: selectedMethod?.name?.toLowerCase().includes("pickup") ? "local_pickup" : "standard",
           paymentMethod: selectedPayment,
@@ -269,13 +383,6 @@ export default function CheckoutPage() {
       });
       const json = await res.json();
       if (json.success) {
-        if (json.data?.clientSecret) {
-          // Card payment — go to Stripe confirm page (cart cleared after payment succeeds)
-          const storeBase = slug ? `/stores/${slug}` : "";
-          window.location.href = `${storeBase}/checkout/confirm?secret=${json.data.clientSecret}&order=${json.data.orderId}&amount=${total}`;
-          return;
-        }
-        // Non-card payment (COD, mobile money, bank transfer) — show inline success
         clearCart();
         setOrderComplete(true);
         setOrderNumber(json.data?.orderNumber || "");
@@ -289,6 +396,20 @@ export default function CheckoutPage() {
     }
   };
 
+  const elementsOptions = useMemo(
+    () => (clientSecret
+      ? {
+          clientSecret,
+          appearance: {
+            theme: "stripe" as const,
+            variables: { colorPrimary: "#6366f1", borderRadius: "12px", fontFamily: "inherit" },
+          },
+        }
+      : undefined),
+    [clientSecret]
+  );
+
+  // ── Success screen ──
   if (orderComplete) {
     return (
       <>
@@ -318,12 +439,10 @@ export default function CheckoutPage() {
       <main className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-24 pb-16">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
 
-        {/* Back link */}
         <Link href="/products" className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 mb-6">
           <ArrowLeft size={16} /> Back to Shopping
         </Link>
 
-        {/* Cart warnings */}
         {cartIssues.length > 0 && (
           <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
             <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-400">
@@ -363,9 +482,8 @@ export default function CheckoutPage() {
         </div>
 
         <div className="grid lg:grid-cols-[1fr_380px] gap-8">
-          {/* Form */}
           <div>
-            {/* Step 1: Contact Info */}
+            {/* Step 0 — Contact Info */}
             {step === 0 && (
               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 space-y-5">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Contact Information</h2>
@@ -386,7 +504,7 @@ export default function CheckoutPage() {
               </motion.div>
             )}
 
-            {/* Step 2: Shipping */}
+            {/* Step 1 — Shipping */}
             {step === 1 && (
               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
                 <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 space-y-5">
@@ -429,7 +547,6 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* Shipping Methods */}
                 <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 space-y-4">
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                     <Truck size={20} /> Shipping Method
@@ -443,14 +560,7 @@ export default function CheckoutPage() {
                             ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10"
                             : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
                         }`}>
-                          <input
-                            type="radio"
-                            name="shippingMethodId"
-                            value={method.id}
-                            checked={form.shippingMethodId === method.id}
-                            onChange={handleChange}
-                            className="w-4 h-4 text-primary-600"
-                          />
+                          <input type="radio" name="shippingMethodId" value={method.id} checked={form.shippingMethodId === method.id} onChange={handleChange} className="w-4 h-4 text-primary-600" />
                           <div className="flex-1">
                             <p className="font-semibold text-gray-900 dark:text-white">{method.name}</p>
                             <p className="text-sm text-gray-500 dark:text-gray-400">{method.description || method.estimatedDays}</p>
@@ -471,7 +581,7 @@ export default function CheckoutPage() {
               </motion.div>
             )}
 
-            {/* Step 3: Payment — loaded from store config */}
+            {/* Step 2 — Payment (inline PaymentElement for Stripe methods) */}
             {step === 2 && (
               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 space-y-5">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -486,7 +596,7 @@ export default function CheckoutPage() {
                   <div className="space-y-3">
                     {paymentMethods.map(pm => (
                       <label
-                        key={pm.method}
+                        key={pm.stripeMethodId || pm.method}
                         className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
                           selectedPayment === pm.method
                             ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10"
@@ -502,13 +612,11 @@ export default function CheckoutPage() {
                           className="w-4 h-4 text-primary-600"
                         />
                         <span className="text-gray-400">
-                          {PAYMENT_ICONS[pm.method] ?? <CreditCard size={18} />}
+                          {PAYMENT_ICONS[pm.method === "card" ? "card" : pm.provider === "stripe" ? "card" : pm.method] ?? <CreditCard size={18} />}
                         </span>
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-gray-900 dark:text-white">{pm.label}</p>
-                          {pm.detail && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{pm.detail}</p>
-                          )}
+                          {pm.detail && <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{pm.detail}</p>}
                           {pm.provider === "stripe" && pm.stripeMethods && pm.stripeMethods.length > 1 && (
                             <div className="flex flex-wrap gap-1.5 mt-2">
                               {pm.stripeMethods.map((sm) => (
@@ -523,7 +631,7 @@ export default function CheckoutPage() {
                             </div>
                           )}
                         </div>
-                        {pm.method === "card" && (
+                        {pm.provider === "stripe" && (
                           <div className="flex items-center gap-1 text-xs text-gray-400 flex-shrink-0">
                             <Lock size={11} /> Secure
                           </div>
@@ -533,26 +641,45 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {selectedPayment === "card" && !loadingPaymentMethods && (
-                  <div className="flex items-center gap-3 text-xs text-gray-400 pt-1">
-                    <Lock size={12} className="flex-shrink-0" />
-                    <span>Your card details are entered on the next screen, secured by Stripe.</span>
+                {/* Inline Stripe form for the selected Stripe method */}
+                {isStripeMethod && (
+                  <div className="pt-2">
+                    {creatingIntent && (
+                      <div className="flex items-center gap-2 text-sm text-gray-400 py-6">
+                        <Loader2 size={16} className="animate-spin" /> Preparing secure payment...
+                      </div>
+                    )}
+                    {!creatingIntent && !clientSecret && !error && (
+                      <p className="text-sm text-gray-400 py-4">Fill in your details above to continue.</p>
+                    )}
+                    {!creatingIntent && clientSecret && stripePromise && elementsOptions && (
+                      <Elements stripe={stripePromise} options={elementsOptions} key={clientSecret}>
+                        <InlineStripeForm
+                          amount={total}
+                          onSuccess={() => {
+                            setOrderComplete(true);
+                          }}
+                          onError={setError}
+                          submitting={loading}
+                          setSubmitting={setLoading}
+                        />
+                      </Elements>
+                    )}
                   </div>
                 )}
 
-                {selectedPayment === "cod" && !loadingPaymentMethods && (
+                {/* Non-Stripe method copy */}
+                {selectedPayment === "cod" && (
                   <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-200 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-400">
                     Pay in cash when your order is delivered. Please have the exact amount ready.
                   </div>
                 )}
-
-                {selectedPayment === "bank_transfer" && !loadingPaymentMethods && (
+                {selectedPayment === "bank_transfer" && (
                   <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-400">
                     Bank transfer details will be sent to your email after placing the order.
                   </div>
                 )}
-
-                {selectedPayment === "mobile_money" && !loadingPaymentMethods && (
+                {selectedPayment === "mobile_money" && (
                   <div className="p-4 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-200 dark:border-green-800 text-sm text-green-700 dark:text-green-400">
                     Mobile money payment instructions will be sent to your phone after placing the order.
                   </div>
@@ -560,7 +687,6 @@ export default function CheckoutPage() {
               </motion.div>
             )}
 
-            {/* Error */}
             {error && (
               <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-700 dark:text-red-400">
                 {error}
@@ -584,19 +710,23 @@ export default function CheckoutPage() {
                   Continue <ArrowRight size={16} />
                 </button>
               ) : (
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading || loadingPaymentMethods}
-                  className="inline-flex items-center gap-2 px-8 py-3 bg-primary-600 text-white rounded-full font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-lg shadow-primary-600/25"
-                >
-                  {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingBag size={16} />}
-                  {loading ? "Processing..." : selectedPayment === "card" ? `Pay ${formatPrice(total)}` : "Place Order"}
-                </button>
+                // On payment step: Stripe inline form owns its own "Pay" button.
+                // For non-Stripe methods we show the "Place Order" button here.
+                !isStripeMethod && (
+                  <button
+                    onClick={handleNonCardSubmit}
+                    disabled={loading || loadingPaymentMethods}
+                    className="inline-flex items-center gap-2 px-8 py-3 bg-primary-600 text-white rounded-full font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-lg shadow-primary-600/25"
+                  >
+                    {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingBag size={16} />}
+                    {loading ? "Processing..." : "Place Order"}
+                  </button>
+                )
               )}
             </div>
           </div>
 
-          {/* Order Summary Sidebar */}
+          {/* Order Summary */}
           <div className="lg:sticky lg:top-8 self-start">
             <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 space-y-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">Order Summary</h2>

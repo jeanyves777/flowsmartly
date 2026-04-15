@@ -218,17 +218,32 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
     - 3-step checkout with animated stepper (Info → Shipping → Payment):
       Step 0 (Info): contact form — Full Name, Email, Phone (pre-fill from window.__storeCustomer)
       Step 1 (Shipping): address form (street, city, state, zip, country) + shipping method radio buttons from shippingMethods[] in data.ts
-      Step 2 (Payment):
-        MANDATORY — fetch GET /api/checkout/options (proxied through the gateway to /api/store/{slug}/checkout/options).
-        Render ONE radio per returned entry in data.paymentMethods. Each entry has { method, label, detail, provider, stripeMethods? }.
-        When an entry's provider === "stripe" and stripeMethods is an array, render the sub-methods as a row of small
-        chips/icons under the label (e.g. "Card · Apple Pay · Klarna · Link · Cash App Pay") so customers see every
-        method their store accepts. DO NOT hardcode "Credit / Debit Card" with the old "Visa · Mastercard · Amex"
-        subtitle — trust the API response. DO NOT hide or filter any method the API returns. DO NOT invent methods
-        the API did not return.
+      Step 2 (Payment) — INLINE Stripe flow, NO /checkout/confirm redirect:
+        MANDATORY — fetch GET /api/checkout/options. Render ONE radio per returned entry in data.paymentMethods.
+        When an entry's provider === "stripe" and stripeMethods is an array, render the sub-methods as small chips
+        under the label (e.g. "Apple Pay · Link · Cash App Pay"). Trust the API response — do NOT hardcode or invent.
         Default selection: the first entry in data.paymentMethods.
-    - Submit handler (on "Place Order" in Step 2):
-      POST to /api/checkout with EXACTLY these fields:
+
+        CRITICAL — INLINE STRIPE: When the selected entry has provider === "stripe", you MUST embed Stripe Elements
+        on THIS page (step 2). DO NOT redirect to /checkout/confirm anymore.
+        Flow:
+          1. As soon as the user lands on step 2 AND a Stripe method is selected AND contact/shipping are filled,
+             POST to /api/checkout once to create the PendingCheckout + PaymentIntent and receive { clientSecret, orderNumber, orderId }.
+             Re-POST whenever the user switches Stripe method (so the PI is pinned to the right rail).
+             Use credentials: "include" — this attaches the logged-in Stripe Customer, which makes saved cards appear
+             in PaymentElement and auto-saves new cards for reuse.
+          2. Wrap the page in <Elements stripe={stripePromise} options={{ clientSecret, appearance }} key={clientSecret}>.
+          3. Render <PaymentElement options={{ layout: "tabs" }} />.
+          4. On "Pay" click: call stripe.confirmPayment({ elements, redirect: "if_required", confirmParams: { return_url } }).
+             On paymentIntent.status === "succeeded" OR "processing": clearCart() + render the inline success screen.
+             On error: show the error message below PaymentElement and allow retry.
+          5. For non-Stripe methods (cod / mobile_money / bank_transfer): show the existing info panels and POST /api/checkout
+             on "Place Order" click — the backend creates the Order immediately (no payment step). Clear cart + success screen.
+
+        DO NOT write src/app/checkout/confirm/page.tsx — it is pre-built by the system as a legacy fallback only.
+        DO NOT redirect to it. All card payments must complete inline on src/app/checkout/page.tsx.
+    - Required import: import { loadStripe } from "@stripe/stripe-js"; import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
+    - POST /api/checkout body (both paths):
       {
         items: [{ productId, variantId?, quantity }],
         customerName: form.name,
@@ -236,11 +251,8 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
         customerPhone: form.phone || undefined,
         shippingAddress: { street, city, state, zip, country },
         shippingMethod: selectedMethod?.name?.toLowerCase().includes("pickup") ? "local_pickup" : "standard",
-        paymentMethod: selectedPayment.method  // the radio value — "card" for Stripe, "cod" / "mobile_money" / "bank_transfer" for others
+        paymentMethod: selectedPayment.method  // "card" | "stripe_klarna" | "stripe_affirm" | "cod" | "mobile_money" | "bank_transfer"
       }
-      If response has clientSecret: window.location.href = "/checkout/confirm?secret=" + clientSecret + "&order=" + orderId + "&amount=" + totalCents
-      If response has orderId only (non-card methods): clearCart(), show inline order success screen
-    - IMPORTANT: do NOT call clearCart() before redirecting to /checkout/confirm — cart is cleared AFTER payment succeeds in confirm page
     - Empty cart state with "Continue Shopping" link
     - Styled with brand colors, dark mode, Framer Motion
     CRITICAL: DO NOT write src/app/checkout/confirm/page.tsx — it is PRE-BUILT by the system (Stripe
