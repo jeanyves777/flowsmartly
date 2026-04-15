@@ -275,9 +275,9 @@ export default function EditProductPage() {
 
   // ── Upload new images ──
 
-  const uploadNewImages = async (): Promise<void> => {
+  const uploadNewImages = async (): Promise<ImageItem[] | null> => {
     const filesToUpload = images.filter((img) => img.file);
-    if (filesToUpload.length === 0) return;
+    if (filesToUpload.length === 0) return null;
 
     setUploadingImages(true);
     try {
@@ -291,11 +291,14 @@ export default function EditProductPage() {
       });
       const json = await res.json();
       if (json.success) {
-        // Replace images with server response
-        setImages(json.data.images.map((img: ImageItem) => ({ ...img, file: undefined, preview: undefined })));
+        const uploaded = json.data.images.map((img: ImageItem) => ({ ...img, file: undefined, preview: undefined }));
+        setImages(uploaded);
+        return uploaded;
       }
+      return null;
     } catch (err) {
       console.error("Image upload error:", err);
+      return null;
     } finally {
       setUploadingImages(false);
     }
@@ -460,17 +463,19 @@ export default function EditProductPage() {
 
     setSaving(true);
     try {
-      // Upload new images first
+      // Upload new images first, then use the returned array (not stale state)
       const hasNewFiles = images.some((img) => img.file);
+      let finalImages = images;
       if (hasNewFiles) {
-        await uploadNewImages();
+        const uploaded = await uploadNewImages();
+        if (uploaded) finalImages = uploaded;
       }
 
       const comparePriceCents = comparePriceStr ? toCents(comparePriceStr) : null;
       const costCents = costPriceStr ? toCents(costPriceStr) : null;
 
-      // Build images array for existing (already uploaded) images only
-      const existingImages = images
+      // Build images array from the final images (after upload)
+      const existingImages = finalImages
         .filter((img) => !img.file && img.url)
         .map((img) => ({ url: img.url, alt: img.alt, position: img.position }));
 
