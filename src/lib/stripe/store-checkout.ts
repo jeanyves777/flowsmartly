@@ -33,7 +33,7 @@ export async function createStorePaymentIntent(params: {
     currency: params.currency.toLowerCase(),
     automatic_payment_methods: {
       enabled: true,
-      allow_redirects: "never",
+      allow_redirects: "always",
     },
     receipt_email: params.customerEmail,
     description: `Order from ${params.storeName}`,
