@@ -114,7 +114,14 @@ export async function PATCH(
     }
 
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+    if (data.imageUrl !== undefined) {
+      // Strip presigned URL params — store the permanent base URL only
+      let imgUrl = data.imageUrl;
+      if (imgUrl && imgUrl.includes("X-Amz-")) {
+        imgUrl = imgUrl.split("?")[0];
+      }
+      updateData.imageUrl = imgUrl;
+    }
     if (data.parentId !== undefined) updateData.parentId = data.parentId;
     if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
 

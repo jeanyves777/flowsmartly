@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
         name: data.name,
         slug,
         description: data.description,
-        imageUrl: data.imageUrl,
+        imageUrl: data.imageUrl && data.imageUrl.includes("X-Amz-") ? data.imageUrl.split("?")[0] : data.imageUrl,
         parentId: data.parentId,
         sortOrder: data.sortOrder,
       },
