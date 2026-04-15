@@ -12,8 +12,6 @@ import {
 } from "lucide-react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
 import { getCart, getCartTotal, clearCart } from "@/lib/cart";
 import { formatPrice, storeInfo, shippingMethods } from "@/lib/data";
@@ -34,11 +32,13 @@ function getStoreSlug(): string {
   }
 }
 
-const STEPS = [
-  { id: "info", label: "Info", icon: MapPin },
-  { id: "shipping", label: "Shipping", icon: Truck },
-  { id: "payment", label: "Payment", icon: CreditCard },
-];
+// Step list is dynamic — "Saved" only appears when the shopper has at least
+// one saved card on file. Without saved cards the flow collapses to the
+// classic 3-step Info → Shipping → Payment.
+const STEP_INFO    = { id: "info",     label: "Info",     icon: MapPin };
+const STEP_SHIP    = { id: "shipping", label: "Shipping", icon: Truck };
+const STEP_SAVED   = { id: "saved",    label: "Saved",    icon: Check };
+const STEP_PAYMENT = { id: "payment",  label: "Payment",  icon: CreditCard };
 
 const PAYMENT_ICONS: Record<string, React.ReactNode> = {
   card: <CreditCard size={18} />,
@@ -141,6 +141,13 @@ export default function CheckoutPage() {
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
 
+  // Saved payment methods on this customer (Stripe Customer)
+  interface SavedPM { id: string; brand: string; last4: string; expMonth: number; expYear: number; isDefault: boolean; }
+  const [savedPMs, setSavedPMs] = useState<SavedPM[]>([]);
+  const [savedPMsLoaded, setSavedPMsLoaded] = useState(false);
+  const [selectedSavedPM, setSelectedSavedPM] = useState<string | null>(null);
+  const [savedPayLoading, setSavedPayLoading] = useState(false);
+
   // Payment methods from store config
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedPayment, setSelectedPayment] = useState("card");
@@ -202,6 +209,18 @@ export default function CheckoutPage() {
           }
         })
         .catch(() => {});
+
+      // Pull the shopper's saved cards so we can offer one-click reorder.
+      fetch(`${API_BASE}/api/store/${slug}/account/payment-methods`, { credentials: "include" })
+        .then(r => r.ok ? r.json() : { paymentMethods: [] })
+        .then(json => {
+          const pms: SavedPM[] = Array.isArray(json?.paymentMethods) ? json.paymentMethods : [];
+          setSavedPMs(pms);
+          setSavedPMsLoaded(true);
+          const def = pms.find(p => p.isDefault) || pms[0];
+          if (def) setSelectedSavedPM(def.id);
+        })
+        .catch(() => setSavedPMsLoaded(true));
 
       fetch(`${API_BASE}/api/store/${slug}/account/addresses`, { credentials: "include" })
         .then(r => r.json())
@@ -333,9 +352,20 @@ export default function CheckoutPage() {
       .finally(() => setCreatingIntent(false));
   }, [step, selectedPayment, isStripeMethod, form.name, form.email, form.street, form.city, form.zip, cart.length]);
 
+  // Compute the active step list. The "Saved" step only appears when the
+  // shopper has at least one saved card on file — walk-in shoppers go
+  // straight to the Payment step.
+  const STEPS = useMemo(() => (
+    savedPMs.length > 0
+      ? [STEP_INFO, STEP_SHIP, STEP_SAVED, STEP_PAYMENT]
+      : [STEP_INFO, STEP_SHIP, STEP_PAYMENT]
+  ), [savedPMs.length]);
+  const currentStepId = STEPS[step]?.id;
+  const paymentStepIndex = STEPS.findIndex(s => s.id === STEP_PAYMENT.id);
+
   const canNext = () => {
-    if (step === 0) return form.name && form.email;
-    if (step === 1) return form.street && form.city && form.zip && form.shippingMethodId;
+    if (currentStepId === "info") return !!(form.name && form.email);
+    if (currentStepId === "shipping") return !!(form.street && form.city && form.zip && form.shippingMethodId);
     return true;
   };
 
@@ -343,13 +373,13 @@ export default function CheckoutPage() {
     if (!canNext()) return;
     const slug = getStoreSlug() || (storeInfo as any).slug || "";
     if (slug) {
-      if (step === 0) {
+      if (currentStepId === "info") {
         fetch(`${API_BASE}/api/store/${slug}/account/profile`, {
           method: "PUT", credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: form.name, phone: form.phone }),
         }).catch(() => {});
-      } else if (step === 1) {
+      } else if (currentStepId === "shipping") {
         fetch(`${API_BASE}/api/store/${slug}/account/addresses`, {
           method: "PUT", credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -360,6 +390,62 @@ export default function CheckoutPage() {
       }
     }
     setStep(s => s + 1);
+  };
+
+  // One-click pay with a saved card. Creates the PendingCheckout + PI
+  // server-side, then confirms the PI against the selected PaymentMethod.
+  const handleSavedPMPay = async () => {
+    if (!selectedSavedPM || !stripePromise) return;
+    setSavedPayLoading(true);
+    setError("");
+    try {
+      const slug = getStoreSlug() || (storeInfo as any).slug || "";
+      const res = await fetch(`${API_BASE}/api/store/${slug}/checkout`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: cart.map(item => ({ productId: item.productId, variantId: item.variantId, quantity: item.quantity })),
+          customerName: form.name,
+          customerEmail: form.email,
+          customerPhone: form.phone || undefined,
+          shippingAddress: {
+            street: form.street, city: form.city, state: form.state, zip: form.zip, country: form.country,
+          },
+          shippingMethod: selectedMethod?.name?.toLowerCase().includes("pickup") ? "local_pickup" : "standard",
+          paymentMethod: "card",
+        }),
+      });
+      const json = await res.json();
+      if (!json.success || !json.data?.clientSecret) {
+        setError(json.error?.message || "Could not start payment.");
+        setSavedPayLoading(false);
+        return;
+      }
+      const stripe = await stripePromise;
+      if (!stripe) {
+        setError("Stripe failed to load. Please retry.");
+        setSavedPayLoading(false);
+        return;
+      }
+      const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(json.data.clientSecret, {
+        payment_method: selectedSavedPM,
+      });
+      if (confirmError) {
+        setError(confirmError.message || "Payment failed.");
+        setSavedPayLoading(false);
+      } else if (paymentIntent?.status === "succeeded" || paymentIntent?.status === "processing") {
+        clearCart();
+        setOrderNumber(json.data.orderNumber || "");
+        setOrderComplete(true);
+      } else {
+        setError("Payment could not be confirmed.");
+        setSavedPayLoading(false);
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setSavedPayLoading(false);
+    }
   };
 
   // Non-Stripe (COD / mobile money / bank transfer) submit path
@@ -419,22 +505,18 @@ export default function CheckoutPage() {
   // ── Success screen ──
   if (orderComplete) {
     return (
-      <>
-        <Header onCartOpen={() => setCartOpen(true)} />
-        <main className="min-h-screen flex items-center justify-center px-4 pt-24">
-          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center max-w-md">
-            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Check className="w-8 h-8 text-green-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Order Placed!</h1>
-            {orderNumber && <p className="text-gray-500 dark:text-gray-400 mb-6">Order #{orderNumber}</p>}
-            <Link href="/products" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/90 transition-colors">
-              Continue Shopping
-            </Link>
-          </motion.div>
-        </main>
-        <Footer />
-      </>
+      <main className="min-h-screen flex items-center justify-center px-4 pt-24">
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center max-w-md">
+          <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Check className="w-8 h-8 text-green-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Order Placed!</h1>
+          {orderNumber && <p className="text-gray-500 dark:text-gray-400 mb-6">Order #{orderNumber}</p>}
+          <Link href="/products" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/90 transition-colors">
+            Continue Shopping
+          </Link>
+        </motion.div>
+      </main>
     );
   }
 
@@ -442,7 +524,6 @@ export default function CheckoutPage() {
 
   return (
     <>
-      <Header onCartOpen={() => setCartOpen(true)} />
       <main className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-24 pb-16">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
 
@@ -490,8 +571,8 @@ export default function CheckoutPage() {
 
         <div className="grid lg:grid-cols-[1fr_380px] gap-8">
           <div>
-            {/* Step 0 — Contact Info */}
-            {step === 0 && (
+            {/* Step — Contact Info */}
+            {currentStepId === "info" && (
               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 space-y-5">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Contact Information</h2>
                 <div className="grid sm:grid-cols-2 gap-4">
@@ -511,8 +592,8 @@ export default function CheckoutPage() {
               </motion.div>
             )}
 
-            {/* Step 1 — Shipping */}
-            {step === 1 && (
+            {/* Step — Shipping */}
+            {currentStepId === "shipping" && (
               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
                 <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 space-y-5">
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">Shipping Address</h2>
@@ -588,8 +669,67 @@ export default function CheckoutPage() {
               </motion.div>
             )}
 
-            {/* Step 2 — Payment (inline PaymentElement for Stripe methods) */}
-            {step === 2 && (
+            {/* Step — Saved payment methods (only when customer has saved cards) */}
+            {currentStepId === "saved" && (
+              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 space-y-5">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Check size={20} /> Your Saved Payment Methods
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Pick one of your saved cards to pay instantly, or add a new payment method.
+                </p>
+                <div className="space-y-3">
+                  {savedPMs.map(pm => (
+                    <label
+                      key={pm.id}
+                      className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        selectedSavedPM === pm.id
+                          ? "border-primary bg-primary/10"
+                          : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="savedPM"
+                        value={pm.id}
+                        checked={selectedSavedPM === pm.id}
+                        onChange={() => setSelectedSavedPM(pm.id)}
+                        className="w-4 h-4 text-primary"
+                      />
+                      <CreditCard size={20} className="text-gray-400" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 dark:text-white capitalize">
+                          {pm.brand} ending in {pm.last4}
+                          {pm.isDefault && <span className="ml-2 text-[10px] px-2 py-0.5 bg-primary/10 text-primary rounded-md align-middle">Default</span>}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Expires {String(pm.expMonth).padStart(2, "0")}/{String(pm.expYear).slice(-2)}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+
+                <button
+                  onClick={handleSavedPMPay}
+                  disabled={!selectedSavedPM || savedPayLoading}
+                  className="w-full inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary/25"
+                >
+                  {savedPayLoading ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />}
+                  {savedPayLoading ? "Processing..." : `Pay ${formatPrice(total)}`}
+                </button>
+
+                <button
+                  onClick={() => setStep(paymentStepIndex)}
+                  className="w-full text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-primary transition-colors pt-2"
+                >
+                  + Add a new payment method
+                </button>
+              </motion.div>
+            )}
+
+            {/* Step — Payment (inline PaymentElement for Stripe methods) */}
+            {currentStepId === "payment" && (
               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 space-y-5">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                   <CreditCard size={20} /> Payment Method
@@ -708,7 +848,7 @@ export default function CheckoutPage() {
                 </button>
               ) : <div />}
 
-              {step < 2 ? (
+              {currentStepId === "info" || currentStepId === "shipping" ? (
                 <button
                   onClick={handleNext}
                   disabled={!canNext()}
@@ -716,20 +856,18 @@ export default function CheckoutPage() {
                 >
                   Continue <ArrowRight size={16} />
                 </button>
-              ) : (
-                // On payment step: Stripe inline form owns its own "Pay" button.
-                // For non-Stripe methods we show the "Place Order" button here.
-                !isStripeMethod && (
-                  <button
-                    onClick={handleNonCardSubmit}
-                    disabled={loading || loadingPaymentMethods}
-                    className="inline-flex items-center gap-2 px-8 py-3 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-lg shadow-primary/25"
-                  >
-                    {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingBag size={16} />}
-                    {loading ? "Processing..." : "Place Order"}
-                  </button>
-                )
-              )}
+              ) : currentStepId === "payment" && !isStripeMethod ? (
+                // Stripe inline form owns its own "Pay" button. For non-Stripe
+                // methods (COD / mobile money / bank transfer) we own it here.
+                <button
+                  onClick={handleNonCardSubmit}
+                  disabled={loading || loadingPaymentMethods}
+                  className="inline-flex items-center gap-2 px-8 py-3 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-lg shadow-primary/25"
+                >
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingBag size={16} />}
+                  {loading ? "Processing..." : "Place Order"}
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -777,7 +915,6 @@ export default function CheckoutPage() {
         </div>
       </div>
       </main>
-      <Footer />
       <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} storeSlug={getStoreSlug()} />
     </>
   );
