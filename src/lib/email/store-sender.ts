@@ -23,6 +23,13 @@ export interface StoreEmailParams {
   html: string;
   text?: string;
   replyTo?: string;
+  /**
+   * If true, the email MUST go through the store owner's configured provider.
+   * When the owner has no verified/enabled provider, the send is skipped
+   * instead of silently falling back to the platform transporter. Used for
+   * customer-facing emails where the From address must be the store's.
+   */
+  requireOwner?: boolean;
 }
 
 /**
@@ -45,6 +52,10 @@ export async function sendStoreEmail(params: StoreEmailParams): Promise<{ succes
   const usable = cfg && cfg.emailEnabled && cfg.emailVerified && cfg.emailProvider && cfg.emailProvider !== "NONE";
 
   if (!usable) {
+    if (params.requireOwner) {
+      console.warn(`[store-sender] Owner ${params.storeOwnerUserId} has no verified email provider — skipping customer-facing email "${params.subject}" (requireOwner=true)`);
+      return { success: false, error: "Store owner has no verified email provider configured", via: "owner" };
+    }
     const r = await sendPlatformEmail({
       to: params.to,
       subject: params.subject,
@@ -85,10 +96,12 @@ export async function sendStoreEmail(params: StoreEmailParams): Promise<{ succes
     return { success: true, messageId: info.messageId, via: "owner" };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Send failed";
-    console.error(`[store-sender] Owner provider failed (${cfg!.emailProvider}), falling back to platform:`, message);
-    // Fall back to platform so the email still lands — commerce emails are
-    // transactional, we must not lose them because the owner's provider
-    // glitched.
+    console.error(`[store-sender] Owner provider failed (${cfg!.emailProvider}):`, message);
+    if (params.requireOwner) {
+      // Customer-facing: do not fall back to platform so the From address
+      // never silently becomes flowsmartly.com on a buyer's receipt.
+      return { success: false, error: message, via: "owner" };
+    }
     const fallback = await sendPlatformEmail({
       to: params.to,
       subject: params.subject,

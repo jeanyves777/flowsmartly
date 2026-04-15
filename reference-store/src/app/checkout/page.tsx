@@ -547,23 +547,24 @@ export default function CheckoutPage() {
           </div>
         )}
 
-        {/* Stepper */}
-        <div className="flex items-center justify-center gap-0 mb-10">
+        {/* Stepper — compact on mobile (icons only), full labels on sm+ */}
+        <div className="flex items-center justify-center gap-0 mb-10 overflow-x-auto no-scrollbar">
           {STEPS.map((s, i) => (
-            <div key={s.id} className="flex items-center">
+            <div key={s.id} className="flex items-center flex-shrink-0">
               <button
                 onClick={() => i < step && setStep(i)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all ${
+                aria-label={s.label}
+                className={`flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold transition-all ${
                   i === step ? "bg-primary text-white shadow-lg shadow-primary/25" :
                   i < step ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 cursor-pointer" :
                   "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
                 }`}
               >
                 {i < step ? <Check size={16} /> : <s.icon size={16} />}
-                {s.label}
+                <span className={i === step ? "inline" : "hidden sm:inline"}>{s.label}</span>
               </button>
               {i < STEPS.length - 1 && (
-                <div className={`w-12 h-0.5 mx-1 ${i < step ? "bg-green-400" : "bg-gray-200 dark:bg-gray-700"}`} />
+                <div className={`w-4 sm:w-12 h-0.5 mx-1 ${i < step ? "bg-green-400" : "bg-gray-200 dark:bg-gray-700"}`} />
               )}
             </div>
           ))}

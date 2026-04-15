@@ -215,11 +215,14 @@ export async function sendOrderConfirmationEmail(params: {
     content,
   });
 
+  // Customer confirmation MUST come from the store's configured email
+  // provider so the buyer sees the store's From address, not flowsmartly's.
   return sendStoreEmail({
     storeOwnerUserId: params.storeOwnerUserId,
     to: params.to,
     subject: `Order #${params.orderNumber} confirmed · ${params.storeName}`,
     html,
+    requireOwner: true,
   });
 }
 
@@ -275,8 +278,10 @@ export async function sendNewOrderAlertEmail(params: {
     content,
   });
 
-  return sendStoreEmail({
-    storeOwnerUserId: params.storeOwnerUserId,
+  // Store-owner alerts go through OUR platform sender (FlowSmartly) so that
+  // owners always get the notification even before they've configured their
+  // own email provider, and so failures in their provider can't silence it.
+  return sendEmail({
     to: params.to,
     subject: `New order #${params.orderNumber} · ${formatCents(params.totalCents, params.currency)}`,
     html,
