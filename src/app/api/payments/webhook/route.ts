@@ -345,18 +345,12 @@ async function processWebhookEvent(event: Stripe.Event) {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       const piMetadata = paymentIntent.metadata ?? {};
 
-      // Handle store order payments
-      if (piMetadata.type === "store_order" && piMetadata.orderId) {
-        await prisma.order.updateMany({
-          where: { id: piMetadata.orderId },
-          data: {
-            paymentStatus: "paid",
-            status: "CONFIRMED",
-          },
-        });
-        console.log(
-          `[Stripe Webhook] Store order ${piMetadata.orderId} payment confirmed (${piMetadata.storeSlug})`
-        );
+      // Handle store order payments — promote PendingCheckout → Order,
+      // deduct inventory, fire branded emails (via store owner's SMTP) +
+      // in-app notifications + invoice record.
+      if (piMetadata.type === "store_order" || piMetadata.pendingCheckoutId || piMetadata.orderId) {
+        const { handleEcommercePaymentSucceeded } = await import("@/lib/stripe/ecommerce-webhook");
+        await handleEcommercePaymentSucceeded(paymentIntent);
         break;
       }
 
@@ -714,6 +708,37 @@ async function processWebhookEvent(event: Stripe.Event) {
       console.log(
         `[Stripe Webhook] Payment method added: ${cardBrand} ****${last4} for user ${siUserId}`
       );
+      break;
+    }
+
+    case "payment_intent.payment_failed":
+    case "payment_intent.canceled": {
+      const pi = event.data.object as Stripe.PaymentIntent;
+      const { handleEcommercePaymentFailedOrCanceled } = await import("@/lib/stripe/ecommerce-webhook");
+      await handleEcommercePaymentFailedOrCanceled(pi);
+      break;
+    }
+
+    case "charge.refunded": {
+      const charge = event.data.object as Stripe.Charge;
+      const { handleEcommerceRefund } = await import("@/lib/stripe/ecommerce-webhook");
+      await handleEcommerceRefund(charge);
+      break;
+    }
+
+    case "account.updated": {
+      const account = event.data.object as Stripe.Account;
+      const { handleEcommerceAccountUpdated } = await import("@/lib/stripe/ecommerce-webhook");
+      await handleEcommerceAccountUpdated(account);
+      break;
+    }
+
+    case "payout.paid":
+    case "payout.failed":
+    case "payout.canceled": {
+      const payout = event.data.object as Stripe.Payout;
+      const { handleEcommercePayoutEvent } = await import("@/lib/stripe/ecommerce-webhook");
+      await handleEcommercePayoutEvent(payout, event.account);
       break;
     }
 

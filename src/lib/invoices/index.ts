@@ -9,7 +9,7 @@ interface InvoiceItem {
 
 interface CreateInvoiceParams {
   userId: string;
-  type: "credit_purchase" | "subscription" | "sms_rental" | "domain_purchase" | "domain_renewal";
+  type: "credit_purchase" | "subscription" | "sms_rental" | "domain_purchase" | "domain_renewal" | "store_order";
   items: InvoiceItem[];
   totalCents: number;
   paymentMethod?: string; // e.g. "visa ****1234"
