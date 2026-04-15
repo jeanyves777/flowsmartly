@@ -5,6 +5,8 @@ import { generateOrderNumber } from "@/lib/constants/ecommerce";
 import { calculateShipping, type ShippingConfig } from "@/lib/store/cart";
 import { validateInventory } from "@/lib/store/inventory";
 import { createStorePaymentIntent } from "@/lib/stripe/store-checkout";
+import { stripe } from "@/lib/stripe";
+import { getStoreCustomer } from "@/lib/store/customer-auth";
 import {
   STRIPE_METHOD_CATALOG,
   toPaymentMethodTypes,
@@ -249,6 +251,43 @@ export async function POST(
     }));
     const addressForEmail = shippingAddress as Record<string, unknown>;
 
+    // Resolve (or lazily create) a Stripe Customer for the logged-in shopper
+    // so PaymentElement can offer saved cards and newly-entered cards are
+    // persisted for future orders on this store. Guest checkouts get no
+    // customer — nothing is saved.
+    let stripeCustomerId: string | undefined;
+    if (isCardPayment && stripe) {
+      try {
+        const loggedInCustomer = await getStoreCustomer(store.id);
+        if (loggedInCustomer && loggedInCustomer.email === customerEmail) {
+          if (loggedInCustomer.stripeCustomerId) {
+            // Verify still exists on Stripe
+            try {
+              const sc = await stripe.customers.retrieve(loggedInCustomer.stripeCustomerId);
+              if (!(sc as { deleted?: boolean }).deleted) {
+                stripeCustomerId = loggedInCustomer.stripeCustomerId;
+              }
+            } catch { /* falls through to create a new one */ }
+          }
+          if (!stripeCustomerId) {
+            const sc = await stripe.customers.create({
+              email: customerEmail,
+              name: customerName,
+              metadata: { customerId: loggedInCustomer.id, storeId: store.id },
+            });
+            await prisma.storeCustomer.update({
+              where: { id: loggedInCustomer.id },
+              data: { stripeCustomerId: sc.id },
+            });
+            stripeCustomerId = sc.id;
+          }
+        }
+      } catch (err) {
+        // Non-fatal — checkout still works as a guest, just no saved cards.
+        console.warn("[checkout] Stripe customer attach failed:", err);
+      }
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     // CARD PATH — PendingCheckout only, no Order yet
     // ──────────────────────────────────────────────────────────────────────
@@ -273,6 +312,7 @@ export async function POST(
           platformFeeCents,
         }),
         paymentMethodTypes: stripePaymentMethodTypes,
+        stripeCustomerId,
       });
 
       // 3 — Persist the cart snapshot against the PI we just created.

@@ -27,6 +27,12 @@ export async function createStorePaymentIntent(params: {
   stripeConnectAccountId?: string;
   platformFeeCents?: number;
   paymentMethodTypes?: string[];
+  /**
+   * Stripe Customer ID to attach to the PI. When set, PaymentElement will
+   * offer any saved cards belonging to this customer, and new cards entered
+   * at checkout are persisted on the customer for future orders.
+   */
+  stripeCustomerId?: string;
 }): Promise<{ clientSecret: string; paymentIntentId: string }> {
   if (!stripe) {
     throw new Error("Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.");
@@ -53,6 +59,12 @@ export async function createStorePaymentIntent(params: {
     ...(useConnect && {
       application_fee_amount: params.platformFeeCents,
       transfer_data: { destination: params.stripeConnectAccountId! },
+    }),
+    // Attach the logged-in shopper's Stripe customer so they can see/use
+    // saved cards and so any newly-entered card is persisted for reuse.
+    ...(params.stripeCustomerId && {
+      customer: params.stripeCustomerId,
+      setup_future_usage: "off_session" as const,
     }),
   };
 
