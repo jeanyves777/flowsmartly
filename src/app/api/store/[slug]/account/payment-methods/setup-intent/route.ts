@@ -59,7 +59,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    // Create SetupIntent attached to this Stripe Customer
+    // Create SetupIntent attached to this Stripe Customer. Cards saved this
+    // way flow through PaymentElement's Saved tab at checkout because our
+    // Customer Session declares payment_method_redisplay_filters that include
+    // every allow_redisplay state.
     const setupIntent = await stripe.setupIntents.create({
       customer: stripeCustomerId,
       payment_method_types: ["card"],

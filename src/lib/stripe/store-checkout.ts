@@ -103,6 +103,10 @@ export async function createStorePaymentIntent(params: {
               payment_method_remove: "enabled",
               payment_method_redisplay: "enabled",
               payment_method_save_usage: "off_session",
+              // Include cards whose `allow_redisplay` is still "unspecified"
+              // (legacy cards saved via SetupIntent without the flag). Without
+              // this filter Stripe hides them from the Saved tab by default.
+              payment_method_redisplay_filters: ["always", "limited", "unspecified"],
             },
           },
         },
