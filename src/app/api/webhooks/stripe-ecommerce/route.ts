@@ -279,6 +279,17 @@ async function extractPaymentDetails(paymentIntent: Stripe.PaymentIntent): Promi
     expand: ["payment_method_details"],
   });
 
+  // Promote the attached PaymentMethod so it appears in future Saved tabs.
+  // Cards auto-saved via setup_future_usage default to allow_redisplay=limited;
+  // SetupIntent-saved cards default to unspecified. Both can be hidden by
+  // PaymentElement. Flipping to "always" makes them reliably visible.
+  const pmId = typeof charge.payment_method === "string" ? charge.payment_method : null;
+  if (pmId) {
+    stripe.paymentMethods
+      .update(pmId, { allow_redisplay: "always" })
+      .catch((e) => console.warn("[webhook] allow_redisplay update failed for", pmId, ":", e?.message));
+  }
+
   const pmd = charge.payment_method_details;
   if (!pmd) return { last4: null, brand: null };
 
