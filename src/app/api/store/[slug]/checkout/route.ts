@@ -41,7 +41,10 @@ const checkoutSchema = z.object({
   customerPhone: z.string().optional(),
   shippingAddress: shippingAddressSchema,
   items: z.array(checkoutItemSchema).min(1, "At least one item is required"),
-  paymentMethod: z.enum(["card", "cod", "mobile_money", "bank_transfer"]),
+  paymentMethod: z.string().refine(
+    (v) => v === "card" || v === "cod" || v === "mobile_money" || v === "bank_transfer" || v.startsWith("stripe_"),
+    { message: "Invalid payment method" }
+  ),
   shippingMethod: z.enum(["standard", "local_pickup"]).optional(),
   // UTM Attribution
   utmSource: z.string().max(200).optional(),
@@ -84,7 +87,7 @@ export async function POST(
       customerPhone,
       shippingAddress,
       items,
-      paymentMethod,
+      paymentMethod: rawPaymentMethod,
       shippingMethod,
       utmSource,
       utmMedium,
@@ -92,6 +95,16 @@ export async function POST(
       utmContent,
       referrer,
     } = parsed.data;
+
+    // `stripe_klarna`, `stripe_affirm`, etc. collapse back to the card rail —
+    // they submit a PaymentIntent just like "card" does, only we restrict the
+    // PI's `payment_method_types` to the customer's chosen method. The value
+    // stored on the order stays "card" so downstream reporting is unchanged.
+    const chosenStripeMethodId: StripeMethodId | null =
+      rawPaymentMethod.startsWith("stripe_")
+        ? (rawPaymentMethod.slice("stripe_".length) as StripeMethodId)
+        : null;
+    const paymentMethod = chosenStripeMethodId ? "card" : rawPaymentMethod;
 
     // ── Fetch store ──
 
@@ -244,9 +257,15 @@ export async function POST(
           .filter((x): x is string => typeof x === "string")
           .filter((x) => validStripeIds.has(x as StripeMethodId)) as StripeMethodId[]
       : [];
-    const stripePaymentMethodTypes = stripeAllowlist.length > 0
-      ? toPaymentMethodTypes(stripeAllowlist)
-      : undefined;
+    // When the customer picked a specific Stripe method (e.g. "Klarna") upfront,
+    // restrict the PaymentIntent to that single rail. Otherwise fall back to
+    // the owner's allowlist, and if that's empty let automatic_payment_methods
+    // surface every method active on the Connect account.
+    const stripePaymentMethodTypes: string[] | undefined = chosenStripeMethodId
+      ? toPaymentMethodTypes([chosenStripeMethodId])
+      : stripeAllowlist.length > 0
+        ? toPaymentMethodTypes(stripeAllowlist)
+        : undefined;
 
     const shippingCents = calculateShipping(
       subtotalCents,

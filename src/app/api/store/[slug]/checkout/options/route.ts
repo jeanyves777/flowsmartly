@@ -97,27 +97,44 @@ export async function GET(
       label: string;
       detail: string | null;
       provider: string | null;
+      stripeMethodId?: string;
       stripeMethods?: Array<{ id: string; label: string; description: string }>;
     }> = [];
 
     if (stripeMethodsForUI.length > 0) {
-      const hasCard = stripeMethodsForUI.some((m) => m.id === "card");
-      const primaryLabel = hasCard ? "Credit / Debit Card" : stripeMethodsForUI[0].label;
-      const detail = stripeMethodsForUI.length > 1
-        ? stripeMethodsForUI.map((m) => m.label).join(" · ")
-        : stripeMethodsForUI[0].description;
+      // Wallets ride on card_payments — group them as chips under the Card row
+      // instead of duplicating the rail.
+      const WALLET_IDS = new Set(["card", "apple_pay", "google_pay", "link"]);
+      const cardBundle = stripeMethodsForUI.filter((m) => WALLET_IDS.has(m.id));
+      const standaloneMethods = stripeMethodsForUI.filter((m) => !WALLET_IDS.has(m.id));
 
-      paymentMethods.push({
-        method: "card",
-        label: primaryLabel,
-        detail,
-        provider: "stripe",
-        stripeMethods: stripeMethodsForUI.map((m) => ({
-          id: m.id,
+      if (cardBundle.length > 0) {
+        const walletChips = cardBundle
+          .filter((m) => m.id !== "card")
+          .map((m) => ({ id: m.id, label: m.label, description: m.description }));
+        paymentMethods.push({
+          method: "card",  // backend enum — card rail covers card + wallets
+          label: "Credit / Debit Card",
+          detail: "Visa, Mastercard, Amex, Discover",
+          provider: "stripe",
+          stripeMethodId: "card",
+          stripeMethods: walletChips.length > 0 ? walletChips : undefined,
+        });
+      }
+
+      // Every non-wallet Stripe method gets its OWN radio row with a unique
+      // method key (e.g. `stripe_klarna`) so deployed store UIs don't collide
+      // them on React keys or selection state. The backend checkout route
+      // treats any `stripe_*` value as the card/PaymentIntent path.
+      for (const m of standaloneMethods) {
+        paymentMethods.push({
+          method: `stripe_${m.id}`,
           label: m.label,
-          description: m.description,
-        })),
-      });
+          detail: m.description,
+          provider: "stripe",
+          stripeMethodId: m.id,
+        });
+      }
     }
 
     for (const row of nonStripeRows) {
