@@ -12,6 +12,7 @@ import {
   Check,
   Image as ImageIcon,
   Upload,
+  Sparkles,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -47,6 +48,9 @@ export default function CategoriesPage() {
   const [formParentId, setFormParentId] = useState("");
   const [saving, setSaving] = useState(false);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
+
+  // AI image generation
+  const [aiGenerating, setAiGenerating] = useState(false);
 
   // Delete confirmation
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -208,6 +212,37 @@ export default function CategoriesPage() {
       toast({ title: "Failed to delete category", variant: "destructive" });
     } finally {
       setDeleting(false);
+    }
+  };
+
+  // ── AI Generate Category Image ──
+
+  const handleAIGenerateImage = async () => {
+    if (!formName.trim()) {
+      toast({ title: "Enter a category name first", variant: "destructive" });
+      return;
+    }
+    setAiGenerating(true);
+    try {
+      const res = await fetch("/api/ecommerce/ai/product-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productName: `${formName} category banner — a clean, professional product category image representing ${formName}${formDescription ? `: ${formDescription}` : ""}`,
+          style: "studio",
+        }),
+      });
+      const json = await res.json();
+      if (json.success && json.data?.imageUrl) {
+        setFormImageUrl(json.data.imageUrl);
+        toast({ title: "Category image generated!" });
+      } else {
+        toast({ title: json.error || "Failed to generate image", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to generate image", variant: "destructive" });
+    } finally {
+      setAiGenerating(false);
     }
   };
 
@@ -407,17 +442,32 @@ export default function CategoriesPage() {
                     type="text"
                     value={formImageUrl}
                     onChange={(e) => setFormImageUrl(e.target.value)}
-                    placeholder="Image URL or use media library →"
+                    placeholder="Image URL or use buttons →"
                     className="flex-1 px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => setShowMediaPicker(true)}
                     className="px-3 py-2 border border-border rounded-lg hover:bg-muted text-sm flex items-center gap-1"
+                    title="Media Library"
                   >
                     <Upload className="w-3.5 h-3.5" />
                   </button>
+                  <button
+                    type="button"
+                    onClick={handleAIGenerateImage}
+                    disabled={aiGenerating || !formName.trim()}
+                    className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm flex items-center gap-1 hover:bg-primary/90 disabled:opacity-50"
+                    title="Generate with AI"
+                  >
+                    {aiGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  </button>
                 </div>
+                {aiGenerating && (
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 animate-pulse" /> Generating category image...
+                  </p>
+                )}
               </div>
 
               <div>
