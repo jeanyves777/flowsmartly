@@ -7,6 +7,11 @@ import { validateInventory, deductInventory } from "@/lib/store/inventory";
 import { createStorePaymentIntent } from "@/lib/stripe/store-checkout";
 import { stripe } from "@/lib/stripe";
 import {
+  STRIPE_METHOD_CATALOG,
+  toPaymentMethodTypes,
+  type StripeMethodId,
+} from "@/lib/constants/stripe-methods";
+import {
   notifyOrderConfirmation,
   notifyNewOrder,
 } from "@/lib/notifications/commerce";
@@ -230,6 +235,19 @@ export async function POST(
     const shippingConfig: ShippingConfig | null =
       storeSettings.shipping || null;
 
+    // Owner-selected Stripe methods (from Settings → Payments). When absent,
+    // PaymentIntent falls back to automatic_payment_methods so every method
+    // active on the Connect account is offered by PaymentElement.
+    const validStripeIds = new Set(STRIPE_METHOD_CATALOG.map((m) => m.id));
+    const stripeAllowlist: StripeMethodId[] = Array.isArray(storeSettings.stripeMethods)
+      ? (storeSettings.stripeMethods as unknown[])
+          .filter((x): x is string => typeof x === "string")
+          .filter((x) => validStripeIds.has(x as StripeMethodId)) as StripeMethodId[]
+      : [];
+    const stripePaymentMethodTypes = stripeAllowlist.length > 0
+      ? toPaymentMethodTypes(stripeAllowlist)
+      : undefined;
+
     const shippingCents = calculateShipping(
       subtotalCents,
       shippingConfig,
@@ -334,6 +352,7 @@ export async function POST(
             stripeConnectAccountId: store.stripeConnectAccountId!,
             platformFeeCents: existingOrder.platformFeeCents,
           }),
+          paymentMethodTypes: stripePaymentMethodTypes,
         });
 
         await prisma.order.update({
@@ -545,6 +564,7 @@ export async function POST(
           stripeConnectAccountId: store.stripeConnectAccountId!,
           platformFeeCents,
         }),
+        paymentMethodTypes: stripePaymentMethodTypes,
       });
 
       // Update order with paymentIntentId for webhook matching

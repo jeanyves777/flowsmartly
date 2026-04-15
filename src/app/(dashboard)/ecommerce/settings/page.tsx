@@ -32,7 +32,6 @@ import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-
 import PixelSettings from "@/components/ecommerce/pixel-settings";
 import {
   PRODUCT_CATEGORIES,
-  PAYMENT_METHODS_BY_REGION,
   ECOM_SUBSCRIPTION_PRICE_CENTS,
 } from "@/lib/constants/ecommerce";
 import {
@@ -80,6 +79,22 @@ interface PaymentMethod {
   isActive: boolean;
 }
 
+interface StripeCapabilityMethod {
+  id: string;
+  label: string;
+  description: string;
+  available: boolean;
+  capabilityStatus?: string;
+  reason?: string;
+}
+
+interface StripeCapabilitiesState {
+  connected: boolean;
+  chargesEnabled: boolean;
+  methods: StripeCapabilityMethod[];
+  allowlist: string[];
+}
+
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: "general", label: "General", icon: Settings },
   { id: "payments", label: "Payments", icon: CreditCard },
@@ -114,6 +129,13 @@ export default function EcommerceSettingsPage() {
   const searchParams = useSearchParams();
   const [store, setStore] = useState<Store | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [stripeCaps, setStripeCaps] = useState<StripeCapabilitiesState>({
+    connected: false,
+    chargesEnabled: false,
+    methods: [],
+    allowlist: [],
+  });
+  const [savingStripeMethods, setSavingStripeMethods] = useState(false);
   const tabParam = searchParams.get("tab") as TabId | null;
   const [activeTab, setActiveTab] = useState<TabId>(tabParam && ["general", "payments", "shipping", "branding", "domain", "pixels", "subscription"].includes(tabParam) ? tabParam : "general");
   const [loading, setLoading] = useState(true);
@@ -374,13 +396,15 @@ export default function EcommerceSettingsPage() {
 
   const loadPaymentMethods = useCallback(async () => {
     try {
-      const res = await fetch("/api/ecommerce/store");
+      const res = await fetch("/api/ecommerce/stripe-capabilities");
+      if (!res.ok) return;
       const data = await res.json();
-      if (data.success && data.data?.store) {
-        // Payment methods are fetched separately, but since we don't have a dedicated endpoint,
-        // we'll handle it via the settings endpoint or show region-available methods
-        // For now just set from store data
-      }
+      setStripeCaps({
+        connected: !!data.connected,
+        chargesEnabled: !!data.chargesEnabled,
+        methods: Array.isArray(data.methods) ? data.methods : [],
+        allowlist: Array.isArray(data.allowlist) ? data.allowlist : [],
+      });
     } catch {}
   }, []);
 
@@ -525,29 +549,36 @@ export default function EcommerceSettingsPage() {
     }
   }
 
-  async function handleTogglePaymentMethod(methodType: string, provider: string | null, currentActive: boolean) {
-    if (!store) return;
+  async function handleToggleStripeMethod(id: string, enable: boolean) {
+    // Current allowlist semantics: empty array = "allow everything active on
+    // the Connect account". As soon as the owner touches a toggle we switch
+    // to explicit mode so their choice persists.
+    const activeIds = stripeCaps.methods.filter((m) => m.available).map((m) => m.id);
+    const current = stripeCaps.allowlist.length > 0
+      ? stripeCaps.allowlist
+      : activeIds;
+    const next = enable
+      ? Array.from(new Set([...current, id]))
+      : current.filter((x) => x !== id);
+
+    setStripeCaps((prev) => ({ ...prev, allowlist: next }));
+    setSavingStripeMethods(true);
     try {
-      const res = await fetch("/api/ecommerce/store/settings", {
+      const res = await fetch("/api/ecommerce/stripe-capabilities", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          settings: {
-            ...store.settings,
-            paymentMethods: {
-              ...((store.settings as Record<string, unknown>).paymentMethods as Record<string, boolean> || {}),
-              [`${methodType}_${provider || "none"}`]: !currentActive,
-            },
-          },
-        }),
+        body: JSON.stringify({ enabled: next }),
       });
       const data = await res.json();
-      if (data.success) {
-        setStore(data.data.store);
-        setSuccessMessage("Payment settings updated.");
+      if (!res.ok || !data.success) {
+        setError(data.error || "Failed to update payment methods.");
+      } else {
+        setSuccessMessage("Payment methods updated.");
       }
     } catch {
-      setError("Failed to update payment method.");
+      setError("Failed to update payment methods.");
+    } finally {
+      setSavingStripeMethods(false);
     }
   }
 
@@ -592,12 +623,6 @@ export default function EcommerceSettingsPage() {
       </div>
     );
   }
-
-  const regionPaymentMethods = store.region
-    ? PAYMENT_METHODS_BY_REGION[store.region] || []
-    : PAYMENT_METHODS_BY_REGION["north_america"] || [];
-
-  const pmSettings = ((store.settings as Record<string, unknown>).paymentMethods || {}) as Record<string, boolean>;
 
   return (
     <div className="space-y-6">
@@ -872,52 +897,76 @@ export default function EcommerceSettingsPage() {
             {/* Divider */}
             <div className="border-t border-border" />
 
-            {/* Payment Methods */}
+            {/* Stripe payment methods — live capabilities */}
             <div>
-              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-3">
-                Payment Methods
-              </h3>
-              <p className="text-sm text-muted-foreground mb-3">
-                Payment methods available for your region{store.region ? ` (${store.region.replace(/_/g, " ")})` : ""}. Toggle methods on or off.
-              </p>
-              <div className="space-y-3">
-                {regionPaymentMethods.map((pm) => {
-                  const key = `${pm.methodType}_${pm.provider || "none"}`;
-                  const isActive = pmSettings[key] !== false; // Default active
-                  return (
-                    <div
-                      key={key}
-                      className="flex items-center justify-between p-4 rounded-lg border"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-muted">
-                          <CreditCard className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{pm.label}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {pm.provider ? pm.provider.replace(/_/g, " ") : "Manual"}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleTogglePaymentMethod(pm.methodType, pm.provider, isActive)}
-                        className={cn(
-                          "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                          isActive ? "bg-brand-500" : "bg-muted"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "inline-block h-4 w-4 rounded-full bg-white transition-transform",
-                            isActive ? "translate-x-6" : "translate-x-1"
-                          )}
-                        />
-                      </button>
-                    </div>
-                  );
-                })}
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+                  Payment Methods
+                </h3>
+                {savingStripeMethods && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Saving
+                  </span>
+                )}
               </div>
+              {!stripeCaps.connected ? (
+                <p className="text-sm text-muted-foreground">
+                  Connect your bank account above to see the methods Stripe can offer your customers.
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    These methods are available on your Stripe account. Toggle which ones to offer at checkout — untoggled methods are hidden from customers. Apple Pay, Google Pay and Link ride on your Card capability.
+                  </p>
+                  <div className="space-y-3">
+                    {stripeCaps.methods.map((m) => {
+                      const inAllowlist = stripeCaps.allowlist.length === 0
+                        ? m.available
+                        : stripeCaps.allowlist.includes(m.id);
+                      const canToggle = m.available;
+                      return (
+                        <div
+                          key={m.id}
+                          className={cn(
+                            "flex items-center justify-between p-4 rounded-lg border",
+                            !m.available && "opacity-60"
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-muted">
+                              <CreditCard className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{m.label}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {m.available
+                                  ? m.description
+                                  : m.reason || `Capability ${m.capabilityStatus || "unavailable"} on your Stripe account`}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            disabled={!canToggle || savingStripeMethods}
+                            onClick={() => handleToggleStripeMethod(m.id, !inAllowlist)}
+                            className={cn(
+                              "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                              inAllowlist && canToggle ? "bg-brand-500" : "bg-muted",
+                              (!canToggle || savingStripeMethods) && "cursor-not-allowed"
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "inline-block h-4 w-4 rounded-full bg-white transition-transform",
+                                inAllowlist && canToggle ? "translate-x-6" : "translate-x-1"
+                              )}
+                            />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

@@ -218,7 +218,15 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
     - 3-step checkout with animated stepper (Info → Shipping → Payment):
       Step 0 (Info): contact form — Full Name, Email, Phone (pre-fill from window.__storeCustomer)
       Step 1 (Shipping): address form (street, city, state, zip, country) + shipping method radio buttons from shippingMethods[] in data.ts
-      Step 2 (Payment): static info panel "Secure checkout powered by Stripe" with card logos
+      Step 2 (Payment):
+        MANDATORY — fetch GET /api/checkout/options (proxied through the gateway to /api/store/{slug}/checkout/options).
+        Render ONE radio per returned entry in data.paymentMethods. Each entry has { method, label, detail, provider, stripeMethods? }.
+        When an entry's provider === "stripe" and stripeMethods is an array, render the sub-methods as a row of small
+        chips/icons under the label (e.g. "Card · Apple Pay · Klarna · Link · Cash App Pay") so customers see every
+        method their store accepts. DO NOT hardcode "Credit / Debit Card" with the old "Visa · Mastercard · Amex"
+        subtitle — trust the API response. DO NOT hide or filter any method the API returns. DO NOT invent methods
+        the API did not return.
+        Default selection: the first entry in data.paymentMethods.
     - Submit handler (on "Place Order" in Step 2):
       POST to /api/checkout with EXACTLY these fields:
       {
@@ -228,7 +236,7 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
         customerPhone: form.phone || undefined,
         shippingAddress: { street, city, state, zip, country },
         shippingMethod: selectedMethod?.name?.toLowerCase().includes("pickup") ? "local_pickup" : "standard",
-        paymentMethod: "card"
+        paymentMethod: selectedPayment.method  // the radio value — "card" for Stripe, "cod" / "mobile_money" / "bank_transfer" for others
       }
       If response has clientSecret: window.location.href = "/checkout/confirm?secret=" + clientSecret + "&order=" + orderId + "&amount=" + totalCents
       If response has orderId only (non-card methods): clearCart(), show inline order success screen
@@ -445,9 +453,12 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - These are legally required for e-commerce stores
 
 ### Layout Integration:
-- layout.tsx imports: Header, Footer, MobileBottomNav, CartDrawer, Analytics, CookieConsent
+- layout.tsx MUST import and use RootLayoutClient to wrap {children}. RootLayoutClient is a "use client" component that renders Header, Footer, MobileBottomNav, CartDrawer, Analytics, CookieConsent — and holds the cart open/close state + open-cart event listener.
+- layout.tsx structure: <ThemeProvider><AccountModalProvider><RootLayoutClient>{children}</RootLayoutClient></AccountModalProvider></ThemeProvider>
+- NEVER render Header, Footer, MobileBottomNav, or CartDrawer directly in layout.tsx — layout.tsx is a server component and cannot have useState/useEffect. All interactive UI must be in RootLayoutClient.
+- CRITICAL: RootLayoutClient MUST have useEffect that listens for "open-cart" CustomEvent and sets cart drawer open. Without this, MobileBottomNav cart button does nothing.
 - Main content pb-16 md:pb-0 for MobileBottomNav space
-- CartDrawer shared between Header cart icon and MobileBottomNav cart button
+- CartDrawer shared between Header cart icon and MobileBottomNav cart button via the same state in RootLayoutClient
 - **CRITICAL**: \`<html>\` tag MUST be \`<html lang="en" suppressHydrationWarning>\` — NO \`className="dark"\`. Adding \`className="dark"\` hardcodes dark mode and breaks the light/dark toggle permanently.
 
 ### Mobile UX:
@@ -535,6 +546,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - Empty state: ShoppingBag icon + "No products in cart" message + "Continue Shopping" link
 - Filled state: list of items with qty +/-, remove button, subtotal
 - "Checkout" button at bottom → /checkout
+- CRITICAL — MOBILE PADDING: The CartDrawer footer (subtotal + checkout button) MUST have pb-20 md:pb-4 (or md:pb-6) so the checkout button is NOT hidden behind the fixed MobileBottomNav on mobile. Without this padding, the checkout button is unreachable on phones.
 
 **Account Modal (CRITICAL — slide-in drawer from right):**
 - DO NOT use a full /account/login page as the entry point
@@ -573,8 +585,22 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - Items: Shop (HomeIcon → /products), Filters (SlidersHorizontal → triggers filter drawer), Wishlist (Heart), Cart (ShoppingBag with badge), My Account (User)
 - Active state: primary color icon + label
 - "Filters" triggers filterDrawerOpen state (shared via context or prop)
-- "Cart" triggers cartDrawerOpen
-- "My Account" calls openAccountModal() if not logged in, else /account
+- "Cart" dispatches CustomEvent("toggle-cart") — TOGGLE behavior, not just open
+- "My Account" dispatches CustomEvent("toggle-account") — TOGGLE behavior, not just open
+- CRITICAL — TOGGLE + MUTUAL EXCLUSION: Cart and Account buttons MUST be toggles (click opens, click again closes). When one opens, the other MUST close first. Implementation:
+  - MobileBottomNav dispatches "toggle-cart" / "toggle-account" CustomEvents
+  - RootLayoutClient listens for "toggle-cart": toggles cart state, dispatches "close-account" when opening
+  - AccountModalProvider listens for "toggle-account": toggles account state, dispatches "close-cart" when opening
+  - Both also listen for "open-cart"/"close-cart" and "open-account"/"close-account" for programmatic control (e.g. Header cart icon uses "open-cart")
+- CRITICAL — EVENT-BASED COMMUNICATION: MobileBottomNav MUST use window.dispatchEvent(new CustomEvent(...)) — NOT useCart() or direct state. MobileBottomNav renders OUTSIDE provider wrappers, so context hooks return no-ops.
+- CRITICAL — CartDrawer MUST be rendered inside RootLayoutClient (inside providers) so the drawer is available on ALL pages including account pages. Never omit CartDrawer from the layout.
+
+### Account Pages (CRITICAL — mobile-first):
+- NEVER use HTML <table> elements for order lists — tables break on mobile screens
+- ALWAYS use stacked card layout for orders: each order is a tappable/clickable card with order number, status badge, date, and total
+- Example pattern: rounded-lg border p-4 cards in a space-y-3 container
+- Account dashboard recent orders + full orders list page MUST both use cards, not tables
+- Main content area MUST have pb-16 md:pb-0 to avoid content hidden behind the fixed MobileBottomNav
 
 ### Product Detail Page (MANDATORY features):
 - Wishlist heart button on product image (top-right, always visible)

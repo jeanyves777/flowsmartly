@@ -46,6 +46,7 @@ interface PaymentMethod {
   label: string;
   detail: string | null;
   provider: string | null;
+  stripeMethods?: Array<{ id: string; label: string; description: string }>;
 }
 
 interface CartIssue {
@@ -503,14 +504,27 @@ export default function CheckoutPage() {
                         <span className="text-gray-400">
                           {PAYMENT_ICONS[pm.method] ?? <CreditCard size={18} />}
                         </span>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <p className="font-semibold text-gray-900 dark:text-white">{pm.label}</p>
                           {pm.detail && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{pm.detail}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{pm.detail}</p>
+                          )}
+                          {pm.provider === "stripe" && pm.stripeMethods && pm.stripeMethods.length > 1 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {pm.stripeMethods.map((sm) => (
+                                <span
+                                  key={sm.id}
+                                  title={sm.description}
+                                  className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
+                                >
+                                  {sm.label}
+                                </span>
+                              ))}
+                            </div>
                           )}
                         </div>
                         {pm.method === "card" && (
-                          <div className="flex items-center gap-1 text-xs text-gray-400">
+                          <div className="flex items-center gap-1 text-xs text-gray-400 flex-shrink-0">
                             <Lock size={11} /> Secure
                           </div>
                         )}
