@@ -1,16 +1,132 @@
 /**
  * Commerce Email Templates for FlowShop
- * Order confirmation, new order alerts, shipping updates, delivery confirmation.
+ *
+ * All customer-facing emails are routed through the store owner's configured
+ * email provider (SMTP / SendGrid / Mailgun / SES / Resend) via
+ * sendStoreEmail(), so they show the store's branded From address rather than
+ * a generic platform sender. They also include store branding (logo / colors
+ * / link back to the storefront) and product thumbnails.
  */
 
-import { sendEmail } from "./index";
-import { baseTemplate } from "./index";
+import { sendEmail, baseTemplate } from "./index";
+import { sendStoreEmail } from "./store-sender";
 import { formatPrice as formatCents } from "@/lib/store/currency";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function escapeHtml(raw: string): string {
+  return raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function storefrontUrl(storeSlug: string, customDomain?: string | null): string {
+  if (customDomain) return `https://${customDomain}`;
+  return `${APP_URL}/store/${storeSlug}`;
+}
+
 /**
- * Send welcome email to a new store customer after registration
+ * Branded email shell — logo + title + content + footer. Uses inline styles
+ * only; bulletproof in Gmail/Outlook. `accent` defaults to indigo, override
+ * with the store's theme colour.
+ */
+function storeBrandedTemplate(opts: {
+  storeName: string;
+  logoUrl?: string | null;
+  accent?: string;
+  storefrontHref: string;
+  preheader?: string;
+  content: string; // Inner HTML
+}): string {
+  const accent = opts.accent || "#6366f1";
+  const logo = opts.logoUrl
+    ? `<img src="${opts.logoUrl}" alt="${escapeHtml(opts.storeName)}" style="max-height:40px;max-width:160px;display:block;margin:0 auto 8px;" />`
+    : `<div style="font-size:22px;font-weight:800;color:${accent};letter-spacing:-0.02em;margin-bottom:8px;">${escapeHtml(opts.storeName)}</div>`;
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>${escapeHtml(opts.storeName)}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#18181b;">
+  ${opts.preheader ? `<div style="display:none;max-height:0;overflow:hidden;">${escapeHtml(opts.preheader)}</div>` : ""}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:24px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.04);">
+        <tr><td style="padding:28px 32px 20px;text-align:center;border-bottom:1px solid #f4f4f5;">
+          <a href="${opts.storefrontHref}" style="text-decoration:none;color:inherit;">${logo}</a>
+        </td></tr>
+        <tr><td style="padding:28px 32px;line-height:1.6;font-size:15px;color:#18181b;">
+          ${opts.content}
+        </td></tr>
+        <tr><td style="padding:20px 32px 28px;text-align:center;border-top:1px solid #f4f4f5;color:#a1a1aa;font-size:12px;">
+          <a href="${opts.storefrontHref}" style="color:${accent};text-decoration:none;font-weight:600;">Visit ${escapeHtml(opts.storeName)} →</a>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+function itemsTableHtml(
+  items: Array<{ name: string; quantity: number; priceCents: number; imageUrl?: string | null }>,
+  currency: string
+): string {
+  return items
+    .map((i) => {
+      const thumb = i.imageUrl
+        ? `<img src="${i.imageUrl}" alt="" style="width:56px;height:56px;border-radius:8px;object-fit:cover;background:#f4f4f5;display:block;" />`
+        : `<div style="width:56px;height:56px;border-radius:8px;background:#f4f4f5;"></div>`;
+      return `
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;vertical-align:middle;width:56px;">${thumb}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #f4f4f5;vertical-align:middle;">
+            <div style="font-weight:600;color:#18181b;">${escapeHtml(i.name)}</div>
+            <div style="color:#71717a;font-size:13px;margin-top:2px;">Qty ${i.quantity}</div>
+          </td>
+          <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;vertical-align:middle;text-align:right;font-weight:600;white-space:nowrap;">
+            ${formatCents(i.priceCents * i.quantity, currency)}
+          </td>
+        </tr>`;
+    })
+    .join("");
+}
+
+function addressHtml(addr: {
+  name?: string; line1?: string; street?: string; line2?: string;
+  city?: string; state?: string; zip?: string; country?: string;
+} | null | undefined): string {
+  if (!addr) return "";
+  const line1 = addr.line1 || addr.street || "";
+  const parts: string[] = [];
+  if (addr.name) parts.push(escapeHtml(addr.name));
+  if (line1) parts.push(escapeHtml(line1));
+  if (addr.line2) parts.push(escapeHtml(addr.line2));
+  const cityLine = [addr.city, addr.state, addr.zip].filter(Boolean).join(", ");
+  if (cityLine) parts.push(escapeHtml(cityLine));
+  if (addr.country) parts.push(escapeHtml(addr.country));
+  if (parts.length === 0) return "";
+  return `
+    <div style="margin:16px 0;padding:14px 16px;background:#fafafa;border-radius:10px;border:1px solid #f4f4f5;">
+      <div style="font-size:12px;color:#71717a;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;font-weight:600;">Shipping to</div>
+      <div style="color:#18181b;line-height:1.5;font-size:14px;">${parts.join("<br/>")}</div>
+    </div>`;
+}
+
+// ─── Email Functions ─────────────────────────────────────────────────────────
+
+/**
+ * Welcome email for a new store customer after registration.
+ * Sent via platform transporter — the customer may not have any orders yet
+ * and the owner's SMTP config may not be set up during early store launch.
  */
 export async function sendStoreWelcomeEmail(params: {
   to: string;
@@ -18,101 +134,97 @@ export async function sendStoreWelcomeEmail(params: {
   storeName: string;
   storeSlug: string;
 }) {
-  const html = baseTemplate(
-    `
-    <h2>Welcome to ${params.storeName}!</h2>
-    <p>Hi ${params.customerName}, your account has been created successfully.</p>
-    <div class="highlight">
-      You can now track orders, save favorites, and check out faster.
-    </div>
-    <p style="margin-top:16px;">Start exploring the store and enjoy your shopping experience!</p>
-    <a href="${APP_URL}/store/${params.storeSlug}" class="button">Shop Now</a>
+  const href = storefrontUrl(params.storeSlug);
+  const html = storeBrandedTemplate({
+    storeName: params.storeName,
+    storefrontHref: href,
+    content: `
+      <h2 style="margin:0 0 8px;font-size:22px;">Welcome, ${escapeHtml(params.customerName)}!</h2>
+      <p style="margin:0 0 20px;color:#52525b;">Your ${escapeHtml(params.storeName)} account is ready. Track orders, save favourites, and check out faster.</p>
+      <a href="${href}" style="display:inline-block;padding:12px 24px;background:#6366f1;color:#ffffff;border-radius:999px;font-weight:600;text-decoration:none;">Shop now</a>
     `,
-    `Welcome to ${params.storeName}!`
-  );
-
-  return sendEmail({
-    to: params.to,
-    subject: `Welcome to ${params.storeName}!`,
-    html,
   });
+  return sendEmail({ to: params.to, subject: `Welcome to ${params.storeName}!`, html });
 }
 
 /**
- * Send order confirmation email to the buyer
+ * Order confirmation — sent to the buyer after payment succeeds (card) or
+ * order placement (COD / bank transfer / mobile money).
  */
 export async function sendOrderConfirmationEmail(params: {
   to: string;
   customerName: string;
   orderNumber: string;
-  items: Array<{ name: string; quantity: number; priceCents: number }>;
+  items: Array<{ name: string; quantity: number; priceCents: number; imageUrl?: string | null }>;
   subtotalCents: number;
   shippingCents: number;
   taxCents: number;
   totalCents: number;
   currency: string;
   paymentMethod: string;
+  paymentLast4?: string | null;
+  paymentBrand?: string | null;
+  shippingAddress?: Record<string, unknown> | null;
   storeSlug: string;
   storeName: string;
+  storeOwnerUserId: string;
+  storeLogoUrl?: string | null;
+  storeAccentColor?: string | null;
+  storeCustomDomain?: string | null;
 }) {
-  const itemsHtml = params.items
-    .map(
-      (i) => `
-      <tr>
-        <td style="padding:8px 0;border-bottom:1px solid #e4e4e7;">${i.name}</td>
-        <td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:center;">x${i.quantity}</td>
-        <td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right;">${formatCents(i.priceCents * i.quantity, params.currency)}</td>
-      </tr>`
-    )
-    .join("");
+  const href = storefrontUrl(params.storeSlug, params.storeCustomDomain);
 
-  const paymentInfo =
-    params.paymentMethod === "cod"
-      ? `<div class="warning"><strong>Cash on Delivery</strong> — Please have ${formatCents(params.totalCents, params.currency)} ready when your order arrives.</div>`
-      : params.paymentMethod === "card"
-        ? `<p style="color:#10b981;font-weight:600;">Payment confirmed</p>`
-        : `<p>Payment method: ${params.paymentMethod.replace(/_/g, " ")}</p>`;
+  const paymentLine = (() => {
+    if (params.paymentMethod === "cod") {
+      return `<div style="margin:16px 0;padding:12px 14px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:14px;"><strong>Cash on Delivery</strong> — please have ${formatCents(params.totalCents, params.currency)} ready.</div>`;
+    }
+    if (params.paymentMethod === "card" || params.paymentLast4) {
+      const brand = params.paymentBrand ? params.paymentBrand.charAt(0).toUpperCase() + params.paymentBrand.slice(1) : "Card";
+      const last4 = params.paymentLast4 ? ` ending in ${escapeHtml(params.paymentLast4)}` : "";
+      return `<p style="margin:12px 0;color:#15803d;font-weight:600;">✓ Paid with ${escapeHtml(brand)}${last4}</p>`;
+    }
+    return `<p style="margin:12px 0;color:#52525b;">Payment method: ${escapeHtml(params.paymentMethod.replace(/_/g, " "))}</p>`;
+  })();
 
-  const html = baseTemplate(
-    `
-    <h2>Order Confirmed!</h2>
-    <p>Thank you for your order, ${params.customerName}!</p>
-    <div class="highlight">
-      <strong>Order #${params.orderNumber}</strong>
+  const content = `
+    <h2 style="margin:0 0 8px;font-size:22px;">Thank you, ${escapeHtml(params.customerName)}!</h2>
+    <p style="margin:0 0 16px;color:#52525b;">Your order has been confirmed. We'll email you again when it ships.</p>
+    <div style="margin:16px 0;padding:14px 16px;border-radius:10px;background:#eef2ff;color:#3730a3;font-weight:700;">
+      Order #${escapeHtml(params.orderNumber)}
     </div>
-    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-      <thead>
-        <tr style="border-bottom:2px solid #e4e4e7;">
-          <th style="padding:8px 0;text-align:left;font-size:13px;color:#71717a;">Item</th>
-          <th style="padding:8px 0;text-align:center;font-size:13px;color:#71717a;">Qty</th>
-          <th style="padding:8px 0;text-align:right;font-size:13px;color:#71717a;">Total</th>
-        </tr>
-      </thead>
-      <tbody>${itemsHtml}</tbody>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:12px 0;">
+      ${itemsTableHtml(params.items, params.currency)}
     </table>
-    <div class="stats-box">
-      <table style="width:100%;">
-        <tr><td style="padding:6px 0;color:#71717a;">Subtotal</td><td style="padding:6px 0;text-align:right;">${formatCents(params.subtotalCents, params.currency)}</td></tr>
-        <tr><td style="padding:6px 0;color:#71717a;">Shipping</td><td style="padding:6px 0;text-align:right;">${formatCents(params.shippingCents, params.currency)}</td></tr>
-        ${params.taxCents > 0 ? `<tr><td style="padding:6px 0;color:#71717a;">Tax</td><td style="padding:6px 0;text-align:right;">${formatCents(params.taxCents, params.currency)}</td></tr>` : ""}
-        <tr style="border-top:2px solid #e4e4e7;"><td style="padding:8px 0;font-weight:bold;">Total</td><td style="padding:8px 0;text-align:right;font-weight:bold;font-size:18px;">${formatCents(params.totalCents, params.currency)}</td></tr>
-      </table>
-    </div>
-    ${paymentInfo}
-    <p style="margin-top:24px;">We'll send you updates as your order progresses.</p>
-    `,
-    `Your order #${params.orderNumber} has been confirmed - ${params.storeName}`
-  );
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0;">
+      <tr><td style="padding:4px 0;color:#71717a;">Subtotal</td><td style="padding:4px 0;text-align:right;">${formatCents(params.subtotalCents, params.currency)}</td></tr>
+      <tr><td style="padding:4px 0;color:#71717a;">Shipping</td><td style="padding:4px 0;text-align:right;">${formatCents(params.shippingCents, params.currency)}</td></tr>
+      ${params.taxCents > 0 ? `<tr><td style="padding:4px 0;color:#71717a;">Tax</td><td style="padding:4px 0;text-align:right;">${formatCents(params.taxCents, params.currency)}</td></tr>` : ""}
+      <tr><td style="padding:10px 0 4px;font-weight:700;border-top:2px solid #e4e4e7;">Total</td><td style="padding:10px 0 4px;text-align:right;font-weight:700;font-size:18px;border-top:2px solid #e4e4e7;">${formatCents(params.totalCents, params.currency)}</td></tr>
+    </table>
+    ${paymentLine}
+    ${addressHtml(params.shippingAddress as any)}
+    <div style="margin:20px 0 0;"><a href="${href}/account/orders" style="display:inline-block;padding:12px 22px;background:${params.storeAccentColor || "#6366f1"};color:#ffffff;border-radius:999px;font-weight:600;text-decoration:none;">View my orders</a></div>
+  `;
 
-  return sendEmail({
+  const html = storeBrandedTemplate({
+    storeName: params.storeName,
+    logoUrl: params.storeLogoUrl,
+    accent: params.storeAccentColor || undefined,
+    storefrontHref: href,
+    preheader: `Order #${params.orderNumber} confirmed — ${formatCents(params.totalCents, params.currency)}`,
+    content,
+  });
+
+  return sendStoreEmail({
+    storeOwnerUserId: params.storeOwnerUserId,
     to: params.to,
-    subject: `Order Confirmed - #${params.orderNumber} | ${params.storeName}`,
+    subject: `Order #${params.orderNumber} confirmed · ${params.storeName}`,
     html,
   });
 }
 
 /**
- * Send new order alert to the store owner
+ * New-order alert — sent to the store owner's email on every successful order.
  */
 export async function sendNewOrderAlertEmail(params: {
   to: string;
@@ -120,91 +232,111 @@ export async function sendNewOrderAlertEmail(params: {
   orderNumber: string;
   customerName: string;
   customerEmail: string;
-  itemCount: number;
+  items: Array<{ name: string; quantity: number; priceCents: number; imageUrl?: string | null }>;
   totalCents: number;
   currency: string;
   paymentMethod: string;
   storeName: string;
+  storeSlug: string;
+  storeOwnerUserId: string;
   orderId: string;
+  storeLogoUrl?: string | null;
+  storeAccentColor?: string | null;
+  storeCustomDomain?: string | null;
 }) {
   const isCod = params.paymentMethod === "cod";
-  const codWarning = isCod
-    ? `<div class="warning"><strong>Cash on Delivery order</strong> — Remember to collect ${formatCents(params.totalCents, params.currency)} on delivery and mark the order as paid.</div>`
-    : "";
+  const href = storefrontUrl(params.storeSlug, params.storeCustomDomain);
 
-  const html = baseTemplate(
-    `
-    <h2>New Order Received!</h2>
-    <p>Hi ${params.ownerName}, you have a new order on ${params.storeName}.</p>
-    <div class="highlight">
-      <strong>Order #${params.orderNumber}</strong><br/>
-      <span style="color:#71717a;">${params.itemCount} item${params.itemCount > 1 ? "s" : ""} — ${formatCents(params.totalCents, params.currency)}</span>
+  const content = `
+    <h2 style="margin:0 0 8px;font-size:22px;">New order received</h2>
+    <p style="margin:0 0 16px;color:#52525b;">Hi ${escapeHtml(params.ownerName)}, you have a new order on ${escapeHtml(params.storeName)}.</p>
+    <div style="margin:16px 0;padding:14px 16px;border-radius:10px;background:#ecfdf5;color:#065f46;">
+      <div style="font-weight:700;">Order #${escapeHtml(params.orderNumber)}</div>
+      <div style="margin-top:4px;font-size:14px;">${params.items.length} item${params.items.length === 1 ? "" : "s"} · ${formatCents(params.totalCents, params.currency)}</div>
     </div>
-    <div class="stats-box">
-      <table style="width:100%;">
-        <tr><td style="padding:6px 0;color:#71717a;">Customer</td><td style="padding:6px 0;text-align:right;">${params.customerName}</td></tr>
-        <tr><td style="padding:6px 0;color:#71717a;">Email</td><td style="padding:6px 0;text-align:right;">${params.customerEmail}</td></tr>
-        <tr><td style="padding:6px 0;color:#71717a;">Payment</td><td style="padding:6px 0;text-align:right;text-transform:capitalize;">${params.paymentMethod.replace(/_/g, " ")}</td></tr>
-        <tr style="border-top:1px solid #e4e4e7;"><td style="padding:8px 0;font-weight:bold;">Total</td><td style="padding:8px 0;text-align:right;font-weight:bold;">${formatCents(params.totalCents, params.currency)}</td></tr>
-      </table>
-    </div>
-    ${codWarning}
-    <a href="${APP_URL}/ecommerce/orders/${params.orderId}" class="button">View Order Details</a>
-    `,
-    `New order #${params.orderNumber} - ${formatCents(params.totalCents, params.currency)}`
-  );
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:12px 0;">
+      ${itemsTableHtml(params.items, params.currency)}
+    </table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0;">
+      <tr><td style="padding:4px 0;color:#71717a;">Customer</td><td style="padding:4px 0;text-align:right;">${escapeHtml(params.customerName)}</td></tr>
+      <tr><td style="padding:4px 0;color:#71717a;">Email</td><td style="padding:4px 0;text-align:right;">${escapeHtml(params.customerEmail)}</td></tr>
+      <tr><td style="padding:4px 0;color:#71717a;">Payment</td><td style="padding:4px 0;text-align:right;text-transform:capitalize;">${escapeHtml(params.paymentMethod.replace(/_/g, " "))}</td></tr>
+    </table>
+    ${isCod ? `<div style="margin:16px 0;padding:12px 14px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:14px;"><strong>Collect on delivery:</strong> ${formatCents(params.totalCents, params.currency)}</div>` : ""}
+    <div style="margin:20px 0 0;"><a href="${APP_URL}/ecommerce/orders/${params.orderId}" style="display:inline-block;padding:12px 22px;background:${params.storeAccentColor || "#6366f1"};color:#ffffff;border-radius:999px;font-weight:600;text-decoration:none;">Manage this order</a></div>
+  `;
 
-  return sendEmail({
+  const html = storeBrandedTemplate({
+    storeName: params.storeName,
+    logoUrl: params.storeLogoUrl,
+    accent: params.storeAccentColor || undefined,
+    storefrontHref: href,
+    preheader: `New order #${params.orderNumber} — ${formatCents(params.totalCents, params.currency)}`,
+    content,
+  });
+
+  return sendStoreEmail({
+    storeOwnerUserId: params.storeOwnerUserId,
     to: params.to,
-    subject: `New Order #${params.orderNumber} - ${formatCents(params.totalCents, params.currency)} | ${params.storeName}`,
+    subject: `New order #${params.orderNumber} · ${formatCents(params.totalCents, params.currency)}`,
     html,
   });
 }
 
 /**
- * Send shipping update email to the buyer
+ * Shipping update — sent to the buyer as the order moves through fulfilment.
+ * The `status` field controls the copy (e.g. "Shipped", "Out for delivery").
  */
 export async function sendShippingUpdateEmail(params: {
   to: string;
   customerName: string;
   orderNumber: string;
   status: string;
-  trackingNumber?: string;
-  shippingMethod?: string;
+  trackingNumber?: string | null;
+  shippingMethod?: string | null;
   storeSlug: string;
   storeName: string;
+  storeOwnerUserId: string;
+  storeLogoUrl?: string | null;
+  storeAccentColor?: string | null;
+  storeCustomDomain?: string | null;
 }) {
-  const trackingInfo = params.trackingNumber
-    ? `<div class="stats-box">
-        <p style="margin:0 0 4px 0;color:#71717a;font-size:13px;">Tracking Number</p>
-        <p style="margin:0;font-family:monospace;font-size:16px;letter-spacing:1px;">${params.trackingNumber}</p>
-        ${params.shippingMethod ? `<p style="margin:8px 0 0 0;color:#71717a;font-size:13px;">Via: ${params.shippingMethod}</p>` : ""}
-      </div>`
+  const href = storefrontUrl(params.storeSlug, params.storeCustomDomain);
+  const trackingBlock = params.trackingNumber
+    ? `<div style="margin:16px 0;padding:14px 16px;border-radius:10px;background:#fafafa;border:1px solid #f4f4f5;">
+         <div style="font-size:12px;color:#71717a;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Tracking Number</div>
+         <div style="margin-top:4px;font-family:'SFMono-Regular',Consolas,monospace;font-size:16px;letter-spacing:0.05em;">${escapeHtml(params.trackingNumber || "")}</div>
+         ${params.shippingMethod ? `<div style="margin-top:4px;color:#71717a;font-size:13px;">Via ${escapeHtml(params.shippingMethod)}</div>` : ""}
+       </div>`
     : "";
 
-  const html = baseTemplate(
-    `
-    <h2>Shipping Update</h2>
-    <p>Hi ${params.customerName}, your order has been updated!</p>
-    <div class="highlight">
-      <strong>Order #${params.orderNumber}</strong><br/>
-      <span style="color:#10b981;font-weight:600;">Status: ${params.status}</span>
-    </div>
-    ${trackingInfo}
-    <p>We'll notify you when your order arrives.</p>
-    `,
-    `Your order #${params.orderNumber} has been ${params.status.toLowerCase()}`
-  );
+  const content = `
+    <h2 style="margin:0 0 8px;font-size:22px;">Your order is ${escapeHtml(params.status.toLowerCase())}</h2>
+    <p style="margin:0 0 12px;color:#52525b;">Hi ${escapeHtml(params.customerName)}, here's an update on order #${escapeHtml(params.orderNumber)}.</p>
+    <div style="margin:16px 0;padding:14px 16px;border-radius:10px;background:#eff6ff;color:#1e40af;"><strong>Status:</strong> ${escapeHtml(params.status)}</div>
+    ${trackingBlock}
+    <div style="margin:20px 0 0;"><a href="${href}/account/orders" style="display:inline-block;padding:12px 22px;background:${params.storeAccentColor || "#6366f1"};color:#ffffff;border-radius:999px;font-weight:600;text-decoration:none;">Track my order</a></div>
+  `;
 
-  return sendEmail({
+  const html = storeBrandedTemplate({
+    storeName: params.storeName,
+    logoUrl: params.storeLogoUrl,
+    accent: params.storeAccentColor || undefined,
+    storefrontHref: href,
+    preheader: `Order #${params.orderNumber} — ${params.status}`,
+    content,
+  });
+
+  return sendStoreEmail({
+    storeOwnerUserId: params.storeOwnerUserId,
     to: params.to,
-    subject: `Order ${params.status} - #${params.orderNumber} | ${params.storeName}`,
+    subject: `Order #${params.orderNumber} — ${params.status} · ${params.storeName}`,
     html,
   });
 }
 
 /**
- * Send delivery confirmation email to the buyer
+ * Delivery confirmation — sent to the buyer when the order is marked DELIVERED.
  */
 export async function sendDeliveryConfirmationEmail(params: {
   to: string;
@@ -212,29 +344,41 @@ export async function sendDeliveryConfirmationEmail(params: {
   orderNumber: string;
   storeName: string;
   storeSlug: string;
+  storeOwnerUserId: string;
+  storeLogoUrl?: string | null;
+  storeAccentColor?: string | null;
+  storeCustomDomain?: string | null;
 }) {
-  const html = baseTemplate(
-    `
-    <h2>Order Delivered!</h2>
-    <p>Hi ${params.customerName}, your order has been delivered!</p>
-    <div class="highlight">
-      <strong>Order #${params.orderNumber}</strong> has been successfully delivered.
-    </div>
-    <p>Thank you for shopping at ${params.storeName}!</p>
-    <p style="color:#71717a;font-size:14px;">If you have any issues with your order, please contact the store.</p>
-    `,
-    `Your order #${params.orderNumber} has been delivered!`
-  );
+  const href = storefrontUrl(params.storeSlug, params.storeCustomDomain);
 
-  return sendEmail({
+  const content = `
+    <h2 style="margin:0 0 8px;font-size:22px;">Your order has arrived! 🎉</h2>
+    <p style="margin:0 0 12px;color:#52525b;">Hi ${escapeHtml(params.customerName)}, order #${escapeHtml(params.orderNumber)} has been delivered.</p>
+    <p style="margin:0 0 16px;color:#52525b;">We hope you love it. Tap below to leave a review — it really helps us out.</p>
+    <div style="margin:20px 0 0;"><a href="${href}/account/orders" style="display:inline-block;padding:12px 22px;background:${params.storeAccentColor || "#6366f1"};color:#ffffff;border-radius:999px;font-weight:600;text-decoration:none;">View order & leave review</a></div>
+  `;
+
+  const html = storeBrandedTemplate({
+    storeName: params.storeName,
+    logoUrl: params.storeLogoUrl,
+    accent: params.storeAccentColor || undefined,
+    storefrontHref: href,
+    preheader: `Order #${params.orderNumber} has been delivered`,
+    content,
+  });
+
+  return sendStoreEmail({
+    storeOwnerUserId: params.storeOwnerUserId,
     to: params.to,
-    subject: `Order Delivered - #${params.orderNumber} | ${params.storeName}`,
+    subject: `Delivered: Order #${params.orderNumber} · ${params.storeName}`,
     html,
   });
 }
 
+// ─── Legacy templates (still used by marketing/intelligence flows) ───────────
+
 /**
- * Send weekly intelligence report email to the store owner
+ * Weekly intelligence report for the store owner (platform-sent, not branded).
  */
 export async function sendIntelligenceWeeklyReport(params: {
   to: string;
@@ -246,70 +390,44 @@ export async function sendIntelligenceWeeklyReport(params: {
     trendHighlights: string[];
     topRecommendations: string[];
   };
-  competitorData: {
-    products: { productName: string; competitors: { name: string; priceCents: number }[] }[];
-  };
-  seoData: {
-    products: { name: string; score: number }[];
-    averageScore: number;
-  } | null;
+  competitorData: { products: { productName: string; competitors: { name: string; priceCents: number }[] }[] };
+  seoData: { products: { name: string; score: number }[]; averageScore: number } | null;
 }) {
   const { to, ownerName, storeName, summary, competitorData, seoData } = params;
-
   const trendHighlightsHtml = summary.trendHighlights.length > 0
-    ? summary.trendHighlights.map(t => `<li style="padding:4px 0;color:#3f3f46;">${t}</li>`).join("")
+    ? summary.trendHighlights.map(t => `<li style="padding:4px 0;color:#3f3f46;">${escapeHtml(t)}</li>`).join("")
     : `<li style="color:#71717a;">No notable trends this week</li>`;
 
   const topCompetitors = competitorData.products.slice(0, 5);
   const competitorHtml = topCompetitors.length > 0
-    ? topCompetitors.map(p =>
-        `<tr><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;">${p.productName}</td><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right;">${p.competitors.length} found</td></tr>`
-      ).join("")
+    ? topCompetitors.map(p => `<tr><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;">${escapeHtml(p.productName)}</td><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right;">${p.competitors.length} found</td></tr>`).join("")
     : `<tr><td colspan="2" style="padding:8px 0;color:#71717a;">No competitor data</td></tr>`;
 
   const lowSeoProducts = (seoData?.products || []).filter(p => p.score < 70).slice(0, 5);
   const seoHtml = lowSeoProducts.length > 0
-    ? lowSeoProducts.map(p =>
-        `<tr><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;">${p.name}</td><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right;">${p.score}/100</td></tr>`
-      ).join("")
+    ? lowSeoProducts.map(p => `<tr><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;">${escapeHtml(p.name)}</td><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right;">${p.score}/100</td></tr>`).join("")
     : `<tr><td colspan="2" style="padding:8px 0;color:#10b981;">All products have good SEO scores!</td></tr>`;
 
   const recommendationsHtml = summary.topRecommendations.length > 0
-    ? summary.topRecommendations.map(r => `<li style="padding:4px 0;color:#3f3f46;">${r}</li>`).join("")
+    ? summary.topRecommendations.map(r => `<li style="padding:4px 0;color:#3f3f46;">${escapeHtml(r)}</li>`).join("")
     : "";
 
   const content = `
     <h2>Weekly Intelligence Report</h2>
-    <p>Hi ${ownerName}, here's your weekly FlowShop intelligence summary for <strong>${storeName}</strong>.</p>
-
+    <p>Hi ${escapeHtml(ownerName)}, here's your weekly FlowShop intelligence summary for <strong>${escapeHtml(storeName)}</strong>.</p>
     <div class="stats-box">
       <table style="width:100%;">
         <tr><td style="padding:6px 0;color:#71717a;">Competitors Tracked</td><td style="padding:6px 0;text-align:right;font-weight:600;">${summary.competitorsFound}</td></tr>
         <tr><td style="padding:6px 0;color:#71717a;">Average SEO Score</td><td style="padding:6px 0;text-align:right;font-weight:600;">${summary.avgSeoScore}/100</td></tr>
       </table>
     </div>
-
-    <h3 style="margin-top:24px;">Trend Highlights</h3>
-    <ul style="padding-left:20px;">${trendHighlightsHtml}</ul>
-
+    <h3 style="margin-top:24px;">Trend Highlights</h3><ul style="padding-left:20px;">${trendHighlightsHtml}</ul>
     <h3 style="margin-top:24px;">Competitor Overview</h3>
-    <table style="width:100%;border-collapse:collapse;">
-      <thead><tr style="border-bottom:2px solid #e4e4e7;"><th style="padding:8px 0;text-align:left;font-size:13px;color:#71717a;">Product</th><th style="padding:8px 0;text-align:right;font-size:13px;color:#71717a;">Competitors</th></tr></thead>
-      <tbody>${competitorHtml}</tbody>
-    </table>
-
+    <table style="width:100%;border-collapse:collapse;"><tbody>${competitorHtml}</tbody></table>
     <h3 style="margin-top:24px;">SEO Attention Needed</h3>
-    <table style="width:100%;border-collapse:collapse;">
-      <thead><tr style="border-bottom:2px solid #e4e4e7;"><th style="padding:8px 0;text-align:left;font-size:13px;color:#71717a;">Product</th><th style="padding:8px 0;text-align:right;font-size:13px;color:#71717a;">Score</th></tr></thead>
-      <tbody>${seoHtml}</tbody>
-    </table>
-
+    <table style="width:100%;border-collapse:collapse;"><tbody>${seoHtml}</tbody></table>
     ${recommendationsHtml ? `<h3 style="margin-top:24px;">Recommendations</h3><ul style="padding-left:20px;">${recommendationsHtml}</ul>` : ""}
-
-    <div style="text-align:center;margin-top:32px;">
-      <a href="${APP_URL}/ecommerce/intelligence" style="display:inline-block;background:#3b82f6;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Full Report</a>
-    </div>
-  `;
+    <div style="text-align:center;margin-top:32px;"><a href="${APP_URL}/ecommerce/intelligence" style="display:inline-block;background:#3b82f6;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Full Report</a></div>`;
 
   return sendEmail({
     to,
@@ -319,7 +437,7 @@ export async function sendIntelligenceWeeklyReport(params: {
 }
 
 /**
- * Send abandoned cart reminder email to a store customer
+ * Abandoned-cart reminder to a store customer.
  */
 export async function sendAbandonedCartEmail(params: {
   to: string;
@@ -329,48 +447,29 @@ export async function sendAbandonedCartEmail(params: {
   items: Array<{ name: string; imageUrl?: string; priceCents: number; quantity: number }>;
   currency: string;
 }) {
-  const itemsHtml = params.items
-    .map(
-      (i) => `
+  const itemsHtml = params.items.map(
+    (i) => `
       <tr>
         <td style="padding:10px 0;border-bottom:1px solid #e4e4e7;">
           ${i.imageUrl ? `<img src="${i.imageUrl}" width="48" height="48" style="border-radius:6px;vertical-align:middle;margin-right:10px;" />` : ""}
-          ${i.name}
+          ${escapeHtml(i.name)}
         </td>
         <td style="padding:10px 0;border-bottom:1px solid #e4e4e7;text-align:center;">x${i.quantity}</td>
         <td style="padding:10px 0;border-bottom:1px solid #e4e4e7;text-align:right;">${formatCents(i.priceCents * i.quantity, params.currency)}</td>
       </tr>`
-    )
-    .join("");
+  ).join("");
 
   const html = baseTemplate(
     `
     <h2>You left something behind!</h2>
-    <p>Hi ${params.customerName},</p>
-    <p>You have items waiting in your cart at <strong>${params.storeName}</strong>. Complete your purchase before they sell out!</p>
-    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-      <thead>
-        <tr style="border-bottom:2px solid #e4e4e7;">
-          <th style="padding:8px 0;text-align:left;font-size:13px;color:#71717a;">Item</th>
-          <th style="padding:8px 0;text-align:center;font-size:13px;color:#71717a;">Qty</th>
-          <th style="padding:8px 0;text-align:right;font-size:13px;color:#71717a;">Price</th>
-        </tr>
-      </thead>
-      <tbody>${itemsHtml}</tbody>
-    </table>
+    <p>Hi ${escapeHtml(params.customerName)},</p>
+    <p>You have items waiting in your cart at <strong>${escapeHtml(params.storeName)}</strong>. Complete your purchase before they sell out!</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;"><tbody>${itemsHtml}</tbody></table>
     <div style="text-align:center;margin:24px 0;">
-      <a href="${params.storeUrl}/checkout" style="display:inline-block;padding:14px 32px;background:#2563eb;color:#fff;border-radius:9999px;font-weight:600;text-decoration:none;font-size:16px;">
-        Complete Your Order
-      </a>
-    </div>
-    <p style="color:#71717a;font-size:13px;">Or browse more products at <a href="${params.storeUrl}/products" style="color:#2563eb;">${params.storeName}</a>.</p>
-    `,
+      <a href="${params.storeUrl}/checkout" style="display:inline-block;padding:14px 32px;background:#2563eb;color:#fff;border-radius:9999px;font-weight:600;text-decoration:none;font-size:16px;">Complete Your Order</a>
+    </div>`,
     `You left items in your cart at ${params.storeName}`
   );
 
-  return sendEmail({
-    to: params.to,
-    subject: `You left something in your cart at ${params.storeName}!`,
-    html,
-  });
+  return sendEmail({ to: params.to, subject: `You left something in your cart at ${params.storeName}!`, html });
 }

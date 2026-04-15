@@ -258,40 +258,52 @@ export async function PATCH(
     }
 
     // Send email notifications on status changes (fire-and-forget)
-    if (data.status === "SHIPPED" || data.status === "PROCESSING") {
+    if (
+      data.status === "SHIPPED" ||
+      data.status === "PROCESSING" ||
+      data.status === "DELIVERED"
+    ) {
       const orderStore = await prisma.store.findUnique({
         where: { id: store.id },
-        select: { name: true, slug: true },
+        select: { name: true, slug: true, userId: true, logoUrl: true, theme: true, customDomain: true },
       });
       if (orderStore) {
-        notifyShippingUpdate({
-          buyerEmail: order.customerEmail,
-          customerName: order.customerName,
-          orderNumber: order.orderNumber,
-          status: data.status === "SHIPPED" ? "Shipped" : "Processing",
-          trackingNumber: data.trackingNumber || order.trackingNumber || undefined,
-          shippingMethod: data.shippingMethod || order.shippingMethod || undefined,
-          storeSlug: orderStore.slug,
-          storeName: orderStore.name,
-          buyerUserId: order.buyerUserId || undefined,
-        }).catch((err) => console.error("Failed to send shipping notification:", err));
-      }
-    }
+        const themeObj = (() => {
+          try { return typeof orderStore.theme === "string" ? JSON.parse(orderStore.theme) : (orderStore.theme || {}); }
+          catch { return {}; }
+        })() as { colors?: { primary?: string } };
+        const accent = themeObj.colors?.primary;
 
-    if (data.status === "DELIVERED") {
-      const orderStore = await prisma.store.findUnique({
-        where: { id: store.id },
-        select: { name: true, slug: true },
-      });
-      if (orderStore) {
-        notifyOrderDelivered({
-          buyerEmail: order.customerEmail,
-          customerName: order.customerName,
-          orderNumber: order.orderNumber,
-          storeName: orderStore.name,
-          storeSlug: orderStore.slug,
-          buyerUserId: order.buyerUserId || undefined,
-        }).catch((err) => console.error("Failed to send delivery notification:", err));
+        if (data.status === "DELIVERED") {
+          notifyOrderDelivered({
+            buyerEmail: order.customerEmail,
+            customerName: order.customerName,
+            orderNumber: order.orderNumber,
+            storeName: orderStore.name,
+            storeSlug: orderStore.slug,
+            storeOwnerUserId: orderStore.userId,
+            buyerUserId: order.buyerUserId || undefined,
+            storeLogoUrl: orderStore.logoUrl,
+            storeAccentColor: accent,
+            storeCustomDomain: orderStore.customDomain,
+          }).catch((err) => console.error("Failed to send delivery notification:", err));
+        } else {
+          notifyShippingUpdate({
+            buyerEmail: order.customerEmail,
+            customerName: order.customerName,
+            orderNumber: order.orderNumber,
+            status: data.status === "SHIPPED" ? "Shipped" : "Processing",
+            trackingNumber: data.trackingNumber || order.trackingNumber || undefined,
+            shippingMethod: data.shippingMethod || order.shippingMethod || undefined,
+            storeSlug: orderStore.slug,
+            storeName: orderStore.name,
+            storeOwnerUserId: orderStore.userId,
+            buyerUserId: order.buyerUserId || undefined,
+            storeLogoUrl: orderStore.logoUrl,
+            storeAccentColor: accent,
+            storeCustomDomain: orderStore.customDomain,
+          }).catch((err) => console.error("Failed to send shipping notification:", err));
+        }
       }
     }
 

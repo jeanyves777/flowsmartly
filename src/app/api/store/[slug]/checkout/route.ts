@@ -3,9 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/client";
 import { generateOrderNumber } from "@/lib/constants/ecommerce";
 import { calculateShipping, type ShippingConfig } from "@/lib/store/cart";
-import { validateInventory, deductInventory } from "@/lib/store/inventory";
+import { validateInventory } from "@/lib/store/inventory";
 import { createStorePaymentIntent } from "@/lib/stripe/store-checkout";
-import { stripe } from "@/lib/stripe";
 import {
   STRIPE_METHOD_CATALOG,
   toPaymentMethodTypes,
@@ -15,7 +14,6 @@ import {
   notifyOrderConfirmation,
   notifyNewOrder,
 } from "@/lib/notifications/commerce";
-import { getStoreCustomer } from "@/lib/store/customer-auth";
 import { attributeOrderToAd } from "@/lib/ads/roas-tracker";
 
 // ── Zod Schema ──
@@ -35,7 +33,6 @@ const checkoutItemSchema = z.object({
 });
 
 const checkoutSchema = z.object({
-  resumeOrderId: z.string().optional(),
   customerName: z.string().min(1, "Customer name is required"),
   customerEmail: z.string().email("Valid email is required"),
   customerPhone: z.string().optional(),
@@ -46,7 +43,6 @@ const checkoutSchema = z.object({
     { message: "Invalid payment method" }
   ),
   shippingMethod: z.enum(["standard", "local_pickup"]).optional(),
-  // UTM Attribution
   utmSource: z.string().max(200).optional(),
   utmMedium: z.string().max(200).optional(),
   utmCampaign: z.string().max(200).optional(),
@@ -55,6 +51,17 @@ const checkoutSchema = z.object({
 });
 
 // ── POST /api/store/[slug]/checkout ──
+//
+// CARD PAYMENTS:
+//   Do NOT create an Order. Write a PendingCheckout snapshot + Stripe PI.
+//   On `payment_intent.succeeded` the webhook promotes PendingCheckout → Order,
+//   deducts inventory, and sends the confirmation emails. Walked-away
+//   checkouts expire via the PI's natural lifecycle and never appear in the
+//   customer's "My Orders" list.
+//
+// NON-CARD (COD, mobile money, bank transfer):
+//   Create the Order immediately since no external payment step has to
+//   succeed. Deduct inventory now. Send emails now.
 
 export async function POST(
   request: NextRequest,
@@ -63,7 +70,6 @@ export async function POST(
   try {
     const { slug } = await params;
 
-    // Parse and validate request body
     const body = await request.json();
     const parsed = checkoutSchema.safeParse(body);
 
@@ -81,7 +87,6 @@ export async function POST(
     }
 
     const {
-      resumeOrderId,
       customerName,
       customerEmail,
       customerPhone,
@@ -96,15 +101,13 @@ export async function POST(
       referrer,
     } = parsed.data;
 
-    // `stripe_klarna`, `stripe_affirm`, etc. collapse back to the card rail —
-    // they submit a PaymentIntent just like "card" does, only we restrict the
-    // PI's `payment_method_types` to the customer's chosen method. The value
-    // stored on the order stays "card" so downstream reporting is unchanged.
+    // `stripe_klarna` / `stripe_affirm` / ... collapse back to the card rail.
     const chosenStripeMethodId: StripeMethodId | null =
       rawPaymentMethod.startsWith("stripe_")
         ? (rawPaymentMethod.slice("stripe_".length) as StripeMethodId)
         : null;
     const paymentMethod = chosenStripeMethodId ? "card" : rawPaymentMethod;
+    const isCardPayment = paymentMethod === "card";
 
     // ── Fetch store ──
 
@@ -117,6 +120,9 @@ export async function POST(
         currency: true,
         region: true,
         settings: true,
+        theme: true,
+        logoUrl: true,
+        customDomain: true,
         isActive: true,
         userId: true,
         stripeConnectAccountId: true,
@@ -128,16 +134,12 @@ export async function POST(
 
     if (!store || !store.isActive) {
       return NextResponse.json(
-        {
-          success: false,
-          error: { code: "STORE_NOT_FOUND", message: "Store not found" },
-        },
+        { success: false, error: { code: "STORE_NOT_FOUND", message: "Store not found" } },
         { status: 404 }
       );
     }
 
-    // ── Server-side price validation ──
-    // NEVER trust client prices — fetch from DB for each item
+    // ── Server-side price + inventory validation ──
 
     const validatedItems: Array<{
       productId: string;
@@ -153,19 +155,8 @@ export async function POST(
       const product = await prisma.product.findUnique({
         where: { id: item.productId },
         select: {
-          id: true,
-          name: true,
-          priceCents: true,
-          status: true,
-          deletedAt: true,
-          images: true,
-          variants: {
-            select: {
-              id: true,
-              name: true,
-              priceCents: true,
-            },
-          },
+          id: true, name: true, priceCents: true, status: true, deletedAt: true, images: true,
+          variants: { select: { id: true, name: true, priceCents: true } },
         },
       });
 
@@ -189,13 +180,7 @@ export async function POST(
         const variant = product.variants.find((v) => v.id === item.variantId);
         if (!variant) {
           return NextResponse.json(
-            {
-              success: false,
-              error: {
-                code: "VARIANT_NOT_FOUND",
-                message: `Variant not found for "${product.name}"`,
-              },
-            },
+            { success: false, error: { code: "VARIANT_NOT_FOUND", message: `Variant not found for "${product.name}"` } },
             { status: 400 }
           );
         }
@@ -214,228 +199,138 @@ export async function POST(
       });
     }
 
-    // ── Inventory validation ──
-
     const inventoryError = await validateInventory(
-      validatedItems.map((i) => ({
-        productId: i.productId,
-        variantId: i.variantId,
-        name: i.name,
-        quantity: i.quantity,
-      }))
+      validatedItems.map((i) => ({ productId: i.productId, variantId: i.variantId, name: i.name, quantity: i.quantity }))
     );
-
     if (inventoryError) {
       return NextResponse.json(
-        {
-          success: false,
-          error: { code: "INSUFFICIENT_STOCK", message: inventoryError },
-        },
+        { success: false, error: { code: "INSUFFICIENT_STOCK", message: inventoryError } },
         { status: 400 }
       );
     }
 
-    // ── Calculate totals ──
+    // ── Totals ──
 
-    const subtotalCents = validatedItems.reduce(
-      (sum, item) => sum + item.priceCents * item.quantity,
-      0
-    );
+    const subtotalCents = validatedItems.reduce((sum, item) => sum + item.priceCents * item.quantity, 0);
 
-    const storeSettings = store.settings
-      ? JSON.parse(store.settings as string)
-      : {};
-    const shippingConfig: ShippingConfig | null =
-      storeSettings.shipping || null;
+    const storeSettings = store.settings ? JSON.parse(store.settings as string) : {};
+    const shippingConfig: ShippingConfig | null = storeSettings.shipping || null;
+    const shippingCents = calculateShipping(subtotalCents, shippingConfig, shippingMethod);
+    const taxCents = 0;
+    const totalCents = subtotalCents + shippingCents + taxCents;
 
-    // Owner-selected Stripe methods (from Settings → Payments). When absent,
-    // PaymentIntent falls back to automatic_payment_methods so every method
-    // active on the Connect account is offered by PaymentElement.
+    const connectReady = !!(store.stripeConnectAccountId && store.stripeOnboardingComplete);
+    const platformFeeCents = connectReady ? Math.round(totalCents * (store.platformFeePercent / 100)) : 0;
+    const storeOwnerAmountCents = connectReady ? totalCents - platformFeeCents : 0;
+
+    // ── Stripe method allowlist (from Settings → Payments) ──
+
     const validStripeIds = new Set(STRIPE_METHOD_CATALOG.map((m) => m.id));
     const stripeAllowlist: StripeMethodId[] = Array.isArray(storeSettings.stripeMethods)
       ? (storeSettings.stripeMethods as unknown[])
           .filter((x): x is string => typeof x === "string")
           .filter((x) => validStripeIds.has(x as StripeMethodId)) as StripeMethodId[]
       : [];
-    // Lock the PaymentIntent to exactly what the customer picked upfront:
-    //  - stripe_<id> (Klarna / Affirm / Cash App / iDEAL / ...) → single rail
-    //  - "card" (the wallet row) → card + Link; Apple Pay and Google Pay are
-    //    automatically surfaced by Stripe on top of the card rail, so we don't
-    //    list them as separate payment_method_types.
-    // We no longer fall back to `automatic_payment_methods`, because that
-    // would include high-minimum rails (Affirm is $35+) on small carts and
-    // cause Stripe to reject the PI with an amount-below-minimum error.
+
     let stripePaymentMethodTypes: string[] | undefined;
     if (chosenStripeMethodId) {
       stripePaymentMethodTypes = toPaymentMethodTypes([chosenStripeMethodId]);
-    } else if (paymentMethod === "card") {
+    } else if (isCardPayment) {
       stripePaymentMethodTypes = ["card", "link"];
     } else if (stripeAllowlist.length > 0) {
       stripePaymentMethodTypes = toPaymentMethodTypes(stripeAllowlist);
     }
 
-    const shippingCents = calculateShipping(
-      subtotalCents,
-      shippingConfig,
-      shippingMethod
-    );
+    const emailItems = validatedItems.map((i) => ({
+      name: i.name,
+      quantity: i.quantity,
+      priceCents: i.priceCents,
+      imageUrl: i.imageUrl || null,
+    }));
+    const addressForEmail = shippingAddress as Record<string, unknown>;
 
-    const taxCents = 0; // Deferred: tax calculation
-    const totalCents = subtotalCents + shippingCents + taxCents;
+    // ──────────────────────────────────────────────────────────────────────
+    // CARD PATH — PendingCheckout only, no Order yet
+    // ──────────────────────────────────────────────────────────────────────
+    if (isCardPayment) {
+      // 1 — Reserve an order number ahead of time so the PI description /
+      //     metadata can reference it even though the Order row doesn't exist
+      //     until the webhook promotes the PendingCheckout.
+      const orderNumber = generateOrderNumber();
 
-    // ── Deduplication: reuse existing pending card payment within 24h ──
-    // Matches on exact items (productId + variantId + quantity) — different
-    // quantities or different products are NOT duplicates even if totals match.
-    if (paymentMethod === "card" && stripe) {
-      const itemFingerprint = validatedItems
-        .map(i => `${i.productId}:${i.variantId || ""}:${i.quantity}`)
-        .sort()
-        .join("|");
-
-      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const candidates = await prisma.order.findMany({
-        where: {
-          storeId: store.id,
-          customerEmail,
-          paymentMethod: "card",
-          paymentStatus: "pending",
-          totalCents,
-          createdAt: { gte: cutoff },
-        },
-        select: { id: true, paymentId: true, items: true },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-      });
-
-      for (const candidate of candidates) {
-        try {
-          const savedItems: Array<{ productId: string; variantId?: string; quantity: number }> =
-            JSON.parse(candidate.items || "[]");
-          const savedFingerprint = savedItems
-            .map(i => `${i.productId}:${i.variantId || ""}:${i.quantity}`)
-            .sort()
-            .join("|");
-          if (savedFingerprint !== itemFingerprint) continue; // different cart — skip
-
-          if (!candidate.paymentId) continue;
-          const pi = await stripe.paymentIntents.retrieve(candidate.paymentId);
-          if (pi.status !== "canceled" && pi.status !== "succeeded") {
-            return NextResponse.json({
-              success: true,
-              data: { orderId: candidate.id, clientSecret: pi.client_secret, total: totalCents },
-            });
-          }
-        } catch { /* PI gone or parse error — try next */ }
-      }
-    }
-
-    // ── Platform fee calculation (for Stripe Connect stores) ──
-    const connectReady = !!(store.stripeConnectAccountId && store.stripeOnboardingComplete);
-    const platformFeeCents = connectReady
-      ? Math.round(totalCents * (store.platformFeePercent / 100))
-      : 0;
-    const storeOwnerAmountCents = connectReady ? totalCents - platformFeeCents : 0;
-
-    // ── Resume existing order (payment method change) ──
-    if (resumeOrderId) {
-      const existingOrder = await prisma.order.findFirst({
-        where: { id: resumeOrderId, storeId: store.id, paymentStatus: "pending", NOT: { status: "CANCELLED" } },
-      });
-
-      if (!existingOrder) {
-        return NextResponse.json(
-          { success: false, error: { code: "ORDER_NOT_FOUND", message: "Order not found or already processed." } },
-          { status: 400 }
-        );
-      }
-
-      // Cancel old payment intent if switching to non-card
-      if (existingOrder.paymentId && stripe) {
-        try {
-          const oldPi = await stripe.paymentIntents.retrieve(existingOrder.paymentId);
-          if (oldPi.status !== "canceled" && oldPi.status !== "succeeded") {
-            await stripe.paymentIntents.cancel(existingOrder.paymentId);
-          }
-        } catch { /* PI already gone */ }
-      }
-
-      // Update payment method on existing order
-      await prisma.order.update({
-        where: { id: existingOrder.id },
-        data: { paymentMethod, paymentId: null },
-      });
-
-      if (paymentMethod === "card") {
-        const { clientSecret, paymentIntentId } = await createStorePaymentIntent({
-          orderId: existingOrder.id,
-          storeId: store.id,
-          storeSlug: store.slug,
-          storeName: store.name,
-          totalCents: existingOrder.totalCents,
-          currency: store.currency,
-          customerEmail: existingOrder.customerEmail,
-          ...(connectReady && {
-            stripeConnectAccountId: store.stripeConnectAccountId!,
-            platformFeeCents: existingOrder.platformFeeCents,
-          }),
-          paymentMethodTypes: stripePaymentMethodTypes,
-        });
-
-        await prisma.order.update({
-          where: { id: existingOrder.id },
-          data: { paymentId: paymentIntentId },
-        });
-
-        return NextResponse.json({
-          success: true,
-          data: { orderId: existingOrder.id, orderNumber: existingOrder.orderNumber, clientSecret },
-        });
-      }
-
-      // Non-card: mark as confirmed, send emails
-      await prisma.order.update({
-        where: { id: existingOrder.id },
-        data: { status: "PENDING", paymentStatus: "pending" },
-      });
-
-      const resumeItems: Array<{ name: string; quantity: number; priceCents: number }> = JSON.parse(existingOrder.items || "[]");
-      notifyOrderConfirmation({
-        buyerEmail: existingOrder.customerEmail,
-        customerName: existingOrder.customerName,
-        orderNumber: existingOrder.orderNumber,
-        items: resumeItems,
-        subtotalCents: existingOrder.subtotalCents,
-        shippingCents: existingOrder.shippingCents,
-        taxCents: existingOrder.taxCents,
-        totalCents: existingOrder.totalCents,
-        currency: store.currency,
-        paymentMethod,
+      // 2 — Create the PaymentIntent first so we know the PI id.
+      const pendingId = `pc_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+      const { clientSecret, paymentIntentId } = await createStorePaymentIntent({
+        orderId: pendingId, // we store the PendingCheckout id here — webhook looks it up
+        storeId: store.id,
         storeSlug: store.slug,
         storeName: store.name,
-      }).catch((err) => console.error("Failed to send order confirmation email:", err));
-
-      notifyNewOrder({
-        storeOwnerUserId: store.userId,
-        storeOwnerEmail: store.user.email || "",
-        storeOwnerName: store.user.name || "Store Owner",
-        orderNumber: existingOrder.orderNumber,
-        orderId: existingOrder.id,
-        customerName: existingOrder.customerName,
-        customerEmail: existingOrder.customerEmail,
-        itemCount: resumeItems.length,
-        totalCents: existingOrder.totalCents,
+        totalCents,
         currency: store.currency,
-        paymentMethod,
-        storeName: store.name,
-      }).catch((err) => console.error("Failed to send new order alert email:", err));
+        customerEmail,
+        ...(connectReady && {
+          stripeConnectAccountId: store.stripeConnectAccountId!,
+          platformFeeCents,
+        }),
+        paymentMethodTypes: stripePaymentMethodTypes,
+      });
+
+      // 3 — Persist the cart snapshot against the PI we just created.
+      //     TTL 48h — PI lifetime is ~24h, buffer for clock skew / reviews.
+      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+      await prisma.pendingCheckout.create({
+        data: {
+          id: pendingId,
+          storeId: store.id,
+          stripePaymentIntentId: paymentIntentId,
+          customerName,
+          customerEmail,
+          customerPhone: customerPhone || null,
+          items: JSON.stringify(
+            validatedItems.map((i) => ({
+              name: i.name,
+              priceCents: i.priceCents,
+              quantity: i.quantity,
+              productId: i.productId,
+              variantId: i.variantId,
+              variantName: i.variantName,
+              imageUrl: i.imageUrl || null,
+            }))
+          ),
+          shippingAddress: JSON.stringify(shippingAddress),
+          shippingMethod: shippingMethod || "standard",
+          subtotalCents,
+          shippingCents,
+          taxCents,
+          totalCents,
+          platformFeeCents,
+          storeOwnerAmountCents,
+          currency: store.currency,
+          paymentMethod: "card",
+          stripeConnectAccountId: store.stripeConnectAccountId || null,
+          utmSource: utmSource || null,
+          utmMedium: utmMedium || null,
+          utmCampaign: utmCampaign || null,
+          utmContent: utmContent || null,
+          referrer: referrer || null,
+          expiresAt,
+        },
+      });
 
       return NextResponse.json({
         success: true,
-        data: { orderId: existingOrder.id, orderNumber: existingOrder.orderNumber },
+        data: {
+          orderId: pendingId,      // legacy field name — the client still uses this as an opaque token
+          orderNumber,             // reserved; displayed in the confirm UI even before the Order exists
+          clientSecret,
+        },
       });
     }
 
-    // ── Prisma transaction: create Order + deduct inventory ──
+    // ──────────────────────────────────────────────────────────────────────
+    // NON-CARD PATH (COD / mobile money / bank transfer) — Order created now
+    // ──────────────────────────────────────────────────────────────────────
 
     const orderNumber = generateOrderNumber();
 
@@ -456,6 +351,7 @@ export async function POST(
               productId: i.productId,
               variantId: i.variantId,
               variantName: i.variantName,
+              imageUrl: i.imageUrl || null,
             }))
           ),
           subtotalCents,
@@ -477,145 +373,70 @@ export async function POST(
         },
       });
 
-      // Deduct inventory atomically
-      await deductInventory(
-        validatedItems.map((i) => ({
-          productId: i.productId,
-          variantId: i.variantId,
-          name: i.name,
-          quantity: i.quantity,
-        })),
-        tx
+      // Deduct inventory for offline-paid orders so the stock accurately
+      // reflects the hold. (Card-paid inventory is deducted by the webhook.)
+      await import("@/lib/store/inventory").then(({ deductInventory }) =>
+        deductInventory(
+          validatedItems.map((i) => ({ productId: i.productId, variantId: i.variantId, name: i.name, quantity: i.quantity })),
+          tx
+        )
       );
 
       return newOrder;
     });
 
-    // ── Fire-and-forget ROAS attribution ──
+    attributeOrderToAd(order.id).catch((err) => console.error("ROAS attribution failed:", err));
 
-    attributeOrderToAd(order.id).catch((err) =>
-      console.error("ROAS attribution failed:", err)
-    );
+    // Parse store theme for branded emails
+    const theme = (() => {
+      try { return typeof store.theme === "string" ? JSON.parse(store.theme) : (store.theme || {}); }
+      catch { return {}; }
+    })() as { colors?: { primary?: string } };
+    const accent = theme.colors?.primary;
 
-    // ── Save shipping address to customer account (fire-and-forget) ──
-    (async () => {
-      try {
-        const customer = await getStoreCustomer(store.id);
-        if (!customer) return;
-        const existing: Array<Record<string, unknown>> = JSON.parse(customer.addresses || "[]");
-        // Check if this address already exists
-        const isDuplicate = existing.some(
-          (a) => (a.line1 || a.street) === shippingAddress.street && a.city === shippingAddress.city && a.zip === shippingAddress.zip
-        );
-        if (!isDuplicate) {
-          const newAddr = {
-            line1: shippingAddress.street,
-            city: shippingAddress.city,
-            state: shippingAddress.state,
-            zip: shippingAddress.zip,
-            country: shippingAddress.country,
-            isDefault: existing.length === 0,
-          };
-          existing.push(newAddr);
-          await prisma.storeCustomer.update({
-            where: { id: customer.id },
-            data: { addresses: JSON.stringify(existing) },
-          });
-        }
-      } catch (e) {
-        console.error("Failed to save customer address:", e);
-      }
-    })();
+    // Fire-and-forget branded emails — owner's SMTP via sendStoreEmail
+    notifyOrderConfirmation({
+      buyerEmail: customerEmail,
+      customerName,
+      orderNumber: order.orderNumber,
+      items: emailItems,
+      subtotalCents,
+      shippingCents,
+      taxCents,
+      totalCents,
+      currency: store.currency,
+      paymentMethod,
+      shippingAddress: addressForEmail,
+      storeSlug: store.slug,
+      storeName: store.name,
+      storeOwnerUserId: store.userId,
+      storeLogoUrl: store.logoUrl,
+      storeAccentColor: accent,
+      storeCustomDomain: store.customDomain,
+    }).catch((err) => console.error("Failed to send order confirmation email:", err));
 
-    // ── Fire-and-forget notification emails ──
-    // For card payments, emails are sent ONLY after the webhook confirms payment.
-    // For all other methods (COD, mobile_money, bank_transfer), send immediately.
+    notifyNewOrder({
+      storeOwnerUserId: store.userId,
+      storeOwnerEmail: store.user.email || "",
+      storeOwnerName: store.user.name || "Store Owner",
+      orderNumber: order.orderNumber,
+      orderId: order.id,
+      customerName,
+      customerEmail,
+      items: emailItems,
+      totalCents,
+      currency: store.currency,
+      paymentMethod,
+      storeSlug: store.slug,
+      storeName: store.name,
+      storeLogoUrl: store.logoUrl,
+      storeAccentColor: accent,
+      storeCustomDomain: store.customDomain,
+    }).catch((err) => console.error("Failed to send new order alert email:", err));
 
-    const emailItems = validatedItems.map((i) => ({
-      name: i.name,
-      quantity: i.quantity,
-      priceCents: i.priceCents,
-    }));
-
-    if (paymentMethod !== "card") {
-      // Buyer confirmation
-      notifyOrderConfirmation({
-        buyerEmail: customerEmail,
-        customerName,
-        orderNumber: order.orderNumber,
-        items: emailItems,
-        subtotalCents,
-        shippingCents,
-        taxCents,
-        totalCents,
-        currency: store.currency,
-        paymentMethod,
-        storeSlug: store.slug,
-        storeName: store.name,
-      }).catch((err) =>
-        console.error("Failed to send order confirmation email:", err)
-      );
-
-      // Store owner notification
-      notifyNewOrder({
-        storeOwnerUserId: store.userId,
-        storeOwnerEmail: store.user.email || "",
-        storeOwnerName: store.user.name || "Store Owner",
-        orderNumber: order.orderNumber,
-        orderId: order.id,
-        customerName,
-        customerEmail,
-        itemCount: validatedItems.length,
-        totalCents,
-        currency: store.currency,
-        paymentMethod,
-        storeName: store.name,
-      }).catch((err) =>
-        console.error("Failed to send new order alert email:", err)
-      );
-    }
-
-    // ── Payment method handling ──
-
-    if (paymentMethod === "card") {
-      const { clientSecret, paymentIntentId } = await createStorePaymentIntent({
-        orderId: order.id,
-        storeId: store.id,
-        storeSlug: store.slug,
-        storeName: store.name,
-        totalCents,
-        currency: store.currency,
-        customerEmail,
-        ...(connectReady && {
-          stripeConnectAccountId: store.stripeConnectAccountId!,
-          platformFeeCents,
-        }),
-        paymentMethodTypes: stripePaymentMethodTypes,
-      });
-
-      // Update order with paymentIntentId for webhook matching
-      await prisma.order.update({
-        where: { id: order.id },
-        data: { paymentId: paymentIntentId },
-      });
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          clientSecret,
-        },
-      });
-    }
-
-    // COD, mobile_money, bank_transfer — no redirect needed
     return NextResponse.json({
       success: true,
-      data: {
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-      },
+      data: { orderId: order.id, orderNumber: order.orderNumber },
     });
   } catch (error) {
     console.error("Checkout error:", error);
@@ -624,10 +445,7 @@ export async function POST(
         success: false,
         error: {
           code: "CHECKOUT_FAILED",
-          message:
-            error instanceof Error
-              ? error.message
-              : "An unexpected error occurred during checkout",
+          message: error instanceof Error ? error.message : "An unexpected error occurred during checkout",
         },
       },
       { status: 500 }

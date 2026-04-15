@@ -35,16 +35,20 @@ export async function createStorePaymentIntent(params: {
   const useConnect = !!(params.stripeConnectAccountId && params.platformFeeCents != null);
   const useExplicitTypes = Array.isArray(params.paymentMethodTypes) && params.paymentMethodTypes.length > 0;
 
+  // Intentionally NOT setting receipt_email — Stripe would send a default
+  // receipt on top of our branded store emails, confusing customers. The
+  // customer email is preserved in PI metadata for the webhook to match.
   const baseParams = {
     amount: params.totalCents,
     currency: params.currency.toLowerCase(),
-    receipt_email: params.customerEmail,
     description: `Order from ${params.storeName}`,
     metadata: {
       type: "store_order",
-      orderId: params.orderId,
+      orderId: params.orderId,             // PendingCheckout id for card orders, Order id for legacy flow
+      pendingCheckoutId: params.orderId,   // explicit alias — webhook prefers this
       storeId: params.storeId,
       storeSlug: params.storeSlug,
+      customerEmail: params.customerEmail,
     },
     ...(useConnect && {
       application_fee_amount: params.platformFeeCents,

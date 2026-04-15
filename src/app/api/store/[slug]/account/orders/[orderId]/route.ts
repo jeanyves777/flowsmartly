@@ -22,10 +22,30 @@ export async function GET(
 
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
+    // Normalize the address so the generated store UI (which may read either
+    // `street`/`line1`/`line2`) always finds what it expects. Two legacy
+    // shapes exist in the DB: `{street, city, state, zip, country}` (from
+    // checkout) and `{line1, line2, city, state, zip, country}` (from the
+    // update-address PATCH).
+    const rawAddr = (() => {
+      try { return JSON.parse(order.shippingAddress || "{}") as Record<string, unknown>; }
+      catch { return {}; }
+    })();
+    const normalizedAddress = {
+      name: (rawAddr.name as string) || order.customerName,
+      line1: (rawAddr.line1 as string) || (rawAddr.street as string) || "",
+      street: (rawAddr.street as string) || (rawAddr.line1 as string) || "",
+      line2: (rawAddr.line2 as string) || "",
+      city: (rawAddr.city as string) || "",
+      state: (rawAddr.state as string) || "",
+      zip: (rawAddr.zip as string) || "",
+      country: (rawAddr.country as string) || "",
+    };
+
     return NextResponse.json({
       ...order,
       items: JSON.parse(order.items || "[]"),
-      shippingAddress: JSON.parse(order.shippingAddress || "{}"),
+      shippingAddress: normalizedAddress,
       currency: store.currency,
     });
   } catch (err) {

@@ -1,6 +1,10 @@
 /**
  * Commerce Notifications for FlowShop
- * In-app notifications + email for order lifecycle events.
+ *
+ * In-app dashboard notifications + branded customer emails for order lifecycle
+ * events. Emails are sent through the store owner's configured email provider
+ * (MarketingConfig) — not the platform sender — so buyers see the store's
+ * branded From address.
  */
 
 import { createNotification, NOTIFICATION_TYPES } from "./index";
@@ -11,24 +15,36 @@ import {
   sendDeliveryConfirmationEmail,
 } from "@/lib/email/commerce";
 
+interface StoreBranding {
+  storeLogoUrl?: string | null;
+  storeAccentColor?: string | null;
+  storeCustomDomain?: string | null;
+}
+
 /**
- * Notify buyer: order confirmed (in-app + email)
+ * Notify buyer: order confirmed (branded email + in-app notification for
+ * logged-in customers). Only fires for a card order AFTER the Stripe webhook
+ * confirms payment, or immediately for COD/mobile money/bank transfer.
  */
 export async function notifyOrderConfirmation(params: {
   buyerEmail: string;
   customerName: string;
   orderNumber: string;
-  items: Array<{ name: string; quantity: number; priceCents: number }>;
+  items: Array<{ name: string; quantity: number; priceCents: number; imageUrl?: string | null }>;
   subtotalCents: number;
   shippingCents: number;
   taxCents: number;
   totalCents: number;
   currency: string;
   paymentMethod: string;
+  paymentLast4?: string | null;
+  paymentBrand?: string | null;
+  shippingAddress?: Record<string, unknown> | null;
   storeSlug: string;
   storeName: string;
+  storeOwnerUserId: string;
   buyerUserId?: string;
-}) {
+} & StoreBranding) {
   await sendOrderConfirmationEmail({
     to: params.buyerEmail,
     customerName: params.customerName,
@@ -40,8 +56,15 @@ export async function notifyOrderConfirmation(params: {
     totalCents: params.totalCents,
     currency: params.currency,
     paymentMethod: params.paymentMethod,
+    paymentLast4: params.paymentLast4,
+    paymentBrand: params.paymentBrand,
+    shippingAddress: params.shippingAddress,
     storeSlug: params.storeSlug,
     storeName: params.storeName,
+    storeOwnerUserId: params.storeOwnerUserId,
+    storeLogoUrl: params.storeLogoUrl,
+    storeAccentColor: params.storeAccentColor,
+    storeCustomDomain: params.storeCustomDomain,
   });
 
   if (params.buyerUserId) {
@@ -57,7 +80,8 @@ export async function notifyOrderConfirmation(params: {
 }
 
 /**
- * Notify store owner: new order received (in-app + email)
+ * Notify store owner: new order received (in-app dashboard notification +
+ * branded alert email).
  */
 export async function notifyNewOrder(params: {
   storeOwnerUserId: string;
@@ -67,12 +91,13 @@ export async function notifyNewOrder(params: {
   orderId: string;
   customerName: string;
   customerEmail: string;
-  itemCount: number;
+  items: Array<{ name: string; quantity: number; priceCents: number; imageUrl?: string | null }>;
   totalCents: number;
   currency: string;
   paymentMethod: string;
+  storeSlug: string;
   storeName: string;
-}) {
+} & StoreBranding) {
   await createNotification({
     userId: params.storeOwnerUserId,
     type: NOTIFICATION_TYPES.SYSTEM,
@@ -88,29 +113,35 @@ export async function notifyNewOrder(params: {
     orderNumber: params.orderNumber,
     customerName: params.customerName,
     customerEmail: params.customerEmail,
-    itemCount: params.itemCount,
+    items: params.items,
     totalCents: params.totalCents,
     currency: params.currency,
     paymentMethod: params.paymentMethod,
     storeName: params.storeName,
+    storeSlug: params.storeSlug,
+    storeOwnerUserId: params.storeOwnerUserId,
     orderId: params.orderId,
+    storeLogoUrl: params.storeLogoUrl,
+    storeAccentColor: params.storeAccentColor,
+    storeCustomDomain: params.storeCustomDomain,
   });
 }
 
 /**
- * Notify buyer: shipping update (in-app + email)
+ * Notify buyer: shipping update (branded email + in-app notification).
  */
 export async function notifyShippingUpdate(params: {
   buyerEmail: string;
   customerName: string;
   orderNumber: string;
   status: string;
-  trackingNumber?: string;
-  shippingMethod?: string;
+  trackingNumber?: string | null;
+  shippingMethod?: string | null;
   storeSlug: string;
   storeName: string;
+  storeOwnerUserId: string;
   buyerUserId?: string;
-}) {
+} & StoreBranding) {
   await sendShippingUpdateEmail({
     to: params.buyerEmail,
     customerName: params.customerName,
@@ -120,6 +151,10 @@ export async function notifyShippingUpdate(params: {
     shippingMethod: params.shippingMethod,
     storeSlug: params.storeSlug,
     storeName: params.storeName,
+    storeOwnerUserId: params.storeOwnerUserId,
+    storeLogoUrl: params.storeLogoUrl,
+    storeAccentColor: params.storeAccentColor,
+    storeCustomDomain: params.storeCustomDomain,
   });
 
   if (params.buyerUserId) {
@@ -135,7 +170,7 @@ export async function notifyShippingUpdate(params: {
 }
 
 /**
- * Notify buyer: order delivered (in-app + email)
+ * Notify buyer: order delivered (branded email + in-app notification).
  */
 export async function notifyOrderDelivered(params: {
   buyerEmail: string;
@@ -143,14 +178,19 @@ export async function notifyOrderDelivered(params: {
   orderNumber: string;
   storeName: string;
   storeSlug: string;
+  storeOwnerUserId: string;
   buyerUserId?: string;
-}) {
+} & StoreBranding) {
   await sendDeliveryConfirmationEmail({
     to: params.buyerEmail,
     customerName: params.customerName,
     orderNumber: params.orderNumber,
     storeName: params.storeName,
     storeSlug: params.storeSlug,
+    storeOwnerUserId: params.storeOwnerUserId,
+    storeLogoUrl: params.storeLogoUrl,
+    storeAccentColor: params.storeAccentColor,
+    storeCustomDomain: params.storeCustomDomain,
   });
 
   if (params.buyerUserId) {

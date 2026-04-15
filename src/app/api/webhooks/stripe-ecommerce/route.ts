@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { purchaseDomain } from "@/lib/domains/manager";
-import { restoreInventory } from "@/lib/store/inventory";
+import { restoreInventory, deductInventory } from "@/lib/store/inventory";
+import { generateOrderNumber } from "@/lib/constants/ecommerce";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -19,26 +20,22 @@ export async function POST(request: NextRequest) {
     const sig = request.headers.get("stripe-signature");
 
     if (!sig) {
-      return NextResponse.json(
-        { error: "Missing signature" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing signature" }, { status: 400 });
     }
 
-    // Verify webhook signature
     const event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
 
-    // Handle different event types
     switch (event.type) {
-      case "checkout.session.completed": {
-        const session = event.data.object as Stripe.Checkout.Session;
-        await handleCheckoutCompleted(session);
-        break;
-      }
-
       case "payment_intent.succeeded": {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         await handlePaymentSucceeded(paymentIntent);
+        break;
+      }
+
+      case "payment_intent.canceled":
+      case "payment_intent.payment_failed": {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        await handlePaymentFailedOrCanceled(paymentIntent);
         break;
       }
 
@@ -69,57 +66,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true });
   } catch (error) {
     console.error("Webhook error:", error);
-    return NextResponse.json(
-      { error: "Webhook handler failed" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Webhook handler failed" }, { status: 400 });
   }
 }
 
-async function handleCheckoutCompleted(
-  session: Stripe.Checkout.Session
-) {
-  const orderId = session.metadata?.orderId;
-  if (!orderId) {
-    console.error("No orderId in session metadata");
-    return;
-  }
+// ───────────────────────────────────────────────────────────────────────────
+// Payment succeeded — promote PendingCheckout → Order OR, if an Order
+// already exists (legacy pre-PendingCheckout flow), update it in place.
+// ───────────────────────────────────────────────────────────────────────────
 
-  // Update order status
-  const order = await prisma.order.update({
-    where: { id: orderId },
-    data: {
-      paymentStatus: "paid",
-      status: "CONFIRMED",
-      paymentId: session.payment_intent as string,
-    },
-    include: { store: true },
-  });
+async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+  const meta = paymentIntent.metadata || {};
+  const { type, userId, domainName, tld, sld } = meta;
 
-  // Update store stats
-  await prisma.store.update({
-    where: { id: order.storeId },
-    data: {
-      orderCount: { increment: 1 },
-      totalRevenueCents: { increment: order.storeOwnerAmountCents },
-      platformFeesCollectedCents: { increment: order.platformFeeCents },
-    },
-  });
-
-  // TODO: Send confirmation email to customer
-  // TODO: Send notification to store owner
-  console.log(`Order ${order.orderNumber} confirmed!`);
-}
-
-async function handlePaymentSucceeded(
-  paymentIntent: Stripe.PaymentIntent
-) {
-  const { type, orderId, storeId, userId, domainName, tld, sld } = paymentIntent.metadata ?? {};
-
-  // ── Domain purchase ──
+  // ── Domain purchase (unrelated flow, unchanged) ──
   if (type === "domain_purchase" && userId && sld && tld) {
     try {
-      // Check if domain was already registered (idempotency)
       const existing = await prisma.storeDomain.findUnique({
         where: { domainName: domainName || `${sld}.${tld}` },
       });
@@ -128,7 +90,6 @@ async function handlePaymentSucceeded(
         return;
       }
 
-      // Fetch user's Brand Identity for registrant contact
       const brandKit = await prisma.brandKit.findFirst({
         where: { userId },
         select: { name: true, email: true, phone: true, address: true, city: true, state: true, zip: true, country: true },
@@ -150,7 +111,7 @@ async function handlePaymentSucceeded(
         : undefined;
 
       const result = await purchaseDomain({
-        storeId: storeId || null,
+        storeId: meta.storeId || null,
         userId,
         domainName: sld,
         tld,
@@ -159,7 +120,6 @@ async function handlePaymentSucceeded(
       });
       console.log(`Domain ${result.domainName} registered after payment ${paymentIntent.id}`);
 
-      // Create invoice for the domain purchase
       const { createInvoice } = await import("@/lib/invoices");
       const domainUser = await prisma.user.findUnique({
         where: { id: userId },
@@ -168,68 +128,216 @@ async function handlePaymentSucceeded(
       await createInvoice({
         userId,
         type: "domain_purchase",
-        items: [
-          {
-            description: `Domain registration: ${result.domainName} (1 year)`,
-            quantity: 1,
-            unitPriceCents: paymentIntent.amount,
-            totalCents: paymentIntent.amount,
-          },
-        ],
+        items: [{ description: `Domain registration: ${result.domainName} (1 year)`, quantity: 1, unitPriceCents: paymentIntent.amount, totalCents: paymentIntent.amount }],
         totalCents: paymentIntent.amount,
         paymentMethod: paymentIntent.payment_method_types?.[0] || "card",
         paymentId: paymentIntent.id,
         customerName: domainUser?.name || undefined,
         customerEmail: domainUser?.email || undefined,
       });
-      console.log(`Invoice created for domain ${result.domainName}`);
 
-      // Send notifications
       const { notifyDomainRegistered } = await import("@/lib/notifications/domain");
       await notifyDomainRegistered(userId, result.domainName);
     } catch (error: any) {
       console.error(`Failed to register domain ${domainName} after payment:`, error);
-
-      // Send failure notification
       const { notifyDomainRegistrationFailed } = await import("@/lib/notifications/domain");
       if (userId) await notifyDomainRegistrationFailed(userId, domainName || `${sld}.${tld}`, error.message);
     }
     return;
   }
 
-  // ── Order payment ──
-  if (!orderId) return;
+  // ── Store order payment ──
+  if (type !== "store_order" && !meta.orderId && !meta.pendingCheckoutId) {
+    return; // not a store order event
+  }
 
-  const order = await prisma.order.update({
+  // Idempotency: if an Order already exists for this PI, do nothing.
+  const existing = await prisma.order.findFirst({ where: { paymentId: paymentIntent.id } });
+  if (existing && existing.paymentStatus === "paid") {
+    console.log(`[webhook] Order ${existing.orderNumber} already paid — skipping duplicate webhook`);
+    return;
+  }
+
+  // Last-4 + brand extraction — best-effort from the PI's latest charge.
+  const { last4, brand } = await extractPaymentDetails(paymentIntent).catch((err) => {
+    console.warn("[webhook] Could not extract payment details:", err);
+    return { last4: null, brand: null };
+  });
+
+  // Legacy flow: an Order row already exists (pre-PendingCheckout migration) —
+  // update it in place and fire emails.
+  if (existing) {
+    const updated = await prisma.order.update({
+      where: { id: existing.id },
+      data: {
+        paymentStatus: "paid",
+        status: "CONFIRMED",
+        paymentLast4: last4,
+        paymentBrand: brand,
+      },
+    });
+    await bumpStoreStats(updated.storeId, updated.storeOwnerAmountCents || updated.totalCents, updated.platformFeeCents);
+    await fireOrderEmails(updated.id);
+    return;
+  }
+
+  // New flow: promote the PendingCheckout into a real Order.
+  const pendingId = meta.pendingCheckoutId || meta.orderId;
+  if (!pendingId) {
+    console.error("[webhook] No pendingCheckoutId in metadata, cannot create order", paymentIntent.id);
+    return;
+  }
+
+  const pending = await prisma.pendingCheckout.findUnique({ where: { id: pendingId } });
+  if (!pending) {
+    console.error(`[webhook] PendingCheckout ${pendingId} not found for PI ${paymentIntent.id}`);
+    return;
+  }
+
+  try {
+    const order = await prisma.$transaction(async (tx) => {
+      const items = JSON.parse(pending.items || "[]") as Array<{
+        productId: string; variantId?: string; name: string; quantity: number;
+      }>;
+
+      const newOrder = await tx.order.create({
+        data: {
+          orderNumber: generateOrderNumber(),
+          storeId: pending.storeId,
+          customerName: pending.customerName,
+          customerEmail: pending.customerEmail,
+          customerPhone: pending.customerPhone,
+          buyerUserId: pending.buyerUserId,
+          items: pending.items,
+          shippingAddress: pending.shippingAddress,
+          shippingMethod: pending.shippingMethod,
+          subtotalCents: pending.subtotalCents,
+          shippingCents: pending.shippingCents,
+          taxCents: pending.taxCents,
+          totalCents: pending.totalCents,
+          platformFeeCents: pending.platformFeeCents,
+          storeOwnerAmountCents: pending.storeOwnerAmountCents,
+          currency: pending.currency,
+          paymentMethod: "card",
+          paymentStatus: "paid",
+          paymentId: paymentIntent.id,
+          paymentLast4: last4,
+          paymentBrand: brand,
+          status: "CONFIRMED",
+          utmSource: pending.utmSource,
+          utmMedium: pending.utmMedium,
+          utmCampaign: pending.utmCampaign,
+          utmContent: pending.utmContent,
+          referrer: pending.referrer,
+        },
+      });
+
+      // Deduct inventory now that payment is confirmed.
+      await deductInventory(
+        items.map((i) => ({ productId: i.productId, variantId: i.variantId, name: i.name, quantity: i.quantity })),
+        tx
+      );
+
+      // Drop the pending snapshot — the Order supersedes it.
+      await tx.pendingCheckout.delete({ where: { id: pending.id } }).catch(() => {});
+
+      return newOrder;
+    });
+
+    await bumpStoreStats(order.storeId, order.storeOwnerAmountCents || order.totalCents, order.platformFeeCents);
+
+    // ROAS attribution (fire-and-forget)
+    const { attributeOrderToAd } = await import("@/lib/ads/roas-tracker");
+    attributeOrderToAd(order.id).catch((err) => console.error("ROAS attribution failed:", err));
+
+    await fireOrderEmails(order.id);
+    console.log(`[webhook] Order ${order.orderNumber} created from PendingCheckout ${pending.id}`);
+  } catch (err) {
+    console.error(`[webhook] Failed to promote PendingCheckout ${pending.id}:`, err);
+  }
+}
+
+// Delete the pending snapshot when Stripe tells us the customer gave up.
+async function handlePaymentFailedOrCanceled(paymentIntent: Stripe.PaymentIntent) {
+  const pendingId = paymentIntent.metadata?.pendingCheckoutId || paymentIntent.metadata?.orderId;
+  if (!pendingId) return;
+  try {
+    await prisma.pendingCheckout.delete({ where: { id: pendingId } });
+    console.log(`[webhook] Dropped PendingCheckout ${pendingId} after ${paymentIntent.status}`);
+  } catch { /* already gone */ }
+}
+
+async function extractPaymentDetails(paymentIntent: Stripe.PaymentIntent): Promise<{
+  last4: string | null;
+  brand: string | null;
+}> {
+  // Expand the latest charge to read the payment method details.
+  const latestChargeId = (paymentIntent.latest_charge as string | null) || null;
+  if (!latestChargeId) return { last4: null, brand: null };
+
+  const charge = await stripe.charges.retrieve(latestChargeId, {
+    expand: ["payment_method_details"],
+  });
+
+  const pmd = charge.payment_method_details;
+  if (!pmd) return { last4: null, brand: null };
+
+  // Card rails
+  if (pmd.card) return { last4: pmd.card.last4 || null, brand: pmd.card.brand || null };
+  // Cash App Pay
+  if ((pmd as any).cashapp) return { last4: null, brand: "cashapp" };
+  // Klarna / Affirm / Afterpay — no last4, use rail name as brand
+  if ((pmd as any).klarna) return { last4: null, brand: "klarna" };
+  if ((pmd as any).affirm) return { last4: null, brand: "affirm" };
+  if ((pmd as any).afterpay_clearpay) return { last4: null, brand: "afterpay" };
+  // Link
+  if ((pmd as any).link) return { last4: null, brand: "link" };
+  // iDEAL / Bancontact / SEPA Direct Debit — expose IBAN last 4 where available
+  if (pmd.ideal) return { last4: null, brand: "ideal" };
+  if (pmd.bancontact) return { last4: null, brand: "bancontact" };
+  if (pmd.sepa_debit) return { last4: pmd.sepa_debit.last4 || null, brand: "sepa" };
+  // Everything else
+  return { last4: null, brand: pmd.type || null };
+}
+
+async function bumpStoreStats(storeId: string, revenue: number, feeCents: number) {
+  await prisma.store.update({
+    where: { id: storeId },
+    data: {
+      orderCount: { increment: 1 },
+      totalRevenueCents: { increment: revenue },
+      platformFeesCollectedCents: { increment: feeCents },
+    },
+  });
+}
+
+async function fireOrderEmails(orderId: string) {
+  const order = await prisma.order.findUnique({
     where: { id: orderId },
-    data: { paymentStatus: "paid", status: "CONFIRMED" },
     include: {
       store: {
         select: {
-          id: true,
-          name: true,
-          slug: true,
-          currency: true,
+          id: true, name: true, slug: true, currency: true, logoUrl: true, theme: true, customDomain: true,
           userId: true,
           user: { select: { email: true, name: true } },
         },
       },
     },
   });
+  if (!order) return;
 
-  // Update store stats
-  await prisma.store.update({
-    where: { id: order.storeId },
-    data: {
-      orderCount: { increment: 1 },
-      totalRevenueCents: { increment: order.storeOwnerAmountCents || order.totalCents },
-      platformFeesCollectedCents: { increment: order.platformFeeCents },
-    },
-  });
+  const items = JSON.parse(order.items || "[]") as Array<{
+    name: string; quantity: number; priceCents: number; imageUrl?: string | null;
+  }>;
+  const shippingAddress = JSON.parse(order.shippingAddress || "{}") as Record<string, unknown>;
 
-  // Send confirmation emails (fire-and-forget)
+  const theme = (() => {
+    try { return typeof order.store.theme === "string" ? JSON.parse(order.store.theme) : (order.store.theme || {}); }
+    catch { return {}; }
+  })() as { colors?: { primary?: string } };
+  const accent = theme.colors?.primary;
+
   const { notifyOrderConfirmation, notifyNewOrder } = await import("@/lib/notifications/commerce");
-  const items = JSON.parse(order.items) as Array<{ name: string; quantity: number; priceCents: number }>;
 
   notifyOrderConfirmation({
     buyerEmail: order.customerEmail,
@@ -242,8 +350,15 @@ async function handlePaymentSucceeded(
     totalCents: order.totalCents,
     currency: order.currency,
     paymentMethod: order.paymentMethod || "card",
+    paymentLast4: order.paymentLast4,
+    paymentBrand: order.paymentBrand,
+    shippingAddress,
     storeSlug: order.store.slug,
     storeName: order.store.name,
+    storeOwnerUserId: order.store.userId,
+    storeLogoUrl: order.store.logoUrl,
+    storeAccentColor: accent,
+    storeCustomDomain: order.store.customDomain,
   }).catch((err) => console.error("Failed to send confirmation email:", err));
 
   notifyNewOrder({
@@ -254,43 +369,36 @@ async function handlePaymentSucceeded(
     orderId: order.id,
     customerName: order.customerName,
     customerEmail: order.customerEmail,
-    itemCount: items.length,
+    items,
     totalCents: order.totalCents,
     currency: order.currency,
     paymentMethod: order.paymentMethod || "card",
+    storeSlug: order.store.slug,
     storeName: order.store.name,
-  }).catch((err) => console.error("Failed to send new order alert:", err));
-
-  console.log(`Payment succeeded for order ${orderId}, emails dispatched`);
+    storeLogoUrl: order.store.logoUrl,
+    storeAccentColor: accent,
+    storeCustomDomain: order.store.customDomain,
+  }).catch((err) => console.error("Failed to send new order alert email:", err));
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// Other webhook handlers (unchanged behaviour)
+// ───────────────────────────────────────────────────────────────────────────
 
 async function handleRefund(charge: Stripe.Charge) {
   const paymentIntentId = charge.payment_intent as string;
-
-  // Find order by payment intent
-  const order = await prisma.order.findFirst({
-    where: { paymentId: paymentIntentId },
-  });
-
+  const order = await prisma.order.findFirst({ where: { paymentId: paymentIntentId } });
   if (!order) return;
 
   const refundedAmountCents = charge.amount_refunded;
 
-  // Update order status
   await prisma.order.update({
     where: { id: order.id },
-    data: {
-      paymentStatus: "refunded",
-      status: "REFUNDED",
-    },
+    data: { paymentStatus: "refunded", status: "REFUNDED" },
   });
 
-  // Restore inventory
-  restoreInventory(order.id).catch((err) =>
-    console.error("Failed to restore inventory on refund:", err)
-  );
+  restoreInventory(order.id).catch((err) => console.error("Failed to restore inventory on refund:", err));
 
-  // Reverse platform fees (subtract from collected fees)
   await prisma.store.update({
     where: { id: order.storeId },
     data: {
@@ -304,43 +412,27 @@ async function handleRefund(charge: Stripe.Charge) {
 
 async function handleAccountUpdated(account: Stripe.Account) {
   const isComplete = !!(account.charges_enabled && account.payouts_enabled);
-
-  // Find store by Connect account ID
   const store = await prisma.store.findFirst({
     where: { stripeConnectAccountId: account.id },
     select: { id: true, stripeOnboardingComplete: true },
   });
-
-  if (!store) {
-    console.log(`No store found for Connect account ${account.id}`);
-    return;
-  }
-
-  // Only update if status actually changed
+  if (!store) return;
   if (isComplete !== store.stripeOnboardingComplete) {
     await prisma.store.update({
       where: { id: store.id },
       data: { stripeOnboardingComplete: isComplete },
     });
-
-    console.log(
-      `Store ${store.id} Connect status updated: onboardingComplete=${isComplete}`
-    );
+    console.log(`Store ${store.id} Connect status updated: onboardingComplete=${isComplete}`);
   }
 }
 
 async function handlePayoutEvent(payout: Stripe.Payout, connectedAccountId?: string) {
   if (!connectedAccountId) return;
-
   const store = await prisma.store.findFirst({
     where: { stripeConnectAccountId: connectedAccountId },
     select: { id: true },
   });
-
-  if (!store) {
-    console.log(`No store found for Connect account ${connectedAccountId} (payout event)`);
-    return;
-  }
+  if (!store) return;
 
   await prisma.storePayout.upsert({
     where: { stripePayoutId: payout.id },

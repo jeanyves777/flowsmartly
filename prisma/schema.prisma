@@ -3235,6 +3235,7 @@ model Store {
   products               Product[]
   categories             ProductCategory[]
   orders                 Order[]
+  pendingCheckouts       PendingCheckout[]
   drivers                DeliveryDriver[]
   paymentMethods         StorePaymentMethod[]
   domains                StoreDomain[]
@@ -3497,6 +3498,8 @@ model Order {
   paymentMethod       String?   // card, mobile_money, cod, bank_transfer
   paymentStatus       String    @default("pending") // pending, paid, failed, refunded
   paymentId           String?   // Stripe PI or mobile money ref
+  paymentLast4        String?   // last 4 of card / account used for the charge (Stripe)
+  paymentBrand        String?   // "visa", "mastercard", "klarna", "affirm", "cashapp", etc.
 
   // Shipping
   shippingAddress     String    @default("{}") // JSON: {name, line1, line2, city, state, zip, country}
@@ -3533,6 +3536,56 @@ model Order {
   @@index([buyerUserId])
   @@index([createdAt])
   @@index([adCampaignId])
+}
+
+/// PendingCheckout holds a cart snapshot between "customer clicked Pay" and
+/// "Stripe confirmed the payment". No Order row exists for a card payment
+/// until the webhook lands — so walked-away checkouts never pollute the
+/// customer's My Orders list or block inventory.
+model PendingCheckout {
+  id                   String    @id @default(cuid())
+  storeId              String
+  stripePaymentIntentId String   @unique
+
+  // Customer snapshot
+  customerName         String
+  customerEmail        String
+  customerPhone        String?
+  buyerUserId          String?
+
+  // Cart snapshot (same JSON shape Order uses)
+  items                String    @default("[]")
+  shippingAddress      String    @default("{}")
+  shippingMethod       String?
+
+  // Totals (cents)
+  subtotalCents        Int
+  shippingCents        Int       @default(0)
+  taxCents             Int       @default(0)
+  totalCents           Int
+  platformFeeCents     Int       @default(0)
+  storeOwnerAmountCents Int      @default(0)
+  currency             String    @default("USD")
+
+  // Payment routing
+  paymentMethod        String    @default("card")
+  stripeConnectAccountId String?
+
+  // Attribution
+  utmSource            String?
+  utmMedium            String?
+  utmCampaign          String?
+  utmContent           String?
+  referrer             String?
+
+  createdAt            DateTime  @default(now())
+  expiresAt            DateTime  // TTL — webhook cleans stale rows
+
+  store                Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([customerEmail])
+  @@index([expiresAt])
 }
 
 model DeliveryDriver {
