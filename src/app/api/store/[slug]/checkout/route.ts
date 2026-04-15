@@ -257,15 +257,22 @@ export async function POST(
           .filter((x): x is string => typeof x === "string")
           .filter((x) => validStripeIds.has(x as StripeMethodId)) as StripeMethodId[]
       : [];
-    // When the customer picked a specific Stripe method (e.g. "Klarna") upfront,
-    // restrict the PaymentIntent to that single rail. Otherwise fall back to
-    // the owner's allowlist, and if that's empty let automatic_payment_methods
-    // surface every method active on the Connect account.
-    const stripePaymentMethodTypes: string[] | undefined = chosenStripeMethodId
-      ? toPaymentMethodTypes([chosenStripeMethodId])
-      : stripeAllowlist.length > 0
-        ? toPaymentMethodTypes(stripeAllowlist)
-        : undefined;
+    // Lock the PaymentIntent to exactly what the customer picked upfront:
+    //  - stripe_<id> (Klarna / Affirm / Cash App / iDEAL / ...) → single rail
+    //  - "card" (the wallet row) → card + Link; Apple Pay and Google Pay are
+    //    automatically surfaced by Stripe on top of the card rail, so we don't
+    //    list them as separate payment_method_types.
+    // We no longer fall back to `automatic_payment_methods`, because that
+    // would include high-minimum rails (Affirm is $35+) on small carts and
+    // cause Stripe to reject the PI with an amount-below-minimum error.
+    let stripePaymentMethodTypes: string[] | undefined;
+    if (chosenStripeMethodId) {
+      stripePaymentMethodTypes = toPaymentMethodTypes([chosenStripeMethodId]);
+    } else if (paymentMethod === "card") {
+      stripePaymentMethodTypes = ["card", "link"];
+    } else if (stripeAllowlist.length > 0) {
+      stripePaymentMethodTypes = toPaymentMethodTypes(stripeAllowlist);
+    }
 
     const shippingCents = calculateShipping(
       subtotalCents,
