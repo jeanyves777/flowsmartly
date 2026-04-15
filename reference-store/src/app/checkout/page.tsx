@@ -117,7 +117,7 @@ function InlineStripeForm({
       <button
         onClick={handlePay}
         disabled={!stripe || !elements || submitting}
-        className="w-full inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary-600 text-white rounded-full font-semibold hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary-600/25"
+        className="w-full inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary/25"
       >
         {submitting ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />}
         {submitting ? "Processing..." : `Pay ${formatPrice(amount)}`}
@@ -421,7 +421,7 @@ export default function CheckoutPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Order Placed!</h1>
             {orderNumber && <p className="text-gray-500 dark:text-gray-400 mb-6">Order #{orderNumber}</p>}
-            <Link href="/products" className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-full font-medium hover:bg-primary-700 transition-colors">
+            <Link href="/products" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/90 transition-colors">
               Continue Shopping
             </Link>
           </motion.div>
@@ -431,7 +431,7 @@ export default function CheckoutPage() {
     );
   }
 
-  const inputClass = "w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none placeholder-gray-400 dark:placeholder-gray-500 transition-colors";
+  const inputClass = "w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none placeholder-gray-400 dark:placeholder-gray-500 transition-colors";
 
   return (
     <>
@@ -439,7 +439,7 @@ export default function CheckoutPage() {
       <main className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-24 pb-16">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
 
-        <Link href="/products" className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 mb-6">
+        <Link href="/products" className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary mb-6">
           <ArrowLeft size={16} /> Back to Shopping
         </Link>
 
@@ -466,7 +466,7 @@ export default function CheckoutPage() {
               <button
                 onClick={() => i < step && setStep(i)}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all ${
-                  i === step ? "bg-primary-600 text-white shadow-lg shadow-primary-600/25" :
+                  i === step ? "bg-primary text-white shadow-lg shadow-primary/25" :
                   i < step ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 cursor-pointer" :
                   "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
                 }`}
@@ -557,10 +557,10 @@ export default function CheckoutPage() {
                       return (
                         <label key={method.id} className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
                           form.shippingMethodId === method.id
-                            ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10"
+                            ? "border-primary bg-primary/10"
                             : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
                         }`}>
-                          <input type="radio" name="shippingMethodId" value={method.id} checked={form.shippingMethodId === method.id} onChange={handleChange} className="w-4 h-4 text-primary-600" />
+                          <input type="radio" name="shippingMethodId" value={method.id} checked={form.shippingMethodId === method.id} onChange={handleChange} className="w-4 h-4 text-primary" />
                           <div className="flex-1">
                             <p className="font-semibold text-gray-900 dark:text-white">{method.name}</p>
                             <p className="text-sm text-gray-500 dark:text-gray-400">{method.description || method.estimatedDays}</p>
@@ -599,7 +599,7 @@ export default function CheckoutPage() {
                         key={pm.stripeMethodId || pm.method}
                         className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
                           selectedPayment === pm.method
-                            ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10"
+                            ? "border-primary bg-primary/10"
                             : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
                         }`}
                       >
@@ -609,7 +609,7 @@ export default function CheckoutPage() {
                           value={pm.method}
                           checked={selectedPayment === pm.method}
                           onChange={() => setSelectedPayment(pm.method)}
-                          className="w-4 h-4 text-primary-600"
+                          className="w-4 h-4 text-primary"
                         />
                         <span className="text-gray-400">
                           {PAYMENT_ICONS[pm.method === "card" ? "card" : pm.provider === "stripe" ? "card" : pm.method] ?? <CreditCard size={18} />}
@@ -705,7 +705,7 @@ export default function CheckoutPage() {
                 <button
                   onClick={handleNext}
                   disabled={!canNext()}
-                  className="inline-flex items-center gap-2 px-8 py-3 bg-primary-600 text-white rounded-full font-semibold hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary-600/25"
+                  className="inline-flex items-center gap-2 px-8 py-3 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary/25"
                 >
                   Continue <ArrowRight size={16} />
                 </button>
@@ -716,7 +716,7 @@ export default function CheckoutPage() {
                   <button
                     onClick={handleNonCardSubmit}
                     disabled={loading || loadingPaymentMethods}
-                    className="inline-flex items-center gap-2 px-8 py-3 bg-primary-600 text-white rounded-full font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-lg shadow-primary-600/25"
+                    className="inline-flex items-center gap-2 px-8 py-3 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-lg shadow-primary/25"
                   >
                     {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingBag size={16} />}
                     {loading ? "Processing..." : "Place Order"}
@@ -745,7 +745,7 @@ export default function CheckoutPage() {
                         <p className="text-xs text-gray-400">Qty: {item.quantity}</p>
                         {hasIssue && <p className="text-xs text-red-500">Item unavailable</p>}
                       </div>
-                      <p className="text-sm font-semibold text-primary-600 flex-shrink-0">{formatPrice(item.priceCents * item.quantity)}</p>
+                      <p className="text-sm font-semibold text-primary flex-shrink-0">{formatPrice(item.priceCents * item.quantity)}</p>
                     </div>
                   );
                 })}
@@ -762,7 +762,7 @@ export default function CheckoutPage() {
                 </div>
                 <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white pt-2 border-t border-gray-100 dark:border-gray-800">
                   <span>Total</span>
-                  <span className="text-primary-600">{formatPrice(total)}</span>
+                  <span className="text-primary">{formatPrice(total)}</span>
                 </div>
               </div>
             </div>
