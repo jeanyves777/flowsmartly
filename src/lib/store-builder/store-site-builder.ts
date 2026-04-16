@@ -207,6 +207,17 @@ export function initStoreDirV3(storeId: string, slug: string): string {
     writeFileSync(join(storeDir, "src", "app", "checkout", "page.tsx"), readFileSync(refCheckoutPath));
   }
 
+  // Login/register pages — redirect to AccountModal (side drawer).
+  // Auth is handled by the AccountModal, NOT standalone pages.
+  const refLoginPath = join(REFERENCE_BASE, "app", "account", "login", "page.tsx");
+  const refRegisterPath = join(REFERENCE_BASE, "app", "account", "register", "page.tsx");
+  if (existsSync(refLoginPath)) {
+    writeFileSync(join(storeDir, "src", "app", "account", "login", "page.tsx"), readFileSync(refLoginPath));
+  }
+  if (existsSync(refRegisterPath)) {
+    writeFileSync(join(storeDir, "src", "app", "account", "register", "page.tsx"), readFileSync(refRegisterPath));
+  }
+
   // Account orders pages — pre-built from reference-store, agent must NOT overwrite
   // These implement: real order list with pending CTA, order detail with
   // cancel (pre-fulfillment), address change (pre-fulfillment), return request (DELIVERED only)
