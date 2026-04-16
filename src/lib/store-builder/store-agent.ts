@@ -381,8 +381,8 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 ### Logo & Favicon:
 - MUST download brand logo via download_image IMMEDIATELY after get_brand_identity
 - NEVER create text/SVG placeholder logos
-- Logo sizing: Header h-10 sm:h-12 md:h-14 max-w-[200px] object-contain — NEVER h-4, h-6, h-8
-- Footer logo: h-12 md:h-14 max-w-[180px] object-contain
+- Logo sizing: Header h-12 sm:h-14 md:h-16 max-w-[220px] object-contain — logos MUST be prominent and readable at a glance. NEVER h-4, h-6, h-8, h-10.
+- Footer logo: h-12 md:h-14 max-w-[200px] object-contain
 - Favicon: use exact downloaded file extension
 
 ### Desktop Header Layout (MANDATORY — prevents misaligned icons):
@@ -391,7 +391,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
   <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b shadow-sm">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
       {/* Logo */}
-      <Link href="/"><img src={storeInfo.logoUrl} className="h-10 sm:h-12 md:h-14 max-w-[200px] object-contain" alt={storeInfo.name} /></Link>
+      <Link href="/"><img src={storeInfo.logoUrl} className="h-12 sm:h-14 md:h-16 max-w-[220px] object-contain" alt={storeInfo.name} /></Link>
 
       {/* Nav — desktop only */}
       <nav className="hidden md:flex items-center gap-6">...</nav>
@@ -436,7 +436,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - MobileBottomNav (fixed bottom, md:hidden): Shop (Home icon), Search, Cart (badge), Account
 - Cart badge from localStorage + 'cart-updated' event listener
 - Account button links to /account (internal)
-- Logo in header: h-10 sm:h-12 md:h-14 (NEVER h-4/h-6/h-8 — too tiny)
+- Logo in header: h-12 sm:h-14 md:h-16 (NEVER h-4/h-6/h-8/h-10 — too tiny, logos must be prominent)
 - 2-col product grids on mobile, 3 on md, 4 on lg
 - Touch targets: min 44px
 

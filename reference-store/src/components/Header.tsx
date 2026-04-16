@@ -53,7 +53,7 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
                 <img
                   src={storeInfo.logoUrl}
                   alt={`${storeInfo.name} logo`}
-                  className="h-10 sm:h-12 max-w-[160px] object-contain"
+                  className="h-12 sm:h-14 md:h-16 max-w-[220px] object-contain"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
                     const sibling = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
@@ -154,7 +154,7 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
                   <img
                     src={storeInfo.logoUrl}
                     alt={storeInfo.name}
-                    className="h-10 max-w-[140px] object-contain"
+                    className="h-12 max-w-[180px] object-contain"
                   />
                 </a>
                 <button
