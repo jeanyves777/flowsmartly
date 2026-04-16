@@ -7,9 +7,15 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session?.adminId) {
-    return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  // Accept either admin session OR a server-side secret for CLI/SSH usage
+  const authHeader = request.headers.get("x-admin-secret");
+  if (authHeader === process.env.ADMIN_SECRET) {
+    // OK — server-side admin access
+  } else {
+    const session = await getSession();
+    if (!session?.adminId) {
+      return NextResponse.json({ error: "Admin only" }, { status: 403 });
+    }
   }
 
   const { id } = await params;
