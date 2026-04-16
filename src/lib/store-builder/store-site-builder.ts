@@ -214,6 +214,12 @@ export function initStoreDirV3(storeId: string, slug: string): string {
     writeFileSync(join(storeDir, "src", "components", "AccountModalProvider.tsx"), readFileSync(refAMPPath));
   }
 
+  // Account dashboard — redirects to AccountModal (side drawer handles everything).
+  const refAccountPath = join(REFERENCE_BASE, "app", "account", "page.tsx");
+  if (existsSync(refAccountPath)) {
+    writeFileSync(join(storeDir, "src", "app", "account", "page.tsx"), readFileSync(refAccountPath));
+  }
+
   // Login/register pages — redirect to AccountModal (side drawer).
   // Auth is handled by the AccountModal, NOT standalone pages.
   const refLoginPath = join(REFERENCE_BASE, "app", "account", "login", "page.tsx");

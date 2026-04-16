@@ -434,12 +434,16 @@ export interface CartItem {
   imageUrl: string;
 }
 
-const CART_KEY = "flowshop-cart";
+function getCartKey(): string {
+  if (typeof window === "undefined") return "flowshop-cart";
+  const match = window.location.pathname.match(/^\\/stores\\/([^/]+)/);
+  return match ? \`flowshop-cart-\${match[1]}\` : "flowshop-cart";
+}
 
 export function getCart(): CartItem[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(CART_KEY);
+    const raw = localStorage.getItem(getCartKey());
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -448,7 +452,7 @@ export function getCart(): CartItem[] {
 
 export function saveCart(items: CartItem[]): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(CART_KEY, JSON.stringify(items));
+  localStorage.setItem(getCartKey(), JSON.stringify(items));
   window.dispatchEvent(new CustomEvent("cart-updated"));
 }
 

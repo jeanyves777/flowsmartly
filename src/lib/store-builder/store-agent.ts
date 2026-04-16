@@ -216,7 +216,7 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 11. Write ACCOUNT pages — all "use client", all fetch from /api/:
     - src/app/account/login/page.tsx: PRE-BUILT — DO NOT WRITE. Redirects to AccountModal (side drawer). Auth is handled by the AccountModal, NOT standalone pages. NEVER create login pages with demo credentials.
     - src/app/account/register/page.tsx: PRE-BUILT — DO NOT WRITE. Same redirect to AccountModal.
-    - src/app/account/page.tsx: dashboard with greeting, recent orders, quick links (orders/addresses/settings). Fetch from /api/account/profile + /api/account/orders. If 401 → dispatch "toggle-account" event to open AccountModal
+    - src/app/account/page.tsx: PRE-BUILT — DO NOT WRITE. Redirects to AccountModal.
     - src/app/account/orders/page.tsx: PRE-BUILT — DO NOT WRITE OR OVERWRITE. Includes real order list from /api/account/orders, pending card payment banner with "Complete Payment" CTA + "Cancel Order" button (PATCH /api/account/orders/{id} with { action: "cancel" }), pagination, status badges. getBasePath() used for all window.location.href navigations.
     - src/app/account/orders/[orderId]/page.tsx: PRE-BUILT — DO NOT WRITE OR OVERWRITE. Real order detail: status timeline, items, cancel (PENDING/CONFIRMED/PROCESSING only via PATCH {action:"cancel"}), change address (PENDING/CONFIRMED/PROCESSING only via PATCH {action:"update_address"}), return request (DELIVERED only via PUT with reason). getBasePath() used for all window.location.href navigations.
     - CRITICAL — getBasePath() pattern: Any page that does window.location.href navigation MUST use getBasePath() to prefix all paths:
@@ -452,6 +452,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - src/components/ThemeProvider.tsx, ThemeToggle.tsx, Analytics.tsx, CookieConsent.tsx, AccountModalProvider.tsx
 - src/app/checkout/page.tsx (3-step checkout with Stripe — pre-built, DO NOT OVERWRITE)
 - src/app/checkout/confirm/page.tsx (Stripe PaymentElement — pre-built, DO NOT OVERWRITE)
+- src/app/account/page.tsx (redirects to AccountModal — pre-built, DO NOT OVERWRITE)
 - src/app/account/login/page.tsx (redirects to AccountModal — pre-built, DO NOT OVERWRITE)
 - src/app/account/register/page.tsx (redirects to AccountModal — pre-built, DO NOT OVERWRITE)
 - src/app/account/orders/page.tsx (real order list with pending CTA — pre-built, DO NOT OVERWRITE)
