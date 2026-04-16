@@ -207,6 +207,13 @@ export function initStoreDirV3(storeId: string, slug: string): string {
     writeFileSync(join(storeDir, "src", "app", "checkout", "page.tsx"), readFileSync(refCheckoutPath));
   }
 
+  // AccountModalProvider — MUST render {children}. Agent has historically
+  // generated stubs that swallow the page, so we pre-build it.
+  const refAMPPath = join(REFERENCE_BASE, "components", "AccountModalProvider.tsx");
+  if (existsSync(refAMPPath)) {
+    writeFileSync(join(storeDir, "src", "components", "AccountModalProvider.tsx"), readFileSync(refAMPPath));
+  }
+
   // Login/register pages — redirect to AccountModal (side drawer).
   // Auth is handled by the AccountModal, NOT standalone pages.
   const refLoginPath = join(REFERENCE_BASE, "app", "account", "login", "page.tsx");

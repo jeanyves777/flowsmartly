@@ -449,7 +449,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - package.json, tsconfig.json, postcss.config.mjs, next.config.ts
 - src/lib/api-client.ts, src/lib/cart.ts
 - src/app/api/[...path]/route.ts
-- src/components/ThemeProvider.tsx, ThemeToggle.tsx, Analytics.tsx, CookieConsent.tsx
+- src/components/ThemeProvider.tsx, ThemeToggle.tsx, Analytics.tsx, CookieConsent.tsx, AccountModalProvider.tsx
 - src/app/checkout/page.tsx (3-step checkout with Stripe — pre-built, DO NOT OVERWRITE)
 - src/app/checkout/confirm/page.tsx (Stripe PaymentElement — pre-built, DO NOT OVERWRITE)
 - src/app/account/login/page.tsx (redirects to AccountModal — pre-built, DO NOT OVERWRITE)
