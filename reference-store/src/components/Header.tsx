@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShoppingBag, Search, Menu, X, ChevronRight, User } from "lucide-react";
-import { storeInfo, navLinks, storeUrl, categories } from "@/lib/data";
+import { storeInfo, navLinks, categories } from "@/lib/data";
 import { getCart, getCartCount } from "@/lib/cart";
 import ThemeToggle from "./ThemeToggle";
 
@@ -25,7 +26,6 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
     return () => window.removeEventListener("cart-updated", update);
   }, []);
 
-  // Lock body scroll when menu is open
   useEffect(() => {
     if (menuOpen) {
       document.body.style.overflow = "hidden";
@@ -37,7 +37,6 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
 
   return (
     <>
-      {/* Header bar */}
       <header
         className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
           scrolled
@@ -47,8 +46,7 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-20">
-            {/* Logo */}
-            <a href={storeUrl("/")} className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-3">
               {storeInfo.logoUrl ? (
                 <img
                   src={storeInfo.logoUrl}
@@ -67,30 +65,28 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
               >
                 {storeInfo.name}
               </span>
-            </a>
+            </Link>
 
-            {/* Desktop nav */}
             <nav className="hidden md:flex items-center gap-8">
               {navLinks.map((link) => (
-                <a
+                <Link
                   key={link.href}
                   href={link.href}
                   className="text-sm font-medium text-gray-700 dark:text-gray-200 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                 >
                   {link.label}
-                </a>
+                </Link>
               ))}
             </nav>
 
-            {/* Actions */}
             <div className="flex items-center gap-1">
-              <a
-                href={storeUrl("/products")}
+              <Link
+                href="/products"
                 className="hidden sm:flex p-2 text-gray-600 dark:text-gray-300 hover:text-primary-600 transition-colors"
                 aria-label="Search"
               >
                 <Search size={20} />
-              </a>
+              </Link>
 
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent("toggle-account"))}
@@ -127,11 +123,9 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
         </div>
       </header>
 
-      {/* Mobile side drawer menu — slides from LEFT */}
       <AnimatePresence>
         {menuOpen && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -140,7 +134,6 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
               className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50"
             />
 
-            {/* Drawer */}
             <motion.div
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
@@ -148,15 +141,14 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
               className="fixed left-0 top-0 bottom-0 w-[85%] max-w-sm bg-white dark:bg-gray-900 shadow-2xl z-50 flex flex-col"
             >
-              {/* Drawer header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-                <a href={storeUrl("/")} onClick={() => setMenuOpen(false)}>
-                  <img
-                    src={storeInfo.logoUrl}
-                    alt={storeInfo.name}
-                    className="h-12 max-w-[180px] object-contain"
-                  />
-                </a>
+                <Link href="/" onClick={() => setMenuOpen(false)}>
+                  {storeInfo.logoUrl ? (
+                    <img src={storeInfo.logoUrl} alt={storeInfo.name} className="h-12 max-w-[180px] object-contain" />
+                  ) : (
+                    <span className="font-bold text-lg">{storeInfo.name}</span>
+                  )}
+                </Link>
                 <button
                   onClick={() => setMenuOpen(false)}
                   className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
@@ -166,10 +158,9 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
                 </button>
               </div>
 
-              {/* Navigation links */}
               <nav className="flex-1 overflow-y-auto py-4">
                 {navLinks.map((link) => (
-                  <a
+                  <Link
                     key={link.href}
                     href={link.href}
                     onClick={() => setMenuOpen(false)}
@@ -177,36 +168,34 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
                   >
                     <span className="font-medium">{link.label}</span>
                     <ChevronRight size={16} className="text-gray-400" />
-                  </a>
+                  </Link>
                 ))}
 
-                {/* Category links */}
                 {categories.length > 0 && (
                   <>
                     <div className="mx-5 my-3 border-t border-gray-100 dark:border-gray-800" />
                     <p className="px-5 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                       Categories
                     </p>
-                    {categories.map((cat) => (
-                      <a
+                    {categories.map((cat: any) => (
+                      <Link
                         key={cat.id}
-                        href={storeUrl(`/category/${cat.slug}`)}
+                        href={`/category/${cat.slug}`}
                         onClick={() => setMenuOpen(false)}
                         className="flex items-center justify-between px-5 py-3 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                       >
                         <span className="text-sm">{cat.name}</span>
-                        <span className="text-xs text-gray-400">{cat.productCount}</span>
-                      </a>
+                        <span className="text-xs text-gray-400">{cat.productCount || ""}</span>
+                      </Link>
                     ))}
                   </>
                 )}
               </nav>
 
-              {/* Drawer footer */}
               <div className="border-t border-gray-100 dark:border-gray-800 px-5 py-4">
                 <div className="text-xs text-gray-400 space-y-1">
-                  {storeInfo.phones[0] && <p>{storeInfo.phones[0]}</p>}
-                  {storeInfo.emails[0] && <p>{storeInfo.emails[0]}</p>}
+                  {storeInfo.phones?.[0] && <p>{storeInfo.phones[0]}</p>}
+                  {storeInfo.emails?.[0] && <p>{storeInfo.emails[0]}</p>}
                 </div>
               </div>
             </motion.div>
