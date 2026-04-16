@@ -26,13 +26,21 @@ export function CartDrawer() {
   const handleSaveForLater = async (productId: string, variantId?: string) => {
     setSavingId(productId);
     try {
-      await fetch(`/api/store/${storeSlug}/account/cart/save-for-later`, {
+      const res = await fetch(`/api/store/${storeSlug}/account/cart/save-for-later`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ productId, variantId }),
       });
-      removeItem(productId, variantId);
-    } catch { /* silent */ } finally {
+      if (res.ok) {
+        removeItem(productId, variantId);
+      } else {
+        // API failed (e.g. not logged in) — don't remove item from cart
+        console.warn("Save for later failed:", res.status);
+      }
+    } catch {
+      // Network error — don't remove item from cart
+      console.warn("Save for later failed: network error");
+    } finally {
       setSavingId(null);
     }
   };
@@ -190,7 +198,7 @@ export function CartDrawer() {
               Shipping & taxes calculated at checkout
             </p>
             <Link
-              href={`/store/${storeSlug}/checkout`}
+              href={`/stores/${storeSlug}/checkout`}
               onClick={() => setIsOpen(false)}
               className="block w-full text-center py-3 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-opacity"
               style={{ backgroundColor: "var(--store-color-primary, #0ea5e9)" }}

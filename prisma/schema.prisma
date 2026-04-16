@@ -3192,6 +3192,8 @@ model Store {
   generatorVersion       String    @default("v1")    // "v1"=SSR blueprint, "v2"=agent-static
   generatedPath          String?                      // path to generated-stores/{id}/
   buildStatus            String    @default("idle")   // idle, building, built, error
+  buildStartedAt         DateTime?                    // When build lock was acquired (for timeout recovery)
+  pendingRebuild         Boolean   @default(false)    // True if a rebuild was queued while building
   lastBuildAt            DateTime?
   lastBuildError         String?
   siteData               String    @default("{}")     // cached parsed data for editor
@@ -3497,7 +3499,7 @@ model Order {
   // Payment
   paymentMethod       String?   // card, mobile_money, cod, bank_transfer
   paymentStatus       String    @default("pending") // pending, paid, failed, refunded
-  paymentId           String?   // Stripe PI or mobile money ref
+  paymentId           String?   @unique // Stripe PI or mobile money ref (unique prevents duplicate orders from webhook retries)
   paymentLast4        String?   // last 4 of card / account used for the charge (Stripe)
   paymentBrand        String?   // "visa", "mastercard", "klarna", "affirm", "cashapp", etc.
 

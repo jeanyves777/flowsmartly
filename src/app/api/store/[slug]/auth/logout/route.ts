@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { safeCorsHeaders } from "@/lib/store/cors";
 
-function corsHeaders(request: NextRequest) {
-  const origin = request.headers.get("origin") || "";
-  return {
-    "Access-Control-Allow-Origin": origin || "*",
-    "Access-Control-Allow-Credentials": "true",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-  };
-}
+const corsHeaders = safeCorsHeaders;
 
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, { status: 204, headers: corsHeaders(request) });

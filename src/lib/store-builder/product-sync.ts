@@ -62,8 +62,8 @@ async function syncProductsToFile(storeId: string, storeDir: string): Promise<vo
   if (!existsSync(productsPath)) return;
 
   const products = await prisma.product.findMany({
-    where: { storeId, status: { not: "ARCHIVED" } },
-    include: { productCategory: true },
+    where: { storeId, status: "ACTIVE" },
+    include: { productCategory: true, variants: { where: { isActive: true } } },
     orderBy: { createdAt: "asc" },
   });
 
@@ -87,6 +87,22 @@ async function syncProductsToFile(storeId: string, storeDir: string): Promise<vo
     let labels: string[] = [];
     try { labels = JSON.parse(p.labels || "[]"); } catch {}
 
+    // Sync variants from DB
+    const variants = (p.variants || []).map((v: any) => {
+      let options: Record<string, string> = {};
+      try { options = JSON.parse(v.options || "{}"); } catch {}
+      return {
+        id: v.id,
+        name: v.name,
+        sku: v.sku || "",
+        priceCents: v.priceCents,
+        comparePriceCents: v.comparePriceCents || null,
+        options,
+        quantity: v.quantity,
+        imageUrl: v.imageUrl || "",
+      };
+    });
+
     return `  {
     id: "${p.id}",
     slug: "${p.slug}",
@@ -98,7 +114,7 @@ async function syncProductsToFile(storeId: string, storeDir: string): Promise<vo
     categoryId: "${p.categoryId || ""}",
     tags: ${JSON.stringify(tags)},
     images: ${JSON.stringify(images)},
-    variants: [],
+    variants: ${JSON.stringify(variants)},
     labels: ${JSON.stringify(labels)},
     badges: ${JSON.stringify(labels)},
     featured: ${labels.includes("featured")},
@@ -172,11 +188,9 @@ async function syncShippingToDataFile(storeId: string, storeDir: string, freeThr
     content = content.replace(/freeShippingThresholdCents:\s*\d+/, `freeShippingThresholdCents: ${freeThresholdCents}`);
   }
 
-  // Fetch shipping methods from DB
-  const methods = await prisma.storeShippingMethod.findMany({
-    where: { storeId, isActive: true },
-    orderBy: { sortOrder: "asc" },
-  });
+  // Fetch shipping methods from DB (shared query — same as store-agent)
+  const { fetchStoreShippingMethods } = await import("./shared-queries");
+  const methods = await fetchStoreShippingMethods(storeId);
 
   const methodsStr = methods.map(m =>
     `  { id: "${m.id}", name: "${escapeStr(m.name)}", description: "${escapeStr(m.description || "")}", priceCents: ${m.priceCents}, estimatedDays: "${escapeStr(m.estimatedDays || "")}" }`

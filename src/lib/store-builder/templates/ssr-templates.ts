@@ -504,10 +504,12 @@ export function getCartCount(cart: CartItem[]): number {
   return cart.reduce((sum, item) => sum + item.quantity, 0);
 }
 
-/** Navigate to the local checkout page — no external redirect */
+/** Navigate to the local checkout page — respects basePath for SSR stores */
 export function goToCheckout(): void {
   if (getCart().length === 0) return;
-  window.location.href = "/checkout";
+  // Use Next.js basePath from env (set by next.config.ts) or detect from current URL
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || window.location.pathname.replace(/\\/checkout.*$/, "").replace(/\\/$/, "");
+  window.location.href = basePath + "/checkout";
 }
 `;
 

@@ -11,9 +11,11 @@ import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db/client";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.STORE_CUSTOMER_JWT_SECRET || process.env.JWT_SECRET || "flowsmartly-store-customer-secret-change-me"
-);
+const jwtSecretValue = process.env.STORE_CUSTOMER_JWT_SECRET || process.env.JWT_SECRET;
+if (!jwtSecretValue) {
+  console.error("FATAL: STORE_CUSTOMER_JWT_SECRET or JWT_SECRET must be set. Store customer auth will fail.");
+}
+const JWT_SECRET = new TextEncoder().encode(jwtSecretValue || "MISSING-SECRET-CHECK-ENV");
 
 const COOKIE_NAME = "sc_session";
 const SESSION_DURATION = 30 * 24 * 60 * 60; // 30 days in seconds

@@ -12,10 +12,11 @@ import { spawn as spawnProcess } from "child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
-// Reference store location (same as reference-reader.ts)
-const REFERENCE_BASE = process.platform === "win32"
-  ? "C:\\Users\\koffi\\Dev\\flowsmartly\\reference-store\\src"
-  : "/opt/reference-store/src";
+// Reference store location — use env var to avoid hardcoded user paths
+const REFERENCE_BASE = process.env.REFERENCE_STORE_PATH
+  || (process.platform === "win32"
+    ? join(process.cwd(), "reference-store", "src")
+    : "/opt/reference-store/src");
 import { prisma } from "@/lib/db/client";
 import {
   TEMPLATE_STORE_PACKAGE_JSON,
@@ -61,9 +62,10 @@ import { regenerateAndReload } from "@/lib/ssr-manager/nginx-config";
 
 // ─── Directories ─────────────────────────────────────────────────────────────
 
-const STORES_BASE = process.platform === "win32"
-  ? "C:\\Users\\koffi\\Dev\\flowsmartly\\generated-stores"
-  : "/var/www/flowsmartly/generated-stores";
+const STORES_BASE = process.env.GENERATED_STORES_PATH
+  || (process.platform === "win32"
+    ? join(process.cwd(), "generated-stores")
+    : "/var/www/flowsmartly/generated-stores");
 
 export function getStoreDir(storeId: string): string {
   return join(STORES_BASE, storeId);
@@ -113,6 +115,55 @@ function execAsync(cmd: string, options: { cwd: string; env?: NodeJS.ProcessEnv;
       reject(err);
     });
   });
+}
+
+// ─── Build Lock ──────────────────────────────────────────────────────────────
+
+/**
+ * Atomically acquire a build lock for a store.
+ * Uses a Prisma conditional update: only sets "building" if current status is NOT "building".
+ * Returns true if lock was acquired, false if another build is already running.
+ */
+export async function acquireBuildLock(storeId: string): Promise<boolean> {
+  try {
+    // Atomic: only update if not already building (prevents race condition)
+    const result = await prisma.$executeRawUnsafe(
+      `UPDATE "Store" SET "buildStatus" = 'building', "buildStartedAt" = NOW() WHERE "id" = $1 AND ("buildStatus" IS NULL OR "buildStatus" != 'building')`,
+      storeId
+    );
+    return result > 0; // 1 = lock acquired, 0 = already building
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Release the build lock by setting a final status.
+ */
+async function releaseBuildLock(
+  storeId: string,
+  status: "built" | "error",
+  error?: string
+): Promise<void> {
+  await prisma.store.update({
+    where: { id: storeId },
+    data: status === "built"
+      ? { buildStatus: "built", lastBuildAt: new Date(), lastBuildError: null, buildStartedAt: null }
+      : { buildStatus: "error", lastBuildError: error?.substring(0, 5000), buildStartedAt: null },
+  });
+}
+
+// Track active builds for cancellation
+const activeBuildProcesses = new Map<string, { cancel: () => void }>();
+
+export function cancelBuild(storeId: string): boolean {
+  const proc = activeBuildProcesses.get(storeId);
+  if (proc) {
+    proc.cancel();
+    activeBuildProcesses.delete(storeId);
+    return true;
+  }
+  return false;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -351,31 +402,63 @@ export async function buildStoreV3(storeId: string): Promise<{ success: boolean;
     return { success: false, output: "", error: "Store directory not found" };
   }
 
-  try {
-    await prisma.store.update({
-      where: { id: storeId },
-      data: { buildStatus: "building" },
-    });
+  // Atomic build lock — prevents concurrent builds for the same store
+  const locked = await acquireBuildLock(storeId);
+  if (!locked) {
+    console.warn(`[StoreBuilder:V3] Build already in progress for ${storeId}, marking pendingRebuild`);
+    await prisma.store.update({ where: { id: storeId }, data: { pendingRebuild: true } });
+    return { success: false, output: "", error: "Build already in progress — queued for rebuild" };
+  }
 
+  // Rollback support: rename current .next to .next.bak before building
+  const nextDir = join(storeDir, ".next");
+  const nextBackup = join(storeDir, ".next.bak");
+  try {
+    const { renameSync, rmSync } = await import("fs");
+    if (existsSync(nextBackup)) rmSync(nextBackup, { recursive: true, force: true });
+    if (existsSync(nextDir)) renameSync(nextDir, nextBackup);
+  } catch {}
+
+  try {
     const result = await buildStoreFromDir(storeDir);
 
-    await prisma.store.update({
-      where: { id: storeId },
-      data: result.success
-        ? { buildStatus: "built", lastBuildAt: new Date(), lastBuildError: null }
-        : { buildStatus: "error", lastBuildError: result.error?.substring(0, 2000) },
-    });
+    if (result.success) {
+      // Build succeeded — remove backup
+      try { const { rmSync } = await import("fs"); rmSync(nextBackup, { recursive: true, force: true }); } catch {}
+      await releaseBuildLock(storeId, "built");
+    } else {
+      // Build failed — rollback to previous .next
+      try {
+        const { renameSync, rmSync } = await import("fs");
+        if (existsSync(nextDir)) rmSync(nextDir, { recursive: true, force: true });
+        if (existsSync(nextBackup)) renameSync(nextBackup, nextDir);
+        console.log(`[StoreBuilder:V3] Rolled back to previous build for ${storeId}`);
+      } catch {}
+      await releaseBuildLock(storeId, "error", result.error);
+    }
+
+    // Check if a rebuild was queued while we were building
+    const store = await prisma.store.findUnique({ where: { id: storeId }, select: { pendingRebuild: true, slug: true } });
+    if (store?.pendingRebuild) {
+      await prisma.store.update({ where: { id: storeId }, data: { pendingRebuild: false } });
+      console.log(`[StoreBuilder:V3] Processing queued rebuild for ${storeId}`);
+      // Don't await — let it run as a separate build cycle
+      buildStoreV3(storeId).catch(e => console.error(`[StoreBuilder:V3] Queued rebuild failed:`, e));
+    }
 
     return result;
   } catch (err: any) {
     const errorMsg = err.stderr?.toString() || err.stdout?.toString() || err.message || "Build failed";
     console.error(`[StoreBuilder:V3] Build failed for ${storeId}:`, errorMsg.substring(0, 500));
 
-    await prisma.store.update({
-      where: { id: storeId },
-      data: { buildStatus: "error", lastBuildError: errorMsg.substring(0, 2000) },
-    });
+    // Rollback on exception
+    try {
+      const { renameSync, rmSync } = await import("fs");
+      if (existsSync(nextDir)) rmSync(nextDir, { recursive: true, force: true });
+      if (existsSync(nextBackup)) renameSync(nextBackup, nextDir);
+    } catch {}
 
+    await releaseBuildLock(storeId, "error", errorMsg);
     return { success: false, output: "", error: errorMsg };
   }
 }

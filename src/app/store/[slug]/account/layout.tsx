@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { verifyCustomerToken } from "@/lib/store/customer-auth";
 import { prisma } from "@/lib/db/client";
@@ -11,17 +11,21 @@ interface AccountLayoutProps {
 export default async function StoreAccountLayout({ children, params }: AccountLayoutProps) {
   const { slug } = await params;
 
-  // Auth pages (login/register) don't need session verification
-  // We check the cookie name to detect path — Next.js doesn't expose pathname in layouts,
-  // so we rely on the route group structure. Login/register are nested routes that render
-  // directly without auth check.
-  // Actually, we use headers to get the URL path.
-  const { headers } = await import("next/headers");
+  // Detect auth pages from the URL path.
+  // Try multiple header sources: Next.js internal headers, then x-url from nginx.
+  // Fallback: check the referer which is more reliable across deployments.
   const headersList = await headers();
-  const url = headersList.get("x-invoke-path") || headersList.get("x-matched-path") || headersList.get("x-url") || "";
+  const url =
+    headersList.get("x-invoke-path") ||
+    headersList.get("x-matched-path") ||
+    headersList.get("x-url") ||
+    headersList.get("x-nextjs-data") ||
+    headersList.get("referer") ||
+    "";
 
-  const isAuthPage = url.includes("/login") || url.includes("/register");
+  const isAuthPage = url.includes("/login") || url.includes("/register") || url.includes("/complete-profile");
 
+  // Auth pages (login/register/complete-profile) don't need session verification
   if (isAuthPage) {
     return <>{children}</>;
   }

@@ -2,19 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { verifyPassword, createCustomerToken } from "@/lib/store/customer-auth";
 import { verifyTurnstile } from "@/lib/auth/turnstile";
+import { safeCorsHeaders } from "@/lib/store/cors";
+import { checkRateLimit } from "@/lib/store/rate-limit";
 import { z } from "zod";
 
 const SESSION_DURATION = 30 * 24 * 60 * 60;
 
-function corsHeaders(request: NextRequest) {
-  const origin = request.headers.get("origin") || "";
-  return {
-    "Access-Control-Allow-Origin": origin || "*",
-    "Access-Control-Allow-Credentials": "true",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  };
-}
+const corsHeaders = safeCorsHeaders;
 
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, { status: 204, headers: corsHeaders(request) });
@@ -23,12 +17,23 @@ export async function OPTIONS(request: NextRequest) {
 const schema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(1, "Password is required"),
-  turnstileToken: z.string().optional(),
+  turnstileToken: z.string().min(1, "CAPTCHA verification required"),
 });
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
+
+    // Rate limiting by IP
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
+    const rateCheck = checkRateLimit(ip, "login");
+    if (rateCheck.limited) {
+      return NextResponse.json(
+        { error: `Too many login attempts. Try again in ${rateCheck.retryAfterSeconds}s` },
+        { status: 429, headers: { ...corsHeaders(request), "Retry-After": String(rateCheck.retryAfterSeconds) } },
+      );
+    }
+
     const body = await request.json();
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
@@ -37,13 +42,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { email, password, turnstileToken } = parsed.data;
 
-    // Turnstile CAPTCHA
-    if (turnstileToken) {
-      const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || undefined;
-      const valid = await verifyTurnstile(turnstileToken, ip);
-      if (!valid) {
-        return NextResponse.json({ error: "CAPTCHA verification failed" }, { status: 400 });
-      }
+    // Turnstile CAPTCHA — mandatory
+    const turnstileValid = await verifyTurnstile(turnstileToken, ip);
+    if (!turnstileValid) {
+      return NextResponse.json({ error: "CAPTCHA verification failed" }, { status: 400 });
     }
 
     const store = await prisma.store.findUnique({

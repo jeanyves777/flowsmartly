@@ -21,18 +21,22 @@ export async function GET(request: NextRequest) {
   try {
     console.log("[Cron:StoreHealth] Starting store health checks...");
 
-    // ── 1. Low stock alerts ──
+    // ── 1. Reset stale build locks (stuck in "building" for > 30 min) ──
+    const staleBuildsReset = await resetStaleBuildLocks();
+
+    // ── 2. Low stock alerts ──
     const lowStockResult = await checkLowStockAlerts();
 
-    // ── 2. Unfulfilled orders older than 48h ──
+    // ── 3. Unfulfilled orders older than 48h ──
     const unfulfilledResult = await checkUnfulfilledOrders();
 
     console.log(
-      `[Cron:StoreHealth] Done — ${lowStockResult.alertsSent} low-stock alerts, ${unfulfilledResult.alertsSent} unfulfilled order alerts`
+      `[Cron:StoreHealth] Done — ${staleBuildsReset} stale builds reset, ${lowStockResult.alertsSent} low-stock alerts, ${unfulfilledResult.alertsSent} unfulfilled order alerts`
     );
 
     return NextResponse.json({
       success: true,
+      staleBuildsReset,
       lowStock: lowStockResult,
       unfulfilled: unfulfilledResult,
     });
@@ -40,6 +44,36 @@ export async function GET(request: NextRequest) {
     console.error("[Cron:StoreHealth] Error:", error);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
+}
+
+/**
+ * Reset stores stuck in "building" for more than 30 minutes.
+ * This prevents stores from being permanently locked if a build crashes without cleanup.
+ */
+async function resetStaleBuildLocks(): Promise<number> {
+  const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+
+  const result = await prisma.store.updateMany({
+    where: {
+      buildStatus: "building",
+      OR: [
+        { buildStartedAt: { lt: thirtyMinAgo } },
+        // If buildStartedAt is null but status is "building", it's a legacy lock
+        { buildStartedAt: null },
+      ],
+    },
+    data: {
+      buildStatus: "error",
+      lastBuildError: "Build timed out (stuck in building state for >30 minutes). Please try rebuilding.",
+      buildStartedAt: null,
+    },
+  });
+
+  if (result.count > 0) {
+    console.log(`[Cron:StoreHealth] Reset ${result.count} stale build lock(s)`);
+  }
+
+  return result.count;
 }
 
 /**

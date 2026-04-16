@@ -137,9 +137,15 @@ export async function handleEcommercePaymentSucceeded(paymentIntent: Stripe.Paym
 
   try {
     const order = await prisma.$transaction(async (tx) => {
-      const items = JSON.parse(pending.items || "[]") as Array<{
-        productId: string; variantId?: string; name: string; quantity: number;
-      }>;
+      // Double-check inside transaction to prevent race from webhook retries
+      const alreadyCreated = await tx.order.findFirst({ where: { paymentId: paymentIntent.id } });
+      if (alreadyCreated) {
+        console.log(`[ecommerce-webhook] Order already exists for PI ${paymentIntent.id} (caught in transaction)`);
+        return alreadyCreated;
+      }
+
+      let items: Array<{ productId: string; variantId?: string; name: string; quantity: number }> = [];
+      try { items = JSON.parse(pending.items || "[]"); } catch { items = []; }
 
       const newOrder = await tx.order.create({
         data: {
@@ -268,10 +274,10 @@ async function fireOrderEmails(orderId: string) {
   });
   if (!order) return;
 
-  const items = JSON.parse(order.items || "[]") as Array<{
-    name: string; quantity: number; priceCents: number; imageUrl?: string | null;
-  }>;
-  const shippingAddress = JSON.parse(order.shippingAddress || "{}") as Record<string, unknown>;
+  let items: Array<{ name: string; quantity: number; priceCents: number; imageUrl?: string | null }> = [];
+  try { items = JSON.parse(order.items || "[]"); } catch { items = []; }
+  let shippingAddress: Record<string, unknown> = {};
+  try { shippingAddress = JSON.parse(order.shippingAddress || "{}"); } catch { shippingAddress = {}; }
 
   const theme = (() => {
     try { return typeof order.store.theme === "string" ? JSON.parse(order.store.theme) : (order.store.theme || {}); }

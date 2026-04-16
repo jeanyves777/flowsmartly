@@ -8,10 +8,11 @@
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 
-// Reference store location (local dev vs server)
-const REFERENCE_BASE = process.platform === "win32"
-  ? "C:\\Users\\koffi\\Dev\\flowsmartly\\reference-store\\src"
-  : "/opt/reference-store/src";
+// Reference store location — use env var to avoid hardcoded user paths
+const REFERENCE_BASE = process.env.REFERENCE_STORE_PATH
+  || (process.platform === "win32"
+    ? join(process.cwd(), "reference-store", "src")
+    : "/opt/reference-store/src");
 
 // Map of component names → file paths relative to REFERENCE_BASE
 const COMPONENT_MAP: Record<string, string> = {

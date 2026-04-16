@@ -31,29 +31,37 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     console.log(`[StoreRebuild] Starting V3 rebuild for store ${id}`);
 
-    // Fire-and-forget
-    const rebuildPromise = (async () => {
-      const buildResult = await buildStoreV3(id);
-      if (!buildResult.success) {
-        console.error(`[StoreRebuild] Build failed: ${buildResult.error}`);
-        return;
+    // Fire-and-forget with proper error handling — errors always update buildStatus
+    (async () => {
+      try {
+        const buildResult = await buildStoreV3(id);
+        if (!buildResult.success) {
+          console.error(`[StoreRebuild] Build failed: ${buildResult.error}`);
+          return;
+        }
+        const deployResult = await deployStoreV3(id, store.slug);
+        if (!deployResult.success) {
+          console.error(`[StoreRebuild] Deploy failed: ${deployResult.error}`);
+          await prisma.store.update({
+            where: { id },
+            data: { buildStatus: "error", lastBuildError: `Deploy failed: ${deployResult.error}`.substring(0, 5000) },
+          }).catch(() => {});
+          return;
+        }
+        // Clear cached site data so it gets re-parsed
+        await prisma.store.update({
+          where: { id },
+          data: { siteData: "{}" },
+        });
+        console.log(`[StoreRebuild] Store ${id} rebuilt and deployed`);
+      } catch (err: any) {
+        console.error(`[StoreRebuild] Fatal error:`, err);
+        await prisma.store.update({
+          where: { id },
+          data: { buildStatus: "error", lastBuildError: `Fatal: ${err.message}`.substring(0, 5000), buildStartedAt: null },
+        }).catch(() => {});
       }
-      const deployResult = await deployStoreV3(id, store.slug);
-      if (!deployResult.success) {
-        console.error(`[StoreRebuild] Deploy failed: ${deployResult.error}`);
-        return;
-      }
-      // Clear cached site data so it gets re-parsed
-      await prisma.store.update({
-        where: { id },
-        data: { siteData: "{}" },
-      });
-      console.log(`[StoreRebuild] Store ${id} rebuilt and deployed`);
     })();
-
-    rebuildPromise.catch((err) => {
-      console.error(`[StoreRebuild] Fatal error:`, err);
-    });
 
     return NextResponse.json({ success: true, message: "Rebuild started" });
   } catch (err) {

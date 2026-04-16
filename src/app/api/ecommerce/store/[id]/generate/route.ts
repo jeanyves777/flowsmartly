@@ -45,26 +45,36 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     };
 
-    // Fire-and-forget: agent runs in background, client polls buildStatus
-    const agentPromise = runStoreAgentV3(id, store.slug, session.userId, storeContext, products || [], categories || [], progressCb);
+    // Deduct credits BEFORE starting async build (prevents free builds if deduction fails later)
+    await creditService.deductCredits({
+      userId: session.userId,
+      amount: cost,
+      type: TRANSACTION_TYPES.USAGE,
+      description: `AI store generation (V3): ${store.name}`,
+    });
 
-    // Don't await — let it run in background
-    agentPromise
+    // Fire-and-forget: agent runs in background, client polls buildStatus
+    // Error handler attached immediately to prevent unhandled rejection
+    runStoreAgentV3(id, store.slug, session.userId, storeContext, products || [], categories || [], progressCb)
       .then(async (result) => {
         if (result.success) {
-          await creditService.deductCredits({
-            userId: session.userId,
-            amount: cost,
-            type: TRANSACTION_TYPES.USAGE,
-            description: `AI store generation (V3): ${store.name}`,
-          });
-          console.log(`[StoreGen] Store ${id} generated successfully, ${cost} credits deducted`);
+          console.log(`[StoreGen] Store ${id} generated successfully`);
         } else {
           console.error(`[StoreGen] Store ${id} generation failed: ${result.error}`);
+          // Ensure buildStatus is set to error if agent didn't do it
+          await prisma.store.update({
+            where: { id },
+            data: { buildStatus: "error", lastBuildError: result.error?.substring(0, 5000), buildStartedAt: null },
+          }).catch(() => {});
         }
       })
-      .catch((err) => {
+      .catch(async (err) => {
         console.error(`[StoreGen] Store ${id} fatal error:`, err);
+        // Always release the build lock on fatal errors
+        await prisma.store.update({
+          where: { id },
+          data: { buildStatus: "error", lastBuildError: `Fatal: ${err.message}`.substring(0, 5000), buildStartedAt: null },
+        }).catch(() => {});
       });
 
     return NextResponse.json({ success: true, message: "Store generation started", version: "v3" });

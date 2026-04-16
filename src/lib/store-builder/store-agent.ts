@@ -95,10 +95,19 @@ async function syncProductsToDB(storeId: string, siteDir: string): Promise<void>
     let productsCode = productsMatch[1];
     productsCode = productsCode.replace(/storeUrl\((['"].*?['"])\)/g, '$1');
 
-    // eslint-disable-next-line no-new-func
-    const productsArray = new Function(`return ${productsCode}`)();
-
-    if (!Array.isArray(productsArray)) return;
+    let productsArray: any[];
+    try {
+      // eslint-disable-next-line no-new-func
+      const result = new Function(`return ${productsCode}`)();
+      if (!Array.isArray(result)) {
+        console.warn("[StoreAgent] products.ts eval returned non-array, skipping DB sync");
+        return;
+      }
+      productsArray = result;
+    } catch (evalErr: any) {
+      console.error("[StoreAgent] Failed to eval products.ts array:", evalErr.message?.substring(0, 200));
+      return;
+    }
 
     let synced = 0;
     for (const p of productsArray) {
@@ -880,17 +889,11 @@ export async function runStoreAgentV3(
   // Initialize V3 store directory (SSR templates, API proxy, cart, env)
   const siteDir = initStoreDirV3(storeId, storeSlug);
 
-  // Fetch real shipping config from DB
-  const [storeRecord, dbShippingMethods] = await Promise.all([
-    prisma.store.findUnique({
-      where: { id: storeId },
-      select: { freeShippingThresholdCents: true, flatRateShippingCents: true },
-    }),
-    prisma.storeShippingMethod.findMany({
-      where: { storeId, isActive: true },
-      orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, description: true, priceCents: true, estimatedDays: true, isActive: true },
-    }),
+  // Fetch real shipping config from DB (shared query — same as product-sync)
+  const { fetchStoreShippingConfig, fetchStoreShippingMethods } = await import("./shared-queries");
+  const [shippingConfig, dbShippingMethods] = await Promise.all([
+    fetchStoreShippingConfig(storeId),
+    fetchStoreShippingMethods(storeId),
   ]);
 
   const ctx: StoreAgentContext = {
@@ -901,8 +904,8 @@ export async function runStoreAgentV3(
     products,
     categories,
     shippingMethods: dbShippingMethods,
-    freeShippingThresholdCents: storeRecord?.freeShippingThresholdCents ?? 5000,
-    flatRateShippingCents: storeRecord?.flatRateShippingCents ?? 599,
+    freeShippingThresholdCents: shippingConfig.freeShippingThresholdCents,
+    flatRateShippingCents: shippingConfig.flatRateShippingCents,
     siteDir,
     onProgress: (step, detail) => {
       onProgress?.({ step, detail, toolCalls, done: false });

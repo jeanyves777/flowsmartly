@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getStoreCustomer, hashPassword, verifyPassword } from "@/lib/store/customer-auth";
+import { safeCorsHeaders } from "@/lib/store/cors";
 import { z } from "zod";
 
-function corsHeaders(request: NextRequest) {
-  const origin = request.headers.get("origin") || "";
-  return {
-    "Access-Control-Allow-Origin": origin || "*",
-    "Access-Control-Allow-Credentials": "true",
-    "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  };
-}
+const corsHeaders = safeCorsHeaders;
 
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, { status: 204, headers: corsHeaders(request) });

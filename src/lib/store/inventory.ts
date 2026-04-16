@@ -53,7 +53,8 @@ export async function validateInventory(
 }
 
 /**
- * Deduct inventory for order items within a Prisma transaction.
+ * Atomically validate and deduct inventory within a Prisma transaction.
+ * Uses SELECT ... FOR UPDATE to lock rows and prevent overselling from concurrent orders.
  * Call this inside a $transaction block.
  */
 export async function deductInventory(
@@ -61,11 +62,14 @@ export async function deductInventory(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
 ): Promise<void> {
   for (const item of items) {
-    const product = await tx.product.findUnique({
-      where: { id: item.productId },
-      select: { trackInventory: true, quantity: true, name: true },
-    });
+    // Use raw query with FOR UPDATE to lock the row for this transaction
+    // This prevents two concurrent checkouts from both reading the same quantity
+    const products = await (tx as any).$queryRawUnsafe(
+      `SELECT "id", "name", "trackInventory", "quantity" FROM "Product" WHERE "id" = $1 FOR UPDATE`,
+      item.productId
+    ) as Array<{ id: string; name: string; trackInventory: boolean; quantity: number }>;
 
+    const product = products[0];
     if (!product || !product.trackInventory) continue;
 
     if (product.quantity < item.quantity) {
@@ -80,6 +84,18 @@ export async function deductInventory(
     });
 
     if (item.variantId) {
+      const variants = await (tx as any).$queryRawUnsafe(
+        `SELECT "id", "name", "quantity" FROM "ProductVariant" WHERE "id" = $1 FOR UPDATE`,
+        item.variantId
+      ) as Array<{ id: string; name: string; quantity: number }>;
+
+      const variant = variants[0];
+      if (variant && variant.quantity < item.quantity) {
+        throw new Error(
+          `Insufficient stock for "${product.name} - ${variant.name}". Available: ${variant.quantity}, requested: ${item.quantity}`
+        );
+      }
+
       await tx.productVariant.update({
         where: { id: item.variantId },
         data: { quantity: { decrement: item.quantity } },
@@ -100,7 +116,8 @@ export async function restoreInventory(orderId: string): Promise<void> {
 
   if (!order) return;
 
-  const items = JSON.parse(order.items) as OrderItem[];
+  let items: OrderItem[] = [];
+  try { items = JSON.parse(order.items); } catch { return; }
 
   for (const item of items) {
     if (!item.productId) continue;

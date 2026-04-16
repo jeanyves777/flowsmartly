@@ -59,7 +59,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }),
     ]);
 
-    const parse = (o: typeof orders[0]) => ({ ...o, items: JSON.parse(o.items || "[]") });
+    const parse = (o: typeof orders[0]) => {
+      let items: unknown[] = [];
+      try { items = JSON.parse(o.items || "[]"); } catch { items = []; }
+      return { ...o, items };
+    };
 
     return NextResponse.json({
       orders: orders.map(parse),
