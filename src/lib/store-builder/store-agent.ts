@@ -212,51 +212,7 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
    - src/app/search/page.tsx (search results)
    - src/app/about/page.tsx
    - src/app/faq/page.tsx
-10. Write CHECKOUT page — src/app/checkout/page.tsx:
-    - "use client" — fully client-side
-    - Load cart from localStorage, show order summary sidebar with per-item prices + subtotal + shipping + total
-    - 3-step checkout with animated stepper (Info → Shipping → Payment):
-      Step 0 (Info): contact form — Full Name, Email, Phone (pre-fill from window.__storeCustomer)
-      Step 1 (Shipping): address form (street, city, state, zip, country) + shipping method radio buttons from shippingMethods[] in data.ts
-      Step 2 (Payment) — INLINE Stripe flow, NO /checkout/confirm redirect:
-        MANDATORY — fetch GET /api/checkout/options. Render ONE radio per returned entry in data.paymentMethods.
-        When an entry's provider === "stripe" and stripeMethods is an array, render the sub-methods as small chips
-        under the label (e.g. "Apple Pay · Link · Cash App Pay"). Trust the API response — do NOT hardcode or invent.
-        Default selection: the first entry in data.paymentMethods.
-
-        CRITICAL — INLINE STRIPE: When the selected entry has provider === "stripe", you MUST embed Stripe Elements
-        on THIS page (step 2). DO NOT redirect to /checkout/confirm anymore.
-        Flow:
-          1. As soon as the user lands on step 2 AND a Stripe method is selected AND contact/shipping are filled,
-             POST to /api/checkout once to create the PendingCheckout + PaymentIntent and receive { clientSecret, orderNumber, orderId }.
-             Re-POST whenever the user switches Stripe method (so the PI is pinned to the right rail).
-             Use credentials: "include" — this attaches the logged-in Stripe Customer, which makes saved cards appear
-             in PaymentElement and auto-saves new cards for reuse.
-          2. Wrap the page in <Elements stripe={stripePromise} options={{ clientSecret, appearance }} key={clientSecret}>.
-          3. Render <PaymentElement options={{ layout: "tabs" }} />.
-          4. On "Pay" click: call stripe.confirmPayment({ elements, redirect: "if_required", confirmParams: { return_url } }).
-             On paymentIntent.status === "succeeded" OR "processing": clearCart() + render the inline success screen.
-             On error: show the error message below PaymentElement and allow retry.
-          5. For non-Stripe methods (cod / mobile_money / bank_transfer): show the existing info panels and POST /api/checkout
-             on "Place Order" click — the backend creates the Order immediately (no payment step). Clear cart + success screen.
-
-        DO NOT write src/app/checkout/confirm/page.tsx — it is pre-built by the system as a legacy fallback only.
-        DO NOT redirect to it. All card payments must complete inline on src/app/checkout/page.tsx.
-    - Required import: import { loadStripe } from "@stripe/stripe-js"; import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
-    - POST /api/checkout body (both paths):
-      {
-        items: [{ productId, variantId?, quantity }],
-        customerName: form.name,
-        customerEmail: form.email,
-        customerPhone: form.phone || undefined,
-        shippingAddress: { street, city, state, zip, country },
-        shippingMethod: selectedMethod?.name?.toLowerCase().includes("pickup") ? "local_pickup" : "standard",
-        paymentMethod: selectedPayment.method  // "card" | "stripe_klarna" | "stripe_affirm" | "cod" | "mobile_money" | "bank_transfer"
-      }
-    - Empty cart state with "Continue Shopping" link
-    - Styled with brand colors, dark mode, Framer Motion
-    CRITICAL: DO NOT write src/app/checkout/confirm/page.tsx — it is PRE-BUILT by the system (Stripe
-    PaymentElement). Writing it would overwrite the Stripe integration and break all card payments.
+10. CHECKOUT — ALREADY PRE-BUILT by the builder. DO NOT write src/app/checkout/page.tsx or src/app/checkout/confirm/page.tsx. They are copied from the reference-store and include full Stripe PaymentElement integration, saved cards, 3-step stepper (Info → Shipping → Payment), dynamic payment methods from API, mobile-responsive design, and dark mode. The checkout page reads shippingMethods and storeInfo from @/lib/data — so just make sure data.ts has the correct shippingMethods array.
 11. Write ACCOUNT pages — all "use client", all fetch from /api/:
     - src/app/account/login/page.tsx: email + password form → POST /api/auth/login → redirect /account
       MANDATORY ANTI-SPAM: import { Turnstile } from "@marsidev/react-turnstile"; add turnstileToken state;
@@ -652,9 +608,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 14. ✅ ProductCard has always-visible Heart wishlist button at top-right of image
 15. ✅ ProductDetail has wishlist heart, star ratings, reviews section, dynamic shipping threshold
 16. ✅ NO hardcoded "Free Shipping $50+" — uses storeInfo.freeShippingThresholdCents
-17. ✅ Checkout pre-fills customer name/email/phone from window.__storeCustomer
-17b. ✅ Checkout 3-step flow: Info → Shipping → Payment (Stripe confirm at /checkout/confirm — pre-built, DO NOT write)
-17c. ✅ Checkout submit redirects to /checkout/confirm with clientSecret + orderId + amount (does NOT clear cart before redirect)
+17. ✅ Checkout page is PRE-BUILT (do NOT write it). Verify data.ts has correct shippingMethods array.
 18. ✅ All internal links use Next.js <Link> — NEVER <a href="/products"> (goes to main app)
 10. ✅ Footer sticks to bottom (min-h-screen flex flex-col on root layout, flex-1 on main)
 11. ✅ All internal links use Next.js <Link> component — no <a href="..."> for internal pages

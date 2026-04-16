@@ -200,6 +200,13 @@ export function initStoreDirV3(storeId: string, slug: string): string {
     TEMPLATE_STRIPE_CONFIRM_PAGE
   );
 
+  // Checkout page — pre-built from reference-store with Stripe PaymentElement,
+  // saved cards, 3-step stepper, dynamic payment methods. Agent must NOT overwrite.
+  const refCheckoutPath = join(REFERENCE_BASE, "app", "checkout", "page.tsx");
+  if (existsSync(refCheckoutPath)) {
+    writeFileSync(join(storeDir, "src", "app", "checkout", "page.tsx"), readFileSync(refCheckoutPath));
+  }
+
   // Account orders pages — pre-built from reference-store, agent must NOT overwrite
   // These implement: real order list with pending CTA, order detail with
   // cancel (pre-fulfillment), address change (pre-fulfillment), return request (DELIVERED only)
