@@ -1,12 +1,10 @@
 "use client";
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 
-export default function AccountRedirect() {
-  const router = useRouter();
+export default function AccountPage() {
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("toggle-account"));
-    router.replace("/");
-  }, [router]);
+    window.history.back();
+  }, []);
   return null;
 }
