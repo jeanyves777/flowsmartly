@@ -8,7 +8,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
-  if (!session?.isAdmin) {
+  if (!session?.adminId) {
     return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
