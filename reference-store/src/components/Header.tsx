@@ -92,13 +92,13 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
                 <Search size={20} />
               </a>
 
-              <a
-                href={storeInfo.accountUrl || storeUrl("/account/")}
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent("toggle-account"))}
                 className="hidden md:flex p-2 text-gray-600 dark:text-gray-300 hover:text-primary-600 transition-colors"
                 aria-label="Account"
               >
                 <User size={20} />
-              </a>
+              </button>
 
               <ThemeToggle className="hidden sm:flex" />
 
