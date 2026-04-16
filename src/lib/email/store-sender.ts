@@ -23,6 +23,8 @@ export interface StoreEmailParams {
   html: string;
   text?: string;
   replyTo?: string;
+  /** Store name used as fallback for the From display name. */
+  storeName?: string;
   /**
    * If true, the email MUST go through the store owner's configured provider.
    * When the owner has no verified/enabled provider, the send is skipped
@@ -75,7 +77,7 @@ export async function sendStoreEmail(params: StoreEmailParams): Promise<{ succes
     emailConfig = JSON.parse(cfg!.emailConfig || "{}");
   } catch { /* fall through with empty config — will fail validation */ }
 
-  const fromName = (emailConfig.fromName as string) || "Store";
+  const fromName = (emailConfig.fromName as string) || params.storeName || "Store";
   const fromEmail = (emailConfig.fromEmail as string) || (emailConfig.user as string) || "";
   const from = fromEmail ? `${fromName} <${fromEmail}>` : fromName;
 

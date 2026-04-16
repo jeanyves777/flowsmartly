@@ -16,6 +16,23 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/**
+ * Convert a presigned S3 URL to a proxy URL that never expires.
+ * Presigned URLs have a 1h TTL — by the time the buyer opens the email,
+ * the image is gone. The proxy re-generates a fresh presigned URL per request.
+ */
+function toEmailSafeImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  // Match flowsmartly S3 bucket URLs and extract the key
+  const match = url.match(/flowsmartly-media\.s3[^/]*\.amazonaws\.com\/([^?]+)/);
+  if (match) {
+    return `${APP_URL}/api/media/proxy?key=${encodeURIComponent(match[1])}`;
+  }
+  // Relative URLs need the domain prefix
+  if (url.startsWith("/")) return `${APP_URL}${url}`;
+  return url;
+}
+
 function escapeHtml(raw: string): string {
   return raw
     .replace(/&/g, "&amp;")
@@ -44,8 +61,9 @@ function storeBrandedTemplate(opts: {
   content: string; // Inner HTML
 }): string {
   const accent = opts.accent || "#6366f1";
-  const logo = opts.logoUrl
-    ? `<img src="${opts.logoUrl}" alt="${escapeHtml(opts.storeName)}" style="max-height:40px;max-width:160px;display:block;margin:0 auto 8px;" />`
+  const safeLogoUrl = toEmailSafeImageUrl(opts.logoUrl);
+  const logo = safeLogoUrl
+    ? `<img src="${safeLogoUrl}" alt="${escapeHtml(opts.storeName)}" style="max-height:40px;max-width:160px;display:block;margin:0 auto 8px;" />`
     : `<div style="font-size:22px;font-weight:800;color:${accent};letter-spacing:-0.02em;margin-bottom:8px;">${escapeHtml(opts.storeName)}</div>`;
 
   return `<!doctype html>
@@ -82,8 +100,9 @@ function itemsTableHtml(
 ): string {
   return items
     .map((i) => {
-      const thumb = i.imageUrl
-        ? `<img src="${i.imageUrl}" alt="" style="width:56px;height:56px;border-radius:8px;object-fit:cover;background:#f4f4f5;display:block;" />`
+      const safeThumb = toEmailSafeImageUrl(i.imageUrl);
+      const thumb = safeThumb
+        ? `<img src="${safeThumb}" alt="" style="width:56px;height:56px;border-radius:8px;object-fit:cover;background:#f4f4f5;display:block;" />`
         : `<div style="width:56px;height:56px;border-radius:8px;background:#f4f4f5;"></div>`;
       return `
         <tr>
@@ -222,6 +241,7 @@ export async function sendOrderConfirmationEmail(params: {
     to: params.to,
     subject: `Order #${params.orderNumber} confirmed · ${params.storeName}`,
     html,
+    storeName: params.storeName,
     requireOwner: true,
   });
 }
@@ -337,6 +357,7 @@ export async function sendShippingUpdateEmail(params: {
     to: params.to,
     subject: `Order #${params.orderNumber} — ${params.status} · ${params.storeName}`,
     html,
+    storeName: params.storeName,
   });
 }
 
@@ -377,6 +398,7 @@ export async function sendDeliveryConfirmationEmail(params: {
     to: params.to,
     subject: `Delivered: Order #${params.orderNumber} · ${params.storeName}`,
     html,
+    storeName: params.storeName,
   });
 }
 
