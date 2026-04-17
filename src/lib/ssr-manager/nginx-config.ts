@@ -43,7 +43,7 @@ location = /stores/${slug} {
     return 301 /stores/${slug}/;
 }
 location /stores/${slug}/ {
-    proxy_pass http://${safeName}/stores/${slug}/;
+    proxy_pass http://${safeName};
     proxy_set_header X-Store-Slug ${slug};
 ${proxyHeaders}
 }

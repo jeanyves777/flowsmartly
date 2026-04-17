@@ -510,7 +510,7 @@ export function goToCheckout(): void {
   // SSR stores are served under /stores/{slug}/ — extract basePath from current URL
   const match = window.location.pathname.match(/^\\/stores\\/[^/]+/);
   const basePath = match ? match[0] : "";
-  window.location.href = basePath + "/checkout/";
+  window.location.href = basePath + "/checkout";
 }
 `;
 
