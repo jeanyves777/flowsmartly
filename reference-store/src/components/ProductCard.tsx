@@ -59,7 +59,11 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
 
   const handleWishlist = () => {
     if (!(window as any).__storeCustomer) {
-      window.dispatchEvent(new CustomEvent("open-account-modal"));
+      // Redirect to login page so user can sign in first
+      const loginUrl = STORE_SLUG
+        ? `/store/${STORE_SLUG}/account/login`
+        : "/account/login";
+      window.location.href = loginUrl;
       return;
     }
     if (wishlistLoading) return;
@@ -84,12 +88,12 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
   };
 
   return (
+    <div className="group">
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay: (index || 0) * 0.05, duration: 0.4 }}
-      className="group"
     >
       {/* Image container */}
       <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-4">
@@ -198,5 +202,6 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
         )}
       </a>
     </motion.div>
+    </div>
   );
 }
