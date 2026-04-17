@@ -22,6 +22,13 @@ export default function AboutPage() {
             About {storeInfo.name}
           </h1>
 
+          {storeInfo.bannerUrl && (
+            <div className="relative h-48 sm:h-64 rounded-2xl overflow-hidden mb-8">
+              <img src={storeInfo.bannerUrl} alt={`About ${storeInfo.name}`} className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-gray-900/50 to-transparent" />
+            </div>
+          )}
+
           <div className="prose dark:prose-invert max-w-none">
             <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
               {storeInfo.about}
@@ -37,12 +44,12 @@ export default function AboutPage() {
             <ul>
               {storeInfo.emails.map(email => (
                 <li key={email}>
-                  Email: <a href={`mailto:${email}`}>{email}</a>
+                  Email: <a href={`mailto:${email}`} className="text-primary-600 hover:underline">{email}</a>
                 </li>
               ))}
               {storeInfo.phones.map(phone => (
                 <li key={phone}>
-                  Phone: <a href={`tel:${phone}`}>{phone}</a>
+                  Phone: <a href={`tel:${phone}`} className="text-primary-600 hover:underline">{phone}</a>
                 </li>
               ))}
               <li>Address: {storeInfo.address}</li>

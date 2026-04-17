@@ -74,7 +74,7 @@ export default async function SavedForLaterPage({ params }: PageProps) {
                   {imageUrl && <img src={imageUrl} alt={product.name} className="w-full h-full object-cover" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium line-clamp-1">{product.name}</p>
+                  <p className="font-medium line-clamp-2">{product.name}</p>
                   <p className="text-sm font-semibold mt-0.5" style={{ color: "var(--store-primary)" }}>
                     {formatMoney(product.priceCents)}
                   </p>

@@ -220,12 +220,12 @@ export default function StoreOrdersPage() {
                           </p>
                         )}
                       </div>
-                      <div className="text-right shrink-0 flex flex-col items-end gap-2">
-                        <p className="font-semibold text-sm">{formatMoney(order.totalCents, order.currency)}</p>
+                      <div className="shrink-0 flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto mt-3 sm:mt-0">
+                        <p className="font-semibold text-sm text-right">{formatMoney(order.totalCents, order.currency)}</p>
                         <button
                           onClick={() => resumePayment(order)}
                           disabled={resumingId === order.id || cancellingId === order.id}
-                          className="px-4 py-1.5 rounded-full text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                          className="px-4 py-2.5 rounded-full text-sm font-medium min-w-[120px] text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                           style={{ background: "var(--store-primary)" }}
                         >
                           {resumingId === order.id ? "Loading..." : "Complete Payment"}
@@ -233,7 +233,7 @@ export default function StoreOrdersPage() {
                         <button
                           onClick={() => setModal({ type: "confirm", order })}
                           disabled={cancellingId === order.id || resumingId === order.id}
-                          className="px-4 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-70 disabled:opacity-50"
+                          className="px-4 py-2.5 rounded-full text-sm font-medium min-w-[120px] border transition-opacity hover:opacity-70 disabled:opacity-50"
                           style={{ borderColor: "color-mix(in srgb, var(--store-text) 20%, transparent)" }}
                         >
                           Cancel Order

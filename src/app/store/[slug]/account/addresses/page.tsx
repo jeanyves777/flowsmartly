@@ -36,6 +36,7 @@ export default function StoreAddressesPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Omit<Address, "id">>(EMPTY_ADDRESS);
   const [error, setError] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAddresses();
@@ -130,14 +131,17 @@ export default function StoreAddressesPage() {
     }
   }
 
-  async function handleDelete(addressId: string) {
-    if (!confirm("Remove this address?")) return;
+  function handleDelete(addressId: string) {
+    setConfirmDeleteId(addressId);
+  }
 
+  async function handleConfirmDelete(id: string) {
+    setConfirmDeleteId(null);
     try {
       const res = await fetch(`/api/store/${slug}/account/addresses`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete", addressId }),
+        body: JSON.stringify({ action: "delete", addressId: id }),
       });
 
       if (res.status === 401) {
@@ -368,6 +372,33 @@ export default function StoreAddressesPage() {
             </div>
           )}
         </>
+      )}
+
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40">
+          <div
+            className="w-full max-w-sm rounded-xl p-6 shadow-2xl"
+            style={{ backgroundColor: "var(--store-background, white)", color: "var(--store-text, #111)" }}
+          >
+            <h2 className="text-lg font-semibold mb-2">Remove Address?</h2>
+            <p className="text-sm opacity-60 mb-6">This action cannot be undone.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="flex-1 px-4 py-2.5 text-sm font-medium rounded-lg border"
+                style={{ borderColor: "color-mix(in srgb, var(--store-text, #111) 15%, transparent)" }}
+              >
+                Keep
+              </button>
+              <button
+                onClick={() => handleConfirmDelete(confirmDeleteId)}
+                className="flex-1 px-4 py-2.5 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

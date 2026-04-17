@@ -21,11 +21,17 @@ export default function Footer() {
           {/* Brand */}
           <div className="md:col-span-1">
             <a href={storeUrl("/")} className="inline-block mb-4">
-              <img
-                src={storeInfo.logoUrl}
-                alt={`${storeInfo.name} logo`}
-                className="h-20 max-w-[200px] object-contain"
-              />
+              {storeInfo.logoUrl ? (
+                <img
+                  src={storeInfo.logoUrl}
+                  alt={`${storeInfo.name} logo`}
+                  className="h-20 max-w-[200px] object-contain"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling && ((e.target as HTMLImageElement).nextElementSibling as HTMLElement).style.display = "block"; }}
+                />
+              ) : null}
+              <span className={`text-xl font-bold text-gray-900 dark:text-white ${storeInfo.logoUrl ? "hidden" : ""}`}>
+                {storeInfo.name}
+              </span>
             </a>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 leading-relaxed">
               {storeInfo.tagline}
@@ -123,6 +129,27 @@ export default function Footer() {
               ))}
               <li>{storeInfo.address}</li>
             </ul>
+          </div>
+        </div>
+
+        {/* Newsletter */}
+        <div className="mt-10 pt-8 border-t border-gray-200 dark:border-gray-800">
+          <div className="max-w-md mx-auto text-center sm:text-left sm:mx-0">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Stay in the loop</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Get updates on new products and exclusive offers.</p>
+            <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
+              <input
+                type="email"
+                placeholder="Enter your email"
+                className="flex-1 px-4 py-2.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <button
+                type="submit"
+                className="px-5 py-2.5 text-sm font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors shrink-0"
+              >
+                Subscribe
+              </button>
+            </form>
           </div>
         </div>
 

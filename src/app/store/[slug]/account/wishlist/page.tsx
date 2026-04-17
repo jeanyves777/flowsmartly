@@ -77,7 +77,7 @@ export default function WishlistPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           {items.map((item) => {
             const product = item.product;
             if (!product) return null;
@@ -92,7 +92,7 @@ export default function WishlistPage() {
                 <button
                   onClick={() => removeFromWishlist(item.productId)}
                   disabled={removingId === item.productId}
-                  className="absolute top-2 right-2 z-10 h-7 w-7 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/70 transition-colors disabled:opacity-50"
+                  className="absolute top-2 right-2 z-10 h-9 w-9 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/70 transition-colors disabled:opacity-50"
                   title="Remove from wishlist"
                 >
                   {removingId === item.productId ? (
@@ -117,7 +117,7 @@ export default function WishlistPage() {
                   </div>
                 </Link>
                 <div className="p-3">
-                  <p className="font-medium text-sm line-clamp-1">{product.name}</p>
+                  <p className="font-medium text-sm line-clamp-2">{product.name}</p>
                   <p className="text-sm font-semibold mt-0.5" style={{ color: "var(--store-primary)" }}>
                     {formatMoney(product.priceCents, product.currency)}
                   </p>

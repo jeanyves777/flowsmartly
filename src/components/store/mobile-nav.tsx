@@ -38,7 +38,7 @@ export function MobileNav({ storeSlug, textColor, bgColor }: MobileNavProps) {
         >
           <nav className="flex flex-col px-4 py-3 gap-1">
             <Link
-              href={`/store/${storeSlug}`}
+              href={`/stores/${storeSlug}`}
               onClick={() => setOpen(false)}
               className="px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:opacity-70"
               style={{ color: textColor || 'var(--store-text)' }}
@@ -46,21 +46,23 @@ export function MobileNav({ storeSlug, textColor, bgColor }: MobileNavProps) {
               Home
             </Link>
             <Link
-              href={`/store/${storeSlug}/products`}
+              href={`/stores/${storeSlug}/products`}
               onClick={() => setOpen(false)}
               className="px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:opacity-70"
               style={{ color: textColor || 'var(--store-text)' }}
             >
               Products
             </Link>
-            <Link
-              href={`/store/${storeSlug}/checkout`}
-              onClick={() => setOpen(false)}
-              className="px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:opacity-70"
+            <button
+              onClick={() => {
+                setOpen(false);
+                window.dispatchEvent(new CustomEvent("open-cart"));
+              }}
+              className="px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:opacity-70 text-left"
               style={{ color: textColor || 'var(--store-text)' }}
             >
               Cart
-            </Link>
+            </button>
           </nav>
         </div>
       )}

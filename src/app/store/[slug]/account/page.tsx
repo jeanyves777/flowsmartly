@@ -97,10 +97,10 @@ export default async function StoreAccountPage({ params }: AccountPageProps) {
       </div>
 
       {/* Quick Links */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
         <Link
           href={`/store/${slug}/account/orders`}
-          className="block rounded-lg border p-5 transition-shadow hover:shadow-md"
+          className="block rounded-lg border p-5 transition-shadow hover:shadow-md min-h-[140px]"
           style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}
         >
           <div className="flex items-center gap-3">
@@ -121,7 +121,7 @@ export default async function StoreAccountPage({ params }: AccountPageProps) {
 
         <Link
           href={`/store/${slug}/account/wishlist`}
-          className="block rounded-lg border p-5 transition-shadow hover:shadow-md"
+          className="block rounded-lg border p-5 transition-shadow hover:shadow-md min-h-[140px]"
           style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}
         >
           <div className="flex items-center gap-3">
@@ -139,7 +139,7 @@ export default async function StoreAccountPage({ params }: AccountPageProps) {
 
         <Link
           href={`/store/${slug}/account/saved`}
-          className="block rounded-lg border p-5 transition-shadow hover:shadow-md"
+          className="block rounded-lg border p-5 transition-shadow hover:shadow-md min-h-[140px]"
           style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}
         >
           <div className="flex items-center gap-3">
@@ -157,7 +157,7 @@ export default async function StoreAccountPage({ params }: AccountPageProps) {
 
         <Link
           href={`/store/${slug}/account/addresses`}
-          className="block rounded-lg border p-5 transition-shadow hover:shadow-md"
+          className="block rounded-lg border p-5 transition-shadow hover:shadow-md min-h-[140px]"
           style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}
         >
           <div className="flex items-center gap-3">
@@ -179,7 +179,7 @@ export default async function StoreAccountPage({ params }: AccountPageProps) {
 
         <Link
           href={`/store/${slug}/account/payment-methods`}
-          className="block rounded-lg border p-5 transition-shadow hover:shadow-md"
+          className="block rounded-lg border p-5 transition-shadow hover:shadow-md min-h-[140px]"
           style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}
         >
           <div className="flex items-center gap-3">
@@ -200,7 +200,7 @@ export default async function StoreAccountPage({ params }: AccountPageProps) {
 
         <Link
           href={`/store/${slug}/account/settings`}
-          className="block rounded-lg border p-5 transition-shadow hover:shadow-md"
+          className="block rounded-lg border p-5 transition-shadow hover:shadow-md min-h-[140px]"
           style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}
         >
           <div className="flex items-center gap-3">
@@ -254,48 +254,37 @@ export default async function StoreAccountPage({ params }: AccountPageProps) {
             </Link>
           </div>
         ) : (
-          <div
-            className="rounded-lg border overflow-hidden"
-            style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}
-          >
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ backgroundColor: "color-mix(in srgb, var(--store-text) 4%, transparent)" }}>
-                    <th className="text-left px-4 py-3 font-medium opacity-70">Order</th>
-                    <th className="text-left px-4 py-3 font-medium opacity-70">Date</th>
-                    <th className="text-left px-4 py-3 font-medium opacity-70">Total</th>
-                    <th className="text-left px-4 py-3 font-medium opacity-70">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y" style={{ borderColor: "color-mix(in srgb, var(--store-text) 8%, transparent)" }}>
-                  {recentOrders.map((order) => (
-                    <tr key={order.id} className="hover:opacity-80 transition-opacity">
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/store/${slug}/account/orders/${order.id}`}
-                          className="font-medium hover:underline"
-                          style={{ color: "var(--store-primary)" }}
-                        >
-                          {order.orderNumber}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 opacity-60">
-                        {new Date(order.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3 font-medium">
-                        {formatMoney(order.totalCents)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[order.status] || "bg-gray-100 text-gray-800"}`}>
-                          {order.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div className="space-y-3">
+            {recentOrders.map((order) => (
+              <Link
+                key={order.id}
+                href={`/store/${slug}/account/orders/${order.id}`}
+                className="block rounded-lg border p-4 transition-shadow hover:shadow-md"
+                style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm truncate" style={{ color: "var(--store-primary)" }}>
+                        {order.orderNumber}
+                      </span>
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[order.status] || "bg-gray-100 text-gray-800"}`}>
+                        {order.status}
+                      </span>
+                    </div>
+                    <p className="text-xs opacity-50 mt-1">
+                      {new Date(order.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-semibold text-sm">{formatMoney(order.totalCents)}</p>
+                    <svg className="h-4 w-4 opacity-30 mt-1 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                    </svg>
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
         )}
       </div>

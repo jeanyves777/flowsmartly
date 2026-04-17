@@ -63,7 +63,7 @@ export function CartDrawer() {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-[60]">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40 transition-opacity"
@@ -73,10 +73,10 @@ export function CartDrawer() {
       {/* Drawer */}
       <div
         ref={drawerRef}
-        className="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-xl flex flex-col"
+        className="absolute right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-900 shadow-xl flex flex-col"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <ShoppingBag className="h-5 w-5" />
             Cart ({itemCount})
@@ -94,7 +94,7 @@ export function CartDrawer() {
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <ShoppingBag className="h-12 w-12 text-gray-300 mb-3" />
-              <p className="text-gray-500 font-medium">Your cart is empty</p>
+              <p className="text-gray-500 dark:text-gray-400 font-medium">Your cart is empty</p>
               <Link
                 href={`/store/${storeSlug}/products`}
                 onClick={() => setIsOpen(false)}
@@ -109,7 +109,7 @@ export function CartDrawer() {
               {items.map((item) => (
                 <div
                   key={`${item.productId}-${item.variantId || ""}`}
-                  className="flex gap-3 p-3 rounded-lg border border-gray-100"
+                  className="flex gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-800"
                 >
                   {/* Image */}
                   <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
@@ -144,7 +144,7 @@ export function CartDrawer() {
                         onClick={() =>
                           updateQuantity(item.productId, item.variantId, item.quantity - 1)
                         }
-                        className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 text-gray-600"
+                        className="w-9 h-9 flex items-center justify-center rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
                       >
                         <Minus className="h-3 w-3" />
                       </button>
@@ -156,7 +156,7 @@ export function CartDrawer() {
                           updateQuantity(item.productId, item.variantId, item.quantity + 1)
                         }
                         disabled={item.maxQuantity ? item.quantity >= item.maxQuantity : false}
-                        className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40"
+                        className="w-9 h-9 flex items-center justify-center rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 disabled:opacity-40"
                       >
                         <Plus className="h-3 w-3" />
                       </button>
@@ -187,9 +187,9 @@ export function CartDrawer() {
 
         {/* Footer */}
         {items.length > 0 && (
-          <div className="border-t border-gray-200 p-4 space-y-3">
+          <div className="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">Subtotal</span>
+              <span className="text-gray-500 dark:text-gray-400">Subtotal</span>
               <span className="font-semibold text-lg">
                 {formatCents(subtotalCents, currency)}
               </span>

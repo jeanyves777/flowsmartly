@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/client";
 import { getPresignedUrl } from "@/lib/utils/s3-client";
 import { resolveTheme, getGoogleFontsUrl, getThemeCSSVars } from "@/lib/store/theme-utils";
 import { CartProvider } from "@/components/store/cart-provider";
+import { StoreClientShell } from "@/components/store/store-client-shell";
 import { ArrowLeft, ShoppingBag } from "lucide-react";
 
 /**
@@ -123,27 +124,88 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
         </header>
 
         {/* Page content */}
-        <main className="flex-1">
+        <main className="flex-1 pb-16 md:pb-0">
           {children}
         </main>
 
-        {/* Footer — minimal, branded */}
+        {/* Cart drawer + mobile bottom nav */}
+        <StoreClientShell storeSlug={store.slug} />
+
+        {/* Footer — branded with policies, contact, newsletter */}
         <footer
-          className="border-t py-6 mt-auto"
-          style={{ backgroundColor: "var(--store-background)" }}
+          className="border-t mt-auto"
+          style={{
+            backgroundColor: "var(--store-background)",
+            borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)",
+          }}
         >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-sm opacity-50">
-              &copy; {new Date().getFullYear()} {store.name}
-            </p>
-            <div className="flex items-center gap-4 text-sm opacity-50">
-              <a href={storeUrl} className="hover:opacity-100 transition-opacity">Shop</a>
-              <a href={`${storeUrl}/about`} className="hover:opacity-100 transition-opacity">About</a>
-              <a href={`/store/${store.slug}/account`} className="hover:opacity-100 transition-opacity">My Account</a>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-8">
+              {/* Shop */}
+              <div>
+                <h3 className="font-semibold mb-3 text-sm" style={{ color: "var(--store-text)" }}>Shop</h3>
+                <ul className="space-y-2 text-sm" style={{ color: "color-mix(in srgb, var(--store-text) 60%, transparent)" }}>
+                  <li><a href={storeUrl} className="hover:opacity-100 transition-opacity">All Products</a></li>
+                  <li><a href={`${storeUrl}/about`} className="hover:opacity-100 transition-opacity">About Us</a></li>
+                  <li><a href={`${storeUrl}/faq`} className="hover:opacity-100 transition-opacity">FAQ</a></li>
+                </ul>
+              </div>
+              {/* Policies */}
+              <div>
+                <h3 className="font-semibold mb-3 text-sm" style={{ color: "var(--store-text)" }}>Policies</h3>
+                <ul className="space-y-2 text-sm" style={{ color: "color-mix(in srgb, var(--store-text) 60%, transparent)" }}>
+                  <li><a href={`${storeUrl}/privacy-policy`} className="hover:opacity-100 transition-opacity">Privacy Policy</a></li>
+                  <li><a href={`${storeUrl}/terms`} className="hover:opacity-100 transition-opacity">Terms of Service</a></li>
+                  <li><a href={`${storeUrl}/shipping-policy`} className="hover:opacity-100 transition-opacity">Shipping</a></li>
+                  <li><a href={`${storeUrl}/return-policy`} className="hover:opacity-100 transition-opacity">Returns</a></li>
+                </ul>
+              </div>
+              {/* Account */}
+              <div>
+                <h3 className="font-semibold mb-3 text-sm" style={{ color: "var(--store-text)" }}>Account</h3>
+                <ul className="space-y-2 text-sm" style={{ color: "color-mix(in srgb, var(--store-text) 60%, transparent)" }}>
+                  <li><a href={`/store/${store.slug}/account`} className="hover:opacity-100 transition-opacity">My Account</a></li>
+                  <li><a href={`/store/${store.slug}/account/orders`} className="hover:opacity-100 transition-opacity">Orders</a></li>
+                  <li><a href={`/store/${store.slug}/account/wishlist`} className="hover:opacity-100 transition-opacity">Wishlist</a></li>
+                </ul>
+              </div>
+              {/* Newsletter */}
+              <div>
+                <h3 className="font-semibold mb-3 text-sm" style={{ color: "var(--store-text)" }}>Stay Updated</h3>
+                <p className="text-sm mb-3" style={{ color: "color-mix(in srgb, var(--store-text) 50%, transparent)" }}>
+                  Get the latest on new products and deals.
+                </p>
+                <form className="flex gap-2" action="#" method="GET">
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    className="flex-1 min-w-0 px-3 py-2 text-sm rounded-lg border bg-transparent"
+                    style={{
+                      borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)",
+                      color: "var(--store-text)",
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm font-medium rounded-lg text-white shrink-0"
+                    style={{ backgroundColor: "var(--store-color-primary)" }}
+                  >
+                    Join
+                  </button>
+                </form>
+              </div>
             </div>
-            <p className="text-xs opacity-30">
-              Powered by <a href="https://flowsmartly.com" className="hover:opacity-100">FlowSmartly</a>
-            </p>
+            {/* Bottom bar */}
+            <div className="mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3"
+              style={{ borderTop: "1px solid color-mix(in srgb, var(--store-text) 10%, transparent)" }}
+            >
+              <p className="text-xs" style={{ color: "color-mix(in srgb, var(--store-text) 40%, transparent)" }}>
+                &copy; {new Date().getFullYear()} {store.name}. All rights reserved.
+              </p>
+              <p className="text-xs" style={{ color: "color-mix(in srgb, var(--store-text) 30%, transparent)" }}>
+                Powered by <a href="https://flowsmartly.com" className="hover:opacity-100">FlowSmartly</a>
+              </p>
+            </div>
           </div>
         </footer>
       </div>

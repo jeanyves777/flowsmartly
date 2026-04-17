@@ -143,7 +143,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
         <button
           onClick={handleWishlist}
           disabled={wishlistLoading}
-          className={`absolute top-3 right-3 z-10 p-2 rounded-full shadow-md transition-all ${
+          className={`absolute top-3 right-3 z-10 p-2.5 rounded-full shadow-md transition-all ${
             wishlisted
               ? "bg-red-500 text-white"
               : "bg-white/80 dark:bg-gray-800/80 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:text-red-500"
@@ -154,7 +154,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
         </button>
 
         {/* Add to Cart — visible on hover (desktop) */}
-        <div className="absolute inset-0 flex items-end justify-center pb-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+        <div className="absolute inset-0 flex items-end justify-center pb-4 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
           <button
             onClick={handleAddToCart}
             className="pointer-events-auto flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-medium rounded-full shadow-lg hover:bg-primary-600 hover:text-white transition-colors"
@@ -176,7 +176,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
 
       {/* Info */}
       <div className="space-y-1.5">
-        <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors line-clamp-1">
+        <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors line-clamp-2 sm:line-clamp-1">
           {product.name}
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">

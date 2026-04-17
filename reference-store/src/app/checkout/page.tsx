@@ -35,10 +35,10 @@ function getStoreSlug(): string {
 // Step list is dynamic — "Saved" only appears when the shopper has at least
 // one saved card on file. Without saved cards the flow collapses to the
 // classic 3-step Info → Shipping → Payment.
-const STEP_INFO    = { id: "info",     label: "Info",     icon: MapPin };
-const STEP_SHIP    = { id: "shipping", label: "Shipping", icon: Truck };
-const STEP_SAVED   = { id: "saved",    label: "Saved",    icon: Check };
-const STEP_PAYMENT = { id: "payment",  label: "Payment",  icon: CreditCard };
+const STEP_INFO    = { id: "info",     label: "Information", short: "Info",  icon: MapPin };
+const STEP_SHIP    = { id: "shipping", label: "Shipping",    short: "Ship",  icon: Truck };
+const STEP_SAVED   = { id: "saved",    label: "Saved Cards", short: "Cards", icon: Check };
+const STEP_PAYMENT = { id: "payment",  label: "Payment",     short: "Pay",   icon: CreditCard };
 
 const PAYMENT_ICONS: Record<string, React.ReactNode> = {
   card: <CreditCard size={18} />,
@@ -561,7 +561,8 @@ export default function CheckoutPage() {
                 }`}
               >
                 {i < step ? <Check size={16} /> : <s.icon size={16} />}
-                <span className={i === step ? "inline" : "hidden sm:inline"}>{s.label}</span>
+                <span className="hidden sm:inline">{s.label}</span>
+                <span className="sm:hidden text-[10px]">{s.short}</span>
               </button>
               {i < STEPS.length - 1 && (
                 <div className={`w-4 sm:w-12 h-0.5 mx-1 ${i < step ? "bg-green-400" : "bg-gray-200 dark:bg-gray-700"}`} />
@@ -873,7 +874,7 @@ export default function CheckoutPage() {
           </div>
 
           {/* Order Summary */}
-          <div className="lg:sticky lg:top-8 self-start">
+          <div className="md:sticky md:top-8 self-start">
             <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 space-y-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">Order Summary</h2>
 

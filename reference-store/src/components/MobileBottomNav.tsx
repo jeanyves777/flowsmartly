@@ -32,9 +32,9 @@ export default function MobileBottomNav({
 
   const items = [
     { label: "Shop", icon: Home, href: storeUrl("/products"), active: isActive("/products") },
-    { label: "Search", icon: Search, href: storeUrl("/products"), active: false },
+    { label: "Search", icon: Search, onClick: () => window.dispatchEvent(new CustomEvent("open-search")), active: false },
     { label: "Cart", icon: ShoppingBag, badge: cartCount, onClick: onCartOpen, active: false },
-    { label: "Account", icon: User, href: storeInfo.accountUrl || "#", active: false, external: true },
+    { label: "Account", icon: User, onClick: () => window.dispatchEvent(new CustomEvent("toggle-account")), active: false },
   ];
 
   return (
@@ -47,12 +47,12 @@ export default function MobileBottomNav({
               <div className="relative">
                 <Icon size={22} className={item.active ? "text-primary-600" : "text-gray-500 dark:text-gray-400"} />
                 {item.badge && item.badge > 0 ? (
-                  <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[9px] font-bold min-w-[16px] h-4 rounded-full flex items-center justify-center px-1">
+                  <span className="absolute -top-1.5 -right-2.5 bg-primary-600 text-white text-[9px] font-bold min-w-[16px] h-4 rounded-full flex items-center justify-center px-1">
                     {item.badge > 99 ? "99+" : item.badge}
                   </span>
                 ) : null}
               </div>
-              <span className={`text-[10px] leading-tight ${item.active ? "text-primary-600 font-semibold" : "text-gray-500 dark:text-gray-400"}`}>
+              <span className={`text-[11px] leading-tight ${item.active ? "text-primary-600 font-semibold" : "text-gray-500 dark:text-gray-400"}`}>
                 {item.label}
               </span>
             </div>
