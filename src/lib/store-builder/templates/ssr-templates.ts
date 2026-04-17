@@ -507,9 +507,10 @@ export function getCartCount(cart: CartItem[]): number {
 /** Navigate to the local checkout page — respects basePath for SSR stores */
 export function goToCheckout(): void {
   if (getCart().length === 0) return;
-  // Use Next.js basePath from env (set by next.config.ts) or detect from current URL
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || window.location.pathname.replace(/\\/checkout.*$/, "").replace(/\\/$/, "");
-  window.location.href = basePath + "/checkout";
+  // SSR stores are served under /stores/{slug}/ — extract basePath from current URL
+  const match = window.location.pathname.match(/^\\/stores\\/[^/]+/);
+  const basePath = match ? match[0] : "";
+  window.location.href = basePath + "/checkout/";
 }
 `;
 

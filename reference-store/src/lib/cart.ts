@@ -89,17 +89,16 @@ export function getCartCount(cart: CartItem[]): number {
 // ─── Checkout redirect ───────────────────────────────────────────────────────
 
 /**
- * Encode cart as base64 and redirect to the main FlowSmartly checkout page.
- * The SSR checkout page decodes the cart and handles payment processing.
+ * Navigate to the local checkout page within this SSR store.
+ * Checkout is built-in — no external redirect needed.
+ * Detects basePath from the current URL (/stores/{slug}).
  */
-export function redirectToCheckout(storeSlug: string): void {
+export function redirectToCheckout(_storeSlug: string): void {
   const cart = getCart();
   if (cart.length === 0) return;
 
-  const encoded = btoa(JSON.stringify(cart));
-  const baseUrl = window.location.origin.includes("localhost")
-    ? "http://localhost:3000"
-    : "https://flowsmartly.com";
-
-  window.location.href = `${baseUrl}/store/${storeSlug}/checkout?cart=${encoded}`;
+  // SSR stores are served under /stores/{slug}/ — extract basePath from current URL
+  const match = window.location.pathname.match(/^\/stores\/[^/]+/);
+  const basePath = match ? match[0] : "";
+  window.location.href = basePath + "/checkout/";
 }
