@@ -28,164 +28,150 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
 
   const [wishlisted, setWishlisted] = useState(false);
   const [wishlistLoading, setWishlistLoading] = useState(false);
+  const [added, setAdded] = useState(false);
 
-  // Sync with global wishlist state
+  const productUrl = STORE_SLUG
+    ? `/stores/${STORE_SLUG}/products/${product.slug}`
+    : `/products/${product.slug}`;
+
   useEffect(() => {
     const sync = () => {
-      setWishlisted((window.__storeWishlist || []).includes(product.id));
+      setWishlisted(((window as any).__storeWishlist || []).includes(product.id));
     };
     sync();
     window.addEventListener("wishlist-updated", sync);
     return () => window.removeEventListener("wishlist-updated", sync);
   }, [product.id]);
 
-  const handleAddToCart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!product.inStock) return; // Block add-to-cart for out-of-stock
+  const handleAddToCart = () => {
+    if (!product.inStock) return;
     addToCart({
       productId: product.id,
-      variantId: product.variants[0]?.id,
+      variantId: product.variants?.[0]?.id,
       name: product.name,
-      variantName: product.variants[0]?.name,
+      variantName: product.variants?.[0]?.name,
       priceCents: product.priceCents,
       imageUrl: product.images[0]?.url || "",
     });
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1500);
   };
 
-  const handleWishlist = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!window.__storeCustomer) {
+  const handleWishlist = () => {
+    if (!(window as any).__storeCustomer) {
       window.dispatchEvent(new CustomEvent("open-account-modal"));
       return;
     }
     if (wishlistLoading) return;
     setWishlistLoading(true);
-    try {
-      if (wishlisted) {
-        await fetch(`${API_BASE}/api/store/${STORE_SLUG}/account/wishlist`, {
-          method: "DELETE",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ productId: product.id }),
-        });
-        window.__storeWishlist = (window.__storeWishlist || []).filter((id) => id !== product.id);
-      } else {
-        await fetch(`${API_BASE}/api/store/${STORE_SLUG}/account/wishlist`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ productId: product.id }),
-        });
-        window.__storeWishlist = [...(window.__storeWishlist || []), product.id];
-      }
-      window.dispatchEvent(new CustomEvent("wishlist-updated"));
-    } catch { /* silent */ } finally {
-      setWishlistLoading(false);
-    }
+    const action = wishlisted ? "DELETE" : "POST";
+    fetch(`${API_BASE}/api/store/${STORE_SLUG}/account/wishlist`, {
+      method: action,
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productId: product.id }),
+    })
+      .then(() => {
+        if (wishlisted) {
+          (window as any).__storeWishlist = ((window as any).__storeWishlist || []).filter((id: string) => id !== product.id);
+        } else {
+          (window as any).__storeWishlist = [...((window as any).__storeWishlist || []), product.id];
+        }
+        window.dispatchEvent(new CustomEvent("wishlist-updated"));
+      })
+      .catch(() => {})
+      .finally(() => setWishlistLoading(false));
   };
 
   return (
-    <motion.a
-      href={STORE_SLUG ? `/stores/${STORE_SLUG}/products/${product.slug}` : `/products/${product.slug}`}
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ delay: index * 0.05, duration: 0.4 }}
-      className="group block"
+      transition={{ delay: (index || 0) * 0.05, duration: 0.4 }}
+      className="group"
     >
-      {/* Image */}
+      {/* Image container */}
       <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-4">
-        {product.images[0] && (
-          <img
-            src={product.images[0].url}
-            alt={product.images[0].alt}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            loading="lazy"
-          />
-        )}
+        {/* Clickable image area — links to product detail */}
+        <a href={productUrl} className="block w-full h-full">
+          {product.images[0] && (
+            <img
+              src={product.images[0].url}
+              alt={product.images[0].alt}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              loading="lazy"
+            />
+          )}
+        </a>
 
-        {/* Badges */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+        {/* Badges — non-interactive */}
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5 pointer-events-none">
           {product.labels?.includes("sale") && discount > 0 && (
-            <span className="px-2.5 py-1 bg-red-500 text-white text-xs font-bold rounded-full">
-              -{discount}%
-            </span>
+            <span className="px-2.5 py-1 bg-red-500 text-white text-xs font-bold rounded-full">-{discount}%</span>
           )}
           {product.labels?.includes("discount") && discount > 0 && !product.labels?.includes("sale") && (
-            <span className="px-2.5 py-1 bg-red-500 text-white text-xs font-bold rounded-full">
-              -{discount}%
-            </span>
+            <span className="px-2.5 py-1 bg-red-500 text-white text-xs font-bold rounded-full">-{discount}%</span>
           )}
           {product.labels?.includes("new") && (
-            <span className="px-2.5 py-1 bg-primary-600 text-white text-xs font-bold rounded-full">
-              New
-            </span>
+            <span className="px-2.5 py-1 bg-primary-600 text-white text-xs font-bold rounded-full">New</span>
           )}
           {product.labels?.includes("bestseller") && (
-            <span className="px-2.5 py-1 bg-amber-500 text-white text-xs font-bold rounded-full">
-              Bestseller
-            </span>
+            <span className="px-2.5 py-1 bg-amber-500 text-white text-xs font-bold rounded-full">Bestseller</span>
           )}
           {product.labels?.includes("limited") && (
-            <span className="px-2.5 py-1 bg-purple-600 text-white text-xs font-bold rounded-full">
-              Limited
-            </span>
-          )}
-          {product.labels?.includes("featured") && (
-            <span className="px-2.5 py-1 bg-pink-600 text-white text-xs font-bold rounded-full">
-              Featured
-            </span>
+            <span className="px-2.5 py-1 bg-purple-600 text-white text-xs font-bold rounded-full">Limited</span>
           )}
         </div>
 
-        {/* Wishlist heart — always visible on mobile, top-right */}
+        {/* Wishlist heart — interactive, z-20 above everything */}
         <button
+          type="button"
           onClick={handleWishlist}
           disabled={wishlistLoading}
-          className={`absolute top-3 right-3 z-10 p-2.5 rounded-full shadow-md transition-all ${
+          className={`absolute top-3 right-3 z-20 p-2.5 rounded-full shadow-md transition-all ${
             wishlisted
               ? "bg-red-500 text-white"
-              : "bg-white/80 dark:bg-gray-800/80 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:text-red-500"
+              : "bg-white/90 dark:bg-gray-800/90 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:text-red-500"
           } ${wishlistLoading ? "opacity-50" : ""}`}
           aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
         >
           <Heart size={18} fill={wishlisted ? "currentColor" : "none"} />
         </button>
 
-        {/* Add to Cart / Out of Stock — visible on mobile, hover on desktop */}
+        {/* Add to Cart / Out of Stock */}
         {product.inStock ? (
-          <div className="absolute inset-0 flex items-end justify-center pb-4 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+          <div className="absolute bottom-3 left-3 right-3 z-20 flex justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300">
             <button
+              type="button"
               onClick={handleAddToCart}
-              className="pointer-events-auto flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-medium rounded-full shadow-lg hover:bg-primary-600 hover:text-white transition-colors"
+              className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-full shadow-lg transition-colors ${
+                added
+                  ? "bg-green-500 text-white"
+                  : "bg-white dark:bg-gray-900 text-gray-900 dark:text-white hover:bg-primary-600 hover:text-white"
+              }`}
             >
               <ShoppingBag size={16} />
-              Add to Cart
+              {added ? "Added!" : "Add to Cart"}
             </button>
           </div>
         ) : (
-          <>
-            {/* Out of stock overlay */}
-            <div className="absolute inset-0 bg-white/60 dark:bg-gray-900/60 flex flex-col items-center justify-center gap-2">
-              <span className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-full">
-                Out of Stock
-              </span>
-              <button
-                onClick={handleWishlist}
-                className="pointer-events-auto flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs font-medium rounded-full shadow-md hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors"
-              >
-                <Heart size={14} fill={wishlisted ? "currentColor" : "none"} className={wishlisted ? "text-red-500" : ""} />
-                {wishlisted ? "Saved" : "Save for Later"}
-              </button>
-            </div>
-          </>
+          <div className="absolute inset-0 z-10 bg-white/60 dark:bg-gray-900/60 flex flex-col items-center justify-center gap-2 pointer-events-none">
+            <span className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-full">Out of Stock</span>
+            <button
+              type="button"
+              onClick={handleWishlist}
+              className="pointer-events-auto flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs font-medium rounded-full shadow-md hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors"
+            >
+              <Heart size={14} fill={wishlisted ? "currentColor" : "none"} className={wishlisted ? "text-red-500" : ""} />
+              {wishlisted ? "Saved" : "Save for Later"}
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Info */}
-      <div className="space-y-1.5">
+      {/* Product info — clickable */}
+      <a href={productUrl} className="block space-y-1.5">
         <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors line-clamp-2 sm:line-clamp-1">
           {product.name}
         </h3>
@@ -205,12 +191,12 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
         {!product.inStock && (
           <p className="text-xs font-medium text-red-500">Item unavailable</p>
         )}
-        {product.inStock && product.variants.length > 0 && (
+        {product.inStock && product.variants && product.variants.length > 0 && (
           <p className="text-xs text-gray-400">
             {product.variants.length} {product.variants.length === 1 ? "variant" : "variants"}
           </p>
         )}
-      </div>
-    </motion.a>
+      </a>
+    </motion.div>
   );
 }
