@@ -59,11 +59,8 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
 
   const handleWishlist = () => {
     if (!(window as any).__storeCustomer) {
-      // Redirect to login page so user can sign in first
-      const loginUrl = STORE_SLUG
-        ? `/store/${STORE_SLUG}/account/login`
-        : "/account/login";
-      window.location.href = loginUrl;
+      // Open the AccountModal (sign in drawer) — stays on the same page
+      window.dispatchEvent(new CustomEvent("toggle-account"));
       return;
     }
     if (wishlistLoading) return;
