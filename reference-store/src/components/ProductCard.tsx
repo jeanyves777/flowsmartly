@@ -42,6 +42,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!product.inStock) return; // Block add-to-cart for out-of-stock
     addToCart({
       productId: product.id,
       variantId: product.variants[0]?.id,
@@ -153,24 +154,33 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
           <Heart size={18} fill={wishlisted ? "currentColor" : "none"} />
         </button>
 
-        {/* Add to Cart — visible on hover (desktop) */}
-        <div className="absolute inset-0 flex items-end justify-center pb-4 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-          <button
-            onClick={handleAddToCart}
-            className="pointer-events-auto flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-medium rounded-full shadow-lg hover:bg-primary-600 hover:text-white transition-colors"
-          >
-            <ShoppingBag size={16} />
-            Add to Cart
-          </button>
-        </div>
-
-        {/* Out of stock overlay */}
-        {!product.inStock && (
-          <div className="absolute inset-0 bg-white/60 dark:bg-gray-900/60 flex items-center justify-center">
-            <span className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-full">
-              Out of Stock
-            </span>
+        {/* Add to Cart / Out of Stock — visible on mobile, hover on desktop */}
+        {product.inStock ? (
+          <div className="absolute inset-0 flex items-end justify-center pb-4 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+            <button
+              onClick={handleAddToCart}
+              className="pointer-events-auto flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-medium rounded-full shadow-lg hover:bg-primary-600 hover:text-white transition-colors"
+            >
+              <ShoppingBag size={16} />
+              Add to Cart
+            </button>
           </div>
+        ) : (
+          <>
+            {/* Out of stock overlay */}
+            <div className="absolute inset-0 bg-white/60 dark:bg-gray-900/60 flex flex-col items-center justify-center gap-2">
+              <span className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-full">
+                Out of Stock
+              </span>
+              <button
+                onClick={handleWishlist}
+                className="pointer-events-auto flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs font-medium rounded-full shadow-md hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors"
+              >
+                <Heart size={14} fill={wishlisted ? "currentColor" : "none"} className={wishlisted ? "text-red-500" : ""} />
+                {wishlisted ? "Saved" : "Save for Later"}
+              </button>
+            </div>
+          </>
         )}
       </div>
 
@@ -192,7 +202,10 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
             </span>
           )}
         </div>
-        {product.variants.length > 0 && (
+        {!product.inStock && (
+          <p className="text-xs font-medium text-red-500">Item unavailable</p>
+        )}
+        {product.inStock && product.variants.length > 0 && (
           <p className="text-xs text-gray-400">
             {product.variants.length} {product.variants.length === 1 ? "variant" : "variants"}
           </p>

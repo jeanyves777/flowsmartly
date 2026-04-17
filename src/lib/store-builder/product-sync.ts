@@ -118,7 +118,7 @@ async function syncProductsToFile(storeId: string, storeDir: string): Promise<vo
     labels: ${JSON.stringify(labels)},
     badges: ${JSON.stringify(labels)},
     featured: ${labels.includes("featured")},
-    inStock: true,
+    inStock: ${p.trackInventory ? p.quantity > 0 : true},
   }`;
   }).join(",\n");
 
