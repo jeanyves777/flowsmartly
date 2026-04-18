@@ -171,10 +171,10 @@ export default function StoreDesignPage() {
     setBuildMessage("Starting rebuild...");
 
     // Capture the lastBuildAt BEFORE triggering rebuild so we can detect a NEW completion
-    const previousBuildAt = await fetch(`/api/ecommerce/store/${store.id}/generate`)
+    const baselineStatus = await fetch(`/api/ecommerce/store/${store.id}/generate`)
       .then((r) => r.ok ? r.json() : null)
-      .then((s) => s?.lastBuildAt || null)
       .catch(() => null);
+    const previousBuildAt = baselineStatus?.lastBuildAt || null;
 
     try {
       const r = await fetch(`/api/ecommerce/store/${store.id}/rebuild`, { method: "POST" });
@@ -187,11 +187,10 @@ export default function StoreDesignPage() {
         return;
       }
 
-      // Poll build status every 3 seconds until the build completes
+      // Poll build status until a NEW build completes (lastBuildAt changes) or errors out.
       setBuildMessage("Compiling your store (this can take 30-90 seconds)...");
       const startTime = Date.now();
       const MAX_POLL_MS = 5 * 60 * 1000; // 5 minute safety timeout
-      let sawBuilding = false;
 
       const poll = async (): Promise<void> => {
         if (Date.now() - startTime > MAX_POLL_MS) {
@@ -206,17 +205,20 @@ export default function StoreDesignPage() {
           if (!res.ok) throw new Error("Status check failed");
           const status = await res.json();
 
-          // Track whether we've seen "building" state yet
-          if (status.buildStatus === "building") {
-            sawBuilding = true;
-          }
+          // A completed NEW build means lastBuildAt has changed from our baseline
+          const isNewBuildComplete =
+            status.buildStatus === "built" &&
+            status.lastBuildAt &&
+            status.lastBuildAt !== previousBuildAt;
 
-          // Only treat "built" as done if:
-          //   a) we already saw "building" during this poll cycle, OR
-          //   b) lastBuildAt has changed (meaning a new build completed since we started)
-          const isNewBuild = status.lastBuildAt && status.lastBuildAt !== previousBuildAt;
+          // A NEW error means status is "error" AND it happened since we started
+          const isNewError = status.buildStatus === "error" && (
+            !previousBuildAt || // no previous build ever
+            (status.lastBuildAt && status.lastBuildAt !== previousBuildAt) ||
+            Date.now() - startTime > 10000 // assume an error after 10s is ours
+          );
 
-          if (status.buildStatus === "built" && (sawBuilding || isNewBuild)) {
+          if (isNewBuildComplete) {
             setBuildStage("deploying");
             setBuildMessage("Deploying to your live store...");
             setTimeout(() => {
@@ -224,11 +226,9 @@ export default function StoreDesignPage() {
               setBuildMessage("Your store is updated and live!");
               setBuildResult({ type: "success", message: "Your store has been updated successfully." });
               setRebuilding(false);
-              // Refresh preview iframe
               if (iframeRef.current) {
                 iframeRef.current.src = iframeRef.current.src;
               }
-              // Auto-hide the success overlay after 3 seconds
               setTimeout(() => {
                 setBuildStage("idle");
                 setBuildMessage("");
@@ -237,7 +237,7 @@ export default function StoreDesignPage() {
             return;
           }
 
-          if (status.buildStatus === "error") {
+          if (isNewError) {
             setBuildStage("error");
             setBuildMessage(status.lastBuildError?.substring(0, 300) || "Build failed — check the Rebuild tab for details.");
             setBuildResult({ type: "error", message: status.lastBuildError || "Build failed" });
@@ -245,16 +245,16 @@ export default function StoreDesignPage() {
             return;
           }
 
-          // Still building (or "built" but stale — we haven't seen "building" yet) — poll again
+          // Still in progress — poll again
           setTimeout(poll, 3000);
         } catch (err: any) {
-          // Network blip — retry once more
+          // Network blip — retry
           setTimeout(poll, 5000);
         }
       };
 
-      // First poll after 1 second (server sets status=building synchronously now)
-      setTimeout(poll, 1000);
+      // First poll after 3 seconds (give buildStoreV3 time to start and acquire lock)
+      setTimeout(poll, 3000);
     } catch (err: any) {
       setBuildStage("error");
       setBuildMessage(err.message || "Network error");
