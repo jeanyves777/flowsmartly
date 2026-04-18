@@ -25,7 +25,14 @@ export async function PATCH(
 
     const domain = await prisma.storeDomain.findUnique({
       where: { id },
-      select: { id: true, userId: true, storeId: true, domainName: true, cloudflareZoneId: true },
+      select: {
+        id: true,
+        userId: true,
+        storeId: true,
+        domainName: true,
+        cloudflareZoneId: true,
+        registrarStatus: true,
+      },
     });
 
     if (!domain) {
@@ -46,6 +53,7 @@ export async function PATCH(
     const updateData: Record<string, unknown> = {};
     let needsCachePurge = false;
     let actionMessage = "Settings updated";
+    let storeToRebuild: string | null = null;
 
     if (typeof body.autoRenew === "boolean") {
       updateData.autoRenew = body.autoRenew;
@@ -57,27 +65,86 @@ export async function PATCH(
 
     // Link to store
     if (body.linkToStore === true) {
+      // Verify the domain is actually registered (not still in pending/failed state)
+      if (domain.registrarStatus && !["active", "registered", "ok"].includes(domain.registrarStatus.toLowerCase())) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: "DOMAIN_NOT_READY",
+              message: `Domain is not ready yet (status: ${domain.registrarStatus}). Wait for registration to complete before linking.`,
+            },
+          },
+          { status: 400 }
+        );
+      }
+
       const store = await prisma.store.findUnique({
         where: { userId: session.userId },
-        select: { id: true },
+        select: { id: true, slug: true, customDomain: true },
       });
-      if (store) {
-        updateData.storeId = store.id;
-        needsCachePurge = true;
-        actionMessage = `${domain.domainName} is now linked to your store`;
-      } else {
+      if (!store) {
         return NextResponse.json(
           { success: false, error: { code: "NO_STORE", message: "You don't have a FlowShop store to link" } },
           { status: 400 }
         );
       }
-    } else if (body.linkToStore === false) {
-      updateData.storeId = null;
+
+      // 1. Link this domain to the store on the StoreDomain row
+      updateData.storeId = store.id;
+
+      // 2. CRITICAL: Update the Store record's customDomain so middleware + data.ts pick it up
+      await prisma.store.update({
+        where: { id: store.id },
+        data: { customDomain: domain.domainName },
+      });
+
+      // 3. If no other domain is primary yet, make this one primary
+      const hasPrimary = await prisma.storeDomain.findFirst({
+        where: { storeId: store.id, isPrimary: true, id: { not: id } },
+        select: { id: true },
+      });
+      if (!hasPrimary) {
+        updateData.isPrimary = true;
+      }
+
+      storeToRebuild = store.id;
       needsCachePurge = true;
-      actionMessage = "Store unlinked from domain";
+      actionMessage = `${domain.domainName} is now linked to your store — rebuilding…`;
+    } else if (body.linkToStore === false) {
+      // Capture the store before unlinking so we can rebuild + clear its customDomain
+      if (domain.storeId) {
+        const store = await prisma.store.findUnique({
+          where: { id: domain.storeId },
+          select: { id: true, customDomain: true },
+        });
+        if (store?.customDomain === domain.domainName) {
+          // Find a fallback domain for this store (other linked domains)
+          const fallback = await prisma.storeDomain.findFirst({
+            where: {
+              storeId: store.id,
+              id: { not: id },
+              registrarStatus: { in: ["active", "registered", "ok"] },
+            },
+            select: { domainName: true },
+            orderBy: { isPrimary: "desc" },
+          });
+          await prisma.store.update({
+            where: { id: store.id },
+            data: { customDomain: fallback?.domainName || null },
+          });
+        }
+        storeToRebuild = domain.storeId;
+      }
+
+      updateData.storeId = null;
+      updateData.isPrimary = false;
+      needsCachePurge = true;
+      actionMessage = "Store unlinked from domain — rebuilding…";
     }
 
     // Link to website
+    let websiteToRebuild: string | null = null;
     if (typeof body.linkToWebsite === "string" && body.linkToWebsite) {
       const website = await prisma.website.findFirst({
         where: { id: body.linkToWebsite, userId: session.userId, deletedAt: null },
@@ -94,8 +161,9 @@ export async function PATCH(
         where: { id: website.id },
         data: { customDomain: domain.domainName },
       });
+      websiteToRebuild = website.id;
       needsCachePurge = true;
-      actionMessage = `${domain.domainName} is now serving your website`;
+      actionMessage = `${domain.domainName} is now serving your website — rebuilding…`;
     } else if (body.linkToWebsite === null) {
       // Find websites using this domain before unlinking
       const linkedWebsites = await prisma.website.findMany({
@@ -107,11 +175,10 @@ export async function PATCH(
         where: { customDomain: domain.domainName, userId: session.userId },
         data: { customDomain: null },
       });
+      if (linkedWebsites[0]) websiteToRebuild = linkedWebsites[0].id;
       needsCachePurge = true;
-      actionMessage = "Website unlinked from domain";
+      actionMessage = "Website unlinked from domain — rebuilding…";
     }
-
-    // Link to website by linkToWebsite=null is handled above
 
     if (Object.keys(updateData).length > 0) {
       await prisma.storeDomain.update({
@@ -125,6 +192,22 @@ export async function PATCH(
       purgeZoneCache(domain.cloudflareZoneId).catch((err) =>
         console.error("[DomainSettings] Cache purge failed (non-fatal):", err)
       );
+    }
+
+    // Trigger rebuild so the generated store/website picks up the new domain
+    // in data.ts, sitemap, canonical URLs, meta tags. Fire-and-forget.
+    if (storeToRebuild) {
+      const { triggerStoreRebuildIfV2 } = await import("@/lib/store-builder/product-sync");
+      triggerStoreRebuildIfV2(storeToRebuild).catch((e) =>
+        console.error("[DomainSettings] Store rebuild failed:", e)
+      );
+    }
+    if (websiteToRebuild) {
+      // Website rebuild — fire the internal rebuild endpoint
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/websites/${websiteToRebuild}/rebuild`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: request.headers.get("cookie") || "" },
+      }).catch((e) => console.error("[DomainSettings] Website rebuild failed:", e));
     }
 
     // Return updated domain
@@ -142,7 +225,7 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      data: { domain: updated },
+      data: { domain: updated, rebuildTriggered: !!(storeToRebuild || websiteToRebuild) },
       message: actionMessage,
     });
   } catch (error) {
@@ -153,10 +236,3 @@ export async function PATCH(
     );
   }
 }
-
-// No rebuild or link manipulation needed when linking/unlinking domains.
-// basePath is always '/sites/{slug}' — the middleware handles custom domain
-// routing by rewriting all paths transparently. This means:
-// - Preview on flowsmartly.com: works (paths use /sites/slug/...)
-// - Custom domain: middleware rewrites / → /sites/slug/, works
-// - No broken states during link/unlink
