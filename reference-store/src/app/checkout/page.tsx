@@ -524,7 +524,7 @@ export default function CheckoutPage() {
 
   return (
     <>
-      <main className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-24 pb-16">
+      <main className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-20 sm:pt-24 pb-24 sm:pb-16">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
 
         <Link href="/products" className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary mb-6">
@@ -571,8 +571,8 @@ export default function CheckoutPage() {
           ))}
         </div>
 
-        <div className="grid lg:grid-cols-[1fr_380px] gap-8">
-          <div>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 lg:gap-8">
+          <div className="w-full min-w-0">
             {/* Step — Contact Info */}
             {currentStepId === "info" && (
               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 space-y-5">
@@ -843,18 +843,18 @@ export default function CheckoutPage() {
             )}
 
             {/* Navigation */}
-            <div className="flex items-center justify-between mt-6">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-between gap-3 mt-6">
               {step > 0 ? (
-                <button onClick={() => setStep(s => s - 1)} className="inline-flex items-center gap-2 px-5 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                <button onClick={() => setStep(s => s - 1)} className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                   <ArrowLeft size={16} /> Back
                 </button>
-              ) : <div />}
+              ) : <div className="hidden sm:block" />}
 
               {currentStepId === "info" || currentStepId === "shipping" ? (
                 <button
                   onClick={handleNext}
                   disabled={!canNext()}
-                  className="inline-flex items-center gap-2 px-8 py-3 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary/25"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary/25"
                 >
                   Continue <ArrowRight size={16} />
                 </button>
@@ -864,7 +864,7 @@ export default function CheckoutPage() {
                 <button
                   onClick={handleNonCardSubmit}
                   disabled={loading || loadingPaymentMethods}
-                  className="inline-flex items-center gap-2 px-8 py-3 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-lg shadow-primary/25"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-lg shadow-primary/25"
                 >
                   {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingBag size={16} />}
                   {loading ? "Processing..." : "Place Order"}
@@ -873,8 +873,8 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          {/* Order Summary */}
-          <div className="md:sticky md:top-8 self-start">
+          {/* Order Summary — full width on mobile, sticky sidebar on lg+ */}
+          <div className="w-full lg:sticky lg:top-8 self-start">
             <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 space-y-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">Order Summary</h2>
 
