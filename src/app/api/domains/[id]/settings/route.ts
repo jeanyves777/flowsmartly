@@ -194,6 +194,15 @@ export async function PATCH(
       );
     }
 
+    // Regenerate nginx so the new custom-domain server block routes to the
+    // correct upstream (or removes it on unlink). Fire-and-forget.
+    if (needsCachePurge) {
+      const { regenerateAndReload } = await import("@/lib/ssr-manager/nginx-config");
+      regenerateAndReload().catch((e) =>
+        console.error("[DomainSettings] Nginx reload failed:", e)
+      );
+    }
+
     // Trigger rebuild so the generated store/website picks up the new domain
     // in data.ts, sitemap, canonical URLs, meta tags. Fire-and-forget.
     if (storeToRebuild) {

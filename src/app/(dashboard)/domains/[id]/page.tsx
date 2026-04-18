@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
+import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──
 
@@ -846,12 +847,50 @@ function SettingsTab({
         body: JSON.stringify(data),
       });
       const result = await res.json();
-      if (result.success) {
-        toast({ title: result.message || "Settings updated" });
-        onUpdate();
-      } else {
+      if (!result.success) {
         toast({ title: result.error?.message || "Update failed", variant: "destructive" });
+        setSaving(false);
+        setSavingAction(null);
+        return;
       }
+
+      // If a rebuild was triggered, keep the loader visible while we poll the
+      // store build status so the user actually knows when the site is live.
+      if (result.data?.rebuildTriggered) {
+        setSavingAction("Rebuilding your store — this takes 30-90 seconds…");
+        try {
+          // Poll the store's build status — we don't have the store ID here,
+          // but the domain page already knows if it's linked to a store.
+          const storeRes = await fetch("/api/ecommerce/store");
+          const store = (await storeRes.json())?.data?.store;
+          if (store?.id) {
+            const startTime = Date.now();
+            const baselineRes = await fetch(`/api/ecommerce/store/${store.id}/generate`);
+            const baseline = baselineRes.ok ? (await baselineRes.json()) : null;
+            const previousBuildAt = baseline?.lastBuildAt || null;
+
+            // Poll every 3s up to 3 minutes
+            while (Date.now() - startTime < 3 * 60 * 1000) {
+              await new Promise((r) => setTimeout(r, 3000));
+              const statusRes = await fetch(`/api/ecommerce/store/${store.id}/generate`);
+              if (!statusRes.ok) continue;
+              const status = await statusRes.json();
+              const isNewBuild =
+                status.buildStatus === "built" &&
+                status.lastBuildAt &&
+                status.lastBuildAt !== previousBuildAt;
+              if (isNewBuild) break;
+              if (status.buildStatus === "error") {
+                toast({ title: "Rebuild failed — your domain link may need a manual rebuild.", variant: "destructive" });
+                break;
+              }
+            }
+          }
+        } catch { /* polling is best-effort */ }
+      }
+
+      toast({ title: result.message || "Settings updated" });
+      onUpdate();
     } catch {
       toast({ title: "Failed to update settings", variant: "destructive" });
     } finally {
@@ -864,15 +903,15 @@ function SettingsTab({
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-      {/* Full-screen loader overlay for linking actions */}
+      {/* Full-screen branded loader overlay for linking actions */}
       {saving && savingAction && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
-          <div className="text-center space-y-4">
-            <Loader2 className="h-10 w-10 animate-spin text-brand-600 mx-auto" />
-            <div>
-              <p className="font-semibold text-lg">{savingAction}</p>
-              <p className="text-sm text-muted-foreground mt-1">This may take a few seconds...</p>
-            </div>
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-background border border-border rounded-2xl p-8 max-w-md w-[90%] shadow-2xl">
+            <AIGenerationLoader
+              currentStep={savingAction}
+              subtitle="Linking, rebuilding, and reloading nginx — please don't close this page."
+              progress={50}
+            />
           </div>
         </div>
       )}

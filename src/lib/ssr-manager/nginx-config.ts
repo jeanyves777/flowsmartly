@@ -50,6 +50,59 @@ ${proxyHeaders}
 `;
 }
 
+/**
+ * Generate a dedicated nginx server block for a custom domain pointing to an SSR app.
+ * The app has a basePath of /stores/{slug}/ or /sites/{slug}/, so we rewrite the
+ * incoming request path (which lacks the basePath) before proxying upstream.
+ */
+function customDomainServerBlock(
+  domain: string,
+  upstreamName: string,
+  basePath: string
+): string {
+  return `# Custom domain: ${domain} → ${upstreamName} (basePath ${basePath})
+# Cloudflare terminates SSL from client; origin serves HTTP+HTTPS.
+# Path is rewritten to add the app's basePath so upstream routes resolve.
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name ${domain} www.${domain};
+
+    # Use flowsmartly.com cert — Cloudflare 'Full' mode doesn't require hostname match
+    ssl_certificate /etc/letsencrypt/live/flowsmartly.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/flowsmartly.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    # Root → basePath/ (trailingSlash:true requires the slash)
+    location = / {
+        proxy_pass http://${upstreamName}${basePath}/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 60s;
+        proxy_buffering off;
+    }
+
+    # Everything else → basePath + original path
+    location / {
+        proxy_pass http://${upstreamName}${basePath}$request_uri;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 60s;
+        proxy_buffering off;
+    }
+}`;
+}
+
 function websiteLocationBlock(slug: string, port: number): string {
   const safeName = `site_${slug.replace(/[^a-z0-9_-]/gi, "_")}`;
   return `# Website: ${slug} -> port ${port}
@@ -89,22 +142,30 @@ export async function regenerateAndReload(): Promise<void> {
     console.log("[nginx-config] Removed legacy flowsmartly-apps.conf");
   }
 
-  // Fetch all running SSR apps
-  const [stores, websites] = await Promise.all([
+  // Fetch all running SSR apps + their linked custom domains
+  const [stores, websites, storeDomains] = await Promise.all([
     prisma.store.findMany({
       where: {
         ssrPort: { not: null },
         ssrStatus: { in: ["running", "starting"] },
         storeVersion: "independent",
       },
-      select: { slug: true, ssrPort: true },
+      select: { id: true, slug: true, ssrPort: true, customDomain: true },
     }),
     prisma.website.findMany({
       where: {
         ssrPort: { not: null },
         ssrStatus: { in: ["running", "starting"] },
       },
-      select: { slug: true, ssrPort: true },
+      select: { id: true, slug: true, ssrPort: true, customDomain: true },
+    }),
+    // All active domains linked to a store, for per-domain server blocks
+    prisma.storeDomain.findMany({
+      where: {
+        storeId: { not: null },
+        registrarStatus: { in: ["active", "registered", "ok"] },
+      },
+      select: { domainName: true, storeId: true },
     }),
   ]);
 
@@ -147,7 +208,38 @@ export async function regenerateAndReload(): Promise<void> {
     }
   }
 
-  console.log(`[nginx-config] Wrote ${stores.length} store + ${websites.length} website configs`);
+  // Build store-id → (slug, port) lookup for custom-domain server blocks
+  const storeById = new Map(stores.map((s) => [s.id, s]));
+
+  // Collect all (domain, upstreamName) pairs for per-domain server blocks
+  const domainBlocks: string[] = [];
+  for (const sd of storeDomains) {
+    const store = storeById.get(sd.storeId!);
+    if (!store?.ssrPort) continue;
+    const safeName = `store_${store.slug.replace(/[^a-z0-9_-]/gi, "_")}`;
+    const basePath = `/stores/${store.slug}`;
+    domainBlocks.push(customDomainServerBlock(sd.domainName, safeName, basePath));
+  }
+  // Also handle website customDomain (set directly on Website.customDomain)
+  for (const site of websites) {
+    if (!site.customDomain || !site.ssrPort) continue;
+    const safeName = `site_${site.slug.replace(/[^a-z0-9_-]/gi, "_")}`;
+    const basePath = `/sites/${site.slug}`;
+    domainBlocks.push(customDomainServerBlock(site.customDomain, safeName, basePath));
+  }
+
+  // Write one custom-domains.conf with all per-domain server blocks
+  // (server blocks must be at http/top level — NOT inside flowsmartly-locations/
+  // which is included inside a server block)
+  const domainsConf = "/etc/nginx/conf.d/flowsmartly-custom-domains.conf";
+  if (domainBlocks.length > 0) {
+    writeFileSync(domainsConf, header + domainBlocks.join("\n\n"), "utf-8");
+  } else if (existsSync(domainsConf)) {
+    // No domains — remove the file so we don't have stale blocks
+    unlinkSync(domainsConf);
+  }
+
+  console.log(`[nginx-config] Wrote ${stores.length} store + ${websites.length} website locations + ${domainBlocks.length} custom-domain server blocks`);
 
   // 3. Test and reload
   try {
