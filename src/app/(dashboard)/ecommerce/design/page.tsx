@@ -71,6 +71,8 @@ export default function StoreDesignPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerCallback, setPickerCallback] = useState<((url: string) => void) | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [buildStage, setBuildStage] = useState<"idle" | "saving" | "building" | "deploying" | "done" | "error">("idle");
+  const [buildMessage, setBuildMessage] = useState<string>("");
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const storeUrl = store?.storeUrl || (store?.slug ? `/stores/${store.slug}/` : null);
@@ -135,6 +137,9 @@ export default function StoreDesignPage() {
   async function save() {
     if (!store || !data) return;
     setSaving(true);
+    setBuildResult(null);
+    setBuildStage("saving");
+    setBuildMessage("Saving your changes (localizing images)...");
     try {
       const r = await fetch(`/api/ecommerce/store/${store.id}/update-data`, {
         method: "POST",
@@ -144,7 +149,16 @@ export default function StoreDesignPage() {
       if (r.ok) {
         setChanged(false);
         await rebuild();
+      } else {
+        const e = await r.json().catch(() => ({ error: "Save failed" }));
+        setBuildStage("error");
+        setBuildMessage(e.error || "Save failed");
+        setBuildResult({ type: "error", message: e.error || "Save failed" });
       }
+    } catch (err: any) {
+      setBuildStage("error");
+      setBuildMessage(err.message || "Network error");
+      setBuildResult({ type: "error", message: "Network error" });
     } finally {
       setSaving(false);
     }
@@ -153,18 +167,81 @@ export default function StoreDesignPage() {
   async function rebuild() {
     if (!store) return;
     setRebuilding(true);
-    setBuildResult(null);
+    setBuildStage("building");
+    setBuildMessage("Starting rebuild...");
     try {
       const r = await fetch(`/api/ecommerce/store/${store.id}/rebuild`, { method: "POST" });
-      if (r.ok) {
-        setBuildResult({ type: "success", message: "Rebuild started — your store will update shortly." });
-      } else {
-        const e = await r.json();
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({ error: "Rebuild failed" }));
+        setBuildStage("error");
+        setBuildMessage(e.error || "Rebuild failed");
         setBuildResult({ type: "error", message: e.error || "Rebuild failed" });
+        setRebuilding(false);
+        return;
       }
-    } catch {
+
+      // Poll build status every 3 seconds until built/error/timeout
+      setBuildMessage("Compiling your store (this can take 30-90 seconds)...");
+      const startTime = Date.now();
+      const MAX_POLL_MS = 5 * 60 * 1000; // 5 minute safety timeout
+
+      const poll = async (): Promise<void> => {
+        if (Date.now() - startTime > MAX_POLL_MS) {
+          setBuildStage("error");
+          setBuildMessage("Build is taking longer than expected. Check the Rebuild tab for status.");
+          setRebuilding(false);
+          return;
+        }
+
+        try {
+          const res = await fetch(`/api/ecommerce/store/${store.id}/generate`);
+          if (!res.ok) throw new Error("Status check failed");
+          const status = await res.json();
+
+          if (status.buildStatus === "built") {
+            setBuildStage("deploying");
+            setBuildMessage("Deploying to your live store...");
+            // Deploy is already in progress server-side; wait briefly then mark done
+            setTimeout(() => {
+              setBuildStage("done");
+              setBuildMessage("Your store is updated and live!");
+              setBuildResult({ type: "success", message: "Your store has been updated successfully." });
+              setRebuilding(false);
+              // Refresh preview iframe
+              if (iframeRef.current) {
+                iframeRef.current.src = iframeRef.current.src;
+              }
+              // Auto-hide the success overlay after 3 seconds
+              setTimeout(() => {
+                setBuildStage("idle");
+                setBuildMessage("");
+              }, 3000);
+            }, 2500);
+            return;
+          }
+
+          if (status.buildStatus === "error") {
+            setBuildStage("error");
+            setBuildMessage(status.lastBuildError?.substring(0, 300) || "Build failed — check the Rebuild tab for details.");
+            setBuildResult({ type: "error", message: status.lastBuildError || "Build failed" });
+            setRebuilding(false);
+            return;
+          }
+
+          // Still building — poll again
+          setTimeout(poll, 3000);
+        } catch (err: any) {
+          // Network blip — retry once more
+          setTimeout(poll, 5000);
+        }
+      };
+
+      // First poll after 2 seconds (give server time to set status=building)
+      setTimeout(poll, 2000);
+    } catch (err: any) {
+      setBuildStage("error");
+      setBuildMessage(err.message || "Network error");
       setBuildResult({ type: "error", message: "Network error" });
-    } finally {
       setRebuilding(false);
     }
   }
@@ -191,6 +268,66 @@ export default function StoreDesignPage() {
 
   return (
     <div className="flex flex-col h-full min-h-screen">
+      {/* Build status overlay — fixed center, shows save/build/deploy progress */}
+      {buildStage !== "idle" && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-background border border-border rounded-2xl p-8 max-w-md w-[90%] shadow-2xl">
+            <div className="flex flex-col items-center text-center">
+              {(buildStage === "saving" || buildStage === "building" || buildStage === "deploying") && (
+                <>
+                  <div className="relative mb-4">
+                    <Loader2 className="w-14 h-14 animate-spin text-primary" />
+                  </div>
+                  <h2 className="text-lg font-semibold mb-2">
+                    {buildStage === "saving" && "Saving Changes"}
+                    {buildStage === "building" && "Rebuilding Your Store"}
+                    {buildStage === "deploying" && "Deploying to Live Site"}
+                  </h2>
+                  <p className="text-sm text-muted-foreground mb-4">{buildMessage}</p>
+                  {/* Progress bar */}
+                  <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-500"
+                      style={{
+                        width:
+                          buildStage === "saving" ? "25%" :
+                          buildStage === "building" ? "65%" :
+                          buildStage === "deploying" ? "90%" : "0%",
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-4">Please don&apos;t close this page</p>
+                </>
+              )}
+              {buildStage === "done" && (
+                <>
+                  <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
+                    <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
+                  </div>
+                  <h2 className="text-lg font-semibold mb-2 text-green-700 dark:text-green-400">Store Updated!</h2>
+                  <p className="text-sm text-muted-foreground">{buildMessage}</p>
+                </>
+              )}
+              {buildStage === "error" && (
+                <>
+                  <div className="w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
+                    <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
+                  </div>
+                  <h2 className="text-lg font-semibold mb-2 text-red-700 dark:text-red-400">Something Went Wrong</h2>
+                  <p className="text-sm text-muted-foreground mb-4 break-words">{buildMessage}</p>
+                  <button
+                    onClick={() => { setBuildStage("idle"); setBuildMessage(""); }}
+                    className="px-4 py-2 text-sm font-medium bg-muted hover:bg-accent rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="sticky top-0 z-40 bg-background border-b border-border px-4 md:px-6 flex items-center gap-3 h-14">
         <Link href="/ecommerce" className="p-1.5 rounded-lg hover:bg-accent transition-colors">
