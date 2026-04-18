@@ -372,11 +372,8 @@ export async function buildStoreFromDir(
     fixHamburgerMenu(storeDir);
     injectAnalytics(storeDir);
 
-    // Clear build cache
-    const nextCacheDir = join(storeDir, ".next");
-    try { const { rmSync } = await import("fs"); rmSync(nextCacheDir, { recursive: true, force: true }); } catch {}
-
-    // 3. next build (SSR)
+    // 3. next build (SSR) — Next.js overwrites .next atomically, no need to delete.
+    // Deleting .next first would make PM2's running process serve 404s during the build.
     console.log(`[StoreBuilder] Building store at ${storeDir}...`);
     const buildOutput = await execAsync("npx next build", {
       cwd: storeDir,
@@ -410,13 +407,14 @@ export async function buildStoreV3(storeId: string): Promise<{ success: boolean;
     return { success: false, output: "", error: "Build already in progress — queued for rebuild" };
   }
 
-  // Rollback support: rename current .next to .next.bak before building
+  // Rollback support: copy current .next to .next.bak (keep original in place so the
+  // running PM2 process keeps serving the previous build during the rebuild).
   const nextDir = join(storeDir, ".next");
   const nextBackup = join(storeDir, ".next.bak");
   try {
-    const { renameSync, rmSync } = await import("fs");
+    const { rmSync, cpSync } = await import("fs");
     if (existsSync(nextBackup)) rmSync(nextBackup, { recursive: true, force: true });
-    if (existsSync(nextDir)) renameSync(nextDir, nextBackup);
+    if (existsSync(nextDir)) cpSync(nextDir, nextBackup, { recursive: true });
   } catch {}
 
   try {
@@ -427,7 +425,7 @@ export async function buildStoreV3(storeId: string): Promise<{ success: boolean;
       try { const { rmSync } = await import("fs"); rmSync(nextBackup, { recursive: true, force: true }); } catch {}
       await releaseBuildLock(storeId, "built");
     } else {
-      // Build failed — rollback to previous .next
+      // Build failed — rollback to previous .next (may be partially overwritten)
       try {
         const { renameSync, rmSync } = await import("fs");
         if (existsSync(nextDir)) rmSync(nextDir, { recursive: true, force: true });
