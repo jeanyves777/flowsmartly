@@ -193,18 +193,20 @@ async function syncShippingToDataFile(storeId: string, storeDir: string, freeThr
   const methods = await fetchStoreShippingMethods(storeId);
 
   const methodsStr = methods.map(m =>
-    `  { id: "${m.id}", name: "${escapeStr(m.name)}", description: "${escapeStr(m.description || "")}", priceCents: ${m.priceCents}, estimatedDays: "${escapeStr(m.estimatedDays || "")}" }`
+    `  { id: "${m.id}", name: "${escapeStr(m.name)}", description: "${escapeStr(m.description || "")}", priceCents: ${m.priceCents}, estimatedDays: "${escapeStr(m.estimatedDays || "")}", isActive: true }`
   ).join(",\n");
 
-  // Replace or add shippingMethods array
+  // Replace or add shippingMethods array.
+  // Regex tolerates optional TypeScript type annotation: `shippingMethods: ShippingMethod[] =`
   if (content.includes("export const shippingMethods")) {
+    const replacement = `export const shippingMethods: ShippingMethod[] = [\n${methodsStr},\n];`;
     content = content.replace(
-      /export const shippingMethods\s*=\s*\[[\s\S]*?\];/,
-      `export const shippingMethods = [\n${methodsStr},\n];`
+      /export const shippingMethods[^=]*=\s*\[[\s\S]*?\];/,
+      replacement
     );
   } else {
     // Append after the last export
-    content += `\n\nexport const shippingMethods = [\n${methodsStr},\n];\n`;
+    content += `\n\nexport const shippingMethods: ShippingMethod[] = [\n${methodsStr},\n];\n`;
   }
 
   writeFileSync(dataPath, content, "utf-8");
@@ -242,9 +244,10 @@ async function syncPaymentMethodsToDataFile(storeId: string, storeDir: string): 
 
   let content = readFileSync(dataPath, "utf-8");
 
+  // Regex tolerates optional TypeScript type annotation: `paymentMethods: Type[] =`
   if (content.includes("export const paymentMethods")) {
     content = content.replace(
-      /export const paymentMethods\s*=\s*\[[\s\S]*?\];/,
+      /export const paymentMethods[^=]*=\s*\[[\s\S]*?\];/,
       `export const paymentMethods = [\n${methodsStr},\n];`
     );
   } else {

@@ -149,7 +149,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         })
         .join(",\n");
       data = data.replace(
-        /export const navLinks\s*=\s*\[[\s\S]*?\];/,
+        /export const navLinks[^=]*=\s*\[[\s\S]*?\];/,
         `export const navLinks = [\n${navStr},\n];`
       );
     }
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         })
         .join(",\n");
       data = data.replace(
-        /export const footerLinks\s*=\s*\[[\s\S]*?\];/,
+        /export const footerLinks[^=]*=\s*\[[\s\S]*?\];/,
         `export const footerLinks = [\n  ...navLinks,\n${footerStr},\n];`
       );
     }
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         )
         .join(",\n");
       data = data.replace(
-        /export const faq\s*=\s*\[[\s\S]*?\];/,
+        /export const faq[^=]*=\s*\[[\s\S]*?\];/,
         `export const faq = [\n${faqStr},\n];`
       );
     }
@@ -222,7 +222,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         )
         .join(",\n");
       const updatedData = data.replace(
-        /export const categories\s*=\s*\[[\s\S]*?\];/,
+        /export const categories[^=]*=\s*\[[\s\S]*?\];/,
         `export const categories = [\n${catStr},\n];`
       );
       if (updatedData !== data) {
