@@ -373,6 +373,15 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
   - Labels like "new", "sale", "bestseller", "limited", "discount", "featured" are set by users via the admin UI, NOT in code
   - Never set product.featured, product.inStock, or product.labels to hardcoded values — all controlled by the user
 
+- Home page Featured Products section (CRITICAL — RESPECT USER CONTROL):
+  - The home page MUST read featured products from the 'featured' flag on each product, NOT by slicing the array
+  - REQUIRED pattern in app/page.tsx (or whichever component renders the section):
+      const featured = products.filter(p => p.featured && p.inStock);
+      const featuredProducts = featured.length > 0 ? featured : products.slice(0, 8);
+  - The fallback (products.slice(0, 8)) is ONLY used if the user hasn't marked any products as featured yet
+  - NEVER use products.slice(0, N) alone — this bypasses the store owner's control
+  - If you write a <FeaturedProducts /> component, it MUST call getFeaturedProducts() from @/lib/products (which filters by p.featured)
+
 - Categories (CRITICAL — NEVER invent):
   - Categories in data.ts MUST be EXACTLY the categories provided in get_brand_identity response
   - NEVER invent, rename, or create new categories — use ONLY the user's existing categories from the database
