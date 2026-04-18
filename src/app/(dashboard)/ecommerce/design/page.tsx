@@ -11,6 +11,7 @@ import {
 import { SectionUpdater } from "@/components/shared/section-updater";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { PageLoader } from "@/components/shared/page-loader";
+import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 
 interface StoreRecord {
   id: string;
@@ -285,62 +286,49 @@ export default function StoreDesignPage() {
 
   return (
     <div className="flex flex-col h-full min-h-screen">
-      {/* Build status overlay — fixed center, shows save/build/deploy progress */}
+      {/* Build status overlay — fixed center, uses shared AIGenerationLoader (branded FlowSmartly loader) */}
       {buildStage !== "idle" && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-background border border-border rounded-2xl p-8 max-w-md w-[90%] shadow-2xl">
-            <div className="flex flex-col items-center text-center">
-              {(buildStage === "saving" || buildStage === "building" || buildStage === "deploying") && (
-                <>
-                  <div className="relative mb-4">
-                    <Loader2 className="w-14 h-14 animate-spin text-primary" />
-                  </div>
-                  <h2 className="text-lg font-semibold mb-2">
-                    {buildStage === "saving" && "Saving Changes"}
-                    {buildStage === "building" && "Rebuilding Your Store"}
-                    {buildStage === "deploying" && "Deploying to Live Site"}
-                  </h2>
-                  <p className="text-sm text-muted-foreground mb-4">{buildMessage}</p>
-                  {/* Progress bar */}
-                  <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary transition-all duration-500"
-                      style={{
-                        width:
-                          buildStage === "saving" ? "25%" :
-                          buildStage === "building" ? "65%" :
-                          buildStage === "deploying" ? "90%" : "0%",
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-4">Please don&apos;t close this page</p>
-                </>
-              )}
-              {buildStage === "done" && (
-                <>
-                  <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
-                    <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
-                  </div>
-                  <h2 className="text-lg font-semibold mb-2 text-green-700 dark:text-green-400">Store Updated!</h2>
-                  <p className="text-sm text-muted-foreground">{buildMessage}</p>
-                </>
-              )}
-              {buildStage === "error" && (
-                <>
-                  <div className="w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
-                    <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
-                  </div>
-                  <h2 className="text-lg font-semibold mb-2 text-red-700 dark:text-red-400">Something Went Wrong</h2>
-                  <p className="text-sm text-muted-foreground mb-4 break-words">{buildMessage}</p>
-                  <button
-                    onClick={() => { setBuildStage("idle"); setBuildMessage(""); }}
-                    className="px-4 py-2 text-sm font-medium bg-muted hover:bg-accent rounded-lg transition-colors"
-                  >
-                    Close
-                  </button>
-                </>
-              )}
-            </div>
+            {(buildStage === "saving" || buildStage === "building" || buildStage === "deploying") && (
+              <AIGenerationLoader
+                currentStep={
+                  buildStage === "saving" ? "Saving Changes" :
+                  buildStage === "building" ? "Rebuilding Your Store" :
+                  "Deploying to Live Site"
+                }
+                subtitle={buildMessage || "Please don't close this page"}
+                progress={
+                  buildStage === "saving" ? 25 :
+                  buildStage === "building" ? 65 :
+                  90
+                }
+              />
+            )}
+            {buildStage === "done" && (
+              <div className="flex flex-col items-center text-center py-4">
+                <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
+                  <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
+                </div>
+                <h2 className="text-lg font-semibold mb-2 text-green-700 dark:text-green-400">Store Updated!</h2>
+                <p className="text-sm text-muted-foreground">{buildMessage}</p>
+              </div>
+            )}
+            {buildStage === "error" && (
+              <div className="flex flex-col items-center text-center py-4">
+                <div className="w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
+                  <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
+                </div>
+                <h2 className="text-lg font-semibold mb-2 text-red-700 dark:text-red-400">Something Went Wrong</h2>
+                <p className="text-sm text-muted-foreground mb-4 break-words">{buildMessage}</p>
+                <button
+                  onClick={() => { setBuildStage("idle"); setBuildMessage(""); }}
+                  className="px-4 py-2 text-sm font-medium bg-muted hover:bg-accent rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

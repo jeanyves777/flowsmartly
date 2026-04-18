@@ -79,6 +79,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         bannerUrl: "hero",
         favicon: "brand",
       };
+      let resolvedBannerUrl: string | null = null;
       for (const field of ["logoUrl", "bannerUrl", "favicon"]) {
         if (storeInfo[field] !== undefined) {
           let url = storeInfo[field] as string;
@@ -91,6 +92,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             url = await localizeImageUrl(url, storeDir, store.slug, category, filename);
           }
           data = replaceField(data, field, url);
+          if (field === "bannerUrl") resolvedBannerUrl = url;
+        }
+      }
+
+      // CRITICAL: Hero component reads heroConfig.backgroundImage, NOT storeInfo.bannerUrl.
+      // When user updates the banner, also update heroConfig.backgroundImage to match.
+      if (resolvedBannerUrl) {
+        const heroMatch = data.match(/heroConfig[^=]*=\s*\{[\s\S]*?\};/);
+        if (heroMatch) {
+          const original = heroMatch[0];
+          const updated = replaceField(original, "backgroundImage", resolvedBannerUrl);
+          // If backgroundImage field didn't exist yet, inject it before the closing brace
+          if (updated === original && !original.includes("backgroundImage")) {
+            const injected = original.replace(
+              /(\};?\s*)$/,
+              `  backgroundImage: "${escapeStr(resolvedBannerUrl)}",\n$1`
+            );
+            data = data.replace(original, injected);
+          } else {
+            data = data.replace(original, updated);
+          }
         }
       }
 
