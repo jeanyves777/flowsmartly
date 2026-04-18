@@ -2,8 +2,41 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getStoreDir } from "@/lib/store-builder/store-site-builder";
+import { downloadImageToStoreDir } from "@/lib/store-builder/image-search";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
+
+/**
+ * Localize an image URL into the store's public/images/ directory.
+ * If the URL is already a local path (starts with /stores/ or /images/), returns it as-is.
+ * If it's an external URL (S3 presigned, http, etc.), downloads it to public/images/{category}
+ * and returns a basePath-aware local path.
+ *
+ * Why: presigned S3 URLs expire in 1 hour. Saving them to data.ts breaks images after expiry.
+ */
+async function localizeImageUrl(
+  url: string,
+  storeDir: string,
+  storeSlug: string,
+  category: "brand" | "hero" | "categories" | "products",
+  filename: string
+): Promise<string> {
+  if (!url) return url;
+  // Already a local path
+  if (url.startsWith(`/stores/${storeSlug}/`) || url.startsWith("/images/")) return url;
+  // Not an external URL we can download
+  if (!url.startsWith("http://") && !url.startsWith("https://")) return url;
+
+  try {
+    const localPath = await downloadImageToStoreDir(url, storeDir, category, filename);
+    // downloadImageToStoreDir returns "/images/{category}/{filename}.{ext}"
+    // Prefix with /stores/{slug} so it resolves correctly at runtime (basePath)
+    return `/stores/${storeSlug}${localPath}`;
+  } catch (err: any) {
+    console.error(`[StoreUpdateData] Failed to localize image ${url.substring(0, 100)}:`, err.message);
+    return url; // Fall back to original URL
+  }
+}
 
 // POST /api/ecommerce/store/[id]/update-data — Save editor changes to data.ts/products.ts
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -39,12 +72,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
       }
 
-      // Update image URL fields — ensure basePath prefix for relative paths
+      // Update image URL fields — localize external URLs (S3 presigned, etc.) to
+      // public/images/ to prevent broken images after URL expiry.
+      const imageFieldMap: Record<string, "brand" | "hero"> = {
+        logoUrl: "brand",
+        bannerUrl: "hero",
+        favicon: "brand",
+      };
       for (const field of ["logoUrl", "bannerUrl", "favicon"]) {
         if (storeInfo[field] !== undefined) {
           let url = storeInfo[field] as string;
           // If root-relative /images/ path, prefix with basePath
           if (url.startsWith("/images/")) url = storeBasePath + url;
+          // If external URL (S3 presigned, http, etc.), download into store's public/images/
+          else if (url.startsWith("http://") || url.startsWith("https://")) {
+            const category = imageFieldMap[field];
+            const filename = field === "logoUrl" ? "logo" : field === "favicon" ? "favicon" : "banner";
+            url = await localizeImageUrl(url, storeDir, store.slug, category, filename);
+          }
           data = replaceField(data, field, url);
         }
       }
@@ -117,6 +162,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Update categories: sync to DB + write to data.ts
     if (categories && Array.isArray(categories)) {
+      // Localize category images first (download presigned S3 URLs into public/images/categories)
+      for (const cat of categories as Array<{ id: string; name: string; slug: string; description: string; image: string }>) {
+        if (cat.image) {
+          if (cat.image.startsWith("/images/")) {
+            cat.image = storeBasePath + cat.image;
+          } else if (cat.image.startsWith("http://") || cat.image.startsWith("https://")) {
+            cat.image = await localizeImageUrl(
+              cat.image,
+              storeDir,
+              store.slug,
+              "categories",
+              cat.slug || cat.id
+            );
+          }
+        }
+      }
+
       // Sync category changes (name, description, image) back to DB
       for (const cat of categories as Array<{ id: string; name: string; slug: string; description: string; image: string }>) {
         if (!cat.id) continue;
@@ -130,7 +192,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }).catch(() => {}); // Skip if category doesn't exist in DB
       }
 
-      // Write updated categories to data.ts
+      // Write updated categories to data.ts (with localized image paths)
       data = readFileSync(dataPath, "utf-8");
       const catStr = categories
         .map((c: { id: string; name: string; slug: string; description: string; image: string }) =>
