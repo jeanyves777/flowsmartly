@@ -31,6 +31,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     console.log(`[StoreRebuild] Starting V3 rebuild for store ${id}`);
 
+    // Set status to "building" IMMEDIATELY so frontend polling doesn't see stale "built" status
+    await prisma.store.update({
+      where: { id },
+      data: { buildStatus: "building", buildStartedAt: new Date(), lastBuildError: null },
+    }).catch(() => {});
+
     // Fire-and-forget with proper error handling — errors always update buildStatus
     (async () => {
       try {

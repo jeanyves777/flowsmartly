@@ -169,6 +169,13 @@ export default function StoreDesignPage() {
     setRebuilding(true);
     setBuildStage("building");
     setBuildMessage("Starting rebuild...");
+
+    // Capture the lastBuildAt BEFORE triggering rebuild so we can detect a NEW completion
+    const previousBuildAt = await fetch(`/api/ecommerce/store/${store.id}/generate`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((s) => s?.lastBuildAt || null)
+      .catch(() => null);
+
     try {
       const r = await fetch(`/api/ecommerce/store/${store.id}/rebuild`, { method: "POST" });
       if (!r.ok) {
@@ -180,10 +187,11 @@ export default function StoreDesignPage() {
         return;
       }
 
-      // Poll build status every 3 seconds until built/error/timeout
+      // Poll build status every 3 seconds until the build completes
       setBuildMessage("Compiling your store (this can take 30-90 seconds)...");
       const startTime = Date.now();
       const MAX_POLL_MS = 5 * 60 * 1000; // 5 minute safety timeout
+      let sawBuilding = false;
 
       const poll = async (): Promise<void> => {
         if (Date.now() - startTime > MAX_POLL_MS) {
@@ -198,10 +206,19 @@ export default function StoreDesignPage() {
           if (!res.ok) throw new Error("Status check failed");
           const status = await res.json();
 
-          if (status.buildStatus === "built") {
+          // Track whether we've seen "building" state yet
+          if (status.buildStatus === "building") {
+            sawBuilding = true;
+          }
+
+          // Only treat "built" as done if:
+          //   a) we already saw "building" during this poll cycle, OR
+          //   b) lastBuildAt has changed (meaning a new build completed since we started)
+          const isNewBuild = status.lastBuildAt && status.lastBuildAt !== previousBuildAt;
+
+          if (status.buildStatus === "built" && (sawBuilding || isNewBuild)) {
             setBuildStage("deploying");
             setBuildMessage("Deploying to your live store...");
-            // Deploy is already in progress server-side; wait briefly then mark done
             setTimeout(() => {
               setBuildStage("done");
               setBuildMessage("Your store is updated and live!");
@@ -228,7 +245,7 @@ export default function StoreDesignPage() {
             return;
           }
 
-          // Still building — poll again
+          // Still building (or "built" but stale — we haven't seen "building" yet) — poll again
           setTimeout(poll, 3000);
         } catch (err: any) {
           // Network blip — retry once more
@@ -236,8 +253,8 @@ export default function StoreDesignPage() {
         }
       };
 
-      // First poll after 2 seconds (give server time to set status=building)
-      setTimeout(poll, 2000);
+      // First poll after 1 second (server sets status=building synchronously now)
+      setTimeout(poll, 1000);
     } catch (err: any) {
       setBuildStage("error");
       setBuildMessage(err.message || "Network error");
