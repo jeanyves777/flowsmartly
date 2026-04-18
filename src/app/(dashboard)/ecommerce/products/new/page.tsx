@@ -79,6 +79,7 @@ export default function NewProductPage() {
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
   const [status, setStatus] = useState<"DRAFT" | "ACTIVE">("ACTIVE");
+  const [featured, setFeatured] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
 
@@ -413,6 +414,7 @@ export default function NewProductPage() {
         seoTitle: seoTitle || undefined,
         seoDescription: seoDescription || undefined,
         status,
+        labels: featured ? ["featured"] : [],
       };
 
       if (hasVariants && variants.length > 0) {
@@ -1015,6 +1017,28 @@ export default function NewProductPage() {
             className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none resize-y"
           />
         </div>
+      </div>
+
+      {/* Featured toggle — controls home-page featured section */}
+      <div className="bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 rounded-lg border border-amber-200 dark:border-amber-800 p-5">
+        <label className="flex items-center gap-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={featured}
+            onChange={(e) => setFeatured(e.target.checked)}
+            className="w-5 h-5 rounded accent-amber-500"
+          />
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">⭐</span>
+              <span className="font-semibold text-foreground">Feature this product on the home page</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Featured products appear in the &ldquo;Featured Products&rdquo; section at the top of your storefront.
+              Pick your best sellers, newest arrivals, or biggest margins.
+            </p>
+          </div>
+        </label>
       </div>
 
       {/* Section 8: Status */}

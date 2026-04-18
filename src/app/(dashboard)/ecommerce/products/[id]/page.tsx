@@ -1001,6 +1001,34 @@ export default function EditProductPage() {
         )}
       </div>
 
+      {/* Featured toggle — prominent, controls home-page featured section */}
+      <div className="bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 rounded-lg border border-amber-200 dark:border-amber-800 p-5">
+        <label className="flex items-center gap-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={labels.includes("featured")}
+            onChange={(e) =>
+              setLabels(
+                e.target.checked
+                  ? [...labels.filter((l) => l !== "featured"), "featured"]
+                  : labels.filter((l) => l !== "featured")
+              )
+            }
+            className="w-5 h-5 rounded accent-amber-500"
+          />
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">⭐</span>
+              <span className="font-semibold text-foreground">Feature this product on the home page</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Featured products appear in the &ldquo;Featured Products&rdquo; section at the top of your storefront.
+              Pick your best sellers, newest arrivals, or biggest margins.
+            </p>
+          </div>
+        </label>
+      </div>
+
       {/* Section 4.5: Product Labels */}
       <div className="bg-card rounded-lg border border-border p-6 space-y-4">
         <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">

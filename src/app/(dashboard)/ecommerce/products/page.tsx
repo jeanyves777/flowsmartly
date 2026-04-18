@@ -18,6 +18,7 @@ import {
   Sparkles,
   Megaphone,
   Upload,
+  Star,
 } from "lucide-react";
 import { AIProductGeneratorModal } from "@/components/ecommerce/ai-product-generator-modal";
 import { PromoteProductModal } from "@/components/ecommerce/promote-product-modal";
@@ -125,6 +126,36 @@ export default function ProductsListPage() {
   const [showAIGenerator, setShowAIGenerator] = useState(false);
   const [promoteProductId, setPromoteProductId] = useState<string | null>(null);
   const [storeCurrency, setStoreCurrency] = useState("USD");
+
+  // Quick-toggle featured status for a product (adds/removes "featured" label)
+  const [featuringId, setFeaturingId] = useState<string | null>(null);
+  const toggleFeatured = async (product: ProductItem) => {
+    if (featuringId) return;
+    setFeaturingId(product.id);
+    const isFeatured = product.labels?.includes("featured");
+    const newLabels = isFeatured
+      ? product.labels.filter((l) => l !== "featured")
+      : [...(product.labels || []).filter((l) => l !== "featured"), "featured"];
+    try {
+      const res = await fetch(`/api/ecommerce/products/${product.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ labels: newLabels }),
+      });
+      if (!res.ok) {
+        alert("Failed to update featured status");
+        return;
+      }
+      // Update local state so the star flips immediately without refetch
+      setProducts((prev) =>
+        prev.map((p) => (p.id === product.id ? { ...p, labels: newLabels } : p))
+      );
+    } catch {
+      alert("Network error");
+    } finally {
+      setFeaturingId(null);
+    }
+  };
 
   // Fetch stats
   const fetchStats = useCallback(async () => {
@@ -549,6 +580,24 @@ export default function ProductsListPage() {
                                 <Upload className="w-3 h-3" />
                               )}
                               Publish
+                            </button>
+                          )}
+                          {product.status === "ACTIVE" && (
+                            <button
+                              onClick={() => toggleFeatured(product)}
+                              disabled={featuringId === product.id}
+                              className={`p-1.5 rounded transition-colors disabled:opacity-50 ${
+                                product.labels?.includes("featured")
+                                  ? "text-amber-500 bg-amber-500/10 hover:bg-amber-500/20"
+                                  : "text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10"
+                              }`}
+                              title={product.labels?.includes("featured") ? "Remove from featured" : "Feature on home page"}
+                            >
+                              {featuringId === product.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Star className="w-4 h-4" fill={product.labels?.includes("featured") ? "currentColor" : "none"} />
+                              )}
                             </button>
                           )}
                           {product.status === "ACTIVE" && (
