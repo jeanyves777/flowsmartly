@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   Sparkles,
   Megaphone,
+  Upload,
 } from "lucide-react";
 import { AIProductGeneratorModal } from "@/components/ecommerce/ai-product-generator-modal";
 import { PromoteProductModal } from "@/components/ecommerce/promote-product-modal";
@@ -96,6 +97,29 @@ export default function ProductsListPage() {
   // Delete confirmation
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Quick publish (DRAFT → ACTIVE)
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const publishProduct = async (id: string) => {
+    setPublishingId(id);
+    try {
+      const res = await fetch(`/api/ecommerce/products/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ACTIVE" }),
+      });
+      if (res.ok) {
+        // Refresh the product list
+        window.location.reload();
+      } else {
+        alert("Failed to publish product");
+      }
+    } catch {
+      alert("Network error");
+    } finally {
+      setPublishingId(null);
+    }
+  };
 
   // AI Product Generator
   const [showAIGenerator, setShowAIGenerator] = useState(false);
@@ -512,6 +536,21 @@ export default function ProductsListPage() {
                       {/* Actions */}
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {product.status === "DRAFT" && (
+                            <button
+                              onClick={() => publishProduct(product.id)}
+                              disabled={publishingId === product.id}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-green-500/10 text-green-600 hover:bg-green-500/20 rounded transition-colors disabled:opacity-50"
+                              title="Publish to your store"
+                            >
+                              {publishingId === product.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Upload className="w-3 h-3" />
+                              )}
+                              Publish
+                            </button>
+                          )}
                           {product.status === "ACTIVE" && (
                             <button
                               onClick={() => setPromoteProductId(product.id)}

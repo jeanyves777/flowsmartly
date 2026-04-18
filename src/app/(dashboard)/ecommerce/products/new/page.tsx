@@ -78,7 +78,7 @@ export default function NewProductPage() {
   const [categoryId, setCategoryId] = useState("");
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
-  const [status, setStatus] = useState<"DRAFT" | "ACTIVE">("DRAFT");
+  const [status, setStatus] = useState<"DRAFT" | "ACTIVE">("ACTIVE");
   const [saving, setSaving] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
 
@@ -445,7 +445,17 @@ export default function NewProductPage() {
         await uploadProductImages(json.data.id);
       }
 
-      toast({ title: "Product created successfully!" });
+      if (status === "ACTIVE") {
+        toast({
+          title: "Product published!",
+          description: "Your store is rebuilding with the new product. It will appear live in 30-90 seconds.",
+        });
+      } else {
+        toast({
+          title: "Product saved as draft",
+          description: "Click Publish from the product list when you're ready to show it on your store.",
+        });
+      }
       router.push("/ecommerce/products");
     } catch {
       toast({ title: "Failed to create product", variant: "destructive" });
@@ -1009,28 +1019,41 @@ export default function NewProductPage() {
 
       {/* Section 8: Status */}
       <div className="bg-card rounded-lg border border-border p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-foreground">Status</h2>
+        <h2 className="text-lg font-semibold text-foreground">Visibility</h2>
+        <p className="text-sm text-muted-foreground">
+          Choose whether this product appears on your live store.
+        </p>
 
-        <div className="flex gap-4">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name="status"
-              checked={status === "DRAFT"}
-              onChange={() => setStatus("DRAFT")}
-              className="w-4 h-4 text-blue-600 focus:ring-brand-500"
-            />
-            <span className="text-sm text-foreground">Draft</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
+        <div className="space-y-3">
+          <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors">
             <input
               type="radio"
               name="status"
               checked={status === "ACTIVE"}
               onChange={() => setStatus("ACTIVE")}
-              className="w-4 h-4 text-blue-600 focus:ring-brand-500"
+              className="mt-0.5 w-4 h-4 text-blue-600 focus:ring-brand-500"
             />
-            <span className="text-sm text-foreground">Active</span>
+            <div className="flex-1">
+              <div className="text-sm font-medium text-foreground">Active — publish to store</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                Product will appear on your store immediately after save. Customers can view and buy it.
+              </div>
+            </div>
+          </label>
+          <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors">
+            <input
+              type="radio"
+              name="status"
+              checked={status === "DRAFT"}
+              onChange={() => setStatus("DRAFT")}
+              className="mt-0.5 w-4 h-4 text-blue-600 focus:ring-brand-500"
+            />
+            <div className="flex-1">
+              <div className="text-sm font-medium text-foreground">Draft — save privately</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                Save the product but don&apos;t show it on the store yet. You can publish later from the product list.
+              </div>
+            </div>
           </label>
         </div>
       </div>

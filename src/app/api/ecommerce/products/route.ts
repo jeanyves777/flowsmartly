@@ -38,7 +38,7 @@ const createProductSchema = z.object({
   trackInventory: z.boolean().optional().default(false),
   quantity: z.number().int().min(0).optional().default(0),
   lowStockThreshold: z.number().int().min(0).optional().default(5),
-  status: z.enum(["DRAFT", "ACTIVE"]).optional().default("DRAFT"),
+  status: z.enum(["DRAFT", "ACTIVE"]).optional().default("ACTIVE"),
   seoTitle: z.string().optional(),
   seoDescription: z.string().optional(),
   variants: z.array(variantSchema).optional(),
