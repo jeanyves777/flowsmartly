@@ -82,6 +82,15 @@ export async function handleEcommercePaymentSucceeded(paymentIntent: Stripe.Paym
 
       const { notifyDomainRegistered } = await import("@/lib/notifications/domain");
       await notifyDomainRegistered(userId, result.domainName);
+
+      // Trigger store rebuild so the new domain is wired into the generated site.
+      // Fire-and-forget; do not block the webhook.
+      if (meta.storeId) {
+        const { triggerStoreRebuildIfV2 } = await import("@/lib/store-builder/product-sync");
+        triggerStoreRebuildIfV2(meta.storeId).catch((e) =>
+          console.error("[Webhook:DomainPurchase] Store rebuild failed:", e)
+        );
+      }
     } catch (error: any) {
       console.error(`Failed to register domain ${domainName} after payment:`, error);
       const { notifyDomainRegistrationFailed } = await import("@/lib/notifications/domain");

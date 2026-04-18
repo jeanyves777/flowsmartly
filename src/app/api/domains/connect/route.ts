@@ -63,6 +63,15 @@ export async function POST(request: NextRequest) {
       domain: cleanDomain,
     });
 
+    // Trigger store rebuild so data.ts gets the new custom domain in
+    // meta tags, sitemap, and canonical URLs. Fire-and-forget.
+    if (store?.id) {
+      const { triggerStoreRebuildIfV2 } = await import("@/lib/store-builder/product-sync");
+      triggerStoreRebuildIfV2(store.id).catch((e) =>
+        console.error("[Domain:connect] Store rebuild failed:", e)
+      );
+    }
+
     return NextResponse.json({
       success: true,
       data: {

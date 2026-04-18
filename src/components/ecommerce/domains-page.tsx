@@ -86,6 +86,7 @@ export function DomainsPageContent() {
   const [connectDomain, setConnectDomain] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
+  const [busyDomain, setBusyDomain] = useState<string | null>(null);
   const [connectionResult, setConnectionResult] = useState<{
     domainName: string;
     nameservers: string[];
@@ -178,7 +179,9 @@ export function DomainsPageContent() {
   };
 
   const handlePurchase = async (domain: string, tld: string, retailCents: number) => {
+    if (purchasing) return; // Prevent double-click / multi-submit
     setPurchasing(true);
+    setBusyDomain(`${domain.split(".")[0]}.${tld}`);
     try {
       const res = await fetch("/api/domains/purchase", {
         method: "POST",
@@ -218,6 +221,7 @@ export function DomainsPageContent() {
       toast({ title: "Domain purchase failed", variant: "destructive" });
     } finally {
       setPurchasing(false);
+      setBusyDomain(null);
     }
   };
 
@@ -480,11 +484,20 @@ export function DomainsPageContent() {
                 onSelect={handlePurchase}
                 isPro={storeInfo.isPro}
                 freeDomainClaimed={storeInfo.freeDomainClaimed}
+                busy={purchasing}
+                busyDomain={busyDomain}
               />
               {purchasing && (
-                <div className="flex items-center gap-2 mt-4 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Registering domain...
+                <div className="flex items-center gap-3 mt-4 px-4 py-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400 shrink-0" />
+                  <div className="text-sm">
+                    <div className="font-medium text-blue-900 dark:text-blue-100">
+                      Processing {busyDomain || "domain"}…
+                    </div>
+                    <div className="text-xs text-blue-700 dark:text-blue-300 opacity-80">
+                      Please don&apos;t click again — this can take up to 30 seconds.
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

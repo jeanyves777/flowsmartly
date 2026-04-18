@@ -18,6 +18,10 @@ interface DomainSearchProps {
   isPro?: boolean;
   freeDomainClaimed?: boolean;
   className?: string;
+  /** When true, disable all Select buttons (e.g. while a purchase is in progress) */
+  busy?: boolean;
+  /** The specific "domain.tld" that is currently being purchased — shows spinner on that row */
+  busyDomain?: string | null;
 }
 
 // Must match FREE_DOMAIN_TLDS from pricing.ts — no dot prefix, TLD only
@@ -53,6 +57,8 @@ export function DomainSearch({
   isPro = false,
   freeDomainClaimed = false,
   className,
+  busy = false,
+  busyDomain = null,
 }: DomainSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<DomainResult[]>([]);
@@ -192,14 +198,29 @@ export function DomainSearch({
                           {formatPrice(result.retailCents)}
                         </span>
                       )}
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          onSelect(result.domain, result.tld, free ? 0 : result.retailCents)
-                        }
-                      >
-                        Select
-                      </Button>
+                      {(() => {
+                        const fullDomain = `${result.domain}.${result.tld}`;
+                        const isThisOne = busyDomain === fullDomain;
+                        return (
+                          <Button
+                            size="sm"
+                            onClick={() => onSelect(result.domain, result.tld, free ? 0 : result.retailCents)}
+                            disabled={busy}
+                            className="min-w-[80px]"
+                          >
+                            {isThisOne ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                Selecting…
+                              </>
+                            ) : busy ? (
+                              "Select"
+                            ) : (
+                              "Select"
+                            )}
+                          </Button>
+                        );
+                      })()}
                     </>
                   )}
                 </div>

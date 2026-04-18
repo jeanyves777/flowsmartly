@@ -51,7 +51,7 @@ export async function POST(
 
     await setPrimaryDomain(id);
 
-    // Fetch the updated domain
+    // Fetch the updated domain (and linked store for rebuild)
     const updated = await prisma.storeDomain.findUnique({
       where: { id },
       select: {
@@ -61,8 +61,18 @@ export async function POST(
         isPrimary: true,
         registrarStatus: true,
         sslStatus: true,
+        storeId: true,
       },
     });
+
+    // Trigger store rebuild so the new primary domain is reflected
+    // in meta tags, canonical URLs, and sitemap. Fire-and-forget.
+    if (updated?.storeId) {
+      const { triggerStoreRebuildIfV2 } = await import("@/lib/store-builder/product-sync");
+      triggerStoreRebuildIfV2(updated.storeId).catch((e) =>
+        console.error("[Domain:set-primary] Store rebuild failed:", e)
+      );
+    }
 
     return NextResponse.json({
       success: true,
