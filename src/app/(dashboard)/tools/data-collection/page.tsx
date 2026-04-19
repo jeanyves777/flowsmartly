@@ -7,6 +7,7 @@ import { Plus, Search, Copy, Trash2, ExternalLink, MoreVertical, FileText, Eye, 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FORM_STATUS_CONFIG, type DataFormData, type DataFormStatus } from "@/types/data-form";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 export default function DataCollectionPage() {
   const router = useRouter();
@@ -76,9 +77,13 @@ export default function DataCollectionPage() {
   };
 
   const handleDelete = async (id: string, title: string) => {
-    if (!window.confirm(`Are you sure you want to delete "${title}"? This action cannot be undone.`)) {
-      return;
-    }
+    const ok = await confirmDialog({
+      title: `Delete "${title}"?`,
+      description: "This action cannot be undone.",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
 
     try {
       const res = await fetch(`/api/data-forms/${id}`, {

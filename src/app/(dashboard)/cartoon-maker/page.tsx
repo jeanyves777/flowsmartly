@@ -17,6 +17,7 @@ import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { CharacterBrowser, type SelectedCharacter } from "@/components/cartoon/character-browser";
 
@@ -531,7 +532,13 @@ function CartoonMakerContent() {
   };
 
   const handleDelete = async (jobId: string) => {
-    if (!confirm("Are you sure you want to delete this cartoon?")) return;
+    const ok = await confirmDialog({
+      title: "Delete cartoon?",
+      description: "This cannot be undone.",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
 
     try {
       const res = await fetch(`/api/ai/cartoon/${jobId}`, { method: "DELETE" });
@@ -626,7 +633,14 @@ function CartoonMakerContent() {
 
   const handleRejectCharacters = async () => {
     if (!currentJob) return;
-    if (!confirm("Cancel this cartoon? Credits will not be refunded as AI work is already done.")) return;
+    const ok = await confirmDialog({
+      title: "Cancel cartoon?",
+      description: "Credits will not be refunded as AI work is already done.",
+      confirmText: "Cancel cartoon",
+      cancelText: "Keep",
+      variant: "destructive",
+    });
+    if (!ok) return;
 
     setIsApproving(true);
     try {

@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 type PageStatus = "PUBLISHED" | "DRAFT";
 type FilterTab = "all" | "PUBLISHED" | "DRAFT";
@@ -131,9 +132,13 @@ export default function LandingPagesPage() {
   }, [fetchPages]);
 
   const handleDelete = async (pageId: string, pageTitle: string) => {
-    if (!window.confirm(`Are you sure you want to delete "${pageTitle}"? This action cannot be undone.`)) {
-      return;
-    }
+    const ok = await confirmDialog({
+      title: `Delete "${pageTitle}"?`,
+      description: "This action cannot be undone.",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
 
     setDeletingId(pageId);
     try {

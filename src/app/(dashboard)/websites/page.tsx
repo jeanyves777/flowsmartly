@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Globe, Edit3, Trash2, ExternalLink, RefreshCw, Check, BarChart3, Eye, Users, TrendingUp, Zap, ArrowRight, Settings, Link2, AlertTriangle, Flag } from "lucide-react";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 interface Website {
   id: string; name: string; slug: string; status: string; buildStatus: string;
@@ -73,7 +74,13 @@ export default function WebsitesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure? This will permanently delete your website and all its files.")) return;
+    const ok = await confirmDialog({
+      title: "Delete website?",
+      description: "This will permanently delete your website and all its files.",
+      confirmText: "Delete website",
+      variant: "destructive",
+    });
+    if (!ok) return;
     await fetch(`/api/websites/${id}`, { method: "DELETE" });
     setWebsites([]);
   };

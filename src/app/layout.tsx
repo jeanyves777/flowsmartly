@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { CreditPurchaseModal } from "@/components/payments/credit-purchase-modal";
 import { ChunkErrorHandler } from "@/components/chunk-error-handler";
+import { ConfirmDialogHost } from "@/components/shared/confirm-dialog";
 import "./globals.css";
 
 const inter = Inter({
@@ -150,6 +151,7 @@ export default function RootLayout({
           {children}
           <Toaster />
           <CreditPurchaseModal />
+          <ConfirmDialogHost />
         </ThemeProvider>
       </body>
     </html>

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 // ── Types ──
 
@@ -622,7 +623,12 @@ function DnsTab({
   };
 
   const handleDelete = async (recordId: string) => {
-    if (!confirm("Delete this DNS record?")) return;
+    const ok = await confirmDialog({
+      title: "Delete DNS record?",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
     setDeleting(recordId);
     try {
       const res = await fetch(`/api/domains/${domainId}/dns`, {

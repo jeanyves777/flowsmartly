@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 type CampaignType = "email" | "sms";
 type CampaignStatus = "draft" | "scheduled" | "active" | "sent" | "paused";
@@ -167,7 +168,13 @@ export default function CampaignsPage() {
   }, [fetchCampaigns]);
 
   const handleDelete = async (campaignId: string) => {
-    if (!confirm("Are you sure you want to delete this campaign?")) return;
+    const ok = await confirmDialog({
+      title: "Delete campaign?",
+      description: "This action cannot be undone.",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/campaigns/${campaignId}`, {

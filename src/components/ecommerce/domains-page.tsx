@@ -13,6 +13,7 @@ import { DomainSearch } from "@/components/ecommerce/domain-search";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
 
@@ -133,7 +134,13 @@ export function DomainsPageContent() {
   };
 
   const handleDisconnect = async (domainId: string) => {
-    if (!confirm("Are you sure you want to disconnect this domain? This cannot be undone.")) return;
+    const ok = await confirmDialog({
+      title: "Disconnect domain?",
+      description: "This cannot be undone.",
+      confirmText: "Disconnect",
+      variant: "destructive",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/domains/${domainId}`, { method: "DELETE" });
       const data = await res.json();

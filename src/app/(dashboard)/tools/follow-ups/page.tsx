@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 import type { FollowUpData } from "@/types/follow-up";
 
 type FilterType = "ALL";
@@ -75,7 +76,13 @@ export default function FollowUpsPage() {
   }, [fetchFollowUps]);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete "${name}"? This will remove all entries permanently.`)) return;
+    const ok = await confirmDialog({
+      title: `Delete "${name}"?`,
+      description: "This will remove all entries permanently.",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/follow-ups/${id}`, { method: "DELETE" });
       const json = await res.json();

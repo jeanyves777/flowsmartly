@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 interface Website {
   id: string;
@@ -107,7 +108,12 @@ export default function AdminWebsitesPage() {
   };
 
   const handleDelete = async (siteId: string) => {
-    if (!confirm("Are you sure you want to delete this website?")) return;
+    const ok = await confirmDialog({
+      title: "Delete this website?",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
     setActionLoading(siteId);
     try {
       const res = await fetch("/api/admin/websites", {

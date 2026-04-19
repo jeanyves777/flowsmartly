@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 interface SmsConfig {
   smsEnabled: boolean;
@@ -151,9 +152,13 @@ export default function SmsMarketingSettingsPage() {
 
   // Release phone number
   const handleReleaseNumber = async () => {
-    if (!confirm("Are you sure you want to release this phone number? This action cannot be undone.")) {
-      return;
-    }
+    const ok = await confirmDialog({
+      title: "Release this phone number?",
+      description: "This action cannot be undone.",
+      confirmText: "Release",
+      variant: "destructive",
+    });
+    if (!ok) return;
 
     setReleasingNumber(true);
     try {

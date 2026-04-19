@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SURVEY_STATUS_CONFIG, type SurveyData, type SurveyStatus } from "@/types/survey";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 export default function SurveysPage() {
   const router = useRouter();
@@ -87,7 +88,13 @@ export default function SurveysPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this survey and all its responses?")) return;
+    const ok = await confirmDialog({
+      title: "Delete survey?",
+      description: "This will remove the survey and all its responses.",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/surveys/${id}`, { method: "DELETE" });
       const json = await res.json();

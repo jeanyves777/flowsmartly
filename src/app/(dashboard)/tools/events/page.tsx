@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EVENT_STATUS_CONFIG, type EventData, type EventStatus } from "@/types/event";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 export default function EventsPage() {
   const router = useRouter();
@@ -93,7 +94,13 @@ export default function EventsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this event and all its registrations?")) return;
+    const ok = await confirmDialog({
+      title: "Delete event?",
+      description: "This will remove the event and all its registrations.",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/events/${id}`, { method: "DELETE" });
       const json = await res.json();
