@@ -1,8 +1,11 @@
 /**
  * Validate redirect URLs to prevent open-redirect attacks.
  *
+ * Always returns an absolute URL so callers can pass the result directly to
+ * NextResponse.redirect() (which rejects relative URLs).
+ *
  * Rules:
- * - Relative paths starting with "/" are always safe (same-origin).
+ * - Relative paths starting with "/" are resolved against APP_URL (same-origin).
  * - Absolute URLs must parse AND their hostname must match an allowed host.
  * - Anything else returns the fallback.
  */
@@ -35,9 +38,14 @@ export function sanitizeRedirectUrl(
 ): string {
   if (!url) return fallback;
 
-  // Same-origin relative path
+  // Same-origin relative path — resolve against APP_URL so callers always get
+  // an absolute URL (NextResponse.redirect requires absolute).
   if (url.startsWith("/") && !url.startsWith("//")) {
-    return url;
+    try {
+      return new URL(url, APP_URL).toString();
+    } catch {
+      return fallback;
+    }
   }
 
   let parsed: URL;
