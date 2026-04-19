@@ -130,13 +130,19 @@ export const footerLinks = [
 // ─── Hero config ─────────────────────────────────────────────────────────────
 
 export const heroConfig = {
-  style: "gradient" as const, // "gradient" | "image" | "slideshow" | "video"
+  style: "slideshow" as const, // "gradient" | "image" | "slideshow" | "video"
   headline: "Curated for modern living",
   subheadline: "Discover thoughtfully designed products that blend form and function.",
   ctaText: "Browse Collection",
   ctaUrl: storeUrl("/products"),
+  // Slideshow source — agent MUST populate with 3-5 downloaded images.
+  // The Hero component auto-rotates every 5.5s, pauses on hover, with dot
+  // indicators and prev/next arrows. Falls back to backgroundImage if empty.
+  slides: [
+    storeUrl("/images/hero/banner.jpg"),
+  ] as string[],
   backgroundImage: storeUrl("/images/hero/banner.jpg"),
-  overlayOpacity: 0.4,
+  overlayOpacity: 0.55,
 };
 
 // ─── Section order ───────────────────────────────────────────────────────────

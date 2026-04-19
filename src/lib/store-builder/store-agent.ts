@@ -209,7 +209,7 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
    b. If NO images, call search_product_images then download_image for the best result
    c. NEVER skip — every product MUST have at least 1 real image
    d. Download 1 image per category (for category cards)
-   e. Download 1 hero background image (search for the store's INDUSTRY, not generic)
+   e. Download 5 hero slideshow images (search 5 different queries tied to the store's INDUSTRY — e.g. "{industry} lifestyle", "{industry} products", "{industry} showroom", "{industry} people", "{industry} detail"). Populate heroConfig.slides as an array of all 5 URLs. DO NOT download just one — the Hero component is a slideshow.
 6. Write src/app/globals.css with brand colors using @theme {}
 7. Write src/app/layout.tsx with unified layout (Header, Footer, MobileBottomNav, CartDrawer, Analytics, CookieConsent)
 8. Write all components: Header (with mobile side drawer), Hero, CategoryShowcase, FeaturedProducts, ProductCard, ProductGrid, CartDrawer, MobileBottomNav, Footer, Newsletter, AboutSection, FAQ
@@ -584,6 +584,31 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - Example pattern: rounded-lg border p-4 cards in a space-y-3 container
 - Account dashboard recent orders + full orders list page MUST both use cards, not tables
 - Main content area MUST have pb-16 md:pb-0 to avoid content hidden behind the fixed MobileBottomNav
+
+### Hero Component (MANDATORY — compact banner + slideshow):
+- Hero section height: min-h-[52vh] md:min-h-[60vh] — NEVER min-h-[85vh]. The hero is a compact banner, not the whole viewport. Leave room for categories, featured products, and other sections above the fold.
+- Hero MUST be an auto-rotating slideshow:
+  - Renders heroConfig.slides[] (array of 3-5 image URLs). Falls back to backgroundImage if slides is empty.
+  - Auto-advances every ~5500ms using setInterval inside useEffect. Clear on unmount.
+  - Pauses on mouse enter (onMouseEnter setPaused(true), onMouseLeave setPaused(false)).
+  - Framer Motion AnimatePresence with mode="sync" and fade transition (opacity 0 → 1, duration 0.9).
+  - Prev/Next arrow buttons (ChevronLeft/ChevronRight from lucide-react) absolute-positioned at left-3/right-3 top-1/2 -translate-y-1/2. Styled with bg-white/15 hover:bg-white/30 backdrop-blur-sm. Visible only on hover (opacity-0 group-hover:opacity-100).
+  - Dot indicators at bottom (absolute bottom-5 left-1/2). Active dot: w-8 bg-white. Inactive: w-1.5 bg-white/50.
+  - Text content (tagline, headline, subheadline, CTA) stays fixed while slides cycle beneath.
+  - Overlay: bg-gradient-to-r from-gray-900/75 via-gray-900/50 to-gray-900/20 with heroConfig.overlayOpacity (default 0.55) applied to it.
+- heroConfig in data.ts MUST have style: "slideshow" and slides: [...] with 5 URLs from step 5e.
+- Home page section order: Hero → Categories → Featured Products → Deals/New Arrivals → About → Newsletter. Hero is NOT allowed to dominate the viewport — categories and product grids must be visible after a single scroll.
+
+### File Structure (MANDATORY — canonical unified layout):
+Every store MUST use these exact filenames and locations. DO NOT improvise kebab-case or lowercase variants — tools and migrations depend on PascalCase.
+- Components: src/components/Hero.tsx, Header.tsx, Footer.tsx, MobileBottomNav.tsx, CartDrawer.tsx, ProductCard.tsx, CategoryShowcase.tsx, FeaturedProducts.tsx, Newsletter.tsx, AboutSection.tsx, ThemeProvider.tsx, ThemeToggle.tsx, AccountModal.tsx, AccountModalProvider.tsx
+- Page route pairs (page.tsx + *Client.tsx pattern for interactive pages):
+  - src/app/products/[slug]/page.tsx + src/app/products/[slug]/ProductDetailClient.tsx (PascalCase, NOT product-detail-client.tsx)
+  - src/app/products/page.tsx + src/app/products/ProductsClient.tsx
+  - src/app/search/page.tsx + src/app/search/SearchClient.tsx
+  - src/app/order-confirmation/page.tsx + src/app/order-confirmation/OrderConfirmationClient.tsx
+- Data: src/lib/data.ts, src/lib/products.ts, src/lib/cart.ts
+- NEVER inline client-component logic into page.tsx when the page has any useState/useEffect — always use the page.tsx + ComponentClient.tsx split. This allows the migration tool to overwrite only the client component without touching page.tsx routing.
 
 ### Product Detail Page (MANDATORY features):
 - Image gallery MUST include: main image, thumbnail row below, prev/next arrow buttons overlaid on the main image (visible on hover, always visible on touch), and a "1 / N" counter badge. Arrow buttons use ChevronLeft/ChevronRight from lucide-react, absolute-positioned at left-3 / right-3, rounded-full bg-white/90 dark:bg-gray-800/90 with shadow. Clicking arrows wraps around: (i - 1 + len) % len and (i + 1) % len.
