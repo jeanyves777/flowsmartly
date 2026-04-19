@@ -38,6 +38,19 @@ const nextConfig: NextConfig = {
     },
     middlewareClientMaxBodySize: "500mb",
   },
+
+  // API versioning — `/api/v1/*` aliases the current unversioned routes.
+  // Frontend callers can migrate to `/api/v1/...` today. When a breaking
+  // change is needed, a physical `/api/v2/` tree will host the new shape and
+  // v1 will remain frozen as-is.
+  async rewrites() {
+    return [
+      {
+        source: "/api/v1/:path*",
+        destination: "/api/:path*",
+      },
+    ];
+  },
 };
 
 export default nextConfig;

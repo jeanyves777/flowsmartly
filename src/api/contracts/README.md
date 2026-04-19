@@ -40,6 +40,20 @@ const { contacts, stats } = body.data;
 4. **Use ISO-8601 strings for dates** (`string`, not `Date`) — JSON cannot carry `Date`.
 5. **Prefer discriminated unions over optional flags** when a response has two modes.
 
+## API versioning
+
+`/api/v1/*` is a rewrite alias for the current unversioned routes (see
+`next.config.ts`). Frontend code should migrate fetch calls to `/api/v1/...`
+as opportunity arises — this unlocks independent backend/frontend deploys:
+
+- **v1 = locked.** Once contracts are finalized, v1 responses never change
+  shape. Bug fixes and additive optional fields are allowed; renames,
+  removals, and type tightening are not.
+- **v2 = next major.** When a breaking change is required, create a physical
+  `src/app/api/v2/<endpoint>/route.ts`. v1 stays on the old implementation.
+- **unversioned** (e.g. `/api/contacts`) currently serves the same code as
+  v1. Treat it as deprecated — new code should prefer `/api/v1/...`.
+
 ## Files
 
 - `common.ts` — `ApiResponse<T>`, `Pagination`, `unwrap()`
