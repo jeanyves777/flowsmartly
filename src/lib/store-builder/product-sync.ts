@@ -62,7 +62,7 @@ async function syncProductsToFile(storeId: string, storeDir: string): Promise<vo
   if (!existsSync(productsPath)) return;
 
   const products = await prisma.product.findMany({
-    where: { storeId, status: "ACTIVE" },
+    where: { storeId, status: "ACTIVE", deletedAt: null },
     include: { productCategory: true, variants: { where: { isActive: true } } },
     orderBy: { createdAt: "asc" },
   });

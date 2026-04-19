@@ -3,9 +3,25 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
-import { heroConfig, storeInfo } from "@/lib/data";
+import { heroConfig, storeInfo, storeUrl, STORE_BASE } from "@/lib/data";
 
 const AUTO_ADVANCE_MS = 5500;
+
+/**
+ * Normalize the hero CTA href so it stays on the store no matter how the
+ * store's data.ts was generated. Agent-produced data often sets ctaUrl to
+ * "/products" (bare relative path). On the main flowsmartly.com host that
+ * path would point at the main app's /products, dropping the user out of
+ * the store. Here we force any relative path through storeUrl() unless
+ * it's already a full URL or already prefixed with the store's base path.
+ */
+function resolveCtaHref(raw: string | undefined): string {
+  if (!raw) return storeUrl("/products");
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+  if (raw.startsWith(STORE_BASE)) return raw;
+  if (raw.startsWith("/")) return storeUrl(raw);
+  return raw;
+}
 
 export default function Hero() {
   // Collect slide images: prefer `slides` array, fall back to single backgroundImage
@@ -109,7 +125,7 @@ export default function Hero() {
             transition={{ delay: 0.25 }}
           >
             <a
-              href={heroConfig.ctaUrl}
+              href={resolveCtaHref(heroConfig.ctaUrl)}
               className="inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-3.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-full transition-all hover:shadow-lg hover:shadow-primary-600/30 group/cta"
             >
               {heroConfig.ctaText}
