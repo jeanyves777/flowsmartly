@@ -7,9 +7,11 @@ import { ArrowLeft, Plus, Trash2, GripVertical, Eye, Save, Send, ChevronDown, Ch
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FIELD_TYPES, type DataFormField, type DataFormFieldType, type DataFormType } from "@/types/data-form";
+import { useToast } from "@/hooks/use-toast";
 
 export default function NewFormPage() {
   const router = useRouter();
+  const { toast } = useToast();
 
   const [formType, setFormType] = useState<DataFormType>("STANDARD");
   const [title, setTitle] = useState("");
@@ -71,11 +73,11 @@ export default function NewFormPage() {
 
   const handleSave = async (publish: boolean) => {
     if (!title.trim()) {
-      alert("Title is required");
+      toast({ variant: "destructive", title: "Title is required" });
       return;
     }
     if ((formType === "SMART_COLLECT" || formType === "ATTENDANCE") && !selectedListId) {
-      alert("Please select a contact list");
+      toast({ variant: "destructive", title: "Please select a contact list" });
       return;
     }
     setSaving(true);
@@ -104,11 +106,15 @@ export default function NewFormPage() {
       if (json.success) {
         router.push(`/tools/data-collection/${json.data.id}`);
       } else {
-        alert(json.error?.message || "Failed to save form");
+        toast({
+          variant: "destructive",
+          title: "Failed to save form",
+          description: json.error?.message,
+        });
       }
     } catch (error) {
       console.error("Save error:", error);
-      alert("Failed to save form");
+      toast({ variant: "destructive", title: "Failed to save form" });
     } finally {
       setSaving(false);
     }

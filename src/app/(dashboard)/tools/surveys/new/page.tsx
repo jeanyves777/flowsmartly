@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import type { SurveyQuestion } from "@/types/follow-up";
+import { useToast } from "@/hooks/use-toast";
 
 type SurveyQuestionType = SurveyQuestion["type"];
 
@@ -22,6 +23,7 @@ const QUESTION_TYPES: { value: SurveyQuestionType; label: string }[] = [
 
 export default function NewSurveyPage() {
   const router = useRouter();
+  const { toast } = useToast();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -63,7 +65,7 @@ export default function NewSurveyPage() {
 
   const handleSave = async (publish: boolean) => {
     if (!title.trim()) {
-      alert("Title is required");
+      toast({ variant: "destructive", title: "Title is required" });
       return;
     }
     setSaving(true);
@@ -84,11 +86,15 @@ export default function NewSurveyPage() {
       if (json.success) {
         router.push(`/tools/surveys/${json.data.id}`);
       } else {
-        alert(json.error || "Failed to save survey");
+        toast({
+          variant: "destructive",
+          title: "Failed to save survey",
+          description: typeof json.error === "string" ? json.error : json.error?.message,
+        });
       }
     } catch (error) {
       console.error("Save error:", error);
-      alert("Failed to save survey");
+      toast({ variant: "destructive", title: "Failed to save survey" });
     } finally {
       setSaving(false);
     }

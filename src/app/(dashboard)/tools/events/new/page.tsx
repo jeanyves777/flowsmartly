@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MediaUploader } from "@/components/shared/media-uploader";
+import { useToast } from "@/hooks/use-toast";
 import {
   FIELD_TYPES,
   type DataFormField,
@@ -55,6 +56,7 @@ const TIMEZONES = [
 
 export default function NewEventPage() {
   const router = useRouter();
+  const { toast } = useToast();
 
   // ── State ───────────────────────────────────────────────────────────────────
   const [title, setTitle] = useState("");
@@ -132,8 +134,14 @@ export default function NewEventPage() {
   // ── Submit ──────────────────────────────────────────────────────────────────
 
   const handleSubmit = async (status: "DRAFT" | "ACTIVE") => {
-    if (!title.trim()) return alert("Title is required");
-    if (!eventDate) return alert("Event date is required");
+    if (!title.trim()) {
+      toast({ variant: "destructive", title: "Title is required" });
+      return;
+    }
+    if (!eventDate) {
+      toast({ variant: "destructive", title: "Event date is required" });
+      return;
+    }
 
     setSaving(true);
     try {
@@ -179,10 +187,14 @@ export default function NewEventPage() {
       if (json.success) {
         router.push(`/tools/events/${json.data.id}`);
       } else {
-        alert(json.error?.message || "Failed to create event");
+        toast({
+          variant: "destructive",
+          title: "Failed to create event",
+          description: json.error?.message,
+        });
       }
     } catch {
-      alert("Failed to create event");
+      toast({ variant: "destructive", title: "Failed to create event" });
     } finally {
       setSaving(false);
     }

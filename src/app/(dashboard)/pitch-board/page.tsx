@@ -15,6 +15,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils/cn";
+import { useToast } from "@/hooks/use-toast";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -80,6 +81,7 @@ function StatusBadge({ status }: { status: Pitch["status"] }) {
 
 export default function PitchBoardPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"pitches" | "leads">("pitches");
 
   // Brand identity gate
@@ -286,7 +288,10 @@ export default function PitchBoardPage() {
       if (data.success) {
         setShowSaveDialog(false);
         setSaveListName("");
-        alert(`Saved ${data.data.created} contacts to "${saveListName}"`);
+        toast({
+          title: "Contacts saved",
+          description: `${data.data.created} contact${data.data.created === 1 ? "" : "s"} added to "${saveListName}".`,
+        });
       }
     } finally {
       setIsSavingLeads(false);
@@ -311,7 +316,11 @@ export default function PitchBoardPage() {
         setActiveTab("pitches");
         loadPitches();
       } else {
-        alert(data.error?.message || "Failed to create pitch.");
+        toast({
+          variant: "destructive",
+          title: "Failed to create pitch",
+          description: data.error?.message,
+        });
       }
     } finally {
       setPitchingLead(null);

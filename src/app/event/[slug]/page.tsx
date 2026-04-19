@@ -7,6 +7,7 @@ import { Check, AlertCircle, MapPin, Globe, Clock, Users, Ticket, Calendar, Exte
 import type { DataFormField } from "@/types/data-form";
 import type { RegistrationType, TicketType, EventSettings, RsvpResponse } from "@/types/event";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { useToast } from "@/hooks/use-toast";
 
 interface BrandInfo {
   name: string;
@@ -44,6 +45,7 @@ interface EventPageData {
 }
 
 function PublicEventClient({ slug }: { slug: string }) {
+  const { toast } = useToast();
   const [eventData, setEventData] = useState<EventPageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +88,7 @@ function PublicEventClient({ slug }: { slug: string }) {
     if (!eventData) return;
 
     if (!name.trim() || !email.trim()) {
-      alert("Name and email are required");
+      toast({ variant: "destructive", title: "Name and email are required" });
       return;
     }
 
@@ -103,11 +105,15 @@ function PublicEventClient({ slug }: { slug: string }) {
         if (json.success && json.data?.checkoutUrl) {
           window.location.href = json.data.checkoutUrl;
         } else {
-          alert(json.error?.message || "Failed to create checkout");
+          toast({
+            variant: "destructive",
+            title: "Failed to create checkout",
+            description: json.error?.message,
+          });
           setSubmitting(false);
         }
       } catch {
-        alert("Failed to process payment");
+        toast({ variant: "destructive", title: "Failed to process payment" });
         setSubmitting(false);
       }
       return;
@@ -115,7 +121,7 @@ function PublicEventClient({ slug }: { slug: string }) {
 
     // For RSVP, require response
     if (eventData.registrationType === "rsvp" && !rsvpResponse) {
-      alert("Please select your RSVP response");
+      toast({ variant: "destructive", title: "Please select your RSVP response" });
       return;
     }
 
@@ -143,10 +149,14 @@ function PublicEventClient({ slug }: { slug: string }) {
         setSubmitted(true);
         setTicketCode(json.data?.ticketCode || null);
       } else {
-        alert(json.error?.message || "Registration failed");
+        toast({
+          variant: "destructive",
+          title: "Registration failed",
+          description: json.error?.message,
+        });
       }
     } catch {
-      alert("Failed to register. Please try again.");
+      toast({ variant: "destructive", title: "Failed to register. Please try again." });
     } finally {
       setSubmitting(false);
     }

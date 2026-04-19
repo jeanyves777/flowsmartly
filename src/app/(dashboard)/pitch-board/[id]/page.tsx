@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils/cn";
 import { scoreHexColor, scoreLabel } from "@/lib/pitch/scorer";
+import { useToast } from "@/hooks/use-toast";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -247,6 +248,7 @@ function StatusBadge({ status }: { status: Pitch["status"] }) {
 export default function PitchDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { toast } = useToast();
 
   const [pitch, setPitch] = useState<Pitch | null>(null);
   const [brandName, setBrandName] = useState<string>("");
@@ -330,7 +332,10 @@ export default function PitchDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pdfOnly: true }),
       });
-      if (!res.ok) { alert("Failed to generate PDF."); return; }
+      if (!res.ok) {
+        toast({ variant: "destructive", title: "Failed to generate PDF" });
+        return;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

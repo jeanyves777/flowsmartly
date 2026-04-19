@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { useToast } from "@/hooks/use-toast";
 
 interface CreditPricing {
   id: string;
@@ -47,6 +48,7 @@ const categoryColors: Record<string, string> = {
 };
 
 export default function AdminCreditPricingPage() {
+  const { toast } = useToast();
   // State
   const [pricing, setPricing] = useState<CreditPricing[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -115,7 +117,11 @@ export default function AdminCreditPricingPage() {
       if (!data.success) throw new Error(data.error?.message);
       await fetchPricing();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to seed pricing");
+      toast({
+        variant: "destructive",
+        title: "Failed to seed pricing",
+        description: err instanceof Error ? err.message : undefined,
+      });
     } finally {
       setIsSeeding(false);
     }
@@ -151,7 +157,11 @@ export default function AdminCreditPricingPage() {
       setEditModal({ open: false, item: null });
       await fetchPricing();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update pricing");
+      toast({
+        variant: "destructive",
+        title: "Failed to update pricing",
+        description: err instanceof Error ? err.message : undefined,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -172,7 +182,11 @@ export default function AdminCreditPricingPage() {
       if (!data.success) throw new Error(data.error?.message);
       await fetchPricing();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to toggle status");
+      toast({
+        variant: "destructive",
+        title: "Failed to toggle status",
+        description: err instanceof Error ? err.message : undefined,
+      });
     }
   };
 

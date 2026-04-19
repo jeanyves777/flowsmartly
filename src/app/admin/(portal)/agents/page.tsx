@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { useToast } from "@/hooks/use-toast";
 
 interface AgentProfile {
   id: string;
@@ -54,6 +55,7 @@ const statusIcons: Record<string, typeof Clock> = {
 };
 
 export default function AdminAgentsPage() {
+  const { toast } = useToast();
   const [profiles, setProfiles] = useState<AgentProfile[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -114,7 +116,11 @@ export default function AdminAgentsPage() {
       setRejectReason("");
       fetchProfiles();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Action failed");
+      toast({
+        variant: "destructive",
+        title: "Action failed",
+        description: err instanceof Error ? err.message : undefined,
+      });
     } finally {
       setActionLoading(null);
     }

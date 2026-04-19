@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { useToast } from "@/hooks/use-toast";
 
 interface CreditPackageAdmin {
   id: string;
@@ -27,6 +28,7 @@ interface CreditPackageAdmin {
 }
 
 export default function AdminCreditPackagesPage() {
+  const { toast } = useToast();
   // State
   const [packages, setPackages] = useState<CreditPackageAdmin[]>([]);
   const [stats, setStats] = useState<{
@@ -160,9 +162,11 @@ export default function AdminCreditPackagesPage() {
       closeModal();
       await fetchPackages();
     } catch (err) {
-      alert(
-        err instanceof Error ? err.message : "Failed to save credit package"
-      );
+      toast({
+        variant: "destructive",
+        title: "Failed to save credit package",
+        description: err instanceof Error ? err.message : undefined,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -194,7 +198,11 @@ export default function AdminCreditPackagesPage() {
       }
       await fetchPackages();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to toggle status");
+      toast({
+        variant: "destructive",
+        title: "Failed to toggle status",
+        description: err instanceof Error ? err.message : undefined,
+      });
     }
   };
 

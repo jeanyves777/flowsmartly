@@ -97,10 +97,10 @@ export default function ProductsListPage() {
         // Refresh the product list
         window.location.reload();
       } else {
-        alert("Failed to publish product");
+        toast({ variant: "destructive", title: "Failed to publish product" });
       }
     } catch {
-      alert("Network error");
+      toast({ variant: "destructive", title: "Network error" });
     } finally {
       setPublishingId(null);
     }
@@ -127,7 +127,7 @@ export default function ProductsListPage() {
         body: JSON.stringify({ labels: newLabels }),
       });
       if (!res.ok) {
-        alert("Failed to update featured status");
+        toast({ variant: "destructive", title: "Failed to update featured status" });
         return;
       }
       // Update local state so the star flips immediately without refetch
@@ -135,7 +135,7 @@ export default function ProductsListPage() {
         prev.map((p) => (p.id === product.id ? { ...p, labels: newLabels } : p))
       );
     } catch {
-      alert("Network error");
+      toast({ variant: "destructive", title: "Network error" });
     } finally {
       setFeaturingId(null);
     }
