@@ -63,13 +63,10 @@ export async function POST(request: NextRequest) {
       domain: cleanDomain,
     });
 
-    // Trigger store rebuild so data.ts gets the new custom domain in
-    // meta tags, sitemap, and canonical URLs. Fire-and-forget.
+    // Mark the store as having pending changes (user will publish when ready)
     if (store?.id) {
-      const { triggerStoreRebuildIfV2 } = await import("@/lib/store-builder/product-sync");
-      triggerStoreRebuildIfV2(store.id).catch((e) =>
-        console.error("[Domain:connect] Store rebuild failed:", e)
-      );
+      const { markStoreAsPending } = await import("@/lib/store-builder/pending-changes");
+      markStoreAsPending(store.id).catch(() => {});
     }
 
     return NextResponse.json({

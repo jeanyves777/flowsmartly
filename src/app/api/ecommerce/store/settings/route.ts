@@ -93,10 +93,10 @@ export async function PATCH(request: NextRequest) {
       data: updateData,
     });
 
-    // Trigger store rebuild so shipping values sync to data.ts
+    // Mark the store as having pending changes (user will publish when ready)
     if (data.settings !== undefined) {
-      const { triggerStoreRebuildIfV2 } = await import("@/lib/store-builder/product-sync");
-      triggerStoreRebuildIfV2(store.id).catch(e => console.error("Settings sync error:", e));
+      const { markStoreAsPending } = await import("@/lib/store-builder/pending-changes");
+      markStoreAsPending(store.id).catch(() => {});
     }
 
     return NextResponse.json({

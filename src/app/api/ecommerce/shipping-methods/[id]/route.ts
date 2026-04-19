@@ -34,8 +34,9 @@ export async function PATCH(
 
     const updated = await prisma.storeShippingMethod.update({ where: { id }, data: parsed.data });
 
-    const { triggerStoreRebuildIfV2 } = await import("@/lib/store-builder/product-sync");
-    triggerStoreRebuildIfV2(store.id).catch(e => console.error("Shipping sync error:", e));
+    // Mark the store as having pending changes (user will publish when ready)
+    const { markStoreAsPending } = await import("@/lib/store-builder/pending-changes");
+    markStoreAsPending(store.id).catch(() => {});
 
     return NextResponse.json({ success: true, data: updated });
   } catch (err) {
@@ -62,8 +63,9 @@ export async function DELETE(
 
     await prisma.storeShippingMethod.delete({ where: { id } });
 
-    const { triggerStoreRebuildIfV2 } = await import("@/lib/store-builder/product-sync");
-    triggerStoreRebuildIfV2(store.id).catch(e => console.error("Shipping sync error:", e));
+    // Mark the store as having pending changes (user will publish when ready)
+    const { markStoreAsPending } = await import("@/lib/store-builder/pending-changes");
+    markStoreAsPending(store.id).catch(() => {});
 
     return NextResponse.json({ success: true });
   } catch (err) {

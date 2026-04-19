@@ -177,9 +177,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Sync categories to store and rebuild
-    const { triggerStoreRebuildIfV2 } = await import("@/lib/store-builder/product-sync");
-    triggerStoreRebuildIfV2(store.id).catch((e) => console.error("Category sync error:", e));
+    // Mark the store as having pending changes (user will publish when ready)
+    const { markStoreAsPending } = await import("@/lib/store-builder/pending-changes");
+    markStoreAsPending(store.id).catch(() => {});
 
     return NextResponse.json({
       success: true,

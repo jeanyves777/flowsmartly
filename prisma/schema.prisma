@@ -3194,6 +3194,8 @@ model Store {
   buildStatus            String    @default("idle")   // idle, building, built, error
   buildStartedAt         DateTime?                    // When build lock was acquired (for timeout recovery)
   pendingRebuild         Boolean   @default(false)    // True if a rebuild was queued while building
+  hasPendingChanges      Boolean   @default(false)    // User made changes but hasn't published yet
+  pendingChangeCount     Int       @default(0)        // Number of changes since last publish (for banner)
   lastBuildAt            DateTime?
   lastBuildError         String?
   siteData               String    @default("{}")     // cached parsed data for editor

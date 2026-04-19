@@ -93,7 +93,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const store = await prisma.store.findFirst({
       where: { id, userId: session.userId, deletedAt: null },
-      select: { buildStatus: true, lastBuildAt: true, lastBuildError: true, storeVersion: true },
+      select: {
+        buildStatus: true,
+        lastBuildAt: true,
+        lastBuildError: true,
+        storeVersion: true,
+        hasPendingChanges: true,
+        pendingChangeCount: true,
+      },
     });
     if (!store) return NextResponse.json({ error: "Not found" }, { status: 404 });
 

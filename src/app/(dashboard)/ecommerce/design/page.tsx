@@ -149,7 +149,13 @@ export default function StoreDesignPage() {
       });
       if (r.ok) {
         setChanged(false);
-        await rebuild();
+        // Mark the store as pending — no auto-rebuild. User publishes from the
+        // global banner when they're done making edits.
+        await fetch(`/api/ecommerce/store/${store.id}/mark-pending`, { method: "POST" }).catch(() => {});
+        setBuildStage("done");
+        setBuildMessage("Saved! Publish from the top banner when you're ready to go live.");
+        setBuildResult({ type: "success", message: "Changes saved." });
+        setTimeout(() => { setBuildStage("idle"); setBuildMessage(""); }, 3000);
       } else {
         const e = await r.json().catch(() => ({ error: "Save failed" }));
         setBuildStage("error");

@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { generateSlug } from "@/lib/constants/ecommerce";
 import { triggerStoreRebuildIfV2 } from "@/lib/store-builder/product-sync";
+import { markStoreAsPending } from "@/lib/store-builder/pending-changes";
 import { z } from "zod";
 
 // ── Validation Schemas ──
@@ -285,8 +286,8 @@ export async function POST(request: NextRequest) {
       });
     });
 
-    // Fire-and-forget: rebuild V2 store to include new product
-    triggerStoreRebuildIfV2(store.id).catch(() => {});
+    // Mark the store as having pending changes (user will publish when ready)
+    markStoreAsPending(store.id).catch(() => {});
 
     return NextResponse.json({
       success: true,

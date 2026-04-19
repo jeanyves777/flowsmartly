@@ -203,13 +203,10 @@ export async function PATCH(
       );
     }
 
-    // Trigger rebuild so the generated store/website picks up the new domain
-    // in data.ts, sitemap, canonical URLs, meta tags. Fire-and-forget.
+    // Mark the store as having pending changes (user will publish when ready)
     if (storeToRebuild) {
-      const { triggerStoreRebuildIfV2 } = await import("@/lib/store-builder/product-sync");
-      triggerStoreRebuildIfV2(storeToRebuild).catch((e) =>
-        console.error("[DomainSettings] Store rebuild failed:", e)
-      );
+      const { markStoreAsPending } = await import("@/lib/store-builder/pending-changes");
+      markStoreAsPending(storeToRebuild).catch(() => {});
     }
     if (websiteToRebuild) {
       // Website rebuild — fire the internal rebuild endpoint

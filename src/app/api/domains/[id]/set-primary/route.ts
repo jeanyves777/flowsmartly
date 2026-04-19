@@ -65,13 +65,10 @@ export async function POST(
       },
     });
 
-    // Trigger store rebuild so the new primary domain is reflected
-    // in meta tags, canonical URLs, and sitemap. Fire-and-forget.
+    // Mark the store as having pending changes (user will publish when ready)
     if (updated?.storeId) {
-      const { triggerStoreRebuildIfV2 } = await import("@/lib/store-builder/product-sync");
-      triggerStoreRebuildIfV2(updated.storeId).catch((e) =>
-        console.error("[Domain:set-primary] Store rebuild failed:", e)
-      );
+      const { markStoreAsPending } = await import("@/lib/store-builder/pending-changes");
+      markStoreAsPending(updated.storeId).catch(() => {});
     }
 
     return NextResponse.json({

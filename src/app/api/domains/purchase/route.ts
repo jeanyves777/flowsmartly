@@ -189,12 +189,9 @@ export async function POST(request: NextRequest) {
       contact,
     });
 
-    // Trigger store rebuild so data.ts picks up the new custom domain.
-    // Fire-and-forget; the response returns before the build completes.
-    const { triggerStoreRebuildIfV2 } = await import("@/lib/store-builder/product-sync");
-    triggerStoreRebuildIfV2(store!.id).catch((e) =>
-      console.error("[Domain:purchase:free] Store rebuild failed:", e)
-    );
+    // Mark the store as having pending changes (user will publish when ready)
+    const { markStoreAsPending } = await import("@/lib/store-builder/pending-changes");
+    markStoreAsPending(store!.id).catch(() => {});
 
     return NextResponse.json({
       success: true,
