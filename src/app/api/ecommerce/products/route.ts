@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { generateSlug } from "@/lib/constants/ecommerce";
 import { triggerStoreRebuildIfV2 } from "@/lib/store-builder/product-sync";
 import { markStoreAsPending } from "@/lib/store-builder/pending-changes";
+import { scheduleStoreRebuild } from "@/lib/store-builder/auto-rebuild";
 import { z } from "zod";
 
 // ── Validation Schemas ──
@@ -288,6 +289,9 @@ export async function POST(request: NextRequest) {
 
     // Mark the store as having pending changes (user will publish when ready)
     markStoreAsPending(store.id).catch(() => {});
+    // Also auto-trigger a debounced rebuild so the live store updates
+    // without requiring manual publish. 30s debounce coalesces rapid edits.
+    scheduleStoreRebuild(store.id);
 
     return NextResponse.json({
       success: true,

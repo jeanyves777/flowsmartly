@@ -586,7 +586,10 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - Main content area MUST have pb-16 md:pb-0 to avoid content hidden behind the fixed MobileBottomNav
 
 ### Product Detail Page (MANDATORY features):
-- Wishlist heart button on product image (top-right, always visible)
+- Image gallery MUST include: main image, thumbnail row below, prev/next arrow buttons overlaid on the main image (visible on hover, always visible on touch), and a "1 / N" counter badge. Arrow buttons use ChevronLeft/ChevronRight from lucide-react, absolute-positioned at left-3 / right-3, rounded-full bg-white/90 dark:bg-gray-800/90 with shadow. Clicking arrows wraps around: (i - 1 + len) % len and (i + 1) % len.
+- Keyboard navigation: useEffect listening to window "keydown" events — ArrowLeft/ArrowRight change selectedImageIdx. Skip if product has <= 1 image. Clean up listener on unmount.
+- Wishlist heart button (top-right of image, stacked in a vertical flex-col with gap-2)
+- Share button (directly under the heart, same styling): onClick calls handleShare which tries navigator.share(shareData) first, then falls back to navigator.clipboard.writeText(window.location.href) and shows a "Link copied" indicator for 2s. shareData = { title: product.name, text: product.shortDescription || product.description || product.name, url: window.location.href }. Use Share2 icon from lucide-react.
 - Wishlist heart button next to Add to Cart button
 - Star rating display with review count and sales count (fetched from /api/store/{slug}/products/{productSlug}/reviews)
 - Customer reviews section with:
@@ -622,6 +625,8 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 9b. ✅ ALL components use dark: Tailwind variants — bg-white components have dark:bg-gray-900, all inputs have dark:bg-gray-800 dark:bg-gray-700 dark:text-white, all text has dark: counterparts
 14. ✅ ProductCard has always-visible Heart wishlist button at top-right of image
 15. ✅ ProductDetail has wishlist heart, star ratings, reviews section, dynamic shipping threshold
+15b. ✅ ProductDetail image gallery has prev/next arrow buttons (ChevronLeft/ChevronRight) overlaid on the main image, a "N / total" counter badge, AND keyboard ArrowLeft/ArrowRight navigation
+15c. ✅ ProductDetail has a Share button (Share2 icon from lucide-react) stacked under the Wishlist heart, using navigator.share with clipboard fallback + "Link copied" indicator
 16. ✅ NO hardcoded "Free Shipping $50+" — uses storeInfo.freeShippingThresholdCents
 17. ✅ Checkout page is PRE-BUILT (do NOT write it). Verify data.ts has correct shippingMethods array.
 18. ✅ All internal links use Next.js <Link> — NEVER <a href="/products"> (goes to main app)

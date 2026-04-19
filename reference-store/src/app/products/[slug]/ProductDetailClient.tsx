@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ShoppingBag, Minus, Plus, ChevronLeft, Check, Package, Truck, RotateCcw, Heart, Star, ShieldCheck } from "lucide-react";
+import { ShoppingBag, Minus, Plus, ChevronLeft, ChevronRight, Check, Package, Truck, RotateCcw, Heart, Star, ShieldCheck, Share2 } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
@@ -43,6 +43,9 @@ export default function ProductDetailClient({ params }: { params: { slug: string
   const [wishlisted, setWishlisted] = useState(false);
   const [wishlistLoading, setWishlistLoading] = useState(false);
 
+  // Share link copied indicator
+  const [linkCopied, setLinkCopied] = useState(false);
+
   // Reviews
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewStats, setReviewStats] = useState({ avgRating: 0, reviewCount: 0, salesCount: 0 });
@@ -63,6 +66,18 @@ export default function ProductDetailClient({ params }: { params: { slug: string
     window.addEventListener("wishlist-updated", sync);
     return () => window.removeEventListener("wishlist-updated", sync);
   }, [product?.id]);
+
+  // Keyboard arrows navigate between product images
+  useEffect(() => {
+    if (!product || product.images.length <= 1) return;
+    const onKey = (e: KeyboardEvent) => {
+      const len = product.images.length;
+      if (e.key === "ArrowLeft") setSelectedImageIdx((i) => (i - 1 + len) % len);
+      else if (e.key === "ArrowRight") setSelectedImageIdx((i) => (i + 1) % len);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [product?.id, product?.images.length]);
 
   // Fetch reviews
   useEffect(() => {
@@ -102,6 +117,31 @@ export default function ProductDetailClient({ params }: { params: { slug: string
     addToCart({ productId: product.id, variantId: activeVariant?.id, name: product.name, variantName: activeVariant?.name, priceCents: price, imageUrl: activeVariant?.imageUrl || product.images[0]?.url || "" }, quantity);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
+  };
+
+  const handleShare = async () => {
+    if (typeof window === "undefined") return;
+    const url = window.location.href;
+    const shareData = {
+      title: product.name,
+      text: product.shortDescription || product.description || product.name,
+      url,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+    } catch {
+      // User cancelled or share failed — fall through to copy
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      // Last resort: nothing to do if clipboard unavailable
+    }
   };
 
   const handleWishlist = async () => {
@@ -165,24 +205,65 @@ export default function ProductDetailClient({ params }: { params: { slug: string
         <div className="grid lg:grid-cols-2 gap-12">
           {/* Image gallery */}
           <div>
-            <motion.div key={selectedImageIdx} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="aspect-square rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-4 relative">
-              {product.images[selectedImageIdx] && (
-                <img src={product.images[selectedImageIdx].url} alt={product.images[selectedImageIdx].alt} className="w-full h-full object-cover" />
+            <div className="aspect-square rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-4 relative group">
+              <motion.img
+                key={selectedImageIdx}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                src={product.images[selectedImageIdx]?.url}
+                alt={product.images[selectedImageIdx]?.alt}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              {/* Prev / Next arrows */}
+              {product.images.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setSelectedImageIdx((i) => (i - 1 + product.images.length) % product.images.length)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-700 dark:text-gray-200 shadow-lg opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:scale-105"
+                    aria-label="Previous image"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                  <button
+                    onClick={() => setSelectedImageIdx((i) => (i + 1) % product.images.length)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-700 dark:text-gray-200 shadow-lg opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:scale-105"
+                    aria-label="Next image"
+                  >
+                    <ChevronRight size={20} />
+                  </button>
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 px-2.5 py-1 rounded-full bg-black/50 text-white text-xs font-medium">
+                    {selectedImageIdx + 1} / {product.images.length}
+                  </div>
+                </>
               )}
-              {/* Wishlist heart */}
-              <button
-                onClick={handleWishlist}
-                disabled={wishlistLoading}
-                className={`absolute top-4 right-4 z-10 p-3 rounded-full shadow-lg transition-all ${
-                  wishlisted ? "bg-red-500 text-white" : "bg-white/90 dark:bg-gray-800/90 text-gray-600 dark:text-gray-300 hover:text-red-500"
-                }`}
-                aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
-              >
-                <Heart size={22} fill={wishlisted ? "currentColor" : "none"} />
-              </button>
-            </motion.div>
+              {/* Wishlist + Share stacked */}
+              <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+                <button
+                  onClick={handleWishlist}
+                  disabled={wishlistLoading}
+                  className={`p-3 rounded-full shadow-lg transition-all ${
+                    wishlisted ? "bg-red-500 text-white" : "bg-white/90 dark:bg-gray-800/90 text-gray-600 dark:text-gray-300 hover:text-red-500"
+                  }`}
+                  aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
+                >
+                  <Heart size={22} fill={wishlisted ? "currentColor" : "none"} />
+                </button>
+                <button
+                  onClick={handleShare}
+                  className="p-3 rounded-full shadow-lg transition-all bg-white/90 dark:bg-gray-800/90 text-gray-600 dark:text-gray-300 hover:text-primary-600 relative"
+                  aria-label="Share this product"
+                >
+                  <Share2 size={22} />
+                  {linkCopied && (
+                    <span className="absolute right-full mr-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-gray-900 text-white text-xs whitespace-nowrap shadow-lg">
+                      Link copied
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
             {product.images.length > 1 && (
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
                 {product.images.map((img, i) => (
                   <button key={i} onClick={() => setSelectedImageIdx(i)} className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-colors ${i === selectedImageIdx ? "border-primary-600" : "border-transparent hover:border-gray-300"}`}>
                     <img src={img.url} alt={img.alt} className="w-full h-full object-cover" />
