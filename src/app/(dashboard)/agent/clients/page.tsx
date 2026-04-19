@@ -3,23 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  Briefcase,
-  Users,
-  AlertTriangle,
-  DollarSign,
-  Search,
-  LogIn,
-  CheckCircle,
-  Clock,
-  AlertCircle,
-  Loader2,
-  TrendingUp,
-  Bell,
-  Shield,
-  XCircle,
-  MessageSquare,
-} from "lucide-react";
+import { Briefcase, Users, AlertTriangle, DollarSign, Search, LogIn, CheckCircle, Clock, AlertCircle, TrendingUp, Bell, Shield, XCircle, MessageSquare } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +26,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface ClientUser {
   id: string;
@@ -656,7 +641,7 @@ export default function AgentClientsPage() {
             >
               {isImpersonating ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <AISpinner className="h-4 w-4 mr-2 animate-spin" />
                   Starting Session...
                 </>
               ) : (
@@ -781,7 +766,7 @@ export default function AgentClientsPage() {
                 disabled={!respondAgreed || isResponding}
               >
                 {isResponding ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Accepting...</>
+                  <><AISpinner className="h-4 w-4 mr-2 animate-spin" />Accepting...</>
                 ) : (
                   <><CheckCircle className="h-4 w-4 mr-2" />Accept & Sign Agreement</>
                 )}
@@ -793,7 +778,7 @@ export default function AgentClientsPage() {
                 disabled={isResponding}
               >
                 {isResponding ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Declining...</>
+                  <><AISpinner className="h-4 w-4 mr-2 animate-spin" />Declining...</>
                 ) : (
                   <><XCircle className="h-4 w-4 mr-2" />Decline Request</>
                 )}

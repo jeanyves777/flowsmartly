@@ -2,34 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  Megaphone,
-  Plus,
-  Search,
-  Filter,
-  MoreVertical,
-  Play,
-  Pause,
-  Calendar,
-  Users,
-  TrendingUp,
-  Mail,
-  Target,
-  Loader2,
-  AlertTriangle,
-  MessageSquare,
-  Send,
-  MousePointer,
-  Eye,
-  XCircle,
-  UserMinus,
-  CheckCircle2,
-  Phone,
-} from "lucide-react";
+import { Megaphone, Plus, Search, Filter, MoreVertical, Play, Pause, Calendar, Users, TrendingUp, Mail, Target, AlertTriangle, MessageSquare, Send, MousePointer, Eye, XCircle, UserMinus, CheckCircle2, Phone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface Campaign {
   id: string;
@@ -579,7 +557,7 @@ function OverviewTab({
       {/* Campaigns List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>
       ) : campaigns.length === 0 ? (
         <Card>
@@ -722,7 +700,7 @@ function EmailTab({
       {/* Email Campaigns List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>
       ) : campaigns.length === 0 ? (
         <Card>
@@ -857,7 +835,7 @@ function SmsTab({
       {/* SMS Campaigns List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>
       ) : campaigns.length === 0 ? (
         <Card>

@@ -3,9 +3,10 @@
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Loader2, Lock, UserPlus, Check, Clock, LogIn, ClipboardList } from "lucide-react";
+import { Lock, UserPlus, Check, Clock, LogIn, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface ShareInfo {
   id: string;
@@ -74,7 +75,7 @@ function SharedFollowUpClient({ slug }: { slug: string }) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <AISpinner className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
   }
@@ -171,7 +172,7 @@ function SharedFollowUpClient({ slug }: { slug: string }) {
                 disabled={requesting}
               >
                 {requesting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <AISpinner className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <UserPlus className="h-4 w-4 mr-2" />
                 )}

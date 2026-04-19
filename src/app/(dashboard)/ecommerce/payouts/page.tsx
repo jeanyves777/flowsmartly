@@ -2,21 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import {
-  DollarSign,
-  Banknote,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  ArrowUpRight,
-  AlertCircle,
-  Loader2,
-  Wallet,
-  TrendingUp,
-  ArrowRight,
-  RefreshCw,
-} from "lucide-react";
+import { DollarSign, Banknote, Clock, CheckCircle2, XCircle, ArrowUpRight, AlertCircle, Wallet, TrendingUp, ArrowRight, RefreshCw } from "lucide-react";
 import { formatPrice } from "@/lib/store/currency";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface PayoutData {
   id: string;
@@ -107,7 +95,7 @@ export default function PayoutsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <AISpinner className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }

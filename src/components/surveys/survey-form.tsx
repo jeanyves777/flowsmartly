@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Star, Loader2, CheckCircle2 } from "lucide-react";
+import { Star, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import type { SurveyQuestion } from "@/types/follow-up";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface SurveyFormProps {
   slug: string;
@@ -250,7 +251,7 @@ export function SurveyForm({ slug, title, description, questions, thankYouMessag
       {/* Submit */}
       <Button type="submit" disabled={isSubmitting} className="w-full" size="lg">
         {isSubmitting ? (
-          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          <AISpinner className="h-4 w-4 animate-spin mr-2" />
         ) : null}
         Submit Response
       </Button>

@@ -2,22 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  DollarSign,
-  TrendingUp,
-  Search,
-  Sparkles,
-  Loader2,
-  Plus,
-  Trash2,
-  Pencil,
-  Check,
-  X,
-  AlertCircle,
-  BarChart3,
-  Globe,
-  RefreshCw,
-} from "lucide-react";
+import { DollarSign, TrendingUp, Search, Sparkles, Plus, Trash2, Pencil, Check, X, AlertCircle, BarChart3, Globe, RefreshCw } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -31,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { PageLoader } from "@/components/shared/page-loader";
 import { formatPrice } from "@/lib/store/currency";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──
 
@@ -890,7 +876,7 @@ export default function IntelligencePage() {
             disabled={researchRunning}
             className="inline-flex items-center gap-2 px-3 py-1.5 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors"
           >
-            {researchRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {researchRunning ? <AISpinner className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             Run Research
           </motion.button>
         </div>
@@ -954,7 +940,7 @@ export default function IntelligencePage() {
 
           {selectedProductId && loadingPricingData && (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <AISpinner className="h-6 w-6 animate-spin text-muted-foreground" />
               <span className="ml-2 text-muted-foreground text-sm">Loading pricing data...</span>
             </div>
           )}
@@ -993,7 +979,7 @@ export default function IntelligencePage() {
                     disabled={loadingAI}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-500 to-indigo-600 text-white text-sm font-semibold rounded-lg hover:from-brand-600 hover:to-indigo-700 disabled:opacity-50 transition-all shadow-md shadow-brand-500/20 flex-shrink-0"
                   >
-                    {loadingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    {loadingAI ? <AISpinner className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                     Get AI Suggestion
                   </motion.button>
                 </motion.div>
@@ -1102,7 +1088,7 @@ export default function IntelligencePage() {
                         disabled={addingCompetitor || !newCompetitorName || !newCompetitorPrice}
                         className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                       >
-                        {addingCompetitor && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        {addingCompetitor && <AISpinner className="h-3.5 w-3.5 animate-spin" />}
                         Add
                       </button>
                       <button
@@ -1195,7 +1181,7 @@ export default function IntelligencePage() {
                     className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                   >
                     {loadingAI ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <AISpinner className="h-4 w-4 animate-spin" />
                     ) : (
                       <Sparkles className="h-4 w-4" />
                     )}
@@ -1206,7 +1192,7 @@ export default function IntelligencePage() {
 
                 {loadingAI && (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                    <AISpinner className="h-5 w-5 animate-spin text-blue-600" />
                     <span className="ml-2 text-sm text-muted-foreground">Analyzing pricing data...</span>
                   </div>
                 )}
@@ -1235,7 +1221,7 @@ export default function IntelligencePage() {
                           className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
                         >
                           {applyingPrice ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <AISpinner className="h-4 w-4 animate-spin" />
                           ) : (
                             <Check className="h-4 w-4" />
                           )}
@@ -1361,7 +1347,7 @@ export default function IntelligencePage() {
                     disabled={savingRule}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                   >
-                    {savingRule ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    {savingRule ? <AISpinner className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                     Save Rule
                   </button>
                 </div>
@@ -1469,7 +1455,7 @@ export default function IntelligencePage() {
                 className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors"
               >
                 {loadingTrends ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <AISpinner className="h-4 w-4 animate-spin" />
                 ) : (
                   <Search className="h-4 w-4" />
                 )}
@@ -1481,7 +1467,7 @@ export default function IntelligencePage() {
           {/* Trend Search Results */}
           {loadingTrends && (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <AISpinner className="h-6 w-6 animate-spin text-muted-foreground" />
               <span className="ml-2 text-muted-foreground text-sm">Fetching Google Trends data...</span>
             </div>
           )}
@@ -1702,7 +1688,7 @@ export default function IntelligencePage() {
         >
           {loadingSEO ? (
             <div className="flex items-center justify-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <AISpinner className="h-6 w-6 animate-spin text-muted-foreground" />
               <span className="ml-2 text-muted-foreground text-sm">Analyzing SEO...</span>
             </div>
           ) : (
@@ -1751,7 +1737,7 @@ export default function IntelligencePage() {
                       className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                     >
                       {bulkOptimizing ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <AISpinner className="h-4 w-4 animate-spin" />
                       ) : (
                         <Sparkles className="h-4 w-4" />
                       )}
@@ -1820,7 +1806,7 @@ export default function IntelligencePage() {
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                               >
                                 {optimizingId === product.productId ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  <AISpinner className="h-3.5 w-3.5 animate-spin" />
                                 ) : (
                                   <Sparkles className="h-3.5 w-3.5" />
                                 )}
@@ -1900,7 +1886,7 @@ export default function IntelligencePage() {
           {/* Loading specific report */}
           {loadingReport && (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
+              <AISpinner className="h-6 w-6 animate-spin text-brand-500" />
               <span className="ml-2 text-sm text-muted-foreground">Loading report...</span>
             </div>
           )}
@@ -1908,7 +1894,7 @@ export default function IntelligencePage() {
           {/* Loading */}
           {loadingMarketResearch && (
             <div className="flex flex-col items-center justify-center py-16">
-              <Loader2 className="h-8 w-8 animate-spin text-brand-500 mb-3" />
+              <AISpinner className="h-8 w-8 animate-spin text-brand-500 mb-3" />
               <p className="text-sm font-medium">Researching market trends and opportunities...</p>
               <p className="text-xs text-muted-foreground mt-1">Analyzing Google Trends, consumer demand, and your catalog gaps</p>
             </div>
@@ -1959,7 +1945,7 @@ export default function IntelligencePage() {
                   disabled={loadingMarketResearch}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors"
                 >
-                  {loadingMarketResearch ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  {loadingMarketResearch ? <AISpinner className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   New Research (15 credits)
                 </motion.button>
               </motion.div>

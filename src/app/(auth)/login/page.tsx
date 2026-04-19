@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Loader2, Briefcase } from "lucide-react";
+import { Eye, EyeOff, Briefcase } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { LoginIllustration } from "@/components/illustrations/login-illustration";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 function LoginPageContent() {
   const router = useRouter();
@@ -212,7 +213,7 @@ function LoginPageContent() {
         <Button type="submit" className={`w-full ${isAgentFlow ? "bg-violet-600 hover:bg-violet-700" : ""}`} size="lg" disabled={isLoading || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}>
           {isLoading ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <AISpinner className="h-4 w-4 animate-spin" />
               Signing in...
             </>
           ) : isAgentFlow ? (

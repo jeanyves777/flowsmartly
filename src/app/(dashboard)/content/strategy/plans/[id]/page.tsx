@@ -4,28 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  ArrowLeft,
-  Loader2,
-  Trash2,
-  Plus,
-  GripVertical,
-  Target,
-  Sparkles,
-  Calendar,
-  CheckCircle2,
-  Circle,
-  Clock,
-  Edit2,
-  X,
-  AlertTriangle,
-  RefreshCw,
-  Save,
-  Activity,
-  ExternalLink,
-  ListChecks,
-  ArrowRight,
-} from "lucide-react";
+import { ArrowLeft, Trash2, Plus, GripVertical, Target, Sparkles, Calendar, CheckCircle2, Circle, Clock, Edit2, X, AlertTriangle, RefreshCw, Save, Activity, ExternalLink, ListChecks, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +49,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // --- Types ---
 
@@ -818,7 +798,7 @@ export default function StrategyDetailPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <AISpinner className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -909,7 +889,7 @@ export default function StrategyDetailPage() {
                   className="bg-orange-500 hover:bg-orange-600 text-white"
                 >
                   {isSavingHeader ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    <AISpinner className="h-4 w-4 animate-spin mr-1" />
                   ) : (
                     <Save className="h-4 w-4 mr-1" />
                   )}
@@ -1518,7 +1498,7 @@ export default function StrategyDetailPage() {
                 className="bg-orange-500 hover:bg-orange-600 text-white"
               >
                 {isSavingTask ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  <AISpinner className="h-4 w-4 animate-spin mr-1" />
                 ) : (
                   <Save className="h-4 w-4 mr-1" />
                 )}

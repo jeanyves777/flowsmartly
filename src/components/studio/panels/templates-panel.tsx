@@ -1,13 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  Search,
-  Loader2,
-  LayoutGrid,
-  Image as ImageIcon,
-  Sparkles,
-} from "lucide-react";
+import { Search, LayoutGrid, Image as ImageIcon, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
@@ -16,6 +10,7 @@ import { addImageToCanvas, createTextbox, safeLoadFromJSON } from "../utils/canv
 import { DESIGN_CATEGORIES } from "@/lib/constants/design-presets";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface DesignTemplate {
   id: string;
@@ -361,7 +356,7 @@ export function TemplatesPanel() {
                   style={{ background: template.gradient }}
                 >
                   {applyingId === template.id ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-white" />
+                    <AISpinner className="h-5 w-5 animate-spin text-white" />
                   ) : (
                     <span className={cn(
                       "font-bold text-center leading-tight",
@@ -385,7 +380,7 @@ export function TemplatesPanel() {
 
       {loading ? (
         <div className="flex items-center justify-center py-6">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <AISpinner className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : templates.length > 0 ? (
         <div>
@@ -403,7 +398,7 @@ export function TemplatesPanel() {
               >
                 {applyingId === template.id ? (
                   <div className="absolute inset-0 flex items-center justify-center bg-muted">
-                    <Loader2 className="h-5 w-5 animate-spin text-brand-500" />
+                    <AISpinner className="h-5 w-5 animate-spin text-brand-500" />
                   </div>
                 ) : (
                   <img src={template.thumbnail || template.image} alt={template.name} className="w-full h-full object-cover" />

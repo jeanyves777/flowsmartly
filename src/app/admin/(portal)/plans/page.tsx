@@ -1,27 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  CreditCard,
-  RefreshCw,
-  Loader2,
-  AlertTriangle,
-  Save,
-  Sparkles,
-  Check,
-  ToggleLeft,
-  ToggleRight,
-  Edit2,
-  DollarSign,
-  Star,
-  Coins,
-  X,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { CreditCard, RefreshCw, AlertTriangle, Save, Sparkles, Check, ToggleLeft, ToggleRight, Edit2, DollarSign, Star, Coins, X, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface PlanAdmin {
   id: string;
@@ -236,7 +220,7 @@ export default function AdminPlansPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -655,7 +639,7 @@ export default function AdminPlansPage() {
               </Button>
               <Button size="sm" onClick={handleSave} disabled={isSaving}>
                 {isSaving ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
+                  <><AISpinner className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
                 ) : (
                   <><Save className="w-4 h-4 mr-2" /> {isCreating ? "Create Plan" : "Save Changes"}</>
                 )}

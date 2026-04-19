@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, TrendingUp, ShoppingCart, Megaphone, Loader2, ExternalLink } from "lucide-react";
+import { DollarSign, TrendingUp, ShoppingCart, Megaphone, ExternalLink } from "lucide-react";
 import Link from "next/link";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface CampaignROAS {
   id: string;
@@ -51,7 +52,7 @@ export default function ROASDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        <AISpinner className="h-6 w-6 animate-spin text-gray-400" />
       </div>
     );
   }

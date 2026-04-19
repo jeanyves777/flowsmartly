@@ -3,39 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import {
-  Globe,
-  ArrowLeft,
-  Shield,
-  ShieldCheck,
-  Server,
-  Plus,
-  Trash2,
-  RefreshCw,
-  Loader2,
-  Copy,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  Settings,
-  Layers,
-  Link as LinkIcon,
-  Unlink,
-  ToggleLeft,
-  ToggleRight,
-  ExternalLink,
-  ShoppingBag,
-  CreditCard,
-  DollarSign,
-  Calendar,
-  Receipt,
-  FileText,
-} from "lucide-react";
+import { Globe, ArrowLeft, Shield, ShieldCheck, Server, Plus, Trash2, RefreshCw, Copy, CheckCircle2, AlertCircle, Clock, Settings, Layers, Link as LinkIcon, Unlink, ToggleLeft, ToggleRight, ExternalLink, ShoppingBag, CreditCard, DollarSign, Calendar, Receipt, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──
 
@@ -217,7 +190,7 @@ export default function DomainDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <AISpinner className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -244,7 +217,7 @@ export default function DomainDetailPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
-            {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {refreshing ? <AISpinner className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             Refresh
           </Button>
           <Button variant="outline" size="sm" asChild>
@@ -762,7 +735,7 @@ function DnsTab({
           <div className="flex gap-2 justify-end">
             <Button variant="outline" size="sm" onClick={() => setShowAdd(false)}>Cancel</Button>
             <Button size="sm" onClick={handleAdd} disabled={adding}>
-              {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              {adding ? <AISpinner className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               Add
             </Button>
           </div>
@@ -808,7 +781,7 @@ function DnsTab({
                 onClick={() => handleDelete(record.id)}
                 disabled={deleting === record.id}
               >
-                {deleting === record.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                {deleting === record.id ? <AISpinner className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               </Button>
             </div>
           ))}
@@ -1201,7 +1174,7 @@ function ShopSubdomainSection({
           disabled={toggling || parentSaving}
         >
           {toggling ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <AISpinner className="h-4 w-4 animate-spin" />
           ) : shopSubdomain ? (
             <>
               <Unlink className="h-3.5 w-3.5" />

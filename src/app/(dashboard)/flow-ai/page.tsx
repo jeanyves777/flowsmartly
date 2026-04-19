@@ -4,22 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { useCreditCosts } from "@/hooks/use-credit-costs";
-import {
-  ArrowUp,
-  Plus,
-  Sparkles,
-  Coins,
-  Search,
-  Trash2,
-  MessageSquare,
-  Image as ImageIcon,
-  Video,
-  Type,
-  Wand2,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Loader2,
-} from "lucide-react";
+import { ArrowUp, Plus, Sparkles, Coins, Search, Trash2, MessageSquare, Image as ImageIcon, Video, Type, Wand2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import Link from "next/link";
 import { MessageBubble } from "@/components/ai-assistant/message-bubble";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
@@ -408,7 +393,7 @@ export default function FlowAIPage() {
           <div className="flex-1 overflow-y-auto px-3 pb-3">
             {conversationsLoading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                <AISpinner className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
             ) : filteredConversations.length === 0 ? (
               <div className="text-center py-8">

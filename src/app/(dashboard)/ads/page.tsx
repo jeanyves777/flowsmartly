@@ -4,29 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  Megaphone,
-  Plus,
-  Search,
-  MoreHorizontal,
-  DollarSign,
-  Eye,
-  MousePointerClick,
-  Target,
-  Calendar,
-  TrendingUp,
-  Play,
-  Pause,
-  Edit2,
-  BarChart3,
-  Users,
-  Zap,
-  Loader2,
-  AlertTriangle,
-  RefreshCw,
-  Trash2,
-  Copy,
-} from "lucide-react";
+import { Megaphone, Plus, Search, MoreHorizontal, DollarSign, Eye, MousePointerClick, Target, Calendar, TrendingUp, Play, Pause, Edit2, BarChart3, Users, Zap, AlertTriangle, RefreshCw, Trash2, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 type AdStatus = "active" | "paused" | "draft" | "completed" | "scheduled";
 
@@ -492,7 +471,7 @@ export default function AdsPage() {
                                 disabled={actionLoading === campaign.id}
                               >
                                 {actionLoading === campaign.id ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <AISpinner className="w-3.5 h-3.5 animate-spin" />
                                 ) : (
                                   <>
                                     <Pause className="w-3.5 h-3.5 mr-1.5" />
@@ -509,7 +488,7 @@ export default function AdsPage() {
                                 disabled={actionLoading === campaign.id}
                               >
                                 {actionLoading === campaign.id ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <AISpinner className="w-3.5 h-3.5 animate-spin" />
                                 ) : (
                                   <>
                                     <Play className="w-3.5 h-3.5 mr-1.5" />

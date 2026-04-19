@@ -2,29 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Briefcase,
-  Search,
-  Plus,
-  Loader2,
-  MapPin,
-  Globe,
-  Phone,
-  Mail,
-  Star,
-  ExternalLink,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  Send,
-  Trash2,
-  Building2,
-  ChevronDown,
-  ChevronUp,
-  RefreshCw,
-  Users,
-  ShieldAlert,
-} from "lucide-react";
+import { Briefcase, Search, Plus, MapPin, Globe, Phone, Mail, Star, ExternalLink, CheckCircle2, Clock, AlertCircle, Send, Trash2, Building2, ChevronDown, ChevronUp, RefreshCw, Users, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +15,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -84,7 +63,7 @@ interface LeadSearchResult {
 function StatusBadge({ status }: { status: Pitch["status"] }) {
   const map = {
     PENDING: { label: "Pending", color: "bg-muted text-muted-foreground", icon: <Clock className="w-3 h-3" /> },
-    RESEARCHING: { label: "Researching…", color: "bg-blue-500/10 text-blue-600 dark:text-blue-400", icon: <Loader2 className="w-3 h-3 animate-spin" /> },
+    RESEARCHING: { label: "Researching…", color: "bg-blue-500/10 text-blue-600 dark:text-blue-400", icon: <AISpinner className="w-3 h-3 animate-spin" /> },
     READY: { label: "Ready", color: "bg-green-500/10 text-green-600 dark:text-green-400", icon: <CheckCircle2 className="w-3 h-3" /> },
     FAILED: { label: "Failed", color: "bg-red-500/10 text-red-600 dark:text-red-400", icon: <AlertCircle className="w-3 h-3" /> },
     SENT: { label: "Sent", color: "bg-purple-500/10 text-purple-600 dark:text-purple-400", icon: <Send className="w-3 h-3" /> },
@@ -441,7 +420,7 @@ export default function PitchBoardPage() {
             {/* Pitch list */}
             {isLoadingPitches ? (
               <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                <AISpinner className="w-8 h-8 animate-spin text-blue-500" />
               </div>
             ) : pitches.length === 0 ? (
               <div className="bg-card rounded-xl border border-dashed border-border p-12 text-center">
@@ -470,7 +449,7 @@ export default function PitchBoardPage() {
                       <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10 bg-card rounded-lg border border-border p-1.5 shadow-md" onClick={e => e.stopPropagation()}>
                         <span className="text-xs text-red-400 px-1">Delete?</span>
                         <Button size="sm" variant="destructive" className="h-6 px-2 text-xs" disabled={deletingId === pitch.id} onClick={() => handleDeletePitch(pitch.id)}>
-                          {deletingId === pitch.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirm"}
+                          {deletingId === pitch.id ? <AISpinner className="w-3 h-3 animate-spin" /> : "Confirm"}
                         </Button>
                         <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => setDeleteConfirmId(null)}>
                           Cancel
@@ -553,7 +532,7 @@ export default function PitchBoardPage() {
                   />
                 </div>
                 <Button type="submit" disabled={isSearchingLeads} className="gap-2 whitespace-nowrap">
-                  {isSearchingLeads ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  {isSearchingLeads ? <AISpinner className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                   {isSearchingLeads ? "Searching…" : "Search"}
                 </Button>
               </form>
@@ -637,7 +616,7 @@ export default function PitchBoardPage() {
                               onClick={() => handleCreatePitchFromLead(lead, idx)}
                             >
                               {pitchingLead === idx
-                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ? <AISpinner className="w-3.5 h-3.5 animate-spin" />
                                 : <Briefcase className="w-3.5 h-3.5" />
                               }
                               {pitchingLead === idx ? "Creating…" : "Create Pitch"}
@@ -800,7 +779,7 @@ export default function PitchBoardPage() {
             <div className="flex justify-end gap-3 pt-1">
               <Button type="button" variant="outline" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
               <Button type="submit" disabled={isCreating} className="gap-2">
-                {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Briefcase className="w-4 h-4" />}
+                {isCreating ? <AISpinner className="w-4 h-4 animate-spin" /> : <Briefcase className="w-4 h-4" />}
                 {isCreating ? "Creating…" : "Start Research"}
               </Button>
             </div>
@@ -833,7 +812,7 @@ export default function PitchBoardPage() {
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowSaveDialog(false)}>Cancel</Button>
               <Button disabled={!saveListName.trim() || isSavingLeads} onClick={handleSaveToList} className="gap-2">
-                {isSavingLeads ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+                {isSavingLeads ? <AISpinner className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
                 {isSavingLeads ? "Saving…" : "Save Contacts"}
               </Button>
             </div>

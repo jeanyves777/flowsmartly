@@ -2,31 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Users,
-  Search,
-  ChevronDown,
-  ChevronRight,
-  Globe,
-  Monitor,
-  Smartphone,
-  Mail,
-  Phone,
-  MapPin,
-  RefreshCw,
-  Download,
-  Star,
-  UserPlus,
-  ExternalLink,
-  Hash,
-  Activity,
-  Loader2,
-  AlertTriangle,
-} from "lucide-react";
+import { Users, Search, ChevronDown, ChevronRight, Globe, Monitor, Smartphone, Mail, Phone, MapPin, RefreshCw, Download, Star, UserPlus, ExternalLink, Hash, Activity, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // Types
 interface Visitor {
@@ -359,7 +340,7 @@ export default function VisitorsPage() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-8 flex justify-center">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <AISpinner className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : visitors.length === 0 ? (
             <div className="p-12 text-center">

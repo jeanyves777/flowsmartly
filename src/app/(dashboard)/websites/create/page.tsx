@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, ArrowLeft, ArrowRight, Loader2, Check, Palette, Globe, Target, Settings, CheckCircle2, Languages } from "lucide-react";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { Sparkles, ArrowLeft, ArrowRight, Check, Palette, Globe, Target, Settings, CheckCircle2, Languages } from "lucide-react";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 const SUPPORTED_LANGUAGES = [
   { code: "en", label: "English" }, { code: "fr", label: "French" }, { code: "es", label: "Spanish" },
   { code: "pt", label: "Portuguese" }, { code: "de", label: "German" }, { code: "it", label: "Italian" },
@@ -528,7 +528,7 @@ export default function CreateWebsitePage() {
                   disabled={generating}
                   className="flex items-center gap-2 px-6 py-2.5 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50 transition-all"
                 >
-                  {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Sparkles className="w-4 h-4" /> Generate Website (500 credits)</>}
+                  {generating ? <><AISpinner className="w-4 h-4 animate-spin" /> Generating...</> : <><Sparkles className="w-4 h-4" /> Generate Website (500 credits)</>}
                 </button>
               )}
             </div>
@@ -549,7 +549,7 @@ export default function CreateWebsitePage() {
 
             {!brandKitLoaded ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" /> Loading brand kits...
+                <AISpinner className="w-4 h-4 animate-spin" /> Loading brand kits...
               </div>
             ) : brandKits.length === 0 ? (
               <p className="text-xs text-muted-foreground">No brand kits found. Fill in details manually.</p>

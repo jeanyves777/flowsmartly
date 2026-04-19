@@ -2,27 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Building2,
-  Phone,
-  Mail,
-  Globe,
-  MapPin,
-  Clock,
-  Save,
-  RefreshCw,
-  Loader2,
-  AlertTriangle,
-  Trash2,
-  CreditCard,
-  ArrowUp,
-  ArrowDown,
-  ChevronLeft,
-  Facebook,
-  Instagram,
-  Twitter,
-  Linkedin,
-} from "lucide-react";
+import { Building2, Phone, Mail, Globe, MapPin, Clock, Save, RefreshCw, AlertTriangle, Trash2, CreditCard, ArrowUp, ArrowDown, ChevronLeft, Facebook, Instagram, Twitter, Linkedin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -35,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──
 
@@ -311,7 +292,7 @@ export default function ListSmartlySettingsPage() {
             <CardTitle className="text-base">Business Profile</CardTitle>
             <Button variant="outline" size="sm" onClick={handleSyncBrand} disabled={syncing}>
               {syncing ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                <AISpinner className="h-4 w-4 animate-spin mr-1" />
               ) : (
                 <RefreshCw className="h-4 w-4 mr-1" />
               )}
@@ -545,7 +526,7 @@ export default function ListSmartlySettingsPage() {
           <div className="flex justify-end">
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <AISpinner className="h-4 w-4 animate-spin mr-2" />
               ) : (
                 <Save className="h-4 w-4 mr-2" />
               )}
@@ -656,7 +637,7 @@ export default function ListSmartlySettingsPage() {
                   disabled={deleting}
                 >
                   {deleting ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    <AISpinner className="h-4 w-4 animate-spin mr-1" />
                   ) : (
                     <Trash2 className="h-4 w-4 mr-1" />
                   )}

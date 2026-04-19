@@ -3,30 +3,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Briefcase,
-  CheckCircle,
-  Clock,
-  Loader2,
-  Plus,
-  X,
-  DollarSign,
-  Globe,
-  Sparkles,
-  Target,
-  User,
-  FileText,
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  ChevronRight,
-  Pencil,
-} from "lucide-react";
+import { Briefcase, CheckCircle, Clock, Plus, X, DollarSign, Globe, Sparkles, Target, User, FileText, ArrowLeft, ArrowRight, Check, ChevronRight, Pencil } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SPECIALTY_OPTIONS, INDUSTRY_OPTIONS } from "@/lib/agent/constants";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 const WIZARD_STEPS = [
   { label: "Specialties", icon: Target, description: "What do you specialize in?" },
@@ -317,7 +300,7 @@ export default function AgentApplyPage() {
   if (isCheckingProfile) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <AISpinner className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -617,7 +600,7 @@ export default function AgentApplyPage() {
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <AISpinner className="h-4 w-4 mr-2 animate-spin" />
                   Submitting...
                 </>
               ) : (
@@ -661,7 +644,7 @@ function AISuggestButton({
       className="gap-2 border-violet-200 text-violet-600 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950"
     >
       {loading ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <AISpinner className="h-4 w-4 animate-spin" />
       ) : (
         <Sparkles className="h-4 w-4" />
       )}
@@ -760,7 +743,7 @@ function StepDisplayName({
         {/* AI Suggestions */}
         {isGeneratingNames && suggestedNames.length === 0 && (
           <div className="flex items-center gap-2 p-4 rounded-lg bg-violet-500/5 border border-violet-200">
-            <Loader2 className="h-4 w-4 animate-spin text-violet-500" />
+            <AISpinner className="h-4 w-4 animate-spin text-violet-500" />
             <span className="text-sm text-violet-600">AI is generating name suggestions...</span>
           </div>
         )}
@@ -814,7 +797,7 @@ function StepDisplayName({
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2">
               {isCheckingName && (
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                <AISpinner className="h-4 w-4 animate-spin text-muted-foreground" />
               )}
               {!isCheckingName && nameAvailable === true && displayName.trim() && (
                 <CheckCircle className="h-4 w-4 text-emerald-500" />
@@ -879,7 +862,7 @@ function StepBio({
 
         {isGeneratingBio && (
           <div className="flex items-center gap-2 p-4 rounded-lg bg-violet-500/5 border border-violet-200">
-            <Loader2 className="h-4 w-4 animate-spin text-violet-500" />
+            <AISpinner className="h-4 w-4 animate-spin text-violet-500" />
             <span className="text-sm text-violet-600">AI is writing your bio...</span>
           </div>
         )}
@@ -990,7 +973,7 @@ function StepDetails({
           {/* AI Suggestions */}
           {isGeneratingIndustries && suggestedIndustries.length === 0 && (
             <div className="flex items-center gap-2 p-3 rounded-lg bg-violet-500/5 border border-violet-200">
-              <Loader2 className="h-4 w-4 animate-spin text-violet-500" />
+              <AISpinner className="h-4 w-4 animate-spin text-violet-500" />
               <span className="text-sm text-violet-600">AI is suggesting industries...</span>
             </div>
           )}

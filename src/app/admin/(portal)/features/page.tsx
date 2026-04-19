@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import {
-  Check, X, Loader2, RefreshCw, Users, ToggleLeft, ToggleRight,
-} from "lucide-react";
+import { Check, X, RefreshCw, Users, ToggleLeft, ToggleRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 const PLANS = ["STARTER", "NON_PROFIT", "PRO", "BUSINESS", "ENTERPRISE"];
 
@@ -131,7 +130,7 @@ export default function AdminFeaturesPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin" />
+        <AISpinner className="w-6 h-6 animate-spin" />
       </div>
     );
   }

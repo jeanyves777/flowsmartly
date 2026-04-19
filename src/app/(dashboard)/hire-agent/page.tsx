@@ -3,28 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Search,
-  Store,
-  Star,
-  Users,
-  DollarSign,
-  Filter,
-  Loader2,
-  Briefcase,
-  ChevronLeft,
-  ChevronRight,
-  Globe,
-  Award,
-  ArrowUpDown,
-  Sparkles,
-  TrendingUp,
-  Heart,
-  ExternalLink,
-  CheckCircle,
-  X,
-  Clock,
-} from "lucide-react";
+import { Search, Store, Star, Users, DollarSign, Filter, Briefcase, ChevronLeft, ChevronRight, Globe, Award, ArrowUpDown, Sparkles, TrendingUp, Heart, ExternalLink, CheckCircle, X, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface Agent {
   id: string;
@@ -442,7 +422,7 @@ export default function MarketplacePage() {
             animate={{ rotate: 360 }}
             transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
           >
-            <Loader2 className="h-8 w-8 text-violet-500" />
+            <AISpinner className="h-8 w-8 text-violet-500" />
           </motion.div>
           <p className="text-sm text-muted-foreground">Finding agents...</p>
         </div>

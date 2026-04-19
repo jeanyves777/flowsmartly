@@ -1,29 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  Sparkles,
-  Loader2,
-  ChevronDown,
-  Image as ImageIcon,
-  Megaphone,
-  FileText,
-  Presentation,
-  PanelTop,
-  Signpost,
-  User,
-  Package,
-  Type,
-  Palette,
-  Building2,
-  Mail,
-  Phone,
-  Globe,
-  MapPin,
-  Zap,
-  Layers,
-  X,
-} from "lucide-react";
+import { Sparkles, ChevronDown, Image as ImageIcon, Megaphone, FileText, Presentation, PanelTop, Signpost, User, Package, Type, Palette, Building2, Mail, Phone, Globe, MapPin, Zap, Layers, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,6 +30,7 @@ import { useCanvasStore } from "./hooks/use-canvas-store";
 import { addImageToCanvas } from "./utils/canvas-helpers";
 import { applyAILayout } from "./utils/layout-to-canvas";
 import { motion, AnimatePresence } from "framer-motion";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface SocialHandles {
   instagram?: string;
@@ -633,7 +612,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                     disabled={isGeneratingIdeas}
                   >
                     {isGeneratingIdeas ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <AISpinner className="h-3 w-3 animate-spin" />
                     ) : (
                       <Zap className="h-3 w-3" />
                     )}
@@ -1286,7 +1265,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
             className="gap-2 px-6"
           >
             {isGenerating ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <AISpinner className="h-4 w-4 animate-spin" />
             ) : (
               <Sparkles className="h-4 w-4" />
             )}

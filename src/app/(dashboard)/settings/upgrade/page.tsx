@@ -5,21 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { emitPlanUpdate } from "@/lib/utils/plan-event";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Check,
-  Crown,
-  Zap,
-  Building2,
-  Rocket,
-  Loader2,
-  AlertTriangle,
-  RefreshCw,
-  Sparkles,
-  Shield,
-  CreditCard,
-  ChevronDown,
-} from "lucide-react";
+import { ArrowLeft, Check, Crown, Zap, Building2, Rocket, AlertTriangle, RefreshCw, Sparkles, Shield, CreditCard, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +20,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface PlanData {
   id: string;
@@ -529,7 +516,7 @@ function UpgradeContent() {
                         disabled={isCheckingOut}
                       >
                         {isCheckingOut && selectedPlan === plan.id ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                         ) : (
                           <Zap className="w-4 h-4 mr-2" />
                         )}
@@ -543,7 +530,7 @@ function UpgradeContent() {
                         disabled={isCheckingOut}
                       >
                         {isCheckingOut && selectedPlan === plan.id ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                         ) : null}
                         Downgrade to {plan.name}
                       </Button>
@@ -735,7 +722,7 @@ function UpgradeContent() {
                 >
                   {isCheckingOut ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                       Processing...
                     </>
                   ) : (

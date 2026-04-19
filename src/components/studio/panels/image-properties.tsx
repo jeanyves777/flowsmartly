@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Lock, Unlock, Eraser, Loader2 } from "lucide-react";
+import { Lock, Unlock, Eraser } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useCanvasStore } from "../hooks/use-canvas-store";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 export function ImageProperties() {
   const canvas = useCanvasStore((s) => s.canvas);
@@ -373,7 +374,7 @@ export function ImageProperties() {
         disabled={removingBg}
       >
         {removingBg ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <AISpinner className="h-4 w-4 animate-spin" />
         ) : (
           <Eraser className="h-4 w-4" />
         )}

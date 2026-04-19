@@ -2,35 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import {
-  Users,
-  Eye,
-  Clock,
-  MousePointerClick,
-  Globe,
-  Monitor,
-  Smartphone,
-  Tablet,
-  ArrowUpRight,
-  ArrowDownRight,
-  RefreshCw,
-  Calendar,
-  ChevronDown,
-  BarChart3,
-  Activity,
-  UserPlus,
-  UserCheck,
-  ExternalLink,
-  Search,
-  Share2,
-  Mail,
-  Bookmark,
-  Loader2,
-  AlertTriangle,
-} from "lucide-react";
+import { Users, Eye, Clock, MousePointerClick, Globe, Monitor, Smartphone, Tablet, ArrowUpRight, ArrowDownRight, RefreshCw, Calendar, ChevronDown, BarChart3, Activity, UserPlus, UserCheck, ExternalLink, Search, Share2, Mail, Bookmark, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // Types
 interface AnalyticsStats {
@@ -470,7 +446,7 @@ export default function AnalyticsPage() {
         <CardContent className="p-6">
           {isLoading ? (
             <div className="h-64 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <SimpleLineChart data={timeSeriesData} />

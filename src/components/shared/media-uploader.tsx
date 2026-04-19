@@ -1,21 +1,12 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import {
-  Upload,
-  FolderOpen,
-  X,
-  Plus,
-  Loader2,
-  Image as ImageIcon,
-  Video,
-  Play,
-  FileText,
-} from "lucide-react";
+import { Upload, FolderOpen, X, Plus, Image as ImageIcon, Video, Play, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FileDropZone } from "@/components/shared/file-drop-zone";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -301,7 +292,7 @@ export function MediaUploader({
                 >
                   {isUploading ? (
                     <div className="flex flex-col items-center gap-0.5">
-                      <Loader2 className="w-4 h-4 animate-spin text-brand-500" />
+                      <AISpinner className="w-4 h-4 animate-spin text-brand-500" />
                       <span className="text-[9px] font-medium text-brand-500">
                         {uploadProgress.current}/{uploadProgress.total}
                       </span>
@@ -320,7 +311,7 @@ export function MediaUploader({
             >
               {isUploading ? (
                 <div className="flex flex-col items-center gap-0.5">
-                  <Loader2 className="w-5 h-5 animate-spin text-brand-500" />
+                  <AISpinner className="w-5 h-5 animate-spin text-brand-500" />
                   {uploadProgress.total > 1 && (
                     <span className="text-[9px] font-medium text-brand-500">
                       {uploadProgress.current}/{uploadProgress.total}
@@ -353,7 +344,7 @@ export function MediaUploader({
                 disabled={isUploading || !canAddMore}
               >
                 {isUploading ? (
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  <AISpinner className="w-3 h-3 mr-1 animate-spin" />
                 ) : (
                   <Upload className="w-3 h-3 mr-1" />
                 )}

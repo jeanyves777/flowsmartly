@@ -3,36 +3,7 @@
 import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Sparkles,
-  Loader2,
-  ChevronDown,
-  Image as ImageIcon,
-  Megaphone,
-  FileText,
-  Presentation,
-  PanelTop,
-  Signpost,
-  User,
-  Package,
-  Type,
-  Palette,
-  Building2,
-  Mail,
-  Phone,
-  Globe,
-  MapPin,
-  Zap,
-  Layers,
-  X,
-  Film,
-  Video,
-  Download,
-  ExternalLink,
-  Play,
-  Clock,
-  Ratio,
-} from "lucide-react";
+import { Sparkles, ChevronDown, Image as ImageIcon, Megaphone, FileText, Presentation, PanelTop, Signpost, User, Package, Type, Palette, Building2, Mail, Phone, Globe, MapPin, Zap, Layers, X, Film, Video, Download, ExternalLink, Play, Clock, Ratio } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,7 +24,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { MediaUploader } from "@/components/shared/media-uploader";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import {
@@ -788,7 +759,7 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
                     <div className="flex items-center gap-1">
                       <AIIdeasHistory contentType="design_ideas" onSelect={(idea) => setImagePrompt(idea)} className="text-xs" />
                       <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs gap-1" onClick={handleGenerateIdeas} disabled={isGeneratingIdeas}>
-                        {isGeneratingIdeas ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                        {isGeneratingIdeas ? <AISpinner className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
                         Ideas
                       </Button>
                     </div>
@@ -1288,7 +1259,7 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
             className="gap-2 px-6"
           >
             {isGenerating ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <AISpinner className="h-4 w-4 animate-spin" />
             ) : (
               <Sparkles className="h-4 w-4" />
             )}

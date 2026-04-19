@@ -1,40 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  CreditCard,
-  RefreshCw,
-  Users,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Zap,
-  Crown,
-  Shield,
-  Clock,
-  TrendingUp,
-  ShoppingBag,
-  MapPin,
-  Globe,
-  Gift,
-  DollarSign,
-  ArrowLeft,
-  Ban,
-  RotateCcw,
-  CalendarPlus,
-  ArrowUpDown,
-  Receipt,
-  Eye,
-  X,
-} from "lucide-react";
+import { CreditCard, RefreshCw, Users, AlertTriangle, CheckCircle2, XCircle, Search, ChevronLeft, ChevronRight, Zap, Crown, Shield, Clock, TrendingUp, ShoppingBag, MapPin, Globe, Gift, DollarSign, ArrowLeft, Ban, RotateCcw, CalendarPlus, ArrowUpDown, Receipt, Eye, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // Non-subscriber roles
 const FREE_ROLES = ["STARTER", "ADMIN", "SUPER_ADMIN", "AGENT"];
@@ -593,7 +565,7 @@ export default function AdminSubscriptionsPage() {
                   } catch { setActionMessage("Failed to load payments"); }
                   finally { setLoadingPayments(false); }
                 }}>
-                  {loadingPayments ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                  {loadingPayments ? <AISpinner className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
                   {paymentHistory ? "Refresh" : "Load from Stripe"}
                 </Button>
               </div>
@@ -772,7 +744,7 @@ export default function AdminSubscriptionsPage() {
 
           {/* Loading */}
           {loading ? (
-            <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+            <div className="flex justify-center py-12"><AISpinner className="h-8 w-8 animate-spin text-muted-foreground" /></div>
           ) : (
             <>
               {/* Plans Tab */}
@@ -947,7 +919,7 @@ export default function AdminSubscriptionsPage() {
                       } catch { /* silent */ }
                       finally { setSyncing(false); }
                     }} disabled={syncing} className="bg-orange-500 hover:bg-orange-600 text-white">
-                      {syncing ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Pulling from Stripe...</> : <><RefreshCw className="h-4 w-4 mr-1" /> Sync with Stripe</>}
+                      {syncing ? <><AISpinner className="h-4 w-4 animate-spin mr-1" /> Pulling from Stripe...</> : <><RefreshCw className="h-4 w-4 mr-1" /> Sync with Stripe</>}
                     </Button>
                   </div>
 
@@ -1162,7 +1134,7 @@ export default function AdminSubscriptionsPage() {
 
       {detailLoading && (
         <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50">
-          <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+          <AISpinner className="h-8 w-8 animate-spin text-orange-500" />
         </div>
       )}
     </div>

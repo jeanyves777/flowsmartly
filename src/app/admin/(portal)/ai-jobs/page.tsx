@@ -1,25 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  Sparkles,
-  Search,
-  RefreshCw,
-  Eye,
-  ChevronLeft,
-  ChevronRight,
-  Video,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  Coins,
-} from "lucide-react";
+import { Sparkles, Search, RefreshCw, Eye, ChevronLeft, ChevronRight, Video, Clock, CheckCircle2, XCircle, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface AIJob {
   id: string;
@@ -82,7 +70,7 @@ export default function AdminAIJobsPage() {
   const getStatusBadge = (status: string) => {
     const map: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
       COMPLETED: { color: "bg-green-500/10 text-green-500 border-green-500/20", icon: <CheckCircle2 className="w-3 h-3 mr-1" />, label: "Completed" },
-      PROCESSING: { color: "bg-blue-500/10 text-blue-500 border-blue-500/20", icon: <Loader2 className="w-3 h-3 mr-1 animate-spin" />, label: "Processing" },
+      PROCESSING: { color: "bg-blue-500/10 text-blue-500 border-blue-500/20", icon: <AISpinner className="w-3 h-3 mr-1 animate-spin" />, label: "Processing" },
       FAILED: { color: "bg-red-500/10 text-red-500 border-red-500/20", icon: <XCircle className="w-3 h-3 mr-1" />, label: "Failed" },
       PENDING: { color: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20", icon: <Clock className="w-3 h-3 mr-1" />, label: "Pending" },
     };

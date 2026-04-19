@@ -1,24 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  FileText,
-  Plus,
-  Search,
-  Filter,
-  MoreVertical,
-  Eye,
-  Edit,
-  Trash2,
-  Calendar,
-  User,
-  Loader2,
-  AlertTriangle,
-  Heart,
-  MessageCircle,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+import { FileText, Plus, Search, Filter, MoreVertical, Eye, Edit, Trash2, Calendar, User, AlertTriangle, Heart, MessageCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface ContentItem {
   id: string;
@@ -258,7 +242,7 @@ export default function ContentPage() {
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
           ) : content.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">

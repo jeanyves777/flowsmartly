@@ -18,23 +18,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Shield,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  AlertTriangle,
-  ExternalLink,
-  Globe,
-  MessageSquare,
-  ArrowLeft,
-  Search,
-  Loader2,
-  Eye,
-  ChevronDown,
-  ChevronUp,
-  RefreshCw,
-} from "lucide-react";
+import { Shield, CheckCircle2, XCircle, Clock, AlertTriangle, ExternalLink, Globe, MessageSquare, ArrowLeft, Search, Eye, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -797,7 +782,7 @@ export default function ComplianceReviewPage() {
                       className="gap-2"
                     >
                       {isSubmittingReview ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <AISpinner className="w-4 h-4 animate-spin" />
                       ) : (
                         <XCircle className="w-4 h-4" />
                       )}
@@ -809,7 +794,7 @@ export default function ComplianceReviewPage() {
                       className="bg-green-600 hover:bg-green-700 text-white gap-2"
                     >
                       {isSubmittingReview ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <AISpinner className="w-4 h-4 animate-spin" />
                       ) : (
                         <CheckCircle2 className="w-4 h-4" />
                       )}

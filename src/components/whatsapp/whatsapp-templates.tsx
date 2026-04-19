@@ -1,18 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  FileText,
-  Plus,
-  Trash2,
-  Loader2,
-  X,
-  CheckCircle,
-  Clock,
-  XCircle,
-  Copy,
-  Eye,
-} from "lucide-react";
+import { FileText, Plus, Trash2, X, CheckCircle, Clock, XCircle, Copy, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import type { WhatsAppAccount, Template } from "./types";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface WhatsAppTemplatesProps {
   account: WhatsAppAccount;
@@ -212,7 +202,7 @@ export function WhatsAppTemplates({ account }: WhatsAppTemplatesProps) {
   if (loading) {
     return (
       <Card className="flex items-center justify-center h-[300px]">
-        <Loader2 className="w-8 h-8 animate-spin text-green-500" />
+        <AISpinner className="w-8 h-8 animate-spin text-green-500" />
       </Card>
     );
   }
@@ -481,7 +471,7 @@ export function WhatsAppTemplates({ account }: WhatsAppTemplatesProps) {
                   onClick={handleCreate}
                   disabled={saving || !form.name.trim() || !form.bodyText.trim()}
                 >
-                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {saving && <AISpinner className="w-4 h-4 mr-2 animate-spin" />}
                   Submit for Approval
                 </Button>
               </div>

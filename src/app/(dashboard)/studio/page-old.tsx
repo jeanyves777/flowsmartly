@@ -3,40 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
-import {
-  Sparkles,
-  Image,
-  Megaphone,
-  FileText,
-  Presentation,
-  PanelTop,
-  Signpost,
-  Loader2,
-  Download,
-  RefreshCw,
-  Wand2,
-  Zap,
-  Palette,
-  History,
-  FileImage,
-  Maximize2,
-  User,
-  Package,
-  Type,
-  ChevronDown,
-  PenLine,
-  Mail,
-  Phone,
-  Globe,
-  MapPin,
-  Layers,
-  Eye,
-  Building2,
-  LayoutTemplate,
-  ImageIcon,
-  X,
-  Scissors,
-} from "lucide-react";
+import { Sparkles, Image, Megaphone, FileText, Presentation, PanelTop, Signpost, Download, RefreshCw, Wand2, Zap, Palette, History, FileImage, Maximize2, User, Package, Type, ChevronDown, PenLine, Mail, Phone, Globe, MapPin, Layers, Eye, Building2, LayoutTemplate, ImageIcon, X, Scissors } from "lucide-react";
 import { TemplateBrowser, type DesignTemplate } from "@/components/studio/template-browser";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -709,7 +676,7 @@ export default function VisualDesignStudioPage() {
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center shrink-0">
                       {(isGenerating || isEditing) ? (
-                        <Loader2 className="w-4 h-4 text-brand-500 animate-spin" />
+                        <AISpinner className="w-4 h-4 text-brand-500 animate-spin" />
                       ) : (
                         <Sparkles className="w-4 h-4 text-brand-500" />
                       )}
@@ -1066,7 +1033,7 @@ export default function VisualDesignStudioPage() {
                         className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-brand-600 hover:bg-brand-500/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         {isGeneratingCta ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <AISpinner className="w-3.5 h-3.5 animate-spin" />
                         ) : (
                           <Sparkles className="w-3.5 h-3.5" />
                         )}
@@ -1385,7 +1352,7 @@ export default function VisualDesignStudioPage() {
                   >
                     {isGenerating ? (
                       <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        <AISpinner className="w-5 h-5 mr-2 animate-spin" />
                         Generating...
                       </>
                     ) : (
@@ -1503,7 +1470,7 @@ export default function VisualDesignStudioPage() {
                           className="bg-brand-500 hover:bg-brand-600 rounded-xl px-5"
                         >
                           {isEditing ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <AISpinner className="w-4 h-4 animate-spin" />
                           ) : (
                             <Wand2 className="w-4 h-4" />
                           )}
@@ -1513,7 +1480,7 @@ export default function VisualDesignStudioPage() {
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
-                    <Loader2 className="w-8 h-8 animate-spin" />
+                    <AISpinner className="w-8 h-8 animate-spin" />
                     <p className="text-sm">Creating your design...</p>
                   </div>
                 )}

@@ -2,12 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ClipboardList,
-  ArrowLeft,
-  Loader2,
-  Plus,
-} from "lucide-react";
+import { ClipboardList, ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface ContactList {
   id: string;
@@ -169,7 +165,7 @@ export default function NewFollowUpPage() {
           <div className="flex items-center justify-end pt-4 border-t">
             <Button onClick={handleCreate} disabled={!name.trim() || isCreating} className="gap-2">
               {isCreating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <AISpinner className="h-4 w-4 animate-spin" />
               ) : (
                 <Plus className="h-4 w-4" />
               )}

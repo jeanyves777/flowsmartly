@@ -2,8 +2,9 @@
 
 import { use, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Loader2, Send, AlertCircle, Star } from "lucide-react";
+import { Check, Send, AlertCircle, Star } from "lucide-react";
 import type { SurveyQuestion } from "@/types/follow-up";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface BrandInfo {
   name: string;
@@ -212,7 +213,7 @@ function PublicSurveyClient({ slug }: { slug: string }) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <AISpinner className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
   }
@@ -279,7 +280,7 @@ function PublicSurveyClient({ slug }: { slug: string }) {
                   >
                     {submitting ? (
                       <>
-                        <Loader2 className="h-5 w-5 animate-spin" /> Submitting...
+                        <AISpinner className="h-5 w-5 animate-spin" /> Submitting...
                       </>
                     ) : (
                       <>

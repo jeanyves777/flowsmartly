@@ -1,18 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  Zap,
-  Plus,
-  Pencil,
-  Trash2,
-  Loader2,
-  MessageSquare,
-  Tag,
-  Forward,
-  Webhook,
-  X,
-} from "lucide-react";
+import { Zap, Plus, Pencil, Trash2, MessageSquare, Tag, Forward, Webhook, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import type { WhatsAppAccount, Automation } from "./types";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface WhatsAppAutomationsProps {
   account: WhatsAppAccount;
@@ -258,7 +248,7 @@ export function WhatsAppAutomations({ account }: WhatsAppAutomationsProps) {
   if (loading) {
     return (
       <Card className="flex items-center justify-center h-[300px]">
-        <Loader2 className="w-8 h-8 animate-spin text-green-500" />
+        <AISpinner className="w-8 h-8 animate-spin text-green-500" />
       </Card>
     );
   }
@@ -557,7 +547,7 @@ export function WhatsAppAutomations({ account }: WhatsAppAutomationsProps) {
                   onClick={handleSave}
                   disabled={saving}
                 >
-                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {saving && <AISpinner className="w-4 h-4 mr-2 animate-spin" />}
                   {editingId ? "Save Changes" : "Create Automation"}
                 </Button>
               </div>

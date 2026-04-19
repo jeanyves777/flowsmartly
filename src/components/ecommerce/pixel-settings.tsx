@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Save, Loader2, Facebook, BarChart3, Music2, Image } from "lucide-react";
+import { Save, Facebook, BarChart3, Music2, Image } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface PixelData {
   facebookPixelId: string;
@@ -107,7 +108,7 @@ export default function PixelSettings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <AISpinner className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -169,7 +170,7 @@ export default function PixelSettings() {
           className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
         >
           {saving ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <AISpinner className="h-4 w-4 animate-spin" />
           ) : (
             <Save className="h-4 w-4" />
           )}

@@ -5,38 +5,7 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Zap,
-  Plus,
-  Pencil,
-  Play,
-  Trash2,
-  Clock,
-  Bell,
-  Sparkles,
-  Loader2,
-  AlertTriangle,
-  RefreshCw,
-  Calendar,
-  BarChart3,
-  Rss,
-  ArrowLeft,
-  Wand2,
-  TrendingUp,
-  CheckCircle2,
-  Eye,
-  ChevronRight,
-  Settings2,
-  Copy,
-  Power,
-  Lock,
-  ImageIcon,
-  Film,
-  Coins,
-  Target,
-  ArrowRight,
-  ChevronLeft,
-} from "lucide-react";
+import { Zap, Plus, Pencil, Play, Trash2, Clock, Bell, Sparkles, AlertTriangle, RefreshCw, Calendar, BarChart3, Rss, ArrowLeft, Wand2, TrendingUp, CheckCircle2, Eye, ChevronRight, Settings2, Copy, Power, Lock, ImageIcon, Film, Coins, Target, ArrowRight, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -65,7 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { PLATFORM_META, PLATFORM_ORDER } from "@/components/shared/social-platform-icons";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import {
   Tooltip,
   TooltipContent,
@@ -1502,7 +1471,7 @@ export default function PostAutomationPage() {
                     <Coins className="h-4 w-4 text-amber-500" />
                     Estimated Credit Cost
                   </p>
-                  {wizardEstimateLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                  {wizardEstimateLoading && <AISpinner className="h-4 w-4 animate-spin text-muted-foreground" />}
                 </div>
                 {wizardEstimate && (
                   <>
@@ -1687,7 +1656,7 @@ export default function PostAutomationPage() {
                   className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white disabled:opacity-50"
                 >
                   {wizardLaunching ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Launching...</>
+                    <><AISpinner className="mr-2 h-4 w-4 animate-spin" /> Launching...</>
                   ) : (
                     <><Zap className="mr-2 h-4 w-4" /> Launch Automation ({enabledCount} tasks)</>
                   )}
@@ -1864,7 +1833,7 @@ export default function PostAutomationPage() {
                               disabled={isGeneratingTopic}
                             >
                               {isGeneratingTopic ? (
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                <AISpinner className="h-3 w-3 mr-1 animate-spin" />
                               ) : (
                                 <Sparkles className="h-3 w-3 mr-1" />
                               )}
@@ -2405,7 +2374,7 @@ export default function PostAutomationPage() {
                 >
                   {isSaving ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <AISpinner className="h-4 w-4 mr-2 animate-spin" />
                       Saving...
                     </>
                   ) : editingId ? (
@@ -2457,7 +2426,7 @@ export default function PostAutomationPage() {
                   >
                     {isGeneratingPreview ? (
                       <>
-                        <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                        <AISpinner className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                         Generating...
                       </>
                     ) : (
@@ -2796,7 +2765,7 @@ export default function PostAutomationPage() {
                                 disabled={runningId === automation.id}
                               >
                                 {runningId === automation.id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  <AISpinner className="h-3 w-3 animate-spin" />
                                 ) : (
                                   <Play className="h-3 w-3" />
                                 )}

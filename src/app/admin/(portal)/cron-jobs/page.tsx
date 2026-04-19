@@ -1,28 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Clock,
-  Play,
-  Loader2,
-  CheckCircle2,
-  XCircle,
-  RefreshCw,
-  Calendar,
-  Zap,
-  CreditCard,
-  Heart,
-  Globe,
-  Mail,
-  BarChart3,
-  ListChecks,
-  ShoppingBag,
-  MessageSquare,
-  TrendingUp,
-} from "lucide-react";
+import { Clock, Play, CheckCircle2, XCircle, RefreshCw, Calendar, Zap, CreditCard, Heart, Globe, Mail, BarChart3, ListChecks, ShoppingBag, MessageSquare, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface CronJob {
   id: string;
@@ -385,7 +368,7 @@ export default function AdminCronJobsPage() {
                     >
                       {isRunning ? (
                         <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                          <AISpinner className="h-3.5 w-3.5 animate-spin mr-1" />
                           Running
                         </>
                       ) : (

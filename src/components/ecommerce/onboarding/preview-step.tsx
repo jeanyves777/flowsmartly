@@ -1,19 +1,11 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import {
-  Eye,
-  RefreshCw,
-  Loader2,
-  ExternalLink,
-  ChevronDown,
-  ChevronUp,
-  Trash2,
-  Pencil,
-} from "lucide-react";
+import { Eye, RefreshCw, ExternalLink, ChevronDown, ChevronUp, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 import { type StoreTemplateConfig } from "@/lib/constants/store-templates";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface PreviewProduct {
   id: string;
@@ -171,7 +163,7 @@ export function PreviewStep({
         >
           {saving ? (
             <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+              <AISpinner className="h-3.5 w-3.5 animate-spin mr-1.5" />
               Saving...
             </>
           ) : (

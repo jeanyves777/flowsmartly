@@ -3,29 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  MessageSquare,
-  Phone,
-  Check,
-  Loader2,
-  AlertTriangle,
-  RefreshCw,
-  Send,
-  Trash2,
-  DollarSign,
-  Zap,
-  Shield,
-  ShieldCheck,
-  ShieldX,
-  Clock,
-  ShieldAlert,
-} from "lucide-react";
+import { ArrowLeft, MessageSquare, Phone, Check, AlertTriangle, RefreshCw, Send, Trash2, DollarSign, Zap, Shield, ShieldCheck, ShieldX, Clock, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface SmsConfig {
   smsEnabled: boolean;
@@ -577,7 +561,7 @@ export default function SmsMarketingSettingsPage() {
                 }`}>
                   {regOk ? <Check className="w-4 h-4" /> :
                    regFailed ? <ShieldX className="w-4 h-4" /> :
-                   regPending ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                   regPending ? <AISpinner className="w-4 h-4 animate-spin" /> :
                    <span className="text-sm font-bold">3</span>}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -655,7 +639,7 @@ export default function SmsMarketingSettingsPage() {
                   {isTollFree && !tollfreeVerification?.hasVerification && hasNumber && (
                     <Button onClick={handleSubmitVerification} disabled={submittingVerification} size="sm"
                       className="bg-orange-600 hover:bg-orange-700">
-                      {submittingVerification && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                      {submittingVerification && <AISpinner className="w-4 h-4 mr-1 animate-spin" />}
                       Submit
                     </Button>
                   )}
@@ -663,7 +647,7 @@ export default function SmsMarketingSettingsPage() {
                   {!isTollFree && !a2pStatus?.hasRegistration && hasNumber && (
                     <Button onClick={handleSubmitA2p} disabled={submittingA2p} size="sm"
                       className="bg-orange-600 hover:bg-orange-700">
-                      {submittingA2p && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                      {submittingA2p && <AISpinner className="w-4 h-4 mr-1 animate-spin" />}
                       Submit
                     </Button>
                   )}
@@ -672,7 +656,7 @@ export default function SmsMarketingSettingsPage() {
                     <Button onClick={isTollFree ? handleSubmitVerification : handleSubmitA2p}
                       disabled={isTollFree ? submittingVerification : submittingA2p}
                       size="sm" variant="destructive">
-                      {(isTollFree ? submittingVerification : submittingA2p) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                      {(isTollFree ? submittingVerification : submittingA2p) && <AISpinner className="w-4 h-4 mr-1 animate-spin" />}
                       Retry
                     </Button>
                   )}
@@ -772,7 +756,7 @@ export default function SmsMarketingSettingsPage() {
                       className="text-red-500 border-red-500/50 hover:bg-red-500/10"
                     >
                       {releasingNumber ? (
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        <AISpinner className="w-4 h-4 animate-spin mr-2" />
                       ) : (
                         <Trash2 className="w-4 h-4 mr-2" />
                       )}

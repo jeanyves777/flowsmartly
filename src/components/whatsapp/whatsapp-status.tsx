@@ -1,18 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Image as ImageIcon,
-  Send,
-  Loader2,
-  CheckCircle,
-} from "lucide-react";
+import { Image as ImageIcon, Send, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import type { WhatsAppAccount } from "./types";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface WhatsAppStatusProps {
   account: WhatsAppAccount;
@@ -140,7 +136,7 @@ export function WhatsAppStatus({ account }: WhatsAppStatusProps) {
               >
                 {posting ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                     Posting...
                   </>
                 ) : (

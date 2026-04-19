@@ -12,25 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
-import {
-  ArrowLeft,
-  Save,
-  Globe,
-  EyeOff,
-  Monitor,
-  Tablet,
-  Smartphone,
-  Eye,
-  Trash2,
-  RefreshCw,
-  Copy,
-  Check,
-  ExternalLink,
-  Loader2,
-  Settings,
-  Share2,
-  Users,
-} from "lucide-react";
+import { ArrowLeft, Save, Globe, EyeOff, Monitor, Tablet, Smartphone, Eye, Trash2, RefreshCw, Copy, Check, ExternalLink, Settings, Share2, Users } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface LandingPage {
   id: string;
@@ -334,7 +317,7 @@ export default function EditLandingPage() {
           disabled={deleting}
         >
           {deleting ? (
-            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            <AISpinner className="mr-1.5 h-4 w-4 animate-spin" />
           ) : (
             <Trash2 className="mr-1.5 h-4 w-4" />
           )}
@@ -342,7 +325,7 @@ export default function EditLandingPage() {
         </Button>
 
         <Button variant="outline" size="sm" onClick={handleSave} disabled={saving || !hasChanges}>
-          {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
+          {saving ? <AISpinner className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
           Save
         </Button>
 
@@ -353,7 +336,7 @@ export default function EditLandingPage() {
           disabled={publishing}
         >
           {publishing ? (
-            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            <AISpinner className="mr-1.5 h-4 w-4 animate-spin" />
           ) : isPublished ? (
             <EyeOff className="mr-1.5 h-4 w-4" />
           ) : (

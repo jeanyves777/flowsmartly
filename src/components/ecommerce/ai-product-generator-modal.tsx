@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Loader2, Check, AlertCircle, X } from "lucide-react";
+import { Sparkles, Check, AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface AIProductGeneratorModalProps {
   isOpen: boolean;
@@ -199,7 +200,7 @@ export function AIProductGeneratorModal({
             <div className="flex flex-col items-center justify-center py-12 space-y-4">
               <div className="relative">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-r from-violet-100 to-indigo-100 dark:from-violet-900/30 dark:to-indigo-900/30 flex items-center justify-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
+                  <AISpinner className="h-8 w-8 animate-spin text-violet-600" />
                 </div>
               </div>
               <div className="text-center">

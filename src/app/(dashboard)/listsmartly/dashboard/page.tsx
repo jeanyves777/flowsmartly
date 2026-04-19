@@ -2,34 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {
-  BarChart3,
-  Globe,
-  AlertTriangle,
-  Star,
-  Search,
-  Filter,
-  RefreshCw,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  Check,
-  X,
-  Clock,
-  Eye,
-  MessageSquare,
-  Sparkles,
-  Zap,
-  TrendingUp,
-  ExternalLink,
-  Settings,
-  Activity,
-  Shield,
-  Lock,
-  ThumbsUp,
-  ThumbsDown,
-  Minus,
-} from "lucide-react";
+import { BarChart3, Globe, AlertTriangle, Star, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, Check, X, Clock, Eye, MessageSquare, Sparkles, Zap, TrendingUp, ExternalLink, Settings, Activity, Shield, Lock, ThumbsUp, ThumbsDown, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -48,6 +21,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──
 
@@ -679,7 +653,7 @@ export default function ListSmartlyDashboardPage() {
 
           <Button variant="outline" onClick={runScan} disabled={scanRunning}>
             {scanRunning ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              <AISpinner className="h-4 w-4 animate-spin mr-2" />
             ) : (
               <RefreshCw className="h-4 w-4 mr-2" />
             )}

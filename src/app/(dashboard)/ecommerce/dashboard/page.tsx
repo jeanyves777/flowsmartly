@@ -2,30 +2,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import {
-  Package,
-  ShoppingCart,
-  DollarSign,
-  Clock,
-  Plus,
-  ExternalLink,
-  Settings,
-  AlertCircle,
-  TrendingUp,
-  Rocket,
-  ArrowRight,
-  Palette,
-  Loader2,
-  Flag,
-  Check,
-  AlertTriangle,
-  Star,
-  RotateCcw,
-  ShieldAlert,
-} from "lucide-react";
+import { Package, ShoppingCart, DollarSign, Clock, Plus, ExternalLink, Settings, AlertCircle, TrendingUp, Rocket, ArrowRight, Palette, Flag, Check, AlertTriangle, Star, RotateCcw, ShieldAlert } from "lucide-react";
 import { ORDER_STATUSES } from "@/lib/constants/ecommerce";
 import { formatPrice } from "@/lib/store/currency";
 import { StoreUpgradeBanner } from "@/components/ecommerce/store-upgrade-banner";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface Store {
   id: string;
@@ -227,7 +208,7 @@ export default function EcommerceDashboardPage() {
       {store.buildStatus === "building" && (
         <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-4">
           <div className="flex items-center gap-3">
-            <Loader2 className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />
+            <AISpinner className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />
             <div>
               <p className="font-medium text-blue-800 dark:text-blue-300 text-sm">Your store is being built...</p>
               <p className="text-xs text-blue-600 dark:text-blue-400">This usually takes 30-60 seconds.</p>
@@ -544,7 +525,7 @@ function BuildErrorReportButton({ storeId }: { storeId: string }) {
       disabled={sending}
       className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
     >
-      {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Flag className="w-3.5 h-3.5" />}
+      {sending ? <AISpinner className="w-3.5 h-3.5 animate-spin" /> : <Flag className="w-3.5 h-3.5" />}
       Report to Admin
     </button>
   );

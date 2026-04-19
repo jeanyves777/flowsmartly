@@ -1,22 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  ShieldCheck,
-  Search,
-  MoreVertical,
-  AlertTriangle,
-  Loader2,
-  CheckCircle2,
-  Trash2,
-  Ban,
-  Eye,
-  Calendar,
-  User,
-  MessageCircle,
-  FileText,
-  Flag,
-} from "lucide-react";
+import { ShieldCheck, Search, MoreVertical, AlertTriangle, CheckCircle2, Trash2, Ban, Eye, Calendar, User, MessageCircle, FileText, Flag } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface FlagItem {
   id: string;
@@ -271,7 +257,7 @@ export default function ModerationPage() {
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
           ) : flags.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
@@ -387,7 +373,7 @@ export default function ModerationPage() {
                                 disabled={actionLoading === flag.id}
                               >
                                 {actionLoading === flag.id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  <AISpinner className="w-4 h-4 animate-spin" />
                                 ) : (
                                   <MoreVertical className="w-4 h-4" />
                                 )}
@@ -498,7 +484,7 @@ export default function ModerationPage() {
                 onClick={() => handleAction(confirmSuspend, "suspend")}
               >
                 {actionLoading === confirmSuspend ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Suspending...</>
+                  <><AISpinner className="w-4 h-4 mr-2 animate-spin" /> Suspending...</>
                 ) : (
                   "Confirm Suspend"
                 )}

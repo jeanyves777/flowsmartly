@@ -4,36 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
-import {
-  Loader2,
-  User,
-  Briefcase,
-  Star,
-  Globe,
-  DollarSign,
-  Users,
-  Pencil,
-  ExternalLink,
-  AlertCircle,
-  ChevronDown,
-  Check,
-  X,
-  Plus,
-  Target,
-  BarChart3,
-  MessageSquare,
-  FileText,
-  Calendar,
-  Image as ImageIcon,
-  Eye,
-  ChevronLeft,
-  ChevronRight,
-  Sparkles,
-  CheckCircle,
-  Video,
-  Camera,
-  RefreshCw,
-} from "lucide-react";
+import { User, Briefcase, Star, Globe, DollarSign, Users, Pencil, ExternalLink, AlertCircle, ChevronDown, Check, X, Plus, Target, BarChart3, MessageSquare, FileText, Calendar, Image as ImageIcon, Eye, ChevronLeft, ChevronRight, Sparkles, CheckCircle, Video, Camera, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { SPECIALTY_OPTIONS, INDUSTRY_OPTIONS } from "@/lib/agent/constants";
 import Link from "next/link";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -135,7 +107,7 @@ export default function AgentProfilePage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+        <AISpinner className="h-8 w-8 animate-spin text-violet-500" />
       </div>
     );
   }
@@ -495,7 +467,7 @@ export default function AgentProfilePage() {
                         <X className="h-3.5 w-3.5 mr-1" />Cancel
                       </Button>
                       <Button size="sm" onClick={handleSaveAbout} disabled={isSaving}>
-                        {isSaving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+                        {isSaving ? <AISpinner className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
                         Save
                       </Button>
                     </>
@@ -622,7 +594,7 @@ export default function AgentProfilePage() {
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={() => setIsEditingShowcase(false)}>Cancel</Button>
                   <Button size="sm" onClick={handleSaveShowcase} disabled={isSaving}>
-                    {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+                    {isSaving ? <AISpinner className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
                     Save
                   </Button>
                 </div>
@@ -809,7 +781,7 @@ export default function AgentProfilePage() {
                             disabled={generatingAIIndex !== null}
                           >
                             {generatingAIIndex === i ? (
-                              <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Generating...</>
+                              <><AISpinner className="h-3 w-3 mr-1 animate-spin" />Generating...</>
                             ) : (
                               <><Sparkles className="h-3 w-3 mr-1" />AI Generate</>
                             )}
@@ -974,7 +946,7 @@ export default function AgentProfilePage() {
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={() => setIsEditingSpecialties(false)}>Cancel</Button>
                   <Button size="sm" onClick={handleSaveSpecialties} disabled={isSaving}>
-                    {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+                    {isSaving ? <AISpinner className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
                     Save
                   </Button>
                 </div>
@@ -1039,7 +1011,7 @@ export default function AgentProfilePage() {
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={() => setIsEditingIndustries(false)}>Cancel</Button>
                   <Button size="sm" onClick={handleSaveIndustries} disabled={isSaving}>
-                    {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+                    {isSaving ? <AISpinner className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
                     Save
                   </Button>
                 </div>
@@ -1101,7 +1073,7 @@ export default function AgentProfilePage() {
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={() => setIsEditingPrice(false)}>Cancel</Button>
                   <Button size="sm" onClick={handleSavePrice} disabled={isSaving}>
-                    {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+                    {isSaving ? <AISpinner className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
                     Save
                   </Button>
                 </div>
@@ -1154,7 +1126,7 @@ export default function AgentProfilePage() {
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={() => setIsEditingLinks(false)}>Cancel</Button>
                   <Button size="sm" onClick={handleSaveLinks} disabled={isSaving}>
-                    {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+                    {isSaving ? <AISpinner className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
                     Save
                   </Button>
                 </div>

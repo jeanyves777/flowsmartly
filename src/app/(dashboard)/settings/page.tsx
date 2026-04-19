@@ -5,42 +5,7 @@ import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import {
-  Settings,
-  User,
-  Bell,
-  Shield,
-  Palette,
-  CreditCard,
-  Link2,
-  Moon,
-  Sun,
-  Smartphone,
-  Camera,
-  Save,
-  Loader2,
-  Check,
-  ExternalLink,
-  Instagram,
-  Twitter,
-  Linkedin,
-  Facebook,
-  AlertTriangle,
-  RefreshCw,
-  Coins,
-  Zap,
-  Crown,
-  Star,
-  Package,
-  ArrowUpRight,
-  Plus,
-  Trash2,
-  MoreVertical,
-  Upload,
-  History,
-  Receipt,
-  ArrowRight,
-} from "lucide-react";
+import { Settings, User, Bell, Shield, Palette, CreditCard, Link2, Moon, Sun, Smartphone, Camera, Save, Check, ExternalLink, Instagram, Twitter, Linkedin, Facebook, AlertTriangle, RefreshCw, Coins, Zap, Crown, Star, Package, ArrowUpRight, Plus, Trash2, MoreVertical, Upload, History, Receipt, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -66,6 +31,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 type SettingsTab = "profile" | "notifications" | "security" | "billing" | "connections" | "appearance";
 
@@ -853,7 +819,7 @@ export default function SettingsPage() {
                       disabled={isSyncingFromBrand || isLoading}
                     >
                       {isSyncingFromBrand ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                       ) : (
                         <RefreshCw className="w-4 h-4 mr-2" />
                       )}
@@ -928,7 +894,7 @@ export default function SettingsPage() {
                                 className="bg-black/60 hover:bg-black/80 text-white border-0 shadow-lg"
                               >
                                 {isUploadingCover ? (
-                                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                                  <AISpinner className="w-4 h-4 mr-1.5 animate-spin" />
                                 ) : (
                                   <Upload className="w-4 h-4 mr-1.5" />
                                 )}
@@ -1148,7 +1114,7 @@ export default function SettingsPage() {
                 <Button onClick={handleSaveProfile} disabled={isSaving || isLoading}>
                   {isSaving ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                       Saving...
                     </>
                   ) : (
@@ -1221,7 +1187,7 @@ export default function SettingsPage() {
                 <Button onClick={handleSaveNotifications} disabled={isSaving || isLoading}>
                   {isSaving ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                       Saving...
                     </>
                   ) : (
@@ -1289,7 +1255,7 @@ export default function SettingsPage() {
                   >
                     {isSaving ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                         Updating...
                       </>
                     ) : (
@@ -1426,7 +1392,7 @@ export default function SettingsPage() {
                         disabled={isOpeningPortal}
                       >
                         {isOpeningPortal ? (
-                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          <AISpinner className="w-4 h-4 animate-spin mr-2" />
                         ) : (
                           <ExternalLink className="w-4 h-4 mr-2" />
                         )}
@@ -1504,7 +1470,7 @@ export default function SettingsPage() {
                               disabled={isDeletingPaymentMethod === method.id}
                             >
                               {isDeletingPaymentMethod === method.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <AISpinner className="w-4 h-4 animate-spin" />
                               ) : (
                                 <Trash2 className="w-4 h-4" />
                               )}

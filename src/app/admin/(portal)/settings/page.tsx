@@ -2,31 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  User,
-  Mail,
-  Lock,
-  Bell,
-  Shield,
-  Save,
-  Eye,
-  EyeOff,
-  Loader2,
-  CheckCircle,
-  AlertTriangle,
-  Key,
-  Smartphone,
-  Megaphone,
-  ExternalLink,
-  RefreshCw,
-  Link2,
-} from "lucide-react";
+import { User, Mail, Lock, Bell, Shield, Save, Eye, EyeOff, CheckCircle, AlertTriangle, Key, Smartphone, Megaphone, ExternalLink, RefreshCw, Link2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface AdminProfile {
   id: string;
@@ -235,7 +218,7 @@ export default function SettingsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -382,7 +365,7 @@ export default function SettingsPage() {
                   className="bg-orange-500 hover:bg-orange-600 text-white"
                 >
                   {isSaving ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
                     <Save className="w-4 h-4 mr-2" />
                   )}
@@ -461,7 +444,7 @@ export default function SettingsPage() {
                   className="bg-orange-500 hover:bg-orange-600 text-white"
                 >
                   {isSaving ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
                     <Lock className="w-4 h-4 mr-2" />
                   )}
@@ -630,7 +613,7 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               {googleAdsLoading ? (
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <AISpinner className="w-4 h-4 animate-spin" />
                   Checking connection status...
                 </div>
               ) : googleAdsStatus?.connected ? (

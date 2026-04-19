@@ -2,18 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import {
-  DollarSign,
-  TrendingUp,
-  CreditCard,
-  Banknote,
-  Smartphone,
-  Building2,
-  AlertCircle,
-  Loader2,
-  CheckCircle2,
-  XCircle,
-} from "lucide-react";
+import { DollarSign, TrendingUp, CreditCard, Banknote, Smartphone, Building2, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -28,6 +17,7 @@ import {
   Legend,
 } from "recharts";
 import { formatPrice } from "@/lib/store/currency";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface EarningsData {
   store: {
@@ -106,7 +96,7 @@ export default function EarningsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <AISpinner className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }

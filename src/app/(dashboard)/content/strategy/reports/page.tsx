@@ -4,25 +4,11 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import {
-  BarChart3,
-  TrendingUp,
-  TrendingDown,
-  Trophy,
-  ArrowLeft,
-  Calendar,
-  Target,
-  CheckCircle2,
-  Clock,
-  Activity,
-  ListOrdered,
-  FileText,
-  Loader2,
-  Sparkles,
-} from "lucide-react";
+import { BarChart3, TrendingUp, TrendingDown, Trophy, ArrowLeft, Calendar, Target, CheckCircle2, Clock, Activity, ListOrdered, FileText, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // --- Types ---
 
@@ -327,7 +313,7 @@ export default function StrategyReportsPage() {
                 onClick={fetchReports}
                 className="ml-auto"
               >
-                <Loader2 className="h-4 w-4 mr-1" />
+                <AISpinner className="h-4 w-4 mr-1" />
                 Retry
               </Button>
             </CardContent>

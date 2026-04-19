@@ -2,49 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Heart,
-  MessageCircle,
-  Share2,
-  Bookmark,
-  MoreHorizontal,
-  ImagePlus,
-  Sparkles,
-  Send,
-  TrendingUp,
-  Users,
-  Loader2,
-  X,
-  AlertTriangle,
-  RefreshCw,
-  Check,
-  Image,
-  Video,
-  ChevronLeft,
-  ChevronRight,
-  Link2,
-  Mail,
-  Eye,
-  Reply,
-  Trash2,
-  ChevronDown,
-  AtSign,
-  ZoomIn,
-  Megaphone,
-  Rocket,
-  DollarSign,
-  Timer,
-  CheckCircle2,
-  Pause,
-  ExternalLink,
-  Shield,
-  Pencil,
-  Lightbulb,
-  Upload,
-  FolderOpen,
-  Zap,
-  Flag,
-} from "lucide-react";
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, ImagePlus, Sparkles, Send, TrendingUp, Users, X, AlertTriangle, RefreshCw, Check, Image, Video, ChevronLeft, ChevronRight, Link2, Mail, Eye, Reply, Trash2, ChevronDown, AtSign, ZoomIn, Megaphone, Rocket, DollarSign, Timer, CheckCircle2, Pause, ExternalLink, Shield, Pencil, Lightbulb, Upload, FolderOpen, Zap, Flag } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -2277,7 +2235,7 @@ export default function FeedPage() {
                                       className="p-1.5 rounded-full bg-brand-500 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-brand-600 transition-colors"
                                     >
                                       {postingCommentMap[post.id] ? (
-                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        <AISpinner className="w-3.5 h-3.5 animate-spin" />
                                       ) : (
                                         <Send className="w-3.5 h-3.5" />
                                       )}
@@ -2311,7 +2269,7 @@ export default function FeedPage() {
                               {/* Comments list */}
                               {commentLoadingMap[post.id] ? (
                                 <div className="flex items-center justify-center py-6">
-                                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                                  <AISpinner className="w-5 h-5 animate-spin text-muted-foreground" />
                                 </div>
                               ) : (
                                 <div className="mt-1">

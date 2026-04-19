@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Search, UserPlus, Mail, MessageSquare, Download, Users, ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
+import { Search, UserPlus, Mail, MessageSquare, Download, Users, ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface StoreCustomer {
   id: string;
@@ -153,7 +154,7 @@ export default function CustomersPage() {
             disabled={bulkAdding}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {bulkAdding ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}
+            {bulkAdding ? <AISpinner size={15} className="animate-spin" /> : <UserPlus size={15} />}
             Add {selected.size} to Contacts
           </button>
         )}
@@ -163,7 +164,7 @@ export default function CustomersPage() {
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16 text-gray-400">
-            <Loader2 size={24} className="animate-spin" />
+            <AISpinner size={24} className="animate-spin" />
           </div>
         ) : customers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
@@ -224,7 +225,7 @@ export default function CustomersPage() {
                         title="Add to FlowSmartly Contacts"
                       >
                         {addingId === c.id ? (
-                          <Loader2 size={12} className="animate-spin" />
+                          <AISpinner size={12} className="animate-spin" />
                         ) : addedIds.has(c.id) ? (
                           <><Check size={12} className="text-green-500" /> Added</>
                         ) : (

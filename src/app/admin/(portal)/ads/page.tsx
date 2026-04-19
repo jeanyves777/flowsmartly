@@ -2,27 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Megaphone,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  ExternalLink,
-  Image as ImageIcon,
-  Video,
-  Globe,
-  ShoppingBag,
-  FileText,
-  Loader2,
-  Eye,
-  MousePointerClick,
-  DollarSign,
-  User,
-  Calendar,
-  AlertTriangle,
-  ShieldCheck,
-  X,
-} from "lucide-react";
+import { Megaphone, Clock, CheckCircle2, XCircle, ExternalLink, Image as ImageIcon, Video, Globe, ShoppingBag, FileText, Eye, MousePointerClick, DollarSign, User, Calendar, AlertTriangle, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -36,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface AdCampaign {
   id: string;
@@ -509,7 +490,7 @@ export default function AdminAdsPage() {
                   disabled={isReviewing}
                 >
                   {isReviewing ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                   ) : reviewAction === "approve" ? (
                     <CheckCircle2 className="w-4 h-4 mr-2" />
                   ) : (

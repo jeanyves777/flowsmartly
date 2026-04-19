@@ -4,38 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  MessageSquare,
-  Sparkles,
-  Wand2,
-  ChevronRight,
-  ChevronLeft,
-  Check,
-  Users,
-  Clock,
-  Loader2,
-  AlertCircle,
-  Cake,
-  Calendar,
-  UserPlus,
-  Star,
-  Zap,
-  Power,
-  Globe,
-  Info,
-  RefreshCw,
-  Hash,
-  ChevronDown,
-  Eye,
-  Settings,
-  Image,
-  Upload,
-  Wand,
-  UserCircle,
-  X,
-  Type,
-} from "lucide-react";
+import { ArrowLeft, MessageSquare, Sparkles, Wand2, ChevronRight, ChevronLeft, Check, Users, Clock, AlertCircle, Cake, Calendar, UserPlus, Star, Zap, Power, Globe, Info, RefreshCw, Hash, ChevronDown, Eye, Settings, Image, Upload, Wand, UserCircle, X, Type } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -65,6 +34,7 @@ import type { Holiday } from "@/lib/marketing/holidays";
 import { getSmsTemplates, TEMPLATE_CATEGORIES } from "@/lib/marketing/templates";
 import type { MarketingTemplate, TemplateCategory } from "@/lib/marketing/templates";
 import { MERGE_TAGS, type MergeTagCategory } from "@/lib/email/merge-tags";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1026,7 +996,7 @@ export default function CreateSmsAutomationPage() {
                         >
                           {isGenerating ? (
                             <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                               Generating...
                             </>
                           ) : (
@@ -1384,7 +1354,7 @@ export default function CreateSmsAutomationPage() {
                             }}
                           >
                             {isGeneratingImage ? (
-                              <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Generating...</>
+                              <><AISpinner className="w-3 h-3 mr-1 animate-spin" /> Generating...</>
                             ) : (
                               <><Sparkles className="w-3 h-3 mr-1" /> Generate Image</>
                             )}
@@ -2101,7 +2071,7 @@ export default function CreateSmsAutomationPage() {
                       >
                         {isLoading ? (
                           <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                             Creating...
                           </>
                         ) : (

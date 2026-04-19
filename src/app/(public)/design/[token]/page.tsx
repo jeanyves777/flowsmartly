@@ -3,24 +3,14 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import {
-  Loader2,
-  Eye,
-  Pencil,
-  Files,
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  Copy,
-  AlertCircle,
-  ArrowLeft,
-} from "lucide-react";
+import { Eye, Pencil, Files, ChevronLeft, ChevronRight, ExternalLink, Copy, AlertCircle, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   stripViewportFromJSON,
 } from "@/components/studio/utils/canvas-helpers";
 import { loadGoogleFont } from "@/components/studio/utils/font-loader";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -244,7 +234,7 @@ const CanvasViewer = dynamic(() => Promise.resolve(CanvasViewerInner), {
   loading: () => (
     <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-gray-900">
       <div className="flex flex-col items-center gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+        <AISpinner className="h-8 w-8 animate-spin text-brand-500" />
         <p className="text-sm text-muted-foreground">Loading canvas...</p>
       </div>
     </div>
@@ -431,7 +421,7 @@ export default function SharedDesignPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+          <AISpinner className="h-8 w-8 animate-spin text-brand-500" />
           <p className="text-sm text-muted-foreground">Loading shared design...</p>
         </div>
       </div>
@@ -504,7 +494,7 @@ export default function SharedDesignPage() {
               className="gap-1.5"
             >
               {isCopying ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <AISpinner className="w-3.5 h-3.5 animate-spin" />
               ) : (
                 <Copy className="w-3.5 h-3.5" />
               )}

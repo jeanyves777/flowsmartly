@@ -2,7 +2,8 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, XCircle, Clock, Users, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Users } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface InvitationData {
   teamName: string;
@@ -75,7 +76,7 @@ export default function InviteAcceptPage({ params }: { params: Promise<{ token: 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+        <AISpinner className="h-8 w-8 animate-spin text-orange-500" />
       </div>
     );
   }
@@ -169,7 +170,7 @@ export default function InviteAcceptPage({ params }: { params: Promise<{ token: 
               disabled={acting}
               className="flex-1 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-medium disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {acting && <Loader2 className="h-4 w-4 animate-spin" />}
+              {acting && <AISpinner className="h-4 w-4 animate-spin" />}
               Accept
             </button>
           </div>

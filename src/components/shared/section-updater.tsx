@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Sparkles, ChevronDown, Loader2, AlertCircle, CheckCircle2, Zap } from "lucide-react";
+import { Sparkles, ChevronDown, AlertCircle, CheckCircle2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface Section {
   id: string;
@@ -85,7 +86,7 @@ export function SectionUpdater({ apiBase, onUpdated }: SectionUpdaterProps) {
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
-        <Loader2 className="w-4 h-4 animate-spin" />
+        <AISpinner className="w-4 h-4 animate-spin" />
         Loading sections...
       </div>
     );
@@ -147,7 +148,7 @@ export function SectionUpdater({ apiBase, onUpdated }: SectionUpdaterProps) {
         >
           {updating ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <AISpinner className="w-4 h-4 animate-spin" />
               Updating...
             </>
           ) : (

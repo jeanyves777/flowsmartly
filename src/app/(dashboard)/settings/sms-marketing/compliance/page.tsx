@@ -3,26 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import {
-  Shield,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-  XCircle,
-  ArrowLeft,
-  ChevronRight,
-  ChevronLeft,
-  Plus,
-  Trash2,
-  ExternalLink,
-  Globe,
-  FileText,
-  MessageSquare,
-  Send,
-  Loader2,
-  Check,
-  Info,
-} from "lucide-react";
+import { Shield, CheckCircle2, Clock, AlertTriangle, XCircle, ArrowLeft, ChevronRight, ChevronLeft, Plus, Trash2, ExternalLink, Globe, FileText, MessageSquare, Send, Check, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -44,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { MediaUploader } from "@/components/shared/media-uploader";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ------------------------------------------------------------------
 // Types
@@ -396,7 +378,7 @@ export default function SmsCompliancePage() {
     return (
       <div className="flex-1 flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin mx-auto mb-4 text-brand-500" />
+          <AISpinner className="w-10 h-10 animate-spin mx-auto mb-4 text-brand-500" />
           <p className="text-muted-foreground">Loading compliance status...</p>
         </div>
       </div>
@@ -776,7 +758,7 @@ export default function SmsCompliancePage() {
                             onClick={() => checkUrl(privacyPolicyUrl, setPrivacyUrlStatus)}
                           >
                             {privacyUrlStatus === "checking" ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <AISpinner className="w-4 h-4 animate-spin" />
                             ) : privacyUrlStatus === "ok" ? (
                               <CheckCircle2 className="w-4 h-4 text-green-500" />
                             ) : privacyUrlStatus === "error" ? (
@@ -829,7 +811,7 @@ export default function SmsCompliancePage() {
                             onClick={() => checkUrl(termsOfServiceUrl, setTermsUrlStatus)}
                           >
                             {termsUrlStatus === "checking" ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <AISpinner className="w-4 h-4 animate-spin" />
                             ) : termsUrlStatus === "ok" ? (
                               <CheckCircle2 className="w-4 h-4 text-green-500" />
                             ) : termsUrlStatus === "error" ? (
@@ -1231,7 +1213,7 @@ export default function SmsCompliancePage() {
                         >
                           {isSubmitting ? (
                             <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                               Submitting Application...
                             </>
                           ) : (

@@ -3,20 +3,10 @@
 import { use, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import {
-  Check,
-  Loader2,
-  AlertCircle,
-  MapPin,
-  Globe,
-  Clock,
-  Users,
-  Ticket,
-  Calendar,
-  ExternalLink,
-} from "lucide-react";
+import { Check, AlertCircle, MapPin, Globe, Clock, Users, Ticket, Calendar, ExternalLink } from "lucide-react";
 import type { DataFormField } from "@/types/data-form";
 import type { RegistrationType, TicketType, EventSettings, RsvpResponse } from "@/types/event";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface BrandInfo {
   name: string;
@@ -180,7 +170,7 @@ function PublicEventClient({ slug }: { slug: string }) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <AISpinner className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
   }
@@ -562,7 +552,7 @@ function PublicEventClient({ slug }: { slug: string }) {
                       style={{ backgroundColor: primaryColor }}
                     >
                       {submitting ? (
-                        <><Loader2 className="h-5 w-5 animate-spin" /> Processing...</>
+                        <><AISpinner className="h-5 w-5 animate-spin" /> Processing...</>
                       ) : eventData.registrationType === "booking" && eventData.ticketType === "paid" ? (
                         <><Ticket className="h-5 w-5" /> Buy Ticket — ${((eventData.ticketPrice || 0) / 100).toFixed(2)}</>
                       ) : eventData.registrationType === "rsvp" ? (

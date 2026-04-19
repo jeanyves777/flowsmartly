@@ -2,35 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  Plus,
-  Loader2,
-  Clock,
-  CalendarDays,
-  MessageSquare,
-  Paperclip,
-  X,
-  Send,
-  MoreVertical,
-  Trash2,
-  User,
-  GripVertical,
-  ChevronRight,
-  AlertCircle,
-  CheckCircle2,
-  Circle,
-  Timer,
-  Eye,
-  Shield,
-  Settings,
-  Ban,
-  RotateCcw,
-  Pencil,
-  UserPlus,
-  UserMinus,
-  Users,
-} from "lucide-react";
+import { ArrowLeft, Plus, Clock, CalendarDays, MessageSquare, Paperclip, X, Send, MoreVertical, Trash2, User, GripVertical, ChevronRight, AlertCircle, CheckCircle2, Circle, Timer, Eye, Shield, Settings, Ban, RotateCcw, Pencil, UserPlus, UserMinus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -74,6 +46,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface TaskMember {
   id: string;
@@ -629,7 +602,7 @@ export default function ProjectDetailPage({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+        <AISpinner className="h-8 w-8 animate-spin text-orange-500" />
       </div>
     );
   }
@@ -908,7 +881,7 @@ export default function ProjectDetailPage({
                       onClick={() => handleRemoveMember(member.userId)}
                     >
                       {removingMemberId === member.userId ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <AISpinner className="h-3 w-3 animate-spin" />
                       ) : (
                         <UserMinus className="h-3 w-3" />
                       )}
@@ -964,7 +937,7 @@ export default function ProjectDetailPage({
                 </div>
               </div>
               <Button onClick={handleUpdateProject} disabled={savingProject || !editName.trim()} className="gap-2">
-                {savingProject && <Loader2 className="h-4 w-4 animate-spin" />}
+                {savingProject && <AISpinner className="h-4 w-4 animate-spin" />}
                 Save Changes
               </Button>
             </CardContent>
@@ -1081,7 +1054,7 @@ export default function ProjectDetailPage({
               disabled={creatingTask || !newTask.title.trim()}
               className="gap-2"
             >
-              {creatingTask && <Loader2 className="h-4 w-4 animate-spin" />}
+              {creatingTask && <AISpinner className="h-4 w-4 animate-spin" />}
               Create Task
             </Button>
           </DialogFooter>
@@ -1100,7 +1073,7 @@ export default function ProjectDetailPage({
 
           {permLoading ? (
             <div className="flex justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+              <AISpinner className="h-8 w-8 animate-spin text-orange-500" />
             </div>
           ) : permMember ? (
             <div className="space-y-6 py-2">
@@ -1288,7 +1261,7 @@ export default function ProjectDetailPage({
                     disabled={permSaving}
                     className="gap-2"
                   >
-                    {permSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {permSaving && <AISpinner className="h-4 w-4 animate-spin" />}
                     Save Permissions
                   </Button>
                 </div>
@@ -1373,7 +1346,7 @@ export default function ProjectDetailPage({
               Cancel
             </Button>
             <Button onClick={handleAddMembers} disabled={addingMembers || selectedUserIds.length === 0} className="gap-2">
-              {addingMembers && <Loader2 className="h-4 w-4 animate-spin" />}
+              {addingMembers && <AISpinner className="h-4 w-4 animate-spin" />}
               Add {selectedUserIds.length > 0 ? `(${selectedUserIds.length})` : ""}
             </Button>
           </DialogFooter>
@@ -1396,7 +1369,7 @@ export default function ProjectDetailPage({
               onClick={handleDeleteProject}
               disabled={deletingProject}
             >
-              {deletingProject ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete Project"}
+              {deletingProject ? <AISpinner className="h-4 w-4 animate-spin" /> : "Delete Project"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1548,7 +1521,7 @@ export default function ProjectDetailPage({
 
                 {loadingComments ? (
                   <div className="flex justify-center py-4">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    <AISpinner className="h-5 w-5 animate-spin text-muted-foreground" />
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-[300px] overflow-y-auto">
@@ -1624,7 +1597,7 @@ export default function ProjectDetailPage({
                     disabled={sendingComment || !newComment.trim()}
                   >
                     {sendingComment ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <AISpinner className="h-4 w-4 animate-spin" />
                     ) : (
                       <Send className="h-4 w-4" />
                     )}

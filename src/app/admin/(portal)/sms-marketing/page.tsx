@@ -1,22 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  MessageSquare,
-  Plus,
-  Search,
-  Filter,
-  MoreVertical,
-  Send,
-  Loader2,
-  AlertTriangle,
-  MousePointer,
-  CheckCircle2,
-} from "lucide-react";
+import { MessageSquare, Plus, Search, Filter, MoreVertical, Send, AlertTriangle, MousePointer, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface Campaign {
   id: string;
@@ -234,7 +224,7 @@ export default function SmsMarketingPage() {
       {/* SMS Campaigns List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>
       ) : campaigns.length === 0 ? (
         <Card>

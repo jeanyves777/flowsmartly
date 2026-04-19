@@ -3,37 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Globe,
-  Search,
-  Plus,
-  Shield,
-  ShieldCheck,
-  Star,
-  Trash2,
-  ExternalLink,
-  RefreshCw,
-  Loader2,
-  Link as LinkIcon,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  Copy,
-  Server,
-  CreditCard,
-  Info,
-  ArrowRight,
-  ChevronRight,
-  Calendar,
-  DollarSign,
-  Receipt,
-  FileText,
-  Download,
-  RotateCcw,
-  Eye,
-  EyeOff,
-  Settings,
-} from "lucide-react";
+import { Globe, Search, Plus, Shield, ShieldCheck, Star, Trash2, ExternalLink, RefreshCw, Link as LinkIcon, CheckCircle2, AlertCircle, Clock, Copy, Server, CreditCard, Info, ArrowRight, ChevronRight, Calendar, DollarSign, Receipt, FileText, Download, RotateCcw, Eye, EyeOff, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -42,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { DomainSearch } from "@/components/ecommerce/domain-search";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
 
@@ -431,7 +402,7 @@ export function DomainsPageContent() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <AISpinner className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -489,7 +460,7 @@ export function DomainsPageContent() {
               />
               {purchasing && (
                 <div className="flex items-center gap-3 mt-4 px-4 py-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                  <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400 shrink-0" />
+                  <AISpinner className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400 shrink-0" />
                   <div className="text-sm">
                     <div className="font-medium text-blue-900 dark:text-blue-100">
                       Processing {busyDomain || "domain"}…
@@ -601,7 +572,7 @@ export function DomainsPageContent() {
                     onKeyDown={(e) => e.key === "Enter" && handleConnect()}
                   />
                   <Button onClick={handleConnect} disabled={connecting || !connectDomain.trim()}>
-                    {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                    {connecting ? <AISpinner className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                     Connect
                   </Button>
                 </div>
@@ -801,7 +772,7 @@ export function DomainsPageContent() {
                         onClick={() => handleRetryRegistration(domain.id)}
                       >
                         {retrying === domain.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                          <AISpinner className="h-4 w-4 animate-spin mr-1" />
                         ) : (
                           <RotateCcw className="h-4 w-4 mr-1" />
                         )}
@@ -890,7 +861,7 @@ function DomainPaymentForm({
         <Button type="submit" disabled={!stripe || processing}>
           {processing ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <AISpinner className="h-4 w-4 animate-spin" />
               Processing...
             </>
           ) : (

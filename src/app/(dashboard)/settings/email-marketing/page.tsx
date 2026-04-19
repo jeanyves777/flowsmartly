@@ -3,22 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Mail,
-  Server,
-  Key,
-  Check,
-  Loader2,
-  AlertTriangle,
-  RefreshCw,
-  Save,
-  TestTube2,
-  Send,
-  BarChart3,
-  Settings,
-  ExternalLink,
-} from "lucide-react";
+import { ArrowLeft, Mail, Server, Key, Check, AlertTriangle, RefreshCw, Save, TestTube2, Send, BarChart3, Settings, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 type EmailProvider = "NONE" | "GMAIL" | "SMTP" | "SENDGRID" | "MAILGUN" | "AMAZON_SES" | "RESEND";
 
@@ -699,7 +685,7 @@ export default function EmailMarketingSettingsPage() {
                     disabled={isTesting || emailProvider === "NONE"}
                   >
                     {isTesting ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <AISpinner className="w-4 h-4 animate-spin" />
                     ) : (
                       <><TestTube2 className="w-4 h-4 mr-2" /> Send Test</>
                     )}
@@ -707,7 +693,7 @@ export default function EmailMarketingSettingsPage() {
                 </div>
                 <Button onClick={handleSaveEmail} disabled={isSaving}>
                   {isSaving ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
                     <Save className="w-4 h-4 mr-2" />
                   )}

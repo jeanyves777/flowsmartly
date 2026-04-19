@@ -3,30 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
-import {
-  ArrowLeft,
-  Plus,
-  Search,
-  Upload,
-  Download,
-  Trash2,
-  Edit,
-  Phone,
-  Mail,
-  MapPin,
-  UserPlus,
-  MoreVertical,
-  ClipboardList,
-  CheckCircle2,
-  Clock,
-  BarChart3,
-  Link2,
-  Loader2,
-  Users,
-  X,
-  MessageSquare,
-  Check,
-} from "lucide-react";
+import { ArrowLeft, Plus, Search, Upload, Download, Trash2, Edit, Phone, Mail, MapPin, UserPlus, MoreVertical, ClipboardList, CheckCircle2, Clock, BarChart3, Link2, Users, X, MessageSquare, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -72,6 +49,7 @@ import {
   type EntryData,
   type EntryStatus,
 } from "@/types/follow-up";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface FollowUpDetail {
   id: string;
@@ -755,7 +733,7 @@ export default function FollowUpDetailPage() {
                                       onClick={() => saveInlineNote(entry.id)}
                                       disabled={isSavingNote}
                                     >
-                                      {isSavingNote ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                      {isSavingNote ? <AISpinner className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                                     </Button>
                                     <Button
                                       variant="ghost"
@@ -1071,7 +1049,7 @@ export default function FollowUpDetailPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEntryDialog(false)}>Cancel</Button>
             <Button onClick={handleSaveEntry} disabled={isSavingEntry}>
-              {isSavingEntry ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {isSavingEntry ? <AISpinner className="h-4 w-4 animate-spin mr-2" /> : null}
               {editingEntry ? "Update" : "Add Entry"}
             </Button>
           </DialogFooter>
@@ -1104,7 +1082,7 @@ export default function FollowUpDetailPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowImportDialog(false)}>Cancel</Button>
             <Button onClick={handleImport} disabled={!importListId || isImporting}>
-              {isImporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+              {isImporting ? <AISpinner className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
               Import
             </Button>
           </DialogFooter>
@@ -1165,7 +1143,7 @@ export default function FollowUpDetailPage() {
               onClick={handleExportToContacts}
               disabled={isExporting || (exportCreateList && !exportNewListName.trim())}
             >
-              {isExporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+              {isExporting ? <AISpinner className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
               Push to Contacts
             </Button>
           </DialogFooter>

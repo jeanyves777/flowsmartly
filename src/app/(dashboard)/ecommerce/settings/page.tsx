@@ -3,30 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import {
-  Settings,
-  Save,
-  CreditCard,
-  Palette,
-  ReceiptText,
-  Truck,
-  Globe,
-  Crown,
-  ArrowUpRight,
-  AlertCircle,
-  Check,
-  Loader2,
-  X,
-  Link2,
-  Shield,
-  Trash2,
-  Plus,
-  Star,
-  Search,
-  Sparkles,
-  ImageIcon,
-  Target,
-} from "lucide-react";
+import { Settings, Save, CreditCard, Palette, ReceiptText, Truck, Globe, Crown, ArrowUpRight, AlertCircle, Check, X, Link2, Shield, Trash2, Plus, Star, Search, Sparkles, ImageIcon, Target } from "lucide-react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import PixelSettings from "@/components/ecommerce/pixel-settings";
@@ -43,6 +20,7 @@ import {
 } from "@/lib/domains/pricing";
 import { cn } from "@/lib/utils/cn";
 import { StripeConnectOnboarding } from "@/components/shared/stripe-connect-onboarding";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
 
@@ -739,7 +717,7 @@ export default function EcommerceSettingsPage() {
                 disabled={brandSyncing}
                 className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
               >
-                {brandSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                {brandSyncing ? <AISpinner className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                 Sync Logo from Brand Kit
               </button>
 
@@ -871,7 +849,7 @@ export default function EcommerceSettingsPage() {
                 disabled={saving}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 disabled:opacity-50 transition-colors"
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {saving ? <AISpinner className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Save Changes
               </button>
             </div>
@@ -905,7 +883,7 @@ export default function EcommerceSettingsPage() {
                 </h3>
                 {savingStripeMethods && (
                   <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Saving
+                    <AISpinner className="h-3 w-3 animate-spin" /> Saving
                   </span>
                 )}
               </div>
@@ -1102,7 +1080,7 @@ export default function EcommerceSettingsPage() {
                 disabled={saving}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 disabled:opacity-50 transition-colors"
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {saving ? <AISpinner className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Save Shipping
               </button>
             </div>
@@ -1185,7 +1163,7 @@ export default function EcommerceSettingsPage() {
                 disabled={saving}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 disabled:opacity-50 transition-colors"
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {saving ? <AISpinner className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Save Branding
               </button>
             </div>
@@ -1258,7 +1236,7 @@ export default function EcommerceSettingsPage() {
                   disabled={searchingDomains || !domainSearch.trim()}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
                 >
-                  {searchingDomains ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  {searchingDomains ? <AISpinner className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   Search
                 </button>
               </div>
@@ -1301,7 +1279,7 @@ export default function EcommerceSettingsPage() {
                             disabled={saving}
                             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 disabled:opacity-50"
                           >
-                            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                            {saving ? <AISpinner className="h-3 w-3 animate-spin" /> : null}
                             {canClaimFree ? "Claim Free" : "Purchase"}
                           </button>
                         )}
@@ -1384,7 +1362,7 @@ export default function EcommerceSettingsPage() {
                   disabled={connectingDomain || !byodDomain.trim()}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {connectingDomain ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+                  {connectingDomain ? <AISpinner className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
                   Connect
                 </button>
               </div>
@@ -1578,7 +1556,7 @@ export default function EcommerceSettingsPage() {
                   disabled={upgrading}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-500 to-indigo-600 text-white text-sm font-medium hover:from-violet-600 hover:to-indigo-700 disabled:opacity-50"
                 >
-                  {upgrading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpRight className="h-4 w-4" />}
+                  {upgrading ? <AISpinner className="h-4 w-4 animate-spin" /> : <ArrowUpRight className="h-4 w-4" />}
                   Upgrade to Pro
                 </button>
               </div>
@@ -1624,7 +1602,7 @@ export default function EcommerceSettingsPage() {
                         disabled={saving}
                         className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-50"
                       >
-                        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                        {saving ? <AISpinner className="h-3 w-3 animate-spin" /> : null}
                         Yes, Cancel
                       </button>
                       <button
@@ -1697,7 +1675,7 @@ function SettingsDomainPaymentForm({
           disabled={!stripe || processing}
           className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
         >
-          {processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+          {processing ? <AISpinner className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
           {processing ? "Processing..." : `Pay for ${domainName}`}
         </button>
         <button

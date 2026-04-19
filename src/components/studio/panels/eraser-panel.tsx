@@ -3,23 +3,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import {
-  Eraser,
-  Wand2,
-  Paintbrush,
-  Sparkles,
-  Loader2,
-  Info,
-  Minus,
-  Plus,
-  Undo2,
-  Redo2,
-  Check,
-} from "lucide-react";
+import { Eraser, Wand2, Paintbrush, Sparkles, Info, Minus, Plus, Undo2, Redo2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import { useCanvasHistory } from "../hooks/use-canvas-history";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 type ToolMode = "erase" | "restore" | "magic";
 
@@ -616,7 +605,7 @@ export function EraserPanel() {
           size="sm"
         >
           {isProcessingAI ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <AISpinner className="h-4 w-4 animate-spin" />
           ) : (
             <Sparkles className="h-4 w-4" />
           )}

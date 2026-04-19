@@ -16,7 +16,8 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { X, Loader2, CheckCircle2, AlertCircle, Upload } from "lucide-react";
+import { X, CheckCircle2, AlertCircle, Upload } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 type Status = "idle" | "pending" | "building" | "done" | "error";
 
@@ -175,7 +176,7 @@ export function BuildStatusBanner() {
             <Upload className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400" />
           )}
           {status === "building" && (
-            <Loader2 className="w-5 h-5 shrink-0 animate-spin text-blue-600 dark:text-blue-400" />
+            <AISpinner className="w-5 h-5 shrink-0 animate-spin text-blue-600 dark:text-blue-400" />
           )}
           {status === "done" && (
             <CheckCircle2 className="w-5 h-5 shrink-0 text-green-600 dark:text-green-400" />
@@ -274,7 +275,7 @@ export function BuildStatusBanner() {
               >
                 {publishing ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <AISpinner className="w-4 h-4 animate-spin" />
                     Starting…
                   </>
                 ) : (

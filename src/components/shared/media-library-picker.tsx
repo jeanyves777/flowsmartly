@@ -2,22 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  X,
-  Search,
-  Loader2,
-  Image as ImageIcon,
-  Video,
-  FolderOpen,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Play,
-  FileText,
-  Upload,
-} from "lucide-react";
+import { X, Search, Image as ImageIcon, Video, FolderOpen, Check, ChevronLeft, ChevronRight, Play, FileText, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface MediaFile {
   id: string;
@@ -350,7 +338,7 @@ export function MediaLibraryPicker({
           <div className="flex-1 overflow-y-auto p-4">
             {isLoading ? (
               <div className="flex items-center justify-center h-48">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
               </div>
             ) : (
               <>
@@ -536,7 +524,7 @@ export function MediaLibraryPicker({
               >
                 {isUploading ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                     Uploading...
                   </>
                 ) : (

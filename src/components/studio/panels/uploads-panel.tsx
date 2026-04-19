@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Upload, FolderOpen, Loader2, ImageIcon, Plus } from "lucide-react";
+import { Upload, FolderOpen, ImageIcon, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import { addImageToCanvas } from "../utils/canvas-helpers";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface MediaItem {
   id: string;
@@ -105,7 +106,7 @@ export function UploadsPanel() {
           />
           <div className="w-full h-20 rounded-lg border-2 border-dashed border-border hover:border-brand-500 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors">
             {uploading ? (
-              <Loader2 className="h-5 w-5 animate-spin text-brand-500" />
+              <AISpinner className="h-5 w-5 animate-spin text-brand-500" />
             ) : (
               <>
                 <Upload className="h-5 w-5 text-muted-foreground" />
@@ -131,7 +132,7 @@ export function UploadsPanel() {
       {/* Recent uploads grid */}
       {loading ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <AISpinner className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : uploads.length === 0 ? (
         <div className="text-center py-8 text-sm text-muted-foreground">
@@ -155,7 +156,7 @@ export function UploadsPanel() {
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
                 {addingId === item.id ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-white" />
+                  <AISpinner className="h-5 w-5 animate-spin text-white" />
                 ) : (
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full px-2.5 py-1">
                     <Plus className="h-3 w-3 text-white" />

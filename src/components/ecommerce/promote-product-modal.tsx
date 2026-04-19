@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Loader2, Megaphone, Calendar, DollarSign, Sparkles } from "lucide-react";
+import { X, Megaphone, Calendar, DollarSign, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface PromoteProductModalProps {
   productId: string | null;
@@ -109,7 +110,7 @@ export function PromoteProductModal({ productId, isOpen, onClose }: PromoteProdu
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <AISpinner className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
           <div className="p-4 space-y-4">
@@ -244,7 +245,7 @@ export function PromoteProductModal({ productId, isOpen, onClose }: PromoteProdu
               className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <AISpinner className="h-4 w-4 animate-spin" />
               ) : (
                 <Megaphone className="h-4 w-4" />
               )}

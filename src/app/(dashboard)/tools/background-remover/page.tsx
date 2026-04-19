@@ -2,34 +2,13 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Scissors,
-  Download,
-  Sparkles,
-  ImageIcon,
-  Upload,
-  X,
-  Wand2,
-  Eraser,
-  Paintbrush,
-  Undo2,
-  Redo2,
-  ZoomIn,
-  ZoomOut,
-  Loader2,
-  Plus,
-  Minus,
-  Layers,
-  Check,
-  AlertCircle,
-  FolderOpen,
-} from "lucide-react";
+import { Scissors, Download, Sparkles, ImageIcon, Upload, X, Wand2, Eraser, Paintbrush, Undo2, Redo2, ZoomIn, ZoomOut, Plus, Minus, Layers, Check, AlertCircle, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -895,7 +874,7 @@ export default function BackgroundRemoverStudio() {
               >
                 {isProcessingAI ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                     {aiStep || "Processing..."}
                   </>
                 ) : (
@@ -1004,7 +983,7 @@ export default function BackgroundRemoverStudio() {
 
             {isLoadingHistory ? (
               <div className="text-center py-12">
-                <Loader2 className="w-12 h-12 text-brand-500 mx-auto mb-3 animate-spin" />
+                <AISpinner className="w-12 h-12 text-brand-500 mx-auto mb-3 animate-spin" />
                 <p className="text-sm text-muted-foreground">Loading history...</p>
               </div>
             ) : gallery.length === 0 ? (
@@ -1166,7 +1145,7 @@ export default function BackgroundRemoverStudio() {
                             </>
                           ) : (
                             <>
-                              <Loader2 className="w-12 h-12 animate-spin text-brand-500 mx-auto mb-3" />
+                              <AISpinner className="w-12 h-12 animate-spin text-brand-500 mx-auto mb-3" />
                               <p className="text-sm text-muted-foreground">
                                 Loading image...
                               </p>
@@ -1184,7 +1163,7 @@ export default function BackgroundRemoverStudio() {
             {isProcessingAI && selectedImage && (
               <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-40">
                 <div className="text-center">
-                  <Loader2 className="w-16 h-16 text-brand-500 mx-auto mb-4 animate-spin" />
+                  <AISpinner className="w-16 h-16 text-brand-500 mx-auto mb-4 animate-spin" />
                   <h3 className="text-lg font-semibold mb-2">Processing with AI</h3>
                   <p className="text-sm text-muted-foreground">{aiStep || "Please wait..."}</p>
                 </div>

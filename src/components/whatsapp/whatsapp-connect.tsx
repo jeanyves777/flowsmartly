@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Loader2, RefreshCw } from "lucide-react";
+import { MessageSquare, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 declare global {
   interface Window {
@@ -171,7 +172,7 @@ export function WhatsAppConnect({
       disabled={loading}
     >
       {loading ? (
-        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        <AISpinner className="w-4 h-4 mr-2 animate-spin" />
       ) : (
         <IconComponent className="w-4 h-4 mr-2" />
       )}

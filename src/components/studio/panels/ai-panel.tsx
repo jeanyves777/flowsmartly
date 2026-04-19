@@ -1,13 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  Sparkles,
-  Wand2,
-  Loader2,
-  Eraser,
-  ArrowUpRight,
-} from "lucide-react";
+import { Sparkles, Wand2, Eraser, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +11,7 @@ import { useCanvasStore } from "../hooks/use-canvas-store";
 import { addImageToCanvas } from "../utils/canvas-helpers";
 import { useCanvasExport } from "../hooks/use-canvas-export";
 import { AiGeneratorModal } from "../ai-generator-modal";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 export function AiPanel() {
   const { toast } = useToast();
@@ -274,7 +269,7 @@ export function AiPanel() {
               size="sm"
             >
               {isImproving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <AISpinner className="h-4 w-4 animate-spin" />
               ) : (
                 <Wand2 className="h-4 w-4" />
               )}
@@ -296,7 +291,7 @@ export function AiPanel() {
               variant="outline"
               disabled={removingBg}
             >
-              {removingBg ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
+              {removingBg ? <AISpinner className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
               {removingBg ? "Removing..." : "Remove Background"}
             </Button>
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Sparkles, Rocket, Loader2, X, ArrowRight, Package, ShoppingBag } from "lucide-react";
+import { Sparkles, Rocket, X, ArrowRight, Package, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { useToast } from "@/hooks/use-toast";

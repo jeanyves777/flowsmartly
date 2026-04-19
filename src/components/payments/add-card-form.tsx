@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
-import { Loader2, CreditCard, AlertCircle, Shield } from "lucide-react";
+import { CreditCard, AlertCircle, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface AddCardFormProps {
   open: boolean;
@@ -116,7 +117,7 @@ export function AddCardForm({ open, onClose, onSuccess }: AddCardFormProps) {
         <form onSubmit={handleSubmit} className="space-y-5">
           {isFetchingSecret ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <AISpinner className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <div className="space-y-4">
@@ -160,7 +161,7 @@ export function AddCardForm({ open, onClose, onSuccess }: AddCardFormProps) {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  <AISpinner className="w-4 h-4 animate-spin mr-2" />
                   Saving...
                 </>
               ) : (

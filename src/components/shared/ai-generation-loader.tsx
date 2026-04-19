@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils/cn";
@@ -444,15 +444,26 @@ export function AIGenerationLoader({
  * Small gradient spinner for button-level AI loading.
  * Drop-in replacement for `<Loader2 className="animate-spin" />`.
  */
-export function AISpinner({ className }: { className?: string }) {
+export function AISpinner({
+  className,
+  size,
+  style,
+}: {
+  className?: string;
+  /** Pixel size (shorthand for width+height). Accepts number or CSS length. */
+  size?: number | string;
+  style?: CSSProperties;
+}) {
   const uid = useId();
+  const dim = size ?? "1em";
   return (
     <motion.svg
-      width="1em"
-      height="1em"
+      width={dim}
+      height={dim}
       viewBox="0 0 24 24"
       fill="none"
       className={cn("inline-block", className)}
+      style={style}
       animate={{ rotate: 360 }}
       transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
     >

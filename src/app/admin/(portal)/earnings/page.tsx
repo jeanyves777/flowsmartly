@@ -1,24 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  DollarSign,
-  TrendingUp,
-  TrendingDown,
-  CreditCard,
-  Download,
-  Calendar,
-  ArrowUpRight,
-  ArrowDownRight,
-  Users,
-  ShoppingCart,
-  Wallet,
-  Loader2,
-  AlertTriangle,
-} from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, CreditCard, Download, Calendar, ArrowUpRight, ArrowDownRight, Users, ShoppingCart, Wallet, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface Transaction {
   id: string;
@@ -172,7 +159,7 @@ export default function EarningsPage() {
       {/* Revenue Stats */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
         <>

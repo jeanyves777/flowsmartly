@@ -2,42 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  FolderOpen,
-  Upload,
-  Search,
-  Grid3X3,
-  List,
-  Image,
-  Video,
-  FileText,
-  File,
-  FolderPlus,
-  Trash2,
-  Tag,
-  Copy,
-  Check,
-  X,
-  Loader2,
-  MoreVertical,
-  Pencil,
-  FolderInput,
-  ChevronRight,
-  ChevronLeft,
-  Sparkles,
-  Star,
-  Hash,
-  Lightbulb,
-  MessageSquare,
-  Type,
-  Download,
-  CheckSquare,
-  Square,
-  ZoomIn,
-  ZoomOut,
-  ArrowLeft,
-  ArrowRight,
-} from "lucide-react";
+import { FolderOpen, Upload, Search, Grid3X3, List, Image, Video, FileText, File, FolderPlus, Trash2, Tag, Copy, Check, X, MoreVertical, Pencil, FolderInput, ChevronRight, ChevronLeft, Sparkles, Star, Hash, Lightbulb, MessageSquare, Type, Download, CheckSquare, Square, ZoomIn, ZoomOut, ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -52,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { FileDropZone } from "@/components/shared/file-drop-zone";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface MediaFile {
   id: string;
@@ -639,7 +605,7 @@ export default function MediaLibraryPage() {
               className="bg-brand-500 hover:bg-brand-600"
             >
               {isUploading ? (
-                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                <AISpinner className="w-4 h-4 mr-1 animate-spin" />
               ) : (
                 <Upload className="w-4 h-4 mr-1" />
               )}
@@ -1332,7 +1298,7 @@ export default function MediaLibraryPage() {
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setShowMoveDialog(false)}>Cancel</Button>
             <Button onClick={handleBulkMove} disabled={isBulkOperating}>
-              {isBulkOperating ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FolderInput className="w-4 h-4 mr-1" />}
+              {isBulkOperating ? <AISpinner className="w-4 h-4 mr-1 animate-spin" /> : <FolderInput className="w-4 h-4 mr-1" />}
               Move {selectedIds.size} file{selectedIds.size > 1 ? "s" : ""}
             </Button>
           </div>
@@ -1351,7 +1317,7 @@ export default function MediaLibraryPage() {
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setShowBulkDeleteConfirm(false)}>Cancel</Button>
             <Button variant="destructive" onClick={handleBulkDelete} disabled={isBulkOperating}>
-              {isBulkOperating ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
+              {isBulkOperating ? <AISpinner className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
               Delete {selectedIds.size} file{selectedIds.size > 1 ? "s" : ""}
             </Button>
           </div>
@@ -1549,7 +1515,7 @@ export default function MediaLibraryPage() {
                     onClick={() => handleDownload(selectedFile)}
                     disabled={isDownloading}
                   >
-                    {isDownloading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+                    {isDownloading ? <AISpinner className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
                     Download
                   </Button>
                   <Button

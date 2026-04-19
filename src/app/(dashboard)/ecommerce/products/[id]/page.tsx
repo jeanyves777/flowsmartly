@@ -2,24 +2,10 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
-import {
-  Package,
-  Plus,
-  Trash2,
-  Image as ImageIcon,
-  Tag,
-  FolderOpen,
-  ChevronUp,
-  ChevronDown,
-  Loader2,
-  ArrowLeft,
-  X,
-  Sparkles,
-  Wand2,
-  Scissors,
-} from "lucide-react";
+import { Package, Plus, Trash2, Image as ImageIcon, Tag, FolderOpen, ChevronUp, ChevronDown, ArrowLeft, X, Sparkles, Wand2, Scissors } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { toCents, fromCents } from "@/lib/store/currency";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──
 
@@ -558,7 +544,7 @@ export default function EditProductPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <AISpinner className="w-6 h-6 animate-spin text-muted-foreground" />
         <span className="ml-2 text-muted-foreground">Loading product...</span>
       </div>
     );
@@ -602,7 +588,7 @@ export default function EditProductPage() {
               disabled={aiGenerating}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 disabled:opacity-50"
             >
-              {aiGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {aiGenerating ? <AISpinner className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
               {aiGenerating ? "Generating..." : "AI Generate"}
             </button>
           )}
@@ -756,7 +742,7 @@ export default function EditProductPage() {
             disabled={aiImageGenerating || images.length >= 10}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 disabled:opacity-50 transition-colors"
           >
-            {aiImageGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+            {aiImageGenerating ? <AISpinner className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
             AI Generate Image
           </button>
           <span className="text-xs text-muted-foreground">15 credits per image</span>
@@ -797,7 +783,7 @@ export default function EditProductPage() {
                     title="Remove background"
                     className="p-1 bg-purple-500/90 text-white rounded shadow hover:bg-purple-600 disabled:opacity-40"
                   >
-                    {removingBgIndex === i ? <Loader2 className="w-3 h-3 animate-spin" /> : <Scissors className="w-3 h-3" />}
+                    {removingBgIndex === i ? <AISpinner className="w-3 h-3 animate-spin" /> : <Scissors className="w-3 h-3" />}
                   </button>
                   <button
                     onClick={() => removeImage(i)}
@@ -888,7 +874,7 @@ export default function EditProductPage() {
                   disabled={aiImageGenerating || !name.trim()}
                   className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 inline-flex items-center gap-2"
                 >
-                  {aiImageGenerating && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {aiImageGenerating && <AISpinner className="w-4 h-4 animate-spin" />}
                   {aiImageGenerating ? "Generating..." : "Generate"}
                 </button>
               </div>
@@ -1271,7 +1257,7 @@ export default function EditProductPage() {
           disabled={saving || uploadingImages}
           className="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-2"
         >
-          {(saving || uploadingImages) && <Loader2 className="w-4 h-4 animate-spin" />}
+          {(saving || uploadingImages) && <AISpinner className="w-4 h-4 animate-spin" />}
           {uploadingImages ? "Uploading Images..." : saving ? "Saving..." : "Save Changes"}
         </button>
       </div>
@@ -1297,7 +1283,7 @@ export default function EditProductPage() {
                 disabled={deleting}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
               >
-                {deleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {deleting && <AISpinner className="w-4 h-4 animate-spin" />}
                 Delete
               </button>
             </div>

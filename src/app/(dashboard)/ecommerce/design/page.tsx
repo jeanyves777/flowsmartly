@@ -3,15 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowLeft, ExternalLink, RefreshCw, Loader2, Check, AlertCircle,
-  Globe, Save, Plus, Trash2, Eye, Sparkles, HelpCircle, Link2,
-  Store, LayoutDashboard, Palette, Image as ImageIcon, FileText, Grid3X3,
-} from "lucide-react";
+import { ArrowLeft, ExternalLink, RefreshCw, Check, AlertCircle, Globe, Save, Plus, Trash2, Eye, Sparkles, HelpCircle, Link2, Store, LayoutDashboard, Palette, Image as ImageIcon, FileText, Grid3X3 } from "lucide-react";
 import { SectionUpdater } from "@/components/shared/section-updater";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { PageLoader } from "@/components/shared/page-loader";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface StoreRecord {
   id: string;
@@ -357,12 +353,12 @@ export default function StoreDesignPage() {
         )}
         <button onClick={refreshData} disabled={refreshing} title="Refresh store data"
           className="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground disabled:opacity-50">
-          {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+          {refreshing ? <AISpinner className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
         </button>
         {changed && (
           <button onClick={save} disabled={saving}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            {saving ? <AISpinner className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             Save & Rebuild
           </button>
         )}
@@ -749,7 +745,7 @@ export default function StoreDesignPage() {
                   {store.buildStatus === "built"
                     ? <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium"><Check className="w-4 h-4" /> Live</span>
                     : store.buildStatus === "building"
-                    ? <span className="flex items-center gap-1.5 text-sm text-blue-600 font-medium"><Loader2 className="w-4 h-4 animate-spin" /> Building...</span>
+                    ? <span className="flex items-center gap-1.5 text-sm text-blue-600 font-medium"><AISpinner className="w-4 h-4 animate-spin" /> Building...</span>
                     : store.buildStatus === "error"
                     ? <span className="flex items-center gap-1.5 text-sm text-red-600 font-medium"><AlertCircle className="w-4 h-4" /> Error</span>
                     : <span className="text-sm text-muted-foreground">Idle</span>}
@@ -784,7 +780,7 @@ export default function StoreDesignPage() {
               )}
               <button onClick={rebuild} disabled={rebuilding}
                 className="flex items-center gap-1.5 px-5 py-2.5 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50 hover:opacity-90 transition-opacity">
-                {rebuilding ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rebuilding...</> : <><RefreshCw className="w-3.5 h-3.5" /> Rebuild Store</>}
+                {rebuilding ? <><AISpinner className="w-3.5 h-3.5 animate-spin" /> Rebuilding...</> : <><RefreshCw className="w-3.5 h-3.5" /> Rebuild Store</>}
               </button>
             </Section>
             <div className="bg-muted/30 border border-border rounded-xl p-5 space-y-3 h-fit">
@@ -838,7 +834,7 @@ export default function StoreDesignPage() {
           <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Unsaved changes</p>
           <button onClick={save} disabled={saving}
             className="flex items-center gap-1.5 px-4 py-2 text-sm bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 disabled:opacity-50">
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save & Rebuild
+            {saving ? <AISpinner className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save & Rebuild
           </button>
         </div>
       )}

@@ -1,24 +1,12 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import {
-  Package,
-  Plus,
-  Trash2,
-  Sparkles,
-  Loader2,
-  Upload,
-  ChevronDown,
-  ChevronUp,
-  ImageIcon,
-  DollarSign,
-  Tag,
-  X,
-} from "lucide-react";
+import { Package, Plus, Trash2, Sparkles, Upload, ChevronDown, ChevronUp, ImageIcon, DollarSign, Tag, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils/cn";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 export interface ProductEntry {
   name: string;
@@ -263,7 +251,7 @@ export function ProductListingStep({
           >
             {aiLoading ? (
               <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                 Generating...
               </>
             ) : (

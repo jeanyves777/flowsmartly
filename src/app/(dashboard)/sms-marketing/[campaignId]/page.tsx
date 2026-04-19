@@ -5,17 +5,14 @@ import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  ArrowLeft, Send, Trash2, Loader2, MessageSquare, BarChart3, Users,
-  CheckCircle2, Edit2, AlertCircle, MousePointerClick, XCircle,
-  TrendingUp, Activity, ImageIcon,
-} from "lucide-react";
+import { ArrowLeft, Send, Trash2, MessageSquare, BarChart3, Users, CheckCircle2, Edit2, AlertCircle, MousePointerClick, XCircle, TrendingUp, Activity, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface Campaign {
   id: string;
@@ -279,7 +276,7 @@ export default function SmsCampaignDetailPage() {
                 className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
               >
                 {isSending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <Send className="w-4 h-4 mr-2" />
                 )}
@@ -294,7 +291,7 @@ export default function SmsCampaignDetailPage() {
             disabled={isDeleting}
             className="text-destructive hover:text-destructive"
           >
-            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            {isDeleting ? <AISpinner className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
           </Button>
         </div>
       </div>
@@ -635,7 +632,7 @@ export default function SmsCampaignDetailPage() {
                   disabled={isSending || !campaign.content}
                 >
                   {isSending ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
                     <Send className="w-4 h-4 mr-2" />
                   )}

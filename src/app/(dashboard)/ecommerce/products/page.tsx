@@ -2,29 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Package,
-  Plus,
-  Pencil,
-  Trash2,
-  Search,
-  Filter,
-  ChevronDown,
-  Image as ImageIcon,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  AlertTriangle,
-  Sparkles,
-  Megaphone,
-  Upload,
-  Star,
-} from "lucide-react";
+import { Package, Plus, Pencil, Trash2, Search, Filter, ChevronDown, Image as ImageIcon, ChevronLeft, ChevronRight, AlertTriangle, Sparkles, Megaphone, Upload, Star } from "lucide-react";
 import { AIProductGeneratorModal } from "@/components/ecommerce/ai-product-generator-modal";
 import { PromoteProductModal } from "@/components/ecommerce/promote-product-modal";
 import { PageLoader } from "@/components/shared/page-loader";
 import { useToast } from "@/hooks/use-toast";
 import { formatPrice } from "@/lib/store/currency";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──
 
@@ -575,7 +559,7 @@ export default function ProductsListPage() {
                               title="Publish to your store"
                             >
                               {publishingId === product.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
+                                <AISpinner className="w-3 h-3 animate-spin" />
                               ) : (
                                 <Upload className="w-3 h-3" />
                               )}
@@ -594,7 +578,7 @@ export default function ProductsListPage() {
                               title={product.labels?.includes("featured") ? "Remove from featured" : "Feature on home page"}
                             >
                               {featuringId === product.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <AISpinner className="w-4 h-4 animate-spin" />
                               ) : (
                                 <Star className="w-4 h-4" fill={product.labels?.includes("featured") ? "currentColor" : "none"} />
                               )}
@@ -683,7 +667,7 @@ export default function ProductsListPage() {
                 disabled={deleting}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
               >
-                {deleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {deleting && <AISpinner className="w-4 h-4 animate-spin" />}
                 Delete
               </button>
             </div>

@@ -2,21 +2,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import {
-  CheckCircle2,
-  Clock,
-  XCircle,
-  AlertTriangle,
-  Loader2,
-  RefreshCw,
-  Phone,
-  Shield,
-  Settings,
-  ArrowRight,
-} from "lucide-react";
+import { CheckCircle2, Clock, XCircle, AlertTriangle, RefreshCw, Phone, Shield, Settings, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface A2pStatus {
   hasRegistration: boolean;
@@ -54,7 +44,7 @@ function StepIndicator({ step, isLast }: { step: ProgressStep; isLast: boolean }
       lineColor: "bg-green-500",
     },
     active: {
-      icon: <Loader2 className="w-5 h-5 animate-spin" />,
+      icon: <AISpinner className="w-5 h-5 animate-spin" />,
       color: "text-yellow-500",
       lineColor: "bg-yellow-500/40",
     },
@@ -361,7 +351,7 @@ export function NumberStatusBanner() {
               className="gap-1"
             >
               {isRefreshing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <AISpinner className="w-4 h-4 animate-spin" />
               ) : (
                 <RefreshCw className="w-4 h-4" />
               )}

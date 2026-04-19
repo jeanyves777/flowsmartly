@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, Download, Rss, Loader2, X } from "lucide-react";
+import { Check, Copy, Download, Rss, X } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface MessageBubbleProps {
   role: "user" | "assistant";
@@ -207,7 +208,7 @@ function MediaActions({
             disabled={posting}
             className="text-xs px-3 py-1.5 rounded-lg bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50"
           >
-            {posting ? <Loader2 className="w-3 h-3 animate-spin" /> : "Post"}
+            {posting ? <AISpinner className="w-3 h-3 animate-spin" /> : "Post"}
           </button>
           <button
             onClick={() => setShowCaption(false)}

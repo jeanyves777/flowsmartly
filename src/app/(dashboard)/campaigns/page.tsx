@@ -4,32 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  Mail,
-  MessageSquare,
-  Plus,
-  Search,
-  Filter,
-  MoreHorizontal,
-  Send,
-  Clock,
-  CheckCircle2,
-  Edit2,
-  Trash2,
-  Play,
-  Pause,
-  BarChart3,
-  Loader2,
-  AlertTriangle,
-  RefreshCw,
-  Eye,
-  MousePointer,
-  XCircle,
-  UserMinus,
-  TrendingUp,
-  Users,
-  Copy,
-} from "lucide-react";
+import { Mail, MessageSquare, Plus, Search, Filter, MoreHorizontal, Send, Clock, CheckCircle2, Edit2, Trash2, Play, Pause, BarChart3, AlertTriangle, RefreshCw, Eye, MousePointer, XCircle, UserMinus, TrendingUp, Users, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

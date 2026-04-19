@@ -3,8 +3,9 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { Loader2 } from "lucide-react";
+
 import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 const buttonVariants = cva(
   `inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium
@@ -59,7 +60,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {isLoading ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <AISpinner className="h-4 w-4 animate-spin" />
             <span>Loading...</span>
           </>
         ) : (

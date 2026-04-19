@@ -2,14 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Users,
-  Plus,
-  Search,
-  FolderKanban,
-  Crown,
-  Loader2,
-} from "lucide-react";
+import { Users, Plus, Search, FolderKanban, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface TeamData {
   id: string;
@@ -293,7 +287,7 @@ export default function TeamsPage() {
               disabled={creating || !newTeam.name.trim()}
               className="gap-2"
             >
-              {creating && <Loader2 className="h-4 w-4 animate-spin" />}
+              {creating && <AISpinner className="h-4 w-4 animate-spin" />}
               Create Team
             </Button>
           </DialogFooter>

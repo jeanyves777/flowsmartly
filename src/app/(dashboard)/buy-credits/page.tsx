@@ -4,20 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import {
-  Package,
-  CreditCard,
-  Check,
-  ChevronRight,
-  ChevronLeft,
-  Loader2,
-  Sparkles,
-  Shield,
-  Zap,
-  Plus,
-  ArrowLeft,
-  AlertCircle,
-} from "lucide-react";
+import { Package, CreditCard, Check, ChevronRight, ChevronLeft, Sparkles, Shield, Zap, Plus, ArrowLeft, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -34,6 +21,7 @@ import { cn } from "@/lib/utils/cn";
 import { useStripe } from "@stripe/react-stripe-js";
 import { StripeProvider } from "@/components/providers/stripe-provider";
 import { AddCardForm } from "@/components/payments/add-card-form";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface CreditPackage {
   id: string;
@@ -774,7 +762,7 @@ function BuyCreditsContent() {
               >
                 {isCheckingOut ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    <AISpinner className="w-4 h-4 animate-spin mr-2" />
                     Processing...
                   </>
                 ) : (

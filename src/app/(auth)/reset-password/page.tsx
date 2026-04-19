@@ -4,22 +4,14 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import {
-  Eye,
-  EyeOff,
-  Loader2,
-  Check,
-  X,
-  CheckCircle2,
-  AlertCircle,
-  ArrowLeft,
-} from "lucide-react";
+import { Eye, EyeOff, Check, X, CheckCircle2, AlertCircle, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { LoginIllustration } from "@/components/illustrations/login-illustration";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
@@ -142,7 +134,7 @@ function ResetPasswordContent() {
       >
         {status === "loading" && (
           <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+            <AISpinner className="h-8 w-8 animate-spin text-brand-500" />
             <p className="mt-4 text-sm text-muted-foreground">
               Validating reset link...
             </p>
@@ -302,7 +294,7 @@ function ResetPasswordContent() {
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <AISpinner className="h-4 w-4 animate-spin" />
                     Resetting password...
                   </>
                 ) : (
@@ -362,7 +354,7 @@ export default function ResetPasswordPage() {
       fallback={
         <AuthShell illustration={<LoginIllustration />}>
           <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+            <AISpinner className="h-8 w-8 animate-spin text-brand-500" />
             <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
           </div>
         </AuthShell>

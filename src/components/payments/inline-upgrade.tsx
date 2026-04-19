@@ -3,17 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { emitPlanUpdate } from "@/lib/utils/plan-event";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Check,
-  Crown,
-  Zap,
-  Building2,
-  Rocket,
-  Loader2,
-  Sparkles,
-  Shield,
-  CreditCard,
-} from "lucide-react";
+import { Check, Crown, Zap, Building2, Rocket, Sparkles, Shield, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +17,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface PlanData {
   id: string;
@@ -353,7 +344,7 @@ function InlineUpgradeInner({
                       disabled={isCheckingOut}
                     >
                       {isCheckingOut && selectedPlan === plan.id ? (
-                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        <AISpinner className="w-3 h-3 mr-1 animate-spin" />
                       ) : (
                         <Zap className="w-3 h-3 mr-1" />
                       )}
@@ -483,7 +474,7 @@ function InlineUpgradeInner({
                 >
                   {isCheckingOut ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                       Processing...
                     </>
                   ) : (

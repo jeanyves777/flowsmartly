@@ -2,30 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import {
-  Activity,
-  Search,
-  Download,
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-  Globe,
-  Monitor,
-  Smartphone,
-  Tablet,
-  AlertCircle,
-  Info,
-  AlertTriangle,
-  XCircle,
-  User,
-  Clock,
-  MapPin,
-  RefreshCw,
-  Loader2,
-} from "lucide-react";
+import { Activity, Search, Download, Calendar, ChevronLeft, ChevronRight, Globe, Monitor, Smartphone, Tablet, AlertCircle, Info, AlertTriangle, XCircle, User, Clock, MapPin, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface AuditLogEntry {
   id: string;
@@ -324,7 +305,7 @@ export default function AdminAuditPage() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-8 flex justify-center">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <AISpinner className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : logs.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">

@@ -4,32 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Film,
-  Sparkles,
-  Download,
-  Trash2,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  Send,
-  RefreshCw,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  Users,
-  Edit3,
-  Check,
-  X,
-  FolderOpen,
-  Save,
-  FolderPlus,
-  Wand2,
-  Lightbulb,
-  Settings,
-} from "lucide-react";
+import { Film, Sparkles, Download, Trash2, Clock, CheckCircle2, XCircle, Send, RefreshCw, ChevronDown, ChevronLeft, ChevronRight, Plus, Users, Edit3, Check, X, FolderOpen, Save, FolderPlus, Wand2, Lightbulb, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { MediaUploader } from "@/components/shared/media-uploader";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { CharacterBrowser, type SelectedCharacter } from "@/components/cartoon/character-browser";
 
@@ -938,7 +913,7 @@ function CartoonMakerContent() {
       case "AWAITING_APPROVAL":
         return <Users className="h-4 w-4 text-brand-500" />;
       default:
-        return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
+        return <AISpinner className="h-4 w-4 text-blue-500 animate-spin" />;
     }
   };
 
@@ -1068,7 +1043,7 @@ function CartoonMakerContent() {
                         >
                           {isLoadingSuggestions ? (
                             <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              <AISpinner className="mr-2 h-4 w-4 animate-spin" />
                               Generating...
                             </>
                           ) : (
@@ -1101,7 +1076,7 @@ function CartoonMakerContent() {
 
                       {isLoadingSuggestions ? (
                         <div className="flex items-center justify-center py-8">
-                          <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+                          <AISpinner className="h-8 w-8 animate-spin text-brand-500" />
                         </div>
                       ) : suggestions.length > 0 ? (
                         <div className="grid gap-2">
@@ -1448,7 +1423,7 @@ function CartoonMakerContent() {
                 >
                   {isGenerating ? (
                     <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      <AISpinner className="mr-2 h-5 w-5 animate-spin" />
                       Creating Your Cartoon...
                     </>
                   ) : (
@@ -1484,7 +1459,7 @@ function CartoonMakerContent() {
                     </>
                   ) : isProcessing ? (
                     <>
-                      <Loader2 className="h-5 w-5 animate-spin text-brand-500" />
+                      <AISpinner className="h-5 w-5 animate-spin text-brand-500" />
                       Generating Your Cartoon...
                     </>
                   ) : currentJob?.status === "COMPLETED" ? (
@@ -1559,7 +1534,7 @@ function CartoonMakerContent() {
                                   >
                                     {regeneratingCharacter === char.name ? (
                                       <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        <AISpinner className="h-4 w-4 animate-spin" />
                                         Regenerating...
                                       </>
                                     ) : (
@@ -1724,7 +1699,7 @@ function CartoonMakerContent() {
                                           >
                                             {regeneratingScene === scene.sceneNumber ? (
                                               <>
-                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                <AISpinner className="h-4 w-4 animate-spin" />
                                                 Regenerating...
                                               </>
                                             ) : (
@@ -1827,7 +1802,7 @@ function CartoonMakerContent() {
                           >
                             {isApproving ? (
                               <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                <AISpinner className="mr-2 h-4 w-4 animate-spin" />
                                 Processing...
                               </>
                             ) : (
@@ -2103,7 +2078,7 @@ export default function CartoonMakerPage() {
     <Suspense
       fallback={
         <div className="flex items-center justify-center min-h-[400px]">
-          <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+          <AISpinner className="h-8 w-8 animate-spin text-brand-500" />
         </div>
       }
     >

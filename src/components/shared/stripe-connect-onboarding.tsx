@@ -2,19 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {
-  CheckCircle,
-  AlertCircle,
-  Banknote,
-  Loader2,
-  Shield,
-  Lock,
-  Building2,
-  Calendar,
-  KeyRound,
-  ArrowRight,
-  RefreshCw,
-} from "lucide-react";
+import { CheckCircle, AlertCircle, Banknote, Shield, Lock, Building2, Calendar, KeyRound, ArrowRight, RefreshCw } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 type OnboardingState = "loading" | "idle" | "form" | "submitting" | "complete" | "error" | "update-bank" | "updating";
 
@@ -189,7 +178,7 @@ export function StripeConnectOnboarding({
   if (state === "loading") {
     return (
       <div className={`flex items-center justify-center py-8 ${className}`}>
-        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        <AISpinner className="w-5 h-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -234,7 +223,7 @@ export function StripeConnectOnboarding({
   if (state === "updating") {
     return (
       <div className={`flex items-center justify-center gap-2 py-8 ${className}`}>
-        <Loader2 className="w-5 h-5 animate-spin text-brand-500" />
+        <AISpinner className="w-5 h-5 animate-spin text-brand-500" />
         <span className="text-sm text-muted-foreground">Updating your bank account...</span>
       </div>
     );
@@ -359,7 +348,7 @@ export function StripeConnectOnboarding({
   if (state === "submitting") {
     return (
       <div className={`flex items-center justify-center gap-2 py-8 ${className}`}>
-        <Loader2 className="w-5 h-5 animate-spin text-brand-500" />
+        <AISpinner className="w-5 h-5 animate-spin text-brand-500" />
         <span className="text-sm text-muted-foreground">Setting up your payouts...</span>
       </div>
     );

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Paintbrush, ImageIcon, Upload, Loader2, FolderOpen } from "lucide-react";
+import { Paintbrush, ImageIcon, Upload, FolderOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useCanvasStore } from "../hooks/use-canvas-store";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface MediaItem {
   id: string;
@@ -257,7 +258,7 @@ export function BackgroundsPanel() {
         </div>
         {libraryLoading ? (
           <div className="flex items-center justify-center py-6">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <AISpinner className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         ) : libraryImages.length === 0 ? (
           <div className="text-center py-4 text-xs text-muted-foreground">
@@ -280,7 +281,7 @@ export function BackgroundsPanel() {
                 />
                 {settingBgId === item.id && (
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                    <AISpinner className="h-4 w-4 animate-spin text-white" />
                   </div>
                 )}
               </button>

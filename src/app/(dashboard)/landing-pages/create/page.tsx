@@ -4,36 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Sparkles,
-  Loader2,
-  Globe,
-  Rocket,
-  UserPlus,
-  Calendar,
-  Clock,
-  Briefcase,
-  UtensilsCrossed,
-  Layers,
-  Building2,
-  ChevronDown,
-  ChevronUp,
-  Monitor,
-  Tablet,
-  Smartphone,
-  Eye,
-  Edit3,
-  Save,
-  RefreshCw,
-  Share2,
-  Copy,
-  Check,
-  ExternalLink,
-  X,
-  Info,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Sparkles, Globe, Rocket, UserPlus, Calendar, Clock, Briefcase, UtensilsCrossed, Layers, Building2, ChevronDown, ChevronUp, Monitor, Tablet, Smartphone, Eye, Edit3, Save, RefreshCw, Share2, Copy, Check, ExternalLink, X, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -48,6 +19,7 @@ import { cn } from "@/lib/utils/cn";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { PAGE_TYPE_TEMPLATES, TemplateVariant } from "@/lib/landing-pages/templates";
 import { generateTemplatePreviewHtml } from "@/lib/landing-pages/template-preview";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -1084,7 +1056,7 @@ export default function CreateLandingPage() {
                 disabled={isPublishing}
               >
                 {isPublishing ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <AISpinner className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <Globe className="h-3.5 w-3.5" />
                 )}

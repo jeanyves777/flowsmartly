@@ -2,8 +2,9 @@
 
 import { use, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Loader2, Send, AlertCircle, Search, UserCheck, Sparkles, Camera } from "lucide-react";
+import { Check, Send, AlertCircle, Search, UserCheck, Sparkles, Camera } from "lucide-react";
 import type { DataFormField, DataFormType } from "@/types/data-form";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface BrandInfo {
   name: string;
@@ -205,7 +206,7 @@ function StandardForm({
         {formData.fields.map((field, i) => renderField(field, i))}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: formData.fields.length * 0.05 }}>
           <button type="submit" disabled={submitting} className="w-full py-3.5 rounded-xl text-white font-semibold text-base transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2" style={{ backgroundColor: primaryColor }}>
-            {submitting ? (<><Loader2 className="h-5 w-5 animate-spin" /> Submitting...</>) : (<><Send className="h-5 w-5" /> Submit</>)}
+            {submitting ? (<><AISpinner className="h-5 w-5 animate-spin" /> Submitting...</>) : (<><Send className="h-5 w-5" /> Submit</>)}
           </button>
         </motion.div>
       </form>
@@ -392,7 +393,7 @@ function SmartCollectForm({
   if (step === "detecting") {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" style={{ color: primaryColor }} />
+        <AISpinner className="h-8 w-8 animate-spin mx-auto mb-4" style={{ color: primaryColor }} />
         <p className="text-gray-400 text-sm">Checking this device...</p>
       </motion.div>
     );
@@ -513,7 +514,7 @@ function SmartCollectForm({
               style={{ borderColor: query.length >= 2 ? primaryColor + "60" : undefined }}
             />
             {searching && (
-              <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 animate-spin text-gray-400" />
+              <AISpinner className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 animate-spin text-gray-400" />
             )}
           </div>
 
@@ -578,7 +579,7 @@ function SmartCollectForm({
   if (step === "loading") {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
-        <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4" style={{ color: primaryColor }} />
+        <AISpinner className="h-10 w-10 animate-spin mx-auto mb-4" style={{ color: primaryColor }} />
         <p className="text-gray-500 font-medium">Checking your info, {selectedContact?.firstName}...</p>
       </motion.div>
     );
@@ -827,7 +828,7 @@ function SmartCollectForm({
               >
                 {uploadingPhoto ? (
                   <>
-                    <Loader2 className="h-10 w-10 animate-spin text-blue-500 flex-shrink-0" />
+                    <AISpinner className="h-10 w-10 animate-spin text-blue-500 flex-shrink-0" />
                     <span className="text-sm text-gray-500">Uploading...</span>
                   </>
                 ) : (
@@ -905,7 +906,7 @@ function SmartCollectForm({
             style={{ backgroundColor: primaryColor }}
           >
             {submitting ? (
-              <><Loader2 className="h-5 w-5 animate-spin" /> Saving...</>
+              <><AISpinner className="h-5 w-5 animate-spin" /> Saving...</>
             ) : (
               <><Check className="h-5 w-5" /> Complete My Info</>
             )}
@@ -944,7 +945,7 @@ function PublicFormClient({ slug }: { slug: string }) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <AISpinner className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
   }

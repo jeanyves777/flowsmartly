@@ -1,20 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  Image,
-  Megaphone,
-  FileText,
-  Presentation,
-  PanelTop,
-  Signpost,
-  Loader2,
-  LayoutGrid,
-  Search,
-  Eye,
-  Wand2,
-  X,
-} from "lucide-react";
+import { Image, Megaphone, FileText, Presentation, PanelTop, Signpost, LayoutGrid, Search, Eye, Wand2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -24,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DESIGN_CATEGORIES } from "@/lib/constants/design-presets";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 export interface DesignTemplate {
   id: string;
@@ -131,7 +119,7 @@ export function TemplateBrowser({ onSelectTemplate }: TemplateBrowserProps) {
       {/* Templates grid */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 animate-spin text-brand-500" />
+          <AISpinner className="w-6 h-6 animate-spin text-brand-500" />
         </div>
       ) : templates.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">

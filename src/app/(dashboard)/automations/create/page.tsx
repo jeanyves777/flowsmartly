@@ -4,27 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Mail,
-  MessageSquare,
-  Sparkles,
-  Wand2,
-  ChevronRight,
-  ChevronLeft,
-  Check,
-  Users,
-  Clock,
-  Loader2,
-  AlertCircle,
-  Cake,
-  Calendar,
-  UserPlus,
-  Star,
-  Zap,
-  Power,
-  Globe,
-} from "lucide-react";
+import { ArrowLeft, Mail, MessageSquare, Sparkles, Wand2, ChevronRight, ChevronLeft, Check, Users, Clock, AlertCircle, Cake, Calendar, UserPlus, Star, Zap, Power, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -49,6 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { US_HOLIDAYS, getHolidayDate } from "@/lib/marketing/holidays";
 import type { Holiday } from "@/lib/marketing/holidays";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -898,7 +879,7 @@ export default function CreateAutomationPage() {
                       >
                         {isGenerating ? (
                           <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                             Generating...
                           </>
                         ) : (
@@ -1326,7 +1307,7 @@ export default function CreateAutomationPage() {
                       >
                         {isLoading ? (
                           <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                             Creating...
                           </>
                         ) : (

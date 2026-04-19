@@ -3,10 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { formatDistanceToNow, format } from "date-fns";
-import {
-  ArrowLeft, Send, Paperclip, ClipboardCheck, Settings, Image as ImageIcon,
-  FileText, Video, X, Check, XCircle, Calendar, Loader2, ChevronUp,
-} from "lucide-react";
+import { ArrowLeft, Send, Paperclip, ClipboardCheck, Settings, Image as ImageIcon, FileText, Video, X, Check, XCircle, Calendar, ChevronUp } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +16,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -979,7 +977,7 @@ export default function ConversationChatPage() {
                         className="flex-1"
                       >
                         {isReviewingApproval ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <AISpinner className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <>
                             <XCircle className="h-3.5 w-3.5 mr-1" />
@@ -1008,7 +1006,7 @@ export default function ConversationChatPage() {
                       onClick={() => handleApproveApproval(approval.id)}
                     >
                       {isReviewingApproval ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <AISpinner className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         <>
                           <Check className="h-3.5 w-3.5 mr-1" />
@@ -1215,7 +1213,7 @@ export default function ConversationChatPage() {
               className="text-muted-foreground"
             >
               {isLoadingMore ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                <AISpinner className="h-4 w-4 animate-spin mr-1.5" />
               ) : (
                 <ChevronUp className="h-4 w-4 mr-1.5" />
               )}
@@ -1271,7 +1269,7 @@ export default function ConversationChatPage() {
               ))}
               {isUploading && (
                 <div className="h-16 w-16 rounded-lg bg-muted flex items-center justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  <AISpinner className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
               )}
             </div>
@@ -1332,7 +1330,7 @@ export default function ConversationChatPage() {
               }
             >
               {isSending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <AISpinner className="h-4 w-4 animate-spin" />
               ) : (
                 <Send className="h-4 w-4" />
               )}
@@ -1402,7 +1400,7 @@ export default function ConversationChatPage() {
                   className="h-20 w-20 rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center text-muted-foreground hover:border-brand-500/50 hover:text-brand-500 transition-colors"
                 >
                   {isUploadingApprovalMedia ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <AISpinner className="h-5 w-5 animate-spin" />
                   ) : (
                     <>
                       <ImageIcon className="h-5 w-5" />
@@ -1471,7 +1469,7 @@ export default function ConversationChatPage() {
             >
               {isSubmittingApproval ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <AISpinner className="h-4 w-4 mr-2 animate-spin" />
                   Sending...
                 </>
               ) : (
@@ -1562,7 +1560,7 @@ export default function ConversationChatPage() {
             >
               {isSavingSettings ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <AISpinner className="h-4 w-4 mr-2 animate-spin" />
                   Saving...
                 </>
               ) : (

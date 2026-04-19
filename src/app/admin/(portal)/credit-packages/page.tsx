@@ -2,28 +2,11 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Package,
-  RefreshCw,
-  Loader2,
-  AlertTriangle,
-  X,
-  Save,
-  Sparkles,
-  Check,
-  Plus,
-  ToggleLeft,
-  ToggleRight,
-  Edit2,
-  DollarSign,
-  Star,
-  TrendingUp,
-  Hash,
-  Gift,
-} from "lucide-react";
+import { Package, RefreshCw, AlertTriangle, X, Save, Sparkles, Check, Plus, ToggleLeft, ToggleRight, Edit2, DollarSign, Star, TrendingUp, Hash, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface CreditPackageAdmin {
   id: string;
@@ -405,7 +388,7 @@ export default function AdminCreditPackagesPage() {
       {isLoading ? (
         <Card>
           <CardContent className="p-12 flex justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
           </CardContent>
         </Card>
       ) : sortedPackages.length === 0 ? (
@@ -788,7 +771,7 @@ export default function AdminCreditPackagesPage() {
                   disabled={!isFormValid || isSubmitting}
                 >
                   {isSubmitting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <AISpinner className="w-4 h-4 animate-spin" />
                   ) : (
                     <>
                       <Save className="w-4 h-4 mr-2" />

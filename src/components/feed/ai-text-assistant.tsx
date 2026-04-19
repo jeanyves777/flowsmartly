@@ -2,20 +2,11 @@
 
 import { useState } from "react";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
-import {
-  Sparkles,
-  FileText,
-  MessageSquare,
-  Hash,
-  Zap,
-  Loader2,
-  Copy,
-  Check,
-  ArrowRight,
-} from "lucide-react";
+import { Sparkles, FileText, MessageSquare, Hash, Zap, Copy, Check, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface AITextAssistantProps {
   onInsert: (content: string) => void;
@@ -347,7 +338,7 @@ export function AITextAssistant({ onInsert, onClose }: AITextAssistantProps) {
       >
         {isGenerating ? (
           <>
-            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+            <AISpinner className="w-3.5 h-3.5 mr-1.5 animate-spin" />
             Generating...
           </>
         ) : (

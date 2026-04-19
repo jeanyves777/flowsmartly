@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Mail, X, Loader2, CheckCircle2 } from "lucide-react";
+import { Mail, X, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 export function EmailVerificationBanner() {
   const [isVisible, setIsVisible] = useState(true);
@@ -67,7 +68,7 @@ export function EmailVerificationBanner() {
           >
             {isSending ? (
               <>
-                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                <AISpinner className="h-3 w-3 animate-spin mr-1" />
                 Sending...
               </>
             ) : (

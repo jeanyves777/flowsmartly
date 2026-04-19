@@ -2,17 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Search,
-  Loader2,
-  Check,
-  Users,
-  Edit3,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-} from "lucide-react";
+import { Search, Check, Users, Edit3, X, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 export interface LibraryCharacter {
   id: string;
@@ -214,7 +205,7 @@ export function CharacterBrowser({
       {/* Character grid */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <AISpinner className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : characters.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">

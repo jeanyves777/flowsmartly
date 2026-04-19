@@ -2,22 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ShoppingBag,
-  Globe,
-  CreditCard,
-  Sparkles,
-  Eye,
-  Link2,
-  Rocket,
-  Loader2,
-  Check,
-  X,
-  ChevronRight,
-  ChevronLeft,
-  ExternalLink,
-  Package,
-} from "lucide-react";
+import { ShoppingBag, Globe, CreditCard, Sparkles, Eye, Link2, Rocket, Check, X, ChevronRight, ChevronLeft, ExternalLink, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageLoader } from "@/components/shared/page-loader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +21,7 @@ import { ProductListingStep, type ProductEntry } from "@/components/ecommerce/on
 import { AIBuildStep } from "@/components/ecommerce/onboarding/ai-build-step";
 import { PreviewStep } from "@/components/ecommerce/onboarding/preview-step";
 import { type StoreTemplateConfig } from "@/lib/constants/store-templates";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──
 
@@ -888,7 +874,7 @@ export default function OnboardingPage() {
                 <div className="mt-2 h-5">
                   {slugChecking && (
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <AISpinner className="h-3 w-3 animate-spin" />
                       Checking availability...
                     </div>
                   )}
@@ -1054,7 +1040,7 @@ export default function OnboardingPage() {
               >
                 {launching ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <AISpinner className="h-4 w-4 animate-spin mr-2" />
                     Launching your store...
                   </>
                 ) : !brandKitReady || !emailConfigReady ? (

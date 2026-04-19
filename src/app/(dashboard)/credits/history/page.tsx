@@ -4,24 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import {
-  ArrowLeft,
-  Sparkles,
-  ArrowUpRight,
-  ArrowDownRight,
-  Filter,
-  ChevronDown,
-  Loader2,
-  Receipt,
-  TrendingUp,
-  TrendingDown,
-  Wallet,
-  RefreshCw,
-  FileText,
-  CreditCard,
-  Download,
-  CheckCircle,
-} from "lucide-react";
+import { ArrowLeft, Sparkles, ArrowUpRight, ArrowDownRight, Filter, ChevronDown, Receipt, TrendingUp, TrendingDown, Wallet, RefreshCw, FileText, CreditCard, Download, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -37,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──
 
@@ -390,7 +374,7 @@ export default function CreditHistoryPage() {
             {txHasMore && !txLoading && (
               <div className="flex justify-center pt-4">
                 <Button variant="outline" size="sm" onClick={() => fetchHistory(false)} disabled={txLoadingMore}>
-                  {txLoadingMore ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Loading...</> : "Load More"}
+                  {txLoadingMore ? <><AISpinner className="w-4 h-4 animate-spin mr-2" />Loading...</> : "Load More"}
                 </Button>
               </div>
             )}

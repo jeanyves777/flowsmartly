@@ -2,27 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import {
-  Users,
-  Eye,
-  FileText,
-  DollarSign,
-  Activity,
-  Globe,
-  AlertTriangle,
-  Server,
-  Cpu,
-  HardDrive,
-  Wifi,
-  ArrowUpRight,
-  ArrowDownRight,
-  MousePointerClick,
-  RefreshCw,
-  Loader2,
-} from "lucide-react";
+import { Users, Eye, FileText, DollarSign, Activity, Globe, AlertTriangle, Server, Cpu, HardDrive, Wifi, ArrowUpRight, ArrowDownRight, MousePointerClick, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface DashboardStats {
   totalUsers: number;
@@ -276,7 +260,7 @@ export default function AdminDashboardPage() {
           <CardContent className="p-0">
             {isLoading ? (
               <div className="p-8 flex justify-center">
-                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                <AISpinner className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             ) : recentActivity.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
@@ -413,7 +397,7 @@ export default function AdminDashboardPage() {
           <CardContent className="p-0">
             {isLoading ? (
               <div className="p-8 flex justify-center">
-                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                <AISpinner className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             ) : topPages.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
@@ -462,7 +446,7 @@ export default function AdminDashboardPage() {
           <CardContent className="p-4 space-y-4">
             {isLoading ? (
               <div className="p-8 flex justify-center">
-                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                <AISpinner className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             ) : topCountries.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">

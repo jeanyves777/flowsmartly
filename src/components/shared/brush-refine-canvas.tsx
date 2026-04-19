@@ -3,19 +3,8 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Eraser,
-  Minus,
-  Plus,
-  Undo2,
-  Redo2,
-  Check,
-  Loader2,
-  ZoomIn,
-  ZoomOut,
-  Wand2,
-  Paintbrush,
-} from "lucide-react";
+import { Eraser, Minus, Plus, Undo2, Redo2, Check, ZoomIn, ZoomOut, Wand2, Paintbrush } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ─── Checkerboard CSS for transparency visualization ───
 const checkerboardStyle: React.CSSProperties = {
@@ -703,7 +692,7 @@ export default function BrushRefineCanvas({
           {/* Loading overlay */}
           {!isLoaded && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/80">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <AISpinner className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           )}
         </div>
@@ -875,7 +864,7 @@ export default function BrushRefineCanvas({
             className="bg-brand-500 hover:bg-brand-600 text-white"
           >
             {isSaving ? (
-              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+              <AISpinner className="w-4 h-4 mr-1.5 animate-spin" />
             ) : (
               <Check className="w-4 h-4 mr-1.5" />
             )}

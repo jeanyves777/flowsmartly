@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, Share2, Check, X, ImageIcon, Plus, Upload, Loader2 } from "lucide-react";
+import { Send, Sparkles, Share2, Check, X, ImageIcon, Plus, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -272,7 +272,7 @@ export function PostSharePanel({ mediaUrl, mediaUrls: initialMediaUrls, mediaTyp
                     {canAddMore && (
                       <label className="w-20 h-20 rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center cursor-pointer hover:border-brand-500/50 hover:bg-muted/50 transition-colors">
                         {isUploadingMore ? (
-                          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                          <AISpinner className="w-5 h-5 animate-spin text-muted-foreground" />
                         ) : (
                           <>
                             <Plus className="w-4 h-4 text-muted-foreground" />

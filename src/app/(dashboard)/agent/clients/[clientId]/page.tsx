@@ -4,23 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  LogIn,
-  CheckCircle,
-  Clock,
-  AlertTriangle,
-  TrendingUp,
-  Loader2,
-  Briefcase,
-  CalendarDays,
-  FileText,
-  Megaphone,
-  Target,
-  Zap,
-  BarChart3,
-  PenSquare,
-} from "lucide-react";
+import { ArrowLeft, LogIn, CheckCircle, Clock, AlertTriangle, TrendingUp, Briefcase, CalendarDays, FileText, Megaphone, Target, Zap, BarChart3, PenSquare } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface ClientUser {
   id: string;
@@ -842,7 +827,7 @@ export default function AgentClientDetailPage() {
             >
               {isImpersonating ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <AISpinner className="h-4 w-4 mr-2 animate-spin" />
                   Starting Session...
                 </>
               ) : (

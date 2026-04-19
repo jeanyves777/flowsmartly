@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Captions, Check, Loader2, Mic, Music, Trash2, RefreshCw } from "lucide-react";
+import { Captions, Check, Mic, Music, Trash2, RefreshCw } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
 } from "@/lib/video-editor/caption-sync";
 import type { CaptionStyleId } from "@/lib/cartoon/caption-generator";
 import type { TimedWord } from "@/lib/video-editor/types";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 const CAPTION_STYLES: {
   id: CaptionStyleId;
@@ -229,7 +230,7 @@ export function CaptionsPanel() {
                         title="Re-generate captions"
                       >
                         {isGenerating ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <AISpinner className="h-3 w-3 animate-spin" />
                         ) : (
                           <RefreshCw className="h-3 w-3" />
                         )}
@@ -254,7 +255,7 @@ export function CaptionsPanel() {
                     >
                       {isGenerating ? (
                         <>
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          <AISpinner className="h-3 w-3 mr-1 animate-spin" />
                           Generating...
                         </>
                       ) : (

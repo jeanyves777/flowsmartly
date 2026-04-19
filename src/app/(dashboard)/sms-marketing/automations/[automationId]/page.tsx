@@ -4,29 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Save,
-  Trash2,
-  Loader2,
-  MessageSquare,
-  Cake,
-  Calendar,
-  UserPlus,
-  RefreshCw,
-  Star,
-  Clock,
-  Send,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
-  Activity,
-  ChevronDown,
-  ChevronUp,
-  Users,
-  Edit3,
-  BarChart3,
-} from "lucide-react";
+import { ArrowLeft, Save, Trash2, MessageSquare, Cake, Calendar, UserPlus, RefreshCw, Star, Clock, Send, AlertCircle, CheckCircle2, XCircle, Activity, ChevronDown, ChevronUp, Users, Edit3, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -56,6 +34,7 @@ import {
 } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // Types
 type AutomationType =
@@ -965,7 +944,7 @@ export default function SmsAutomationDetailPage() {
                     >
                       {isDeleting ? (
                         <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                           Deleting...
                         </>
                       ) : (
@@ -1298,7 +1277,7 @@ export default function SmsAutomationDetailPage() {
                   >
                     {isSaving ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                         Saving...
                       </>
                     ) : (
@@ -1317,7 +1296,7 @@ export default function SmsAutomationDetailPage() {
                   >
                     {isDeleting ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                         Deleting...
                       </>
                     ) : (
@@ -1468,7 +1447,7 @@ export default function SmsAutomationDetailPage() {
                       >
                         {loadingMoreLogs ? (
                           <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                             Loading...
                           </>
                         ) : (

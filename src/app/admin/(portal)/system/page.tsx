@@ -2,32 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import {
-  Settings,
-  Globe,
-  Mail,
-  Shield,
-  Key,
-  Code,
-  Save,
-  RefreshCw,
-  AlertTriangle,
-  Copy,
-  Eye,
-  EyeOff,
-  Plus,
-  Trash2,
-  Lock,
-  Zap,
-  Loader2,
-  CheckCircle,
-} from "lucide-react";
+import { Settings, Globe, Mail, Shield, Key, Code, Save, RefreshCw, AlertTriangle, Copy, Eye, EyeOff, Plus, Trash2, Lock, Zap, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // Types
 interface SystemSettings {
@@ -298,7 +280,7 @@ export default function SystemSettingsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -722,7 +704,7 @@ export default function SystemSettingsPage() {
                     disabled={isGeneratingKey}
                   >
                     {isGeneratingKey ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                     ) : (
                       <Plus className="w-4 h-4 mr-2" />
                     )}

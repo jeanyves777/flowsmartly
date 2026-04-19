@@ -4,12 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  ArrowLeft, Send, Trash2, Loader2, Mail, Eye, BarChart3, Users,
-  CheckCircle2, XCircle, Edit2, AlertCircle,
-  ChevronDown, Smartphone, MousePointerClick, UserMinus, Copy,
-  TrendingUp, Activity,
-} from "lucide-react";
+import { ArrowLeft, Send, Trash2, Mail, Eye, BarChart3, Users, CheckCircle2, XCircle, Edit2, AlertCircle, ChevronDown, Smartphone, MousePointerClick, UserMinus, Copy, TrendingUp, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface Campaign {
   id: string;
@@ -272,7 +268,7 @@ export default function EmailCampaignDetailPage() {
                 className="bg-gradient-to-r from-brand-500 to-purple-500 hover:from-brand-600 hover:to-purple-600"
               >
                 {isSending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <Send className="w-4 h-4 mr-2" />
                 )}
@@ -287,7 +283,7 @@ export default function EmailCampaignDetailPage() {
             disabled={isDeleting}
             className="text-destructive hover:text-destructive"
           >
-            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            {isDeleting ? <AISpinner className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
           </Button>
         </div>
       </div>
@@ -684,7 +680,7 @@ export default function EmailCampaignDetailPage() {
                   disabled={isSending || !campaign.subject || !campaign.content}
                 >
                   {isSending ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
                     <Send className="w-4 h-4 mr-2" />
                   )}

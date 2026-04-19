@@ -3,25 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Sparkles,
-  ArrowLeft,
-  Loader2,
-  Building2,
-  Users,
-  Target,
-  Megaphone,
-  BarChart3,
-  Mail,
-  PenTool,
-  Globe,
-  CheckCircle2,
-  AlertTriangle,
-  DollarSign,
-  Swords,
-  Info,
-  ChevronDown,
-} from "lucide-react";
+import { Sparkles, ArrowLeft, Building2, Users, Target, Megaphone, BarChart3, Mail, PenTool, Globe, CheckCircle2, AlertTriangle, DollarSign, Swords, Info, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useCreditCosts } from "@/hooks/use-credit-costs";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 
 // --- Types ---
 
@@ -484,7 +466,7 @@ export default function GenerateStrategyPage() {
             {isBrandLoading ? (
               <CardContent className="py-5">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <AISpinner className="h-4 w-4 animate-spin" />
                   Loading brand...
                 </div>
               </CardContent>
@@ -1050,7 +1032,7 @@ export default function GenerateStrategyPage() {
             >
               {isGenerating ? (
                 <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  <AISpinner className="h-5 w-5 mr-2 animate-spin" />
                   Generating Strategy...
                 </>
               ) : (

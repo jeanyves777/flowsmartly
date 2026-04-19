@@ -3,12 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowLeft, Save, Plus, Trash2, GripVertical, ChevronDown, ChevronUp,
-  Copy, Check, ExternalLink, Download, Eye, Settings as SettingsIcon,
-  FileText, Send, Users, Search, MoreVertical, RefreshCw, Mail, MessageSquare,
-  Share2, Phone, Loader2, ListPlus, FolderPlus,
-} from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy, Check, ExternalLink, Download, Eye, Settings as SettingsIcon, FileText, Send, Users, Search, MoreVertical, RefreshCw, Mail, MessageSquare, Share2, Phone, ListPlus, FolderPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,6 +12,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { FIELD_TYPES, FORM_STATUS_CONFIG, type DataFormField, type DataFormFieldType, type DataFormData, type DataFormSubmissionData } from "@/types/data-form";
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 export default function DataFormDetailPage() {
   const params = useParams();
@@ -1176,7 +1172,7 @@ export default function DataFormDetailPage() {
                 (syncMode === "new" && !syncNewListName.trim())
               }
             >
-              {isSyncing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {isSyncing && <AISpinner className="h-4 w-4 mr-2 animate-spin" />}
               Sync Contacts
             </Button>
           </DialogFooter>

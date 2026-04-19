@@ -3,20 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  Globe,
-  Plus,
-  Eye,
-  Edit3,
-  Trash2,
-  ExternalLink,
-  Copy,
-  MoreVertical,
-  Loader2,
-  Globe2,
-  Rocket,
-  GlobeLock,
-} from "lucide-react";
+import { Globe, Plus, Eye, Edit3, Trash2, ExternalLink, Copy, MoreVertical, Globe2, Rocket, GlobeLock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 type PageStatus = "PUBLISHED" | "DRAFT";
 type FilterTab = "all" | "PUBLISHED" | "DRAFT";
@@ -357,7 +345,7 @@ export default function LandingPagesPage() {
                             className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                             {togglingId === page.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <AISpinner className="w-4 h-4 animate-spin" />
                             ) : (
                               <MoreVertical className="w-4 h-4" />
                             )}
@@ -478,7 +466,7 @@ export default function LandingPagesPage() {
                           disabled={togglingId === page.id}
                         >
                           {togglingId === page.id ? (
-                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                            <AISpinner className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                           ) : (
                             <Globe className="w-3.5 h-3.5 mr-1.5" />
                           )}

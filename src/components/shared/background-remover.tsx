@@ -2,19 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Loader2,
-  Download,
-  Check,
-  Scissors,
-  Eye,
-  EyeOff,
-  RotateCcw,
-  Columns2,
-  SlidersHorizontal,
-  ToggleLeft,
-  Eraser,
-} from "lucide-react";
+import { Download, Check, Scissors, Eye, EyeOff, RotateCcw, Columns2, SlidersHorizontal, ToggleLeft, Eraser } from "lucide-react";
 import {
   Dialog,
   DialogContent,

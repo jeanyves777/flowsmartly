@@ -2,32 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Building2,
-  Tag,
-  Search,
-  CreditCard,
-  Rocket,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  Check,
-  Globe,
-  Phone,
-  Mail,
-  MapPin,
-  X,
-  Sparkles,
-  Shield,
-  Zap,
-  BarChart3,
-  MessageSquare,
-  FileText,
-  Star,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-} from "lucide-react";
+import { Building2, Tag, Search, CreditCard, Rocket, ChevronLeft, ChevronRight, Check, Globe, Phone, Mail, MapPin, X, Sparkles, Shield, Zap, BarChart3, MessageSquare, FileText, Star, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -41,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Step Config ──
 
@@ -520,7 +496,7 @@ export default function ListSmartlyOnboardingPage() {
             className="shrink-0 gap-2"
           >
             {brandLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <AISpinner className="w-4 h-4 animate-spin" />
             ) : (
               <Sparkles className="w-4 h-4 text-teal-500" />
             )}
@@ -738,7 +714,7 @@ export default function ListSmartlyOnboardingPage() {
           <Card>
             <CardContent className="py-12">
               <div className="flex flex-col items-center">
-                <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+                <AISpinner className="h-10 w-10 animate-spin text-primary mb-4" />
                 <p className="text-foreground font-medium mb-2">
                   Scanning 161 directories...
                 </p>
@@ -1137,7 +1113,7 @@ export default function ListSmartlyOnboardingPage() {
                 disabled={loading}
               >
                 {loading && selectedPlan === "basic" ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <AISpinner className="h-4 w-4 animate-spin mr-2" />
                 ) : null}
                 Start Free Trial
               </Button>
@@ -1188,7 +1164,7 @@ export default function ListSmartlyOnboardingPage() {
                 disabled={loading}
               >
                 {loading && selectedPlan === "pro" ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <AISpinner className="h-4 w-4 animate-spin mr-2" />
                 ) : null}
                 Start Free Trial
               </Button>

@@ -3,23 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  ArrowLeft,
-  Sparkles,
-  Loader2,
-  Trash2,
-  Play,
-  Pause,
-  Archive,
-  Target,
-  CheckCircle2,
-  AlertTriangle,
-  RefreshCw,
-} from "lucide-react";
+import { ArrowLeft, Sparkles, Trash2, Play, Pause, Archive, Target, CheckCircle2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // --- Types ---
 
@@ -447,7 +436,7 @@ export default function StrategyPlansPage() {
                             className="text-green-600 border-green-500/30 hover:bg-green-500/10 hover:text-green-700"
                           >
                             {isUpdating ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                              <AISpinner className="h-3.5 w-3.5 animate-spin mr-1" />
                             ) : (
                               <Play className="h-3.5 w-3.5 mr-1" />
                             )}
@@ -464,7 +453,7 @@ export default function StrategyPlansPage() {
                             className="text-yellow-600 border-yellow-500/30 hover:bg-yellow-500/10 hover:text-yellow-700"
                           >
                             {isUpdating ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                              <AISpinner className="h-3.5 w-3.5 animate-spin mr-1" />
                             ) : (
                               <Pause className="h-3.5 w-3.5 mr-1" />
                             )}
@@ -481,7 +470,7 @@ export default function StrategyPlansPage() {
                             className="text-gray-500 border-gray-400/30 hover:bg-gray-400/10 hover:text-gray-600"
                           >
                             {isUpdating ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                              <AISpinner className="h-3.5 w-3.5 animate-spin mr-1" />
                             ) : (
                               <Archive className="h-3.5 w-3.5 mr-1" />
                             )}
@@ -503,7 +492,7 @@ export default function StrategyPlansPage() {
                             title={isConfirmingDelete ? "Click again to confirm" : "Delete strategy"}
                           >
                             {isUpdating ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <AISpinner className="h-3.5 w-3.5 animate-spin" />
                             ) : isConfirmingDelete ? (
                               <span className="text-[10px] font-bold">?</span>
                             ) : (

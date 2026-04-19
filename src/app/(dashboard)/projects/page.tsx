@@ -2,18 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Loader2,
-  FolderKanban,
-  Users,
-  Sparkles,
-  Clock,
-  ArrowRight,
-} from "lucide-react";
+import { FolderKanban, Users, Sparkles, Clock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getAllowedRoutes } from "@/lib/teams/feature-routes";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface DelegationPermission {
   featureKey: string;
@@ -89,7 +83,7 @@ export default function ProjectsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+        <AISpinner className="h-8 w-8 animate-spin text-orange-500" />
       </div>
     );
   }

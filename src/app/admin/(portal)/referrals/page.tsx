@@ -2,21 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import {
-  Gift,
-  Users,
-  UserCheck,
-  DollarSign,
-  Clock,
-  Filter,
-  Trophy,
-  ArrowUpDown,
-  Loader2,
-  RefreshCw,
-  AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+import { Gift, Users, UserCheck, DollarSign, Clock, Filter, Trophy, ArrowUpDown, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

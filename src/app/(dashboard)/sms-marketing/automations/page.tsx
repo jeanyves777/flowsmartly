@@ -3,23 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  Zap,
-  Plus,
-  Cake,
-  Calendar,
-  UserPlus,
-  Clock,
-  MessageSquare,
-  BarChart3,
-  Loader2,
-  ArrowRight,
-  ArrowLeft,
-  Settings,
-  Star,
-  Gift,
-  RefreshCw,
-} from "lucide-react";
+import { Zap, Plus, Cake, Calendar, UserPlus, Clock, MessageSquare, BarChart3, ArrowRight, ArrowLeft, Settings, Star, Gift, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 type AutomationType = "BIRTHDAY" | "HOLIDAY" | "WELCOME" | "RE_ENGAGEMENT" | "CUSTOM";
 type CampaignType = "EMAIL" | "SMS";
@@ -437,7 +422,7 @@ export default function SmsAutomationsPage() {
                         onClick={(e) => e.stopPropagation()}
                       >
                         {isToggling ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                          <AISpinner className="w-4 h-4 animate-spin text-muted-foreground" />
                         ) : (
                           <Switch
                             checked={automation.enabled}

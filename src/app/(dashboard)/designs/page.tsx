@@ -4,31 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import NextImage from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  FolderOpen,
-  Search,
-  Grid3X3,
-  List,
-  Plus,
-  FolderPlus,
-  Trash2,
-  Check,
-  X,
-  Loader2,
-  MoreVertical,
-  Pencil,
-  FolderInput,
-  ChevronRight,
-  CheckSquare,
-  Square,
-  Palette,
-  Image,
-  FileText,
-  Megaphone,
-  PanelTop,
-  Signpost,
-  Presentation,
-} from "lucide-react";
+import { FolderOpen, Search, Grid3X3, List, Plus, FolderPlus, Trash2, Check, X, MoreVertical, Pencil, FolderInput, ChevronRight, CheckSquare, Square, Palette, Image, FileText, Megaphone, PanelTop, Signpost, Presentation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -50,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { DESIGN_CATEGORIES, type CategoryConfig } from "@/lib/constants/design-presets";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -1004,7 +981,7 @@ export default function DesignsPage() {
             disabled={isLoadingMore}
           >
             {isLoadingMore ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <AISpinner className="w-4 h-4 mr-2 animate-spin" />
             ) : null}
             {isLoadingMore ? "Loading..." : "Load More"}
           </Button>
@@ -1228,7 +1205,7 @@ export default function DesignsPage() {
             </Button>
             <Button onClick={handleBulkMove} disabled={isBulkOperating}>
               {isBulkOperating ? (
-                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                <AISpinner className="w-4 h-4 mr-1 animate-spin" />
               ) : (
                 <FolderInput className="w-4 h-4 mr-1" />
               )}
@@ -1255,7 +1232,7 @@ export default function DesignsPage() {
             </Button>
             <Button variant="destructive" onClick={handleBulkDelete} disabled={isBulkOperating}>
               {isBulkOperating ? (
-                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                <AISpinner className="w-4 h-4 mr-1 animate-spin" />
               ) : (
                 <Trash2 className="w-4 h-4 mr-1" />
               )}

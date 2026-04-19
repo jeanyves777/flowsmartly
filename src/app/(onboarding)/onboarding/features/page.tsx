@@ -3,19 +3,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Check, ArrowRight, Loader2, Sparkles, Lock,
-  Rss, PenSquare, CalendarDays, Zap, Target, Link2,
-  Palette, Scissors, Crown, Clapperboard, Mic, FolderOpen,
-  Users, Mail, Megaphone, MessageSquare, MessageCircle, Globe,
-  FormInput, FileQuestion, ClipboardList, Briefcase,
-  ShoppingBag, BarChart3, Brain, Truck,
-  FolderKanban, UsersRound, Gift, DollarSign, Store,
-} from "lucide-react";
+import { Check, ArrowRight, Sparkles, Lock, Rss, PenSquare, CalendarDays, Zap, Target, Link2, Palette, Scissors, Crown, Clapperboard, Mic, FolderOpen, Users, Mail, Megaphone, MessageSquare, MessageCircle, Globe, FormInput, FileQuestion, ClipboardList, Briefcase, ShoppingBag, BarChart3, Brain, Truck, FolderKanban, UsersRound, Gift, DollarSign, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Rss, PenSquare, CalendarDays, Zap, Target, Link2,
@@ -138,7 +131,7 @@ export default function FeaturesPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
+          <AISpinner className="w-8 h-8 animate-spin text-brand-500" />
           <p className="text-muted-foreground">Loading your features...</p>
         </div>
       </div>
@@ -314,7 +307,7 @@ export default function FeaturesPage() {
           >
             {isSaving ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                <AISpinner className="w-4 h-4 animate-spin mr-2" />
                 Activating...
               </>
             ) : (

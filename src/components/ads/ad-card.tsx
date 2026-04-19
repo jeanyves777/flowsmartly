@@ -1,15 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import {
-  Megaphone,
-  ExternalLink,
-  Eye,
-  DollarSign,
-  Loader2,
-  Clock,
-  CheckCircle2,
-} from "lucide-react";
+import { Megaphone, ExternalLink, Eye, DollarSign, Clock, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 

@@ -2,15 +2,8 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Sparkles,
-  ChevronDown,
-  ChevronUp,
-  Loader2,
-  FileText,
-  Clock,
-  Type,
-} from "lucide-react";
+import { Sparkles, ChevronDown, ChevronUp, FileText, Clock, Type } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface ScriptEditorProps {
   script: string;
@@ -176,7 +169,7 @@ export function ScriptEditor({
                 >
                   {isGenerating ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <AISpinner className="w-4 h-4 animate-spin" />
                       Generating Script...
                     </>
                   ) : (

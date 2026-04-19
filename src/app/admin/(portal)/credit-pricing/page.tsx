@@ -2,29 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  DollarSign,
-  Search,
-  RefreshCw,
-  Loader2,
-  AlertTriangle,
-  X,
-  Save,
-  Sparkles,
-  Tag,
-  Settings,
-  Database,
-  Check,
-  Image,
-  FileText,
-  Palette,
-  ToggleLeft,
-  ToggleRight,
-  Edit2,
-} from "lucide-react";
+import { DollarSign, Search, RefreshCw, AlertTriangle, X, Save, Sparkles, Tag, Settings, Database, Check, Image, FileText, Palette, ToggleLeft, ToggleRight, Edit2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface CreditPricing {
   id: string;
@@ -266,7 +248,7 @@ export default function AdminCreditPricingPage() {
             className="bg-emerald-600 hover:bg-emerald-700"
           >
             {isSeeding ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <AISpinner className="w-4 h-4 mr-2 animate-spin" />
             ) : (
               <Database className="w-4 h-4 mr-2" />
             )}
@@ -384,7 +366,7 @@ export default function AdminCreditPricingPage() {
       {isLoading ? (
         <Card>
           <CardContent className="p-12 flex justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
           </CardContent>
         </Card>
       ) : filteredPricing.length === 0 ? (
@@ -394,7 +376,7 @@ export default function AdminCreditPricingPage() {
             <p className="text-muted-foreground mb-4">No pricing entries found</p>
             <Button onClick={handleSeed} disabled={isSeeding}>
               {isSeeding ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <AISpinner className="w-4 h-4 mr-2 animate-spin" />
               ) : (
                 <Database className="w-4 h-4 mr-2" />
               )}
@@ -596,7 +578,7 @@ export default function AdminCreditPricingPage() {
                   disabled={!editCredits || !editName || isSubmitting}
                 >
                   {isSubmitting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <AISpinner className="w-4 h-4 animate-spin" />
                   ) : (
                     <>
                       <Save className="w-4 h-4 mr-2" />

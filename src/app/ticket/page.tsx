@@ -3,23 +3,9 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import {
-  Ticket,
-  Search,
-  Loader2,
-  AlertCircle,
-  MapPin,
-  Globe,
-  Clock,
-  Calendar,
-  Download,
-  QrCode,
-  User,
-  Mail,
-  Check,
-  ExternalLink,
-} from "lucide-react";
+import { Ticket, Search, AlertCircle, MapPin, Globe, Clock, Calendar, Download, QrCode, User, Mail, Check, ExternalLink } from "lucide-react";
 import type { TicketStyle } from "@/types/event";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface TicketData {
   ticket: {
@@ -161,7 +147,7 @@ function TicketLookupContent() {
                 disabled={loading || !code.trim()}
                 className="px-6 py-3.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
               >
-                {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Look Up"}
+                {loading ? <AISpinner className="h-5 w-5 animate-spin" /> : "Look Up"}
               </button>
             </div>
           </form>
@@ -185,7 +171,7 @@ function TicketLookupContent() {
         {/* Loading */}
         {loading && (
           <div className="text-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-indigo-500 mx-auto mb-3" />
+            <AISpinner className="h-8 w-8 animate-spin text-indigo-500 mx-auto mb-3" />
             <p className="text-gray-500">Looking up your ticket...</p>
           </div>
         )}
@@ -528,7 +514,7 @@ export default function TicketPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <AISpinner className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     }>
       <TicketLookupContent />

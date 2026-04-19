@@ -3,20 +3,11 @@
 import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Coins,
-  Sparkles,
-  Zap,
-  ArrowRight,
-  Crown,
-  X,
-  Loader2,
-  TrendingUp,
-  Lock,
-} from "lucide-react";
+import { Coins, Sparkles, Zap, ArrowRight, Crown, X, TrendingUp, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Store (global, like toast) ─────────────────────────────────────────────
 
@@ -264,7 +255,7 @@ export function CreditPurchaseModal() {
 
               {loading ? (
                 <div className="flex items-center justify-center py-10">
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  <AISpinner className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
               ) : (
                 <div className="space-y-2.5">

@@ -4,34 +4,12 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
-  Target,
-  CheckCircle2,
-  Clock,
-  Activity,
-  ListOrdered,
-  FileText,
-  Trophy,
-  Star,
-  Zap,
-  Award,
-  Rocket,
-  Flame,
-  Calendar,
-  Share2,
-  Sparkles,
-  TrendingUp,
-  TrendingDown,
-  Loader2,
-  BarChart3,
-} from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Target, CheckCircle2, Clock, Activity, ListOrdered, FileText, Trophy, Star, Zap, Award, Rocket, Flame, Calendar, Share2, Sparkles, TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // --- Types ---
 
@@ -809,7 +787,7 @@ export default function MonthlyReportPage({
                               onClick={() => handleShareMilestone(milestone.id)}
                             >
                               {sharingMilestone === milestone.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <AISpinner className="h-3 w-3 animate-spin" />
                               ) : (
                                 <>
                                   <Share2 className="h-3 w-3 mr-1" />
@@ -845,7 +823,7 @@ export default function MonthlyReportPage({
         >
           {sharingScore ? (
             <>
-              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              <AISpinner className="h-5 w-5 animate-spin mr-2" />
               Sharing...
             </>
           ) : (

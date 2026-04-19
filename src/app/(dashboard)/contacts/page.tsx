@@ -3,29 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { useSearchParams, useRouter } from "next/navigation";
-import {
-  Users,
-  UserCheck,
-  UserX,
-  Mail,
-  MessageSquare,
-  Search,
-  Plus,
-  Upload,
-  Download,
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-  X,
-  Loader2,
-  FileUp,
-  ChevronLeft,
-  ChevronRight,
-  ListPlus,
-  AlertCircle,
-  Camera,
-  ArrowRight,
-} from "lucide-react";
+import { Users, UserCheck, UserX, Mail, MessageSquare, Search, Plus, Upload, Download, MoreHorizontal, Pencil, Trash2, X, FileUp, ChevronLeft, ChevronRight, ListPlus, AlertCircle, Camera, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +47,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import type { ContactResponse } from "@/api/contracts/contacts";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1525,7 +1504,7 @@ export default function ContactsPage() {
                 </label>
                 {isUploadingPhoto && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full">
-                    <Loader2 className="w-5 h-5 text-white animate-spin" />
+                    <AISpinner className="w-5 h-5 text-white animate-spin" />
                   </div>
                 )}
               </div>
@@ -1715,7 +1694,7 @@ export default function ContactsPage() {
               disabled={isSavingContact}
             >
               {isSavingContact && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <AISpinner className="h-4 w-4 mr-2 animate-spin" />
               )}
               {editingContact ? "Save Changes" : "Add Contact"}
             </Button>
@@ -1751,7 +1730,7 @@ export default function ContactsPage() {
               className="bg-red-600 hover:bg-red-700"
             >
               {isDeleting && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <AISpinner className="h-4 w-4 mr-2 animate-spin" />
               )}
               Delete
             </AlertDialogAction>
@@ -1798,7 +1777,7 @@ export default function ContactsPage() {
               disabled={isSavingList}
             >
               {isSavingList && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <AISpinner className="h-4 w-4 mr-2 animate-spin" />
               )}
               {editingList ? "Rename" : "Create"}
             </Button>
@@ -1831,7 +1810,7 @@ export default function ContactsPage() {
               className="bg-red-600 hover:bg-red-700"
             >
               {isDeletingList && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <AISpinner className="h-4 w-4 mr-2 animate-spin" />
               )}
               Delete
             </AlertDialogAction>
@@ -1876,7 +1855,7 @@ export default function ContactsPage() {
               disabled={isBulkAdding || !bulkAddListId}
             >
               {isBulkAdding && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <AISpinner className="h-4 w-4 mr-2 animate-spin" />
               )}
               Add to List
             </Button>
@@ -1916,7 +1895,7 @@ export default function ContactsPage() {
               onClick={handleBulkMoveToList}
               disabled={isBulkMoving || !bulkMoveListId}
             >
-              {isBulkMoving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {isBulkMoving && <AISpinner className="h-4 w-4 mr-2 animate-spin" />}
               Move Contacts
             </Button>
           </DialogFooter>
@@ -2157,7 +2136,7 @@ export default function ContactsPage() {
             <div className="py-4 space-y-4">
               {isImporting ? (
                 <div className="flex flex-col items-center gap-4 py-8">
-                  <Loader2 className="h-10 w-10 animate-spin text-brand-500" />
+                  <AISpinner className="h-10 w-10 animate-spin text-brand-500" />
                   <p className="text-sm text-muted-foreground">
                     Importing contacts, please wait...
                   </p>

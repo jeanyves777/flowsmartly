@@ -2,13 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import {
-  ArrowLeft, ExternalLink, RefreshCw, Loader2, Check, AlertCircle, Globe,
-  FileText, Save, Plus, Trash2, Link2, Upload, X, Image as ImageIcon,
-  Phone, Mail, MapPin, Star, Users, MessageSquare, HelpCircle, Flag, AlertTriangle, Sparkles, Rocket,
-} from "lucide-react";
+import { ArrowLeft, ExternalLink, RefreshCw, Check, AlertCircle, Globe, FileText, Save, Plus, Trash2, Link2, Upload, X, Image as ImageIcon, Phone, Mail, MapPin, Star, Users, MessageSquare, HelpCircle, Flag, AlertTriangle, Sparkles, Rocket } from "lucide-react";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { SectionUpdater } from "@/components/shared/section-updater";
 
 interface Website {
@@ -202,7 +198,7 @@ export default function WebsiteEditPage() {
     return d.path || "";
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><AISpinner className="w-8 h-8 animate-spin text-primary" /></div>;
   if (!website) return <div className="text-center py-20"><p className="text-muted-foreground">Website not found</p></div>;
 
   const busy = rebuilding || fixingLinks || saving || isUpgrading;
@@ -238,8 +234,8 @@ export default function WebsiteEditPage() {
         <div className="flex items-center gap-2">
           {changed && <button onClick={save} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50"><Save className="w-3.5 h-3.5" /> Save & Rebuild</button>}
           {website.buildStatus === "built" && <a href={website.customDomain ? `https://${website.customDomain}` : `/sites/${website.slug}/`} target="_blank" className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted"><ExternalLink className="w-3.5 h-3.5" /> View</a>}
-          <button onClick={fixLinks} disabled={busy} className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted disabled:opacity-50">{fixingLinks ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Fix Links"}</button>
-          <button onClick={rebuild} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">{rebuilding ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Building...</> : <><RefreshCw className="w-3.5 h-3.5" /> Rebuild</>}</button>
+          <button onClick={fixLinks} disabled={busy} className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted disabled:opacity-50">{fixingLinks ? <AISpinner className="w-3.5 h-3.5 animate-spin" /> : "Fix Links"}</button>
+          <button onClick={rebuild} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">{rebuilding ? <><AISpinner className="w-3.5 h-3.5 animate-spin" /> Building...</> : <><RefreshCw className="w-3.5 h-3.5" /> Rebuild</>}</button>
         </div>
       </div>
 
@@ -328,7 +324,7 @@ export default function WebsiteEditPage() {
               )}
               <div className="flex items-center justify-center gap-3">
                 <button onClick={rebuild} disabled={busy} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50">
-                  {rebuilding ? <><Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1.5" />Rebuilding...</> : <><RefreshCw className="w-3.5 h-3.5 inline mr-1.5" />Try Rebuild</>}
+                  {rebuilding ? <><AISpinner className="w-3.5 h-3.5 animate-spin inline mr-1.5" />Rebuilding...</> : <><RefreshCw className="w-3.5 h-3.5 inline mr-1.5" />Try Rebuild</>}
                 </button>
                 <ReportErrorButton websiteId={id} />
               </div>
@@ -862,8 +858,8 @@ export default function WebsiteEditPage() {
             <div className="flex items-center gap-3 mb-4">
               <span className="text-sm font-medium">Status:</span>
               {website.buildStatus === "built" ? <span className="flex items-center gap-1 text-sm text-green-600"><Check className="w-4 h-4" /> Live</span>
-               : website.buildStatus === "building" ? <span className="flex items-center gap-1 text-sm text-blue-600"><Loader2 className="w-4 h-4 animate-spin" /> Building...</span>
-               : website.buildStatus === "deploying" ? <span className="flex items-center gap-1 text-sm text-blue-600"><Loader2 className="w-4 h-4 animate-spin" /> Deploying...</span>
+               : website.buildStatus === "building" ? <span className="flex items-center gap-1 text-sm text-blue-600"><AISpinner className="w-4 h-4 animate-spin" /> Building...</span>
+               : website.buildStatus === "deploying" ? <span className="flex items-center gap-1 text-sm text-blue-600"><AISpinner className="w-4 h-4 animate-spin" /> Deploying...</span>
                : website.buildStatus === "error" ? <span className="flex items-center gap-1 text-sm text-red-600"><AlertCircle className="w-4 h-4" /> Error</span>
                : <span className="text-sm text-muted-foreground">Idle</span>}
             </div>
@@ -873,7 +869,7 @@ export default function WebsiteEditPage() {
               <div className="flex items-center gap-3 mb-4">
                 <span className="text-sm font-medium">App Process:</span>
                 {website.ssrStatus === "running" ? <span className="flex items-center gap-1.5 text-sm text-green-600"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Running on port {website.ssrPort}</span>
-                 : website.ssrStatus === "starting" ? <span className="flex items-center gap-1.5 text-sm text-blue-600"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Starting...</span>
+                 : website.ssrStatus === "starting" ? <span className="flex items-center gap-1.5 text-sm text-blue-600"><AISpinner className="w-3.5 h-3.5 animate-spin" /> Starting...</span>
                  : website.ssrStatus === "stopped" ? <span className="flex items-center gap-1.5 text-sm text-amber-600"><span className="w-2 h-2 rounded-full bg-amber-500" /> Stopped (auto-starts on visit)</span>
                  : website.ssrStatus === "error" ? <span className="flex items-center gap-1 text-sm text-red-600"><AlertCircle className="w-4 h-4" /> Process Error</span>
                  : null}
@@ -894,7 +890,7 @@ export default function WebsiteEditPage() {
                 <pre className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-xs rounded-lg overflow-auto max-h-60 mb-4">{website.lastBuildError}</pre>
                 <div className="flex items-center gap-3">
                   <button onClick={rebuild} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">
-                    {rebuilding ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rebuilding...</> : <><RefreshCw className="w-3.5 h-3.5" /> Retry Build</>}
+                    {rebuilding ? <><AISpinner className="w-3.5 h-3.5 animate-spin" /> Rebuilding...</> : <><RefreshCw className="w-3.5 h-3.5" /> Retry Build</>}
                   </button>
                   <ReportErrorButton websiteId={id} />
                 </div>
@@ -903,7 +899,7 @@ export default function WebsiteEditPage() {
             {website.buildStatus === "built" && (
               <div className="mt-2">
                 <button onClick={rebuild} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">
-                  {rebuilding ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Building...</> : <><RefreshCw className="w-3.5 h-3.5" /> Rebuild Site</>}
+                  {rebuilding ? <><AISpinner className="w-3.5 h-3.5 animate-spin" /> Building...</> : <><RefreshCw className="w-3.5 h-3.5" /> Rebuild Site</>}
                 </button>
               </div>
             )}
@@ -952,7 +948,7 @@ export default function WebsiteEditPage() {
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-amber-50 dark:bg-amber-900/30 border-t border-amber-200 px-6 py-3 flex items-center justify-between">
           <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Unsaved changes</p>
           <button onClick={save} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 disabled:opacity-50">
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save & Rebuild
+            {saving ? <AISpinner className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save & Rebuild
           </button>
         </div>
       )}
@@ -989,7 +985,7 @@ function ReportErrorButton({ websiteId }: { websiteId: string }) {
 
   return (
     <button onClick={report} disabled={sending} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50">
-      {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Flag className="w-3.5 h-3.5" />}
+      {sending ? <AISpinner className="w-3.5 h-3.5 animate-spin" /> : <Flag className="w-3.5 h-3.5" />}
       Report to Admin
     </button>
   );
@@ -1122,7 +1118,7 @@ function ImagePicker({ label, value, onChange, onBrowse, onUpload, onAiGenerate,
           </>
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-1">
-            {uploading ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /> : (
+            {uploading ? <AISpinner className="w-5 h-5 animate-spin text-muted-foreground" /> : (
               <div className="flex gap-1">
                 <button onClick={() => onBrowse(onChange)} className="p-1.5 hover:bg-muted rounded" title="Browse"><ImageIcon className="w-4 h-4 text-muted-foreground" /></button>
                 <button onClick={() => fileRef.current?.click()} className="p-1.5 hover:bg-muted rounded" title="Upload"><Upload className="w-4 h-4 text-muted-foreground" /></button>

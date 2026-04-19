@@ -1,29 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import {
-  Search,
-  Send,
-  Phone,
-  User,
-  MessageSquare,
-  Image as ImageIcon,
-  Video,
-  FileText,
-  Mic,
-  Check,
-  CheckCheck,
-  Clock,
-  AlertCircle,
-  Archive,
-  Trash2,
-  MoreVertical,
-  ArrowLeft,
-  Loader2,
-  Plus,
-  RefreshCw,
-  WifiOff,
-} from "lucide-react";
+import { Search, Send, Phone, User, MessageSquare, Image as ImageIcon, Video, FileText, Mic, Check, CheckCheck, Clock, AlertCircle, Archive, Trash2, MoreVertical, ArrowLeft, Plus, RefreshCw, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isYesterday } from "date-fns";
 import type { WhatsAppAccount, Conversation, Message } from "./types";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface WhatsAppInboxProps {
   account: WhatsAppAccount;
@@ -384,7 +363,7 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
     return (
       <Card className="flex items-center justify-center h-[500px]">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-green-500 mx-auto mb-3" />
+          <AISpinner className="w-8 h-8 animate-spin text-green-500 mx-auto mb-3" />
           <p className="text-sm text-muted-foreground">Loading conversations...</p>
         </div>
       </Card>
@@ -471,7 +450,7 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
                   disabled={!newChatPhone.trim() || startingChat}
                 >
                   {startingChat ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <AISpinner className="w-3.5 h-3.5 animate-spin" />
                   ) : (
                     "Start"
                   )}
@@ -561,7 +540,7 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
 
                     {/* Loading indicator for archive/delete */}
                     {(isArchivingThis || isDeletingThis) && (
-                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
+                      <AISpinner className="w-4 h-4 animate-spin text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
                     )}
 
                     {/* Context Menu */}
@@ -661,7 +640,7 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
                 {messagesLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center">
-                      <Loader2 className="w-6 h-6 animate-spin text-green-500 mx-auto mb-2" />
+                      <AISpinner className="w-6 h-6 animate-spin text-green-500 mx-auto mb-2" />
                       <p className="text-xs text-muted-foreground">Loading messages...</p>
                     </div>
                   </div>
@@ -801,7 +780,7 @@ export function WhatsAppInbox({ account }: WhatsAppInboxProps) {
                     size="icon"
                   >
                     {sending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <AISpinner className="w-4 h-4 animate-spin" />
                     ) : (
                       <Send className="w-4 h-4" />
                     )}

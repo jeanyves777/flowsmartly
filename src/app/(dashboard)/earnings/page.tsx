@@ -2,22 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import {
-  DollarSign,
-  TrendingUp,
-  Wallet,
-  ArrowUpRight,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  CreditCard,
-  Building2,
-  Info,
-  ChevronRight,
-  Loader2,
-  AlertTriangle,
-  RefreshCw,
-} from "lucide-react";
+import { DollarSign, TrendingUp, Wallet, ArrowUpRight, Clock, CheckCircle2, XCircle, CreditCard, Building2, Info, ChevronRight, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 type TimeRange = "7d" | "30d" | "90d" | "year";
 
@@ -645,7 +631,7 @@ export default function EarningsPage() {
             >
               {isRequestingPayout ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                   Processing...
                 </>
               ) : (

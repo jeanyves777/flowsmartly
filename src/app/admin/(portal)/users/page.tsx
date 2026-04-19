@@ -2,27 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Users,
-  Search,
-  Mail,
-  Ban,
-  Eye,
-  UserCheck,
-  UserX,
-  Download,
-  ChevronLeft,
-  ChevronRight,
-  Crown,
-  RefreshCw,
-  Loader2,
-  AlertTriangle,
-  X,
-} from "lucide-react";
+import { Users, Search, Mail, Ban, Eye, UserCheck, UserX, Download, ChevronLeft, ChevronRight, Crown, RefreshCw, AlertTriangle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface User {
   id: string;
@@ -339,7 +324,7 @@ export default function AdminUsersPage() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-12 flex justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
           ) : users.length === 0 ? (
             <div className="p-12 text-center text-muted-foreground">
@@ -431,7 +416,7 @@ export default function AdminUsersPage() {
                               disabled={actionLoading === user.id}
                             >
                               {actionLoading === user.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <AISpinner className="w-4 h-4 animate-spin" />
                               ) : (
                                 <UserCheck className="w-4 h-4" />
                               )}
@@ -447,7 +432,7 @@ export default function AdminUsersPage() {
                                 disabled={actionLoading === user.id}
                               >
                                 {actionLoading === user.id ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  <AISpinner className="w-3 h-3 animate-spin" />
                                 ) : (
                                   <UserCheck className="w-3 h-3" />
                                 )}

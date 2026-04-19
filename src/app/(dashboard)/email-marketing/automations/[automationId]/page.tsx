@@ -4,34 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Save,
-  Trash2,
-  Loader2,
-  Mail,
-  Cake,
-  Calendar,
-  UserPlus,
-  RefreshCw,
-  Star,
-  Clock,
-  Send,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
-  Activity,
-  Eye,
-  ChevronDown,
-  Smartphone,
-  Copy,
-  Users,
-  Edit2,
-  BarChart3,
-  TrendingUp,
-  Power,
-  Settings,
-} from "lucide-react";
+import { ArrowLeft, Save, Trash2, Mail, Cake, Calendar, UserPlus, RefreshCw, Star, Clock, Send, AlertCircle, CheckCircle2, XCircle, Activity, Eye, ChevronDown, Smartphone, Copy, Users, Edit2, BarChart3, TrendingUp, Power, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -61,6 +34,7 @@ import {
 } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // Types
 type AutomationType =
@@ -1026,7 +1000,7 @@ export default function EmailAutomationDetailPage() {
                     >
                       {isDeleting ? (
                         <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                           Deleting...
                         </>
                       ) : (
@@ -1372,7 +1346,7 @@ export default function EmailAutomationDetailPage() {
                   >
                     {isSaving ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                         Saving...
                       </>
                     ) : (
@@ -1391,7 +1365,7 @@ export default function EmailAutomationDetailPage() {
                   >
                     {isDeleting ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                         Deleting...
                       </>
                     ) : (
@@ -1514,7 +1488,7 @@ export default function EmailAutomationDetailPage() {
                 >
                   {isLoadingMoreLogs ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                       Loading...
                     </>
                   ) : (

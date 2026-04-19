@@ -2,16 +2,11 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
-import {
-  Search,
-  ShoppingBag,
-  Check,
-  Loader2,
-  ExternalLink,
-} from "lucide-react";
+import { Search, ShoppingBag, Check, ExternalLink } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface StoreProduct {
   id: string;
@@ -274,7 +269,7 @@ export function StoreProductPicker({
                     {/* Loading spinner overlay */}
                     {isPromoting && (
                       <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-                        <Loader2 className="w-6 h-6 text-brand-500 animate-spin" />
+                        <AISpinner className="w-6 h-6 text-brand-500 animate-spin" />
                       </div>
                     )}
                   </div>

@@ -2,39 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  Briefcase,
-  Loader2,
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  Send,
-  Download,
-  Globe,
-  Mail,
-  Phone,
-  ShieldCheck,
-  ShieldAlert,
-  Smartphone,
-  BarChart3,
-  MessageCircle,
-  Calendar,
-  ShoppingCart,
-  Code2,
-  Link2,
-  TrendingUp,
-  AlertTriangle,
-  Star,
-  ExternalLink,
-  MapPin,
-  Trophy,
-  Target,
-  Zap,
-  Users,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react";
+import { ArrowLeft, Briefcase, AlertCircle, CheckCircle2, Clock, Send, Download, Globe, Mail, Phone, ShieldCheck, ShieldAlert, Smartphone, BarChart3, MessageCircle, Calendar, ShoppingCart, Code2, Link2, TrendingUp, AlertTriangle, Star, ExternalLink, MapPin, Trophy, Target, Zap, Users, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils/cn";
 import { scoreHexColor, scoreLabel } from "@/lib/pitch/scorer";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -260,7 +229,7 @@ function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
 function StatusBadge({ status }: { status: Pitch["status"] }) {
   const map: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
     PENDING:     { label: "Pending",      cls: "bg-muted text-muted-foreground",   icon: <Clock className="w-3.5 h-3.5" /> },
-    RESEARCHING: { label: "Researching…", cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400",   icon: <Loader2 className="w-3.5 h-3.5 animate-spin" /> },
+    RESEARCHING: { label: "Researching…", cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400",   icon: <AISpinner className="w-3.5 h-3.5 animate-spin" /> },
     READY:       { label: "Ready",        cls: "bg-green-500/10 text-green-600 dark:text-green-400", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
     FAILED:      { label: "Failed",       cls: "bg-red-500/10 text-red-600 dark:text-red-400",     icon: <AlertCircle className="w-3.5 h-3.5" /> },
     SENT:        { label: "Sent",         cls: "bg-purple-500/10 text-purple-600 dark:text-purple-400", icon: <Send className="w-3.5 h-3.5" /> },
@@ -375,7 +344,7 @@ export default function PitchDetailPage() {
   }
 
   if (isLoading) {
-    return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>;
+    return <div className="min-h-screen bg-background flex items-center justify-center"><AISpinner className="w-8 h-8 animate-spin text-blue-500" /></div>;
   }
 
   if (error || !pitch) {
@@ -426,7 +395,7 @@ export default function PitchDetailPage() {
             {isReady && (
               <div className="flex items-center gap-2 flex-shrink-0">
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownloadPDF} disabled={isDownloading}>
-                  {isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PDF
+                  {isDownloading ? <AISpinner className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PDF
                 </Button>
                 <Button size="sm" className="gap-1.5" onClick={() => setShowSendDialog(true)}>
                   <Send className="w-3.5 h-3.5" /> {pitch.status === "SENT" ? "Resend" : "Send Pitch"}
@@ -441,7 +410,7 @@ export default function PitchDetailPage() {
       {isProcessing && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
           <div className="w-20 h-20 rounded-3xl bg-blue-50 flex items-center justify-center mx-auto mb-5">
-            <Loader2 className="w-10 h-10 animate-spin text-blue-600 dark:text-blue-400" />
+            <AISpinner className="w-10 h-10 animate-spin text-blue-600 dark:text-blue-400" />
           </div>
           <h2 className="text-xl font-semibold text-foreground mb-2">
             {pitch.status === "PENDING" ? "Queued for research…" : "AI is deeply analyzing this business"}
@@ -932,7 +901,7 @@ export default function PitchDetailPage() {
               <div className="flex justify-end gap-3 pt-1">
                 <Button type="button" variant="outline" onClick={() => setShowSendDialog(false)}>Cancel</Button>
                 <Button type="submit" disabled={isSending} className="gap-2">
-                  {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {isSending ? <AISpinner className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   {isSending ? "Sending…" : "Send with PDF"}
                 </Button>
               </div>

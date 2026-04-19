@@ -5,38 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
-import {
-  ArrowLeft,
-  Star,
-  Users,
-  DollarSign,
-  Loader2,
-  Briefcase,
-  Globe,
-  CheckCircle,
-  ExternalLink,
-  TrendingUp,
-  Calendar,
-  Shield,
-  Sparkles,
-  Heart,
-  Award,
-  Target,
-  BarChart3,
-  MessageSquare,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Image as ImageIcon,
-  Video,
-  ZoomIn,
-  FileText,
-  Clock,
-  XCircle,
-  AlertTriangle,
-  Quote,
-  Send,
-} from "lucide-react";
+import { ArrowLeft, Star, Users, DollarSign, Briefcase, Globe, CheckCircle, ExternalLink, TrendingUp, Calendar, Shield, Sparkles, Heart, Award, Target, BarChart3, MessageSquare, ChevronDown, ChevronLeft, ChevronRight, Image as ImageIcon, Video, ZoomIn, FileText, Clock, XCircle, AlertTriangle, Quote, Send } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface ShowcaseProject {
   url: string;
@@ -376,7 +346,7 @@ export default function AgentDetailPage() {
           animate={{ rotate: 360 }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
         >
-          <Loader2 className="h-8 w-8 text-violet-500" />
+          <AISpinner className="h-8 w-8 text-violet-500" />
         </motion.div>
         <p className="text-sm text-muted-foreground">Loading agent profile...</p>
       </div>
@@ -1290,7 +1260,7 @@ export default function AgentDetailPage() {
             >
               {isHiring ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <AISpinner className="h-4 w-4 mr-2 animate-spin" />
                   Sending Request...
                 </>
               ) : (
@@ -1389,7 +1359,7 @@ export default function AgentDetailPage() {
             >
               {isUnhiring ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <AISpinner className="h-4 w-4 mr-2 animate-spin" />
                   Processing...
                 </>
               ) : (
@@ -1537,7 +1507,7 @@ export default function AgentDetailPage() {
               disabled={isSubmittingReview || reviewComment.trim().length < 10}
             >
               {isSubmittingReview ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Submitting...</>
+                <><AISpinner className="h-4 w-4 mr-2 animate-spin" />Submitting...</>
               ) : (
                 <><Send className="h-4 w-4 mr-2" />Submit Review</>
               )}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Mail, ArrowLeft, Loader2 } from "lucide-react";
+import { Mail, ArrowLeft } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { LoginIllustration } from "@/components/illustrations/login-illustration";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 export default function ForgotPasswordPage() {
   const { toast } = useToast();
@@ -129,7 +130,7 @@ export default function ForgotPasswordPage() {
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <AISpinner className="h-4 w-4 animate-spin" />
                     Sending reset link...
                   </>
                 ) : (

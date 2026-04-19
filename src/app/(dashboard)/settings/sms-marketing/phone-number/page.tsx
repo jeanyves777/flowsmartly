@@ -4,23 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  Phone,
-  Search,
-  MapPin,
-  Loader2,
-  Check,
-  AlertTriangle,
-  RefreshCw,
-  DollarSign,
-  MessageSquare,
-  Globe,
-  Sparkles,
-  Shield,
-  Zap,
-  Info,
-} from "lucide-react";
+import { ArrowLeft, Phone, Search, MapPin, Check, AlertTriangle, RefreshCw, DollarSign, MessageSquare, Globe, Sparkles, Shield, Zap, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -50,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface AvailableNumber {
   phoneNumber: string;
@@ -420,7 +405,7 @@ export default function PhoneNumberPage() {
               >
                 {isSearching ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                     Searching...
                   </>
                 ) : (
@@ -609,7 +594,7 @@ export default function PhoneNumberPage() {
                           >
                             {rentingNumber === number.phoneNumber ? (
                               <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                                 Activating...
                               </>
                             ) : (

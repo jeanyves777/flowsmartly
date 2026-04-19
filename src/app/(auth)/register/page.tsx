@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Loader2, Check, X, Briefcase, CheckCircle, Gift, ChevronDown } from "lucide-react";
+import { Eye, EyeOff, Check, X, Briefcase, CheckCircle, Gift, ChevronDown } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { RegisterIllustration } from "@/components/illustrations/register-illustration";
 import { REGIONS } from "@/lib/constants/regions";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 function RegisterPageContent() {
   const router = useRouter();
@@ -470,7 +471,7 @@ function RegisterPageContent() {
         <Button type="submit" className={`w-full ${isAgentFlow ? "bg-violet-600 hover:bg-violet-700" : ""}`} size="lg" disabled={isLoading || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}>
           {isLoading ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <AISpinner className="h-4 w-4 animate-spin" />
               Creating account...
             </>
           ) : isAgentFlow ? (
@@ -640,7 +641,7 @@ function RegisterPageContent() {
             <Button type="submit" className="w-full" size="lg" disabled={oauthLoading}>
               {oauthLoading ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <AISpinner className="h-4 w-4 animate-spin" />
                   Creating account...
                 </>
               ) : (

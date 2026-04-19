@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Search, Globe, Check, X, Loader2, Star, Crown } from "lucide-react";
+import { Search, Globe, Check, X, Star, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface DomainResult {
   domain: string;
@@ -131,7 +132,7 @@ export function DomainSearch({
         >
           {isSearching ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <AISpinner className="h-4 w-4 animate-spin" />
               Searching
             </>
           ) : (
@@ -210,7 +211,7 @@ export function DomainSearch({
                           >
                             {isThisOne ? (
                               <>
-                                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                <AISpinner className="h-3.5 w-3.5 animate-spin mr-1.5" />
                                 Selecting…
                               </>
                             ) : busy ? (

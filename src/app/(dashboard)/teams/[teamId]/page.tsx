@@ -2,29 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Users,
-  FolderKanban,
-  Settings,
-  Plus,
-  Mail,
-  Crown,
-  Shield,
-  Pencil,
-  UserMinus,
-  Loader2,
-  ArrowLeft,
-  Trash2,
-  CheckCircle2,
-  Clock,
-  CalendarDays,
-  MoreVertical,
-  RefreshCw,
-  Search,
-  List,
-  UserCheck,
-  X,
-} from "lucide-react";
+import { Users, FolderKanban, Settings, Plus, Mail, Crown, Shield, Pencil, UserMinus, ArrowLeft, Trash2, CheckCircle2, Clock, CalendarDays, MoreVertical, RefreshCw, Search, List, UserCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -62,6 +40,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import Link from "next/link";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface TeamMember {
   id: string;
@@ -486,7 +465,7 @@ export default function TeamDetailPage({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+        <AISpinner className="h-8 w-8 animate-spin text-orange-500" />
       </div>
     );
   }
@@ -857,7 +836,7 @@ export default function TeamDetailPage({
                         onClick={() => handleResendInvitation(inv.id)}
                       >
                         {resendingId === inv.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <AISpinner className="h-3 w-3 animate-spin" />
                         ) : (
                           <RefreshCw className="h-3 w-3" />
                         )}
@@ -909,7 +888,7 @@ export default function TeamDetailPage({
                     disabled={saving}
                     className="gap-2"
                   >
-                    {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {saving && <AISpinner className="h-4 w-4 animate-spin" />}
                     Save Changes
                   </Button>
                 </CardContent>
@@ -1035,7 +1014,7 @@ export default function TeamDetailPage({
                     onClick={() => fetchContactsForList(selectedListId, contactSearch)}
                     disabled={loadingContacts}
                   >
-                    {loadingContacts ? <Loader2 className="h-4 w-4 animate-spin" /> : "Load"}
+                    {loadingContacts ? <AISpinner className="h-4 w-4 animate-spin" /> : "Load"}
                   </Button>
                 </div>
 
@@ -1139,7 +1118,7 @@ export default function TeamDetailPage({
 
             {inviteTab === "email" && (
               <Button onClick={handleInvite} disabled={inviting || !inviteEmail.trim()} className="gap-2">
-                {inviting && <Loader2 className="h-4 w-4 animate-spin" />}
+                {inviting && <AISpinner className="h-4 w-4 animate-spin" />}
                 Send Invitation
               </Button>
             )}
@@ -1158,7 +1137,7 @@ export default function TeamDetailPage({
               <>
                 <Button variant="ghost" onClick={() => setInviteStep("select")}>Back</Button>
                 <Button onClick={handleBulkInvite} disabled={inviting || selectedEmails.size === 0} className="gap-2">
-                  {inviting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {inviting && <AISpinner className="h-4 w-4 animate-spin" />}
                   Send {selectedEmails.size} Invite{selectedEmails.size !== 1 ? "s" : ""}
                 </Button>
               </>
@@ -1227,7 +1206,7 @@ export default function TeamDetailPage({
               disabled={creatingProject || !newProject.name.trim()}
               className="gap-2"
             >
-              {creatingProject && <Loader2 className="h-4 w-4 animate-spin" />}
+              {creatingProject && <AISpinner className="h-4 w-4 animate-spin" />}
               Create Project
             </Button>
           </DialogFooter>
@@ -1322,7 +1301,7 @@ export default function TeamDetailPage({
               disabled={deleting}
             >
               {deleting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <AISpinner className="h-4 w-4 animate-spin" />
               ) : (
                 "Delete Team"
               )}

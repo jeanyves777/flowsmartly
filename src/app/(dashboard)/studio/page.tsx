@@ -5,7 +5,8 @@ import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useCanvasStore } from "@/components/studio/hooks/use-canvas-store";
 import { safeLoadFromJSON, addImageToCanvas } from "@/components/studio/utils/canvas-helpers";
-import { Loader2 } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
+
 
 // Dynamic import to avoid SSR issues with Fabric.js
 const StudioLayout = dynamic(
@@ -15,7 +16,7 @@ const StudioLayout = dynamic(
     loading: () => (
       <div className="flex items-center justify-center h-[calc(100vh-64px)] bg-background">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+          <AISpinner className="h-8 w-8 animate-spin text-brand-500" />
           <p className="text-sm text-muted-foreground">Loading Design Studio...</p>
         </div>
       </div>
@@ -382,7 +383,7 @@ export default function StudioPage() {
     <Suspense
       fallback={
         <div className="flex items-center justify-center h-[calc(100vh-64px)]">
-          <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+          <AISpinner className="h-8 w-8 animate-spin text-brand-500" />
         </div>
       }
     >

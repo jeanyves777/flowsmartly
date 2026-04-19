@@ -3,22 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
-import {
-  Crown,
-  Sparkles,
-  Loader2,
-  Download,
-  RefreshCw,
-  Zap,
-  Palette,
-  Check,
-  ArrowLeft,
-  Maximize2,
-  X,
-  Type,
-  Shapes,
-  Square,
-} from "lucide-react";
+import { Crown, Sparkles, Download, RefreshCw, Zap, Palette, Check, ArrowLeft, Maximize2, X, Type, Shapes, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,7 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { useCreditCosts } from "@/hooks/use-credit-costs";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { LOGO_STYLES } from "@/lib/constants/logo-presets";
 
 interface LogoDesign {
@@ -543,7 +528,7 @@ export default function LogoGeneratorPage() {
                   size="sm"
                 >
                   {isDownloading ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
                     <Download className="w-4 h-4 mr-2" />
                   )}
@@ -677,7 +662,7 @@ export default function LogoGeneratorPage() {
                           className="bg-brand-500 hover:bg-brand-600"
                         >
                           {isSavingBrand ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                           ) : (
                             <Crown className="w-4 h-4 mr-2" />
                           )}

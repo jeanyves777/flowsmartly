@@ -4,36 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Mail,
-  MessageSquare,
-  Sparkles,
-  Wand2,
-  ChevronRight,
-  ChevronLeft,
-  Check,
-  Users,
-  Clock,
-  Send,
-  Eye,
-  Calendar,
-  Loader2,
-  AlertCircle,
-  Info,
-  Copy,
-  RefreshCw,
-  Zap,
-  Target,
-  FileText,
-  Settings,
-  AlertTriangle,
-  Phone,
-  Server,
-  Smartphone,
-  Tag,
-  ChevronDown,
-} from "lucide-react";
+import { ArrowLeft, Mail, MessageSquare, Sparkles, Wand2, ChevronRight, ChevronLeft, Check, Users, Clock, Send, Eye, Calendar, AlertCircle, Info, Copy, RefreshCw, Zap, Target, FileText, Settings, AlertTriangle, Phone, Server, Smartphone, Tag, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -56,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // Types
 type CampaignType = "EMAIL" | "SMS";
@@ -482,7 +454,7 @@ export default function CreateCampaignPage() {
     return (
       <div className="flex-1 flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin mx-auto mb-4 text-brand-500" />
+          <AISpinner className="w-10 h-10 animate-spin mx-auto mb-4 text-brand-500" />
           <p className="text-muted-foreground">Loading configuration...</p>
         </div>
       </div>
@@ -904,7 +876,7 @@ export default function CreateCampaignPage() {
                       >
                         {isGenerating ? (
                           <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                             Generating...
                           </>
                         ) : (
@@ -1331,7 +1303,7 @@ export default function CreateCampaignPage() {
                       >
                         {isLoading ? (
                           <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                             Processing...
                           </>
                         ) : scheduleType === "now" ? (

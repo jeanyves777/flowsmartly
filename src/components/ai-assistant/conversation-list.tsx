@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquare, Plus, Trash2, Loader2 } from "lucide-react";
+import { MessageSquare, Plus, Trash2 } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface Conversation {
   id: string;
@@ -71,7 +72,7 @@ export function ConversationList({
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            <AISpinner className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
         ) : conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center">

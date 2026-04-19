@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Loader2, Sparkles, Check, ImageIcon, Type } from "lucide-react";
+import { Sparkles, Check, ImageIcon, Type } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { REGIONS, getRegionForCountry } from "@/lib/constants/regions";
 import {
@@ -11,6 +11,7 @@ import {
   type PaymentMethodConfig,
 } from "@/lib/constants/ecommerce";
 import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface StoreInfoStepProps {
   storeName: string;
@@ -109,7 +110,7 @@ export function StoreInfoStep({
       >
         {brandSyncing ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            <AISpinner className="h-4 w-4 animate-spin mr-2" />
             Syncing...
           </>
         ) : brandSynced ? (

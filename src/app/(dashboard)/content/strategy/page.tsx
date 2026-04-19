@@ -4,30 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Target,
-  Sparkles,
-  Plus,
-  Loader2,
-  AlertTriangle,
-  RefreshCw,
-  Calendar,
-  Trash2,
-  GripVertical,
-  LayoutGrid,
-  CheckCircle2,
-  TrendingUp,
-  Flame,
-  X,
-  Activity,
-  Edit2,
-  Clock,
-  Circle,
-  ExternalLink,
-  ListChecks,
-  ArrowRight,
-  Zap,
-} from "lucide-react";
+import { Target, Sparkles, Plus, AlertTriangle, RefreshCw, Calendar, Trash2, GripVertical, LayoutGrid, CheckCircle2, TrendingUp, Flame, X, Activity, Edit2, Clock, Circle, ExternalLink, ListChecks, ArrowRight, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +51,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // --- Types ---
 
@@ -1829,7 +1807,7 @@ export default function MarketingStrategyPage() {
               >
                 {isSavingTask ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <AISpinner className="h-4 w-4 mr-2 animate-spin" />
                     Saving...
                   </>
                 ) : (

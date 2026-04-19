@@ -2,11 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Plus, Globe, Edit3, Trash2, ExternalLink, RefreshCw, Loader2, Check,
-  BarChart3, Eye, Users, TrendingUp, Zap, ArrowRight, Settings, Link2,
-  AlertTriangle, Flag,
-} from "lucide-react";
+import { Plus, Globe, Edit3, Trash2, ExternalLink, RefreshCw, Check, BarChart3, Eye, Users, TrendingUp, Zap, ArrowRight, Settings, Link2, AlertTriangle, Flag } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface Website {
   id: string; name: string; slug: string; status: string; buildStatus: string;
@@ -144,7 +141,7 @@ export default function WebsitesPage() {
                         ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
                         : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                 }`}>
-                  {(site.buildStatus === "building" || rebuilding) ? <><Loader2 className="w-3 h-3 animate-spin" /> Building...</> :
+                  {(site.buildStatus === "building" || rebuilding) ? <><AISpinner className="w-3 h-3 animate-spin" /> Building...</> :
                    site.buildStatus === "built" && site.status === "PUBLISHED" ? <><Check className="w-3 h-3" /> Live</> :
                    site.buildStatus === "error" ? <><AlertTriangle className="w-3 h-3" /> Error</> : "Draft"}
                 </span>
@@ -191,7 +188,7 @@ export default function WebsitesPage() {
                 <ActionButton icon={BarChart3} label="Analytics" onClick={() => router.push(`/websites/${site.id}/analytics`)} />
                 <ActionButton icon={ExternalLink} label="View Site" onClick={() => window.open(site.customDomain ? `https://${site.customDomain}` : `/sites/${site.slug}/`, "_blank")} />
                 <ActionButton icon={Link2} label="Domains" onClick={() => router.push(`/websites/${site.id}/edit?tab=domains`)} />
-                <ActionButton icon={rebuilding ? Loader2 : RefreshCw} label={rebuilding ? "Building..." : "Rebuild"} onClick={() => !rebuilding && handleRebuild(site.id)} spin={rebuilding} />
+                <ActionButton icon={rebuilding ? AISpinner : RefreshCw} label={rebuilding ? "Building..." : "Rebuild"} onClick={() => !rebuilding && handleRebuild(site.id)} spin={rebuilding} />
               </div>
 
               {/* Bottom info */}
@@ -262,7 +259,7 @@ function ReportErrorButton({ websiteId }: { websiteId: string }) {
       disabled={sending}
       className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-800/40 rounded-lg transition-colors disabled:opacity-50"
     >
-      {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Flag className="w-3 h-3" />}
+      {sending ? <AISpinner className="w-3 h-3 animate-spin" /> : <Flag className="w-3 h-3" />}
       Report to Admin
     </button>
   );

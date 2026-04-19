@@ -1,22 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  Share2,
-  Link2,
-  Users,
-  Clock,
-  Copy,
-  Check,
-  Trash2,
-  Plus,
-  Loader2,
-  Eye,
-  Pencil,
-  Files,
-  X,
-  UserPlus,
-} from "lucide-react";
+import { Share2, Link2, Users, Clock, Copy, Check, Trash2, Plus, Eye, Pencil, Files, X, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -35,6 +20,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useCanvasStore } from "./hooks/use-canvas-store";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface ShareDialogProps {
   open: boolean;
@@ -307,7 +293,7 @@ export function ShareDialog({ open, onOpenChange }: ShareDialogProps) {
                   className="gap-1.5"
                 >
                   {isCreatingShare ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <AISpinner className="w-3.5 h-3.5 animate-spin" />
                   ) : (
                     <Plus className="w-3.5 h-3.5" />
                   )}
@@ -318,7 +304,7 @@ export function ShareDialog({ open, onOpenChange }: ShareDialogProps) {
               {/* Links list */}
               {isLoadingShares ? (
                 <div className="flex justify-center py-6">
-                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  <AISpinner className="w-5 h-5 animate-spin text-muted-foreground" />
                 </div>
               ) : shares.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-6">
@@ -403,7 +389,7 @@ export function ShareDialog({ open, onOpenChange }: ShareDialogProps) {
                   className="gap-1.5"
                 >
                   {isInviting ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <AISpinner className="w-3.5 h-3.5 animate-spin" />
                   ) : (
                     <UserPlus className="w-3.5 h-3.5" />
                   )}
@@ -414,7 +400,7 @@ export function ShareDialog({ open, onOpenChange }: ShareDialogProps) {
               {/* Collaborators list */}
               {isLoadingCollabs ? (
                 <div className="flex justify-center py-6">
-                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  <AISpinner className="w-5 h-5 animate-spin text-muted-foreground" />
                 </div>
               ) : collaborators.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-6">
@@ -474,7 +460,7 @@ export function ShareDialog({ open, onOpenChange }: ShareDialogProps) {
             <TabsContent value="activity">
               {isLoadingActivity ? (
                 <div className="flex justify-center py-6">
-                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  <AISpinner className="w-5 h-5 animate-spin text-muted-foreground" />
                 </div>
               ) : activities.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-6">

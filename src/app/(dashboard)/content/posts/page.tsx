@@ -2,19 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Sparkles,
-  Loader2,
-  Send,
-  CalendarDays,
-  PenSquare,
-  Save,
-  Clock,
-  X,
-  CheckCircle2,
-  XCircle,
-  RefreshCw,
-} from "lucide-react";
+import { Sparkles, Send, CalendarDays, PenSquare, Save, Clock, X, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,7 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { PLATFORM_META, PLATFORM_ORDER, PLATFORM_REQUIREMENTS } from "@/components/shared/social-platform-icons";
 
@@ -326,7 +314,7 @@ export default function ContentPostsPage() {
                   disabled={isGeneratingIdea}
                 >
                   {isGeneratingIdea ? (
-                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    <AISpinner className="h-3 w-3 mr-1 animate-spin" />
                   ) : (
                     <Sparkles className="h-3 w-3 mr-1" />
                   )}
@@ -500,7 +488,7 @@ export default function ContentPostsPage() {
                 className="flex-1 sm:flex-none bg-brand-500 hover:bg-brand-600 text-white h-10"
               >
                 {isPublishing && publishAction === "publish" ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                  <AISpinner className="w-4 h-4 animate-spin mr-1.5" />
                 ) : (
                   <Send className="w-4 h-4 mr-1.5" />
                 )}
@@ -516,7 +504,7 @@ export default function ContentPostsPage() {
                 className="flex-1 sm:flex-none h-10"
               >
                 {isPublishing && publishAction === "draft" ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                  <AISpinner className="w-4 h-4 animate-spin mr-1.5" />
                 ) : (
                   <Save className="w-4 h-4 mr-1.5" />
                 )}
@@ -536,7 +524,7 @@ export default function ContentPostsPage() {
                 className={`flex-1 sm:flex-none h-10 ${showSchedulePicker ? "border-blue-500/40 text-blue-600 hover:bg-blue-500/10" : ""}`}
               >
                 {isPublishing && publishAction === "schedule" ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                  <AISpinner className="w-4 h-4 animate-spin mr-1.5" />
                 ) : (
                   <Clock className="w-4 h-4 mr-1.5" />
                 )}
@@ -558,7 +546,7 @@ export default function ContentPostsPage() {
               <Card className="border-brand-500/30 bg-brand-500/5">
                 <CardContent className="pt-5 pb-4">
                   <div className="flex items-center gap-3 mb-3">
-                    <Loader2 className="w-5 h-5 animate-spin text-brand-500" />
+                    <AISpinner className="w-5 h-5 animate-spin text-brand-500" />
                     <span className="text-sm font-medium">Publishing to your platforms...</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -573,7 +561,7 @@ export default function ContentPostsPage() {
                         >
                           <Icon className="w-3.5 h-3.5" />
                           {meta.label}
-                          <Loader2 className="w-3 h-3 animate-spin text-muted-foreground ml-0.5" />
+                          <AISpinner className="w-3 h-3 animate-spin text-muted-foreground ml-0.5" />
                         </div>
                       );
                     })}
@@ -632,7 +620,7 @@ export default function ContentPostsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {isRetrying ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                        <AISpinner className="w-4 h-4 animate-spin text-muted-foreground" />
                       ) : result.success ? (
                         <CheckCircle2 className="w-4 h-4 text-green-500" />
                       ) : (
@@ -660,7 +648,7 @@ export default function ContentPostsPage() {
                   disabled={retryingPlatforms.length > 0}
                 >
                   {retryingPlatforms.length > 0 ? (
-                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    <AISpinner className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                   ) : (
                     <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
                   )}

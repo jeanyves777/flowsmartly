@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Sparkles, Check, Loader2, AlertCircle, RefreshCw, Palette, PenLine, FolderOpen, Package, Search } from "lucide-react";
+import { Sparkles, Check, AlertCircle, RefreshCw, Palette, PenLine, FolderOpen, Package, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface AIBuildStepProps {
   storeName: string;
@@ -380,7 +381,7 @@ export function AIBuildStep({
                 {isDone ? (
                   <Check className="h-3.5 w-3.5" />
                 ) : isActive ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <AISpinner className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <span className="text-xs font-medium">{i + 1}</span>
                 )}

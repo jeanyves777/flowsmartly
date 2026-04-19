@@ -1,21 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  FolderOpen,
-  Plus,
-  Pencil,
-  Trash2,
-  Loader2,
-  ChevronRight,
-  X,
-  Check,
-  Image as ImageIcon,
-  Upload,
-  Sparkles,
-} from "lucide-react";
+import { FolderOpen, Plus, Pencil, Trash2, ChevronRight, X, Check, Image as ImageIcon, Upload, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ── Types ──
 
@@ -356,7 +345,7 @@ export default function CategoriesPage() {
       <div className="bg-card rounded-lg border border-border overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            <AISpinner className="w-6 h-6 animate-spin text-muted-foreground" />
             <span className="ml-2 text-muted-foreground">Loading categories...</span>
           </div>
         ) : categories.length === 0 ? (
@@ -460,7 +449,7 @@ export default function CategoriesPage() {
                     className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm flex items-center gap-1 hover:bg-primary/90 disabled:opacity-50"
                     title="Generate with AI"
                   >
-                    {aiGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    {aiGenerating ? <AISpinner className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                   </button>
                 </div>
                 {aiGenerating && (
@@ -501,7 +490,7 @@ export default function CategoriesPage() {
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-2"
               >
                 {saving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <AISpinner className="w-4 h-4 animate-spin" />
                 ) : (
                   <Check className="w-4 h-4" />
                 )}
@@ -533,7 +522,7 @@ export default function CategoriesPage() {
                 disabled={deleting}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
               >
-                {deleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {deleting && <AISpinner className="w-4 h-4 animate-spin" />}
                 Delete
               </button>
             </div>

@@ -5,35 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Megaphone,
-  Search,
-  Check,
-  Eye,
-  Heart,
-  Globe,
-  Target,
-  Users,
-  Calendar,
-  DollarSign,
-  Loader2,
-  Image as ImageIcon,
-  Video,
-  Type,
-  Rocket,
-  MessageCircle,
-  Sparkles,
-  X,
-  Lock,
-  ShoppingBag,
-  ExternalLink,
-  ShieldCheck,
-  AlertTriangle,
-  Link2,
-  FileText,
-  Layout,
-} from "lucide-react";
+import { ArrowLeft, Megaphone, Search, Check, Eye, Heart, Globe, Target, Users, Calendar, DollarSign, Image as ImageIcon, Video, Type, Rocket, MessageCircle, Sparkles, X, Lock, ShoppingBag, ExternalLink, ShieldCheck, AlertTriangle, Link2, FileText, Layout } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -60,6 +32,7 @@ import { MediaUploader } from "@/components/shared/media-uploader";
 import { StoreProductPicker } from "@/components/ads/store-product-picker";
 import { AIAdCreativePanel } from "@/components/ecommerce/ai-ad-creative-panel";
 import { REGIONS } from "@/lib/constants/regions";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // Platform SVG icons
 function InstagramIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
@@ -867,7 +840,7 @@ export default function CreateCampaignPage() {
                       className="h-6 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
                     >
                       {isGeneratingName ? (
-                        <><Loader2 className="w-3 h-3 animate-spin" /> Generating...</>
+                        <><AISpinner className="w-3 h-3 animate-spin" /> Generating...</>
                       ) : (
                         <><Sparkles className="w-3 h-3" /> AI Suggest</>
                       )}
@@ -1116,7 +1089,7 @@ export default function CreateCampaignPage() {
 
                 {isUploadingMedia && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <AISpinner className="w-4 h-4 animate-spin" />
                     Uploading...
                   </div>
                 )}
@@ -1705,7 +1678,7 @@ export default function CreateCampaignPage() {
                   >
                     {isGeneratingAudience ? (
                       <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <AISpinner className="w-3.5 h-3.5 animate-spin" />
                         Generating...
                       </>
                     ) : (
@@ -2046,7 +2019,7 @@ export default function CreateCampaignPage() {
                   >
                     {isSubmitting ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                         {adType === "POST" ? "Creating..." : "Submitting..."}
                       </>
                     ) : (
@@ -2077,7 +2050,7 @@ export default function CreateCampaignPage() {
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                 {adType === "POST" ? "Creating..." : "Submitting..."}
               </>
             ) : (

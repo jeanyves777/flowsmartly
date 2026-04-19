@@ -2,26 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import {
-  Briefcase,
-  Search,
-  CheckCircle,
-  XCircle,
-  Clock,
-  ShieldOff,
-  RefreshCw,
-  Loader2,
-  AlertTriangle,
-  Users,
-  DollarSign,
-  Star,
-  ChevronDown,
-  X,
-} from "lucide-react";
+import { Briefcase, Search, CheckCircle, XCircle, Clock, ShieldOff, RefreshCw, AlertTriangle, Users, DollarSign, Star, ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface AgentProfile {
   id: string;
@@ -309,7 +295,7 @@ export default function AdminAgentsPage() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-12 flex justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              <AISpinner className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
           ) : filteredProfiles.length === 0 ? (
             <div className="p-12 text-center text-muted-foreground">
@@ -379,7 +365,7 @@ export default function AdminAgentsPage() {
                               disabled={actionLoading === profile.id}
                             >
                               {actionLoading === profile.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <AISpinner className="w-3.5 h-3.5 animate-spin" />
                               ) : (
                                 <>
                                   <CheckCircle className="w-3.5 h-3.5 mr-1" />
@@ -407,7 +393,7 @@ export default function AdminAgentsPage() {
                             disabled={actionLoading === profile.id}
                           >
                             {actionLoading === profile.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <AISpinner className="w-3.5 h-3.5 animate-spin" />
                             ) : (
                               <>
                                 <ShieldOff className="w-3.5 h-3.5 mr-1" />
@@ -424,7 +410,7 @@ export default function AdminAgentsPage() {
                             disabled={actionLoading === profile.id}
                           >
                             {actionLoading === profile.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <AISpinner className="w-3.5 h-3.5 animate-spin" />
                             ) : (
                               <>
                                 <CheckCircle className="w-3.5 h-3.5 mr-1" />
@@ -441,7 +427,7 @@ export default function AdminAgentsPage() {
                             disabled={actionLoading === profile.id}
                           >
                             {actionLoading === profile.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <AISpinner className="w-3.5 h-3.5 animate-spin" />
                             ) : (
                               <>
                                 <CheckCircle className="w-3.5 h-3.5 mr-1" />
@@ -596,7 +582,7 @@ export default function AdminAgentsPage() {
                 disabled={!rejectReason.trim() || actionLoading === rejectModal.profileId}
               >
                 {actionLoading === rejectModal.profileId ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  <AISpinner className="w-4 h-4 animate-spin mr-2" />
                 ) : (
                   <XCircle className="w-4 h-4 mr-2" />
                 )}

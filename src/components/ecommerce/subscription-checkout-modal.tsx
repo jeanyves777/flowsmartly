@@ -14,17 +14,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Loader2,
-  CreditCard,
-  Shield,
-  AlertCircle,
-  Check,
-  ShoppingBag,
-  Plus,
-  Gift,
-  Crown,
-} from "lucide-react";
+import { CreditCard, Shield, AlertCircle, Check, ShoppingBag, Plus, Gift, Crown } from "lucide-react";
 import Link from "next/link";
 import {
   ECOM_PLAN_FEATURES,
@@ -33,6 +23,7 @@ import {
   ECOM_PLAN_NAMES,
   type EcomPlan,
 } from "@/lib/domains/pricing";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface PaymentMethod {
   id: string;
@@ -573,7 +564,7 @@ export function SubscriptionCheckoutModal({
                 >
                   {activating ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      <AISpinner className="w-4 h-4 animate-spin mr-2" />
                       Starting Trial...
                     </>
                   ) : selectedPlan === "basic" ? (
@@ -606,7 +597,7 @@ export function SubscriptionCheckoutModal({
 
               {loadingMethods ? (
                 <div className="flex items-center justify-center py-6">
-                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  <AISpinner className="w-5 h-5 animate-spin text-muted-foreground" />
                 </div>
               ) : (
                 <>
@@ -697,7 +688,7 @@ export function SubscriptionCheckoutModal({
                             >
                               {savingCard ? (
                                 <>
-                                  <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                                  <AISpinner className="w-3 h-3 animate-spin mr-1" />
                                   Saving...
                                 </>
                               ) : (
@@ -719,7 +710,7 @@ export function SubscriptionCheckoutModal({
                         </>
                       ) : (
                         <div className="flex items-center justify-center py-4">
-                          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                          <AISpinner className="w-5 h-5 animate-spin text-muted-foreground" />
                         </div>
                       )}
                     </div>
@@ -769,7 +760,7 @@ export function SubscriptionCheckoutModal({
                 >
                   {activating ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      <AISpinner className="w-4 h-4 animate-spin mr-2" />
                       Activating...
                     </>
                   ) : (

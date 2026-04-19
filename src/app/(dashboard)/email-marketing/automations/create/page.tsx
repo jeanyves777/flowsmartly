@@ -4,37 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Mail,
-  Sparkles,
-  Wand2,
-  ChevronRight,
-  ChevronLeft,
-  Check,
-  Users,
-  Clock,
-  Loader2,
-  AlertCircle,
-  Cake,
-  Calendar,
-  UserPlus,
-  Star,
-  Zap,
-  Power,
-  Globe,
-  Tag,
-  ChevronDown,
-  Eye,
-  Smartphone,
-  Info,
-  RefreshCw,
-  Image,
-  Wand,
-  UserCircle,
-  X,
-  Type,
-} from "lucide-react";
+import { ArrowLeft, Mail, Sparkles, Wand2, ChevronRight, ChevronLeft, Check, Users, Clock, AlertCircle, Cake, Calendar, UserPlus, Star, Zap, Power, Globe, Tag, ChevronDown, Eye, Smartphone, Info, RefreshCw, Image, Wand, UserCircle, X, Type } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -65,6 +35,7 @@ import { getEmailTemplates, TEMPLATE_CATEGORIES } from "@/lib/marketing/template
 import type { MarketingTemplate, TemplateCategory } from "@/lib/marketing/templates";
 import { MERGE_TAGS, type MergeTagCategory } from "@/lib/email/merge-tags";
 import { type EmailBrandInfo } from "@/lib/marketing/templates/email-html";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1192,7 +1163,7 @@ export default function CreateEmailAutomationPage() {
                         >
                           {isGenerating ? (
                             <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                               Generating...
                             </>
                           ) : (
@@ -1665,7 +1636,7 @@ export default function CreateEmailAutomationPage() {
                             }}
                           >
                             {isGeneratingImage ? (
-                              <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Generating...</>
+                              <><AISpinner className="w-3 h-3 mr-1 animate-spin" /> Generating...</>
                             ) : (
                               <><Sparkles className="w-3 h-3 mr-1" /> Generate Image</>
                             )}
@@ -2392,7 +2363,7 @@ export default function CreateEmailAutomationPage() {
                       >
                         {isLoading ? (
                           <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <AISpinner className="w-4 h-4 mr-2 animate-spin" />
                             Creating...
                           </>
                         ) : (

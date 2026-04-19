@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Megaphone, Rss, BarChart3, Loader2, Copy, Check, RefreshCw, ExternalLink } from "lucide-react";
+import { Megaphone, Rss, BarChart3, Copy, Check, RefreshCw, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { PageLoader } from "@/components/shared/page-loader";
 import ROASDashboard from "@/components/ecommerce/roas-dashboard";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 type TabId = "ads" | "feeds" | "performance";
 
@@ -175,7 +176,7 @@ function FeedsTab() {
                   className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
                   {isGenerating ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <AISpinner className="h-4 w-4 animate-spin" />
                   ) : (
                     <RefreshCw className="h-4 w-4" />
                   )}
