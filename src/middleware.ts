@@ -37,6 +37,12 @@ function requireAdminAuth(request: NextRequest): NextResponse | null {
   if (ADMIN_PUBLIC_PATHS.has(path)) return null;
   if (ADMIN_PUBLIC_PREFIXES.some((p) => path.startsWith(p))) return null;
 
+  // Server-to-server admin backdoor: route handlers that support an
+  // x-admin-secret header compare it against ADMIN_SECRET env. If the
+  // header is present, let the request reach the handler — handler
+  // does the actual secret comparison and returns 403 if it's wrong.
+  if (request.headers.get("x-admin-secret")) return null;
+
   const adminToken = request.cookies.get("admin_token");
   if (!adminToken?.value) {
     return NextResponse.json(
