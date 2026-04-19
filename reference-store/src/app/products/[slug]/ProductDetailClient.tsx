@@ -9,9 +9,9 @@ import CartDrawer from "@/components/CartDrawer";
 import ProductCard from "@/components/ProductCard";
 import Link from "next/link";
 import { formatPrice, storeInfo } from "@/lib/data";
-import { products, getProductBySlug, getProductsByCategory } from "@/lib/products";
+import type { Product, ProductVariant } from "@/lib/products";
+import { useLiveProduct, useLiveProducts } from "@/lib/products-store";
 import { addToCart } from "@/lib/cart";
-import type { ProductVariant } from "@/lib/products";
 
 const STORE_SLUG = (() => {
   if (typeof window === "undefined") return "";
@@ -56,7 +56,8 @@ export default function ProductDetailClient({ params }: { params: { slug: string
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
-  const product = getProductBySlug(params.slug);
+  const { product, loading: productLoading } = useLiveProduct(params.slug);
+  const { products: allLiveProducts } = useLiveProducts();
 
   // Sync wishlist
   useEffect(() => {
@@ -93,6 +94,18 @@ export default function ProductDetailClient({ params }: { params: { slug: string
       .catch(() => {});
   }, [product?.slug]);
 
+  if (productLoading) {
+    return (
+      <>
+        <Header onCartOpen={() => setCartOpen(true)} />
+        <main className="pt-24 pb-16 px-4 max-w-7xl mx-auto text-center">
+          <div className="animate-pulse text-gray-400 dark:text-gray-500 text-sm">Loading product…</div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
   if (!product) {
     return (
       <>
@@ -109,8 +122,10 @@ export default function ProductDetailClient({ params }: { params: { slug: string
   const activeVariant = selectedVariant || product.variants[0];
   const price = activeVariant?.priceCents || product.priceCents;
   const comparePrice = activeVariant?.comparePriceCents || product.comparePriceCents;
-  const relatedProducts = getProductsByCategory(product.categoryId).filter(p => p.id !== product.id).slice(0, 4);
-  const labels = product.labels || product.badges || [];
+  const relatedProducts: Product[] = allLiveProducts
+    .filter((p) => p.categoryId === product.categoryId && p.id !== product.id)
+    .slice(0, 4);
+  const labels = product.labels || [];
   const shippingThreshold = (storeInfo as Record<string, unknown>).freeShippingThresholdCents as number || 5000;
 
   const handleAddToCart = () => {

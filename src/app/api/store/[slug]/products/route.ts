@@ -61,23 +61,58 @@ export async function GET(
         orderBy,
         skip: (page - 1) * limit,
         take: limit,
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          priceCents: true,
-          comparePriceCents: true,
-          currency: true,
-          images: true,
-          shortDescription: true,
+        include: {
+          variants: {
+            where: { isActive: true },
+            orderBy: { createdAt: "asc" },
+          },
         },
       }),
       prisma.product.count({ where }),
     ]);
 
     const parsedProducts = products.map((p) => ({
-      ...p,
-      images: JSON.parse(p.images || "[]"),
+      id: p.id,
+      slug: p.slug,
+      name: p.name,
+      description: p.description || "",
+      shortDescription: p.shortDescription || "",
+      priceCents: p.priceCents,
+      comparePriceCents: p.comparePriceCents,
+      currency: p.currency,
+      categoryId: p.categoryId || "",
+      images: (() => {
+        try { return JSON.parse(p.images || "[]"); } catch { return []; }
+      })(),
+      tags: (() => {
+        try { return JSON.parse(p.tags || "[]"); } catch { return []; }
+      })(),
+      labels: (() => {
+        try { return JSON.parse(p.labels || "[]"); } catch { return []; }
+      })(),
+      badges: (() => {
+        try { return JSON.parse(p.labels || "[]"); } catch { return []; }
+      })(),
+      featured: (() => {
+        try {
+          const arr: string[] = JSON.parse(p.labels || "[]");
+          return Array.isArray(arr) && arr.includes("featured");
+        } catch { return false; }
+      })(),
+      inStock: p.trackInventory ? p.quantity > 0 : true,
+      variants: p.variants.map((v) => ({
+        id: v.id,
+        name: v.name,
+        sku: v.sku || "",
+        priceCents: v.priceCents,
+        comparePriceCents: v.comparePriceCents,
+        options: (() => {
+          try { return JSON.parse(v.options || "{}"); } catch { return {}; }
+        })(),
+        quantity: v.quantity,
+        imageUrl: v.imageUrl || "",
+        inStock: v.quantity > 0,
+      })),
     }));
 
     return NextResponse.json({

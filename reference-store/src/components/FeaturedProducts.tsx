@@ -2,13 +2,16 @@
 
 import { ArrowRight } from "lucide-react";
 import { storeUrl } from "@/lib/data";
-import { getFeaturedProducts } from "@/lib/products";
+import { useLiveProducts } from "@/lib/products-store";
 import ProductCard from "./ProductCard";
 
 export default function FeaturedProducts() {
-  const featured = getFeaturedProducts();
+  const { products, loading } = useLiveProducts();
+  const featured = products.filter((p) => p.featured);
 
-  if (featured.length === 0) return null;
+  // While loading the first time, render nothing — the grid appears as soon
+  // as the API returns. Never show stale data.
+  if (loading || featured.length === 0) return null;
 
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">

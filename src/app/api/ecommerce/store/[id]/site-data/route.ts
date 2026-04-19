@@ -57,11 +57,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     };
 
     // Extract hero config
+    const heroBlockMatch = dataContent.match(/heroConfig\s*=\s*\{([\s\S]*?)\};/);
+    const heroBlockBody = heroBlockMatch ? heroBlockMatch[1] : "";
+    const extractSlides = (body: string): string[] => {
+      const m = body.match(/slides\s*:\s*\[([\s\S]*?)\](\s*as\s+string\[\])?/);
+      if (!m) return [];
+      const items = m[1].match(/"([^"]*)"/g) || [];
+      return items.map((s) => s.slice(1, -1)).filter(Boolean);
+    };
+    const extractHeroStyle = (body: string): string | undefined => {
+      const m = body.match(/style\s*:\s*"([^"]*)"/);
+      return m ? m[1] : undefined;
+    };
     result.heroConfig = {
       headline: extractString(dataContent, "headline"),
       subheadline: extractString(dataContent, "subheadline"),
       ctaText: extractNestedString(dataContent, "heroConfig", "ctaText"),
       ctaUrl: extractNestedString(dataContent, "heroConfig", "ctaUrl"),
+      slides: extractSlides(heroBlockBody),
+      style: extractHeroStyle(heroBlockBody) || "slideshow",
     };
 
     // Extract nav links

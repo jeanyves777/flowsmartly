@@ -127,16 +127,34 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    // Update heroConfig
+    // Update heroConfig — headline / subheadline / ctaText / ctaUrl / style
     if (heroConfig) {
-      for (const field of ["headline", "subheadline"]) {
+      for (const field of ["headline", "subheadline", "ctaText", "ctaUrl", "style"]) {
         if (heroConfig[field] !== undefined) {
-          // Replace within heroConfig block
           const heroBlock = data.match(/heroConfig\s*=\s*\{([\s\S]*?)\};/);
           if (heroBlock) {
             const updated = replaceField(heroBlock[1], field, heroConfig[field]);
             data = data.replace(heroBlock[1], updated);
           }
+        }
+      }
+
+      // Update heroConfig.slides array (slideshow images). Replace or inject.
+      if (Array.isArray(heroConfig.slides)) {
+        const slidesJs = heroConfig.slides
+          .map((u: string) => `    "${escapeStr(u)}"`)
+          .join(",\n");
+        const slidesBlock = `slides: [\n${slidesJs}${heroConfig.slides.length ? "\n  " : ""}] as string[]`;
+
+        const heroBlock = data.match(/heroConfig\s*=\s*\{([\s\S]*?)\};/);
+        if (heroBlock) {
+          const heroBody = heroBlock[1];
+          // If slides already exists, replace it; otherwise inject before closing brace
+          const hasSlides = /slides\s*:\s*\[[\s\S]*?\]/.test(heroBody);
+          const newBody = hasSlides
+            ? heroBody.replace(/slides\s*:\s*\[[\s\S]*?\](\s*as\s+string\[\])?/, slidesBlock)
+            : heroBody.replace(/(\s*)$/, `,\n  ${slidesBlock},\n$1`);
+          data = data.replace(heroBody, newBody);
         }
       }
     }

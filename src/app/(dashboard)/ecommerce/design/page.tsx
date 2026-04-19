@@ -30,6 +30,8 @@ interface StoreInfo {
 
 interface HeroConfig {
   headline: string; subheadline: string; ctaText: string; ctaUrl: string;
+  slides?: string[]; // Slideshow images — 3–5 recommended
+  style?: "slideshow" | "image" | "gradient";
 }
 
 interface StoreData {
@@ -116,8 +118,39 @@ export default function StoreDesignPage() {
     setChanged(true);
   }
 
-  function updateHero<K extends keyof HeroConfig>(key: K, value: string) {
+  function updateHero<K extends keyof HeroConfig>(key: K, value: HeroConfig[K]) {
     setData((prev) => prev ? { ...prev, heroConfig: { ...prev.heroConfig, [key]: value } } : prev);
+    setChanged(true);
+  }
+
+  function addHeroSlide(url: string) {
+    setData((prev) => {
+      if (!prev) return prev;
+      const current = prev.heroConfig?.slides || [];
+      if (current.includes(url)) return prev;
+      return { ...prev, heroConfig: { ...prev.heroConfig, slides: [...current, url] } };
+    });
+    setChanged(true);
+  }
+
+  function removeHeroSlide(idx: number) {
+    setData((prev) => {
+      if (!prev) return prev;
+      const current = prev.heroConfig?.slides || [];
+      return { ...prev, heroConfig: { ...prev.heroConfig, slides: current.filter((_, i) => i !== idx) } };
+    });
+    setChanged(true);
+  }
+
+  function moveHeroSlide(idx: number, dir: -1 | 1) {
+    setData((prev) => {
+      if (!prev) return prev;
+      const current = [...(prev.heroConfig?.slides || [])];
+      const target = idx + dir;
+      if (target < 0 || target >= current.length) return prev;
+      [current[idx], current[target]] = [current[target], current[idx]];
+      return { ...prev, heroConfig: { ...prev.heroConfig, slides: current } };
+    });
     setChanged(true);
   }
 
@@ -482,7 +515,81 @@ export default function StoreDesignPage() {
             </div>
             <div className="space-y-6">
               <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-                <h2 className="text-base font-semibold">Hero Background Image</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base font-semibold">Hero Style</h2>
+                  <select
+                    value={data.heroConfig?.style || "slideshow"}
+                    onChange={(e) => updateHero("style", e.target.value as "slideshow" | "image" | "gradient")}
+                    className="px-3 py-1.5 text-xs border border-border rounded-lg bg-background"
+                  >
+                    <option value="slideshow">Slideshow (multiple images)</option>
+                    <option value="image">Single image</option>
+                    <option value="gradient">Gradient only</option>
+                  </select>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Slideshow shows a rotating carousel of banner images. Single image uses just the background image below. Gradient skips images entirely.
+                </p>
+              </div>
+
+              <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base font-semibold">Slideshow Images</h2>
+                  <span className="text-xs text-muted-foreground">
+                    {(data.heroConfig?.slides || []).length} / 8
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Add 3–5 banner images to rotate in the hero. Drag order with the arrow buttons.
+                </p>
+                <div className="space-y-2">
+                  {(data.heroConfig?.slides || []).map((url, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-background border border-border rounded-lg p-2">
+                      <img src={url} alt={`Slide ${idx + 1}`} className="w-14 h-14 rounded object-cover shrink-0" />
+                      <div className="flex-1 min-w-0 text-xs text-muted-foreground truncate">{url}</div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => moveHeroSlide(idx, -1)}
+                          disabled={idx === 0}
+                          className="p-1.5 text-xs border border-border rounded hover:bg-accent disabled:opacity-30"
+                          aria-label="Move up"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          onClick={() => moveHeroSlide(idx, 1)}
+                          disabled={idx === (data.heroConfig?.slides || []).length - 1}
+                          className="p-1.5 text-xs border border-border rounded hover:bg-accent disabled:opacity-30"
+                          aria-label="Move down"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          onClick={() => removeHeroSlide(idx)}
+                          className="p-1.5 text-xs border border-border rounded hover:bg-destructive hover:text-destructive-foreground"
+                          aria-label="Remove slide"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {(data.heroConfig?.slides || []).length < 8 && (
+                    <button
+                      onClick={() => openPicker((url) => addHeroSlide(url))}
+                      className="w-full px-3 py-3 text-sm border border-dashed border-border rounded-lg hover:bg-accent flex items-center justify-center gap-2"
+                    >
+                      <ImageIcon className="w-4 h-4" /> Add slideshow image
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+                <h2 className="text-base font-semibold">Hero Background Image (fallback)</h2>
+                <p className="text-xs text-muted-foreground">
+                  Used when Hero Style is &ldquo;Single image&rdquo;, or as fallback when the slideshow has no images.
+                </p>
                 <div className="flex gap-2">
                   <input type="text" value={data.storeInfo?.bannerUrl || ""} onChange={(e) => updateInfo("bannerUrl", e.target.value)}
                     placeholder="/images/hero-bg.jpg"
