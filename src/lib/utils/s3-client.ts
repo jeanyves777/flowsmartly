@@ -96,6 +96,24 @@ function isS3Key(str: string): boolean {
 }
 
 /**
+ * Detect an AWS S3 URL for our bucket regardless of STORAGE_URL override.
+ * STORAGE_URL may point at a CDN (e.g. https://cdn.flowsmartly.com) while
+ * canvas JSON saved months ago still embeds virtual-host S3 URLs like
+ * https://flowsmartly-media.s3.us-east-2.amazonaws.com/media/abc.png.
+ * This lets presign / key-extraction recognize both.
+ */
+function isS3Url(url: string): boolean {
+  if (!url) return false;
+  const cleanUrl = url.split("?")[0];
+  if (cleanUrl.startsWith(STORAGE_URL)) return true;
+  // Virtual-host style: https://{bucket}.s3.{region}.amazonaws.com/{key}
+  if (new RegExp(`^https://${BUCKET}\\.s3\\.[a-z0-9-]+\\.amazonaws\\.com/`).test(cleanUrl)) return true;
+  // Path style: https://s3.{region}.amazonaws.com/{bucket}/{key}
+  if (new RegExp(`^https://s3\\.[a-z0-9-]+\\.amazonaws\\.com/${BUCKET}/`).test(cleanUrl)) return true;
+  return false;
+}
+
+/**
  * Extract the S3 key from a full S3 URL or local /uploads/ path.
  * Handles both old local URLs and new S3 URLs for backwards compatibility.
  */
@@ -106,6 +124,12 @@ export function extractS3Key(url: string): string {
   if (urlWithoutParams.startsWith(STORAGE_URL)) {
     return urlWithoutParams.slice(STORAGE_URL.length + 1);
   }
+  // Virtual-host S3 URL
+  const vhMatch = urlWithoutParams.match(new RegExp(`^https://${BUCKET}\\.s3\\.[a-z0-9-]+\\.amazonaws\\.com/(.+)$`));
+  if (vhMatch) return vhMatch[1];
+  // Path-style S3 URL
+  const psMatch = urlWithoutParams.match(new RegExp(`^https://s3\\.[a-z0-9-]+\\.amazonaws\\.com/${BUCKET}/(.+)$`));
+  if (psMatch) return psMatch[1];
   if (urlWithoutParams.startsWith("/uploads/")) {
     return urlWithoutParams.slice("/uploads/".length); // "media/abc.png"
   }
@@ -242,13 +266,13 @@ function _sanitizeSrc(src: string): string {
       const decoded = decodeURIComponent(src.slice("/api/image-proxy?url=".length));
       const base = decoded.split("?")[0];
       // Only keep if it's actually an S3 URL we manage
-      if (base.startsWith(STORAGE_URL) || isS3Key(base)) return base;
+      if (isS3Url(base) || isS3Key(base)) return base;
     } catch {
       /* ignore malformed encoding */
     }
   }
   // Strip presign query params from bare S3 URLs
-  if (src.startsWith(STORAGE_URL)) return src.split("?")[0];
+  if (isS3Url(src)) return src.split("?")[0];
   return src;
 }
 
@@ -289,8 +313,8 @@ export async function presignCanvasJson(canvasJson: string): Promise<string> {
 }
 
 async function _presignSrc(src: string): Promise<string> {
-  // Bare S3 URL (clean, stored after sanitize-on-save)
-  if (src.startsWith(STORAGE_URL)) {
+  // Bare S3 URL — STORAGE_URL prefix OR virtual-host / path-style amazonaws.com
+  if (isS3Url(src)) {
     const cleanUrl = src.split("?")[0];
     const signed = await getPresignedUrl(cleanUrl);
     return `/api/image-proxy?url=${encodeURIComponent(signed)}`;
@@ -300,13 +324,18 @@ async function _presignSrc(src: string): Promise<string> {
     try {
       const decoded = decodeURIComponent(src.slice("/api/image-proxy?url=".length));
       const cleanUrl = decoded.split("?")[0];
-      if (cleanUrl.startsWith(STORAGE_URL) || isS3Key(cleanUrl)) {
+      if (isS3Url(cleanUrl) || isS3Key(cleanUrl)) {
         const signed = await getPresignedUrl(cleanUrl);
         return `/api/image-proxy?url=${encodeURIComponent(signed)}`;
       }
     } catch {
       /* ignore */
     }
+  }
+  // Bare S3 key stored as a string (e.g. "media/abc.png")
+  if (isS3Key(src)) {
+    const signed = await getPresignedUrl(src);
+    return `/api/image-proxy?url=${encodeURIComponent(signed)}`;
   }
   return src;
 }

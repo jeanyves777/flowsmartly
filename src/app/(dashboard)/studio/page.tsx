@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { useCanvasStore } from "@/components/studio/hooks/use-canvas-store";
 import { safeLoadFromJSON, addImageToCanvas } from "@/components/studio/utils/canvas-helpers";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { useToast } from "@/hooks/use-toast";
 
 
 // Dynamic import to avoid SSR issues with Fabric.js
@@ -34,6 +35,7 @@ function StudioPageInner() {
   const setCanvasDimensions = useCanvasStore((s) => s.setCanvasDimensions);
   const isDirty = useCanvasStore((s) => s.isDirty);
   const canvas = useCanvasStore((s) => s.canvas);
+  const { toast } = useToast();
 
   // Store share token and resolve access role
   useEffect(() => {
@@ -128,7 +130,19 @@ function StudioPageInner() {
 
     (async () => {
       try {
-        const res = await fetch(`/api/designs/${designId}`);
+        const qs = shareParam ? `?share=${encodeURIComponent(shareParam)}` : "";
+        const res = await fetch(`/api/designs/${designId}${qs}`);
+        if (!res.ok) {
+          toast({
+            title: "Couldn't open design",
+            description:
+              res.status === 401 || res.status === 404
+                ? "You don't have access to this design, or it no longer exists."
+                : `Server returned ${res.status}. Try refreshing.`,
+            variant: "destructive",
+          });
+          return;
+        }
         const data = await res.json();
         if (data.success && data.data?.design) {
           const store = useCanvasStore.getState();
@@ -236,11 +250,17 @@ function StudioPageInner() {
           store.refreshLayers();
           store.setDirty(false);
         }
-      } catch {
-        // silently
+      } catch (err) {
+        console.error("Failed to load design:", err);
+        toast({
+          title: "Design failed to load",
+          description:
+            "Some images couldn't be fetched. Try refreshing — if the canvas stays blank, the design may have referenced deleted assets.",
+          variant: "destructive",
+        });
       }
     })();
-  }, [designId, canvas, setDesignId]);
+  }, [designId, canvas, setDesignId, shareParam]);
 
   // Unsaved changes warning
   useEffect(() => {

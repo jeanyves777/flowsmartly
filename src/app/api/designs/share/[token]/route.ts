@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { checkDesignAccess } from "@/lib/designs/access";
+import { presignAllUrls, presignCanvasJson } from "@/lib/utils/s3-client";
 
 // GET /api/designs/share/:token - Resolve share token (public)
 export async function GET(
@@ -80,20 +81,24 @@ export async function GET(
       }
     }
 
+    const freshCanvasData = share.design.canvasData
+      ? await presignCanvasJson(share.design.canvasData)
+      : null;
+
     return NextResponse.json({
       success: true,
-      data: {
+      data: await presignAllUrls({
         design: {
           id: share.design.id,
           name: share.design.name,
           size: share.design.size,
           imageUrl: share.design.imageUrl,
-          canvasData: share.design.canvasData,
+          canvasData: freshCanvasData,
         },
         permission: share.permission,
         shareId: share.id,
         ...(userRole ? { userRole } : {}),
-      },
+      }),
     });
   } catch (error) {
     console.error("Resolve share token error:", error);
