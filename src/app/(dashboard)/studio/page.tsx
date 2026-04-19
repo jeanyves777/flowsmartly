@@ -291,9 +291,8 @@ function StudioPageInner() {
           // Ensure viewport is at identity before capturing thumbnail
           store.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
           thumbnailDataUrl = store.canvas.toDataURL({
-            format: "jpeg",
-            multiplier: 0.15,
-            quality: 0.6,
+            format: "png",
+            multiplier: 1,
           });
         } catch {
           // thumbnail generation can fail silently

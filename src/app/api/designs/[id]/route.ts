@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { presignAllUrls, presignCanvasJson, sanitizeCanvasJsonForStorage } from "@/lib/utils/s3-client";
+import { processDesignThumbnail } from "@/lib/designs/thumbnail-processor";
 import {
   checkDesignAccess,
   checkShareTokenAccess,
@@ -133,12 +134,19 @@ export async function PUT(
     const body = await request.json();
     const { name, canvasData, imageUrl, category, size, style, prompt } = body;
 
+    const processedImageUrl =
+      imageUrl !== undefined
+        ? imageUrl
+          ? await processDesignThumbnail(imageUrl, session.userId).catch(() => imageUrl)
+          : imageUrl
+        : undefined;
+
     const updated = await prisma.design.update({
       where: { id },
       data: {
         ...(name !== undefined && { name }),
         ...(canvasData !== undefined && { canvasData: sanitizeCanvasJsonForStorage(canvasData) }),
-        ...(imageUrl !== undefined && { imageUrl }),
+        ...(processedImageUrl !== undefined && { imageUrl: processedImageUrl }),
         ...(category !== undefined && { category }),
         ...(size !== undefined && { size }),
         ...(style !== undefined && { style }),

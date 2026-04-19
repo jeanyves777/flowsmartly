@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { presignAllUrls, sanitizeCanvasJsonForStorage } from "@/lib/utils/s3-client";
+import { processDesignThumbnail } from "@/lib/designs/thumbnail-processor";
 
 // GET /api/designs - Fetch user's design history
 export async function GET(request: NextRequest) {
@@ -114,6 +115,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const processedImageUrl = imageUrl
+      ? await processDesignThumbnail(imageUrl, session.userId).catch(() => imageUrl)
+      : null;
+
     const design = await prisma.design.create({
       data: {
         userId: session.userId,
@@ -121,7 +126,7 @@ export async function POST(request: NextRequest) {
         category,
         size,
         style: style || null,
-        imageUrl: imageUrl || null,
+        imageUrl: processedImageUrl,
         name: name || "Untitled Design",
         canvasData: canvasData ? sanitizeCanvasJsonForStorage(canvasData) : null,
         status: canvasData || imageUrl ? "COMPLETED" : "PENDING",
@@ -186,12 +191,19 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    const processedImageUrl =
+      imageUrl !== undefined
+        ? imageUrl
+          ? await processDesignThumbnail(imageUrl, session.userId).catch(() => imageUrl)
+          : imageUrl
+        : undefined;
+
     const updated = await prisma.design.update({
       where: { id },
       data: {
         ...(name !== undefined && { name }),
         ...(canvasData !== undefined && { canvasData: sanitizeCanvasJsonForStorage(canvasData) }),
-        ...(imageUrl !== undefined && { imageUrl }),
+        ...(processedImageUrl !== undefined && { imageUrl: processedImageUrl }),
         ...(category !== undefined && { category }),
         ...(size !== undefined && { size }),
         ...(style !== undefined && { style }),
