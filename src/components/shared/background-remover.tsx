@@ -114,7 +114,7 @@ export function BackgroundRemover({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast({ title: "Image downloaded!" });
+    toast({ title: "Download started" });
   };
 
   const handleUse = () => {

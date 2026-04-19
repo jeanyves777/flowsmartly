@@ -130,7 +130,7 @@ export function ShareHub({
     window.open(shareUrl, "_blank", "width=600,height=400,noopener,noreferrer");
 
     await recordShare(platform.id);
-    toast({ title: `Shared to ${platform.name}!` });
+    toast({ title: `${platform.name} share window opened` });
     setSharingPlatform(null);
   };
 

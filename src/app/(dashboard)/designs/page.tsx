@@ -799,9 +799,9 @@ export default function DesignsPage() {
                         src={design.imageUrl}
                         alt={design.name}
                         fill
-                        sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1536px) 25vw, 20vw"
+                        quality={90}
                         className="object-cover"
-                        unoptimized
                       />
                     ) : (
                       <div
@@ -903,8 +903,8 @@ export default function DesignsPage() {
                       alt=""
                       fill
                       sizes="40px"
+                      quality={85}
                       className="object-cover"
-                      unoptimized
                     />
                   ) : (
                     <div
