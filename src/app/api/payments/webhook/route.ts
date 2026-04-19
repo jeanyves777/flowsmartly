@@ -751,10 +751,23 @@ export async function POST(request: NextRequest) {
   const body = await request.text();
   const sig = request.headers.get("stripe-signature");
 
-  // Dev mode: process without signature verification
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    const allowUnverified =
+      process.env.NODE_ENV !== "production" &&
+      process.env.STRIPE_WEBHOOK_ALLOW_UNVERIFIED === "true";
+
+    if (!allowUnverified) {
+      console.error(
+        "[Stripe Webhook] STRIPE_WEBHOOK_SECRET is not set — refusing to process webhook without signature verification"
+      );
+      return NextResponse.json(
+        { error: "Webhook secret not configured" },
+        { status: 500 }
+      );
+    }
+
     console.warn(
-      "[Stripe Webhook] STRIPE_WEBHOOK_SECRET not set — processing without signature verification (dev mode)"
+      "[Stripe Webhook] Processing WITHOUT signature verification — STRIPE_WEBHOOK_ALLOW_UNVERIFIED=true (dev only)"
     );
 
     try {

@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import type {
+  CampaignListResponse,
+  CampaignResponse,
+  CampaignStatus,
+  CampaignType,
+  CreateCampaignResponse,
+} from "@/api/contracts/campaigns";
+import type { ApiResponse } from "@/api/contracts/common";
 
 // GET /api/campaigns - Get user's campaigns
 export async function GET(request: NextRequest) {
@@ -76,11 +84,11 @@ export async function GET(request: NextRequest) {
     const totalOpened = sentCampaignsData.reduce((sum, c) => sum + c.openCount, 0);
     const avgOpenRate = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0;
 
-    const formattedCampaigns = campaigns.map(campaign => ({
+    const formattedCampaigns: CampaignResponse[] = campaigns.map((campaign) => ({
       id: campaign.id,
       name: campaign.name,
-      type: campaign.type.toLowerCase(),
-      status: campaign.status.toLowerCase(),
+      type: campaign.type.toLowerCase() as CampaignType,
+      status: campaign.status.toLowerCase() as CampaignStatus,
       subject: campaign.subject,
       audience: campaign.contactList?.totalCount || 0,
       sent: campaign.sentCount,
@@ -90,33 +98,41 @@ export async function GET(request: NextRequest) {
       clicked: campaign.clickCount,
       bounced: campaign.bounceCount,
       unsubscribed: campaign.unsubCount,
-      openRate: campaign.sentCount > 0 ? Math.round((campaign.openCount / campaign.sentCount) * 100) : 0,
-      clickRate: campaign.openCount > 0 ? Math.round((campaign.clickCount / campaign.openCount) * 100) : 0,
-      contactList: campaign.contactList,
-      scheduledAt: campaign.scheduledAt?.toISOString(),
-      sentAt: campaign.sentAt?.toISOString(),
+      openRate:
+        campaign.sentCount > 0
+          ? Math.round((campaign.openCount / campaign.sentCount) * 100)
+          : 0,
+      clickRate:
+        campaign.openCount > 0
+          ? Math.round((campaign.clickCount / campaign.openCount) * 100)
+          : 0,
+      contactList: campaign.contactList ?? null,
+      scheduledAt: campaign.scheduledAt?.toISOString() ?? null,
+      sentAt: campaign.sentAt?.toISOString() ?? null,
       createdAt: campaign.createdAt.toISOString(),
       updatedAt: campaign.updatedAt.toISOString(),
     }));
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        campaigns: formattedCampaigns,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit),
-        },
-        stats: {
-          total: totalCampaigns,
-          active: activeCampaigns,
-          sent: sentCampaigns,
-          draft: draftCampaigns,
-          avgOpenRate,
-        },
+    const payload: CampaignListResponse = {
+      campaigns: formattedCampaigns,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
       },
+      stats: {
+        total: totalCampaigns,
+        active: activeCampaigns,
+        sent: sentCampaigns,
+        draft: draftCampaigns,
+        avgOpenRate,
+      },
+    };
+
+    return NextResponse.json<ApiResponse<CampaignListResponse>>({
+      success: true,
+      data: payload,
     });
   } catch (error) {
     console.error("Get campaigns error:", error);
@@ -247,17 +263,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        campaign: {
-          id: campaign.id,
-          name: campaign.name,
-          type: campaign.type.toLowerCase(),
-          status: campaign.status.toLowerCase(),
-          createdAt: campaign.createdAt.toISOString(),
-        },
+    const payload: CreateCampaignResponse = {
+      campaign: {
+        id: campaign.id,
+        name: campaign.name,
+        type: campaign.type.toLowerCase() as CampaignType,
+        status: campaign.status.toLowerCase() as CampaignStatus,
+        createdAt: campaign.createdAt.toISOString(),
       },
+    };
+
+    return NextResponse.json<ApiResponse<CreateCampaignResponse>>({
+      success: true,
+      data: payload,
     });
   } catch (error) {
     console.error("Create campaign error:", error);

@@ -149,7 +149,9 @@ export async function stopApp(name: string): Promise<void> {
 export async function restartApp(name: string): Promise<void> {
   if (IS_PRODUCTION) {
     try {
-      execSync(`pm2 restart ${name}`, { stdio: "pipe", timeout: 30_000 });
+      // Prefer `reload` (graceful) over `restart` (drops in-flight requests).
+      // Falls back to `restart` automatically for single-instance non-cluster apps.
+      execSync(`pm2 reload ${name}`, { stdio: "pipe", timeout: 30_000 });
     } catch (err: any) {
       throw new Error(`Failed to restart ${name}: ${err.message}`);
     }

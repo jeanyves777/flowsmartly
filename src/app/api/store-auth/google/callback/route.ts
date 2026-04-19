@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { createCustomerToken } from "@/lib/store/customer-auth";
+import { sanitizeRedirectUrl } from "@/lib/auth/safe-redirect";
 import crypto from "crypto";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com";
@@ -14,8 +15,23 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const error = request.nextUrl.searchParams.get("error");
 
-  const callbackUrl = request.cookies.get("store_oauth_callback")?.value || APP_URL;
+  const rawCallbackUrl = request.cookies.get("store_oauth_callback")?.value || APP_URL;
   const storeSlug = request.cookies.get("store_oauth_slug")?.value || "";
+
+  // Defense in depth — re-sanitize the cookie value against the store's custom domain.
+  let customDomain: string | null = null;
+  if (storeSlug) {
+    const s = await prisma.store.findUnique({
+      where: { slug: storeSlug },
+      select: { customDomain: true },
+    });
+    customDomain = s?.customDomain ?? null;
+  }
+  const callbackUrl = sanitizeRedirectUrl(
+    rawCallbackUrl,
+    customDomain ? [customDomain] : [],
+    APP_URL
+  );
 
   if (error || !code) {
     return clearAndRedirect(`${callbackUrl}?auth_error=google_denied`);

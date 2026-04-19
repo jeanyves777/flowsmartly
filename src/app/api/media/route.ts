@@ -253,6 +253,8 @@ async function compressVideo(
   try {
     await writeFile(inputPath, buffer);
 
+    const FFMPEG_TIMEOUT_MS = 90_000; // hard kill after 90s — prevents hung uploads
+
     await new Promise<void>((resolve, reject) => {
       const proc = spawn(ffmpegPath, [
         "-y", "-i", inputPath,
@@ -268,14 +270,29 @@ async function compressVideo(
         // Fast start for web streaming (moov atom at beginning)
         "-movflags", "+faststart",
         outputPath,
-      ], { windowsHide: true });
+      ], { windowsHide: true, timeout: FFMPEG_TIMEOUT_MS, killSignal: "SIGKILL" });
 
       let stderr = "";
+      let timedOut = false;
+      const hardKill = setTimeout(() => {
+        timedOut = true;
+        try { proc.kill("SIGKILL"); } catch {}
+      }, FFMPEG_TIMEOUT_MS + 5_000);
+
       proc.stderr?.on("data", (d) => { stderr += d.toString(); });
-      proc.on("error", reject);
+      proc.on("error", (err) => {
+        clearTimeout(hardKill);
+        reject(err);
+      });
       proc.on("close", (code) => {
-        if (code === 0) resolve();
-        else reject(new Error(`FFmpeg compression failed (code ${code}): ${stderr.slice(-200)}`));
+        clearTimeout(hardKill);
+        if (timedOut) {
+          reject(new Error(`FFmpeg compression timed out after ${FFMPEG_TIMEOUT_MS}ms`));
+        } else if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`FFmpeg compression failed (code ${code}): ${stderr.slice(-200)}`));
+        }
       });
     });
 

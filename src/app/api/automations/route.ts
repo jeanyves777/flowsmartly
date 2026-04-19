@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import type {
+  AutomationListResponse,
+  AutomationResponse,
+  AutomationType,
+  AutomationCampaignType,
+  AutomationTrigger,
+  CreateAutomationResponse,
+} from "@/api/contracts/automations";
+import type { ApiResponse } from "@/api/contracts/common";
 
 const VALID_TYPES = ["BIRTHDAY", "HOLIDAY", "WELCOME", "RE_ENGAGEMENT", "CUSTOM", "TRIAL_ENDING", "PAYMENT_FAILED", "ABANDONED_CART", "INACTIVITY", "ANNIVERSARY", "SUBSCRIPTION_CHANGE"];
 const VALID_CAMPAIGN_TYPES = ["EMAIL", "SMS"];
@@ -67,19 +76,19 @@ export async function GET(request: NextRequest) {
     const activeCount = allAutomations.filter((a) => a.enabled).length;
     const totalSent = allAutomations.reduce((sum, a) => sum + a.totalSent, 0);
 
-    const formattedAutomations = automations.map((automation) => ({
+    const formattedAutomations: AutomationResponse[] = automations.map((automation) => ({
       id: automation.id,
       name: automation.name,
-      type: automation.type,
-      trigger: (() => {
+      type: automation.type as AutomationType,
+      trigger: ((): AutomationTrigger => {
         try {
-          return JSON.parse(automation.trigger);
+          return JSON.parse(automation.trigger) as AutomationTrigger;
         } catch {
           return {};
         }
       })(),
       enabled: automation.enabled,
-      campaignType: automation.campaignType,
+      campaignType: automation.campaignType as AutomationCampaignType,
       subject: automation.subject,
       content: automation.content,
       contentHtml: automation.contentHtml,
@@ -87,7 +96,7 @@ export async function GET(request: NextRequest) {
       daysOffset: automation.daysOffset,
       timezone: automation.timezone,
       contactListId: automation.contactListId,
-      contactList: automation.contactList,
+      contactList: automation.contactList ?? null,
       totalSent: automation.totalSent,
       lastTriggered: automation.lastTriggered?.toISOString() || null,
       logsCount: automation._count.logs,
@@ -95,16 +104,18 @@ export async function GET(request: NextRequest) {
       updatedAt: automation.updatedAt.toISOString(),
     }));
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        automations: formattedAutomations,
-        stats: {
-          total: totalAutomations,
-          active: activeCount,
-          totalSent,
-        },
+    const payload: AutomationListResponse = {
+      automations: formattedAutomations,
+      stats: {
+        total: totalAutomations,
+        active: activeCount,
+        totalSent,
       },
+    };
+
+    return NextResponse.json<ApiResponse<AutomationListResponse>>({
+      success: true,
+      data: payload,
     });
   } catch (error) {
     console.error("Get automations error:", error);
@@ -239,36 +250,38 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        automation: {
-          id: automation.id,
-          name: automation.name,
-          type: automation.type,
-          trigger: (() => {
-            try {
-              return JSON.parse(automation.trigger);
-            } catch {
-              return {};
-            }
-          })(),
-          enabled: automation.enabled,
-          campaignType: automation.campaignType,
-          subject: automation.subject,
-          content: automation.content,
-          contentHtml: automation.contentHtml,
-          sendTime: automation.sendTime,
-          daysOffset: automation.daysOffset,
-          timezone: automation.timezone,
-          contactListId: automation.contactListId,
-          contactList: automation.contactList,
-          totalSent: automation.totalSent,
-          lastTriggered: automation.lastTriggered?.toISOString() || null,
-          createdAt: automation.createdAt.toISOString(),
-          updatedAt: automation.updatedAt.toISOString(),
-        },
+    const payload: CreateAutomationResponse = {
+      automation: {
+        id: automation.id,
+        name: automation.name,
+        type: automation.type as AutomationType,
+        trigger: ((): AutomationTrigger => {
+          try {
+            return JSON.parse(automation.trigger) as AutomationTrigger;
+          } catch {
+            return {};
+          }
+        })(),
+        enabled: automation.enabled,
+        campaignType: automation.campaignType as AutomationCampaignType,
+        subject: automation.subject,
+        content: automation.content,
+        contentHtml: automation.contentHtml,
+        sendTime: automation.sendTime,
+        daysOffset: automation.daysOffset,
+        timezone: automation.timezone,
+        contactListId: automation.contactListId,
+        contactList: automation.contactList ?? null,
+        totalSent: automation.totalSent,
+        lastTriggered: automation.lastTriggered?.toISOString() || null,
+        createdAt: automation.createdAt.toISOString(),
+        updatedAt: automation.updatedAt.toISOString(),
       },
+    };
+
+    return NextResponse.json<ApiResponse<CreateAutomationResponse>>({
+      success: true,
+      data: payload,
     });
   } catch (error) {
     console.error("Create automation error:", error);

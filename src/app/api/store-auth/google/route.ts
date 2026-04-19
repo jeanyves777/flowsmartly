@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db/client";
+import { sanitizeRedirectUrl } from "@/lib/auth/safe-redirect";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com";
 
@@ -14,8 +16,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Store Google OAuth not configured" }, { status: 500 });
   }
 
-  const callbackUrl = request.nextUrl.searchParams.get("callbackUrl") || APP_URL;
-  const storeSlug = request.nextUrl.searchParams.get("storeSlug") || extractSlugFromUrl(callbackUrl);
+  const rawCallbackUrl = request.nextUrl.searchParams.get("callbackUrl") || APP_URL;
+  const storeSlug = request.nextUrl.searchParams.get("storeSlug") || extractSlugFromUrl(rawCallbackUrl);
+
+  // Resolve the store's custom domain (if any) so it counts as an allowed host.
+  const extraAllowedHosts: string[] = [];
+  if (storeSlug) {
+    const store = await prisma.store.findUnique({
+      where: { slug: storeSlug },
+      select: { customDomain: true },
+    });
+    if (store?.customDomain) extraAllowedHosts.push(store.customDomain);
+  }
+
+  const callbackUrl = sanitizeRedirectUrl(rawCallbackUrl, extraAllowedHosts, APP_URL);
 
   const redirectUri = `${APP_URL}/api/store-auth/google/callback`;
 

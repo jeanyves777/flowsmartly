@@ -68,31 +68,13 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
+import type { ContactResponse } from "@/api/contracts/contacts";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface Contact {
-  id: string;
-  email: string | null;
-  phone: string | null;
-  firstName: string | null;
-  lastName: string | null;
-  name: string;
-  status: string;
-  emailOptedIn: boolean;
-  smsOptedIn: boolean;
-  birthday: string | null;
-  imageUrl: string | null;
-  tags: string[];
-  lists: { id: string; name: string }[];
-  createdAt: string;
-  company?: string | null;
-  city?: string | null;
-  state?: string | null;
-  address?: string | null;
-}
+type Contact = ContactResponse;
 
 interface ContactList {
   id: string;

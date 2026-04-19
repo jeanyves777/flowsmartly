@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import type {
+  ContactListResponse,
+  ContactResponse,
+  ContactStatus,
+  CreateContactResponse,
+} from "@/api/contracts/contacts";
+import type { ApiResponse } from "@/api/contracts/common";
 
 // GET /api/contacts - Get user's contacts
 export async function GET(request: NextRequest) {
@@ -76,41 +83,51 @@ export async function GET(request: NextRequest) {
       prisma.contact.count({ where: { userId: session.userId, smsOptedIn: true } }),
     ]);
 
-    const formattedContacts = contacts.map(contact => ({
+    const formattedContacts: ContactResponse[] = contacts.map((contact) => ({
       id: contact.id,
       email: contact.email,
       phone: contact.phone,
       firstName: contact.firstName,
       lastName: contact.lastName,
-      name: [contact.firstName, contact.lastName].filter(Boolean).join(" ") || contact.email || contact.phone,
-      status: contact.status.toLowerCase(),
+      name:
+        [contact.firstName, contact.lastName].filter(Boolean).join(" ") ||
+        contact.email ||
+        contact.phone ||
+        "",
+      status: contact.status.toLowerCase() as ContactStatus,
       emailOptedIn: contact.emailOptedIn,
       smsOptedIn: contact.smsOptedIn,
       birthday: contact.birthday || null,
       imageUrl: contact.imageUrl || null,
-      tags: JSON.parse(contact.tags || "[]"),
-      lists: contact.lists.map(l => l.contactList),
+      company: contact.company || null,
+      city: contact.city || null,
+      state: contact.state || null,
+      address: contact.address || null,
+      tags: JSON.parse(contact.tags || "[]") as string[],
+      lists: contact.lists.map((l) => l.contactList),
       createdAt: contact.createdAt.toISOString(),
     }));
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        contacts: formattedContacts,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit),
-        },
-        stats: {
-          total: totalContacts,
-          active: activeContacts,
-          unsubscribed: unsubscribedContacts,
-          emailOptedIn,
-          smsOptedIn,
-        },
+    const payload: ContactListResponse = {
+      contacts: formattedContacts,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
       },
+      stats: {
+        total: totalContacts,
+        active: activeContacts,
+        unsubscribed: unsubscribedContacts,
+        emailOptedIn,
+        smsOptedIn,
+      },
+    };
+
+    return NextResponse.json<ApiResponse<ContactListResponse>>({
+      success: true,
+      data: payload,
     });
   } catch (error) {
     console.error("Get contacts error:", error);
@@ -227,18 +244,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        contact: {
-          id: contact.id,
-          email: contact.email,
-          phone: contact.phone,
-          firstName: contact.firstName,
-          lastName: contact.lastName,
-          createdAt: contact.createdAt.toISOString(),
-        },
+    const payload: CreateContactResponse = {
+      contact: {
+        id: contact.id,
+        email: contact.email,
+        phone: contact.phone,
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        createdAt: contact.createdAt.toISOString(),
       },
+    };
+
+    return NextResponse.json<ApiResponse<CreateContactResponse>>({
+      success: true,
+      data: payload,
     });
   } catch (error) {
     console.error("Create contact error:", error);
