@@ -93,7 +93,7 @@ export function getCartCount(cart: CartItem[]): number {
  * Checkout is built-in — no external redirect needed.
  * Detects basePath from the current URL (/stores/{slug}).
  */
-export function redirectToCheckout(_storeSlug: string): void {
+export function redirectToCheckout(_storeSlug?: string): void {
   const cart = getCart();
   if (cart.length === 0) return;
 
@@ -102,3 +102,10 @@ export function redirectToCheckout(_storeSlug: string): void {
   const basePath = match ? match[0] : "";
   window.location.href = basePath + "/checkout/";
 }
+
+/**
+ * Alias kept for backward compatibility with generated stores whose older
+ * CartDrawer templates import `goToCheckout` instead. Safe to call from
+ * either name — both do the same thing.
+ */
+export const goToCheckout = redirectToCheckout;

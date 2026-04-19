@@ -23,6 +23,7 @@ const REFERENCE_CANDIDATES = [
 
 const TEMPLATE_FILES: readonly string[] = [
   "src/lib/products-store.ts",
+  "src/lib/cart.ts",
   "src/components/Hero.tsx",
   "src/components/Header.tsx",
   "src/components/Footer.tsx",
