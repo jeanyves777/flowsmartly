@@ -8,6 +8,10 @@ import {
 } from "lucide-react";
 import { storeInfo } from "@/lib/data";
 
+function hideOnError(e: React.SyntheticEvent<HTMLImageElement>) {
+  e.currentTarget.style.display = "none";
+}
+
 // Extract store slug from logoUrl: "/stores/store-xxx/..." -> "store-xxx"
 const STORE_SLUG = storeInfo.logoUrl.match(/\/stores\/([^/]+)\//)?.[1] || "";
 const API_BASE = "https://flowsmartly.com";
@@ -263,7 +267,7 @@ export default function AccountModal({ isOpen, onClose }: Props) {
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
               <div className="flex items-center gap-3">
-                <img src={storeInfo.logoUrl} alt={storeInfo.name} className="h-8 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                <img src={storeInfo.logoUrl} alt={storeInfo.name} className="h-8 object-contain" onError={hideOnError} />
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                   {user ? "My Account" : tab === "login" ? "Sign In" : "Create Account"}
                 </h2>

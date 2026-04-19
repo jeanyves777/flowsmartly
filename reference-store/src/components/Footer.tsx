@@ -3,6 +3,13 @@
 import { Instagram, Facebook, Twitter } from "lucide-react";
 import { storeInfo, footerLinks, storeUrl } from "@/lib/data";
 
+function hideOnError(e: React.SyntheticEvent<HTMLImageElement>) {
+  const img = e.currentTarget;
+  img.style.display = "none";
+  const fallback = img.nextElementSibling as HTMLElement | null;
+  if (fallback) fallback.style.display = "block";
+}
+
 export default function Footer() {
   const currentYear = new Date().getFullYear();
 
@@ -26,7 +33,7 @@ export default function Footer() {
                   src={storeInfo.logoUrl}
                   alt={`${storeInfo.name} logo`}
                   className="h-20 max-w-[200px] object-contain"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling && ((e.target as HTMLImageElement).nextElementSibling as HTMLElement).style.display = "block"; }}
+                  onError={hideOnError}
                 />
               ) : null}
               <span className={`text-xl font-bold text-gray-900 dark:text-white ${storeInfo.logoUrl ? "hidden" : ""}`}>
