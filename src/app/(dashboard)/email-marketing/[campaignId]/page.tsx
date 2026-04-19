@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 interface Campaign {
   id: string;
@@ -83,9 +84,11 @@ export default function EmailCampaignDetailPage() {
 
   // Send campaign (for drafts)
   const handleSend = async () => {
-    const confirmed = window.confirm(
-      "Are you sure you want to send this campaign now? This action cannot be undone."
-    );
+    const confirmed = await confirmDialog({
+      title: "Send campaign now?",
+      description: "This action cannot be undone.",
+      confirmText: "Send",
+    });
     if (!confirmed) return;
 
     setIsSending(true);
@@ -113,9 +116,12 @@ export default function EmailCampaignDetailPage() {
   };
 
   const handleDelete = async () => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this campaign? This action cannot be undone."
-    );
+    const confirmed = await confirmDialog({
+      title: "Delete campaign?",
+      description: "This action cannot be undone.",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
     if (!confirmed) return;
 
     setIsDeleting(true);

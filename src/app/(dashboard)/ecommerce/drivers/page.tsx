@@ -14,6 +14,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { COD_REGIONS, regionSupportsCOD } from "@/lib/constants/ecommerce";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface Driver {
   id: string;
@@ -57,6 +59,7 @@ function DriverStatusBadge({ status }: { status: string }) {
 }
 
 export default function DriversPage() {
+  const { toast } = useToast();
   const [store, setStore] = useState<Store | null>(null);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
@@ -189,7 +192,13 @@ export default function DriversPage() {
   };
 
   const handleDeactivate = async (driver: Driver) => {
-    if (!confirm(`Deactivate driver "${driver.name}"? They won't receive new assignments.`)) return;
+    const ok = await confirmDialog({
+      title: `Deactivate driver "${driver.name}"?`,
+      description: "They won't receive new assignments.",
+      confirmText: "Deactivate",
+      variant: "destructive",
+    });
+    if (!ok) return;
 
     try {
       const res = await fetch(`/api/ecommerce/drivers/${driver.id}`, { method: "DELETE" });
@@ -197,7 +206,11 @@ export default function DriversPage() {
       if (json.success) {
         fetchDrivers();
       } else {
-        alert(json.error?.message || "Failed to deactivate driver");
+        toast({
+          variant: "destructive",
+          title: "Failed to deactivate driver",
+          description: json.error?.message,
+        });
       }
     } catch (err) {
       console.error("Deactivate driver error:", err);

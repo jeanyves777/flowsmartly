@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils/cn";
 import { PageLoader } from "@/components/shared/page-loader";
 import { formatPrice } from "@/lib/store/currency";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 // ── Types ──
 
@@ -586,9 +587,12 @@ export default function IntelligencePage() {
     }
 
     const totalCredits = lowScoreProducts.length * 3;
-    if (!confirm(`This will cost ${totalCredits} credits (${lowScoreProducts.length} products x 3 credits). Continue?`)) {
-      return;
-    }
+    const ok = await confirmDialog({
+      title: `Bulk optimize ${lowScoreProducts.length} products?`,
+      description: `This will cost ${totalCredits} credits (${lowScoreProducts.length} × 3).`,
+      confirmText: "Optimize",
+    });
+    if (!ok) return;
 
     setBulkOptimizing(true);
     try {

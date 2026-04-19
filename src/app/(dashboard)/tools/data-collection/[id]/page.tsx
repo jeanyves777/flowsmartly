@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { FIELD_TYPES, FORM_STATUS_CONFIG, type DataFormField, type DataFormFieldType, type DataFormData, type DataFormSubmissionData } from "@/types/data-form";
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 export default function DataFormDetailPage() {
   const params = useParams();
@@ -304,7 +305,12 @@ export default function DataFormDetailPage() {
   };
 
   const handleBulkDelete = async () => {
-    if (!confirm(`Delete ${selectedSubs.size} submissions?`)) return;
+    const ok = await confirmDialog({
+      title: `Delete ${selectedSubs.size} submission${selectedSubs.size === 1 ? "" : "s"}?`,
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
     const res = await fetch(`/api/data-forms/${id}/submissions`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -334,7 +340,13 @@ export default function DataFormDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this form? This action cannot be undone.")) return;
+    const ok = await confirmDialog({
+      title: "Delete this form?",
+      description: "This action cannot be undone.",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
     const res = await fetch(`/api/data-forms/${id}`, { method: "DELETE" });
     const json = await res.json();
     if (json.success) {

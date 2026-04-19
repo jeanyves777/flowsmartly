@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils/cn";
 import { StripeConnectOnboarding } from "@/components/shared/stripe-connect-onboarding";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
 
@@ -1563,9 +1564,14 @@ export default function EcommerceSettingsPage() {
             ) : (
               <div>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (store.freeDomainClaimed) {
-                      if (!confirm("Warning: Your free domain will convert to paid renewal ($14.99/year). Continue?")) return;
+                      const ok = await confirmDialog({
+                        title: "Your free domain will convert to paid renewal",
+                        description: "Renewal is $14.99/year. Continue?",
+                        confirmText: "Continue",
+                      });
+                      if (!ok) return;
                     }
                     handleUpgrade("basic");
                   }}

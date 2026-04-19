@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { SURVEY_STATUS_CONFIG, type SurveyData, type SurveyStatus, type SurveyResponseData } from "@/types/survey";
 import { QUESTION_TYPES, type SurveyQuestion } from "@/types/follow-up";
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 const QUESTION_TYPE_LABELS: Record<string, string> = Object.fromEntries(
   QUESTION_TYPES.map((t) => [t.value, t.label])
@@ -245,7 +246,12 @@ export default function SurveyDetailPage() {
 
   // Responses: bulk delete
   const handleBulkDelete = async () => {
-    if (!confirm(`Delete ${selectedRes.size} responses?`)) return;
+    const ok = await confirmDialog({
+      title: `Delete ${selectedRes.size} response${selectedRes.size === 1 ? "" : "s"}?`,
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
     const res = await fetch(`/api/surveys/${id}/responses`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },

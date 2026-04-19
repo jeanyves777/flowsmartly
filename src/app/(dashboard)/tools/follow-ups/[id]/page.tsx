@@ -50,6 +50,7 @@ import {
   type EntryStatus,
 } from "@/types/follow-up";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 interface FollowUpDetail {
   id: string;
@@ -437,7 +438,13 @@ export default function FollowUpDetailPage() {
 
   // Delete follow-up
   const handleDeleteFollowUp = async () => {
-    if (!confirm(`Delete "${followUp?.name}"? This will remove all entries permanently.`)) return;
+    const ok = await confirmDialog({
+      title: `Delete "${followUp?.name}"?`,
+      description: "This will remove all entries permanently.",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/follow-ups/${id}`, { method: "DELETE" });
       const json = await res.json();

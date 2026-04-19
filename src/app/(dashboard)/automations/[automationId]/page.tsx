@@ -29,6 +29,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 // Types
 type AutomationType =
@@ -277,10 +278,12 @@ export default function AutomationDetailPage() {
 
   // Delete automation
   const handleDelete = async () => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this automation? This action cannot be undone."
-    );
-
+    const confirmed = await confirmDialog({
+      title: "Delete automation?",
+      description: "This action cannot be undone.",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
     if (!confirmed) return;
 
     setIsDeleting(true);

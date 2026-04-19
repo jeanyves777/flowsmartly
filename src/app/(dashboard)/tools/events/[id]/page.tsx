@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 import {
   EVENT_STATUS_CONFIG,
   REGISTRATION_STATUS_CONFIG,
@@ -235,7 +236,12 @@ export default function EventDetailPage() {
 
   // Bulk delete registrations
   const handleBulkDeleteRegs = async () => {
-    if (!confirm(`Delete ${selectedRegs.size} registration(s)?`)) return;
+    const ok = await confirmDialog({
+      title: `Delete ${selectedRegs.size} registration${selectedRegs.size === 1 ? "" : "s"}?`,
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
     const res = await fetch(`/api/events/${id}/registrations`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -252,7 +258,13 @@ export default function EventDetailPage() {
 
   // Refund order
   const handleRefund = async (ticketOrderId: string) => {
-    if (!confirm("Are you sure you want to refund this order? This action cannot be undone.")) return;
+    const ok = await confirmDialog({
+      title: "Refund this order?",
+      description: "This action cannot be undone.",
+      confirmText: "Refund",
+      variant: "destructive",
+    });
+    if (!ok) return;
     setRefundingId(ticketOrderId);
     try {
       const res = await fetch(`/api/events/${id}/refund`, {

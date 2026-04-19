@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -197,7 +198,12 @@ export default function PaymentMethodsPage() {
   }
 
   async function handleDelete(pmId: string) {
-    if (!confirm("Remove this card?")) return;
+    const ok = await confirmDialog({
+      title: "Remove this card?",
+      confirmText: "Remove",
+      variant: "destructive",
+    });
+    if (!ok) return;
     setActionId(pmId);
     try {
       const res = await fetch(`/api/store/${slug}/account/payment-methods/${pmId}`, { method: "DELETE" });
