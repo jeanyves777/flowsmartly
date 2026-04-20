@@ -4,9 +4,13 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShoppingBag, Search, Menu, X, ChevronRight, User } from "lucide-react";
-import { storeInfo, navLinks, categories } from "@/lib/data";
+import { storeInfo, navLinks, categories, formatPrice } from "@/lib/data";
 import { getCart, getCartCount } from "@/lib/cart";
 import ThemeToggle from "./ThemeToggle";
+
+const ANNOUNCEMENT_MESSAGES = [
+  "Secure checkout · Easy returns",
+] as const;
 
 export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -35,6 +39,13 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
     return () => { document.body.style.overflow = ""; };
   }, [menuOpen]);
 
+  const freeShippingThreshold = (storeInfo as Record<string, unknown>).freeShippingThresholdCents as number | undefined;
+  const announcementLines: string[] = [];
+  if (freeShippingThreshold && freeShippingThreshold > 0) {
+    announcementLines.push(`Free shipping on orders over ${formatPrice(freeShippingThreshold)}`);
+  }
+  for (const m of ANNOUNCEMENT_MESSAGES) announcementLines.push(m);
+
   return (
     <>
       <header
@@ -44,6 +55,21 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
             : "bg-white dark:bg-gray-900"
         }`}
       >
+        {/* Announcement bar — free shipping threshold + trust signals */}
+        {announcementLines.length > 0 && !scrolled && (
+          <div className="bg-gray-900 dark:bg-gray-950 text-white overflow-hidden">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-1.5 text-center text-[11px] sm:text-xs font-medium tracking-wide">
+              <span className="inline-flex items-center gap-2">
+                {announcementLines.map((line, i) => (
+                  <span key={i} className="inline-flex items-center gap-2">
+                    {i > 0 && <span className="hidden sm:inline text-white/30">•</span>}
+                    <span className={i === 0 ? "" : "hidden sm:inline"}>{line}</span>
+                  </span>
+                ))}
+              </span>
+            </div>
+          </div>
+        )}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-20">
             <Link href="/" className="flex items-center gap-3">
