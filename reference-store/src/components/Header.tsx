@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShoppingBag, Search, Menu, X, ChevronRight, User } from "lucide-react";
-import { storeInfo, navLinks, categories, storeUrl } from "@/lib/data";
+import { storeInfo, navLinks, categories } from "@/lib/data";
 import { getCart, getCartCount } from "@/lib/cart";
 import ThemeToggle from "./ThemeToggle";
 
@@ -46,7 +46,7 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-20">
-            <Link href={storeUrl("/")} className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-3">
               {storeInfo.logoUrl ? (
                 <img
                   src={storeInfo.logoUrl}
@@ -81,7 +81,7 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
 
             <div className="flex items-center gap-1">
               <Link
-                href={storeUrl("/products")}
+                href="/products"
                 className="hidden sm:flex p-2 text-gray-600 dark:text-gray-300 hover:text-primary-600 transition-colors"
                 aria-label="Search"
               >
@@ -142,7 +142,7 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
               className="fixed left-0 top-0 bottom-0 w-[85%] max-w-sm bg-white dark:bg-gray-900 shadow-2xl z-50 flex flex-col"
             >
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-                <Link href={storeUrl("/")} onClick={() => setMenuOpen(false)}>
+                <Link href="/" onClick={() => setMenuOpen(false)}>
                   {storeInfo.logoUrl ? (
                     <img src={storeInfo.logoUrl} alt={storeInfo.name} className="h-12 max-w-[180px] object-contain" />
                   ) : (
@@ -180,7 +180,7 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
                     {categories.map((cat: any) => (
                       <Link
                         key={cat.id}
-                        href={storeUrl(`/category/${cat.slug}`)}
+                        href={`/category/${cat.slug}`}
                         onClick={() => setMenuOpen(false)}
                         className="flex items-center justify-between px-5 py-3 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                       >

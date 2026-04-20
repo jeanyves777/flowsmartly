@@ -3,24 +3,24 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
-import { heroConfig, storeInfo, storeUrl, STORE_BASE } from "@/lib/data";
+import Link from "next/link";
+import { heroConfig, storeInfo } from "@/lib/data";
 
 const AUTO_ADVANCE_MS = 5500;
 
 /**
- * Normalize the hero CTA href so it stays on the store no matter how the
- * store's data.ts was generated. Agent-produced data often sets ctaUrl to
- * "/products" (bare relative path). On the main flowsmartly.com host that
- * path would point at the main app's /products, dropping the user out of
- * the store. Here we force any relative path through storeUrl() unless
- * it's already a full URL or already prefixed with the store's base path.
+ * Next.js basePath (set in next.config.js as "/stores/{slug}") is applied
+ * automatically to <Link> hrefs but NOT to bare <a href> values. We use
+ * Link here so "/products", "/", "/checkout" all get the correct basePath
+ * without needing a storeUrl() helper (which doesn't exist in every
+ * generated store's data.ts).
+ *
+ * For external URLs (http/https) we fall back to a plain <a>.
  */
-function resolveCtaHref(raw: string | undefined): string {
-  if (!raw) return storeUrl("/products");
-  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
-  if (raw.startsWith(STORE_BASE)) return raw;
-  if (raw.startsWith("/")) return storeUrl(raw);
-  return raw;
+function normalizeCta(raw: string | undefined): { href: string; external: boolean } {
+  const href = raw || "/products";
+  const external = href.startsWith("http://") || href.startsWith("https://");
+  return { href, external };
 }
 
 export default function Hero() {
@@ -124,13 +124,25 @@ export default function Hero() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
           >
-            <a
-              href={resolveCtaHref(heroConfig.ctaUrl)}
-              className="inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-3.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-full transition-all hover:shadow-lg hover:shadow-primary-600/30 group/cta"
-            >
-              {heroConfig.ctaText}
-              <ArrowRight size={18} className="group-hover/cta:translate-x-1 transition-transform" />
-            </a>
+            {(() => {
+              const cta = normalizeCta(heroConfig.ctaUrl);
+              const className = "inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-3.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-full transition-all hover:shadow-lg hover:shadow-primary-600/30 group/cta";
+              const children = (
+                <>
+                  {heroConfig.ctaText}
+                  <ArrowRight size={18} className="group-hover/cta:translate-x-1 transition-transform" />
+                </>
+              );
+              return cta.external ? (
+                <a href={cta.href} className={className} target="_blank" rel="noopener noreferrer">
+                  {children}
+                </a>
+              ) : (
+                <Link href={cta.href} className={className}>
+                  {children}
+                </Link>
+              );
+            })()}
           </motion.div>
         </div>
       </div>
