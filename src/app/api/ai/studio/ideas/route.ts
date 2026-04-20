@@ -11,7 +11,10 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { success: false, error: { message: "Unauthorized" } },
+        { status: 401 }
+      );
     }
 
     const body = await req.json();
@@ -27,7 +30,15 @@ export async function POST(req: NextRequest) {
     const isAdmin = !!session.adminId;
     if (!isAdmin && (!user || user.aiCredits < creditCost)) {
       return NextResponse.json(
-        { error: "Insufficient credits", required: creditCost, available: user?.aiCredits || 0 },
+        {
+          success: false,
+          error: {
+            code: "INSUFFICIENT_CREDITS",
+            message: "Insufficient credits",
+            required: creditCost,
+            available: user?.aiCredits || 0,
+          },
+        },
         { status: 402 }
       );
     }
@@ -100,14 +111,23 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({
+      success: true,
+      data: {
+        ideas: result.ideas.slice(0, 5),
+        creditsUsed: isAdmin ? 0 : creditCost,
+        creditsRemaining: isAdmin ? 999 : (user?.aiCredits || 0) - creditCost,
+      },
+      // Backwards-compatible top-level fields for any older clients still reading them
       ideas: result.ideas.slice(0, 5),
-      creditsUsed: creditCost,
-      creditsRemaining: (user?.aiCredits || 0) - creditCost,
+      creditsRemaining: isAdmin ? 999 : (user?.aiCredits || 0) - creditCost,
     });
   } catch (error) {
     console.error("[DesignStudio] Ideas generation error:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to generate ideas" },
+      {
+        success: false,
+        error: { message: error instanceof Error ? error.message : "Failed to generate ideas" },
+      },
       { status: 500 }
     );
   }

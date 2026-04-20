@@ -37,10 +37,16 @@ function FooterLink({ href, label }: { href: string; label: string }) {
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
-  const navLinksList = footerLinks.filter(
+  // Defensive filter — data.ts can ship malformed entries (bare commas that
+  // parse as undefined, missing href, etc.). Guard so the build never crashes
+  // on a single bad link.
+  const safeLinks = (Array.isArray(footerLinks) ? footerLinks : []).filter(
+    (l): l is { href: string; label: string } => !!l && typeof l.href === "string"
+  );
+  const navLinksList = safeLinks.filter(
     (l) => !l.href.includes("policy") && !l.href.includes("terms")
   );
-  const legalLinks = footerLinks.filter(
+  const legalLinks = safeLinks.filter(
     (l) => l.href.includes("policy") || l.href.includes("terms")
   );
 

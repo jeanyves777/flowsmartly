@@ -324,13 +324,15 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         if (handleCreditError(err.error || {}, "AI ideas")) return;
-        throw new Error(err.error || "Failed");
+        throw new Error(err.error?.message || err.error || "Failed");
       }
       const data = await res.json();
-      setAiIdeas(data.ideas || []);
-      if (data.creditsRemaining !== undefined) {
-        setCreditsRemaining(data.creditsRemaining);
-        emitCreditsUpdate(data.creditsRemaining);
+      const ideas = data.data?.ideas ?? data.ideas ?? [];
+      const credits = data.data?.creditsRemaining ?? data.creditsRemaining;
+      setAiIdeas(ideas);
+      if (credits !== undefined) {
+        setCreditsRemaining(credits);
+        emitCreditsUpdate(credits);
       }
     } catch (e) {
       // Silent on user-cancel (abort)

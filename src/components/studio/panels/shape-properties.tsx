@@ -5,6 +5,7 @@ import { Minus, Plus, Lock, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCanvasStore } from "../hooks/use-canvas-store";
+import { ColorInput } from "./color-input";
 
 export function ShapeProperties() {
   const canvas = useCanvasStore((s) => s.canvas);
@@ -21,6 +22,11 @@ export function ShapeProperties() {
   const [height, setHeight] = useState(200);
   const [borderRadius, setBorderRadius] = useState(0);
   const [lockAspect, setLockAspect] = useState(false);
+  const [shadowEnabled, setShadowEnabled] = useState(false);
+  const [shadowColor, setShadowColor] = useState("#000000");
+  const [shadowBlur, setShadowBlur] = useState(8);
+  const [shadowOffsetX, setShadowOffsetX] = useState(2);
+  const [shadowOffsetY, setShadowOffsetY] = useState(2);
 
   const getActiveObject = useCallback(() => {
     if (!canvas) return null;
@@ -40,7 +46,41 @@ export function ShapeProperties() {
     setWidth(Math.round((obj.width || 0) * (obj.scaleX || 1)));
     setHeight(Math.round((obj.height || 0) * (obj.scaleY || 1)));
     if (obj.rx !== undefined) setBorderRadius(obj.rx || 0);
+
+    const shadow = obj.shadow;
+    if (shadow) {
+      setShadowEnabled(true);
+      setShadowColor(shadow.color || "#000000");
+      setShadowBlur(shadow.blur ?? 8);
+      setShadowOffsetX(shadow.offsetX ?? 2);
+      setShadowOffsetY(shadow.offsetY ?? 2);
+    } else {
+      setShadowEnabled(false);
+    }
   }, [selectedObjectIds, getActiveObject]);
+
+  const applyShadow = async (
+    enabled: boolean,
+    color: string,
+    blur: number,
+    offsetX: number,
+    offsetY: number,
+  ) => {
+    setShadowEnabled(enabled);
+    setShadowColor(color);
+    setShadowBlur(blur);
+    setShadowOffsetX(offsetX);
+    setShadowOffsetY(offsetY);
+    const obj = getActiveObject();
+    if (!obj || !canvas) return;
+    if (!enabled) {
+      obj.set("shadow", null);
+    } else {
+      const fabric = await import("fabric");
+      obj.set("shadow", new fabric.Shadow({ color, blur, offsetX, offsetY }));
+    }
+    canvas.renderAll();
+  };
 
   const updateProp = (prop: string, value: any) => {
     const obj = getActiveObject();
@@ -153,51 +193,27 @@ export function ShapeProperties() {
       {/* Fill Color */}
       <div>
         <label className="text-xs text-muted-foreground mb-1 block">Fill</label>
-        <div className="flex items-center gap-2">
-          <input
-            type="color"
-            value={fillColor}
-            onChange={(e) => {
-              setFillColor(e.target.value);
-              updateProp("fill", e.target.value);
-            }}
-            className="w-8 h-8 rounded cursor-pointer border"
-          />
-          <Input
-            value={fillColor}
-            onChange={(e) => {
-              setFillColor(e.target.value);
-              if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                updateProp("fill", e.target.value);
-              }
-            }}
-            className="h-8 text-xs font-mono flex-1"
-          />
-        </div>
+        <ColorInput
+          label="Fill color"
+          value={fillColor}
+          onChange={(hex) => {
+            setFillColor(hex);
+            updateProp("fill", hex);
+          }}
+        />
       </div>
 
       {/* Stroke */}
       <div>
         <label className="text-xs text-muted-foreground mb-1 block">Stroke</label>
-        <div className="flex items-center gap-2 mb-2">
-          <input
-            type="color"
+        <div className="mb-2">
+          <ColorInput
+            label="Stroke color"
             value={strokeColor}
-            onChange={(e) => {
-              setStrokeColor(e.target.value);
-              updateProp("stroke", e.target.value);
+            onChange={(hex) => {
+              setStrokeColor(hex);
+              updateProp("stroke", hex);
             }}
-            className="w-8 h-8 rounded cursor-pointer border"
-          />
-          <Input
-            value={strokeColor}
-            onChange={(e) => {
-              setStrokeColor(e.target.value);
-              if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                updateProp("stroke", e.target.value);
-              }
-            }}
-            className="h-8 text-xs font-mono flex-1"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -213,6 +229,7 @@ export function ShapeProperties() {
               updateProp("strokeWidth", v);
             }}
             className="flex-1 h-1.5 accent-brand-500"
+            aria-label="Stroke width"
           />
           <span className="text-xs w-6 text-right">{strokeWidth}</span>
         </div>
@@ -242,6 +259,85 @@ export function ShapeProperties() {
           />
         </div>
       )}
+
+      {/* Shadow */}
+      <div className="border-t pt-3 space-y-2">
+        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+          <input
+            type="checkbox"
+            checked={shadowEnabled}
+            onChange={(e) =>
+              applyShadow(e.target.checked, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY)
+            }
+            className="accent-brand-500"
+          />
+          Drop shadow
+        </label>
+        {shadowEnabled && (
+          <div className="space-y-2 pl-1">
+            <ColorInput
+              label="Shadow color"
+              value={shadowColor}
+              onChange={(hex) =>
+                applyShadow(true, hex, shadowBlur, shadowOffsetX, shadowOffsetY)
+              }
+            />
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground">Blur</span>
+                <span className="text-[10px] font-mono">{shadowBlur}px</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={50}
+                value={shadowBlur}
+                onChange={(e) =>
+                  applyShadow(true, shadowColor, parseInt(e.target.value), shadowOffsetX, shadowOffsetY)
+                }
+                className="w-full h-1.5 accent-brand-500"
+                aria-label="Shadow blur"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground">Offset X</span>
+                  <span className="text-[10px] font-mono">{shadowOffsetX}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={-30}
+                  max={30}
+                  value={shadowOffsetX}
+                  onChange={(e) =>
+                    applyShadow(true, shadowColor, shadowBlur, parseInt(e.target.value), shadowOffsetY)
+                  }
+                  className="w-full h-1.5 accent-brand-500"
+                  aria-label="Shadow horizontal offset"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground">Offset Y</span>
+                  <span className="text-[10px] font-mono">{shadowOffsetY}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={-30}
+                  max={30}
+                  value={shadowOffsetY}
+                  onChange={(e) =>
+                    applyShadow(true, shadowColor, shadowBlur, shadowOffsetX, parseInt(e.target.value))
+                  }
+                  className="w-full h-1.5 accent-brand-500"
+                  aria-label="Shadow vertical offset"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Opacity */}
       <div>

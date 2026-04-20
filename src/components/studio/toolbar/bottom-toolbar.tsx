@@ -15,6 +15,8 @@ import {
   FlipVertical2,
   Copy,
   Trash2,
+  Group,
+  Ungroup,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -170,6 +172,48 @@ export function BottomToolbar() {
     pushState();
   };
 
+  // Group selected objects into a single Fabric Group (Ctrl+G)
+  const groupSelection = async () => {
+    const obj = getActiveObject();
+    if (!obj || obj.type !== "activeSelection") return;
+    const fabric = await import("fabric");
+    const items = (obj as any).getObjects?.() ?? [];
+    if (items.length < 2) return;
+    // Fabric v6: use toGroup() if available, otherwise build manually
+    if (typeof (obj as any).toGroup === "function") {
+      (obj as any).toGroup();
+    } else {
+      const group = new fabric.Group(items.map((o: any) => o));
+      items.forEach((o: any) => canvas.remove(o));
+      canvas.add(group);
+      canvas.setActiveObject(group);
+    }
+    canvas.requestRenderAll();
+    refreshLayers();
+    pushState();
+  };
+
+  // Break a Group back into its component objects (Ctrl+Shift+G)
+  const ungroupSelection = async () => {
+    const obj = getActiveObject();
+    if (!obj || obj.type !== "group") return;
+    if (typeof (obj as any).toActiveSelection === "function") {
+      (obj as any).toActiveSelection();
+    } else {
+      const items = (obj as any).getObjects?.() ?? [];
+      canvas.remove(obj);
+      items.forEach((o: any) => canvas.add(o));
+    }
+    canvas.requestRenderAll();
+    refreshLayers();
+    pushState();
+  };
+
+  // Detect what we can do with the current selection
+  const activeObj = getActiveObject();
+  const canGroup = activeObj?.type === "activeSelection";
+  const canUngroup = activeObj?.type === "group";
+
   const alignActions: ToolAction[] = [
     { icon: AlignStartVertical, label: "Align Left", action: alignLeft },
     { icon: AlignCenterVertical, label: "Align Center", action: alignCenterH },
@@ -239,6 +283,31 @@ export function BottomToolbar() {
               {renderGroup(orderActions)}
               <div className="w-px h-4 bg-border mx-1" />
               {renderGroup(transformActions)}
+              {(canGroup || canUngroup) && (
+                <>
+                  <div className="w-px h-4 bg-border mx-1" />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        onClick={canGroup ? groupSelection : ungroupSelection}
+                        aria-label={canGroup ? "Group selected (Ctrl+G)" : "Ungroup (Ctrl+Shift+G)"}
+                      >
+                        {canGroup ? (
+                          <Group className="h-3.5 w-3.5" />
+                        ) : (
+                          <Ungroup className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      {canGroup ? "Group (Ctrl+G)" : "Ungroup (Ctrl+Shift+G)"}
+                    </TooltipContent>
+                  </Tooltip>
+                </>
+              )}
               <div className="w-px h-4 bg-border mx-1" />
               {renderGroup(quickActions)}
             </>

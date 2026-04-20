@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils/cn";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import { POPULAR_FONTS, loadGoogleFont } from "../utils/font-loader";
+import { ColorInput } from "./color-input";
 
 export function TextProperties() {
   const canvas = useCanvasStore((s) => s.canvas);
@@ -37,6 +38,15 @@ export function TextProperties() {
   const [opacity, setOpacity] = useState(100);
   const [showFontDropdown, setShowFontDropdown] = useState(false);
   const [fontSearch, setFontSearch] = useState("");
+
+  // Effects
+  const [strokeWidth, setStrokeWidth] = useState(0);
+  const [strokeColor, setStrokeColor] = useState("#000000");
+  const [shadowEnabled, setShadowEnabled] = useState(false);
+  const [shadowColor, setShadowColor] = useState("#000000");
+  const [shadowBlur, setShadowBlur] = useState(8);
+  const [shadowOffsetX, setShadowOffsetX] = useState(2);
+  const [shadowOffsetY, setShadowOffsetY] = useState(2);
 
   const getActiveText = useCallback(() => {
     if (!canvas) return null;
@@ -61,6 +71,20 @@ export function TextProperties() {
     setLetterSpacing(obj.charSpacing || 0);
     setLineHeight(obj.lineHeight || 1.2);
     setOpacity(Math.round((obj.opacity || 1) * 100));
+
+    // Effects sync
+    setStrokeWidth(obj.strokeWidth || 0);
+    setStrokeColor(obj.stroke || "#000000");
+    const shadow = obj.shadow;
+    if (shadow) {
+      setShadowEnabled(true);
+      setShadowColor(shadow.color || "#000000");
+      setShadowBlur(shadow.blur ?? 8);
+      setShadowOffsetX(shadow.offsetX ?? 2);
+      setShadowOffsetY(shadow.offsetY ?? 2);
+    } else {
+      setShadowEnabled(false);
+    }
   }, [selectedObjectIds, getActiveText]);
 
   const updateProp = (prop: string, value: any) => {
@@ -111,6 +135,46 @@ export function TextProperties() {
   const setAlign = (align: string) => {
     setTextAlign(align);
     updateProp("textAlign", align);
+  };
+
+  const applyStroke = (width: number, color: string) => {
+    setStrokeWidth(width);
+    setStrokeColor(color);
+    const obj = getActiveText();
+    if (!obj) return;
+    obj.set({
+      strokeWidth: width,
+      stroke: width > 0 ? color : null,
+      paintFirst: "stroke",
+      strokeUniform: true,
+    });
+    canvas?.renderAll();
+  };
+
+  const applyShadow = async (
+    enabled: boolean,
+    color: string,
+    blur: number,
+    offsetX: number,
+    offsetY: number,
+  ) => {
+    setShadowEnabled(enabled);
+    setShadowColor(color);
+    setShadowBlur(blur);
+    setShadowOffsetX(offsetX);
+    setShadowOffsetY(offsetY);
+    const obj = getActiveText();
+    if (!obj || !canvas) return;
+    if (!enabled) {
+      obj.set("shadow", null);
+    } else {
+      const fabric = await import("fabric");
+      obj.set(
+        "shadow",
+        new fabric.Shadow({ color, blur, offsetX, offsetY }),
+      );
+    }
+    canvas.renderAll();
   };
 
   const filteredFonts = POPULAR_FONTS.filter((f) =>
@@ -194,27 +258,14 @@ export function TextProperties() {
       {/* Color */}
       <div>
         <label className="text-xs text-muted-foreground mb-1 block">Color</label>
-        <div className="flex items-center gap-2">
-          <input
-            type="color"
-            value={fillColor}
-            onChange={(e) => {
-              setFillColor(e.target.value);
-              updateProp("fill", e.target.value);
-            }}
-            className="w-8 h-8 rounded cursor-pointer border"
-          />
-          <Input
-            value={fillColor}
-            onChange={(e) => {
-              setFillColor(e.target.value);
-              if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                updateProp("fill", e.target.value);
-              }
-            }}
-            className="h-8 text-xs font-mono flex-1"
-          />
-        </div>
+        <ColorInput
+          label="Text color"
+          value={fillColor}
+          onChange={(hex) => {
+            setFillColor(hex);
+            updateProp("fill", hex);
+          }}
+        />
       </div>
 
       {/* Style toggles */}
@@ -296,6 +347,114 @@ export function TextProperties() {
           }}
           className="w-full h-1.5 accent-brand-500"
         />
+      </div>
+
+      {/* Effects: Outline + Shadow */}
+      <div className="border-t pt-3 space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Effects</p>
+
+        {/* Outline / Stroke */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-muted-foreground">Outline</label>
+            <span className="text-[10px] font-mono">{strokeWidth}px</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={20}
+            value={strokeWidth}
+            onChange={(e) => applyStroke(parseInt(e.target.value), strokeColor)}
+            className="w-full h-1.5 accent-brand-500"
+            aria-label="Outline thickness"
+          />
+          {strokeWidth > 0 && (
+            <ColorInput
+              label="Outline color"
+              value={strokeColor}
+              onChange={(hex) => applyStroke(strokeWidth, hex)}
+            />
+          )}
+        </div>
+
+        {/* Shadow */}
+        <div className="space-y-1.5">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={shadowEnabled}
+              onChange={(e) =>
+                applyShadow(e.target.checked, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY)
+              }
+              className="accent-brand-500"
+            />
+            Drop shadow
+          </label>
+          {shadowEnabled && (
+            <div className="space-y-2 pl-1">
+              <ColorInput
+                label="Shadow color"
+                value={shadowColor}
+                onChange={(hex) =>
+                  applyShadow(true, hex, shadowBlur, shadowOffsetX, shadowOffsetY)
+                }
+              />
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] text-muted-foreground">Blur</label>
+                  <span className="text-[10px] font-mono">{shadowBlur}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={50}
+                  value={shadowBlur}
+                  onChange={(e) =>
+                    applyShadow(true, shadowColor, parseInt(e.target.value), shadowOffsetX, shadowOffsetY)
+                  }
+                  className="w-full h-1.5 accent-brand-500"
+                  aria-label="Shadow blur"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-muted-foreground">Offset X</label>
+                    <span className="text-[10px] font-mono">{shadowOffsetX}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={-30}
+                    max={30}
+                    value={shadowOffsetX}
+                    onChange={(e) =>
+                      applyShadow(true, shadowColor, shadowBlur, parseInt(e.target.value), shadowOffsetY)
+                    }
+                    className="w-full h-1.5 accent-brand-500"
+                    aria-label="Shadow horizontal offset"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-muted-foreground">Offset Y</label>
+                    <span className="text-[10px] font-mono">{shadowOffsetY}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={-30}
+                    max={30}
+                    value={shadowOffsetY}
+                    onChange={(e) =>
+                      applyShadow(true, shadowColor, shadowBlur, shadowOffsetX, parseInt(e.target.value))
+                    }
+                    className="w-full h-1.5 accent-brand-500"
+                    aria-label="Shadow vertical offset"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Opacity */}

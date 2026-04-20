@@ -5,6 +5,7 @@ import { useCanvasStore } from "./hooks/use-canvas-store";
 import { useCanvasHistory } from "./hooks/use-canvas-history";
 import { useCanvasShortcuts } from "./hooks/use-canvas-shortcuts";
 import { lockViewportTransform, safeLoadFromJSON } from "./utils/canvas-helpers";
+import { attachSmartGuides } from "./utils/smart-guides";
 import { RemoteCursors } from "./collaboration/remote-cursor";
 import type { CollabUser, CanvasOperation } from "./hooks/use-collaboration";
 
@@ -394,6 +395,19 @@ export function CanvasEditor({
       canvas.off("mouse:wheel", handleWheel);
     };
   }, [canvas, zoom, setZoom]);
+
+  // Attach smart alignment guides — snaps moving objects to canvas center, edges,
+  // and other objects' boundaries while dragging.
+  useEffect(() => {
+    if (!canvas) return;
+    return attachSmartGuides(canvas);
+  }, [canvas]);
+
+  // Expose CSS zoom so smart-guides can scale its snap threshold consistently
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    (window as any).__studioZoom = zoom;
+  }, [zoom]);
 
   // Touch pinch-zoom — two-finger gesture to zoom the canvas on mobile/touch devices
   useEffect(() => {
