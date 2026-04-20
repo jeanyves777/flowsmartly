@@ -51,12 +51,17 @@ ${proxyHeaders}
 }
 
 /**
- * Custom domain server block for a STATIC-EXPORT website. The website ships
- * pre-rendered HTML/CSS/JS in /var/www/flowsmartly/sites-output/{slug}/ —
- * nginx serves those files directly. No PM2 process, no proxy.
+ * Custom domain server block for a website. Proxies to the main Next.js
+ * app (port 3000) which has middleware that detects the Host header and
+ * rewrites the URL to /sites/{slug}/... before the /sites/[...path]/route.ts
+ * serves the static file from sites-output/{slug}/.
+ *
+ * This preserves the basePath-baked URLs in the built site AND supports
+ * internal links like /sites/{slug}/about being clicked from within the
+ * served HTML on the custom domain.
  */
-function customWebsiteDomainServerBlock(domain: string, slug: string): string {
-  return `# Custom domain: ${domain} → static website ${slug}
+function customWebsiteDomainServerBlock(domain: string, _slug: string): string {
+  return `# Custom domain: ${domain} → main app (middleware rewrites by Host)
 server {
     listen 80;
     listen 443 ssl;
@@ -67,12 +72,16 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/flowsmartly.com/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
 
-    root /var/www/flowsmartly/sites-output/${slug};
-    index index.html;
-
     location / {
-        try_files $uri $uri.html $uri/index.html =404;
-        add_header Cache-Control "public, max-age=300, must-revalidate";
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_read_timeout 60s;
+        proxy_buffering off;
+        client_max_body_size 50M;
     }
 }`;
 }
@@ -131,20 +140,22 @@ server {
 }
 
 function websiteLocationBlock(slug: string, _port: number): string {
-  // Websites are generated with `output: 'export'` in next.config.ts, which
-  // produces static HTML/CSS/JS in `/var/www/flowsmartly/sites-output/{slug}/`.
-  // The old PM2 + `next start` approach doesn't serve static exports, so we
-  // bypass it entirely and let nginx serve the files directly. try_files
-  // looks up the URI as-is, as .html, as /index.html, then 404s.
-  return `# Website: ${slug} -> static files
-location = /sites/${slug} {
-    return 301 /sites/${slug}/;
-}
+  // Websites proxy to the main Next.js app (port 3000). The main app's
+  // src/app/sites/[...path]/route.ts serves files from
+  // /var/www/flowsmartly/sites-output/{slug}/ and also honors the
+  // middleware's Host-header rewrites for custom domains. Doing this
+  // inside the main app (instead of nginx direct serve) keeps a single
+  // source of truth for basePath + trailingSlash + MIME types + rewrites.
+  return `# Website: ${slug} -> main app /sites/[...path] route
 location /sites/${slug}/ {
-    alias /var/www/flowsmartly/sites-output/${slug}/;
-    try_files $uri $uri.html $uri/index.html =404;
-    add_header X-Site-Slug "${slug}";
-    add_header Cache-Control "public, max-age=300, must-revalidate";
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_http_version 1.1;
+    proxy_read_timeout 60s;
+    proxy_buffering off;
 }
 `;
 }
