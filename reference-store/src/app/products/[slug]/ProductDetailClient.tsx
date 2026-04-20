@@ -7,6 +7,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
 import ProductCard from "@/components/ProductCard";
+import RecentlyViewed, { trackProductView } from "@/components/RecentlyViewed";
 import Link from "next/link";
 import { formatPrice, storeInfo } from "@/lib/data";
 import type { Product, ProductVariant } from "@/lib/products";
@@ -66,6 +67,11 @@ export default function ProductDetailClient({ params }: { params: { slug: string
     sync();
     window.addEventListener("wishlist-updated", sync);
     return () => window.removeEventListener("wishlist-updated", sync);
+  }, [product?.id]);
+
+  // Record the product view for the Recently-Viewed rail
+  useEffect(() => {
+    if (product?.id) trackProductView(product.id);
   }, [product?.id]);
 
   // Keyboard arrows navigate between product images
@@ -524,6 +530,9 @@ export default function ProductDetailClient({ params }: { params: { slug: string
             </div>
           </section>
         )}
+
+        {/* Recently Viewed — reads from localStorage, excludes the current product */}
+        <RecentlyViewed excludeProductId={product.id} title="Recently Viewed" />
       </main>
       <Footer />
       <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} storeSlug={STORE_SLUG} />

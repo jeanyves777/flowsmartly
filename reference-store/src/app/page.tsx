@@ -5,6 +5,7 @@ import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import CategoryShowcase from "@/components/CategoryShowcase";
 import FeaturedProducts from "@/components/FeaturedProducts";
+import RecentlyViewed from "@/components/RecentlyViewed";
 import AboutSection from "@/components/AboutSection";
 import Newsletter from "@/components/Newsletter";
 import Footer from "@/components/Footer";
@@ -20,6 +21,7 @@ export default function HomePage() {
         <Hero />
         <CategoryShowcase />
         <FeaturedProducts />
+        <RecentlyViewed title="Continue Browsing" />
         <AboutSection />
         <Newsletter />
       </main>
