@@ -83,6 +83,19 @@ export async function syncStoreTemplates(storeDir: string): Promise<SyncResult> 
     return result;
   }
 
+  // Remove legacy `src/pages/` directory — older agent templates shipped
+  // pages-router leftovers (404.tsx, _document.tsx, _error.tsx) that
+  // conflict with app-router and break `next build` in Next 15 with
+  // "page without a React Component as default export".
+  const pagesDir = join(storeDir, "src", "pages");
+  try {
+    await fs.stat(pagesDir);
+    await fs.rm(pagesDir, { recursive: true, force: true });
+    result.synced.push("(removed) src/pages/");
+  } catch {
+    // not present — nothing to do
+  }
+
   for (const rel of TEMPLATE_FILES) {
     const src = join(refDir, rel);
     const dst = join(storeDir, rel);
