@@ -29,11 +29,12 @@ export default function MobileBottomNav({
     return () => window.removeEventListener("cart-updated", update);
   }, []);
 
-  const isActive = (path: string) => {
+  const isHome = (() => {
     if (!pathname) return false;
-    if (path === "/products") return pathname.includes("/products");
-    return pathname.endsWith(path);
-  };
+    // Home == the store root — matches "/stores/{slug}" or "/stores/{slug}/"
+    return /^\/stores\/[^/]+\/?$/.test(pathname) || pathname === "/";
+  })();
+  const isProducts = pathname?.includes("/products") ?? false;
 
   type NavItem = {
     label: string;
@@ -44,9 +45,12 @@ export default function MobileBottomNav({
     active: boolean;
   };
 
+  // Layout matches professional mobile commerce (Amazon / Temu / Shein):
+  //   [Home] → store homepage        [Search] → product listing
+  //   [Cart] → opens cart drawer     [Account] → opens login/register modal
   const items: NavItem[] = [
-    { label: "Shop", icon: Home, href: "/products", active: isActive("/products") },
-    { label: "Search", icon: Search, onClick: () => window.dispatchEvent(new CustomEvent("open-search")), active: false },
+    { label: "Home", icon: Home, href: "/", active: isHome },
+    { label: "Search", icon: Search, href: "/products", active: isProducts },
     { label: "Cart", icon: ShoppingBag, badge: cartCount, onClick: onCartOpen, active: false },
     { label: "Account", icon: User, onClick: () => window.dispatchEvent(new CustomEvent("toggle-account")), active: false },
   ];
