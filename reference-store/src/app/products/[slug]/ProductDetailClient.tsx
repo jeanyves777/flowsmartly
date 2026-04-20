@@ -527,6 +527,52 @@ export default function ProductDetailClient({ params }: { params: { slug: string
       </main>
       <Footer />
       <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} storeSlug={STORE_SLUG} />
+
+      {/* Sticky mobile Add-to-Cart bar — sits above the MobileBottomNav (h-16) */}
+      <div className="sm:hidden fixed left-0 right-0 bottom-16 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 px-3 py-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center gap-2">
+          <div className="flex-shrink-0 flex items-baseline gap-1.5">
+            <span className="text-base font-bold text-gray-900 dark:text-white">{formatPrice(price)}</span>
+            {comparePrice && comparePrice > price && (
+              <span className="text-[11px] text-gray-400 line-through">{formatPrice(comparePrice)}</span>
+            )}
+          </div>
+          <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-full flex-shrink-0 ml-auto">
+            <button
+              onClick={() => setQuantity(Math.max(1, quantity - 1))}
+              className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-200"
+              aria-label="Decrease quantity"
+            >
+              <Minus size={14} />
+            </button>
+            <span className="w-7 text-center text-sm font-medium text-gray-900 dark:text-white">{quantity}</span>
+            <button
+              onClick={() => setQuantity(quantity + 1)}
+              className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-200"
+              aria-label="Increase quantity"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+          <button
+            onClick={handleAddToCart}
+            disabled={!product.inStock}
+            className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full font-semibold text-white text-sm transition-all flex-shrink-0 ${
+              added ? "bg-green-500" : product.inStock ? "bg-primary-600 active:bg-primary-700" : "bg-gray-400"
+            }`}
+          >
+            {added ? (
+              <>
+                <Check size={15} /> Added
+              </>
+            ) : (
+              <>
+                <ShoppingBag size={15} /> {product.inStock ? "Add" : "Out"}
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </>
   );
 }

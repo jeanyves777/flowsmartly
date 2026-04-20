@@ -630,6 +630,7 @@ Every store MUST use these exact filenames and locations. DO NOT improvise kebab
   - Write a Review button (opens form)
   - Review form: star rating selector, title, comment, submit
   - Reviews list: avatar, name, verified badge, stars, date, title, comment
+- Mobile sticky Add-to-Cart bar (MANDATORY): fixed bottom bar, sm:hidden (mobile only), positioned at bottom-16 to clear MobileBottomNav (h-16 z-50). Bar contains: price + compare-at strikethrough, quantity stepper, and the Add-to-Cart button. Same handleAddToCart, same product.inStock gating. Use backdrop-blur-md bg-white/95 dark:bg-gray-900/95 with top border and a subtle upward shadow. This pattern is standard on Temu/Shein/Amazon — never ship a store without it.
 - Trust badges (Quality Assured, Free Shipping, 30-Day Returns) — shipping threshold from storeInfo.freeShippingThresholdCents (NOT hardcoded)
 - NEVER hardcode "Free Shipping $50+" — read from storeInfo or data.ts
 - Labels/badges: use product.labels (or product.badges for compatibility), NOT product.badges only
