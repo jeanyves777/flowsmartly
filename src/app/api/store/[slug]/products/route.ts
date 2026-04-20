@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
+// Public store API — allow cross-origin fetches from custom domains.
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400",
+};
+
+export function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
 /**
  * GET /api/store/[slug]/products
  * Public: Fetch active products for a store.
@@ -21,7 +33,7 @@ export async function GET(
     if (!store || !store.isActive) {
       return NextResponse.json(
         { success: false, error: { code: "NOT_FOUND", message: "Store not found" } },
-        { status: 404 }
+        { status: 404, headers: CORS_HEADERS }
       );
     }
 
@@ -115,20 +127,23 @@ export async function GET(
       })),
     }));
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        products: parsedProducts,
-        total,
-        page,
-        totalPages: Math.ceil(total / limit),
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          products: parsedProducts,
+          total,
+          page,
+          totalPages: Math.ceil(total / limit),
+        },
       },
-    });
+      { headers: CORS_HEADERS }
+    );
   } catch (error) {
     console.error("Public products fetch error:", error);
     return NextResponse.json(
       { success: false, error: { code: "FETCH_FAILED", message: "Failed to fetch products" } },
-      { status: 500 }
+      { status: 500, headers: CORS_HEADERS }
     );
   }
 }

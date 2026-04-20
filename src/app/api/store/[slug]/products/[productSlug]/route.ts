@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
+// Public store API — the storefront JS fetches this from custom domains
+// (asamjshop.com, sarasumarket.com, etc.) across origins, so it needs
+// permissive CORS. The endpoint returns public product data; no auth is
+// involved, so `*` is safe.
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400",
+};
+
+export function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
 /**
  * GET /api/store/[slug]/products/[productSlug]
  * Public: Fetch single product by store slug + product slug. Includes variants.
@@ -21,7 +36,7 @@ export async function GET(
     if (!store || !store.isActive) {
       return NextResponse.json(
         { success: false, error: { code: "NOT_FOUND", message: "Store not found" } },
-        { status: 404 }
+        { status: 404, headers: CORS_HEADERS }
       );
     }
 
@@ -38,7 +53,7 @@ export async function GET(
     if (!product || product.status !== "ACTIVE" || product.deletedAt) {
       return NextResponse.json(
         { success: false, error: { code: "NOT_FOUND", message: "Product not found" } },
-        { status: 404 }
+        { status: 404, headers: CORS_HEADERS }
       );
     }
 
@@ -48,25 +63,28 @@ export async function GET(
       data: { viewCount: { increment: 1 } },
     }).catch(() => {});
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        product: {
-          ...product,
-          images: JSON.parse(product.images || "[]"),
-          tags: JSON.parse(product.tags || "[]"),
-          variants: product.variants.map((v) => ({
-            ...v,
-            options: JSON.parse(v.options || "{}"),
-          })),
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          product: {
+            ...product,
+            images: JSON.parse(product.images || "[]"),
+            tags: JSON.parse(product.tags || "[]"),
+            variants: product.variants.map((v) => ({
+              ...v,
+              options: JSON.parse(v.options || "{}"),
+            })),
+          },
         },
       },
-    });
+      { headers: CORS_HEADERS }
+    );
   } catch (error) {
     console.error("Public product detail fetch error:", error);
     return NextResponse.json(
       { success: false, error: { code: "FETCH_FAILED", message: "Failed to fetch product" } },
-      { status: 500 }
+      { status: 500, headers: CORS_HEADERS }
     );
   }
 }
