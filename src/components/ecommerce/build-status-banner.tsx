@@ -16,8 +16,16 @@
  */
 
 import { useState, useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { X, CheckCircle2, AlertCircle, Upload } from "lucide-react";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+
+// Pages that render their OWN primary rebuild UI (full-screen AIGenerationLoader
+// modal). The global banner duplicates that — suppress it on these routes so
+// the branded logo loader is the single source of truth.
+const PAGES_WITH_OWN_REBUILD_UI = [
+  "/ecommerce/design",
+];
 
 type Status = "idle" | "pending" | "building" | "done" | "error";
 
@@ -34,6 +42,9 @@ const POLL_INTERVAL_MS = 5000;
 const DONE_AUTO_DISMISS_MS = 4000;
 
 export function BuildStatusBanner() {
+  const pathname = usePathname();
+  const suppressed = PAGES_WITH_OWN_REBUILD_UI.some((p) => pathname?.startsWith(p));
+
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState<string>("");
   const [pendingCount, setPendingCount] = useState<number>(0);
@@ -154,7 +165,7 @@ export function BuildStatusBanner() {
     }
   };
 
-  if (status === "idle" || dismissed) return null;
+  if (status === "idle" || dismissed || suppressed) return null;
 
   const bgColor =
     status === "pending" ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800" :
