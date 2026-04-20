@@ -3,9 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { ShoppingBag, Minus, Plus, ChevronLeft, ChevronRight, Check, Package, Truck, RotateCcw, Heart, Star, ShieldCheck, Share2 } from "lucide-react";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
-import CartDrawer from "@/components/CartDrawer";
 import ProductCard from "@/components/ProductCard";
 import RecentlyViewed, { trackProductView } from "@/components/RecentlyViewed";
 import Link from "next/link";
@@ -34,7 +31,8 @@ interface Review {
 }
 
 export default function ProductDetailClient({ params }: { params: { slug: string } }) {
-  const [cartOpen, setCartOpen] = useState(false);
+  // Layout (RootLayoutClient) renders Header/Footer/CartDrawer. This component
+  // renders only the main content region.
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -120,28 +118,23 @@ export default function ProductDetailClient({ params }: { params: { slug: string
       .catch(() => {});
   }, [product?.slug]);
 
+  // NOTE: Header/Footer/CartDrawer are rendered by the layout (RootLayoutClient),
+  // so DO NOT render them here or they'll duplicate. This client component only
+  // returns the main content region.
   if (productLoading) {
     return (
-      <>
-        <Header onCartOpen={() => setCartOpen(true)} />
-        <main className="pt-24 pb-16 px-4 max-w-7xl mx-auto text-center">
-          <div className="animate-pulse text-gray-400 dark:text-gray-500 text-sm">Loading product…</div>
-        </main>
-        <Footer />
-      </>
+      <main className="pt-24 pb-16 px-4 max-w-7xl mx-auto text-center">
+        <div className="animate-pulse text-gray-400 dark:text-gray-500 text-sm">Loading product…</div>
+      </main>
     );
   }
 
   if (!product) {
     return (
-      <>
-        <Header onCartOpen={() => setCartOpen(true)} />
-        <main className="pt-24 pb-16 px-4 max-w-7xl mx-auto text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Product Not Found</h1>
-          <Link href="/products" className="text-primary-600 hover:underline">Browse all products</Link>
-        </main>
-        <Footer />
-      </>
+      <main className="pt-24 pb-16 px-4 max-w-7xl mx-auto text-center">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Product Not Found</h1>
+        <Link href="/products" className="text-primary-600 hover:underline">Browse all products</Link>
+      </main>
     );
   }
 
@@ -237,7 +230,6 @@ export default function ProductDetailClient({ params }: { params: { slug: string
 
   return (
     <>
-      <Header onCartOpen={() => setCartOpen(true)} />
       <main className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <Link href="/products" className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 mb-8">
           <ChevronLeft size={14} /> Back to Products
@@ -534,8 +526,6 @@ export default function ProductDetailClient({ params }: { params: { slug: string
         {/* Recently Viewed — reads from localStorage, excludes the current product */}
         <RecentlyViewed excludeProductId={product.id} title="Recently Viewed" />
       </main>
-      <Footer />
-      <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} storeSlug={STORE_SLUG} />
 
       {/* Sticky mobile Add-to-Cart bar — sits above the MobileBottomNav (h-16) */}
       <div className="sm:hidden fixed left-0 right-0 bottom-16 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 px-3 py-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
