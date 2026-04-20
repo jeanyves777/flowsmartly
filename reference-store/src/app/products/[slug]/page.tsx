@@ -1,14 +1,18 @@
-// SERVER component — exports generateStaticParams() for static export.
-// Renders the client component which handles all interactive state.
-// PATTERN: Dynamic [slug] routes with "output: export" MUST split like this.
+// SERVER component — renders the client component which handles all data fetch.
+// In Next 15, params is a Promise and MUST be awaited before its properties
+// can be accessed. Passing the raw Promise through means the client component
+// gets `params.slug === undefined` and every product page shows "not found".
+// force-dynamic because live product data is fetched at request time.
 
-import { products } from "@/lib/products";
 import ProductDetailClient from "./ProductDetailClient";
 
-export function generateStaticParams() {
-  return products.map((p) => ({ slug: p.slug }));
-}
+export const dynamic = "force-dynamic";
 
-export default function ProductDetailPage({ params }: { params: { slug: string } }) {
-  return <ProductDetailClient params={params} />;
+export default async function ProductDetailPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const resolvedParams = await params;
+  return <ProductDetailClient params={resolvedParams} />;
 }
