@@ -8,17 +8,18 @@ import { getCart, getCartCount } from "@/lib/cart";
 
 /**
  * Mobile Bottom Sticky Nav — md:hidden.
- * Pattern matches professional e-commerce: Shop, Search, Cart (badge), Account.
+ * Pattern matches professional e-commerce: Home, Search, Cart (badge), Account.
  *
  * All internal hrefs go through Next.js <Link>, which auto-prepends the
  * store's basePath (set in next.config.js as "/stores/{slug}"). Never use
  * `storeUrl()` from data.ts — generated stores don't export it.
+ *
+ * Cart and Account buttons dispatch global custom events ("open-cart" and
+ * "toggle-account"). RootLayoutClient listens for "open-cart" and opens
+ * the CartDrawer; AccountModalProvider listens for "toggle-account" and
+ * renders AccountModal. No prop wiring required.
  */
-export default function MobileBottomNav({
-  onCartOpen,
-}: {
-  onCartOpen?: () => void;
-}) {
+export default function MobileBottomNav() {
   const pathname = usePathname();
   const [cartCount, setCartCount] = useState(0);
 
@@ -51,7 +52,7 @@ export default function MobileBottomNav({
   const items: NavItem[] = [
     { label: "Home", icon: Home, href: "/", active: isHome },
     { label: "Search", icon: Search, href: "/products", active: isProducts },
-    { label: "Cart", icon: ShoppingBag, badge: cartCount, onClick: onCartOpen, active: false },
+    { label: "Cart", icon: ShoppingBag, badge: cartCount, onClick: () => window.dispatchEvent(new CustomEvent("open-cart")), active: false },
     { label: "Account", icon: User, onClick: () => window.dispatchEvent(new CustomEvent("toggle-account")), active: false },
   ];
 

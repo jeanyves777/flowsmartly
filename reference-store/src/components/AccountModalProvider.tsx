@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import AccountModal from "./AccountModal";
 
 interface AccountModalContextType {
   isOpen: boolean;
@@ -49,6 +50,7 @@ export default function AccountModalProvider({ children }: { children: React.Rea
   return (
     <AccountModalContext.Provider value={{ isOpen, openAccountModal, closeAccountModal }}>
       {children}
+      <AccountModal isOpen={isOpen} onClose={closeAccountModal} />
     </AccountModalContext.Provider>
   );
 }
