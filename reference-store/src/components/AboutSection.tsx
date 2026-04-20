@@ -1,8 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { storeInfo, storeUrl } from "@/lib/data";
+import { storeInfo } from "@/lib/data";
 
 export default function AboutSection() {
   return (
@@ -24,13 +25,13 @@ export default function AboutSection() {
             <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
               {storeInfo.about}
             </p>
-            <a
-              href={storeUrl("/about")}
+            <Link
+              href="/about"
               className="inline-flex items-center gap-2 text-primary-600 dark:text-primary-400 font-medium hover:gap-3 transition-all"
             >
               Learn more about us
               <ArrowRight size={16} />
-            </a>
+            </Link>
           </motion.div>
 
           {/* Image placeholder */}

@@ -2,13 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { Home, ShoppingBag, Heart, User, Search } from "lucide-react";
-import { storeInfo, storeUrl } from "@/lib/data";
+import Link from "next/link";
+import { Home, ShoppingBag, User, Search } from "lucide-react";
 import { getCart, getCartCount } from "@/lib/cart";
 
 /**
  * Mobile Bottom Sticky Nav — md:hidden.
  * Pattern matches professional e-commerce: Shop, Search, Cart (badge), Account.
+ *
+ * All internal hrefs go through Next.js <Link>, which auto-prepends the
+ * store's basePath (set in next.config.js as "/stores/{slug}"). Never use
+ * `storeUrl()` from data.ts — generated stores don't export it.
  */
 export default function MobileBottomNav({
   onCartOpen,
@@ -26,12 +30,22 @@ export default function MobileBottomNav({
   }, []);
 
   const isActive = (path: string) => {
-    if (path === "/") return pathname === "/" || pathname === storeUrl("/");
-    return pathname?.includes(path);
+    if (!pathname) return false;
+    if (path === "/products") return pathname.includes("/products");
+    return pathname.endsWith(path);
   };
 
-  const items = [
-    { label: "Shop", icon: Home, href: storeUrl("/products"), active: isActive("/products") },
+  type NavItem = {
+    label: string;
+    icon: typeof Home;
+    href?: string;
+    onClick?: () => void;
+    badge?: number;
+    active: boolean;
+  };
+
+  const items: NavItem[] = [
+    { label: "Shop", icon: Home, href: "/products", active: isActive("/products") },
     { label: "Search", icon: Search, onClick: () => window.dispatchEvent(new CustomEvent("open-search")), active: false },
     { label: "Cart", icon: ShoppingBag, badge: cartCount, onClick: onCartOpen, active: false },
     { label: "Account", icon: User, onClick: () => window.dispatchEvent(new CustomEvent("toggle-account")), active: false },
@@ -67,10 +81,9 @@ export default function MobileBottomNav({
           }
 
           return (
-            <a key={item.label} href={item.href} className="flex-1 flex items-center justify-center py-1"
-              {...(item.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+            <Link key={item.label} href={item.href || "/"} className="flex-1 flex items-center justify-center py-1">
               {content}
-            </a>
+            </Link>
           );
         })}
       </div>

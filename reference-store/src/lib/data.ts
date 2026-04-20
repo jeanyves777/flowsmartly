@@ -1,4 +1,7 @@
-// ─── Base URL helper (CRITICAL: agent MUST use storeUrl() for ALL internal links) ───
+// ─── Base URL helper (reference-store only — generated stores use Next.js basePath) ───
+// Generated stores do NOT export storeUrl. Components must use <Link from next/link>
+// which auto-prepends the store's basePath (set in next.config.js). storeUrl here
+// is purely to build asset paths for the REFERENCE-STORE sample data below.
 
 export const STORE_BASE = '/stores/example-store';
 export function storeUrl(path: string): string {

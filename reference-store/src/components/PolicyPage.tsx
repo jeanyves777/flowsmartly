@@ -6,7 +6,7 @@ import { ArrowLeft, ChevronRight } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
-import { storeInfo, storeUrl } from "@/lib/data";
+import { storeInfo } from "@/lib/data";
 
 interface PolicyPageProps {
   title: string;
@@ -25,7 +25,7 @@ export default function PolicyPage({ title, icon, content, lastUpdated }: Policy
         <div className="max-w-4xl mx-auto">
           {/* Breadcrumb */}
           <nav className="flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 mb-6">
-            <Link href={storeUrl("/")} className="hover:text-primary-600 transition-colors">Home</Link>
+            <Link href="/" className="hover:text-primary-600 transition-colors">Home</Link>
             <ChevronRight size={14} />
             <span className="text-gray-700 dark:text-gray-200 font-medium">{title}</span>
           </nav>
@@ -68,7 +68,7 @@ export default function PolicyPage({ title, icon, content, lastUpdated }: Policy
           {/* Back to shop */}
           <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-800">
             <Link
-              href={storeUrl("/")}
+              href="/"
               className="inline-flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 transition-colors"
             >
               <ArrowLeft size={16} />

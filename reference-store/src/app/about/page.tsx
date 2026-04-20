@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
-import { storeInfo, storeUrl } from "@/lib/data";
+import { storeInfo } from "@/lib/data";
 
 export default function AboutPage() {
   const [cartOpen, setCartOpen] = useState(false);

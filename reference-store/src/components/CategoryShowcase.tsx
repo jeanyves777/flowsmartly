@@ -1,8 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { categories, storeUrl } from "@/lib/data";
+import { categories } from "@/lib/data";
+
+const MotionLink = motion(Link);
 
 export default function CategoryShowcase() {
   return (
@@ -18,14 +21,14 @@ export default function CategoryShowcase() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {categories.map((cat, i) => (
-          <motion.a
+          <MotionLink
             key={cat.id}
-            href={storeUrl(`/category/${cat.slug}`)}
+            href={`/category/${cat.slug}`}
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: i * 0.1 }}
-            className="group relative h-72 rounded-2xl overflow-hidden"
+            className="group relative h-72 rounded-2xl overflow-hidden block"
           >
             {/* Background image */}
             {cat.image && (
@@ -47,7 +50,7 @@ export default function CategoryShowcase() {
                 <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
               </div>
             </div>
-          </motion.a>
+          </MotionLink>
         ))}
       </div>
     </section>

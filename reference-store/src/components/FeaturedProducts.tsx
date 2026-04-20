@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight } from "lucide-react";
-import { storeUrl } from "@/lib/data";
+import Link from "next/link";
 import { useLiveProducts } from "@/lib/products-store";
 import ProductCard from "./ProductCard";
 
@@ -24,13 +24,13 @@ export default function FeaturedProducts() {
             Our hand-picked favorites
           </p>
         </div>
-        <a
-          href={storeUrl("/products")}
+        <Link
+          href="/products"
           className="hidden sm:inline-flex items-center gap-2 text-primary-600 dark:text-primary-400 font-medium hover:gap-3 transition-all"
         >
           View All
           <ArrowRight size={16} />
-        </a>
+        </Link>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -40,13 +40,13 @@ export default function FeaturedProducts() {
       </div>
 
       <div className="sm:hidden text-center mt-8">
-        <a
-          href={storeUrl("/products")}
+        <Link
+          href="/products"
           className="inline-flex items-center gap-2 px-6 py-3 border border-gray-200 dark:border-gray-700 rounded-full text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
         >
           View All Products
           <ArrowRight size={14} />
-        </a>
+        </Link>
       </div>
     </section>
   );

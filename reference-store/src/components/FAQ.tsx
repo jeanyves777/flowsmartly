@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import { ChevronDown } from "lucide-react";
-import { faq, storeUrl } from "@/lib/data";
+import { faq } from "@/lib/data";
 
 export default function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -64,12 +65,12 @@ export default function FAQ() {
       <div className="mt-10 text-center py-8 px-4 rounded-2xl bg-gray-50 dark:bg-gray-800/50">
         <p className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Still have questions?</p>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">We&apos;re here to help.</p>
-        <a
-          href={storeUrl("/about")}
+        <Link
+          href="/about"
           className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white text-sm font-medium rounded-full hover:bg-primary-700 transition-colors"
         >
           Contact Us
-        </a>
+        </Link>
       </div>
     </section>
   );

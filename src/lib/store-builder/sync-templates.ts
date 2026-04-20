@@ -39,6 +39,8 @@ const TEMPLATE_FILES: readonly string[] = [
   "src/components/AccountModal.tsx",
   "src/components/AccountModalProvider.tsx",
   "src/components/RecentlyViewed.tsx",
+  "src/components/FAQ.tsx",
+  "src/components/PolicyPage.tsx",
   "src/app/products/[slug]/ProductDetailClient.tsx",
 ];
 
