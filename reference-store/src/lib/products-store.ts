@@ -91,8 +91,13 @@ export function useLiveProducts(): { products: Product[]; loading: boolean } {
 
 export async function loadLiveProductBySlug(slug: string): Promise<Product | null> {
   try {
+    // Strip any trailing slash — stores with trailingSlash:true in their
+    // next.config can pass "foo/" as params.slug. encodeURIComponent would
+    // turn that into "foo%2F" and the API would 404.
+    const cleanSlug = slug.replace(/\/+$/, "");
+    if (!cleanSlug) return null;
     const res = await fetch(
-      `${API_BASE}/api/store/${STORE_SLUG}/products/${encodeURIComponent(slug)}`,
+      `${API_BASE}/api/store/${STORE_SLUG}/products/${encodeURIComponent(cleanSlug)}`,
       { cache: "no-store" }
     );
     const json = await res.json();
