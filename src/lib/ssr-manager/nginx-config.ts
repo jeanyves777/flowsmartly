@@ -51,9 +51,36 @@ ${proxyHeaders}
 }
 
 /**
- * Generate a dedicated nginx server block for a custom domain pointing to an SSR app.
- * The app has a basePath of /stores/{slug}/ or /sites/{slug}/, so we rewrite the
- * incoming request path (which lacks the basePath) before proxying upstream.
+ * Custom domain server block for a STATIC-EXPORT website. The website ships
+ * pre-rendered HTML/CSS/JS in /var/www/flowsmartly/sites-output/{slug}/ —
+ * nginx serves those files directly. No PM2 process, no proxy.
+ */
+function customWebsiteDomainServerBlock(domain: string, slug: string): string {
+  return `# Custom domain: ${domain} → static website ${slug}
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name ${domain} www.${domain};
+
+    # Use flowsmartly.com cert — Cloudflare 'Full' mode doesn't require hostname match
+    ssl_certificate /etc/letsencrypt/live/flowsmartly.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/flowsmartly.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    root /var/www/flowsmartly/sites-output/${slug};
+    index index.html;
+
+    location / {
+        try_files $uri $uri.html $uri/index.html =404;
+        add_header Cache-Control "public, max-age=300, must-revalidate";
+    }
+}`;
+}
+
+/**
+ * Custom domain server block for an SSR STORE app. Store has basePath
+ * /stores/{slug}/ so nginx rewrites the incoming URL to prepend that
+ * basePath before proxying to the store's PM2 process.
  */
 function customDomainServerBlock(
   domain: string,
@@ -154,8 +181,7 @@ export async function regenerateAndReload(): Promise<void> {
     }),
     prisma.website.findMany({
       where: {
-        ssrPort: { not: null },
-        ssrStatus: { in: ["running", "starting"] },
+        status: "PUBLISHED",
       },
       select: { id: true, slug: true, ssrPort: true, customDomain: true },
     }),
@@ -179,12 +205,7 @@ export async function regenerateAndReload(): Promise<void> {
       upstreams += upstreamBlock(safeName, store.ssrPort);
     }
   }
-  for (const website of websites) {
-    if (website.ssrPort) {
-      const safeName = `site_${website.slug.replace(/[^a-z0-9_-]/gi, "_")}`;
-      upstreams += upstreamBlock(safeName, website.ssrPort);
-    }
-  }
+  // Websites are static-export served by nginx directly — no upstream needed.
   writeFileSync(UPSTREAMS_CONF, upstreams, "utf-8");
 
   // 2. Write per-app location files (included inside the server block)
@@ -202,10 +223,8 @@ export async function regenerateAndReload(): Promise<void> {
     }
   }
   for (const website of websites) {
-    if (website.ssrPort) {
-      const content = header + websiteLocationBlock(website.slug, website.ssrPort);
-      writeFileSync(join(LOCATIONS_DIR, `site-${website.slug}.conf`), content, "utf-8");
-    }
+    const content = header + websiteLocationBlock(website.slug, 0);
+    writeFileSync(join(LOCATIONS_DIR, `site-${website.slug}.conf`), content, "utf-8");
   }
 
   // Build store-id → (slug, port) lookup for custom-domain server blocks
@@ -220,12 +239,10 @@ export async function regenerateAndReload(): Promise<void> {
     const basePath = `/stores/${store.slug}`;
     domainBlocks.push(customDomainServerBlock(sd.domainName, safeName, basePath));
   }
-  // Also handle website customDomain (set directly on Website.customDomain)
+  // Website custom domains are static-file served (no PM2 proxy needed).
   for (const site of websites) {
-    if (!site.customDomain || !site.ssrPort) continue;
-    const safeName = `site_${site.slug.replace(/[^a-z0-9_-]/gi, "_")}`;
-    const basePath = `/sites/${site.slug}`;
-    domainBlocks.push(customDomainServerBlock(site.customDomain, safeName, basePath));
+    if (!site.customDomain) continue;
+    domainBlocks.push(customWebsiteDomainServerBlock(site.customDomain, site.slug));
   }
 
   // Write one custom-domains.conf with all per-domain server blocks
