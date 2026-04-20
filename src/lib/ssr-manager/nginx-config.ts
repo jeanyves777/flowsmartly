@@ -105,9 +105,17 @@ server {
 
 function websiteLocationBlock(slug: string, port: number): string {
   const safeName = `site_${slug.replace(/[^a-z0-9_-]/gi, "_")}`;
+  // NOTE: proxy_pass http://upstream WITHOUT trailing slash — preserves the
+  // full /sites/{slug}/... path which the upstream Next app needs because
+  // its next.config.js has basePath: "/sites/{slug}". A trailing slash
+  // on proxy_pass would strip the location prefix and 404 the app.
   return `# Website: ${slug} -> port ${port}
+# Redirect no-trailing-slash → trailing-slash (trailingSlash:true in site next.config)
+location = /sites/${slug} {
+    return 301 /sites/${slug}/;
+}
 location /sites/${slug}/ {
-    proxy_pass http://${safeName}/;
+    proxy_pass http://${safeName};
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
