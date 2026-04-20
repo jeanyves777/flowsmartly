@@ -43,6 +43,7 @@ const TEMPLATE_FILES: readonly string[] = [
   "src/components/PolicyPage.tsx",
   "src/app/products/[slug]/ProductDetailClient.tsx",
   "src/app/products/[slug]/page.tsx",
+  "src/app/products/page.tsx",
 ];
 
 /**
