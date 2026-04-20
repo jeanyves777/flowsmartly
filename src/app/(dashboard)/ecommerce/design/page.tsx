@@ -178,13 +178,12 @@ export default function StoreDesignPage() {
       });
       if (r.ok) {
         setChanged(false);
-        // Mark the store as pending — no auto-rebuild. User publishes from the
-        // global banner when they're done making edits.
-        await fetch(`/api/ecommerce/store/${store.id}/mark-pending`, { method: "POST" }).catch(() => {});
-        setBuildStage("done");
-        setBuildMessage("Saved! Publish from the top banner when you're ready to go live.");
-        setBuildResult({ type: "success", message: "Changes saved." });
-        setTimeout(() => { setBuildStage("idle"); setBuildMessage(""); }, 3000);
+        setSaving(false);
+        // Save succeeded — chain directly into rebuild so "Save & Rebuild" does
+        // what it says. The rebuild() function drives its own branded progress
+        // UI, polls status, and refreshes the iframe when the new build is live.
+        await rebuild();
+        return;
       } else {
         const e = await r.json().catch(() => ({ error: "Save failed" }));
         setBuildStage("error");
