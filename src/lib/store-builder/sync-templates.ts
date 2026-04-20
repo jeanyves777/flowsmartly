@@ -41,6 +41,18 @@ const TEMPLATE_FILES: readonly string[] = [
   "src/app/products/[slug]/ProductDetailClient.tsx",
 ];
 
+/**
+ * Canonical templates that may live at different paths in older generated
+ * stores. Key is the source path in reference-store, value is a list of
+ * alternative destination paths that — if they already exist in the store —
+ * should also be overwritten with the same canonical content.
+ */
+const TEMPLATE_ALIASES: Record<string, readonly string[]> = {
+  "src/app/products/[slug]/ProductDetailClient.tsx": [
+    "src/components/ProductDetailClient.tsx",
+  ],
+};
+
 export interface SyncResult {
   refDir: string | null;
   synced: string[];
@@ -91,6 +103,28 @@ export async function syncStoreTemplates(storeDir: string): Promise<SyncResult> 
         file: rel,
         reason: err instanceof Error ? err.message : "copy failed",
       });
+    }
+
+    // Mirror to alias paths if the store uses a different layout
+    const aliases = TEMPLATE_ALIASES[rel];
+    if (aliases) {
+      for (const aliasRel of aliases) {
+        const aliasDst = join(storeDir, aliasRel);
+        try {
+          await fs.stat(aliasDst);
+        } catch {
+          continue; // alias doesn't exist in this store — nothing to mirror
+        }
+        try {
+          await fs.copyFile(src, aliasDst);
+          result.synced.push(aliasRel);
+        } catch (err) {
+          result.skipped.push({
+            file: aliasRel,
+            reason: err instanceof Error ? err.message : "alias copy failed",
+          });
+        }
+      }
     }
   }
 

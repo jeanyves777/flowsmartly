@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { ShoppingBag, Minus, Plus, ChevronLeft, ChevronRight, Check, Package, Truck, RotateCcw, Heart, Star, ShieldCheck, Share2 } from "lucide-react";
 import Header from "@/components/Header";
@@ -79,6 +79,26 @@ export default function ProductDetailClient({ params }: { params: { slug: string
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [product?.id, product?.images.length]);
+
+  // Touch-swipe navigation for the main image on mobile
+  const swipeRef = useRef<{ x: number; y: number } | null>(null);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const t = e.changedTouches[0];
+    swipeRef.current = { x: t.clientX, y: t.clientY };
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!swipeRef.current || !product || product.images.length <= 1) return;
+    const start = swipeRef.current;
+    const end = e.changedTouches[0];
+    const dx = end.clientX - start.x;
+    const dy = end.clientY - start.y;
+    swipeRef.current = null;
+    // Horizontal swipe only — require ≥50px and more horizontal than vertical motion
+    if (Math.abs(dx) < 50 || Math.abs(dx) <= Math.abs(dy)) return;
+    const len = product.images.length;
+    if (dx > 0) setSelectedImageIdx((i) => (i - 1 + len) % len);
+    else setSelectedImageIdx((i) => (i + 1) % len);
+  };
 
   // Fetch reviews
   useEffect(() => {
@@ -220,7 +240,11 @@ export default function ProductDetailClient({ params }: { params: { slug: string
         <div className="grid lg:grid-cols-2 gap-12">
           {/* Image gallery */}
           <div>
-            <div className="aspect-square rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-4 relative group">
+            <div
+              className="aspect-square rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-4 relative group touch-pan-y"
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+            >
               <motion.img
                 key={selectedImageIdx}
                 initial={{ opacity: 0 }}
@@ -234,14 +258,14 @@ export default function ProductDetailClient({ params }: { params: { slug: string
                 <>
                   <button
                     onClick={() => setSelectedImageIdx((i) => (i - 1 + product.images.length) % product.images.length)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-700 dark:text-gray-200 shadow-lg opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:scale-105"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-700 dark:text-gray-200 shadow-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity hover:scale-105"
                     aria-label="Previous image"
                   >
                     <ChevronLeft size={20} />
                   </button>
                   <button
                     onClick={() => setSelectedImageIdx((i) => (i + 1) % product.images.length)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-700 dark:text-gray-200 shadow-lg opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:scale-105"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-700 dark:text-gray-200 shadow-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity hover:scale-105"
                     aria-label="Next image"
                   >
                     <ChevronRight size={20} />

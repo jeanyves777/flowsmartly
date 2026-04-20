@@ -263,7 +263,8 @@ const V3_SYSTEM_PROMPT = `You are a professional e-commerce store developer. You
 ### This is an SSR App (NOT static export):
 - Use Next.js <Link> component for ALL internal navigation — NEVER bare <a> tags for internal links
 - Use Next.js <Image> component for optimized images — it handles basePath automatically
-- Internal link hrefs are root-relative ("/products", "/checkout", "/account") — Next.js Link/router handles basePath
+- **CRITICAL — storeUrl() for ALL internal hrefs**: Every href in a Link or anchor that points to an internal store path MUST go through storeUrl(path) imported from @/lib/data. NEVER write <Link href="/products"> or <Link href="/"> bare — those navigate to the main flowsmartly.com site and drop the customer out of the store. Correct pattern: <Link href={storeUrl("/products")}>, <Link href={storeUrl("/")}>, and for templates <Link href={storeUrl("/category/" + cat.slug)}>. This applies to Header, Footer, Hero CTA, category cards, breadcrumbs, mobile drawer menu, and everywhere else. Exceptions: external URLs (https://...), mailto:/tel:, and anchor links (#section).
+- heroConfig.ctaUrl in data.ts should be written as storeUrl("/products") — not bare "/products".
 - CRITICAL — images in plain <img> src: use the FULL path returned by download_image (it already includes basePath)
   - If you must hardcode: use "/stores/\${storeSlug}/images/..." (NOT "/images/...")
   - Plain <img> tags do NOT get basePath automatically — always use the full returned path
@@ -611,8 +612,14 @@ Every store MUST use these exact filenames and locations. DO NOT improvise kebab
 - NEVER inline client-component logic into page.tsx when the page has any useState/useEffect — always use the page.tsx + ComponentClient.tsx split. This allows the migration tool to overwrite only the client component without touching page.tsx routing.
 
 ### Product Detail Page (MANDATORY features):
-- Image gallery MUST include: main image, thumbnail row below, prev/next arrow buttons overlaid on the main image (visible on hover, always visible on touch), and a "1 / N" counter badge. Arrow buttons use ChevronLeft/ChevronRight from lucide-react, absolute-positioned at left-3 / right-3, rounded-full bg-white/90 dark:bg-gray-800/90 with shadow. Clicking arrows wraps around: (i - 1 + len) % len and (i + 1) % len.
+- Image gallery MUST include: main image, thumbnail row below, prev/next arrow buttons overlaid on the main image, and a "1 / N" counter badge. Arrow buttons use ChevronLeft/ChevronRight from lucide-react, absolute-positioned at left-3 / right-3, rounded-full bg-white/90 dark:bg-gray-800/90 with shadow. Clicking arrows wraps around: (i - 1 + len) % len and (i + 1) % len.
+- Mobile arrow visibility: arrows MUST be always visible on mobile and hide-on-hover only on desktop. Use className "opacity-100 sm:opacity-0 sm:group-hover:opacity-100" — NEVER "opacity-0 group-hover:opacity-100" (that makes them invisible on touch devices where hover never fires).
 - Keyboard navigation: useEffect listening to window "keydown" events — ArrowLeft/ArrowRight change selectedImageIdx. Skip if product has <= 1 image. Clean up listener on unmount.
+- Touch-swipe navigation (MANDATORY for mobile): track touch start/end in a useRef and swap images on horizontal swipe of ≥50px. Implementation:
+  const swipeRef = useRef<{ x: number; y: number } | null>(null);
+  const handleTouchStart = (e) => { const t = e.changedTouches[0]; swipeRef.current = { x: t.clientX, y: t.clientY }; };
+  const handleTouchEnd = (e) => { if (!swipeRef.current || product.images.length <= 1) return; const dx = e.changedTouches[0].clientX - swipeRef.current.x; const dy = e.changedTouches[0].clientY - swipeRef.current.y; swipeRef.current = null; if (Math.abs(dx) < 50 || Math.abs(dx) <= Math.abs(dy)) return; const len = product.images.length; if (dx > 0) setSelectedImageIdx((i) => (i - 1 + len) % len); else setSelectedImageIdx((i) => (i + 1) % len); };
+  Wire onTouchStart/onTouchEnd on the main-image container. Add className "touch-pan-y" so vertical scroll still works.
 - Wishlist heart button (top-right of image, stacked in a vertical flex-col with gap-2)
 - Share button (directly under the heart, same styling): onClick calls handleShare which tries navigator.share(shareData) first, then falls back to navigator.clipboard.writeText(window.location.href) and shows a "Link copied" indicator for 2s. shareData = { title: product.name, text: product.shortDescription || product.description || product.name, url: window.location.href }. Use Share2 icon from lucide-react.
 - Wishlist heart button next to Add to Cart button
