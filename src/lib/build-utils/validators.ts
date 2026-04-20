@@ -682,9 +682,20 @@ export function fixGlobalsCss(siteDir: string): void {
   css = css.replace(/@apply\s+;/g, "/* removed empty @apply */");
   css = css.replace(/@apply\s{2,}/g, "@apply ");
 
-  // 3. Remove numbered color-shade CSS vars from @theme (keep base only)
-  // e.g. --color-primary-600: #xxx; → remove (--color-primary stays)
-  css = css.replace(/\s*--color-(?:primary|secondary|accent|muted|destructive)-\d{2,3}:\s*[^;]+;\s*/g, "\n");
+  // 3. Remove *bogus* numbered color-shade CSS vars from @theme.
+  //
+  // Historically the agent invented raw hex shades like `--color-primary-600: #4f46e5;`
+  // that drifted from the brand color and made the palette visually incoherent.
+  // We strip those, but PRESERVE declarations that use `color-mix(...)` — that's
+  // how `inject-color-scale.ts` derives the full palette from the brand hue,
+  // and stripping it brings back the "invisible buttons" bug.
+  css = css.replace(
+    /\s*--color-(?:primary|secondary|accent|muted|destructive)-\d{2,3}:\s*([^;]+);\s*/g,
+    (full, value) => {
+      if (/color-mix\s*\(/i.test(value)) return full; // keep derivations as-is
+      return "\n";
+    }
+  );
 
   // 4. Fix color-shade references in @apply (from-primary-600 → from-primary)
   const customColors = ["primary", "secondary", "accent", "muted", "destructive"];

@@ -18,7 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils/cn";
 import { useCanvasStore } from "../hooks/use-canvas-store";
-import { POPULAR_FONTS, loadGoogleFont } from "../utils/font-loader";
+import { FONT_CATEGORIES, loadGoogleFont } from "../utils/font-loader";
+import { TEXT_PRESETS } from "../utils/text-presets";
 import { ColorInput } from "./color-input";
 
 export function TextProperties() {
@@ -55,6 +56,14 @@ export function TextProperties() {
       return null;
     return obj;
   }, [canvas]);
+
+  // Preload preset recommended fonts so the preview swatches render correctly
+  useEffect(() => {
+    const fonts = Array.from(
+      new Set(TEXT_PRESETS.map((p) => p.recommendedFont).filter(Boolean) as string[]),
+    );
+    fonts.forEach((f) => loadGoogleFont(f));
+  }, []);
 
   // Sync state from selected object
   useEffect(() => {
@@ -177,13 +186,79 @@ export function TextProperties() {
     canvas.renderAll();
   };
 
-  const filteredFonts = POPULAR_FONTS.filter((f) =>
-    f.toLowerCase().includes(fontSearch.toLowerCase())
-  );
+  const filteredCategories = FONT_CATEGORIES.map((cat) => ({
+    label: cat.label,
+    fonts: cat.fonts.filter((f) =>
+      f.toLowerCase().includes(fontSearch.toLowerCase()),
+    ),
+  })).filter((cat) => cat.fonts.length > 0);
+
+  const applyPreset = async (presetId: string) => {
+    const preset = TEXT_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    const obj = getActiveText();
+    if (!obj || !canvas) return;
+    if (preset.recommendedFont) {
+      await loadGoogleFont(preset.recommendedFont);
+      obj.set("fontFamily", preset.recommendedFont);
+      setFontFamily(preset.recommendedFont);
+    }
+    await preset.apply(obj);
+    canvas.renderAll();
+    // Re-sync local state after preset applied
+    setStrokeWidth(obj.strokeWidth || 0);
+    setStrokeColor(typeof obj.stroke === "string" ? obj.stroke : "#000000");
+    if (obj.shadow) {
+      setShadowEnabled(true);
+      setShadowColor(obj.shadow.color || "#000000");
+      setShadowBlur(obj.shadow.blur ?? 8);
+      setShadowOffsetX(obj.shadow.offsetX ?? 2);
+      setShadowOffsetY(obj.shadow.offsetY ?? 2);
+    } else {
+      setShadowEnabled(false);
+    }
+  };
 
   return (
     <div className="p-3 space-y-4">
       <h3 className="text-sm font-semibold">Text</h3>
+
+      {/* Style Presets — one-click looks (gold metallic, neon, 3D, etc.) */}
+      <div>
+        <label className="text-xs text-muted-foreground mb-1 block">Style Presets</label>
+        <div className="grid grid-cols-3 gap-1.5">
+          {TEXT_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => applyPreset(preset.id)}
+              className="group relative aspect-[16/9] rounded-md border overflow-hidden hover:border-brand-500 hover:shadow-md transition-all"
+              style={{ backgroundColor: preset.preview.background }}
+              title={`${preset.name}${preset.recommendedFont ? ` · ${preset.recommendedFont}` : ""}`}
+              aria-label={`Apply ${preset.name} text style`}
+            >
+              <span
+                className="absolute inset-0 flex items-center justify-center text-[14px] font-bold leading-none px-1"
+                style={{
+                  fontFamily: preset.recommendedFont || "inherit",
+                  color: preset.preview.color,
+                  background: preset.preview.gradient
+                    ? preset.preview.gradient
+                    : undefined,
+                  WebkitBackgroundClip: preset.preview.gradient ? "text" : undefined,
+                  WebkitTextFillColor: preset.preview.gradient ? "transparent" : undefined,
+                  textShadow: preset.preview.textShadow,
+                }}
+              >
+                Aa
+              </span>
+              <span className="absolute bottom-0 left-0 right-0 text-[8px] py-0.5 bg-black/60 text-white text-center truncate">
+                {preset.name}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Font Family */}
       <div className="relative">
@@ -206,21 +281,33 @@ export function TextProperties() {
                 autoFocus
               />
             </div>
-            <div className="overflow-y-auto max-h-[200px]">
-              {filteredFonts.map((font) => (
-                <button
-                  key={font}
-                  onClick={() => handleFontChange(font)}
-                  onMouseEnter={() => loadGoogleFont(font)}
-                  className={cn(
-                    "w-full text-left px-2 py-1.5 text-sm hover:bg-muted transition-colors",
-                    font === fontFamily && "bg-brand-500/10 text-brand-600"
-                  )}
-                  style={{ fontFamily: font }}
-                >
-                  {font}
-                </button>
+            <div className="overflow-y-auto max-h-[260px]">
+              {filteredCategories.map((cat) => (
+                <div key={cat.label}>
+                  <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted/40 sticky top-0">
+                    {cat.label}
+                  </div>
+                  {cat.fonts.map((font) => (
+                    <button
+                      key={font}
+                      onClick={() => handleFontChange(font)}
+                      onMouseEnter={() => loadGoogleFont(font)}
+                      className={cn(
+                        "w-full text-left px-2 py-1.5 text-sm hover:bg-muted transition-colors",
+                        font === fontFamily && "bg-brand-500/10 text-brand-600",
+                      )}
+                      style={{ fontFamily: font }}
+                    >
+                      {font}
+                    </button>
+                  ))}
+                </div>
               ))}
+              {filteredCategories.length === 0 && (
+                <div className="px-2 py-3 text-xs text-muted-foreground text-center">
+                  No fonts match &ldquo;{fontSearch}&rdquo;
+                </div>
+              )}
             </div>
           </div>
         )}
