@@ -58,15 +58,23 @@ export function LeftPanel() {
   if (isReadOnly) return null;
 
   return (
-    <div className="flex h-full shrink-0">
+    <div className="flex h-full shrink-0" role="complementary" aria-label="Design tools">
       {/* Icon strip - always visible */}
-      <div className="w-[72px] bg-muted/50 border-r flex flex-col items-center py-2 gap-1 shrink-0">
+      <div
+        className="w-[56px] sm:w-[72px] bg-muted/50 border-r flex flex-col items-center py-2 gap-1 shrink-0"
+        role="tablist"
+        aria-orientation="vertical"
+        aria-label="Tool panels"
+      >
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activePanel === tab.id && !isLeftPanelCollapsed;
           return (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={`studio-panel-${tab.id}`}
               onClick={() => {
                 // Reset drawing mode when switching away from eraser
                 if (tab.id !== "eraser") {
@@ -76,15 +84,16 @@ export function LeftPanel() {
                 if (isLeftPanelCollapsed) toggleLeftPanel();
               }}
               className={cn(
-                "flex flex-col items-center justify-center w-14 h-14 rounded-lg text-xs gap-1 transition-colors",
+                "flex flex-col items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-lg text-xs gap-1 transition-colors",
                 isActive
                   ? "bg-brand-500/10 text-brand-600 dark:text-brand-400"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
               title={tab.label}
+              aria-label={`${tab.label} panel`}
             >
               <Icon className="h-5 w-5" />
-              <span className="text-[10px] leading-none">{tab.label}</span>
+              <span className="text-[10px] leading-none hidden sm:block">{tab.label}</span>
             </button>
           );
         })}
@@ -95,6 +104,8 @@ export function LeftPanel() {
           onClick={toggleLeftPanel}
           className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors mb-1"
           title={isLeftPanelCollapsed ? "Expand panel" : "Collapse panel"}
+          aria-label={isLeftPanelCollapsed ? "Expand tool panel" : "Collapse tool panel"}
+          aria-expanded={!isLeftPanelCollapsed}
         >
           {isLeftPanelCollapsed ? (
             <PanelLeftOpen className="h-4 w-4" />
@@ -106,7 +117,12 @@ export function LeftPanel() {
 
       {/* Panel content - hidden when collapsed */}
       {!isLeftPanelCollapsed && (
-        <div className="w-[280px] border-r bg-background overflow-y-auto shrink-0">
+        <div
+          id={`studio-panel-${activePanel}`}
+          role="tabpanel"
+          aria-label={`${activePanel} panel`}
+          className="w-[220px] md:w-[260px] xl:w-[280px] border-r bg-background overflow-y-auto shrink-0"
+        >
           <PanelContent />
         </div>
       )}

@@ -395,6 +395,57 @@ export function CanvasEditor({
     };
   }, [canvas, zoom, setZoom]);
 
+  // Touch pinch-zoom — two-finger gesture to zoom the canvas on mobile/touch devices
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    let initialDistance = 0;
+    let initialZoom = 1;
+    let pinching = false;
+
+    const getDistance = (t1: Touch, t2: Touch) => {
+      const dx = t1.clientX - t2.clientX;
+      const dy = t1.clientY - t2.clientY;
+      return Math.hypot(dx, dy);
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        pinching = true;
+        initialDistance = getDistance(e.touches[0], e.touches[1]);
+        initialZoom = useCanvasStore.getState().zoom;
+        e.preventDefault();
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!pinching || e.touches.length !== 2) return;
+      e.preventDefault();
+      const dist = getDistance(e.touches[0], e.touches[1]);
+      if (initialDistance === 0) return;
+      const scale = dist / initialDistance;
+      const nextZoom = Math.max(0.1, Math.min(5, initialZoom * scale));
+      setZoom(nextZoom);
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinching = false;
+    };
+
+    el.addEventListener("touchstart", handleTouchStart, { passive: false });
+    el.addEventListener("touchmove", handleTouchMove, { passive: false });
+    el.addEventListener("touchend", handleTouchEnd);
+    el.addEventListener("touchcancel", handleTouchEnd);
+
+    return () => {
+      el.removeEventListener("touchstart", handleTouchStart);
+      el.removeEventListener("touchmove", handleTouchMove);
+      el.removeEventListener("touchend", handleTouchEnd);
+      el.removeEventListener("touchcancel", handleTouchEnd);
+    };
+  }, [setZoom]);
+
   // Re-lock viewport when canvas reference changes (belt-and-suspenders)
   useEffect(() => {
     if (!canvas) return;
@@ -589,7 +640,9 @@ export function CanvasEditor({
     <div
       ref={containerRef}
       className="flex-1 overflow-auto bg-gray-100 dark:bg-gray-900 flex items-center justify-center relative"
-      style={{ minHeight: 0 }}
+      style={{ minHeight: 0, touchAction: "pan-x pan-y" }}
+      role="region"
+      aria-label="Design canvas workspace"
     >
       <div
         ref={canvasWrapperRef}

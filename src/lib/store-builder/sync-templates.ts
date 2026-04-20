@@ -15,6 +15,7 @@
 
 import { promises as fs } from "fs";
 import { join, dirname } from "path";
+import { injectColorScale } from "./inject-color-scale";
 
 const REFERENCE_CANDIDATES = [
   "/opt/reference-store",
@@ -103,6 +104,19 @@ export async function syncStoreTemplates(storeDir: string): Promise<SyncResult> 
     result.synced.push("(removed) src/pages/");
   } catch {
     // not present — nothing to do
+  }
+
+  // Inject primary-50..900 derived scale into globals.css. Every reference
+  // component uses these classes — without the scale they produce no CSS
+  // and buttons / accents / hover states become invisible.
+  try {
+    const injected = await injectColorScale(storeDir);
+    if (injected) result.synced.push("(injected) globals.css color scale");
+  } catch (err) {
+    result.skipped.push({
+      file: "globals.css",
+      reason: err instanceof Error ? err.message : "scale injection failed",
+    });
   }
 
   for (const rel of TEMPLATE_FILES) {

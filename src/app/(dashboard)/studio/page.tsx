@@ -87,10 +87,19 @@ function StudioPageInner() {
     store.setActivePageIndex(0);
 
     // Clear canvas objects
-    canvas.clear();
-    canvas.backgroundColor = "#ffffff";
-    canvas.renderAll();
-    store.refreshLayers();
+    try {
+      canvas.clear();
+      canvas.backgroundColor = "#ffffff";
+      canvas.renderAll();
+      store.refreshLayers();
+    } catch (err) {
+      console.error("[studio] Canvas reset failed:", err);
+      toast({
+        title: "Couldn't reset the canvas",
+        description: "Refresh the page to start fresh.",
+        variant: "destructive",
+      });
+    }
 
     // Apply preset dimensions if provided
     if (preset) {
@@ -252,10 +261,13 @@ function StudioPageInner() {
         }
       } catch (err) {
         console.error("Failed to load design:", err);
+        const msg = err instanceof Error ? err.message : "";
+        const isNetwork = /fetch|network|failed to fetch/i.test(msg);
         toast({
           title: "Design failed to load",
-          description:
-            "Some images couldn't be fetched. Try refreshing — if the canvas stays blank, the design may have referenced deleted assets.",
+          description: isNetwork
+            ? "Lost connection while loading. Check your internet and try refreshing."
+            : "Some assets may be missing or deleted. Try refreshing — if the canvas stays blank, older linked images may need to be re-uploaded.",
           variant: "destructive",
         });
       }

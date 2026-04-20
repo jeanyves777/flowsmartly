@@ -24,6 +24,8 @@ export function RightPanel() {
           onClick={toggleRightPanel}
           className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           title="Expand properties panel"
+          aria-label="Expand properties panel"
+          aria-expanded={false}
         >
           <PanelRightOpen className="h-4 w-4" />
         </button>
@@ -55,7 +57,10 @@ export function RightPanel() {
   };
 
   return (
-    <div className="w-[280px] border-l bg-background flex flex-col shrink-0 overflow-hidden">
+    <aside
+      className="w-[220px] md:w-[260px] xl:w-[280px] border-l bg-background flex flex-col shrink-0 overflow-hidden"
+      aria-label="Properties panel"
+    >
       {/* Header with collapse button */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b shrink-0">
         <span className="text-xs font-medium text-muted-foreground">Properties</span>
@@ -63,6 +68,8 @@ export function RightPanel() {
           onClick={toggleRightPanel}
           className="flex items-center justify-center w-6 h-6 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           title="Collapse panel"
+          aria-label="Collapse properties panel"
+          aria-expanded={true}
         >
           <PanelRightClose className="h-3.5 w-3.5" />
         </button>
@@ -77,6 +84,6 @@ export function RightPanel() {
       <div className="border-t">
         <LayersPanel />
       </div>
-    </div>
+    </aside>
   );
 }

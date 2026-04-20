@@ -113,7 +113,11 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
   };
 
   return (
-    <div className="flex items-center justify-between h-12 px-3 border-b bg-background shrink-0">
+    <div
+      className="flex items-center justify-between h-12 px-3 border-b bg-background shrink-0"
+      role="toolbar"
+      aria-label="Design toolbar"
+    >
       {/* Left: Design name + save */}
       <div className="flex items-center gap-2 min-w-0">
         {isEditingName ? (
@@ -129,20 +133,25 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
                 setIsEditingName(false);
               }
             }}
+            aria-label="Design name"
             className="text-sm font-medium bg-transparent border-b border-brand-500 outline-none px-1 max-w-[200px]"
           />
         ) : (
           <button
             onClick={() => setIsEditingName(true)}
-            className="text-sm font-medium truncate max-w-[200px] hover:text-brand-600 transition-colors"
+            aria-label={`Design name: ${designName}. Click to rename.`}
+            className="text-sm font-medium truncate max-w-[140px] sm:max-w-[200px] hover:text-brand-600 transition-colors"
           >
             {designName}
-            {isDirty && <span className="text-muted-foreground ml-1">*</span>}
+            {isDirty && <span className="text-muted-foreground ml-1" aria-label="Unsaved changes">*</span>}
           </button>
         )}
 
         {isReadOnly ? (
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 rounded">
+          <span
+            className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 rounded"
+            role="status"
+          >
             View Only
           </span>
         ) : (
@@ -152,6 +161,7 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
             className="h-8 w-8"
             onClick={handleSave}
             title="Save (Ctrl+S)"
+            aria-label="Save design (Ctrl+S)"
           >
             <Save className="h-4 w-4" />
           </Button>
@@ -172,6 +182,8 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
               className={`h-7 w-7 ${activeTool === "select" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
               onClick={() => setActiveTool("select")}
               title="Select (V)"
+              aria-label="Select tool (V)"
+              aria-pressed={activeTool === "select"}
             >
               <MousePointer2 className="h-3.5 w-3.5" />
             </Button>
@@ -181,6 +193,8 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
               className={`h-7 w-7 ${activeTool === "pan" ? "bg-brand-500 hover:bg-brand-600 text-white shadow-sm" : ""}`}
               onClick={() => setActiveTool("pan")}
               title="Hand / Pan (H)"
+              aria-label="Hand pan tool (H)"
+              aria-pressed={activeTool === "pan"}
             >
               <Hand className="h-3.5 w-3.5" />
             </Button>
@@ -198,6 +212,7 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
               onClick={undo}
               disabled={!canUndo}
               title="Undo (Ctrl+Z)"
+              aria-label="Undo (Ctrl+Z)"
             >
               <Undo2 className="h-4 w-4" />
             </Button>
@@ -208,6 +223,7 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
               onClick={redo}
               disabled={!canRedo}
               title="Redo (Ctrl+Shift+Z)"
+              aria-label="Redo (Ctrl+Shift+Z)"
             >
               <Redo2 className="h-4 w-4" />
             </Button>
@@ -228,6 +244,7 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
           className="h-8 w-8"
           onClick={handleZoomOut}
           title="Zoom Out (-10%)"
+          aria-label="Zoom out"
         >
           <ZoomOut className="h-4 w-4" />
         </Button>
@@ -259,6 +276,7 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
                   e.preventDefault();
                   startEditingZoom();
                 }}
+                aria-label={`Current zoom ${zoomPercent}%. Click to change.`}
               >
                 {zoomPercent}%
                 <ChevronDown className="h-3 w-3 ml-1" />
@@ -284,6 +302,7 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
           className="h-8 w-8"
           onClick={handleZoomIn}
           title="Zoom In (+10%)"
+          aria-label="Zoom in"
         >
           <ZoomIn className="h-4 w-4" />
         </Button>

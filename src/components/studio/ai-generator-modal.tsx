@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Sparkles, ChevronDown, Image as ImageIcon, Megaphone, FileText, Presentation, PanelTop, Signpost, User, Package, Type, Palette, Building2, Mail, Phone, Globe, MapPin, Zap, Layers, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ import { addImageToCanvas } from "./utils/canvas-helpers";
 import { applyAILayout } from "./utils/layout-to-canvas";
 import { motion, AnimatePresence } from "framer-motion";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { cn } from "@/lib/utils/cn";
 
 interface SocialHandles {
   instagram?: string;
@@ -54,6 +55,9 @@ interface BrandIdentity {
   address: string | null;
   handles: SocialHandles;
 }
+
+const PROMPT_MAX_CHARS = 2000;
+const PROMPT_WARN_CHARS = 1600;
 
 const categoryIcons: Record<string, React.ElementType> = {
   social_post: ImageIcon,
@@ -208,6 +212,10 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
   const [aiIdeas, setAiIdeas] = useState<string[]>([]);
 
+  // Abort controllers for in-flight AI requests
+  const generateAbortRef = useRef<AbortController | null>(null);
+  const ideasAbortRef = useRef<AbortController | null>(null);
+
   // Loading states
   const [isGenerating, setIsGenerating] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState(0);
@@ -294,13 +302,20 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
 
   // Generate Ideas
   const handleGenerateIdeas = async () => {
-    if (isGeneratingIdeas) return;
+    if (isGeneratingIdeas) {
+      // Second click cancels in-flight request
+      ideasAbortRef.current?.abort();
+      return;
+    }
     setIsGeneratingIdeas(true);
     setAiIdeas([]);
+    const controller = new AbortController();
+    ideasAbortRef.current = controller;
     try {
       const res = await fetch("/api/ai/studio/ideas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           category: selectedCategory,
           style: selectedStyle,
@@ -318,6 +333,10 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
         emitCreditsUpdate(data.creditsRemaining);
       }
     } catch (e) {
+      // Silent on user-cancel (abort)
+      if (e instanceof DOMException && e.name === "AbortError") {
+        return;
+      }
       toast({
         title: "Idea generation failed",
         description: e instanceof Error ? e.message : "Try again",
@@ -325,6 +344,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
       });
     } finally {
       setIsGeneratingIdeas(false);
+      ideasAbortRef.current = null;
     }
   };
 
@@ -337,6 +357,14 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
       });
       return;
     }
+    if (prompt.length > PROMPT_MAX_CHARS) {
+      toast({
+        title: "Prompt is too long",
+        description: `Trim to ${PROMPT_MAX_CHARS} characters or fewer.`,
+        variant: "destructive",
+      });
+      return;
+    }
     if (!selectedSize) {
       toast({ title: "Please select a size", variant: "destructive" });
       return;
@@ -345,6 +373,8 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
     setIsGenerating(true);
     setGeneratedImageUrl(null);
     setLayoutApplied(false);
+    const controller = new AbortController();
+    generateAbortRef.current = controller;
     try {
       const socialHandles: Record<string, string> = {};
       if (showSocialIcons && brandIdentity?.handles) {
@@ -359,6 +389,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
         const res = await fetch("/api/ai/design-layout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
             prompt,
             category: selectedCategory,
@@ -424,6 +455,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
         const res = await fetch("/api/ai/visual", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
             prompt,
             category: selectedCategory,
@@ -492,6 +524,11 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
         }
       }
     } catch (e) {
+      // Silent on user-cancel (abort)
+      if (e instanceof DOMException && e.name === "AbortError") {
+        toast({ title: "Generation cancelled" });
+        return;
+      }
       toast({
         title: "Generation failed",
         description: e instanceof Error ? e.message : "Try again",
@@ -499,8 +536,14 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
       });
     } finally {
       setIsGenerating(false);
+      generateAbortRef.current = null;
     }
   };
+
+  // Cancel an in-flight generation on demand
+  const handleCancelGenerate = useCallback(() => {
+    generateAbortRef.current?.abort();
+  }, []);
 
   const currentCategory = DESIGN_CATEGORIES.find(
     (c) => c.id === selectedCategory
@@ -622,10 +665,31 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
               </div>
               <textarea
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => setPrompt(e.target.value.slice(0, PROMPT_MAX_CHARS))}
+                maxLength={PROMPT_MAX_CHARS}
                 placeholder="e.g. A vibrant Instagram post announcing a new product launch with bold typography and colorful gradients"
+                aria-label="Describe what you want to create"
+                aria-describedby="prompt-char-count"
                 className="w-full min-h-[100px] p-3 text-sm border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 bg-background"
               />
+              <div
+                id="prompt-char-count"
+                className="mt-1 flex justify-end"
+                aria-live="polite"
+              >
+                <span
+                  className={cn(
+                    "text-[10px] font-mono tabular-nums",
+                    prompt.length >= PROMPT_MAX_CHARS
+                      ? "text-destructive font-semibold"
+                      : prompt.length >= PROMPT_WARN_CHARS
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-muted-foreground"
+                  )}
+                >
+                  {prompt.length} / {PROMPT_MAX_CHARS}
+                </span>
+              </div>
               {/* Ideas suggestions */}
               {aiIdeas.length > 0 && (
                 <div className="mt-2 space-y-1">
@@ -1259,27 +1323,47 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
               </span>
             )}
           </div>
-          <Button
-            onClick={handleGenerate}
-            disabled={isGenerating || !prompt.trim()}
-            className="gap-2 px-6"
-          >
-            {isGenerating ? (
-              <AISpinner className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
+          <div className="flex items-center gap-2">
+            {isGenerating && (
+              <Button
+                variant="outline"
+                onClick={handleCancelGenerate}
+                className="gap-1.5"
+                aria-label="Cancel generation"
+              >
+                <X className="h-4 w-4" />
+                Cancel
+              </Button>
             )}
-            {isGenerating
-              ? "Generating..."
-              : generationMode === "layout"
-                ? "Generate Layout"
-                : "Generate Design"}
-            <Badge variant="secondary" className="text-[10px] ml-1">
-              {generationMode === "layout"
-                ? layoutCreditCost + (generateHeroImage ? layoutImageCost : 0) + (generateBackground ? layoutImageCost : 0)
-                : designCreditCost} credits
-            </Badge>
-          </Button>
+            <Button
+              onClick={handleGenerate}
+              disabled={isGenerating || !prompt.trim() || prompt.length > PROMPT_MAX_CHARS}
+              className="gap-2 px-6"
+              aria-label={
+                isGenerating
+                  ? "Generating, please wait"
+                  : generationMode === "layout"
+                    ? "Generate smart layout"
+                    : "Generate AI design"
+              }
+            >
+              {isGenerating ? (
+                <AISpinner className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {isGenerating
+                ? "Generating..."
+                : generationMode === "layout"
+                  ? "Generate Layout"
+                  : "Generate Design"}
+              <Badge variant="secondary" className="text-[10px] ml-1">
+                {generationMode === "layout"
+                  ? layoutCreditCost + (generateHeroImage ? layoutImageCost : 0) + (generateBackground ? layoutImageCost : 0)
+                  : designCreditCost} credits
+              </Badge>
+            </Button>
+          </div>
         </div>
       </motion.div>
     </div>

@@ -209,6 +209,7 @@ export function BottomToolbar() {
                 className="h-7 w-7 shrink-0"
                 onClick={action.action}
                 disabled={!hasSelection}
+                aria-label={action.label}
               >
                 <Icon className="h-3.5 w-3.5" />
               </Button>
@@ -224,7 +225,11 @@ export function BottomToolbar() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="h-9 border-t bg-background flex items-center justify-between px-3 shrink-0">
+      <div
+        className="h-9 border-t bg-background flex items-center justify-between px-3 shrink-0"
+        role="toolbar"
+        aria-label="Object actions"
+      >
         {/* Left: Object tools */}
         <div className="flex items-center gap-1">
           {hasSelection && (
