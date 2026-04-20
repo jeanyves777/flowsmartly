@@ -149,11 +149,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const heroBlock = data.match(/heroConfig\s*=\s*\{([\s\S]*?)\};/);
         if (heroBlock) {
           const heroBody = heroBlock[1];
-          // If slides already exists, replace it; otherwise inject before closing brace
           const hasSlides = /slides\s*:\s*\[[\s\S]*?\]/.test(heroBody);
-          const newBody = hasSlides
-            ? heroBody.replace(/slides\s*:\s*\[[\s\S]*?\](\s*as\s+string\[\])?/, slidesBlock)
-            : heroBody.replace(/(\s*)$/, `,\n  ${slidesBlock},\n$1`);
+          let newBody: string;
+          if (hasSlides) {
+            newBody = heroBody.replace(
+              /slides\s*:\s*\[[\s\S]*?\](\s*as\s+string\[\])?/,
+              slidesBlock
+            );
+          } else {
+            // Append as new last field. Strip trailing whitespace AND any
+            // trailing comma first, then re-add a single separator comma
+            // before the new field. Avoids the "overlayOpacity: 0.5,," double-
+            // comma bug that broke store builds after a hero edit.
+            const trimmed = heroBody.replace(/[\s,]+$/, "");
+            newBody = `${trimmed},\n  ${slidesBlock},\n`;
+          }
           data = data.replace(heroBody, newBody);
         }
       }

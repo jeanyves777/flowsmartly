@@ -122,10 +122,12 @@ async function syncProductsToFile(storeId: string, storeDir: string): Promise<vo
   }`;
   }).join(",\n");
 
-  // Replace the products array in the file
+  // Replace the products array in the file. Guard against the empty-store
+  // case where productsArrayStr is "" — producing `[\n,\n]` which is invalid JS.
+  const productsLiteral = productsArrayStr ? `[\n${productsArrayStr},\n]` : `[]`;
   const newContent = content.replace(
     /export const products[^=]*=\s*\[[\s\S]*?\];/,
-    `export const products: Product[] = [\n${productsArrayStr},\n];`
+    `export const products: Product[] = ${productsLiteral};`
   );
 
   if (newContent !== content) {
@@ -158,10 +160,11 @@ async function syncCategoriesToDataFile(storeId: string, storeDir: string): Prom
     return `  { id: "${c.id}", name: "${escapeStr(c.name)}", slug: "${c.slug}", description: "${escapeStr(c.description || "")}", image: "${escapeStr(c.imageUrl || "")}" }`;
   }).join(",\n");
 
-  // Replace the categories array in the file
+  // Replace the categories array in the file. Guard empty case.
+  const categoriesLiteral = categoriesArrayStr ? `[\n${categoriesArrayStr},\n]` : `[]`;
   const newContent = content.replace(
     /export const categories[^=]*=\s*\[[\s\S]*?\];/,
-    `export const categories = [\n${categoriesArrayStr},\n];`
+    `export const categories = ${categoriesLiteral};`
   );
 
   if (newContent !== content) {
@@ -196,17 +199,16 @@ async function syncShippingToDataFile(storeId: string, storeDir: string, freeThr
     `  { id: "${m.id}", name: "${escapeStr(m.name)}", description: "${escapeStr(m.description || "")}", priceCents: ${m.priceCents}, estimatedDays: "${escapeStr(m.estimatedDays || "")}", isActive: true }`
   ).join(",\n");
 
-  // Replace or add shippingMethods array.
-  // Regex tolerates optional TypeScript type annotation: `shippingMethods: ShippingMethod[] =`
+  // Replace or add shippingMethods array. Guard empty case.
+  const shippingLiteral = methodsStr ? `[\n${methodsStr},\n]` : `[]`;
   if (content.includes("export const shippingMethods")) {
-    const replacement = `export const shippingMethods: ShippingMethod[] = [\n${methodsStr},\n];`;
+    const replacement = `export const shippingMethods: ShippingMethod[] = ${shippingLiteral};`;
     content = content.replace(
       /export const shippingMethods[^=]*=\s*\[[\s\S]*?\];/,
       replacement
     );
   } else {
-    // Append after the last export
-    content += `\n\nexport const shippingMethods: ShippingMethod[] = [\n${methodsStr},\n];\n`;
+    content += `\n\nexport const shippingMethods: ShippingMethod[] = ${shippingLiteral};\n`;
   }
 
   writeFileSync(dataPath, content, "utf-8");
@@ -242,16 +244,20 @@ async function syncPaymentMethodsToDataFile(storeId: string, storeDir: string): 
     return `  { value: "${m.methodType}", label: "${info.label}", icon: "${info.icon}" }`;
   }).join(",\n");
 
+  // Build the array literal — avoid the "[,]" invalid-JS bug when the store
+  // has no payment methods. Empty-methods → "[]", populated → "[\n  {...},\n]".
+  const arrayLiteral = methodsStr ? `[\n${methodsStr},\n]` : `[]`;
+
   let content = readFileSync(dataPath, "utf-8");
 
   // Regex tolerates optional TypeScript type annotation: `paymentMethods: Type[] =`
   if (content.includes("export const paymentMethods")) {
     content = content.replace(
       /export const paymentMethods[^=]*=\s*\[[\s\S]*?\];/,
-      `export const paymentMethods = [\n${methodsStr},\n];`
+      `export const paymentMethods = ${arrayLiteral};`
     );
   } else {
-    content += `\n\nexport const paymentMethods = [\n${methodsStr},\n];\n`;
+    content += `\n\nexport const paymentMethods = ${arrayLiteral};\n`;
   }
 
   writeFileSync(dataPath, content, "utf-8");
