@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ShoppingBag, Heart } from "lucide-react";
+import { ShoppingBag, Heart, Check } from "lucide-react";
 import { formatPrice } from "@/lib/data";
 import { addToCart } from "@/lib/cart";
 import type { Product } from "@/lib/products";
@@ -85,14 +85,15 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
   };
 
   return (
-    <div className="group">
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay: (index || 0) * 0.05, duration: 0.4 }}
+      className="group"
     >
-      {/* Image container */}
+      {/* Image container — note: group is on the outer motion.div so any
+          hover inside this card triggers the desktop add-to-cart slide-up */}
       <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-4">
         {/* Clickable image area — links to product detail */}
         <a href={productUrl} className="block w-full h-full">
@@ -140,22 +141,39 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
           <Heart size={18} fill={wishlisted ? "currentColor" : "none"} />
         </button>
 
-        {/* Add to Cart / Out of Stock */}
+        {/* Add to Cart — two variants: mobile icon-only + desktop hover pill */}
         {product.inStock ? (
-          <div className="absolute bottom-3 left-3 right-3 z-20 flex justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300">
+          <>
+            {/* MOBILE (sm:hidden): small round icon-only button at bottom-right */}
             <button
               type="button"
               onClick={handleAddToCart}
-              className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-full shadow-lg transition-colors ${
+              aria-label={added ? "Added to cart" : "Add to cart"}
+              className={`sm:hidden absolute bottom-3 right-3 z-20 w-10 h-10 rounded-full shadow-md flex items-center justify-center transition-all active:scale-95 ${
                 added
                   ? "bg-green-500 text-white"
-                  : "bg-white dark:bg-gray-900 text-gray-900 dark:text-white hover:bg-primary-600 hover:text-white"
+                  : "bg-white/95 dark:bg-gray-900/95 text-gray-800 dark:text-white"
               }`}
             >
-              <ShoppingBag size={16} />
-              {added ? "Added!" : "Add to Cart"}
+              {added ? <Check size={18} /> : <ShoppingBag size={18} />}
             </button>
-          </div>
+
+            {/* DESKTOP (hidden sm:flex): full pill, slides up on card hover */}
+            <div className="hidden sm:flex absolute inset-x-3 bottom-3 z-20 justify-center opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 pointer-events-none group-hover:pointer-events-auto">
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-full shadow-lg transition-colors ${
+                  added
+                    ? "bg-green-500 text-white"
+                    : "bg-white dark:bg-gray-900 text-gray-900 dark:text-white hover:bg-primary-600 hover:text-white"
+                }`}
+              >
+                {added ? <Check size={16} /> : <ShoppingBag size={16} />}
+                {added ? "Added!" : "Add to Cart"}
+              </button>
+            </div>
+          </>
         ) : (
           <div className="absolute inset-0 z-10 bg-white/60 dark:bg-gray-900/60 flex flex-col items-center justify-center gap-2 pointer-events-none">
             <span className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-full">Out of Stock</span>
@@ -199,6 +217,5 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
         )}
       </a>
     </motion.div>
-    </div>
   );
 }
