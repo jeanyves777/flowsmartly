@@ -103,29 +103,21 @@ server {
 }`;
 }
 
-function websiteLocationBlock(slug: string, port: number): string {
-  const safeName = `site_${slug.replace(/[^a-z0-9_-]/gi, "_")}`;
-  // NOTE: proxy_pass http://upstream WITHOUT trailing slash — preserves the
-  // full /sites/{slug}/... path which the upstream Next app needs because
-  // its next.config.js has basePath: "/sites/{slug}". A trailing slash
-  // on proxy_pass would strip the location prefix and 404 the app.
-  return `# Website: ${slug} -> port ${port}
-# Redirect no-trailing-slash → trailing-slash (trailingSlash:true in site next.config)
+function websiteLocationBlock(slug: string, _port: number): string {
+  // Websites are generated with `output: 'export'` in next.config.ts, which
+  // produces static HTML/CSS/JS in `/var/www/flowsmartly/sites-output/{slug}/`.
+  // The old PM2 + `next start` approach doesn't serve static exports, so we
+  // bypass it entirely and let nginx serve the files directly. try_files
+  // looks up the URI as-is, as .html, as /index.html, then 404s.
+  return `# Website: ${slug} -> static files
 location = /sites/${slug} {
     return 301 /sites/${slug}/;
 }
 location /sites/${slug}/ {
-    proxy_pass http://${safeName};
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Site-Slug ${slug};
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_read_timeout 60s;
-    proxy_buffering off;
+    alias /var/www/flowsmartly/sites-output/${slug}/;
+    try_files $uri $uri.html $uri/index.html =404;
+    add_header X-Site-Slug "${slug}";
+    add_header Cache-Control "public, max-age=300, must-revalidate";
 }
 `;
 }
