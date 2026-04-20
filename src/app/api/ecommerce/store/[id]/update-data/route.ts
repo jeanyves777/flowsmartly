@@ -141,8 +141,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       // Update heroConfig.slides array (slideshow images). Replace or inject.
       if (Array.isArray(heroConfig.slides)) {
+        // Strip S3 presign query params before storing. Presigned URLs expire
+        // after 1 hour; storing the bare public S3 URL means the slideshow
+        // keeps loading indefinitely. flowsmartly-media bucket objects are
+        // publicly readable.
+        const cleanSlide = (u: string): string => {
+          if (!u) return "";
+          // Drop any ?X-Amz-... / ?X-Amz-Signature / other presign querystrings.
+          if (u.includes("X-Amz-") || u.includes("?X-Amz")) {
+            return u.split("?")[0];
+          }
+          return u;
+        };
         const slidesJs = heroConfig.slides
-          .map((u: string) => `    "${escapeStr(u)}"`)
+          .map((u: string) => `    "${escapeStr(cleanSlide(u))}"`)
           .join(",\n");
         const slidesBlock = `slides: [\n${slidesJs}${heroConfig.slides.length ? "\n  " : ""}] as string[]`;
 
