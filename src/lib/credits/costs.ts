@@ -140,6 +140,10 @@ export const DEFAULT_CREDIT_COSTS = {
 
   // --- AI Store Builder V2 (Agent-based) ---
   AI_STORE_GENERATE: 500,       // Full store generation with AI agent ($5.00 — Claude API + build + hosting)
+
+  // --- AI Business Plan ---
+  AI_BUSINESS_PLAN: 120,          // Full business plan: agent + adaptive thinking + 13 sections + charts (~$1.00)
+  AI_BUSINESS_PLAN_REGENERATE: 35, // Partial regen with new instructions — reuses brand snapshot, swaps sections
 } as const;
 
 /**
@@ -205,6 +209,8 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_PITCH_LOCAL_PRESENCE: "AI local presence pitch",
   AI_WEBSITE_GENERATE: "AI website generation ($5.00)",
   AI_STORE_GENERATE: "AI store generation V2 ($5.00)",
+  AI_BUSINESS_PLAN: "AI business plan generation",
+  AI_BUSINESS_PLAN_REGENERATE: "AI business plan regeneration",
 };
 
 /**

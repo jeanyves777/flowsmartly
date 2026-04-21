@@ -76,6 +76,7 @@ model User {
   notifications     Notification[]
   sessions          Session[]
   brandKits         BrandKit[]
+  businessPlans     BusinessPlan[]
   contentTemplates  ContentTemplate[]
   creditTransactions CreditTransaction[]
   invoices          Invoice[]
@@ -1179,6 +1180,47 @@ model BrandKit {
 
   @@index([userId])
   @@index([isDefault])
+}
+
+// ============================================
+// BUSINESS PLAN (AI-generated, editable, PDF-exportable)
+// ============================================
+
+model BusinessPlan {
+  id          String   @id @default(cuid())
+  userId      String
+
+  name        String                            // User-facing plan name ("My SaaS Startup 2026")
+  industry    String?                           // Industry at gen time (snapshot from form)
+  stage       String?                           // "idea" | "startup" | "growth" | "established"
+  goals       String?                           // Free-form user goals
+  targetAudience String?                        // Free-form target audience
+  fundingNeeded Int?                            // USD, optional for funding ask section
+
+  // Full brand kit snapshot at generation time (denormalized so edits to
+  // the live brand kit don't silently change the saved plan).
+  brandSnapshot String @default("{}")           // JSON: { name, colors, fonts, tagline, description, ... }
+
+  // Array of section objects — the agent returns these and the user edits
+  // them inline. Each section:
+  //   { id, title, slug, body (HTML), charts?: [{type, title, data}] }
+  sections    String @default("[]")             // JSON array
+
+  coverColor  String   @default("#6366f1")      // Hex used on cover page (brand primary override)
+  status      String   @default("draft")        // "draft" | "published"
+
+  // Sharing
+  publicToken String?  @unique                  // If set, plan is viewable at /plan/share/[token]
+
+  generationCount Int @default(1)               // Increments on every full regen
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([publicToken])
 }
 
 // ============================================

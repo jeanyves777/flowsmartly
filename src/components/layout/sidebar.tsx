@@ -52,6 +52,7 @@ import {
   Banknote,
   Link2,
   Clapperboard,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { COD_REGIONS } from "@/lib/constants/ecommerce";
@@ -140,6 +141,7 @@ const marketingNavigation = [
 // Tools & Insights
 const toolsNavigation = [
   { name: "ListSmartly", href: "/listsmartly", icon: MapPin },
+  { name: "Business Plan", href: "/tools/business-plan", icon: FileText },
   { name: "Pitch Board", href: "/pitch-board", icon: Briefcase },
   { name: "Follow-Ups", href: "/tools/follow-ups", icon: ClipboardList },
   { name: "Data Collection", href: "/tools/data-collection", icon: FormInput },

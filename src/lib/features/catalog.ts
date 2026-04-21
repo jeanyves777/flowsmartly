@@ -282,6 +282,16 @@ export const FEATURE_CATALOG: FeatureDefinition[] = [
 
   // ─── Tools & Productivity ─────────────────────────
   {
+    slug: "business-plan",
+    name: "Business Plan",
+    description: "AI-generated business plan with charts, editable, PDF-exportable",
+    category: "tools",
+    icon: "FileText",
+    route: "/tools/business-plan",
+    routes: ["/tools/business-plan"],
+    plans: { STARTER: true, NON_PROFIT: true, PRO: true, BUSINESS: true, ENTERPRISE: true },
+  },
+  {
     slug: "data-collection",
     name: "Data Collection",
     description: "Create forms to collect data",
