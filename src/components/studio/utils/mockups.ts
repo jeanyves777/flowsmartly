@@ -10,7 +10,7 @@
  * ship megabytes of mockup PNGs.
  */
 
-export type MockupId = "iphone" | "browser" | "billboard" | "framed-poster";
+export type MockupId = "iphone" | "browser" | "billboard" | "framed-poster" | "instagram-post" | "tshirt";
 
 export interface MockupOption {
   id: MockupId;
@@ -50,6 +50,20 @@ export const MOCKUPS: MockupOption[] = [
     description: "Framed print on a wall — for posters / portrait posts",
     outputSize: { width: 1000, height: 1300 },
     designRatio: "2:3",
+  },
+  {
+    id: "instagram-post",
+    label: "Instagram Post",
+    description: "1:1 feed post with IG-style chrome — for social mockups",
+    outputSize: { width: 1080, height: 1500 },
+    designRatio: "1:1",
+  },
+  {
+    id: "tshirt",
+    label: "T-Shirt",
+    description: "Centered design on a folded tee — for merch previews",
+    outputSize: { width: 1200, height: 1400 },
+    designRatio: "1:1",
   },
 ];
 
@@ -474,6 +488,249 @@ async function renderFramedPoster(designUrl: string): Promise<string> {
   return canvas.toDataURL("image/png");
 }
 
+// ─── Instagram Post (1:1 image + IG header/footer chrome) ────────
+async function renderInstagramPost(designUrl: string): Promise<string> {
+  const W = 1080;
+  const H = 1500;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+
+  // Page background
+  ctx.fillStyle = "#fafafa";
+  ctx.fillRect(0, 0, W, H);
+
+  // ─── Header bar (avatar + username + ⋯ icon) ───────────────────
+  const headerH = 110;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, W, headerH);
+
+  // Avatar — gradient ring around a white circle
+  const avatarCX = 70;
+  const avatarCY = headerH / 2;
+  const ringR = 32;
+  const grad = ctx.createLinearGradient(
+    avatarCX - ringR,
+    avatarCY - ringR,
+    avatarCX + ringR,
+    avatarCY + ringR,
+  );
+  grad.addColorStop(0, "#feda77");
+  grad.addColorStop(0.5, "#f58529");
+  grad.addColorStop(1, "#dd2a7b");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(avatarCX, avatarCY, ringR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(avatarCX, avatarCY, ringR - 4, 0, Math.PI * 2);
+  ctx.fill();
+  // Inner gray placeholder
+  ctx.fillStyle = "#e5e7eb";
+  ctx.beginPath();
+  ctx.arc(avatarCX, avatarCY, ringR - 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Username
+  ctx.fillStyle = "#111827";
+  ctx.font = "600 28px -apple-system, system-ui, sans-serif";
+  ctx.textBaseline = "middle";
+  ctx.fillText("yourbrand", avatarCX + ringR + 22, avatarCY);
+
+  // ⋯ menu (three dots)
+  const dotR = 4;
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = "#374151";
+    ctx.beginPath();
+    ctx.arc(W - 50 - i * 20, avatarCY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ─── Image area (1:1 square) ───────────────────────────────────
+  const imageY = headerH;
+  const imageSize = W; // 1:1 ratio = full page width
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, imageY, W, imageSize);
+  ctx.clip();
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, imageY, W, imageSize);
+
+  const img = await loadImage(designUrl);
+  // Crop to square — center-fill
+  const imgRatio = img.width / img.height;
+  let sx = 0, sy = 0, sw = img.width, sh = img.height;
+  if (imgRatio > 1) {
+    sw = img.height;
+    sx = (img.width - sw) / 2;
+  } else if (imgRatio < 1) {
+    sh = img.width;
+    sy = (img.height - sh) / 2;
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, 0, imageY, W, imageSize);
+  ctx.restore();
+
+  // ─── Action bar (heart, comment, share, bookmark) ──────────────
+  const actionY = imageY + imageSize + 36;
+  ctx.strokeStyle = "#111827";
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Heart
+  const heartX = 40;
+  ctx.beginPath();
+  ctx.moveTo(heartX, actionY + 10);
+  ctx.bezierCurveTo(heartX - 16, actionY - 10, heartX - 16, actionY - 30, heartX, actionY - 16);
+  ctx.bezierCurveTo(heartX + 16, actionY - 30, heartX + 16, actionY - 10, heartX, actionY + 10);
+  ctx.stroke();
+
+  // Speech bubble (comment) — rounded rect outline
+  const cmtX = 110;
+  ctx.beginPath();
+  ctx.moveTo(cmtX - 18, actionY - 14);
+  ctx.lineTo(cmtX + 18, actionY - 14);
+  ctx.arcTo(cmtX + 22, actionY - 14, cmtX + 22, actionY - 10, 4);
+  ctx.lineTo(cmtX + 22, actionY + 4);
+  ctx.arcTo(cmtX + 22, actionY + 8, cmtX + 18, actionY + 8, 4);
+  ctx.lineTo(cmtX, actionY + 8);
+  ctx.lineTo(cmtX - 8, actionY + 16);
+  ctx.lineTo(cmtX - 8, actionY + 8);
+  ctx.lineTo(cmtX - 18, actionY + 8);
+  ctx.arcTo(cmtX - 22, actionY + 8, cmtX - 22, actionY + 4, 4);
+  ctx.lineTo(cmtX - 22, actionY - 10);
+  ctx.arcTo(cmtX - 22, actionY - 14, cmtX - 18, actionY - 14, 4);
+  ctx.stroke();
+
+  // Share (paper-airplane triangle)
+  const shrX = 180;
+  ctx.beginPath();
+  ctx.moveTo(shrX - 22, actionY - 6);
+  ctx.lineTo(shrX + 22, actionY - 14);
+  ctx.lineTo(shrX - 4, actionY + 14);
+  ctx.lineTo(shrX - 8, actionY - 2);
+  ctx.closePath();
+  ctx.stroke();
+
+  // Bookmark (right-aligned)
+  const bmkX = W - 40;
+  ctx.beginPath();
+  ctx.moveTo(bmkX - 12, actionY - 14);
+  ctx.lineTo(bmkX + 12, actionY - 14);
+  ctx.lineTo(bmkX + 12, actionY + 16);
+  ctx.lineTo(bmkX, actionY + 4);
+  ctx.lineTo(bmkX - 12, actionY + 16);
+  ctx.closePath();
+  ctx.stroke();
+
+  // Likes count
+  ctx.fillStyle = "#111827";
+  ctx.font = "600 24px -apple-system, system-ui, sans-serif";
+  ctx.fillText("1,247 likes", 40, actionY + 60);
+
+  return canvas.toDataURL("image/png");
+}
+
+// ─── T-Shirt mockup ──────────────────────────────────────────────
+async function renderTshirt(designUrl: string): Promise<string> {
+  const W = 1200;
+  const H = 1400;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+
+  // Background (soft photographer's seamless gray)
+  const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W);
+  bg.addColorStop(0, "#f5f5f4");
+  bg.addColorStop(1, "#d6d3d1");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Shirt body — outline of a simple folded tee
+  // Coordinates relative to center of shirt
+  const cx = W / 2;
+  const shirtTop = 220;
+  const shirtBottom = H - 100;
+  const shoulderHalfW = 470;
+  const collarHalfW = 95;
+  const collarBottomY = shirtTop + 110;
+  const sleeveBottomY = shirtTop + 280;
+  const sleeveOutHalfW = 540;
+  const torsoHalfW = 360;
+  const hemHalfW = 380;
+
+  // Shirt color — neutral white tee (most common merch base)
+  const shirtFill = "#fafafa";
+
+  // Drop shadow under shirt
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.15)";
+  ctx.shadowBlur = 30;
+  ctx.shadowOffsetY = 16;
+  ctx.fillStyle = shirtFill;
+  ctx.beginPath();
+  // Start at left collar
+  ctx.moveTo(cx - collarHalfW, shirtTop);
+  // Up to left shoulder
+  ctx.lineTo(cx - shoulderHalfW, shirtTop + 30);
+  // Down to left sleeve outer corner
+  ctx.lineTo(cx - sleeveOutHalfW, sleeveBottomY - 60);
+  // Sleeve hem
+  ctx.lineTo(cx - sleeveOutHalfW + 30, sleeveBottomY);
+  // In to torso left side
+  ctx.lineTo(cx - torsoHalfW, sleeveBottomY + 20);
+  // Down to left hem
+  ctx.lineTo(cx - hemHalfW, shirtBottom);
+  // Across hem
+  ctx.lineTo(cx + hemHalfW, shirtBottom);
+  // Up to right torso
+  ctx.lineTo(cx + torsoHalfW, sleeveBottomY + 20);
+  // Out to right sleeve
+  ctx.lineTo(cx + sleeveOutHalfW - 30, sleeveBottomY);
+  // Up to right sleeve outer corner
+  ctx.lineTo(cx + sleeveOutHalfW, sleeveBottomY - 60);
+  // Up to right shoulder
+  ctx.lineTo(cx + shoulderHalfW, shirtTop + 30);
+  // To right collar
+  ctx.lineTo(cx + collarHalfW, shirtTop);
+  // Collar dip (curved)
+  ctx.bezierCurveTo(
+    cx + collarHalfW - 20, collarBottomY,
+    cx - collarHalfW + 20, collarBottomY,
+    cx - collarHalfW, shirtTop,
+  );
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Shirt outline (subtle stroke for definition)
+  ctx.strokeStyle = "rgba(0,0,0,0.08)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Subtle shading on the sides for fold/curvature
+  const sideShade = ctx.createLinearGradient(cx - hemHalfW, 0, cx + hemHalfW, 0);
+  sideShade.addColorStop(0, "rgba(0,0,0,0.07)");
+  sideShade.addColorStop(0.15, "rgba(0,0,0,0)");
+  sideShade.addColorStop(0.85, "rgba(0,0,0,0)");
+  sideShade.addColorStop(1, "rgba(0,0,0,0.07)");
+  ctx.fillStyle = sideShade;
+  ctx.fill(); // re-uses the open shirt path
+
+  // Print area — large square in upper torso. Designs are letterboxed
+  // (no crop) so logos and centered marks aren't chopped off.
+  const printSize = 480;
+  const printX = cx - printSize / 2;
+  const printY = collarBottomY + 40;
+  const img = await loadImage(designUrl);
+  drawFitted(ctx, img, printX, printY, printSize, printSize);
+
+  return canvas.toDataURL("image/png");
+}
+
 export async function renderMockup(mockupId: MockupId, designUrl: string): Promise<string> {
   switch (mockupId) {
     case "iphone":
@@ -484,5 +741,9 @@ export async function renderMockup(mockupId: MockupId, designUrl: string): Promi
       return renderBillboard(designUrl);
     case "framed-poster":
       return renderFramedPoster(designUrl);
+    case "instagram-post":
+      return renderInstagramPost(designUrl);
+    case "tshirt":
+      return renderTshirt(designUrl);
   }
 }

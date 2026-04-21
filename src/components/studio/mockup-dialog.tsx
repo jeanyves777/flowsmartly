@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useState } from "react";
-import { Download, Smartphone, Globe, Image as ImageIcon, Frame } from "lucide-react";
+import { Download, Smartphone, Globe, Image as ImageIcon, Frame, Instagram, Shirt } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,8 @@ const MOCKUP_ICONS: Record<MockupId, React.ElementType> = {
   browser: Globe,
   billboard: ImageIcon,
   "framed-poster": Frame,
+  "instagram-post": Instagram,
+  tshirt: Shirt,
 };
 
 interface MockupDialogProps {
