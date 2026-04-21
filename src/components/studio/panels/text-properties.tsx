@@ -70,6 +70,21 @@ export function TextProperties() {
     fonts.forEach((f) => loadGoogleFont(f));
   }, []);
 
+  // Preload every font in every category when the font dropdown opens so
+  // each picker row renders in its own typeface right away — previously
+  // fonts only loaded on hover, so most appeared in the fallback font
+  // and users couldn't tell what Playfair Display vs Cinzel vs Lora
+  // actually looked like without clicking each.
+  useEffect(() => {
+    if (!showFontDropdown) return;
+    const all = FONT_CATEGORIES.flatMap((cat) => cat.fonts);
+    // Fire in sequence — loadGoogleFont is memoized so duplicates are free.
+    // Microtask batching keeps the UI responsive while fonts stream in.
+    Promise.all(all.map((f) => loadGoogleFont(f))).catch(() => {
+      // ignore — missing fonts just fall back to the default
+    });
+  }, [showFontDropdown]);
+
   // Sync state from selected object
   useEffect(() => {
     const obj = getActiveText();
@@ -400,12 +415,29 @@ export function TextProperties() {
                       onClick={() => handleFontChange(font)}
                       onMouseEnter={() => loadGoogleFont(font)}
                       className={cn(
-                        "w-full text-left px-2 py-1.5 text-sm hover:bg-muted transition-colors",
-                        font === fontFamily && "bg-brand-500/10 text-brand-600",
+                        "w-full flex items-center gap-3 px-2 py-1.5 hover:bg-muted transition-colors text-left",
+                        font === fontFamily && "bg-brand-500/10",
                       )}
-                      style={{ fontFamily: font }}
                     >
-                      {font}
+                      {/* "Aa" sample rendered in the font itself — instantly
+                          distinguishes display / script / mono at a glance */}
+                      <span
+                        className={cn(
+                          "text-lg leading-none shrink-0 w-8 text-center",
+                          font === fontFamily ? "text-brand-600" : "text-foreground",
+                        )}
+                        style={{ fontFamily: font }}
+                      >
+                        Aa
+                      </span>
+                      <span
+                        className={cn(
+                          "text-xs truncate",
+                          font === fontFamily ? "text-brand-600 font-medium" : "text-muted-foreground",
+                        )}
+                      >
+                        {font}
+                      </span>
                     </button>
                   ))}
                 </div>
