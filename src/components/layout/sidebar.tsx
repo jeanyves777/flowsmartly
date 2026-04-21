@@ -196,6 +196,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
     "landing-pages": ["/landing-pages"],
     "websites": ["/websites"],
     "pitch-board": ["/pitch-board"],
+    "business-plan": ["/tools/business-plan"],
     "follow-ups": ["/tools/follow-ups"],
     "data-collection": ["/tools/data-collection"],
     "surveys": ["/tools/surveys"],
