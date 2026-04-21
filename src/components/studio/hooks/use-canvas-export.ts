@@ -94,20 +94,93 @@ export function useCanvasExport() {
 
   const exportPDF = useCallback(async () => {
     if (!canvas) return;
+
+    // Multi-page support — if the design has more than one page, render
+    // each one onto its own PDF page using the same dimensions as the page
+    // saved at design time. We rotate through the pages by replacing the
+    // canvas content via safeLoadFromJSON, snapshot, then restore the
+    // originally-active page so the user's view doesn't change.
+    const store = useCanvasStore.getState();
+    const pages = store.pages;
+    const isMultiPage = pages.length > 1;
+
     canvas.discardActiveObject();
     canvas.renderAll();
-
     const { jsPDF } = await import("jspdf");
-    const dataUrl = canvas.toDataURL({ format: "png", multiplier: 2 });
-    const w = canvas.width!;
-    const h = canvas.height!;
 
+    if (!isMultiPage) {
+      // Single-page (legacy/simple): one page, current canvas state.
+      const dataUrl = canvas.toDataURL({ format: "png", multiplier: 2 });
+      const w = canvas.width!;
+      const h = canvas.height!;
+      const pdf = new jsPDF({
+        orientation: w > h ? "landscape" : "portrait",
+        unit: "px",
+        format: [w, h],
+      });
+      pdf.addImage(dataUrl, "PNG", 0, 0, w, h);
+      pdf.save(`${safeName}.pdf`);
+      return;
+    }
+
+    // Multi-page: capture the current page first so we can restore it after.
+    const originalIndex = store.activePageIndex;
+    store.updateCurrentPageSnapshot();
+
+    // Snapshot pages from store *after* the current-page snapshot so the
+    // active page reflects the latest edits.
+    const snapshotPages = useCanvasStore.getState().pages;
+
+    // Pick the orientation of the first page for the PDF document; jsPDF
+    // lets later pages override their own size via addPage(), so this
+    // really only matters for the very first page.
+    const first = snapshotPages[0];
     const pdf = new jsPDF({
-      orientation: w > h ? "landscape" : "portrait",
+      orientation: first.width > first.height ? "landscape" : "portrait",
       unit: "px",
-      format: [w, h],
+      format: [first.width, first.height],
     });
-    pdf.addImage(dataUrl, "PNG", 0, 0, w, h);
+
+    // Lazy-import the helper so it's not paid for in single-page exports.
+    const { safeLoadFromJSON } = await import("../utils/canvas-helpers");
+
+    for (let i = 0; i < snapshotPages.length; i++) {
+      const page = snapshotPages[i];
+      // Restore page geometry first so toDataURL outputs the right size
+      store.setCanvasDimensions(page.width, page.height);
+      // Resize Fabric canvas dimensions to match the page
+      canvas.setWidth(page.width);
+      canvas.setHeight(page.height);
+      try {
+        await safeLoadFromJSON(canvas, page.canvasJSON);
+      } catch {
+        // If a page fails to load, skip it so the export still produces
+        // something rather than crashing the whole job.
+        continue;
+      }
+      canvas.discardActiveObject();
+      canvas.renderAll();
+      const dataUrl = canvas.toDataURL({ format: "png", multiplier: 2 });
+      if (i > 0) {
+        pdf.addPage([page.width, page.height], page.width > page.height ? "landscape" : "portrait");
+      }
+      pdf.addImage(dataUrl, "PNG", 0, 0, page.width, page.height);
+    }
+
+    // Restore the originally-active page so the user sees no jump.
+    const restorePage = snapshotPages[originalIndex];
+    if (restorePage) {
+      store.setCanvasDimensions(restorePage.width, restorePage.height);
+      canvas.setWidth(restorePage.width);
+      canvas.setHeight(restorePage.height);
+      try {
+        await safeLoadFromJSON(canvas, restorePage.canvasJSON);
+      } catch {
+        // ignore — user can refresh if needed
+      }
+      canvas.renderAll();
+    }
+
     pdf.save(`${safeName}.pdf`);
   }, [canvas, safeName]);
 
