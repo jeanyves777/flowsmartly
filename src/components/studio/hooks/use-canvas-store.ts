@@ -122,7 +122,23 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   canvasWidth: 1080,
   canvasHeight: 1080,
-  setCanvasDimensions: (w, h) => set({ canvasWidth: w, canvasHeight: h }),
+  // Sets both the Zustand dims AND the Fabric canvas dims synchronously.
+  // Before this, callers had to do `store.setCanvasDimensions(w, h); canvas.setDimensions(...)`
+  // or their subsequent loadFromJSON / addObject calls would target a
+  // canvas still at the old size. Multiple bug reports traced back to
+  // that race (design reload, page switch, template apply). Centralising
+  // here eliminates the whole class.
+  setCanvasDimensions: (w, h) => {
+    set({ canvasWidth: w, canvasHeight: h });
+    const { canvas } = get();
+    if (canvas) {
+      try {
+        canvas.setDimensions({ width: w, height: h });
+      } catch {
+        // silently ignore — Fabric may not have its lower/upper canvas yet
+      }
+    }
+  },
 
   zoom: 1,
   setZoom: (z) => set({ zoom: Math.max(0.1, Math.min(5, z)) }),

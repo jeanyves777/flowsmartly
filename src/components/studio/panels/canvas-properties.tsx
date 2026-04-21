@@ -17,6 +17,11 @@ export function CanvasProperties() {
     setCustomW(w);
     setCustomH(h);
     setCanvasDimensions(w, h);
+    // Sync the Fabric canvas directly too — the canvas-editor's
+    // setDimensions effect is async, so any object op before that effect
+    // fires would run against the stale size. Same fix pattern as
+    // design-reload / page-switch / template-apply.
+    if (canvas) canvas.setDimensions({ width: w, height: h });
   };
 
   return (
