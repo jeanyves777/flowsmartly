@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "fs";
 import { join } from "path";
 import { getSiteDir } from "@/lib/website/site-builder";
-import Anthropic from "@anthropic-ai/sdk";
+import { runSectionUpdateAgent } from "@/lib/ai/section-update-agent";
 
 /** Parse @/components/* imports from a TSX file and return existing file paths */
 function resolveComponentImports(fileContent: string, siteDir: string): string[] {
@@ -204,98 +204,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       dataContent = readFileSync(dataPath, "utf-8");
     } catch {}
 
-    // Call Claude to update the section
-    const anthropic = new Anthropic();
+    // Run the section-update agent. The agent has tools to list and read
+    // existing components, which prevents the ghost-import problem we kept
+    // hitting with the raw single-shot prompt.
     const basePath = `/sites/${website.slug}`;
-
-    const systemPrompt = `You are a web developer updating a specific section of a Next.js website.
-
-RULES:
-- Use Tailwind CSS for styling (v4 syntax — no tailwind.config needed)
-- The site uses basePath "${basePath}" — all image src paths must start with "${basePath}/images/"
-- All internal href links must start with "${basePath}/"
-- Keep "use client" directive if present in each file
-- Keep existing functionality (animations, responsive design)
-- Support BOTH light and dark modes — use Tailwind "dark:" prefix for all color/background classes
-- Use the brand data from data.ts for company info, colors, etc.
-- If the section has a slideshow/carousel with images, preserve all image src paths exactly as they are
-- For slideshows: render ALL slides with z-0 (NEVER negative z-index), use opacity-100/opacity-0 + transition-opacity
-
-CRITICAL — IMPORT RULES:
-- NEVER add import statements for @/components/* files that are not already in the provided files
-- NEVER create new component names that require new files (e.g. do NOT import ServicesWithImages if it doesn't exist)
-- To add images or change layouts for a section, MODIFY THE EXISTING COMPONENT FILE directly (e.g. edit Services.tsx to add images, do not create ServicesWithImages.tsx)
-- Only use imports that already exist in the provided files
-
-RESPONSE FORMAT — you may update one or more of the provided files:
-- If updating a SINGLE file, return just the file content (no markdown fences)
-- If updating MULTIPLE files, wrap each one like this (no markdown fences inside):
-<file path="/src/components/Services.tsx">
-...updated content...
-</file>
-<file path="/src/app/page.tsx">
-...updated content...
-</file>
-
-SITE DATA (data.ts) for context:
-\`\`\`typescript
-${dataContent.substring(0, 3000)}
-\`\`\``;
-
-    const userMessage = fileContents.map((f) =>
-      `FILE: ${f.path}\n\`\`\`tsx\n${f.content}\n\`\`\``
-    ).join("\n\n") + `\n\nUSER REQUEST: ${prompt}\n\nUpdate the relevant file(s) listed above. Do NOT create new component imports. Return ONLY code using the format described in the system prompt.`;
-
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 16000,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
+    const agentResult = await runSectionUpdateAgent({
+      siteDir,
+      section,
+      prompt,
+      basePath,
+      kind: "website",
+      dataContent,
+      files: fileContents,
     });
 
-    const rawResponse = response.content
-      .filter((c) => c.type === "text")
-      .map((c) => c.type === "text" ? c.text : "")
-      .join("")
-      .trim();
-
-    // Parse multi-file response format: <file path="...">...</file>
-    const multiFileMatches = [...rawResponse.matchAll(/<file path="([^"]+)">([\s\S]*?)<\/file>/g)];
-
-    if (multiFileMatches.length > 0) {
-      // Multi-file response: write each matched file
-      let writtenCount = 0;
-      for (const [, relPath, content] of multiFileMatches) {
-        const cleanedPath = relPath.replace(/\\/g, "/").replace(/^\//, "");
-        const target = fileContents.find((f) =>
-          f.path.replace(/\\/g, "/").replace(/^\//, "") === cleanedPath
-        );
-        if (target && content.trim().length > 50) {
-          writeFileSync(target.absPath, content.trim(), "utf-8");
-          writtenCount++;
-        }
-      }
-      if (writtenCount === 0) {
-        return NextResponse.json({ error: "AI returned file paths that don't match any editable files" }, { status: 500 });
-      }
-    } else {
-      // Single-file response: write to primary file
-      let updatedContent = rawResponse
-        .replace(/^```(?:tsx|typescript|ts|javascript|jsx)?\n?/, "")
-        .replace(/\n?```$/, "")
-        .replace(/^(?:javascript|tsx?|jsx)\s*\n/i, "")
-        .trim();
-
-      // Preserve 'use client' directive
-      if (primaryContent.includes("'use client'") && !updatedContent.startsWith("'use client'") && !updatedContent.startsWith('"use client"')) {
-        updatedContent = "'use client'\n\n" + updatedContent;
-      }
-
-      if (!updatedContent || updatedContent.length < 50) {
-        return NextResponse.json({ error: "AI returned empty or invalid content" }, { status: 500 });
-      }
-
-      writeFileSync(primaryFile, updatedContent, "utf-8");
+    // Persist each update the agent decided to make
+    for (const update of agentResult.updates) {
+      writeFileSync(update.absPath, update.content, "utf-8");
     }
 
     // Deduct credits

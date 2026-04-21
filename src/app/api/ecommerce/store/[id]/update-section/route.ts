@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "fs";
 import { join } from "path";
-import Anthropic from "@anthropic-ai/sdk";
+import { runSectionUpdateAgent } from "@/lib/ai/section-update-agent";
 
 const DEFAULT_CREDIT_COST = 50;
 
@@ -146,6 +146,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const fileContents = files.map((f) => ({
       path: f.replace(storeDir, "").replace(/\\/g, "/"),
+      absPath: f,
       content: readFileSync(f, "utf-8"),
     }));
 
@@ -153,71 +154,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let dataContent = "";
     try { dataContent = readFileSync(dataPath, "utf-8"); } catch {}
 
-    const anthropic = new Anthropic();
+    // Run the section-update agent — same pattern as websites route.
+    // Agent has tools to list/read existing components which prevents the
+    // ghost-import bug + uses Opus 4.7 with adaptive thinking by default.
     const basePath = `/stores/${store.slug}`;
-
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 16000,
-      system: `You are updating a section of a Next.js e-commerce store.
-
-RULES:
-- Return ONLY the updated file content (no markdown, no explanations)
-- Keep imports, exports, component structure
-- Tailwind CSS v4 for styling
-- Images in <img> src: use src="${basePath}/images/..." (MUST include full basePath prefix — Next.js does NOT auto-prefix <img> tags)
-- Internal links: use <Link> from next/link with root-relative paths like "/about", "/products" — Next.js Link automatically handles basePath. NEVER use a plain <a> for internal links; NEVER import a storeUrl() helper (it does NOT exist — importing it will break the build).
-- Keep "use client" if present
-- Preserve dark mode, responsive design, existing functionality
-
-COLORS — CRITICAL for dark/light contrast:
-- Only use these theme color families (derived from the store's brand):
-  primary-50 / primary-100 / primary-200 / primary-400 / primary-500 / primary-600 / primary-700 / primary-900
-  secondary-500 / secondary-600, accent-500 / accent-600
-  gray-50..gray-900, white, black
-- Never invent arbitrary palettes like emerald-600, purple-900, orange-400, rose-500, blue-600, red-500, green-500 for decorative styling. They will clash with the store's brand.
-- Valid opacity modifiers: primary/10, primary/20, primary/30, primary/90. NEVER chain modifiers like "primary/30/30" — Tailwind cannot parse that.
-- Every interactive element MUST pass contrast in BOTH modes:
-    Light bg → dark text (text-gray-900 or text-primary-700 on bg-white/gray-50)
-    Dark bg → light text (text-white or text-primary-100 on dark:bg-gray-900/primary-700)
-  Write both the light and dark variants explicitly, e.g.
-    "text-gray-700 dark:text-gray-200 hover:text-primary-600 dark:hover:text-primary-400"
-- Solid primary buttons: "bg-primary-600 hover:bg-primary-700 text-white"
-- Subtle primary chips: "bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300"
-- NEVER use "bg-white text-white" or "bg-gray-900 text-gray-900" style pairs.
-
-SCOPE:
-- The products listing page (src/app/products/page.tsx) MUST be minimal: <main><ProductGrid /></main>. Do NOT add hero sections, CTAs, benefit cards, or FAQ to the products page — ProductGrid already has search, category filter, and sort built in.
-- Do not change data files (src/lib/data.ts, src/lib/products.ts) — only component/page files.
-
-STORE DATA:\n\`\`\`\n${dataContent.substring(0, 3000)}\n\`\`\``,
-      messages: [{
-        role: "user",
-        content: fileContents.map((f) => `FILE: ${f.path}\n\`\`\`tsx\n${f.content}\n\`\`\``).join("\n\n") +
-          `\n\nREQUEST: ${prompt}\n\nReturn updated ${fileContents[0].path}. ONLY code, no fences.`,
-      }],
+    const agentResult = await runSectionUpdateAgent({
+      siteDir: storeDir,
+      section,
+      prompt,
+      basePath,
+      kind: "store",
+      dataContent,
+      files: fileContents,
     });
 
-    let updatedContent = response.content
-      .filter((c) => c.type === "text")
-      .map((c) => c.type === "text" ? c.text : "")
-      .join("")
-      .replace(/^```(?:tsx|typescript|ts|javascript|jsx)?\n?/, "")
-      .replace(/\n?```$/, "")
-      .replace(/^(?:javascript|tsx?|jsx)\s*\n/i, "")
-      .trim();
-
-    // Preserve 'use client' directive
-    const origContent = fileContents[0].content;
-    if (origContent.includes("'use client'") && !updatedContent.startsWith("'use client'") && !updatedContent.startsWith('"use client"')) {
-      updatedContent = "'use client'\n\n" + updatedContent;
+    for (const update of agentResult.updates) {
+      writeFileSync(update.absPath, update.content, "utf-8");
     }
-
-    if (!updatedContent || updatedContent.length < 50) {
-      return NextResponse.json({ error: "AI returned invalid content" }, { status: 500 });
-    }
-
-    writeFileSync(files[0], updatedContent, "utf-8");
 
     await prisma.user.update({
       where: { id: session.userId },
