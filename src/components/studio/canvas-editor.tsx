@@ -7,6 +7,7 @@ import { useCanvasShortcuts } from "./hooks/use-canvas-shortcuts";
 import { lockViewportTransform, safeLoadFromJSON } from "./utils/canvas-helpers";
 import { attachSmartGuides } from "./utils/smart-guides";
 import { RemoteCursors } from "./collaboration/remote-cursor";
+import { CanvasContextMenu, type ContextMenuState } from "./canvas-context-menu";
 import type { CollabUser, CanvasOperation } from "./hooks/use-collaboration";
 
 interface CanvasEditorProps {
@@ -650,6 +651,33 @@ export function CanvasEditor({
       .catch(() => {});
   }, []);
 
+  // Right-click context menu state. Fabric's `mouse:down` fires for both
+  // left and right buttons because we set `fireRightClick: true`. We open
+  // the menu only for right-clicks AND only when the click landed on an
+  // object (Fabric's mouse:down opt.target is non-null in that case).
+  const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(null);
+  useEffect(() => {
+    if (!canvas || isReadOnly) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onMouseDown = (opt: any) => {
+      const e = opt.e as MouseEvent;
+      if (e.button !== 2) return; // not right-click
+      if (!opt.target) {
+        // Right-clicked empty canvas — close any open menu, do nothing else
+        setContextMenuState(null);
+        return;
+      }
+      // Make the right-clicked object the active one so the menu acts on it
+      canvas.setActiveObject(opt.target);
+      canvas.requestRenderAll();
+      setContextMenuState({ x: e.clientX, y: e.clientY });
+    };
+    canvas.on("mouse:down", onMouseDown);
+    return () => {
+      canvas.off("mouse:down", onMouseDown);
+    };
+  }, [canvas, isReadOnly]);
+
   return (
     <div
       ref={containerRef}
@@ -690,6 +718,12 @@ export function CanvasEditor({
         zoom={zoom}
         pan={pan}
         canvasRect={canvasRect}
+      />
+
+      {/* Right-click context menu — rendered via portal-like fixed position */}
+      <CanvasContextMenu
+        state={contextMenuState}
+        onClose={() => setContextMenuState(null)}
       />
     </div>
   );
