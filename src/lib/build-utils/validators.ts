@@ -692,7 +692,8 @@ export function fixGlobalsCss(siteDir: string): void {
   css = css.replace(
     /\s*--color-(?:primary|secondary|accent|muted|destructive)-\d{2,3}:\s*([^;]+);\s*/g,
     (full, value) => {
-      if (/color-mix\s*\(/i.test(value)) return full; // keep derivations as-is
+      // Keep derivations we inject: color-mix(...) or var(--color-...) references
+      if (/color-mix\s*\(|var\s*\(\s*--color-/i.test(value)) return full;
       return "\n";
     }
   );
