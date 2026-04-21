@@ -74,10 +74,14 @@ async function ensureStoreSlugInDataFile(storeDir: string, slug: string): Promis
 
   const content = readFileSync(dataPath, "utf-8");
 
-  // Already has a slug inside storeInfo? No-op.
-  if (/export const storeInfo\s*=\s*\{[\s\S]*?\bslug\s*:/m.test(content)) return;
+  // Isolate just the storeInfo object literal so we don't mistake
+  // slug: from `categories = [{ slug: "..."}]` for storeInfo's slug.
+  const match = content.match(/(export const storeInfo\s*=\s*\{)([\s\S]*?)(\n\};)/);
+  if (!match) return;
+  const body = match[2];
+  if (/\bslug\s*:/.test(body)) return; // already present — no-op
 
-  // Insert after the opening brace of `storeInfo = {`
+  // Insert `slug: "..."` right after the opening brace of `storeInfo = {`
   const newContent = content.replace(
     /(export const storeInfo\s*=\s*\{\s*\n)/,
     `$1  slug: "${slug}",\n`,
