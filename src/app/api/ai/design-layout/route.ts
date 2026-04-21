@@ -3,8 +3,9 @@ import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
-import { generateDesignLayout } from "@/lib/ai/design-layout-generator";
+import { generateDesignLayoutAgent } from "@/lib/ai/design-layout-generator";
 import { generateLayoutImages, type ImageProvider } from "@/lib/ai/design-image-pipeline";
+import { runImagePipelineAgent } from "@/lib/ai/image-pipeline-agent";
 
 /**
  * POST /api/ai/design-layout
@@ -83,8 +84,9 @@ export async function POST(request: NextRequest) {
 
     const [width, height] = size.split("x").map(Number);
 
-    // 1. Generate layout via Claude
-    let layout = await generateDesignLayout({
+    // 1. Generate layout via agent loop (Claude with tools for brand/recent designs/fonts)
+    const agentResult = await generateDesignLayoutAgent({
+      userId: session.userId,
       prompt,
       category,
       width,
@@ -103,19 +105,39 @@ export async function POST(request: NextRequest) {
       generateHeroImage: generateHeroImage || false,
       generateBackground: generateBackground || false,
     });
+    let layout = agentResult.layout;
 
-    // 2. Generate images if requested
+    // 2. Generate images if requested — agent picks provider per image
     let imagesGenerated = 0;
-    if (imageCount > 0 && imageProvider) {
-      const provider = imageProvider as ImageProvider;
-      const result = await generateLayoutImages(layout, provider, {
-        generateHeroImage: generateHeroImage || false,
-        generateBackground: generateBackground || false,
-        width,
-        height,
-      });
-      layout = result.layout;
-      imagesGenerated = result.imagesGenerated;
+    let imageAgentTokens = { inputTokens: 0, outputTokens: 0 };
+    let imageAgentRuns = 0;
+    if (imageCount > 0) {
+      try {
+        const agentImageResult = await runImagePipelineAgent(layout, {
+          generateHeroImage: generateHeroImage || false,
+          generateBackground: generateBackground || false,
+          width,
+          height,
+          brandContext: brandName ? { name: brandName } : undefined,
+        });
+        layout = agentImageResult.layout;
+        imagesGenerated = agentImageResult.imagesGenerated;
+        imageAgentTokens = agentImageResult.usage;
+        imageAgentRuns = agentImageResult.agentRuns;
+      } catch (err) {
+        console.error("[DesignLayout] Image pipeline agent failed; falling back to legacy pipeline:", err);
+        // Fallback: legacy hardcoded provider pipeline (still works, just lacks agent QA)
+        if (imageProvider) {
+          const result = await generateLayoutImages(layout, imageProvider as ImageProvider, {
+            generateHeroImage: generateHeroImage || false,
+            generateBackground: generateBackground || false,
+            width,
+            height,
+          });
+          layout = result.layout;
+          imagesGenerated = result.imagesGenerated;
+        }
+      }
     }
 
     // 3. Deduct credits
@@ -145,18 +167,18 @@ export async function POST(request: NextRequest) {
       ]);
     }
 
-    // 4. Track AI usage
+    // 4. Track AI usage — combine layout agent + per-image agent token totals
     await prisma.aIUsage.create({
       data: {
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
-        feature: "design_layout",
-        model: imagesGenerated > 0 ? `claude-sonnet-4 + ${imageProvider}` : "claude-sonnet-4",
-        inputTokens: prompt.length,
-        outputTokens: JSON.stringify(layout).length,
+        feature: "design_layout_agent",
+        model: imagesGenerated > 0 ? "claude-opus-4-7 + agent-image-pipeline" : "claude-opus-4-7",
+        inputTokens: agentResult.usage.inputTokens + imageAgentTokens.inputTokens,
+        outputTokens: agentResult.usage.outputTokens + imageAgentTokens.outputTokens,
         costCents: 0,
         prompt: prompt.substring(0, 500),
-        response: `${layout.elements.length} elements, ${imagesGenerated} images`,
+        response: `${layout.elements.length} elements, ${imagesGenerated} images (${imageAgentRuns} image-agent runs), layout iter=${agentResult.iterations}, tools: ${agentResult.toolsUsed.join(",")}`,
       },
     });
 

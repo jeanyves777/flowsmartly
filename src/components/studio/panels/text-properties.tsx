@@ -21,6 +21,7 @@ import { useCanvasStore } from "../hooks/use-canvas-store";
 import { FONT_CATEGORIES, loadGoogleFont } from "../utils/font-loader";
 import { TEXT_PRESETS } from "../utils/text-presets";
 import { ColorInput } from "./color-input";
+import { BlendModeSelect } from "./blend-mode-select";
 
 export function TextProperties() {
   const canvas = useCanvasStore((s) => s.canvas);
@@ -560,8 +561,12 @@ export function TextProperties() {
             updateProp("opacity", v / 100);
           }}
           className="w-full h-1.5 accent-brand-500"
+          aria-label="Opacity"
         />
       </div>
+
+      {/* Blend Mode */}
+      <BlendModeSelect />
     </div>
   );
 }

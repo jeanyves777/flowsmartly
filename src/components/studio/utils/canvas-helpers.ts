@@ -226,6 +226,187 @@ export function createArrow(
   return assignId(group);
 }
 
+/** Build a regular polygon (pentagon, hexagon, octagon, etc.) of `sides` */
+function regularPolygon(sides: number, radius = 80): { x: number; y: number }[] {
+  const coords: { x: number; y: number }[] = [];
+  for (let i = 0; i < sides; i++) {
+    const angle = (Math.PI * 2 * i) / sides - Math.PI / 2;
+    coords.push({ x: radius * Math.cos(angle), y: radius * Math.sin(angle) });
+  }
+  return coords;
+}
+
+export function createPentagon(fabric: any, options?: Record<string, any>): any {
+  const poly = new fabric.Polygon(regularPolygon(5), {
+    left: 100,
+    top: 100,
+    fill: "#10b981",
+    originX: "left",
+    originY: "top",
+    ...options,
+  });
+  return assignId(poly);
+}
+
+export function createHexagon(fabric: any, options?: Record<string, any>): any {
+  const poly = new fabric.Polygon(regularPolygon(6), {
+    left: 100,
+    top: 100,
+    fill: "#06b6d4",
+    originX: "left",
+    originY: "top",
+    ...options,
+  });
+  return assignId(poly);
+}
+
+export function createOctagon(fabric: any, options?: Record<string, any>): any {
+  const poly = new fabric.Polygon(regularPolygon(8), {
+    left: 100,
+    top: 100,
+    fill: "#a855f7",
+    originX: "left",
+    originY: "top",
+    ...options,
+  });
+  return assignId(poly);
+}
+
+export function createDiamond(fabric: any, options?: Record<string, any>): any {
+  // 90° rotated square — looks correct as a polygon
+  const poly = new fabric.Polygon(
+    [
+      { x: 0, y: -80 },
+      { x: 80, y: 0 },
+      { x: 0, y: 80 },
+      { x: -80, y: 0 },
+    ],
+    {
+      left: 100,
+      top: 100,
+      fill: "#f59e0b",
+      originX: "left",
+      originY: "top",
+      ...options,
+    },
+  );
+  return assignId(poly);
+}
+
+export function createHeart(fabric: any, options?: Record<string, any>): any {
+  // Classic SVG heart path — scales naturally
+  const path = new fabric.Path(
+    "M 272.70141,238.71731 C 206.46141,238.71731 152.70146,292.4773 152.70146,358.71731 C 152.70146,493.47282 288.63461,528.80461 381.26391,662.02535 C 468.83815,529.62199 609.82641,489.17075 609.82641,358.71731 C 609.82641,292.47731 556.06651,238.7173 489.82641,238.71731 C 441.77851,238.71731 400.42481,267.08774 381.26391,307.90481 C 362.10311,267.08773 320.74941,238.7173 272.70141,238.71731 z",
+    {
+      left: 100,
+      top: 100,
+      fill: "#ec4899",
+      originX: "left",
+      originY: "top",
+      scaleX: 0.25,
+      scaleY: 0.25,
+      ...options,
+    },
+  );
+  return assignId(path);
+}
+
+export function createPlusIcon(fabric: any, options?: Record<string, any>): any {
+  // Plus made of two crossed rectangles, grouped
+  const horiz = new fabric.Rect({ left: 0, top: 60, width: 160, height: 40, fill: "#ef4444" });
+  const vert = new fabric.Rect({ left: 60, top: 0, width: 40, height: 160, fill: "#ef4444" });
+  const group = new fabric.Group([horiz, vert], {
+    left: 100,
+    top: 100,
+    originX: "left",
+    originY: "top",
+    ...options,
+  });
+  return assignId(group);
+}
+
+export function createSpeechBubble(fabric: any, options?: Record<string, any>): any {
+  // Rounded rect body + small triangle tail, grouped
+  const body = new fabric.Rect({
+    left: 0,
+    top: 0,
+    width: 220,
+    height: 130,
+    rx: 18,
+    ry: 18,
+    fill: "#3b82f6",
+  });
+  const tail = new fabric.Polygon(
+    [
+      { x: 0, y: 0 },
+      { x: 30, y: 0 },
+      { x: 6, y: 32 },
+    ],
+    { left: 40, top: 130, fill: "#3b82f6" },
+  );
+  const group = new fabric.Group([body, tail], {
+    left: 100,
+    top: 100,
+    originX: "left",
+    originY: "top",
+    ...options,
+  });
+  return assignId(group);
+}
+
+export function createBurst(fabric: any, options?: Record<string, any>): any {
+  // 12-point starburst — great for "SALE" / promo callouts
+  const points = 12;
+  const outerR = 100;
+  const innerR = 72;
+  const coords: { x: number; y: number }[] = [];
+  for (let i = 0; i < points * 2; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const angle = (Math.PI / points) * i - Math.PI / 2;
+    coords.push({ x: r * Math.cos(angle), y: r * Math.sin(angle) });
+  }
+  const burst = new fabric.Polygon(coords, {
+    left: 100,
+    top: 100,
+    fill: "#f59e0b",
+    originX: "left",
+    originY: "top",
+    ...options,
+  });
+  return assignId(burst);
+}
+
+export function createDoubleArrow(fabric: any, options?: Record<string, any>): any {
+  const line = new fabric.Line([20, 0, 200, 0], {
+    stroke: "#000000",
+    strokeWidth: 3,
+    ...options,
+  });
+  const headRight = new fabric.Triangle({
+    width: 22,
+    height: 22,
+    fill: options?.stroke || "#000000",
+    left: 200,
+    top: -11,
+    angle: 90,
+  });
+  const headLeft = new fabric.Triangle({
+    width: 22,
+    height: 22,
+    fill: options?.stroke || "#000000",
+    left: 20,
+    top: -11,
+    angle: -90,
+  });
+  const group = new fabric.Group([line, headLeft, headRight], {
+    left: 100,
+    top: 100,
+    originX: "left",
+    originY: "top",
+  });
+  return assignId(group);
+}
+
 export async function addImageToCanvas(
   canvas: any,
   url: string,

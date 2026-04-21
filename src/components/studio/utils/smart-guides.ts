@@ -135,13 +135,66 @@ export function attachSmartGuides(canvas: any): () => void {
     canvas.requestRenderAll?.();
   };
 
+  // Resize: re-run alignment detection while user is dragging a control handle.
+  // We don't snap-modify on scaling (snapping size feels jumpy), but we DO
+  // visualize when the new bounding box's edges happen to touch a guide.
+  const handleScaling = (opt: any) => {
+    const obj = opt.target;
+    if (!obj) return;
+    const cw = canvas.getWidth();
+    const ch = canvas.getHeight();
+    const zoom = getZoom();
+    const threshold = SNAP_THRESHOLD / zoom;
+
+    const bounds = obj.getBoundingRect();
+    const objLeft = bounds.left;
+    const objTop = bounds.top;
+    const objRight = objLeft + bounds.width;
+    const objBottom = objTop + bounds.height;
+    const objCenterX = objLeft + bounds.width / 2;
+    const objCenterY = objTop + bounds.height / 2;
+
+    const verticals: number[] = [0, cw / 2, cw];
+    const horizontals: number[] = [0, ch / 2, ch];
+    canvas.getObjects().forEach((other: any) => {
+      if (other === obj) return;
+      const b = other.getBoundingRect();
+      verticals.push(b.left, b.left + b.width / 2, b.left + b.width);
+      horizontals.push(b.top, b.top + b.height / 2, b.top + b.height);
+    });
+
+    activeGuides = [];
+    const objVerts = [objLeft, objCenterX, objRight];
+    for (const v of verticals) {
+      for (const a of objVerts) {
+        if (Math.abs(a - v) <= threshold) {
+          activeGuides.push({ x1: v, y1: 0, x2: v, y2: ch });
+          break;
+        }
+      }
+    }
+    const objHors = [objTop, objCenterY, objBottom];
+    for (const h of horizontals) {
+      for (const a of objHors) {
+        if (Math.abs(a - h) <= threshold) {
+          activeGuides.push({ x1: 0, y1: h, x2: cw, y2: h });
+          break;
+        }
+      }
+    }
+  };
+
   canvas.on("object:moving", handleMoving);
+  canvas.on("object:scaling", handleScaling);
+  canvas.on("object:resizing", handleScaling);
   canvas.on("after:render", handleAfterRender);
   canvas.on("mouse:up", clearGuides);
   canvas.on("object:modified", clearGuides);
 
   return () => {
     canvas.off("object:moving", handleMoving);
+    canvas.off("object:scaling", handleScaling);
+    canvas.off("object:resizing", handleScaling);
     canvas.off("after:render", handleAfterRender);
     canvas.off("mouse:up", clearGuides);
     canvas.off("object:modified", clearGuides);

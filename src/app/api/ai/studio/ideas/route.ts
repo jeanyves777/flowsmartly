@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { ai } from "@/lib/ai/client";
+import { buildStudioTools } from "@/lib/ai/studio-tools";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 
 /**
@@ -43,31 +44,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const brandKit = await prisma.brandKit.findFirst({
-      where: { userId: session.userId },
-      select: {
-        name: true,
-        voiceTone: true,
-        description: true,
-        tagline: true,
-        industry: true,
-        niche: true,
-        targetAudience: true,
+    // Agent loop: gives Claude access to brand kit, recent designs, and
+    // typography pairings so its ideas are grounded in the user's actual data.
+    const tools = buildStudioTools({ userId: session.userId });
+    const agentRun = await ai.runWithTools<{ ideas: string[] }>(
+      buildDesignIdeasAgentPrompt(category, style),
+      tools,
+      {
+        maxTokens: 4096,
+        temperature: 0.9,
+        maxIterations: 6,
+        thinkingBudget: 1500, // Extended thinking — API forces temperature=1 internally
+        systemPrompt: AGENT_SYSTEM_PROMPT,
       },
-    });
+    );
 
-    const prompt = buildDesignIdeasPrompt(brandKit, category, style);
-
-    const result = await ai.generateJSON<{ ideas: string[] }>(prompt, {
-      maxTokens: 1024,
-      temperature: 0.9,
-      systemPrompt:
-        "You are a creative graphic designer and marketing strategist. You suggest specific, actionable design concepts with concrete visual details, copy ideas, and marketing angles. Return ONLY valid JSON.",
-    });
-
-    if (!result?.ideas || !Array.isArray(result.ideas) || result.ideas.length === 0) {
-      throw new Error("Failed to generate design ideas");
+    const ideas = agentRun.json?.ideas;
+    if (!ideas || !Array.isArray(ideas) || ideas.length === 0) {
+      throw new Error("Agent did not return any design ideas");
     }
+    const result = { ideas };
 
     if (!isAdmin) {
       await prisma.$transaction([
@@ -92,10 +88,10 @@ export async function POST(req: NextRequest) {
       data: {
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
-        feature: "design_studio_ideas",
-        model: "claude-sonnet-4-20250514",
-        inputTokens: ai.estimateTokens(prompt),
-        outputTokens: ai.estimateTokens(JSON.stringify(result.ideas)),
+        feature: "design_studio_ideas_agent",
+        model: "claude-opus-4-7",
+        inputTokens: agentRun.usage.inputTokens,
+        outputTokens: agentRun.usage.outputTokens,
         costCents: 0,
       },
     });
@@ -133,23 +129,22 @@ export async function POST(req: NextRequest) {
   }
 }
 
-interface BrandContext {
-  name: string | null;
-  voiceTone: string | null;
-  description: string | null;
-  tagline: string | null;
-  industry: string | null;
-  niche: string | null;
-  targetAudience: string | null;
-}
+const AGENT_SYSTEM_PROMPT = `You are a creative graphic designer and marketing strategist working inside FlowSmartly's design studio.
 
-function buildDesignIdeasPrompt(
-  brand: BrandContext | null,
-  category: string,
-  style: string
-): string {
-  const brandName = brand?.name || "your brand";
+You have access to tools that let you look up the user's brand kit, their recent designs, and curated typography pairings. Use these tools to ground your suggestions in real data — do NOT guess at the brand name or invent design history.
 
+Workflow on every request:
+1. Call get_brand_kit to learn the brand. If it returns configured: false, proceed with industry-generic ideas.
+2. Call get_recent_designs_in_category to avoid repeating concepts the user has already created.
+3. Optionally call get_typography_pairings if the style benefits from a font recommendation.
+4. Generate exactly 5 specific, actionable design briefs and return them as JSON.
+
+Your final answer MUST be ONLY valid JSON in this shape:
+{ "ideas": ["idea 1", "idea 2", "idea 3", "idea 4", "idea 5"] }
+
+No markdown, no preamble, no commentary outside the JSON.`;
+
+function buildDesignIdeasAgentPrompt(category: string, style: string): string {
   const categoryGoals: Record<string, string> = {
     social_post: "create an engaging social media post graphic",
     ad: "design a compelling advertisement visual",
@@ -158,34 +153,19 @@ function buildDesignIdeasPrompt(
     banner: "create a professional banner (web, social, or print)",
     signboard: "design a storefront or directional signboard",
   };
-
   const catGoal = categoryGoals[category] || "create a professional design";
 
-  const brandLines: string[] = [`Brand name: "${brandName}"`];
-  if (brand?.industry) brandLines.push(`Industry: ${brand.industry}`);
-  if (brand?.niche) brandLines.push(`Niche: ${brand.niche}`);
-  if (brand?.description) brandLines.push(`About: ${brand.description}`);
-  if (brand?.tagline) brandLines.push(`Tagline: "${brand.tagline}"`);
-  if (brand?.targetAudience) brandLines.push(`Target audience: ${brand.targetAudience}`);
-  if (brand?.voiceTone) brandLines.push(`Brand voice: ${brand.voiceTone}`);
-  const brandContext = brandLines.join("\n");
-
-  return `Generate exactly 5 specific design concepts for this brand:
-
-${brandContext}
+  return `Generate 5 specific design concepts.
 
 Goal: ${catGoal}
 Visual style: ${style}
+Category: ${category}
 
-Each idea should be a SPECIFIC, ACTIONABLE design brief — describe the visual concept, the headline/copy, and the marketing angle. Include:
-- The main message or promotion
-- Visual composition and key elements
-- Suggested headline or copy text
+Each idea should be a SPECIFIC, ACTIONABLE design brief — describe the visual composition, the headline/copy, and the marketing angle in one sentence (~30-50 words).
 
 Examples of GOOD ideas:
 - "Summer Sale Announcement: Bold '50% OFF' headline over a split background of bright coral and teal, featuring sunglasses and beach accessories arranged in a flat-lay style"
 - "New Product Launch: Minimalist hero shot of the wireless earbuds floating on a gradient background, headline 'Sound Reimagined' with specs listed below"
-- "Customer Testimonial Post: Quote card with customer photo in a circular frame, their review in elegant serif font on a soft cream background with gold accents"
 
-Return JSON: { "ideas": ["idea 1", "idea 2", "idea 3", "idea 4", "idea 5"] }`;
+Use your tools to ground these in the user's brand. Return only the JSON.`;
 }

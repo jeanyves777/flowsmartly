@@ -6,7 +6,16 @@ import {
   Triangle,
   Minus,
   ArrowRight,
+  ArrowLeftRight,
   Star,
+  Hexagon,
+  Pentagon,
+  Octagon,
+  Diamond,
+  Heart,
+  Plus,
+  MessageCircle,
+  Sparkles,
 } from "lucide-react";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import {
@@ -16,6 +25,15 @@ import {
   createLine,
   createArrow,
   createStar,
+  createPentagon,
+  createHexagon,
+  createOctagon,
+  createDiamond,
+  createHeart,
+  createPlusIcon,
+  createSpeechBubble,
+  createBurst,
+  createDoubleArrow,
   centerObject,
 } from "../utils/canvas-helpers";
 
@@ -27,58 +45,21 @@ interface ShapeItem {
 }
 
 const SHAPES: ShapeItem[] = [
-  {
-    id: "rect",
-    icon: Square,
-    label: "Rectangle",
-    create: (fabric, canvas) => {
-      const obj = createRect(fabric);
-      centerObject(canvas, obj);
-      return obj;
-    },
-  },
-  {
-    id: "circle",
-    icon: Circle,
-    label: "Circle",
-    create: (fabric, canvas) => {
-      const obj = createCircle(fabric);
-      centerObject(canvas, obj);
-      return obj;
-    },
-  },
-  {
-    id: "triangle",
-    icon: Triangle,
-    label: "Triangle",
-    create: (fabric, canvas) => {
-      const obj = createTriangle(fabric);
-      centerObject(canvas, obj);
-      return obj;
-    },
-  },
-  {
-    id: "line",
-    icon: Minus,
-    label: "Line",
-    create: (fabric) => createLine(fabric),
-  },
-  {
-    id: "arrow",
-    icon: ArrowRight,
-    label: "Arrow",
-    create: (fabric) => createArrow(fabric),
-  },
-  {
-    id: "star",
-    icon: Star,
-    label: "Star",
-    create: (fabric, canvas) => {
-      const obj = createStar(fabric);
-      centerObject(canvas, obj);
-      return obj;
-    },
-  },
+  { id: "rect", icon: Square, label: "Rectangle", create: (fabric, canvas) => { const o = createRect(fabric); centerObject(canvas, o); return o; } },
+  { id: "circle", icon: Circle, label: "Circle", create: (fabric, canvas) => { const o = createCircle(fabric); centerObject(canvas, o); return o; } },
+  { id: "triangle", icon: Triangle, label: "Triangle", create: (fabric, canvas) => { const o = createTriangle(fabric); centerObject(canvas, o); return o; } },
+  { id: "diamond", icon: Diamond, label: "Diamond", create: (fabric, canvas) => { const o = createDiamond(fabric); centerObject(canvas, o); return o; } },
+  { id: "pentagon", icon: Pentagon, label: "Pentagon", create: (fabric, canvas) => { const o = createPentagon(fabric); centerObject(canvas, o); return o; } },
+  { id: "hexagon", icon: Hexagon, label: "Hexagon", create: (fabric, canvas) => { const o = createHexagon(fabric); centerObject(canvas, o); return o; } },
+  { id: "octagon", icon: Octagon, label: "Octagon", create: (fabric, canvas) => { const o = createOctagon(fabric); centerObject(canvas, o); return o; } },
+  { id: "star", icon: Star, label: "Star", create: (fabric, canvas) => { const o = createStar(fabric); centerObject(canvas, o); return o; } },
+  { id: "burst", icon: Sparkles, label: "Burst", create: (fabric, canvas) => { const o = createBurst(fabric); centerObject(canvas, o); return o; } },
+  { id: "heart", icon: Heart, label: "Heart", create: (fabric, canvas) => { const o = createHeart(fabric); centerObject(canvas, o); return o; } },
+  { id: "plus", icon: Plus, label: "Plus", create: (fabric, canvas) => { const o = createPlusIcon(fabric); centerObject(canvas, o); return o; } },
+  { id: "speech", icon: MessageCircle, label: "Speech", create: (fabric, canvas) => { const o = createSpeechBubble(fabric); centerObject(canvas, o); return o; } },
+  { id: "line", icon: Minus, label: "Line", create: (fabric) => createLine(fabric) },
+  { id: "arrow", icon: ArrowRight, label: "Arrow", create: (fabric) => createArrow(fabric) },
+  { id: "double-arrow", icon: ArrowLeftRight, label: "Double Arrow", create: (fabric) => createDoubleArrow(fabric) },
 ];
 
 export function ElementsPanel() {

@@ -17,7 +17,12 @@ import {
   Trash2,
   Group,
   Ungroup,
+  Pipette,
+  PaintBucket,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { copyStyle, pasteStyle, hasCopiedStyle } from "../utils/style-clipboard";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -43,6 +48,10 @@ export function BottomToolbar() {
   const refreshLayers = useCanvasStore((s) => s.refreshLayers);
   const isReadOnly = useCanvasStore((s) => s.isReadOnly);
   const { pushState } = useCanvasHistory();
+  const { toast } = useToast();
+  // Re-render the paste button when clipboard state changes (selection-driven)
+  const [, forceTick] = useState(0);
+  useEffect(() => { forceTick((n) => n + 1); }, [selectedObjectIds]);
 
   const hasSelection = !isReadOnly && selectedObjectIds.length > 0;
 
@@ -214,6 +223,28 @@ export function BottomToolbar() {
   const canGroup = activeObj?.type === "activeSelection";
   const canUngroup = activeObj?.type === "group";
 
+  // Style copy/paste — Canva paint-bucket UX
+  const copyObjectStyle = () => {
+    const obj = getActiveObject();
+    if (!obj) return;
+    if (copyStyle(obj)) {
+      toast({ title: "Style copied", description: "Select another object and press the paint bucket." });
+    }
+  };
+  const pasteObjectStyle = () => {
+    const obj = getActiveObject();
+    if (!obj) return;
+    if (pasteStyle(obj)) {
+      canvas?.requestRenderAll?.();
+      pushState();
+      refreshLayers();
+      toast({ title: "Style pasted" });
+    } else {
+      toast({ title: "Nothing to paste", description: "Copy a style first.", variant: "destructive" });
+    }
+  };
+  const canPasteStyle = hasCopiedStyle();
+
   const alignActions: ToolAction[] = [
     { icon: AlignStartVertical, label: "Align Left", action: alignLeft },
     { icon: AlignCenterVertical, label: "Align Center", action: alignCenterH },
@@ -283,6 +314,40 @@ export function BottomToolbar() {
               {renderGroup(orderActions)}
               <div className="w-px h-4 bg-border mx-1" />
               {renderGroup(transformActions)}
+              <div className="w-px h-4 bg-border mx-1" />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    onClick={copyObjectStyle}
+                    aria-label="Copy style"
+                  >
+                    <Pipette className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  Copy style
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    onClick={pasteObjectStyle}
+                    disabled={!canPasteStyle}
+                    aria-label="Paste style"
+                  >
+                    <PaintBucket className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  Paste style
+                </TooltipContent>
+              </Tooltip>
               {(canGroup || canUngroup) && (
                 <>
                   <div className="w-px h-4 bg-border mx-1" />

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { BlendModeSelect } from "./blend-mode-select";
 
 export function ImageProperties() {
   const canvas = useCanvasStore((s) => s.canvas);
@@ -290,8 +291,12 @@ export function ImageProperties() {
             updateProp("opacity", v / 100);
           }}
           className="w-full h-1.5 accent-brand-500"
+          aria-label="Opacity"
         />
       </div>
+
+      {/* Blend Mode */}
+      <BlendModeSelect />
 
       {/* Filters */}
       <div>

@@ -21,6 +21,9 @@ import { loadGoogleFont } from "./font-loader";
 export interface ApplyLayoutOptions {
   clearCanvas?: boolean;
   brandLogoUrl?: string | null;
+  /** When set, AI text elements use these fonts unless they explicitly chose
+   *  one. `heading` applies to headline/subheadline; `body` to everything else. */
+  brandFonts?: { heading?: string | null; body?: string | null } | null;
 }
 
 /** Role → friendly customName for layers panel */
@@ -48,7 +51,7 @@ export async function applyAILayout(
   canvasHeight: number,
   options?: ApplyLayoutOptions
 ): Promise<void> {
-  const { clearCanvas = true, brandLogoUrl } = options || {};
+  const { clearCanvas = true, brandLogoUrl, brandFonts } = options || {};
 
   // 1. Clear canvas
   if (clearCanvas) {
@@ -58,13 +61,15 @@ export async function applyAILayout(
   // 2. Set background (image or color/gradient)
   await applyBackground(canvas, layout.background, fabric, canvasWidth, canvasHeight);
 
-  // 3. Collect all fonts used and preload them
+  // 3. Collect all fonts used and preload them (including brand fonts)
   const fontsUsed = new Set<string>();
   for (const el of layout.elements) {
     if (el.type === "text" && (el as AITextElement).fontFamily) {
       fontsUsed.add((el as AITextElement).fontFamily!);
     }
   }
+  if (brandFonts?.heading) fontsUsed.add(brandFonts.heading);
+  if (brandFonts?.body) fontsUsed.add(brandFonts.body);
   await Promise.all([...fontsUsed].map((f) => loadGoogleFont(f)));
 
   // 4. Create elements (ordered bottom-to-top), skip background-role images
@@ -72,7 +77,14 @@ export async function applyAILayout(
     if (el.type === "image" && (el as AIImagePlaceholder).imageRole === "background") {
       continue; // background images are handled in applyBackground
     }
-    const obj = await createElement(el, fabric, canvasWidth, canvasHeight, brandLogoUrl);
+    const obj = await createElement(
+      el,
+      fabric,
+      canvasWidth,
+      canvasHeight,
+      brandLogoUrl,
+      brandFonts ?? null,
+    );
     if (obj) {
       canvas.add(obj);
     }
@@ -172,11 +184,12 @@ async function createElement(
   fabric: any,
   cw: number,
   ch: number,
-  brandLogoUrl?: string | null
+  brandLogoUrl?: string | null,
+  brandFonts?: { heading?: string | null; body?: string | null } | null,
 ): Promise<any | null> {
   switch (el.type) {
     case "text":
-      return createTextElement(el as AITextElement, fabric, cw, ch);
+      return createTextElement(el as AITextElement, fabric, cw, ch, brandFonts);
     case "shape":
       return createShapeElement(el as AIShapeElement, fabric, cw, ch);
     case "divider":
@@ -192,7 +205,8 @@ function createTextElement(
   el: AITextElement,
   fabric: any,
   cw: number,
-  ch: number
+  ch: number,
+  brandFonts?: { heading?: string | null; body?: string | null } | null,
 ): any {
   const absLeft = (el.x / 100) * cw;
   const absTop = (el.y / 100) * ch;
@@ -201,13 +215,21 @@ function createTextElement(
   // Scale fontSize proportionally if canvas isn't 1080px wide
   const scaledFontSize = Math.round(el.fontSize * (cw / 1080));
 
+  // Brand-font default: AI rarely names a font, so we fall back to brand
+  // heading font for headlines/subheadlines and brand body font for the rest.
+  // If the AI did pick a font, respect that explicit choice.
+  const isHeading = el.role === "headline" || el.role === "subheadline";
+  const fallbackFont =
+    (isHeading ? brandFonts?.heading : brandFonts?.body) || "Inter";
+  const resolvedFont = el.fontFamily || fallbackFont;
+
   const opts: Record<string, any> = {
     text: el.text,
     left: absLeft,
     top: absTop,
     width: absWidth,
     fontSize: scaledFontSize,
-    fontFamily: el.fontFamily || "Inter",
+    fontFamily: resolvedFont,
     fontWeight: el.fontWeight || "normal",
     fontStyle: el.fontStyle || "normal",
     fill: el.fill || "#000000",

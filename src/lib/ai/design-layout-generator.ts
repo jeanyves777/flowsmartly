@@ -8,6 +8,7 @@
  */
 
 import { ai } from "@/lib/ai/client";
+import { buildStudioTools } from "@/lib/ai/studio-tools";
 import { POPULAR_FONTS } from "@/components/studio/utils/font-loader";
 import type { AIDesignLayout, AITextElement, AIShapeElement, AIDividerElement, AIImagePlaceholder } from "./design-layout-types";
 
@@ -468,4 +469,81 @@ export async function generateDesignLayout(
   console.log("[DesignLayout] Generated layout with", sanitized.elements.length, "elements");
 
   return sanitized;
+}
+
+/**
+ * Generate a design layout using the agent loop.
+ *
+ * Differences vs `generateDesignLayout`:
+ * - Brand context is fetched dynamically via tools (`get_brand_kit`,
+ *   `get_recent_designs_in_category`, `get_typography_pairings`) rather
+ *   than crammed into the prompt.
+ * - The user prompt is shorter — we just describe the design intent and
+ *   let the agent assemble context.
+ * - Returns token usage so the caller can record real consumption.
+ *
+ * Requires `userId` so tool handlers can scope queries safely.
+ */
+export async function generateDesignLayoutAgent(
+  params: LayoutGeneratorParams & { userId: string }
+): Promise<{ layout: AIDesignLayout; usage: { inputTokens: number; outputTokens: number }; iterations: number; toolsUsed: string[] }> {
+  const systemPrompt = buildAgentSystemPrompt();
+  const userPrompt = buildAgentUserPrompt(params);
+  const tools = buildStudioTools({ userId: params.userId });
+
+  console.log("[DesignLayout] Generating layout via agent loop...");
+
+  const run = await ai.runWithTools<AIDesignLayout>(userPrompt, tools, {
+    systemPrompt,
+    maxTokens: 8000,
+    temperature: 0.7,
+    maxIterations: 6,
+    thinkingBudget: 2500, // Extended thinking for layout reasoning (composition, hierarchy, color)
+  });
+
+  if (!run.json) {
+    throw new Error("Agent did not return a valid layout. Please try again.");
+  }
+
+  const sanitized = sanitizeLayout(run.json, { stripCTA: !params.ctaText });
+  console.log(
+    "[DesignLayout] Agent done:",
+    sanitized.elements.length,
+    "elements,",
+    run.iterations,
+    "iterations,",
+    run.toolsUsed.length,
+    "tool calls",
+  );
+
+  return {
+    layout: sanitized,
+    usage: run.usage,
+    iterations: run.iterations,
+    toolsUsed: run.toolsUsed,
+  };
+}
+
+function buildAgentSystemPrompt(): string {
+  return `${buildSystemPrompt()}
+
+═══════════════════════════════════════════════════════════════
+AGENT WORKFLOW — call tools BEFORE writing the layout JSON
+═══════════════════════════════════════════════════════════════
+
+You have access to tools that let you fetch live data about the user. Use them to ground your design in their real brand instead of guessing:
+
+1. **get_brand_kit** — Call this FIRST to learn the brand name, voice, colors, industry, target audience. Skip if get_brand_kit returns configured: false.
+2. **get_recent_designs_in_category** — Call once with the category to see what the user has already created. Use this to vary your concepts and not repeat their last design.
+3. **get_typography_pairings** — Call when you need a font recommendation. Pass the design mood (e.g. "elegant", "bold", "playful") to filter pairings.
+4. **list_available_fonts** — Only if you need to verify a specific font name exists.
+
+After gathering context (typically 1-3 tool calls total), produce the final AIDesignLayout JSON as your last text block. Output JSON ONLY in that final block — no markdown fences, no commentary.`;
+}
+
+function buildAgentUserPrompt(params: LayoutGeneratorParams): string {
+  // Reuse the same detailed user prompt — the agent system prompt already
+  // tells Claude to call tools first. Brand fields in params.brandColors etc.
+  // still come through if the caller wants to override what the tools find.
+  return buildUserPrompt(params);
 }

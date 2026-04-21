@@ -65,7 +65,7 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_POST: 3,
   AI_CAPTION: 3,
   AI_HASHTAGS: 2,
-  AI_IDEAS: 3,
+  AI_IDEAS: 8, // Bumped to 8: agent loop + Opus 4.7 (~1.7x cost vs Sonnet) + extended thinking
   AI_AUTO: 3,
   AI_AUDIENCE: 3,
   AI_CAMPAIGN_NAME: 2,
@@ -76,10 +76,10 @@ export const DEFAULT_CREDIT_COSTS = {
   // --- AI Image Generation — OpenAI/xAI/Gemini ~$0.03-0.08/image ---
   AI_LOGO_CONCEPTS: 10,   // Legacy: SVG concepts only
   AI_LOGO_FINALIZE: 15,   // Legacy: single image finalize
-  AI_LOGO_GENERATION: 40, // 3x gpt-image-1 transparent PNGs (~$0.24 total)
+  AI_LOGO_GENERATION: 60, // Bumped from 40: agent loop with vision eval + retries (~$0.50)
   AI_VISUAL_DESIGN: 15,   // Single image gen (~$0.08 + margin)
-  AI_DESIGN_LAYOUT: 5,    // Claude text generation for structured layout
-  AI_DESIGN_LAYOUT_IMAGE: 15, // Per image generated within Smart Layout (same as visual design)
+  AI_DESIGN_LAYOUT: 14,   // Bumped to 14: agent loop + Opus 4.7 (~1.7x cost vs Sonnet) + thinking
+  AI_DESIGN_LAYOUT_IMAGE: 22, // Bumped from 15: agent picks provider + vision QA + 1 retry
 
   // --- AI Video Generation ---
   AI_CARTOON_VIDEO: 80,   // 6-8 scene images + TTS audio + FFmpeg (~$0.50 total)

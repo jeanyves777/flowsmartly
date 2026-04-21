@@ -6,6 +6,8 @@ export interface LayerInfo {
   type: string;
   visible: boolean;
   locked: boolean;
+  /** Children for `group` / `activeSelection` nodes — empty for leaves. */
+  children?: LayerInfo[];
 }
 
 export interface PageData {
@@ -140,15 +142,25 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   refreshLayers: () => {
     const { canvas } = get();
     if (!canvas) return;
-    const objects = canvas.getObjects();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const layers: LayerInfo[] = objects.map((obj: any, i: number) => ({
-      id: obj.id || `layer-${i}`,
-      name: obj.customName || `${obj.type || "object"} ${i + 1}`,
-      type: obj.type || "object",
-      visible: obj.visible !== false,
-      locked: !obj.selectable,
-    })).reverse(); // top-most first
+    const toLayer = (obj: any, i: number): LayerInfo => {
+      const isGroup = obj.type === "group" || obj.type === "activeSelection";
+      const layer: LayerInfo = {
+        id: obj.id || `layer-${i}`,
+        name: obj.customName || `${obj.type || "object"} ${i + 1}`,
+        type: obj.type || "object",
+        visible: obj.visible !== false,
+        locked: !obj.selectable,
+      };
+      if (isGroup && typeof obj.getObjects === "function") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        layer.children = (obj.getObjects() as any[])
+          .map(toLayer)
+          .reverse();
+      }
+      return layer;
+    };
+    const layers: LayerInfo[] = canvas.getObjects().map(toLayer).reverse();
     set({ layers });
   },
 

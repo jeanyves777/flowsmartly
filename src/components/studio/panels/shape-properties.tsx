@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import { ColorInput } from "./color-input";
+import { BlendModeSelect } from "./blend-mode-select";
 
 export function ShapeProperties() {
   const canvas = useCanvasStore((s) => s.canvas);
@@ -355,8 +356,12 @@ export function ShapeProperties() {
             updateProp("opacity", v / 100);
           }}
           className="w-full h-1.5 accent-brand-500"
+          aria-label="Opacity"
         />
       </div>
+
+      {/* Blend Mode */}
+      <BlendModeSelect />
     </div>
   );
 }
