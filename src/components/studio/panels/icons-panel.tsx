@@ -209,11 +209,13 @@ export function IconsPanel() {
       const objects = (result.objects || []).filter(Boolean) as any[];
       if (objects.length === 0) return;
 
-      // Group multi-path icons into a single object so they move/scale together
+      // Group multi-path icons into a single object so they move/scale together.
+      // Set origin on the Group at construction time — setting it after the
+      // fact doesn't recompute child placement and misaligns the icon.
       const obj =
         objects.length === 1
           ? objects[0]
-          : new fabric.Group(objects, { subTargetCheck: false });
+          : new fabric.Group(objects, { subTargetCheck: false, originX: "left", originY: "top" });
 
       // Center on canvas
       const cw = canvas.getWidth();

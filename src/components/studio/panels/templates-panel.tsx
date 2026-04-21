@@ -866,6 +866,8 @@ export function TemplatesPanel() {
             strokeWidth: el.strokeWidth ?? 2,
             opacity: el.opacity ?? 1,
             selectable: true,
+            originX: "left",
+            originY: "top",
           }));
         }
       }

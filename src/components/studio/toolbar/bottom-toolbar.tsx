@@ -296,7 +296,7 @@ export function BottomToolbar() {
     if (typeof (obj as any).toGroup === "function") {
       (obj as any).toGroup();
     } else {
-      const group = new fabric.Group(items.map((o: any) => o));
+      const group = new fabric.Group(items.map((o: any) => o), { originX: "left", originY: "top" });
       items.forEach((o: any) => canvas.remove(o));
       canvas.add(group);
       canvas.setActiveObject(group);
