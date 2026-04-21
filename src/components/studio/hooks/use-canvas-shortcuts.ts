@@ -102,6 +102,11 @@ export function useCanvasShortcuts() {
           case "]":
             handleBringForward();
             return;
+          case "?":
+            // Open the shortcuts cheatsheet — top-toolbar listens for this event
+            e.preventDefault();
+            document.dispatchEvent(new CustomEvent("studio:open-shortcuts"));
+            return;
         }
       }
     };

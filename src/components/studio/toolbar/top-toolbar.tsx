@@ -17,6 +17,7 @@ import {
   Hand,
   Smartphone,
   Clipboard,
+  Keyboard,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ import { useCanvasExport } from "../hooks/use-canvas-export";
 import { ShareDialog } from "../share-dialog";
 import { SocialDialog } from "../social-dialog";
 import { MockupDialog } from "../mockup-dialog";
+import { ShortcutsDialog } from "../shortcuts-dialog";
 import { SaveStatus } from "./save-status";
 import { PresenceAvatars } from "./presence-avatars";
 import type { CollabUser } from "../hooks/use-collaboration";
@@ -84,12 +86,20 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Wire the "?" key → open shortcuts cheatsheet
+  useEffect(() => {
+    const onShortcutsEvent = () => setShowShortcutsDialog(true);
+    document.addEventListener("studio:open-shortcuts", onShortcutsEvent);
+    return () => document.removeEventListener("studio:open-shortcuts", onShortcutsEvent);
+  }, []);
+
   const [isEditingName, setIsEditingName] = useState(false);
   const [isEditingZoom, setIsEditingZoom] = useState(false);
   const [zoomInputValue, setZoomInputValue] = useState("");
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showSocialDialog, setShowSocialDialog] = useState(false);
   const [showMockupDialog, setShowMockupDialog] = useState(false);
+  const [showShortcutsDialog, setShowShortcutsDialog] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const zoomInputRef = useRef<HTMLInputElement>(null);
 
@@ -341,6 +351,17 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
 
       {/* Right: Export + Share */}
       <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setShowShortcutsDialog(true)}
+          title="Keyboard shortcuts (?)"
+          aria-label="Open keyboard shortcuts cheatsheet"
+        >
+          <Keyboard className="h-4 w-4" />
+        </Button>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 gap-1.5">
@@ -405,6 +426,7 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
       <ShareDialog open={showShareDialog} onOpenChange={setShowShareDialog} />
       <SocialDialog open={showSocialDialog} onOpenChange={setShowSocialDialog} />
       <MockupDialog open={showMockupDialog} onOpenChange={setShowMockupDialog} />
+      <ShortcutsDialog open={showShortcutsDialog} onOpenChange={setShowShortcutsDialog} />
     </div>
   );
 }
