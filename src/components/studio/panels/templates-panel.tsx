@@ -790,6 +790,8 @@ export function TemplatesPanel() {
           const bg = new fabric.Rect({
             left: 0,
             top: 0,
+            originX: "left",
+            originY: "top",
             width: template.width,
             height: template.height,
             selectable: false,
@@ -822,6 +824,8 @@ export function TemplatesPanel() {
             top: el.top,
             left: el.left,
             width: el.width,
+            originX: "left",
+            originY: "top",
           };
           if (el.charSpacing) opts.charSpacing = el.charSpacing;
           if (el.lineHeight) opts.lineHeight = el.lineHeight;

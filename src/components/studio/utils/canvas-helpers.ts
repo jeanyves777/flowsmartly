@@ -203,19 +203,30 @@ export function createArrow(
   fabric: any,
   options?: Record<string, any>
 ): any {
-  const line = new fabric.Line([0, 0, 200, 0], {
+  // Child objects MUST set originX/originY explicitly — Fabric 7 defaults
+  // children to center origin, which silently misaligns them inside the
+  // group (the group bounding box ends up with children overlapping the
+  // wrong way). Every multi-part shape helper in this file follows the
+  // same rule.
+  const line = new fabric.Line([0, 10, 180, 10], {
     stroke: "#000000",
-    strokeWidth: 3,
+    strokeWidth: 4,
+    originX: "left",
+    originY: "top",
     ...options,
   });
-  // Arrow head as a triangle
+  // Arrow head: Triangle with angle=90 rotates around origin — use center
+  // origin so the triangle rotates around its middle, not its corner.
+  // Centered at (190, 10), tip extends to ≈(203, 10).
   const head = new fabric.Triangle({
-    width: 20,
-    height: 20,
+    width: 22,
+    height: 26,
     fill: options?.stroke || "#000000",
-    left: 200,
-    top: -10,
+    left: 190,
+    top: 10,
     angle: 90,
+    originX: "center",
+    originY: "center",
   });
   const group = new fabric.Group([line, head], {
     left: 100,
@@ -312,9 +323,19 @@ export function createHeart(fabric: any, options?: Record<string, any>): any {
 }
 
 export function createPlusIcon(fabric: any, options?: Record<string, any>): any {
-  // Plus made of two crossed rectangles, grouped
-  const horiz = new fabric.Rect({ left: 0, top: 60, width: 160, height: 40, fill: "#ef4444" });
-  const vert = new fabric.Rect({ left: 60, top: 0, width: 40, height: 160, fill: "#ef4444" });
+  // Plus made of two crossed rectangles, grouped. Child rects need
+  // originX/originY explicitly — Fabric 7 defaults to center which ruins
+  // the cross alignment when grouped.
+  const horiz = new fabric.Rect({
+    left: 0, top: 60, width: 160, height: 40,
+    fill: "#ef4444",
+    originX: "left", originY: "top",
+  });
+  const vert = new fabric.Rect({
+    left: 60, top: 0, width: 40, height: 160,
+    fill: "#ef4444",
+    originX: "left", originY: "top",
+  });
   const group = new fabric.Group([horiz, vert], {
     left: 100,
     top: 100,
@@ -335,6 +356,8 @@ export function createSpeechBubble(fabric: any, options?: Record<string, any>): 
     rx: 18,
     ry: 18,
     fill: "#3b82f6",
+    originX: "left",
+    originY: "top",
   });
   const tail = new fabric.Polygon(
     [
@@ -342,7 +365,13 @@ export function createSpeechBubble(fabric: any, options?: Record<string, any>): 
       { x: 30, y: 0 },
       { x: 6, y: 32 },
     ],
-    { left: 40, top: 130, fill: "#3b82f6" },
+    {
+      left: 40,
+      top: 130,
+      fill: "#3b82f6",
+      originX: "left",
+      originY: "top",
+    },
   );
   const group = new fabric.Group([body, tail], {
     left: 100,
@@ -377,26 +406,34 @@ export function createBurst(fabric: any, options?: Record<string, any>): any {
 }
 
 export function createDoubleArrow(fabric: any, options?: Record<string, any>): any {
-  const line = new fabric.Line([20, 0, 200, 0], {
+  // Line spans x=14..186 at y=12. Arrowhead centers at x=10 (left) and x=190 (right).
+  const line = new fabric.Line([14, 12, 186, 12], {
     stroke: "#000000",
-    strokeWidth: 3,
+    strokeWidth: 4,
+    originX: "left",
+    originY: "top",
     ...options,
   });
+  // Arrowheads use center-origin so angle rotates around the tip anchor.
   const headRight = new fabric.Triangle({
     width: 22,
-    height: 22,
+    height: 26,
     fill: options?.stroke || "#000000",
-    left: 200,
-    top: -11,
+    left: 190,
+    top: 12,
     angle: 90,
+    originX: "center",
+    originY: "center",
   });
   const headLeft = new fabric.Triangle({
     width: 22,
-    height: 22,
+    height: 26,
     fill: options?.stroke || "#000000",
-    left: 20,
-    top: -11,
+    left: 10,
+    top: 12,
     angle: -90,
+    originX: "center",
+    originY: "center",
   });
   const group = new fabric.Group([line, headLeft, headRight], {
     left: 100,
