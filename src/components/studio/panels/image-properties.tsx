@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { BlendModeSelect } from "./blend-mode-select";
+import { FILTER_PRESETS, buildFilterChain } from "../utils/image-filter-presets";
 
 export function ImageProperties() {
   const canvas = useCanvasStore((s) => s.canvas);
@@ -298,9 +299,42 @@ export function ImageProperties() {
       {/* Blend Mode */}
       <BlendModeSelect />
 
+      {/* Filter Presets — one-click photo looks. Sliders below stay in
+          sync because we set their state from the preset's values. */}
+      <div>
+        <label className="text-xs font-medium mb-2 block">Filter Presets</label>
+        <div className="grid grid-cols-3 gap-1.5">
+          {FILTER_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={async () => {
+                const v = preset.values;
+                setBrightness(v.brightness);
+                setContrast(v.contrast);
+                setSaturation(v.saturation);
+                setBlur(v.blur);
+                setGrayscale(v.grayscale);
+                const obj = getActiveImage();
+                if (!obj) return;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                obj.filters = (await buildFilterChain(v)) as any;
+                obj.applyFilters();
+                canvas?.renderAll();
+              }}
+              className="px-2 py-1.5 rounded-md border border-border hover:border-brand-500 hover:bg-brand-500/5 text-[11px] font-medium transition-colors"
+              title={preset.description}
+              aria-label={`Apply ${preset.label} filter preset — ${preset.description}`}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Filters */}
       <div>
-        <label className="text-xs font-medium mb-2 block">Filters</label>
+        <label className="text-xs font-medium mb-2 block">Fine-tune</label>
         <div className="space-y-2">
           <div>
             <div className="flex justify-between text-[10px] text-muted-foreground">
