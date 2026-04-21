@@ -36,6 +36,7 @@ export async function triggerStoreRebuildIfV2(storeId: string): Promise<void> {
     await syncCategoriesToDataFile(storeId, store.generatedPath);
     await syncShippingToDataFile(storeId, store.generatedPath, store.freeShippingThresholdCents);
     await syncPaymentMethodsToDataFile(storeId, store.generatedPath);
+    await ensureStoreSlugInDataFile(store.generatedPath, store.slug);
 
     const { buildStoreV3, deployStoreV3 } = await import("./store-site-builder");
 
@@ -52,6 +53,38 @@ export async function triggerStoreRebuildIfV2(storeId: string): Promise<void> {
     }
   } catch (err: any) {
     console.error(`[ProductSync] Error:`, err.message);
+  }
+}
+
+/**
+ * Inject `slug: "store-xyz"` into the generated store's `storeInfo` object
+ * in data.ts if it's missing. Needed because the checkout page and other
+ * components fall back to `storeInfo.slug` when the current URL doesn't
+ * include `/stores/{slug}/` — which happens on custom domains (the user's
+ * browser shows `asamjshop.com/checkout/`, not `/stores/.../checkout/`).
+ * Without the slug, API calls that build `/api/store/${slug}/...` URLs
+ * all hit `/api/store//...` and fail silently, which looks like the
+ * checkout button does nothing.
+ */
+async function ensureStoreSlugInDataFile(storeDir: string, slug: string): Promise<void> {
+  const { readFileSync, writeFileSync, existsSync } = await import("fs");
+  const { join } = await import("path");
+  const dataPath = join(storeDir, "src", "lib", "data.ts");
+  if (!existsSync(dataPath)) return;
+
+  const content = readFileSync(dataPath, "utf-8");
+
+  // Already has a slug inside storeInfo? No-op.
+  if (/export const storeInfo\s*=\s*\{[\s\S]*?\bslug\s*:/m.test(content)) return;
+
+  // Insert after the opening brace of `storeInfo = {`
+  const newContent = content.replace(
+    /(export const storeInfo\s*=\s*\{\s*\n)/,
+    `$1  slug: "${slug}",\n`,
+  );
+  if (newContent !== content) {
+    writeFileSync(dataPath, newContent, "utf-8");
+    console.log(`[ProductSync] Injected storeInfo.slug = "${slug}" into data.ts`);
   }
 }
 
