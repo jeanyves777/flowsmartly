@@ -78,6 +78,16 @@ function LoginPageContent() {
             fieldErrors[key] = Array.isArray(value) ? value[0] : String(value);
           });
           setErrors(fieldErrors);
+        } else if (data.error?.code === "CAPTCHA_FAILED") {
+          // Turnstile rejected the token. Most common cause: token
+          // expired (~5 min validity) or was already used. Reset the
+          // widget so the user gets a fresh challenge.
+          setTurnstileToken("");
+          toast({
+            title: "Verification expired",
+            description: "Please solve the CAPTCHA again below, then click Sign in.",
+            variant: "destructive",
+          });
         } else {
           toast({
             title: "Login failed",
