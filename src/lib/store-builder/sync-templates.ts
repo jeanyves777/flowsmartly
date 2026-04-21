@@ -31,6 +31,7 @@ const TEMPLATE_FILES: readonly string[] = [
   "src/components/MobileBottomNav.tsx",
   "src/components/CartDrawer.tsx",
   "src/components/ProductCard.tsx",
+  "src/components/VariantPickerModal.tsx",
   "src/components/CategoryShowcase.tsx",
   "src/components/FeaturedProducts.tsx",
   "src/components/Newsletter.tsx",

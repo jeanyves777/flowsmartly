@@ -6,6 +6,7 @@ import { ShoppingBag, Heart, Check } from "lucide-react";
 import { formatPrice } from "@/lib/data";
 import { addToCart } from "@/lib/cart";
 import type { Product } from "@/lib/products";
+import VariantPickerModal from "./VariantPickerModal";
 
 const STORE_SLUG = (() => {
   if (typeof window === "undefined") return "";
@@ -29,6 +30,16 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
   const [wishlisted, setWishlisted] = useState(false);
   const [wishlistLoading, setWishlistLoading] = useState(false);
   const [added, setAdded] = useState(false);
+  const [variantModalOpen, setVariantModalOpen] = useState(false);
+
+  // Products with more than one variant — or any variant that carries
+  // option dimensions — must go through the picker modal. Products with a
+  // single implicit variant (size-free, color-free) can add directly.
+  const hasSelectableVariants = !!(
+    product.variants &&
+    (product.variants.length > 1 ||
+      (product.variants[0]?.options && Object.keys(product.variants[0].options).length > 0))
+  );
 
   const productUrl = STORE_SLUG
     ? `/stores/${STORE_SLUG}/products/${product.slug}`
@@ -43,8 +54,16 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
     return () => window.removeEventListener("wishlist-updated", sync);
   }, [product.id]);
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (e?: React.MouseEvent) => {
     if (!product.inStock) return;
+    // If the product has real variant dimensions, open the picker instead
+    // of silently adding variants[0] — otherwise we ship the wrong SKU.
+    if (hasSelectableVariants) {
+      e?.preventDefault();
+      e?.stopPropagation();
+      setVariantModalOpen(true);
+      return;
+    }
     addToCart({
       productId: product.id,
       variantId: product.variants?.[0]?.id,
@@ -216,6 +235,12 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
           </p>
         )}
       </a>
+
+      <VariantPickerModal
+        product={variantModalOpen ? product : null}
+        open={variantModalOpen}
+        onClose={() => setVariantModalOpen(false)}
+      />
     </motion.div>
   );
 }
