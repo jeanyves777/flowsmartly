@@ -269,7 +269,7 @@ export default function BusinessPlanViewerPage({
         </div>
       </div>
 
-      <div ref={printRef} className="bp-print-area max-w-4xl mx-auto p-4 md:p-8 space-y-10">
+      <div ref={printRef} className="bp-print-area p-4 md:p-8 space-y-10">
         {/* Cover */}
         <section
           className="rounded-xl p-10 md:p-14 text-white shadow-xl relative overflow-hidden print:shadow-none print:rounded-none"

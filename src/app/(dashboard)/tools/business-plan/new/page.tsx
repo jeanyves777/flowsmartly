@@ -166,7 +166,7 @@ export default function NewBusinessPlanPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-1">
         <ArrowLeft className="h-4 w-4" /> Back
       </Button>
