@@ -156,11 +156,16 @@ export default function NewBusinessPlanPage() {
 
   if (generating) {
     return (
-      <div className="p-8 flex items-center justify-center min-h-[60vh]">
-        <AIGenerationLoader
-          currentStep="Your AI strategist is building the plan…"
-          subtitle="Pulling brand identity, running market analysis, projecting financials. Takes about 60-90 seconds."
-        />
+      <div className="p-8 min-h-[60vh]">
+        {/* AIGenerationLoader uses aspect-video internally and needs an
+            explicit width — without one the inner div collapses to 0x0
+            inside a flex-center parent and the page appears blank. */}
+        <div className="mx-auto w-full max-w-2xl">
+          <AIGenerationLoader
+            currentStep="Your AI strategist is building the plan…"
+            subtitle="Pulling brand identity, running market analysis, projecting financials. Takes about 60-90 seconds."
+          />
+        </div>
       </div>
     );
   }

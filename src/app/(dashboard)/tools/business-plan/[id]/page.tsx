@@ -237,11 +237,13 @@ export default function BusinessPlanViewerPage({
 
   if (regenerating) {
     return (
-      <div className="p-8 flex items-center justify-center min-h-[60vh]">
-        <AIGenerationLoader
-          currentStep="Re-running the strategist with your refinements…"
-          subtitle="Rewriting sections and recalculating projections."
-        />
+      <div className="p-8 min-h-[60vh]">
+        <div className="mx-auto w-full max-w-2xl">
+          <AIGenerationLoader
+            currentStep="Re-running the strategist with your refinements…"
+            subtitle="Rewriting sections and recalculating projections."
+          />
+        </div>
       </div>
     );
   }
