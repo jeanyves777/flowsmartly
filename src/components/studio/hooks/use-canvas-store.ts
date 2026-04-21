@@ -23,6 +23,7 @@ export type ActiveShape = "rect" | "circle" | "triangle" | "line" | "arrow" | "s
 export type ActivePanel =
   | "templates"
   | "elements"
+  | "icons"
   | "text"
   | "uploads"
   | "ai"

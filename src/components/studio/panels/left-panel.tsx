@@ -3,6 +3,7 @@
 import {
   LayoutTemplate,
   Shapes,
+  Smile,
   Type,
   Upload,
   Sparkles,
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils/cn";
 import { useCanvasStore, type ActivePanel } from "../hooks/use-canvas-store";
 import { TemplatesPanel } from "./templates-panel";
 import { ElementsPanel } from "./elements-panel";
+import { IconsPanel } from "./icons-panel";
 import { TextPanel } from "./text-panel";
 import { UploadsPanel } from "./uploads-panel";
 import { AiPanel } from "./ai-panel";
@@ -28,6 +30,7 @@ const TABS: {
 }[] = [
   { id: "templates", icon: LayoutTemplate, label: "Templates" },
   { id: "elements", icon: Shapes, label: "Elements" },
+  { id: "icons", icon: Smile, label: "Icons" },
   { id: "text", icon: Type, label: "Text" },
   { id: "uploads", icon: Upload, label: "Uploads" },
   { id: "ai", icon: Sparkles, label: "AI" },
@@ -38,6 +41,7 @@ const TABS: {
 const PANEL_COMPONENTS: Record<ActivePanel, React.ComponentType> = {
   templates: TemplatesPanel,
   elements: ElementsPanel,
+  icons: IconsPanel,
   text: TextPanel,
   uploads: UploadsPanel,
   ai: AiPanel,
