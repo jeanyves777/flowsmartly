@@ -315,6 +315,16 @@ export function CanvasEditor({
       }
     }
 
+    // Sync dimensions to the target page BEFORE loading so objects land on
+    // a canvas that's already the right size (otherwise positions are
+    // relative to the old size, producing scaled/offset layouts on switch).
+    if (targetPage.width && targetPage.height) {
+      if (store.canvasWidth !== targetPage.width || store.canvasHeight !== targetPage.height) {
+        store.setCanvasDimensions(targetPage.width, targetPage.height);
+      }
+      canvas.setDimensions({ width: targetPage.width, height: targetPage.height });
+    }
+
     // Load target page JSON into canvas (strip viewport from saved data)
     safeLoadFromJSON(canvas, targetPage.canvasJSON).then(() => {
       refreshLayers();

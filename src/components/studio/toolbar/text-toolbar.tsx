@@ -62,8 +62,13 @@ export function TextToolbar() {
 
   if (!isTextSelected) return null;
 
+  // Previously positioned absolute (top-14 left-1/2) which overlaid the
+  // canvas and covered text/objects near the top of a design with no way
+  // to move it. Now renders as a normal row in the canvas column so it
+  // sits between the top toolbar and the canvas, pushing the canvas down
+  // only while a text object is selected.
   return (
-    <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-background border rounded-lg shadow-lg px-2 py-1">
+    <div className="flex items-center justify-center gap-1 bg-muted/30 border-b px-2 py-1 overflow-x-auto shrink-0">
       {/* Font family select */}
       <select
         value={fontFamily}

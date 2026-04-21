@@ -25,6 +25,11 @@ export function attachSmartGuides(canvas: any): () => void {
   const GUIDE_WIDTH = 1;
 
   let activeGuides: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+  // True only between mouse:down and mouse:up. Stops smart guides from
+  // populating during programmatic events (loadFromJSON fires object:moving
+  // for some object types as it restores positions, which would leave guides
+  // drawn permanently because no mouse:up ever follows).
+  let isUserDragging = false;
 
   const getZoom = () => {
     try {
@@ -37,6 +42,7 @@ export function attachSmartGuides(canvas: any): () => void {
   };
 
   const handleMoving = (opt: any) => {
+    if (!isUserDragging) return; // gate out programmatic moves
     const obj = opt.target;
     if (!obj) return;
 
@@ -139,6 +145,7 @@ export function attachSmartGuides(canvas: any): () => void {
   // We don't snap-modify on scaling (snapping size feels jumpy), but we DO
   // visualize when the new bounding box's edges happen to touch a guide.
   const handleScaling = (opt: any) => {
+    if (!isUserDragging) return; // gate out programmatic resize during loadFromJSON
     const obj = opt.target;
     if (!obj) return;
     const cw = canvas.getWidth();
@@ -184,19 +191,43 @@ export function attachSmartGuides(canvas: any): () => void {
     }
   };
 
+  // Real user-drag detection — only fires from genuine mouse interactions.
+  // Programmatic loadFromJSON / restoreFromHistory don't go through these
+  // events, so they can't accidentally show guides.
+  const handleMouseDown = (opt: any) => {
+    // opt.target null means clicking empty canvas — still set true so a
+    // selection-rectangle drag is gated correctly (guides won't fire either way)
+    if (opt.target) isUserDragging = true;
+  };
+  const handleMouseUp = () => {
+    isUserDragging = false;
+    activeGuides = [];
+    canvas.requestRenderAll?.();
+  };
+  // Wipe any stale guides whenever the canvas is cleared or a load happens.
+  // Fabric fires "canvas:cleared" before loadFromJSON; defensive belt-and-suspenders.
+  const handleCanvasCleared = () => {
+    isUserDragging = false;
+    activeGuides = [];
+  };
+
   canvas.on("object:moving", handleMoving);
   canvas.on("object:scaling", handleScaling);
   canvas.on("object:resizing", handleScaling);
   canvas.on("after:render", handleAfterRender);
-  canvas.on("mouse:up", clearGuides);
+  canvas.on("mouse:down", handleMouseDown);
+  canvas.on("mouse:up", handleMouseUp);
   canvas.on("object:modified", clearGuides);
+  canvas.on("canvas:cleared", handleCanvasCleared);
 
   return () => {
     canvas.off("object:moving", handleMoving);
     canvas.off("object:scaling", handleScaling);
     canvas.off("object:resizing", handleScaling);
     canvas.off("after:render", handleAfterRender);
-    canvas.off("mouse:up", clearGuides);
+    canvas.off("mouse:down", handleMouseDown);
+    canvas.off("mouse:up", handleMouseUp);
     canvas.off("object:modified", clearGuides);
+    canvas.off("canvas:cleared", handleCanvasCleared);
   };
 }

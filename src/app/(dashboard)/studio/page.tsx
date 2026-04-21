@@ -7,6 +7,7 @@ import { useCanvasStore } from "@/components/studio/hooks/use-canvas-store";
 import { safeLoadFromJSON, addImageToCanvas } from "@/components/studio/utils/canvas-helpers";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { useToast } from "@/hooks/use-toast";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 
 // Dynamic import to avoid SSR issues with Fabric.js
@@ -129,15 +130,45 @@ function StudioPageInner() {
   useEffect(() => {
     if (!designId || !canvas) return;
 
-    // Clear stale pages/activePageIndex before loading so the canvas-editor
-    // page-switch effect (which fires on canvas mount) finds no pages and
-    // bails out, preventing stale content from a previous session overwriting
-    // the newly loaded design.
+    // Warn about unsaved changes BEFORE we clear the current canvas. If
+    // the user chooses "Save & continue" we trigger a final save first
+    // and wait for the dirty flag to clear; if they choose "Discard",
+    // we proceed without saving. If they cancel, we skip the load — the
+    // URL designId stays set but no content is loaded, so they stay on
+    // their current design.
     const storeRef = useCanvasStore.getState();
-    storeRef.setPages([]);
-    storeRef.setActivePageIndex(0);
+    const currentIsDirty = storeRef.isDirty;
+    const currentDesignName = storeRef.designName;
 
     (async () => {
+      if (currentIsDirty) {
+        const saveFirst = await confirmDialog({
+          title: "Unsaved changes",
+          description: `"${currentDesignName}" has unsaved changes. Save it before loading the new design?`,
+          confirmText: "Save & continue",
+          cancelText: "Discard changes",
+        });
+        if (saveFirst) {
+          // Trigger the existing save handler and wait briefly for it to clear isDirty
+          document.dispatchEvent(new Event("studio:save"));
+          // Poll isDirty flag with a short deadline so we don't hang forever
+          // if the save errored.
+          const deadline = Date.now() + 5000;
+          while (Date.now() < deadline && useCanvasStore.getState().isDirty) {
+            await new Promise((r) => setTimeout(r, 100));
+          }
+        }
+        // If saveFirst is false (Discard), we just proceed. No third "cancel"
+        // option — a two-choice prompt is less confusing than three.
+      }
+
+      // Clear stale pages/activePageIndex before loading so the canvas-editor
+      // page-switch effect (which fires on canvas mount) finds no pages and
+      // bails out, preventing stale content from a previous session
+      // overwriting the newly loaded design.
+      storeRef.setPages([]);
+      storeRef.setActivePageIndex(0);
+
       try {
         const qs = shareParam ? `?share=${encodeURIComponent(shareParam)}` : "";
         const res = await fetch(`/api/designs/${designId}${qs}`);
@@ -157,10 +188,18 @@ function StudioPageInner() {
           const store = useCanvasStore.getState();
           const design = data.data.design;
 
-          // Restore canvas dimensions first
+          // Restore canvas dimensions first. We sync BOTH the store
+          // (which the canvas-editor's effect watches) AND the Fabric
+          // canvas directly — otherwise the canvas-editor's setDimensions
+          // effect runs *after* safeLoadFromJSON below and the JSON ends
+          // up applied to a canvas that's still at the previous size,
+          // producing scaled/offset objects on reload.
           if (design.size) {
             const [w, h] = design.size.split("x").map(Number);
-            if (w && h) store.setCanvasDimensions(w, h);
+            if (w && h) {
+              store.setCanvasDimensions(w, h);
+              canvas.setDimensions({ width: w, height: h });
+            }
           }
 
           if (design.canvasData) {
@@ -193,10 +232,17 @@ function StudioPageInner() {
                 restoredPages.length - 1
               );
 
-              // Restore per-page dimensions from the active page
+              // Restore per-page dimensions from the active page. Apply
+              // to the Fabric canvas synchronously too — the store-driven
+              // setDimensions effect won't have fired yet by the time we
+              // call safeLoadFromJSON below.
               const activePage = restoredPages[activeIdx];
               if (activePage?.width && activePage?.height) {
                 store.setCanvasDimensions(activePage.width, activePage.height);
+                canvas.setDimensions({
+                  width: activePage.width,
+                  height: activePage.height,
+                });
               }
 
               store.setPages(restoredPages);

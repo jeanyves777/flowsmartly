@@ -13,6 +13,7 @@ import {
   Type,
   Minus,
   Plus,
+  Maximize2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,6 +153,65 @@ export function TextProperties() {
   const setAlign = (align: string) => {
     setTextAlign(align);
     updateProp("textAlign", align);
+  };
+
+  // Shrink-to-fit: step the font size down in 1px ticks until the rendered
+  // text height fits inside the textbox's current height (for textbox) or
+  // its locked height (for text/i-text). Bounded by MIN_SIZE so we don't
+  // produce microscopic text on absurdly small boxes.
+  const MIN_SIZE = 8;
+  const autoFitToBox = () => {
+    const obj = getActiveText();
+    if (!obj || !canvas) return;
+
+    // Current font size is what we're tuning. `height` for a Fabric Textbox
+    // is the laid-out text height; for plain Text it equals the glyph box.
+    // `_textLines.length * _fontSizeMult * fontSize * lineHeight` approximates
+    // the laid-out height but is internal; we read `height` after each set.
+    let currentSize = obj.fontSize || 32;
+    const targetHeight = (obj.height || 0) * (obj.scaleY || 1);
+    if (targetHeight <= 0) return;
+
+    // Try decreasing first. Fabric relays out on set(fontSize), so we can
+    // measure obj.height post-set — but the height gets updated only after
+    // initDimensions/renderAll on Textbox. Force by calling initDimensions
+    // if available; otherwise trust the getBoundingRect after render.
+    const renderAndMeasure = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const anyObj = obj as any;
+      if (typeof anyObj.initDimensions === "function") {
+        anyObj.initDimensions();
+      }
+      canvas.requestRenderAll();
+      return obj.height || 0;
+    };
+
+    // Safety bound to avoid infinite loops from odd initial states
+    let safety = 200;
+    // Shrink while overflowing
+    while (safety-- > 0) {
+      const h = renderAndMeasure();
+      if (h <= targetHeight || currentSize <= MIN_SIZE) break;
+      currentSize -= 1;
+      obj.set("fontSize", currentSize);
+    }
+    // Also try to grow: step up while still under the target height
+    safety = 200;
+    while (safety-- > 0) {
+      const h = renderAndMeasure();
+      if (h >= targetHeight) break;
+      currentSize += 1;
+      obj.set("fontSize", currentSize);
+    }
+    // One last step back if the grow-loop overshot
+    if ((obj.height || 0) > targetHeight && currentSize > MIN_SIZE) {
+      currentSize -= 1;
+      obj.set("fontSize", currentSize);
+      renderAndMeasure();
+    }
+
+    setFontSize(currentSize);
+    canvas.requestRenderAll();
   };
 
   // Curve text along an arc path. amount in [-100, 100]:
@@ -385,6 +445,16 @@ export function TextProperties() {
             onClick={() => handleFontSizeChange(fontSize + 1)}
           >
             <Plus className="h-3 w-3" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 ml-1"
+            onClick={autoFitToBox}
+            title="Auto-fit text to box — finds the largest font size that fits"
+            aria-label="Auto-fit text to box"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
