@@ -19,6 +19,12 @@ export interface FeatureDefinition {
     BUSINESS?: boolean | string;
     ENTERPRISE?: boolean | string;
   };
+  /**
+   * Hides the feature from the sidebar and the activation grid even for
+   * users who already activated it. The page (if any) shows a maintenance
+   * banner. Set when a feature is being rebuilt and should not be reachable.
+   */
+  disabled?: boolean;
 }
 
 export type FeatureCategory =
@@ -167,6 +173,9 @@ export const FEATURE_CATALOG: FeatureDefinition[] = [
     route: "/cartoon-maker",
     routes: ["/cartoon-maker"],
     plans: { PRO: true, BUSINESS: true, ENTERPRISE: true },
+    // Phase A of recovery (2026-04-20): hidden while we rebuild the
+    // animation pipeline. Generation API returns 503; page shows banner.
+    disabled: true,
   },
   {
     slug: "flow-ai",

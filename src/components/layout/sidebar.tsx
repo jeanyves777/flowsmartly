@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { COD_REGIONS } from "@/lib/constants/ecommerce";
+import { FEATURE_CATALOG } from "@/lib/features/catalog";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -214,17 +215,26 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
     "listsmartly-reviews": ["/listsmartly/reviews"],
   };
 
-  // Build set of activated routes
+  // Routes for features flagged `disabled` in the catalog — always filtered
+  // out, even for users who activated them before the feature was disabled.
+  const disabledRoutes = new Set<string>();
+  for (const def of FEATURE_CATALOG) {
+    if (def.disabled) def.routes.forEach((r) => disabledRoutes.add(r));
+  }
+
+  // Build set of activated routes (excluding disabled ones)
   const activatedRoutes = new Set<string>();
   for (const slug of activatedSlugs) {
     const routes = SLUG_ROUTE_MAP[slug];
-    if (routes) routes.forEach((r) => activatedRoutes.add(r));
+    if (routes) routes.forEach((r) => { if (!disabledRoutes.has(r)) activatedRoutes.add(r); });
   }
 
-  // Filter function: only show nav items whose route is activated (or if no features activated, show all)
+  // Filter function: only show nav items whose route is activated (or if no features activated, show all).
+  // Disabled routes are dropped regardless of activation state.
   const filterByActivated = (items: { name: string; href: string; icon: React.ElementType; premium?: boolean }[]) => {
-    if (!hasActivatedFeatures) return items; // No features set yet — show all (admin/legacy)
-    return items.filter((item) => activatedRoutes.has(item.href));
+    const withoutDisabled = items.filter((item) => !disabledRoutes.has(item.href));
+    if (!hasActivatedFeatures) return withoutDisabled; // No features set yet — show all (admin/legacy)
+    return withoutDisabled.filter((item) => activatedRoutes.has(item.href));
   };
 
   // In delegation mode, filter navigation items to only show allowed routes

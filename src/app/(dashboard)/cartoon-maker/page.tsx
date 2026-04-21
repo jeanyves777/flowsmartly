@@ -944,6 +944,25 @@ function CartoonMakerContent() {
 
   return (
     <div className="space-y-6">
+      {/* Maintenance banner — Phase A of cartoon recovery (2026-04-20).
+          New generations are blocked at the API level (503). Existing
+          videos in history below remain viewable. */}
+      <div className="rounded-lg border border-amber-500/40 bg-amber-50 dark:bg-amber-900/20 p-4">
+        <div className="flex items-start gap-3">
+          <Film className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+              Cartoon Maker is under maintenance
+            </p>
+            <p className="text-xs text-amber-800 dark:text-amber-300/90">
+              We're rebuilding the animation pipeline for better reliability and quality.
+              New cartoon generations are temporarily disabled. Your existing cartoons
+              below remain viewable and downloadable.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
