@@ -44,7 +44,11 @@ export async function triggerStoreRebuildIfV2(storeId: string): Promise<void> {
       await deployStoreV3(storeId, store.slug);
       console.log(`[ProductSync] Store ${storeId} rebuilt and deployed`);
     } else {
-      console.error(`[ProductSync] Rebuild failed for ${storeId}:`, buildResult.error?.substring(0, 200));
+      // Keep 2000 chars so prerender / TypeError stacks survive. The old
+      // 200-char truncation was hiding the actual root cause — we'd see
+      // "⚠ Compiled with warnings" from stderr and miss the prerender
+      // error that followed and actually caused the non-zero exit.
+      console.error(`[ProductSync] Rebuild failed for ${storeId}:`, buildResult.error?.substring(0, 2000));
     }
   } catch (err: any) {
     console.error(`[ProductSync] Error:`, err.message);
