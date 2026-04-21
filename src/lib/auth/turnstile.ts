@@ -11,6 +11,11 @@ export async function verifyTurnstile(token: string, ip?: string): Promise<boole
     return true; // Allow in development
   }
 
+  if (!token) {
+    console.warn("[Turnstile] Called with empty token — rejecting without hitting Cloudflare");
+    return false;
+  }
+
   try {
     const body: Record<string, string> = {
       secret: TURNSTILE_SECRET,
@@ -25,6 +30,21 @@ export async function verifyTurnstile(token: string, ip?: string): Promise<boole
     });
 
     const data = await res.json();
+    if (!data.success) {
+      // Log the exact Cloudflare error-codes array so we can diagnose
+      // mismatch between site/secret keys, expired tokens, domain
+      // restrictions, etc. Truncate the token in case it's sensitive.
+      const tokenFingerprint = token ? `${token.slice(0, 10)}...${token.slice(-4)} (${token.length} chars)` : "empty";
+      console.error(
+        "[Turnstile] Verification failed",
+        JSON.stringify({
+          cloudflareResponse: data,
+          tokenFingerprint,
+          secretKeyPrefix: TURNSTILE_SECRET.slice(0, 8) + "...",
+          ip: ip || "none",
+        }),
+      );
+    }
     return data.success === true;
   } catch (err) {
     console.error("[Turnstile] Verification error:", err);

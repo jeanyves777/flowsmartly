@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
 import { useCanvasStore } from "../hooks/use-canvas-store";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { addImageToCanvas, createTextbox, safeLoadFromJSON } from "../utils/canvas-helpers";
 import { DESIGN_CATEGORIES } from "@/lib/constants/design-presets";
 import { motion } from "framer-motion";
@@ -740,8 +741,36 @@ export function TemplatesPanel() {
     return true;
   });
 
+  // Asks the user whether to save their current design before we clobber
+  // the canvas with a new template. Returns true if the apply should
+  // proceed (user picked either "save & continue" or "discard"), false
+  // if they want to bail. Skipped when there are no unsaved changes.
+  const confirmBeforeClobber = async (templateName: string): Promise<boolean> => {
+    const store = useCanvasStore.getState();
+    if (!store.isDirty) return true;
+    const save = await confirmDialog({
+      title: "Unsaved changes",
+      description: `"${store.designName}" has unsaved changes. Save it before applying the "${templateName}" template?`,
+      confirmText: "Save & continue",
+      cancelText: "Discard changes",
+    });
+    if (save) {
+      document.dispatchEvent(new Event("studio:save"));
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline && useCanvasStore.getState().isDirty) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
+    // Whether user picked Save or Discard, we proceed with the apply.
+    // (There's no "cancel" path — the two-button confirmDialog returns
+    // true for confirm and false for cancel, which we treat as "discard
+    // and proceed" since that's less confusing than a third option.)
+    return true;
+  };
+
   const handleApplyStarter = async (template: StarterTemplate) => {
     if (!canvas) return;
+    if (!(await confirmBeforeClobber(template.name))) return;
     setApplyingId(template.id);
     try {
       canvas.clear();
@@ -885,6 +914,7 @@ export function TemplatesPanel() {
 
   const handleApplyTemplate = async (template: DesignTemplate) => {
     if (!canvas) return;
+    if (!(await confirmBeforeClobber(template.name))) return;
     setApplyingId(template.id);
     try {
       if (template.canvasData) {
