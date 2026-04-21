@@ -31,6 +31,7 @@ import { useCanvasExport } from "../hooks/use-canvas-export";
 import { ShareDialog } from "../share-dialog";
 import { SocialDialog } from "../social-dialog";
 import { MockupDialog } from "../mockup-dialog";
+import { SaveStatus } from "./save-status";
 import { PresenceAvatars } from "./presence-avatars";
 import type { CollabUser } from "../hooks/use-collaboration";
 
@@ -158,16 +159,19 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
             View Only
           </span>
         ) : (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={handleSave}
-            title="Save (Ctrl+S)"
-            aria-label="Save design (Ctrl+S)"
-          >
-            <Save className="h-4 w-4" />
-          </Button>
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleSave}
+              title="Save (Ctrl+S)"
+              aria-label="Save design (Ctrl+S)"
+            >
+              <Save className="h-4 w-4" />
+            </Button>
+            <SaveStatus />
+          </>
         )}
 
         {/* Presence Avatars */}

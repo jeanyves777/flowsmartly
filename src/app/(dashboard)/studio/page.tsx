@@ -292,6 +292,7 @@ function StudioPageInner() {
       const store = useCanvasStore.getState();
       if (!store.canvas || store.isReadOnly) return;
 
+      store.setSaving(true);
       try {
         // Snapshot current page before saving
         store.updateCurrentPageSnapshot();
@@ -360,9 +361,12 @@ function StudioPageInner() {
             store.setDesignId(id);
           }
           store.setDirty(false);
+          store.setLastSavedAt(Date.now());
         }
       } catch {
         // silently
+      } finally {
+        store.setSaving(false);
       }
     };
 

@@ -82,6 +82,12 @@ interface CanvasState {
   isDirty: boolean;
   setDirty: (d: boolean) => void;
 
+  // Save state — drives the autosave indicator in the top toolbar
+  isSaving: boolean;
+  setSaving: (saving: boolean) => void;
+  lastSavedAt: number | null; // epoch ms of the last successful save
+  setLastSavedAt: (t: number | null) => void;
+
   // Text editing state
   isEditingText: boolean;
   setIsEditingText: (editing: boolean) => void;
@@ -172,6 +178,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   isDirty: false,
   setDirty: (d) => set({ isDirty: d }),
+
+  isSaving: false,
+  setSaving: (saving) => set({ isSaving: saving }),
+  lastSavedAt: null,
+  setLastSavedAt: (t) => set({ lastSavedAt: t }),
 
   isEditingText: false,
   setIsEditingText: (editing) => set({ isEditingText: editing }),
