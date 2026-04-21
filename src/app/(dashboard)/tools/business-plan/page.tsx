@@ -23,6 +23,18 @@ interface PlanListItem {
   updatedAt: string;
 }
 
+// Agent sometimes HTML-encodes strings inside JSON values — decode for display.
+function decodeEntities(s: string): string {
+  if (!s) return s;
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ");
+}
+
 export default function BusinessPlanListPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -116,7 +128,7 @@ export default function BusinessPlanListPage() {
               <div className="h-2" style={{ background: plan.coverColor }} />
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-base line-clamp-2">{plan.name}</CardTitle>
+                  <CardTitle className="text-base line-clamp-2">{decodeEntities(plan.name)}</CardTitle>
                   <Badge variant={plan.status === "published" ? "default" : "outline"} className="shrink-0">
                     {plan.status}
                   </Badge>
@@ -152,9 +164,9 @@ export default function BusinessPlanListPage() {
                     className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDelete(plan.id, plan.name);
+                      handleDelete(plan.id, decodeEntities(plan.name));
                     }}
-                    aria-label={`Delete ${plan.name}`}
+                    aria-label={`Delete ${decodeEntities(plan.name)}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

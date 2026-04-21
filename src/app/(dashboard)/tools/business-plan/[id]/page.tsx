@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -301,9 +302,9 @@ export default function BusinessPlanViewerPage({
               </div>
             ) : (
               <h1 className="text-3xl md:text-5xl font-bold tracking-tight mb-4 flex items-center gap-3 flex-wrap">
-                {plan.name}
+                {decodeEntities(plan.name)}
                 <button
-                  onClick={() => { setEditingName(true); setNameDraft(plan.name); }}
+                  onClick={() => { setEditingName(true); setNameDraft(decodeEntities(plan.name)); }}
                   className="text-white/70 hover:text-white print:hidden"
                   aria-label="Rename plan"
                 >
@@ -342,7 +343,7 @@ export default function BusinessPlanViewerPage({
                   <span className="w-6 h-6 shrink-0 rounded-full bg-brand-500/10 text-brand-600 flex items-center justify-center text-xs font-semibold">
                     {i + 1}
                   </span>
-                  <span className="font-medium">{s.title}</span>
+                  <span className="font-medium">{decodeEntities(s.title)}</span>
                 </a>
               </li>
             ))}
@@ -363,9 +364,9 @@ export default function BusinessPlanViewerPage({
                   <div className="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-1">
                     Section {idx + 1}
                   </div>
-                  <h2 className="text-2xl md:text-3xl font-bold tracking-tight">{section.title}</h2>
+                  <h2 className="text-2xl md:text-3xl font-bold tracking-tight">{decodeEntities(section.title)}</h2>
                   {section.summary && (
-                    <p className="text-muted-foreground mt-2 text-sm italic">{section.summary}</p>
+                    <p className="text-muted-foreground mt-2 text-sm italic">{decodeEntities(section.summary)}</p>
                   )}
                 </div>
                 {!isEditing ? (
@@ -390,11 +391,14 @@ export default function BusinessPlanViewerPage({
               </div>
 
               {isEditing ? (
-                <Textarea
+                // RichTextEditor is mounted with a key so switching between
+                // sections resets its innerHTML. Without the key the
+                // contenteditable's caret would get confused between edits.
+                <RichTextEditor
+                  key={section.id}
                   value={bodyDraft}
-                  onChange={(e) => setBodyDraft(e.target.value)}
-                  rows={14}
-                  className="font-mono text-xs"
+                  onChange={setBodyDraft}
+                  minHeight={320}
                 />
               ) : (
                 <div
@@ -548,6 +552,22 @@ export default function BusinessPlanViewerPage({
       `}</style>
     </div>
   );
+}
+
+// The agent sometimes HTML-encodes strings inside JSON values (e.g.
+// "Products &amp; Services" instead of "Products & Services"). React
+// renders that literally since it double-escapes. Decode common entities
+// when displaying plain-text fields (title, summary, plan name) before
+// handing them to React.
+function decodeEntities(s: string): string {
+  if (!s) return s;
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ");
 }
 
 // Darken a hex color by a percentage — used for the cover gradient's stop.

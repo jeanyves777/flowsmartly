@@ -182,6 +182,15 @@ SECTIONS (in this order, with these exact slugs):
 12. risk-analysis — top 5 risks + mitigations (CHART: risk heatmap as bar chart)
 13. roadmap-next-steps — 12-month timeline with quarterly milestones (CHART: timeline)
 
+CRITICAL STRING RULES — PLAIN TEXT FIELDS MUST NOT CONTAIN HTML ENTITIES:
+- title, summary, chart title, chart data names, data labels are PLAIN TEXT.
+- Write "Products & Services" not "Products &amp; Services".
+- Write "Marketing & Sales" not "Marketing &amp; Sales".
+- Never escape apostrophes as &#39; or ampersands as &amp; in these fields.
+- HTML escaping ONLY belongs inside the "body" field's HTML content when the
+  literal character would be parsed as markup (e.g. inside a <td> writing
+  <code>&lt;div&gt;</code>).
+
 OUTPUT FORMAT — your FINAL answer must be ONLY a JSON object, no prose around it, no markdown fences:
 {
   "sections": [

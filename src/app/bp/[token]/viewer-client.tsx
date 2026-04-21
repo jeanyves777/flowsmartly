@@ -77,7 +77,7 @@ export function SharedPlanViewer({ plan }: { plan: SharedPlan }) {
               <FileText className="h-3.5 w-3.5" />
               Business Plan
             </div>
-            <h1 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">{plan.name}</h1>
+            <h1 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">{decodeEntities(plan.name)}</h1>
             <div className="flex flex-wrap gap-3 text-sm text-white/90">
               {plan.industry && (
                 <span className="px-3 py-1 rounded-full bg-white/15 capitalize">
@@ -110,7 +110,7 @@ export function SharedPlanViewer({ plan }: { plan: SharedPlan }) {
                   <span className="w-6 h-6 shrink-0 rounded-full bg-brand-500/10 text-brand-600 flex items-center justify-center text-xs font-semibold">
                     {i + 1}
                   </span>
-                  <span className="font-medium text-slate-700 dark:text-slate-200">{s.title}</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-200">{decodeEntities(s.title)}</span>
                 </a>
               </li>
             ))}
@@ -127,10 +127,10 @@ export function SharedPlanViewer({ plan }: { plan: SharedPlan }) {
               Section {idx + 1}
             </div>
             <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              {section.title}
+              {decodeEntities(section.title)}
             </h2>
             {section.summary && (
-              <p className="text-slate-600 dark:text-slate-400 mt-2 text-sm italic">{section.summary}</p>
+              <p className="text-slate-600 dark:text-slate-400 mt-2 text-sm italic">{decodeEntities(section.summary)}</p>
             )}
 
             <div
@@ -193,6 +193,17 @@ export function SharedPlanViewer({ plan }: { plan: SharedPlan }) {
       `}</style>
     </div>
   );
+}
+
+function decodeEntities(s: string): string {
+  if (!s) return s;
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ");
 }
 
 function darken(hex: string, amount: number): string {
