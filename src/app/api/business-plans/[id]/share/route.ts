@@ -48,7 +48,7 @@ export async function POST(
     req.headers.get("x-forwarded-host")
       ? `https://${req.headers.get("x-forwarded-host")}`
       : req.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "";
-  const shareUrl = `${origin}/p/${token}`;
+  const shareUrl = `${origin}/bp/${token}`;
 
   let emailed = false;
   if (toEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)) {
