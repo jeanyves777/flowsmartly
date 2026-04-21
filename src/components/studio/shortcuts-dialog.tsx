@@ -67,6 +67,8 @@ const buildGroups = (mod: string): ShortcutGroup[] => [
       { keys: [mod, "⇧", "G"], description: "Ungroup" },
       { keys: ["["], description: "Send backward" },
       { keys: ["]"], description: "Bring forward" },
+      { keys: ["Arrows"], description: "Nudge 1 pixel" },
+      { keys: ["⇧", "Arrows"], description: "Nudge 10 pixels" },
     ],
   },
   {

@@ -107,6 +107,16 @@ export function useCanvasShortcuts() {
             e.preventDefault();
             document.dispatchEvent(new CustomEvent("studio:open-shortcuts"));
             return;
+          case "arrowleft":
+          case "arrowright":
+          case "arrowup":
+          case "arrowdown": {
+            // Nudge the selected object(s). 1px for arrow alone, 10px with Shift.
+            // Preventing default stops the viewport from scrolling.
+            e.preventDefault();
+            handleNudge(e.key, e.shiftKey);
+            return;
+          }
         }
       }
     };
@@ -230,6 +240,24 @@ export function useCanvasShortcuts() {
     canvas.bringObjectForward(active);
     canvas.renderAll();
     refreshLayers();
+    setDirty(true);
+    pushState();
+  }
+
+  // Arrow-key nudge for the active selection. 1px per tap, 10px with Shift.
+  // We push one history entry per discrete keydown so undo rewinds cleanly.
+  function handleNudge(key: string, shift: boolean) {
+    if (!canvas) return;
+    const active = canvas.getActiveObject();
+    if (!active) return;
+    const step = shift ? 10 : 1;
+    const k = key.toLowerCase();
+    if (k === "arrowleft") active.set("left", (active.left || 0) - step);
+    else if (k === "arrowright") active.set("left", (active.left || 0) + step);
+    else if (k === "arrowup") active.set("top", (active.top || 0) - step);
+    else if (k === "arrowdown") active.set("top", (active.top || 0) + step);
+    active.setCoords();
+    canvas.requestRenderAll();
     setDirty(true);
     pushState();
   }
