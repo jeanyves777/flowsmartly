@@ -413,6 +413,157 @@ const STARTER_TEMPLATES: StarterTemplate[] = [
       { type: "textbox", text: "\u2192 Helping early-stage teams ship faster", fontSize: 18, fontStyle: "italic", fill: "#cbd5e1", textAlign: "left", top: 320, left: 100, width: 1000 },
     ],
   },
+
+  // 13. TESTIMONIAL CARD — avatar circle + quoted review + 5-star rating
+  {
+    id: "t-testimonial",
+    name: "Testimonial",
+    category: "social_post",
+    width: 1080, height: 1080, bgColor: "#f8fafc",
+    gradient: "linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)",
+    elements: [
+      // Decorative oversized quote mark
+      { type: "textbox", text: "\u201C", fontSize: 240, fill: "#6366f1", textAlign: "center", top: 80, left: 40, width: 1000, fontFamily: "Playfair Display", opacity: 0.25 },
+      // Avatar placeholder (large circle)
+      { type: "circle", top: 260, left: 440, radius: 100, fill: "#e0e7ff", stroke: "#6366f1", strokeWidth: 4 },
+      { type: "textbox", text: "\u2295", fontSize: 64, fill: "#818cf8", textAlign: "center", top: 310, left: 440, width: 200 },
+      // Quote body
+      { type: "textbox", text: "\"This completely changed how our team works.\nWorth every penny, and the support is stellar.\"", fontSize: 32, fontStyle: "italic", fill: "#1e293b", textAlign: "center", top: 520, left: 90, width: 900, fontFamily: "Playfair Display", lineHeight: 1.4 },
+      // Star rating row (5 yellow star approximations using filled text chars)
+      { type: "textbox", text: "\u2605  \u2605  \u2605  \u2605  \u2605", fontSize: 32, fill: "#f59e0b", textAlign: "center", top: 720, left: 190, width: 700, charSpacing: 200 },
+      // Divider
+      { type: "line", coords: [440, 790, 640, 790], stroke: "#6366f1", strokeWidth: 2 },
+      // Name + title
+      { type: "textbox", text: "Sarah Chen", fontSize: 28, fontWeight: "bold", fill: "#0f172a", textAlign: "center", top: 820, left: 140, width: 800 },
+      { type: "textbox", text: "CEO, Acme Corp", fontSize: 18, fill: "#64748b", textAlign: "center", top: 865, left: 240, width: 600, charSpacing: 200 },
+    ],
+  },
+
+  // 14. INSTAGRAM POST — avatar header + photo frame + caption
+  {
+    id: "t-ig-post",
+    name: "Instagram Post",
+    category: "social_post",
+    width: 1080, height: 1350, bgColor: "#ffffff",
+    gradient: "linear-gradient(180deg, #ffffff 0%, #f9fafb 100%)",
+    elements: [
+      // Header bar (avatar + username)
+      { type: "circle", top: 40, left: 40, radius: 36, fill: "#ddd6fe", stroke: "#a78bfa", strokeWidth: 3 },
+      { type: "textbox", text: "\u2295", fontSize: 28, fill: "#8b5cf6", textAlign: "center", top: 60, left: 20, width: 80 },
+      { type: "textbox", text: "@yourbrand", fontSize: 22, fontWeight: "bold", fill: "#0f172a", textAlign: "left", top: 60, left: 130, width: 500 },
+      { type: "textbox", text: "Brooklyn, NY", fontSize: 14, fill: "#64748b", textAlign: "left", top: 90, left: 130, width: 400 },
+      // Photo placeholder frame (square)
+      { type: "rect", top: 160, left: 40, width: 1000, height: 1000, fill: "#f1f5f9", rx: 8, ry: 8 },
+      { type: "rect", top: 160, left: 40, width: 1000, height: 1000, fill: "transparent", stroke: "#cbd5e1", strokeWidth: 2, rx: 8, ry: 8 },
+      // Decorative circle inside photo area
+      { type: "circle", top: 580, left: 430, radius: 80, fill: "rgba(99,102,241,0.15)" },
+      { type: "textbox", text: "\u2295  drop your photo here", fontSize: 28, fill: "#94a3b8", textAlign: "center", top: 620, left: 140, width: 800 },
+      // Caption
+      { type: "textbox", text: "Your caption starts here. Share the moment, tell the story, add a few #hashtags.", fontSize: 18, fill: "#0f172a", textAlign: "left", top: 1210, left: 40, width: 1000, lineHeight: 1.5 },
+      // Action row icons (heart/comment/share approximated)
+      { type: "textbox", text: "\u2661      \uD83D\uDCAC      \u2197", fontSize: 28, fill: "#0f172a", textAlign: "left", top: 1290, left: 40, width: 400 },
+    ],
+  },
+
+  // 15. PODCAST COVER — microphone-inspired circular mark + episode info
+  {
+    id: "t-podcast",
+    name: "Podcast Cover",
+    category: "social_post",
+    width: 1080, height: 1080, bgColor: "#1e1b4b",
+    gradient: "linear-gradient(135deg, #1e1b4b 0%, #4c1d95 50%, #be185d 100%)",
+    elements: [
+      // Concentric decorative rings (mic iconography)
+      { type: "circle", top: 260, left: 340, radius: 220, fill: "transparent", stroke: "rgba(255,255,255,0.15)", strokeWidth: 2 },
+      { type: "circle", top: 310, left: 390, radius: 170, fill: "transparent", stroke: "rgba(255,255,255,0.25)", strokeWidth: 2 },
+      { type: "circle", top: 360, left: 440, radius: 120, fill: "#fef08a" },
+      // Mic glyph (use a unicode mic)
+      { type: "textbox", text: "\uD83C\uDFA4", fontSize: 140, fill: "#1e1b4b", textAlign: "center", top: 385, left: 400, width: 280 },
+      // Show badge
+      { type: "rect", top: 680, left: 380, width: 320, height: 48, fill: "#fef08a", rx: 24, ry: 24 },
+      { type: "textbox", text: "EPISODE 47", fontSize: 20, fontWeight: "bold", fill: "#1e1b4b", textAlign: "center", top: 694, left: 380, width: 320, charSpacing: 400 },
+      // Episode title
+      { type: "textbox", text: "The Future of\nRemote Work", fontSize: 64, fontWeight: "bold", fill: "#ffffff", textAlign: "center", top: 760, left: 40, width: 1000, fontFamily: "Playfair Display", fontStyle: "italic", lineHeight: 1.0 },
+      // Host
+      { type: "textbox", text: "with Jamie Rivera", fontSize: 20, fill: "rgba(255,255,255,0.7)", textAlign: "center", top: 930, left: 190, width: 700, charSpacing: 200 },
+      // Waveform hint (a row of vertical bars)
+      ...[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map((i) => ({
+        type: "rect" as const,
+        top: 990 + (i % 2 === 0 ? 0 : -8),
+        left: 420 + i * 16,
+        width: 4,
+        height: 20 + (i % 3) * 10,
+        fill: "rgba(254,240,138,0.8)",
+      })),
+    ],
+  },
+
+  // 16. BEFORE / AFTER — split layout with diagonal divider
+  {
+    id: "t-before-after",
+    name: "Before / After",
+    category: "social_post",
+    width: 1080, height: 1080, bgColor: "#f8fafc",
+    gradient: "linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%)",
+    elements: [
+      // Left half — "Before" muted
+      { type: "rect", top: 0, left: 0, width: 540, height: 1080, fill: "#e2e8f0" },
+      { type: "textbox", text: "BEFORE", fontSize: 28, fontWeight: "bold", fill: "#64748b", textAlign: "center", top: 60, left: 0, width: 540, charSpacing: 400 },
+      { type: "rect", top: 200, left: 70, width: 400, height: 400, fill: "#cbd5e1", rx: 16, ry: 16 },
+      { type: "textbox", text: "\u2295  old photo", fontSize: 24, fill: "#64748b", textAlign: "center", top: 380, left: 70, width: 400 },
+      // Right half — "After" with brand color
+      { type: "rect", top: 0, left: 540, width: 540, height: 1080, fill: "#6366f1" },
+      { type: "textbox", text: "AFTER", fontSize: 28, fontWeight: "bold", fill: "#ffffff", textAlign: "center", top: 60, left: 540, width: 540, charSpacing: 400 },
+      { type: "rect", top: 200, left: 610, width: 400, height: 400, fill: "#818cf8", rx: 16, ry: 16 },
+      { type: "textbox", text: "\u2295  new photo", fontSize: 24, fill: "#c7d2fe", textAlign: "center", top: 380, left: 610, width: 400 },
+      // Center circle with VS
+      { type: "circle", top: 440, left: 470, radius: 70, fill: "#fef08a", stroke: "#1e293b", strokeWidth: 6 },
+      { type: "textbox", text: "VS", fontSize: 44, fontWeight: "bold", fill: "#1e293b", textAlign: "center", top: 475, left: 470, width: 140 },
+      // Bottom headline spanning full width
+      { type: "rect", top: 720, left: 0, width: 1080, height: 360, fill: "#0f172a" },
+      { type: "textbox", text: "The Transformation", fontSize: 52, fontWeight: "bold", fill: "#ffffff", textAlign: "center", top: 770, left: 40, width: 1000, fontFamily: "Playfair Display", fontStyle: "italic" },
+      { type: "textbox", text: "See the difference our solution makes", fontSize: 22, fill: "rgba(255,255,255,0.7)", textAlign: "center", top: 870, left: 140, width: 800 },
+      // CTA
+      { type: "rect", top: 940, left: 390, width: 300, height: 64, fill: "#fef08a", rx: 32, ry: 32 },
+      { type: "textbox", text: "LEARN MORE", fontSize: 18, fontWeight: "bold", fill: "#0f172a", textAlign: "center", top: 961, left: 390, width: 300, charSpacing: 400 },
+    ],
+  },
+
+  // 17. TEAM SPOTLIGHT — 3 avatar circles + names
+  {
+    id: "t-team",
+    name: "Team Spotlight",
+    category: "social_post",
+    width: 1080, height: 1080, bgColor: "#0f172a",
+    gradient: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+    elements: [
+      // Eyebrow
+      { type: "textbox", text: "MEET THE TEAM", fontSize: 20, fontWeight: "bold", fill: "#fef08a", textAlign: "center", top: 120, left: 240, width: 600, charSpacing: 600 },
+      // Title
+      { type: "textbox", text: "The People Behind\nYour Favorite Brand", fontSize: 52, fontWeight: "bold", fill: "#ffffff", textAlign: "center", top: 180, left: 40, width: 1000, fontFamily: "Playfair Display", lineHeight: 1.2 },
+      // Divider
+      { type: "rect", top: 360, left: 490, width: 100, height: 3, fill: "#fef08a" },
+      // Three avatar circles
+      { type: "circle", top: 440, left: 180, radius: 90, fill: "#818cf8", stroke: "#6366f1", strokeWidth: 4 },
+      { type: "circle", top: 440, left: 460, radius: 90, fill: "#f472b6", stroke: "#ec4899", strokeWidth: 4 },
+      { type: "circle", top: 440, left: 740, radius: 90, fill: "#34d399", stroke: "#10b981", strokeWidth: 4 },
+      // Avatar placeholder glyphs
+      { type: "textbox", text: "\uD83D\uDC64", fontSize: 80, fill: "#ffffff", textAlign: "center", top: 475, left: 140, width: 180, opacity: 0.85 },
+      { type: "textbox", text: "\uD83D\uDC64", fontSize: 80, fill: "#ffffff", textAlign: "center", top: 475, left: 420, width: 180, opacity: 0.85 },
+      { type: "textbox", text: "\uD83D\uDC64", fontSize: 80, fill: "#ffffff", textAlign: "center", top: 475, left: 700, width: 180, opacity: 0.85 },
+      // Names
+      { type: "textbox", text: "Alex", fontSize: 24, fontWeight: "bold", fill: "#ffffff", textAlign: "center", top: 650, left: 140, width: 180 },
+      { type: "textbox", text: "Jordan", fontSize: 24, fontWeight: "bold", fill: "#ffffff", textAlign: "center", top: 650, left: 420, width: 180 },
+      { type: "textbox", text: "Taylor", fontSize: 24, fontWeight: "bold", fill: "#ffffff", textAlign: "center", top: 650, left: 700, width: 180 },
+      // Roles
+      { type: "textbox", text: "Designer", fontSize: 14, fill: "#94a3b8", textAlign: "center", top: 685, left: 140, width: 180, charSpacing: 200 },
+      { type: "textbox", text: "Engineer", fontSize: 14, fill: "#94a3b8", textAlign: "center", top: 685, left: 420, width: 180, charSpacing: 200 },
+      { type: "textbox", text: "Founder", fontSize: 14, fill: "#94a3b8", textAlign: "center", top: 685, left: 700, width: 180, charSpacing: 200 },
+      // Footer bar
+      { type: "rect", top: 830, left: 0, width: 1080, height: 250, fill: "rgba(254,240,138,0.05)" },
+      { type: "textbox", text: "Together we build things\nthat matter.", fontSize: 28, fontStyle: "italic", fill: "#fef08a", textAlign: "center", top: 870, left: 90, width: 900, fontFamily: "Playfair Display", lineHeight: 1.3 },
+    ],
+  },
 ];
 
 export function TemplatesPanel() {
