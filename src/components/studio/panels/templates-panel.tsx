@@ -566,6 +566,137 @@ const STARTER_TEMPLATES: StarterTemplate[] = [
   },
 ];
 
+/**
+ * Renders a scaled-down layered preview of a starter template as stacked
+ * absolutely-positioned divs. Each shape/line/text becomes its own element
+ * scaled by (containerWidth / template.width), so the visual layout matches
+ * what will actually land on the canvas on apply. Much better than the
+ * previous "gradient + one line of text" thumbnail which made every
+ * template look the same.
+ *
+ * Text is heavily downscaled and clamped to a minimum visible size to keep
+ * it readable at ~140px wide. Font-family isn't loaded for thumbnails —
+ * the browser falls back to a generic sans-serif, which is fine at this
+ * scale.
+ */
+function StarterThumbnail({ template }: { template: StarterTemplate }) {
+  // Use useRef-style scale computation with CSS: the container is the full
+  // panel-card size; we scale children by its own computed width at render.
+  // To avoid layout-measurement cycles, we render the inner box at the
+  // template's native dimensions and apply a CSS transform: scale().
+  // Container uses padding-bottom trick to preserve the template's aspect
+  // ratio regardless of thumbnail width.
+  const aspectPct = (template.height / template.width) * 100;
+  return (
+    <div
+      className="relative w-full overflow-hidden"
+      style={{ paddingBottom: `${aspectPct}%`, background: template.gradient }}
+    >
+      {/* Absolute container at native template dimensions — scaled via CSS. */}
+      <div
+        className="absolute top-0 left-0 origin-top-left"
+        style={{
+          width: `${template.width}px`,
+          height: `${template.height}px`,
+          transform: `scale(calc(100% / ${template.width}))`,
+        }}
+      >
+        {template.elements.map((el, idx) => {
+          if (el.type === "rect") {
+            return (
+              <div
+                key={idx}
+                style={{
+                  position: "absolute",
+                  left: el.left,
+                  top: el.top,
+                  width: el.width,
+                  height: el.height,
+                  background: el.fill !== "transparent" ? el.fill : undefined,
+                  border: el.stroke ? `${el.strokeWidth ?? 1}px solid ${el.stroke}` : undefined,
+                  borderRadius: el.rx ? el.rx : 0,
+                  opacity: el.opacity ?? 1,
+                  transform: el.angle ? `rotate(${el.angle}deg)` : undefined,
+                  transformOrigin: "center",
+                }}
+              />
+            );
+          }
+          if (el.type === "circle") {
+            return (
+              <div
+                key={idx}
+                style={{
+                  position: "absolute",
+                  left: el.left,
+                  top: el.top,
+                  width: el.radius * 2,
+                  height: el.radius * 2,
+                  background: el.fill !== "transparent" ? el.fill : undefined,
+                  border: el.stroke ? `${el.strokeWidth ?? 1}px solid ${el.stroke}` : undefined,
+                  borderRadius: "50%",
+                  opacity: el.opacity ?? 1,
+                }}
+              />
+            );
+          }
+          if (el.type === "line") {
+            const [x1, y1, x2, y2] = el.coords;
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const length = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+            return (
+              <div
+                key={idx}
+                style={{
+                  position: "absolute",
+                  left: x1,
+                  top: y1,
+                  width: length,
+                  height: el.strokeWidth ?? 2,
+                  background: el.stroke,
+                  opacity: el.opacity ?? 1,
+                  transform: `rotate(${angle}deg)`,
+                  transformOrigin: "0 50%",
+                }}
+              />
+            );
+          }
+          if (el.type === "textbox") {
+            return (
+              <div
+                key={idx}
+                style={{
+                  position: "absolute",
+                  left: el.left,
+                  top: el.top,
+                  width: el.width,
+                  color: el.fill,
+                  fontFamily: el.fontFamily || "Inter, system-ui, sans-serif",
+                  fontSize: el.fontSize,
+                  fontWeight: (el.fontWeight as React.CSSProperties["fontWeight"]) || "normal",
+                  fontStyle: el.fontStyle || "normal",
+                  textAlign: el.textAlign as React.CSSProperties["textAlign"],
+                  lineHeight: el.lineHeight ?? 1.2,
+                  letterSpacing: el.charSpacing ? `${el.charSpacing / 1000}em` : undefined,
+                  opacity: el.opacity ?? 1,
+                  whiteSpace: "pre-wrap",
+                  pointerEvents: "none",
+                  overflow: "hidden",
+                }}
+              >
+                {el.text}
+              </div>
+            );
+          }
+          return null;
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function TemplatesPanel() {
   const canvas = useCanvasStore((s) => s.canvas);
   const setCanvasDimensions = useCanvasStore((s) => s.setCanvasDimensions);
@@ -848,26 +979,13 @@ export function TemplatesPanel() {
                   template.width > template.height ? "aspect-video" : template.height > template.width * 1.5 ? "aspect-[9/16]" : "aspect-square"
                 )}
               >
-                <div
-                  className="absolute inset-0 flex flex-col items-center justify-center p-3"
-                  style={{ background: template.gradient }}
-                >
-                  {applyingId === template.id ? (
+                {/* Layered preview of the actual template composition */}
+                <StarterThumbnail template={template} />
+                {applyingId === template.id && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                     <AISpinner className="h-5 w-5 animate-spin text-white" />
-                  ) : (
-                    <span className={cn(
-                      "font-bold text-center leading-tight",
-                      template.bgColor === "#ffffff" || template.bgColor === "#f8f5f0" ? "text-gray-800" : "text-white",
-                      template.width > template.height ? "text-[10px]" : "text-xs"
-                    )}>
-                      {/* Show the first textbox element's first line as the thumbnail label */}
-                      {(() => {
-                        const firstText = template.elements.find((el) => el.type === "textbox");
-                        return firstText ? firstText.text.split("\n")[0] : template.name;
-                      })()}
-                    </span>
-                  )}
-                </div>
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1.5 translate-y-full group-hover:translate-y-0 transition-transform">
                   <p className="text-white text-[10px] font-medium truncate">{template.name}</p>
