@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { pickScreenColor, isEyeDropperSupported } from "../utils/eyedropper";
 import { useBrandColors } from "../hooks/use-brand-colors";
+import { useRecentColors, pushRecentColor } from "../hooks/use-recent-colors";
 
 interface ColorInputProps {
   value: string;
@@ -27,26 +28,35 @@ export function ColorInput({ value, onChange, label, hideSwatches }: ColorInputP
   const [hex, setHex] = useState(value);
   const [supportsEyeDropper, setSupportsEyeDropper] = useState(false);
   const brandColors = useBrandColors();
+  const recentColors = useRecentColors();
 
   useEffect(() => setHex(value), [value]);
   useEffect(() => setSupportsEyeDropper(isEyeDropperSupported()), []);
 
+  // Wrapper around onChange that also records the color in recents.
+  // We push at commit time (not while dragging the native picker) to avoid
+  // 200+ entries from a single hue-slider drag.
+  const handleChange = (next: string) => {
+    onChange(next);
+    pushRecentColor(next);
+  };
+
   const commit = (next: string) => {
     setHex(next);
-    if (/^#[0-9a-fA-F]{6}$/.test(next)) onChange(next);
+    if (/^#[0-9a-fA-F]{6}$/.test(next)) handleChange(next);
   };
 
   const handlePick = async () => {
     const picked = await pickScreenColor();
     if (picked) {
       setHex(picked);
-      onChange(picked);
+      handleChange(picked);
     }
   };
 
   const applySwatch = (swatch: string) => {
     setHex(swatch);
-    onChange(swatch);
+    handleChange(swatch);
   };
 
   // Highlight the swatch that matches the current value (case-insensitive)
@@ -101,6 +111,33 @@ export function ColorInput({ value, onChange, label, hideSwatches }: ColorInputP
               onClick={() => applySwatch(swatch)}
               title={swatch}
               aria-label={`Apply brand color ${swatch}`}
+              className={
+                "h-5 w-5 rounded border transition-shadow " +
+                (activeSwatch === swatch
+                  ? "ring-2 ring-brand-500 ring-offset-1 ring-offset-background"
+                  : "border-border hover:scale-110")
+              }
+              style={{ background: swatch }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Recent colors — populated as the user picks colors anywhere in
+          the studio. Persists in localStorage across reloads but stays
+          local to the device. */}
+      {!hideSwatches && recentColors.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/80 w-12 shrink-0">
+            Recent
+          </span>
+          {recentColors.map((swatch) => (
+            <button
+              key={`recent-${swatch}`}
+              type="button"
+              onClick={() => applySwatch(swatch)}
+              title={swatch}
+              aria-label={`Apply recent color ${swatch}`}
               className={
                 "h-5 w-5 rounded border transition-shadow " +
                 (activeSwatch === swatch
