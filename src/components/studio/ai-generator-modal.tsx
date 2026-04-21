@@ -48,6 +48,8 @@ interface BrandIdentity {
   logo: string | null;
   iconLogo: string | null;
   colors: Record<string, string>;
+  /** Brand fonts from BrandKit ({ heading, body }) — applied to AI-generated text. */
+  fonts: { heading?: string | null; body?: string | null } | null;
   voiceTone: string | null;
   email: string | null;
   phone: string | null;
@@ -273,6 +275,16 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
               typeof kit.colors === "string"
                 ? JSON.parse(kit.colors)
                 : kit.colors,
+            fonts: (() => {
+              if (!kit.fonts) return null;
+              try {
+                const parsed = typeof kit.fonts === "string" ? JSON.parse(kit.fonts) : kit.fonts;
+                if (!parsed || (typeof parsed === "object" && Object.keys(parsed).length === 0)) return null;
+                return parsed;
+              } catch {
+                return null;
+              }
+            })(),
             voiceTone: kit.voiceTone,
             email: kit.email || null,
             phone: kit.phone || null,
@@ -401,6 +413,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
             textMode,
             ctaText: ctaText.trim() || null,
             brandColors: brandIdentity?.colors || null,
+            brandFonts: brandIdentity?.fonts || null,
             brandName: showBrandName ? brandIdentity?.name : null,
             showBrandName,
             showSocialIcons,
@@ -445,6 +458,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
           await applyAILayout(canvas, data.data.layout, fabric, w || canvasWidth, h || canvasHeight, {
             clearCanvas: true,
             brandLogoUrl: brandLogoUrl || null,
+            brandFonts: brandIdentity?.fonts || null,
           });
           // Refresh layers panel
           const refreshLayers = useCanvasStore.getState().refreshLayers;

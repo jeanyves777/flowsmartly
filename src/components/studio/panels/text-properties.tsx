@@ -48,6 +48,9 @@ export function TextProperties() {
   const [shadowColor, setShadowColor] = useState("#000000");
   const [shadowBlur, setShadowBlur] = useState(8);
   const [shadowOffsetX, setShadowOffsetX] = useState(2);
+  // Curve text along an arc path. 0 = straight, range -100..100. Sign
+  // controls direction (positive = curve down, negative = curve up).
+  const [curveAmount, setCurveAmount] = useState(0);
   const [shadowOffsetY, setShadowOffsetY] = useState(2);
 
   const getActiveText = useCallback(() => {
@@ -95,6 +98,10 @@ export function TextProperties() {
     } else {
       setShadowEnabled(false);
     }
+
+    // Curve sync — recover the curve amount from the saved __curveAmount marker
+    // (we store our own value rather than reverse-engineering Fabric's path)
+    setCurveAmount(typeof obj.__curveAmount === "number" ? obj.__curveAmount : 0);
   }, [selectedObjectIds, getActiveText]);
 
   const updateProp = (prop: string, value: any) => {
@@ -145,6 +152,45 @@ export function TextProperties() {
   const setAlign = (align: string) => {
     setTextAlign(align);
     updateProp("textAlign", align);
+  };
+
+  // Curve text along an arc path. amount in [-100, 100]:
+  //   0    = no path (straight)
+  //   +50  = mild downward curve
+  //   +100 = tight half-circle, text reads top-to-bottom along the arc
+  //   negatives mirror the curve upward
+  const applyCurve = async (amount: number) => {
+    setCurveAmount(amount);
+    const obj = getActiveText();
+    if (!obj || !canvas) return;
+    if (amount === 0) {
+      obj.set("path", null);
+      obj.__curveAmount = 0;
+      canvas.requestRenderAll();
+      return;
+    }
+    const fabric = await import("fabric");
+    // Width of a straight version of the text — scaled to its current width
+    const width = (obj.width || 200) * (obj.scaleX || 1);
+    // Map amount -> radius. Higher abs(amount) = smaller radius = tighter curve.
+    const tightness = Math.abs(amount) / 100; // 0..1
+    const radius = Math.max(width * 0.5, width / Math.max(tightness * 2, 0.5));
+    const direction = amount >= 0 ? 1 : -1;
+
+    // Build an SVG arc path: start at left edge, sweep to right edge through
+    // the bottom (or top, when negative). The path is centered around the
+    // text's local origin so the result looks balanced after Fabric attaches it.
+    const halfW = width / 2;
+    const sagitta = radius - Math.sqrt(Math.max(0, radius * radius - halfW * halfW));
+    const sweep = direction === 1 ? 1 : 0;
+    const yEnd = direction === 1 ? sagitta : -sagitta;
+    const pathStr = `M ${-halfW} 0 A ${radius} ${radius} 0 0 ${sweep} ${halfW} ${yEnd}`;
+    const path = new fabric.Path(pathStr, {
+      visible: false, // Path itself stays invisible; only the text rides it
+    });
+    obj.set("path", path);
+    obj.__curveAmount = amount;
+    canvas.requestRenderAll();
   };
 
   const applyStroke = (width: number, color: string) => {
@@ -435,6 +481,34 @@ export function TextProperties() {
           }}
           className="w-full h-1.5 accent-brand-500"
         />
+      </div>
+
+      {/* Curve Text */}
+      <div>
+        <div className="flex items-center justify-between">
+          <label className="text-xs text-muted-foreground">Curve</label>
+          <button
+            type="button"
+            onClick={() => applyCurve(0)}
+            disabled={curveAmount === 0}
+            className="text-[10px] text-muted-foreground hover:text-brand-600 disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-label="Reset curve"
+          >
+            Reset
+          </button>
+        </div>
+        <input
+          type="range"
+          min={-100}
+          max={100}
+          value={curveAmount}
+          onChange={(e) => applyCurve(parseInt(e.target.value, 10))}
+          className="w-full h-1.5 accent-brand-500"
+          aria-label="Curve amount: negative curves up, positive curves down"
+        />
+        <p className="text-[10px] text-muted-foreground mt-0.5">
+          {curveAmount === 0 ? "Straight" : curveAmount > 0 ? `Curve down (${curveAmount})` : `Curve up (${Math.abs(curveAmount)})`}
+        </p>
       </div>
 
       {/* Effects: Outline + Shadow */}
