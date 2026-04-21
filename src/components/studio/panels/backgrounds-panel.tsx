@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Paintbrush, ImageIcon, Upload, FolderOpen } from "lucide-react";
+import { Paintbrush, ImageIcon, Upload, FolderOpen, Palette } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useCanvasStore } from "../hooks/use-canvas-store";
+import { useBrandColors } from "../hooks/use-brand-colors";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface MediaItem {
@@ -45,6 +46,7 @@ export function BackgroundsPanel() {
   const [libraryImages, setLibraryImages] = useState<MediaItem[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [settingBgId, setSettingBgId] = useState<string | null>(null);
+  const brandColors = useBrandColors();
 
   // Auto-load user's media library
   const fetchLibrary = useCallback(async () => {
@@ -164,9 +166,47 @@ export function BackgroundsPanel() {
     setSettingBgId(null);
   };
 
+  // Build a brand-colors gradient pair from the first two brand colors
+  // when at least two are configured. Used to seed a one-click brand gradient.
+  const brandGradient =
+    brandColors.length >= 2 ? [brandColors[0], brandColors[1]] : null;
+
   return (
     <div className="p-3">
       <h3 className="text-sm font-semibold mb-3">Background</h3>
+
+      {/* Brand Colors — only shows when the user has a configured brand kit */}
+      {brandColors.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Palette className="h-3.5 w-3.5 text-brand-500" />
+            <span className="text-xs font-medium">Brand Colors</span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {brandColors.map((c) => (
+              <button
+                key={c}
+                onClick={() => setBackgroundColor(c)}
+                className="w-8 h-8 rounded border border-border hover:scale-110 transition-transform"
+                style={{ backgroundColor: c }}
+                title={`Apply brand color ${c}`}
+                aria-label={`Apply brand color ${c} as background`}
+              />
+            ))}
+            {brandGradient && (
+              <button
+                onClick={() => setBackgroundGradient(brandGradient)}
+                className="w-8 h-8 rounded border border-border hover:scale-110 transition-transform"
+                style={{
+                  background: `linear-gradient(135deg, ${brandGradient[0]}, ${brandGradient[1]})`,
+                }}
+                title="Apply brand gradient"
+                aria-label="Apply brand gradient as background"
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Solid Colors */}
       <div className="mb-4">
