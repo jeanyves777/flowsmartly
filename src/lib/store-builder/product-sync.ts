@@ -92,9 +92,10 @@ async function syncProductsToFile(storeId: string, storeDir: string): Promise<vo
     try { labels = JSON.parse(p.labels || "[]"); } catch {}
 
     // Sync variants from DB. The generated stores' ProductVariant type
-    // expects `inStock: boolean`, so derive it from the DB `quantity`
-    // column here — without it, the VariantPickerModal treats every
-    // variant as out-of-stock and disables Add-to-Cart.
+    // expects `inStock: boolean`. Respect product-level `trackInventory`:
+    // if the product is NOT tracking inventory, all its variants are
+    // in-stock regardless of their quantity column (since nobody set
+    // quantities). If it IS tracking, variants with quantity > 0 are in.
     const variants = (p.variants || []).map((v: any) => {
       let options: Record<string, string> = {};
       try { options = JSON.parse(v.options || "{}"); } catch {}
@@ -106,7 +107,7 @@ async function syncProductsToFile(storeId: string, storeDir: string): Promise<vo
         comparePriceCents: v.comparePriceCents || null,
         options,
         quantity: v.quantity,
-        inStock: typeof v.quantity === "number" ? v.quantity > 0 : true,
+        inStock: p.trackInventory ? (typeof v.quantity === "number" ? v.quantity > 0 : true) : true,
         imageUrl: v.imageUrl || "",
       };
     });

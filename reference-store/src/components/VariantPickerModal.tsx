@@ -222,12 +222,13 @@ export default function VariantPickerModal({ product, open, onClose }: VariantPi
                             type="button"
                             disabled={!inStock}
                             onClick={() => setSelected((s) => ({ ...s, [dim.key]: val }))}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-all focus:outline-none focus:ring-2 focus:ring-primary-500/40 ${
                               isSelected
-                                ? "border-primary-600 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300"
+                                // Selected: strong primary border, white background, gray-900 text — always readable regardless of brand primary hue.
+                                ? "border-primary-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
                                 : inStock
-                                  ? "border-gray-200 dark:border-gray-700 hover:border-gray-400 text-gray-700 dark:text-gray-200"
-                                  : "border-gray-200 dark:border-gray-700 text-gray-300 dark:text-gray-600 line-through cursor-not-allowed"
+                                  ? "border-gray-200 dark:border-gray-700 hover:border-primary-400 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200"
+                                  : "border-gray-200 dark:border-gray-700 text-gray-300 dark:text-gray-600 line-through cursor-not-allowed bg-white dark:bg-gray-900"
                             }`}
                           >
                             {val}
