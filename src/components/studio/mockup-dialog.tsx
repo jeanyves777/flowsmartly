@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useState } from "react";
-import { Download, Smartphone, Globe, Image as ImageIcon, Frame, Instagram, Shirt } from "lucide-react";
+import { Download, Smartphone, Globe, Image as ImageIcon, Frame, Instagram, Shirt, Coffee, CreditCard } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,8 @@ const MOCKUP_ICONS: Record<MockupId, React.ElementType> = {
   "framed-poster": Frame,
   "instagram-post": Instagram,
   tshirt: Shirt,
+  mug: Coffee,
+  "business-card": CreditCard,
 };
 
 interface MockupDialogProps {
@@ -40,6 +42,9 @@ export function MockupDialog({ open, onOpenChange }: MockupDialogProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
   const [sourceDataUrl, setSourceDataUrl] = useState<string | null>(null);
+  // Per-mockup thumbnail cache, keyed by MockupId. Built once when the
+  // dialog opens so the picker shows real previews instead of just icons.
+  const [thumbnails, setThumbnails] = useState<Partial<Record<MockupId, string>>>({});
 
   // When the dialog opens, capture the current canvas as a PNG once. We
   // re-use that source for every mockup-style switch so we're not paying
@@ -52,6 +57,7 @@ export function MockupDialog({ open, onOpenChange }: MockupDialogProps) {
       const dataUrl = canvas.toDataURL({ format: "png", multiplier: 1 });
       setSourceDataUrl(dataUrl);
       setPreviewUrl(null);
+      setThumbnails({});
     } catch (e) {
       console.error("[MockupDialog] Failed to snapshot canvas:", e);
       toast({ title: "Couldn't read the canvas", variant: "destructive" });
@@ -79,6 +85,48 @@ export function MockupDialog({ open, onOpenChange }: MockupDialogProps) {
     return () => { cancelled = true; };
   }, [sourceDataUrl, selectedId, toast]);
 
+  // Render every mockup at low resolution to populate the picker thumbnails.
+  // Runs once per dialog-open (sourceDataUrl changes only on open). We render
+  // sequentially so the main preview is never starved of CPU.
+  useEffect(() => {
+    if (!sourceDataUrl) return;
+    let cancelled = false;
+    (async () => {
+      for (const m of MOCKUPS) {
+        if (cancelled) return;
+        try {
+          const fullUrl = await renderMockup(m.id, sourceDataUrl);
+          if (cancelled) return;
+          // Downscale to a small thumbnail so the picker stays light
+          const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const i = new Image();
+            i.onload = () => resolve(i);
+            i.onerror = reject;
+            i.src = fullUrl;
+          });
+          if (cancelled) return;
+          const thumbW = 200;
+          const thumbH = Math.round((thumbW * img.height) / img.width);
+          const c = document.createElement("canvas");
+          c.width = thumbW;
+          c.height = thumbH;
+          const cx = c.getContext("2d");
+          if (cx) {
+            cx.imageSmoothingQuality = "high";
+            cx.drawImage(img, 0, 0, thumbW, thumbH);
+            const thumbUrl = c.toDataURL("image/jpeg", 0.7);
+            if (!cancelled) {
+              setThumbnails((prev) => ({ ...prev, [m.id]: thumbUrl }));
+            }
+          }
+        } catch {
+          // skip thumbnail on error — picker falls back to the icon
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [sourceDataUrl]);
+
   const handleDownload = () => {
     if (!previewUrl) return;
     const a = document.createElement("a");
@@ -105,6 +153,7 @@ export function MockupDialog({ open, onOpenChange }: MockupDialogProps) {
             {MOCKUPS.map((m) => {
               const Icon = MOCKUP_ICONS[m.id];
               const isActive = selectedId === m.id;
+              const thumb = thumbnails[m.id];
               return (
                 <button
                   key={m.id}
@@ -112,27 +161,38 @@ export function MockupDialog({ open, onOpenChange }: MockupDialogProps) {
                   onClick={() => setSelectedId(m.id)}
                   aria-pressed={isActive}
                   className={cn(
-                    "w-full text-left p-2.5 rounded-md border transition-colors",
+                    "w-full text-left p-2 rounded-md border transition-colors",
                     isActive
-                      ? "border-brand-500 bg-brand-500/5"
+                      ? "border-brand-500 bg-brand-500/5 ring-1 ring-brand-500/40"
                       : "border-border hover:border-brand-500/50",
                   )}
                 >
-                  <div className="flex items-center gap-2">
+                  {/* Thumbnail (or icon placeholder while it renders) */}
+                  <div className="aspect-video w-full rounded-sm overflow-hidden bg-muted/40 flex items-center justify-center mb-1.5">
+                    {thumb ? (
+                      <img
+                        src={thumb}
+                        alt={`${m.label} preview`}
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <Icon
+                        className={cn(
+                          "h-6 w-6",
+                          isActive ? "text-brand-600" : "text-muted-foreground",
+                        )}
+                      />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
                     <Icon
                       className={cn(
-                        "h-4 w-4 shrink-0",
+                        "h-3 w-3 shrink-0",
                         isActive ? "text-brand-600" : "text-muted-foreground",
                       )}
                     />
-                    <span className="text-sm font-medium">{m.label}</span>
+                    <span className="text-xs font-medium truncate">{m.label}</span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-1 leading-snug">
-                    {m.description}
-                  </p>
-                  <p className="text-[10px] font-mono text-muted-foreground/70 mt-0.5">
-                    {m.designRatio}
-                  </p>
                 </button>
               );
             })}

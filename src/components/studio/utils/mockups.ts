@@ -10,7 +10,15 @@
  * ship megabytes of mockup PNGs.
  */
 
-export type MockupId = "iphone" | "browser" | "billboard" | "framed-poster" | "instagram-post" | "tshirt";
+export type MockupId =
+  | "iphone"
+  | "browser"
+  | "billboard"
+  | "framed-poster"
+  | "instagram-post"
+  | "tshirt"
+  | "mug"
+  | "business-card";
 
 export interface MockupOption {
   id: MockupId;
@@ -64,6 +72,20 @@ export const MOCKUPS: MockupOption[] = [
     description: "Centered design on a folded tee — for merch previews",
     outputSize: { width: 1200, height: 1400 },
     designRatio: "1:1",
+  },
+  {
+    id: "mug",
+    label: "Coffee Mug",
+    description: "Logo wrapped on a ceramic mug — for swag mockups",
+    outputSize: { width: 1400, height: 1200 },
+    designRatio: "1:1 or wide",
+  },
+  {
+    id: "business-card",
+    label: "Business Card",
+    description: "Card on a desk with a soft shadow — for brand-id mockups",
+    outputSize: { width: 1400, height: 1000 },
+    designRatio: "5:3 or wide",
   },
 ];
 
@@ -731,6 +753,172 @@ async function renderTshirt(designUrl: string): Promise<string> {
   return canvas.toDataURL("image/png");
 }
 
+// ─── Coffee mug ──────────────────────────────────────────────────
+async function renderMug(designUrl: string): Promise<string> {
+  const W = 1400;
+  const H = 1200;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+
+  // Wood / desk surface gradient — warm beige top to deeper bottom
+  const desk = ctx.createLinearGradient(0, 0, 0, H);
+  desk.addColorStop(0, "#fef3c7");
+  desk.addColorStop(0.55, "#fde68a");
+  desk.addColorStop(1, "#d97706");
+  ctx.fillStyle = desk;
+  ctx.fillRect(0, 0, W, H);
+
+  // Mug body — rounded rectangle with subtle vertical curvature shading
+  const mugW = 580;
+  const mugH = 660;
+  const mugX = (W - mugW) / 2 - 60; // shift left so handle on right looks balanced
+  const mugY = (H - mugH) / 2;
+  const mugRadius = 24;
+
+  // Mug shadow on desk
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = 32;
+  ctx.shadowOffsetY = 24;
+
+  // Handle (drawn first behind the body)
+  const handleCX = mugX + mugW + 70;
+  const handleCY = mugY + mugH * 0.5;
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(handleCX, handleCY, 130, -Math.PI * 0.65, Math.PI * 0.65);
+  ctx.lineTo(handleCX - 60, handleCY + 90);
+  ctx.arc(handleCX, handleCY, 70, Math.PI * 0.65, -Math.PI * 0.65, true);
+  ctx.closePath();
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = "#ffffff";
+  roundedRect(ctx, mugX, mugY, mugW, mugH, mugRadius);
+  ctx.fill();
+  ctx.restore();
+
+  // Vertical curvature shading on body — left edge dark, right edge dark, center bright
+  const curve = ctx.createLinearGradient(mugX, 0, mugX + mugW, 0);
+  curve.addColorStop(0, "rgba(0,0,0,0.18)");
+  curve.addColorStop(0.18, "rgba(0,0,0,0)");
+  curve.addColorStop(0.82, "rgba(0,0,0,0)");
+  curve.addColorStop(1, "rgba(0,0,0,0.18)");
+  ctx.save();
+  roundedRect(ctx, mugX, mugY, mugW, mugH, mugRadius);
+  ctx.clip();
+  ctx.fillStyle = curve;
+  ctx.fillRect(mugX, mugY, mugW, mugH);
+  ctx.restore();
+
+  // Top opening — dark elliptical band hint of the inside
+  ctx.fillStyle = "#3c2415";
+  ctx.beginPath();
+  ctx.ellipse(mugX + mugW / 2, mugY + 14, mugW / 2 - 8, 18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Lip highlight
+  ctx.strokeStyle = "rgba(0,0,0,0.18)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(mugX + mugW / 2, mugY + 14, mugW / 2 - 8, 18, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Print area — center the design in the visible front of the mug
+  const printW = mugW * 0.66;
+  const printH = mugH * 0.55;
+  const printX = mugX + (mugW - printW) / 2;
+  const printY = mugY + (mugH - printH) / 2 + 20;
+
+  ctx.save();
+  // Clip to body so design doesn't bleed past edges
+  roundedRect(ctx, mugX, mugY, mugW, mugH, mugRadius);
+  ctx.clip();
+  const img = await loadImage(designUrl);
+  drawFitted(ctx, img, printX, printY, printW, printH);
+  // Re-apply curvature shading on top of the design too so it feels wrapped
+  ctx.fillStyle = curve;
+  ctx.fillRect(mugX, mugY, mugW, mugH);
+  ctx.restore();
+
+  return canvas.toDataURL("image/png");
+}
+
+// ─── Business card on a desk ─────────────────────────────────────
+async function renderBusinessCard(designUrl: string): Promise<string> {
+  const W = 1400;
+  const H = 1000;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+
+  // Desk surface — warm gray paper texture gradient
+  const desk = ctx.createLinearGradient(0, 0, W, H);
+  desk.addColorStop(0, "#f5f5f4");
+  desk.addColorStop(1, "#a8a29e");
+  ctx.fillStyle = desk;
+  ctx.fillRect(0, 0, W, H);
+
+  // Two cards — front (foreground, slight tilt right) + back (behind, tilt left)
+  const cardW = 720; // standard 3.5" * scale (proportions match a real business card)
+  const cardH = 420;
+  const radius = 14;
+
+  // ─── Back card (behind, slight left tilt) ───
+  ctx.save();
+  ctx.translate(W * 0.32, H * 0.4);
+  ctx.rotate(-0.08);
+  ctx.shadowColor = "rgba(0,0,0,0.3)";
+  ctx.shadowBlur = 28;
+  ctx.shadowOffsetY = 12;
+  // Solid back face — dark neutral
+  ctx.fillStyle = "#1f2937";
+  roundedRect(ctx, -cardW / 2, -cardH / 2, cardW, cardH, radius);
+  ctx.fill();
+  ctx.restore();
+
+  // Subtle back-card detail (tiny logo dot in center) — re-paint without shadow
+  ctx.save();
+  ctx.translate(W * 0.32, H * 0.4);
+  ctx.rotate(-0.08);
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.beginPath();
+  ctx.arc(0, 0, 24, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // ─── Front card (foreground, slight right tilt, with the user's design) ───
+  ctx.save();
+  ctx.translate(W * 0.6, H * 0.55);
+  ctx.rotate(0.06);
+  ctx.shadowColor = "rgba(0,0,0,0.4)";
+  ctx.shadowBlur = 32;
+  ctx.shadowOffsetY = 18;
+  ctx.fillStyle = "#ffffff";
+  roundedRect(ctx, -cardW / 2, -cardH / 2, cardW, cardH, radius);
+  ctx.fill();
+  ctx.restore();
+
+  // Composite design onto front card — re-do the same transform without shadow,
+  // clip to the rounded rect so the design respects the corner radius.
+  ctx.save();
+  ctx.translate(W * 0.6, H * 0.55);
+  ctx.rotate(0.06);
+  roundedRect(ctx, -cardW / 2, -cardH / 2, cardW, cardH, radius);
+  ctx.clip();
+  // White inner background in case design has transparency
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(-cardW / 2, -cardH / 2, cardW, cardH);
+  const img = await loadImage(designUrl);
+  // Letterbox-fit the design — business cards are landscape, often a logo + text
+  drawFitted(ctx, img, -cardW / 2, -cardH / 2, cardW, cardH);
+  ctx.restore();
+
+  return canvas.toDataURL("image/png");
+}
+
 export async function renderMockup(mockupId: MockupId, designUrl: string): Promise<string> {
   switch (mockupId) {
     case "iphone":
@@ -745,5 +933,9 @@ export async function renderMockup(mockupId: MockupId, designUrl: string): Promi
       return renderInstagramPost(designUrl);
     case "tshirt":
       return renderTshirt(designUrl);
+    case "mug":
+      return renderMug(designUrl);
+    case "business-card":
+      return renderBusinessCard(designUrl);
   }
 }
