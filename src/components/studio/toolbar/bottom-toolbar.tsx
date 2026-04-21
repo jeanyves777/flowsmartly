@@ -19,6 +19,8 @@ import {
   Ungroup,
   Pipette,
   PaintBucket,
+  AlignHorizontalDistributeCenter,
+  AlignVerticalDistributeCenter,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { copyStyle, pasteStyle, hasCopiedStyle } from "../utils/style-clipboard";
@@ -46,6 +48,7 @@ export function BottomToolbar() {
   const zoom = useCanvasStore((s) => s.zoom);
   const selectedObjectIds = useCanvasStore((s) => s.selectedObjectIds);
   const refreshLayers = useCanvasStore((s) => s.refreshLayers);
+  const setDirty = useCanvasStore((s) => s.setDirty);
   const isReadOnly = useCanvasStore((s) => s.isReadOnly);
   const { pushState } = useCanvasHistory();
   const { toast } = useToast();
@@ -105,6 +108,107 @@ export function BottomToolbar() {
     obj.setCoords();
     canvas.renderAll();
     pushState();
+  };
+
+  // Distribute — evenly space the selected objects so the gap between
+  // their centers (or edges) is constant. Requires 3+ objects, otherwise
+  // there's nothing to distribute.
+  // Reads centers from the parent activeSelection's child objects, which
+  // give us each child's position relative to the selection origin; we
+  // translate those to absolute canvas coords before computing the spread.
+  const getSelectedObjectsAbsolute = (): Array<{
+    obj: any;
+    centerX: number;
+    centerY: number;
+    width: number;
+    height: number;
+  }> | null => {
+    const active = getActiveObject();
+    if (!active || active.type !== "activeSelection") return null;
+    const items = (active as any).getObjects?.() ?? [];
+    if (items.length < 3) return null;
+
+    // Selection origin in absolute canvas coords (Fabric uses center origin
+    // by default for activeSelection, so the children's left/top are
+    // *relative* to the selection's center).
+    const selW = (active.width || 0) * (active.scaleX || 1);
+    const selH = (active.height || 0) * (active.scaleY || 1);
+    const selOriginX = (active.left || 0) + (active.originX === "center" ? 0 : selW / 2);
+    const selOriginY = (active.top || 0) + (active.originY === "center" ? 0 : selH / 2);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return items.map((o: any) => {
+      const w = (o.width || 0) * (o.scaleX || 1);
+      const h = (o.height || 0) * (o.scaleY || 1);
+      // Each child's left/top is relative to selection center.
+      const childLeft = (o.left || 0) + (o.originX === "center" ? -w / 2 : 0);
+      const childTop = (o.top || 0) + (o.originY === "center" ? -h / 2 : 0);
+      // Absolute top-left of the child on the canvas
+      const absLeft = selOriginX + childLeft;
+      const absTop = selOriginY + childTop;
+      return {
+        obj: o,
+        centerX: absLeft + w / 2,
+        centerY: absTop + h / 2,
+        width: w,
+        height: h,
+      };
+    });
+  };
+
+  const distributeHorizontally = () => {
+    const items = getSelectedObjectsAbsolute();
+    if (!items) {
+      toast({
+        title: "Select 3 or more objects to distribute",
+        description: "Distribute spaces objects evenly between the leftmost and rightmost.",
+        variant: "destructive",
+      });
+      return;
+    }
+    // Sort by current center X, then redistribute centers between min and max.
+    const sorted = [...items].sort((a, b) => a.centerX - b.centerX);
+    const first = sorted[0].centerX;
+    const last = sorted[sorted.length - 1].centerX;
+    const step = (last - first) / (sorted.length - 1);
+    sorted.forEach((entry, idx) => {
+      const targetCenter = first + step * idx;
+      const delta = targetCenter - entry.centerX;
+      // Each child's `left` is relative to the selection origin, so we
+      // shift by the delta directly.
+      entry.obj.set("left", (entry.obj.left || 0) + delta);
+      entry.obj.setCoords();
+    });
+    canvas.requestRenderAll();
+    refreshLayers();
+    pushState();
+    setDirty(true);
+  };
+
+  const distributeVertically = () => {
+    const items = getSelectedObjectsAbsolute();
+    if (!items) {
+      toast({
+        title: "Select 3 or more objects to distribute",
+        description: "Distribute spaces objects evenly between the topmost and bottommost.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const sorted = [...items].sort((a, b) => a.centerY - b.centerY);
+    const first = sorted[0].centerY;
+    const last = sorted[sorted.length - 1].centerY;
+    const step = (last - first) / (sorted.length - 1);
+    sorted.forEach((entry, idx) => {
+      const targetCenter = first + step * idx;
+      const delta = targetCenter - entry.centerY;
+      entry.obj.set("top", (entry.obj.top || 0) + delta);
+      entry.obj.setCoords();
+    });
+    canvas.requestRenderAll();
+    refreshLayers();
+    pushState();
+    setDirty(true);
   };
 
   // Z-order
@@ -310,6 +414,45 @@ export function BottomToolbar() {
           {hasSelection && (
             <>
               {renderGroup(alignActions)}
+              {/* Distribute — visible when 3+ objects are selected so users
+                  discover it; tooltip explains why it's needed when active. */}
+              {selectedObjectIds.length >= 3 && (
+                <>
+                  <div className="w-px h-4 bg-border mx-1" />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        onClick={distributeHorizontally}
+                        aria-label="Distribute horizontally — even spacing left to right"
+                      >
+                        <AlignHorizontalDistributeCenter className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      Distribute horizontally
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        onClick={distributeVertically}
+                        aria-label="Distribute vertically — even spacing top to bottom"
+                      >
+                        <AlignVerticalDistributeCenter className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      Distribute vertically
+                    </TooltipContent>
+                  </Tooltip>
+                </>
+              )}
               <div className="w-px h-4 bg-border mx-1" />
               {renderGroup(orderActions)}
               <div className="w-px h-4 bg-border mx-1" />
