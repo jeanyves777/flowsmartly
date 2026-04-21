@@ -51,23 +51,29 @@ export default function NewBusinessPlanPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/brand-kits");
+        const res = await fetch("/api/brand");
         const json = await res.json();
-        const first = json?.data?.[0] || json?.brandKits?.[0] || json?.[0];
+        const brand = json?.data?.brandKit;
         if (!cancelled) {
-          if (!first) {
+          if (!brand) {
             setBrandCheck({ hasBrand: false, isComplete: false });
           } else {
-            setBrandCheck({ hasBrand: true, isComplete: !!first.isComplete, name: first.name });
+            setBrandCheck({ hasBrand: true, isComplete: !!brand.isComplete, name: brand.name });
             // Prefill plan name with brand name if user hasn't typed anything yet
-            setForm((f) => (f.name ? f : { ...f, name: `${first.name} — Business Plan 2026` }));
+            setForm((f) => (f.name ? f : { ...f, name: `${brand.name} — Business Plan 2026` }));
+            // Prefill industry if brand has one we recognize
+            if (brand.industry) {
+              const key = String(brand.industry).toLowerCase().replace(/\s+/g, "_");
+              if (INDUSTRIES.includes(key)) {
+                setForm((f) => ({ ...f, industry: key }));
+              }
+            }
           }
         }
       } catch {
         if (!cancelled) setBrandCheck({ hasBrand: false, isComplete: false });
       }
     })();
-    return () => { cancelled = true; };
   }, []);
 
   const handleGenerate = async () => {
