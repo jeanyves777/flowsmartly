@@ -16,7 +16,9 @@ import {
   MousePointer2,
   Hand,
   Smartphone,
+  Clipboard,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -58,7 +60,29 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
   } = useCanvasStore();
 
   const { undo, redo } = useCanvasHistory();
-  const { exportPNG, exportJPG, exportSVG, exportPDF } = useCanvasExport();
+  const { exportPNG, exportJPG, exportSVG, exportPDF, copyPNGToClipboard } = useCanvasExport();
+  const { toast } = useToast();
+
+  const handleCopyToClipboard = async () => {
+    const ok = await copyPNGToClipboard();
+    if (ok) {
+      toast({ title: "Copied to clipboard", description: "Paste anywhere as an image." });
+    } else {
+      toast({
+        title: "Couldn't copy to clipboard",
+        description: "Your browser may not support image clipboard, or denied permission. Use Export → PNG instead.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Wire the Ctrl/Cmd+Shift+C global shortcut → same handler as the menu item
+  useEffect(() => {
+    const onCopyEvent = () => { handleCopyToClipboard(); };
+    document.addEventListener("studio:copy-image", onCopyEvent);
+    return () => document.removeEventListener("studio:copy-image", onCopyEvent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [isEditingZoom, setIsEditingZoom] = useState(false);
@@ -344,6 +368,11 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
               PDF
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleCopyToClipboard}>
+              <Clipboard className="h-4 w-4 mr-2" />
+              Copy to Clipboard
+              <span className="ml-auto text-[10px] text-muted-foreground font-mono">⌘⇧C</span>
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setShowMockupDialog(true)}>
               <Smartphone className="h-4 w-4 mr-2" />
               Mockup Preview…

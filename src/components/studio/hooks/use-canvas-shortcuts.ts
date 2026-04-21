@@ -38,7 +38,17 @@ export function useCanvasShortcuts() {
             redo();
             return;
           case "c":
-            if (!isEditingText) handleCopy();
+            if (!isEditingText) {
+              if (e.shiftKey) {
+                // Ctrl/Cmd+Shift+C → copy whole canvas as image to system clipboard.
+                // The top toolbar owns the actual implementation; we dispatch
+                // an event so this hook stays decoupled from canvas-export.
+                e.preventDefault();
+                document.dispatchEvent(new CustomEvent("studio:copy-image"));
+              } else {
+                handleCopy();
+              }
+            }
             return;
           case "v":
             if (!isEditingText) handlePaste();
