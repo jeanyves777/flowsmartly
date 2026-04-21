@@ -9,6 +9,9 @@ import { useCanvasStore } from "../hooks/use-canvas-store";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { BlendModeSelect } from "./blend-mode-select";
 import { FILTER_PRESETS, buildFilterChain } from "../utils/image-filter-presets";
+import { extractImageColors } from "../utils/extract-image-colors";
+import { pushRecentColor } from "../hooks/use-recent-colors";
+import { Palette } from "lucide-react";
 
 export function ImageProperties() {
   const canvas = useCanvasStore((s) => s.canvas);
@@ -25,6 +28,10 @@ export function ImageProperties() {
   const [strokeWidth, setStrokeWidth] = useState(0);
 
   const [removingBg, setRemovingBg] = useState(false);
+
+  // Color extractor
+  const [extractedColors, setExtractedColors] = useState<string[]>([]);
+  const [extracting, setExtracting] = useState(false);
 
   // Filters
   const [brightness, setBrightness] = useState(0);
@@ -419,6 +426,74 @@ export function ImageProperties() {
         )}
         {removingBg ? "Removing..." : "Remove Background"}
       </Button>
+
+      {/* Extract Colors — pulls the dominant palette from this image and
+          pushes each into the recent-colors list so it's available in
+          every ColorInput across the studio. */}
+      <div className="space-y-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-1.5"
+          onClick={async () => {
+            const obj = getActiveImage();
+            if (!obj) return;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const src = (obj as any).getSrc?.() || (obj as any)._element?.src;
+            if (!src) {
+              toast({ title: "Cannot read image source", variant: "destructive" });
+              return;
+            }
+            setExtracting(true);
+            setExtractedColors([]);
+            try {
+              const colors = await extractImageColors(src, 6);
+              if (colors.length === 0) {
+                toast({
+                  title: "No distinct colors found",
+                  description: "The image may be too uniform or cross-origin without proxy.",
+                  variant: "destructive",
+                });
+              } else {
+                setExtractedColors(colors);
+                colors.forEach((c) => pushRecentColor(c));
+              }
+            } catch {
+              toast({ title: "Color extraction failed", variant: "destructive" });
+            } finally {
+              setExtracting(false);
+            }
+          }}
+          disabled={extracting}
+        >
+          {extracting ? (
+            <AISpinner className="h-4 w-4 animate-spin" />
+          ) : (
+            <Palette className="h-4 w-4" />
+          )}
+          {extracting ? "Extracting..." : "Extract Colors"}
+        </Button>
+        {extractedColors.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {extractedColors.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => navigator.clipboard?.writeText(c)}
+                title={`${c} — click to copy`}
+                aria-label={`Extracted color ${c}, click to copy hex`}
+                className="h-7 w-7 rounded border border-border hover:scale-110 transition-transform"
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </div>
+        )}
+        {extractedColors.length > 0 && (
+          <p className="text-[10px] text-muted-foreground">
+            Added to Recent — pick from the colors row in any color input.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
