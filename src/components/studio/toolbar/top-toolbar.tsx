@@ -15,6 +15,7 @@ import {
   ChevronDown,
   MousePointer2,
   Hand,
+  Smartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,7 @@ import { useCanvasHistory } from "../hooks/use-canvas-history";
 import { useCanvasExport } from "../hooks/use-canvas-export";
 import { ShareDialog } from "../share-dialog";
 import { SocialDialog } from "../social-dialog";
+import { MockupDialog } from "../mockup-dialog";
 import { PresenceAvatars } from "./presence-avatars";
 import type { CollabUser } from "../hooks/use-collaboration";
 
@@ -62,6 +64,7 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
   const [zoomInputValue, setZoomInputValue] = useState("");
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showSocialDialog, setShowSocialDialog] = useState(false);
+  const [showMockupDialog, setShowMockupDialog] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const zoomInputRef = useRef<HTMLInputElement>(null);
 
@@ -336,6 +339,11 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
               <File className="h-4 w-4 mr-2" />
               PDF
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setShowMockupDialog(true)}>
+              <Smartphone className="h-4 w-4 mr-2" />
+              Mockup Preview…
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -363,6 +371,7 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
       {/* Share Dialog */}
       <ShareDialog open={showShareDialog} onOpenChange={setShowShareDialog} />
       <SocialDialog open={showSocialDialog} onOpenChange={setShowSocialDialog} />
+      <MockupDialog open={showMockupDialog} onOpenChange={setShowMockupDialog} />
     </div>
   );
 }
