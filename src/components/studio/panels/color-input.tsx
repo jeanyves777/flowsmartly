@@ -24,13 +24,30 @@ interface ColorInputProps {
  * Single source of truth so future changes (palette popover, recent colors,
  * brand swatches) only need to land in one place.
  */
+// Defend against non-string `value` props — fills on fabric objects can be
+// Gradient or Pattern instances (fill: new fabric.Gradient({...})) which
+// serialize to "[object Object]" and crash any `.toLowerCase()` / regex
+// call. Panels sometimes pass these through unchanged; we coerce here.
+function normalizeHex(v: unknown): string {
+  if (typeof v !== "string") return "";
+  // Things that aren't a representable solid hex: empty, transparent,
+  // rgba(...), hsl(...), object-shaped strings. The <input type="color">
+  // only accepts "#rrggbb" — anything else triggers the browser warning
+  // we were seeing, and our activeSwatch comparison would compare garbage.
+  if (!v || v === "transparent" || v.startsWith("rgba(") || v.startsWith("rgb(") || v.startsWith("hsl(") || v === "[object Object]") {
+    return "";
+  }
+  return v;
+}
+
 export function ColorInput({ value, onChange, label, hideSwatches }: ColorInputProps) {
-  const [hex, setHex] = useState(value);
+  const safeValue = normalizeHex(value);
+  const [hex, setHex] = useState(safeValue);
   const [supportsEyeDropper, setSupportsEyeDropper] = useState(false);
   const brandColors = useBrandColors();
   const recentColors = useRecentColors();
 
-  useEffect(() => setHex(value), [value]);
+  useEffect(() => setHex(normalizeHex(value)), [value]);
   useEffect(() => setSupportsEyeDropper(isEyeDropperSupported()), []);
 
   // Wrapper around onChange that also records the color in recents.
@@ -60,14 +77,17 @@ export function ColorInput({ value, onChange, label, hideSwatches }: ColorInputP
   };
 
   // Highlight the swatch that matches the current value (case-insensitive)
-  const activeSwatch = hex.toLowerCase();
+  const activeSwatch = typeof hex === "string" ? hex.toLowerCase() : "";
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-2">
         <input
           type="color"
-          value={value}
+          // <input type="color"> will emit a DOMException for any value
+          // that isn't "#rrggbb". Coerce via safeValue so gradients /
+          // transparents / rgba strings fall back to a neutral default.
+          value={safeValue && /^#[0-9a-fA-F]{6}$/.test(safeValue) ? safeValue : "#000000"}
           onChange={(e) => {
             setHex(e.target.value);
             onChange(e.target.value);
