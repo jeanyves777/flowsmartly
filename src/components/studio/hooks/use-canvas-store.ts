@@ -27,6 +27,7 @@ export type ActivePanel =
   | "text"
   | "uploads"
   | "ai"
+  | "avatars"
   | "backgrounds"
   | "eraser";
 

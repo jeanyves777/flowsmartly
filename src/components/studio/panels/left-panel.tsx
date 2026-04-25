@@ -7,6 +7,7 @@ import {
   Type,
   Upload,
   Sparkles,
+  Users,
   Image as ImageIcon,
   Eraser,
   PanelLeftClose,
@@ -20,6 +21,7 @@ import { IconsPanel } from "./icons-panel";
 import { TextPanel } from "./text-panel";
 import { UploadsPanel } from "./uploads-panel";
 import { AiPanel } from "./ai-panel";
+import { AvatarsPanel } from "./avatars-panel";
 import { BackgroundsPanel } from "./backgrounds-panel";
 import { EraserPanel } from "./eraser-panel";
 
@@ -31,6 +33,7 @@ const TABS: {
   { id: "templates", icon: LayoutTemplate, label: "Templates" },
   { id: "elements", icon: Shapes, label: "Elements" },
   { id: "icons", icon: Smile, label: "Icons" },
+  { id: "avatars", icon: Users, label: "Avatars" },
   { id: "text", icon: Type, label: "Text" },
   { id: "uploads", icon: Upload, label: "Uploads" },
   { id: "ai", icon: Sparkles, label: "AI" },
@@ -42,6 +45,7 @@ const PANEL_COMPONENTS: Record<ActivePanel, React.ComponentType> = {
   templates: TemplatesPanel,
   elements: ElementsPanel,
   icons: IconsPanel,
+  avatars: AvatarsPanel,
   text: TextPanel,
   uploads: UploadsPanel,
   ai: AiPanel,

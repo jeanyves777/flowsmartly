@@ -33,6 +33,55 @@ import {
 import { Input } from "@/components/ui/input";
 import { Search as SearchIcon } from "lucide-react";
 import { useCanvasStore } from "../hooks/use-canvas-store";
+import { addImageToCanvas } from "../utils/canvas-helpers";
+
+// Brand/social logos via Simple Icons CDN — free, no key, returns SVG.
+// URL pattern: https://cdn.simpleicons.org/{slug} for brand-color SVG.
+// We add the SVG as a Fabric image element so the user can scale/recolor
+// it. SimpleIcons keeps brand colors current per upstream guidelines.
+interface BrandIcon {
+  slug: string;     // simple-icons slug, e.g. "instagram"
+  label: string;    // display name
+}
+
+const BRAND_ICONS: BrandIcon[] = [
+  { slug: "instagram", label: "Instagram" },
+  { slug: "facebook", label: "Facebook" },
+  { slug: "x", label: "X / Twitter" },
+  { slug: "tiktok", label: "TikTok" },
+  { slug: "youtube", label: "YouTube" },
+  { slug: "linkedin", label: "LinkedIn" },
+  { slug: "snapchat", label: "Snapchat" },
+  { slug: "pinterest", label: "Pinterest" },
+  { slug: "whatsapp", label: "WhatsApp" },
+  { slug: "telegram", label: "Telegram" },
+  { slug: "discord", label: "Discord" },
+  { slug: "reddit", label: "Reddit" },
+  { slug: "spotify", label: "Spotify" },
+  { slug: "apple", label: "Apple" },
+  { slug: "googleplay", label: "Google Play" },
+  { slug: "appstore", label: "App Store" },
+  { slug: "github", label: "GitHub" },
+  { slug: "gmail", label: "Gmail" },
+  { slug: "outlook", label: "Outlook" },
+  { slug: "twitch", label: "Twitch" },
+  { slug: "vimeo", label: "Vimeo" },
+  { slug: "medium", label: "Medium" },
+  { slug: "substack", label: "Substack" },
+  { slug: "paypal", label: "PayPal" },
+  { slug: "stripe", label: "Stripe" },
+  { slug: "visa", label: "Visa" },
+  { slug: "mastercard", label: "Mastercard" },
+  { slug: "amazon", label: "Amazon" },
+  { slug: "shopify", label: "Shopify" },
+  { slug: "etsy", label: "Etsy" },
+  { slug: "ebay", label: "eBay" },
+  { slug: "uber", label: "Uber" },
+];
+
+function brandIconUrl(slug: string): string {
+  return `https://cdn.simpleicons.org/${slug}`;
+}
 
 interface IconItem {
   Icon: React.ElementType;
@@ -241,8 +290,25 @@ export function IconsPanel() {
     }
   };
 
+  // Click a brand icon → fetch the colored SVG from Simple Icons CDN and
+  // drop as an image on the canvas. addImageToCanvas handles SVG raster.
+  const handleAddBrand = async (b: BrandIcon) => {
+    if (!canvas) return;
+    try {
+      const fabric = await import("fabric");
+      await addImageToCanvas(canvas, brandIconUrl(b.slug), fabric);
+    } catch (err) {
+      console.error("[IconsPanel] Failed to add brand icon:", err);
+    }
+  };
+
+  // Filter brand icons by the same search query so users can find logos quickly.
+  const filteredBrands = !query
+    ? BRAND_ICONS
+    : BRAND_ICONS.filter((b) => b.label.toLowerCase().includes(query.toLowerCase()) || b.slug.includes(query.toLowerCase()));
+
   return (
-    <div className="p-3 space-y-3">
+    <div className="p-3 space-y-4">
       <h3 className="text-sm font-semibold">Icons</h3>
 
       {/* Search */}
@@ -251,31 +317,66 @@ export function IconsPanel() {
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search icons..."
+          placeholder="Search icons & brand logos..."
           className="h-8 pl-7 text-xs"
           aria-label="Search icons"
         />
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-4 gap-1.5">
-        {filtered.map((item) => {
-          const Icon = item.Icon;
-          return (
-            <button
-              key={item.label}
-              onClick={() => handleAddIcon(item)}
-              className="flex items-center justify-center aspect-square rounded-md border border-border hover:border-brand-500 hover:bg-brand-500/5 transition-colors"
-              title={item.label}
-              aria-label={`Add ${item.label} icon to canvas`}
-            >
-              <Icon className="h-5 w-5 text-muted-foreground" />
-            </button>
-          );
-        })}
-      </div>
+      {/* Brand / social logos — colored SVGs from Simple Icons CDN */}
+      {filteredBrands.length > 0 && (
+        <section>
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+            Brand &amp; Social
+          </h4>
+          <div className="grid grid-cols-5 gap-1.5">
+            {filteredBrands.map((b) => (
+              <button
+                key={b.slug}
+                onClick={() => handleAddBrand(b)}
+                className="relative flex items-center justify-center aspect-square rounded-md border border-border hover:border-brand-500 hover:scale-[1.05] transition-all bg-white dark:bg-gray-900"
+                title={b.label}
+                aria-label={`Add ${b.label} logo`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={brandIconUrl(b.slug)}
+                  alt={b.label}
+                  loading="lazy"
+                  className="w-5 h-5 object-contain"
+                />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
-      {filtered.length === 0 && (
+      {/* Outline icon grid */}
+      {filtered.length > 0 && (
+        <section>
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+            Outline Icons
+          </h4>
+          <div className="grid grid-cols-4 gap-1.5">
+            {filtered.map((item) => {
+              const Icon = item.Icon;
+              return (
+                <button
+                  key={item.label}
+                  onClick={() => handleAddIcon(item)}
+                  className="flex items-center justify-center aspect-square rounded-md border border-border hover:border-brand-500 hover:bg-brand-500/5 transition-colors"
+                  title={item.label}
+                  aria-label={`Add ${item.label} icon to canvas`}
+                >
+                  <Icon className="h-5 w-5 text-muted-foreground" />
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {filtered.length === 0 && filteredBrands.length === 0 && (
         <p className="text-xs text-muted-foreground text-center py-4">
           No icons match &ldquo;{query}&rdquo;
         </p>
