@@ -951,6 +951,51 @@ export function TemplatesPanel() {
     };
   }
 
+  // Reproduce — pass the template image through Claude vision + OpenAI
+  // image-gen to rebuild it as fully-editable Fabric layers (textboxes
+  // for every word, shapes for every accent, regenerated photos for the
+  // imagery). Charges credits.
+  const handleReproduce = async (template: FeaturedTemplate) => {
+    if (!canvas) return;
+    if (!(await confirmBeforeClobber(template.name))) return;
+    setApplyingId(template.id);
+    try {
+      const res = await fetch("/api/studio/templates/reproduce", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: template.imageUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data?.error?.code === "INSUFFICIENT_CREDITS") {
+          toast({ title: "Not enough credits", description: data.error.message, variant: "destructive" });
+        } else {
+          toast({ title: "Recreate failed", description: data?.error?.message || "Try again", variant: "destructive" });
+        }
+        return;
+      }
+      // Sync canvas dims, then load the agent's Fabric JSON spec.
+      canvas.clear();
+      setCanvasDimensions(data.canvas.width, data.canvas.height);
+      canvas.setDimensions({ width: data.canvas.width, height: data.canvas.height });
+      canvas.backgroundColor = data.canvas.backgroundColor || "#ffffff";
+      await safeLoadFromJSON(canvas, JSON.stringify({ objects: data.canvas.objects }));
+      refreshLayers();
+      toast({
+        title: "Editable design ready!",
+        description: `${data.data.imagesGenerated} images generated · ${data.data.creditsUsed} credits used`,
+      });
+    } catch (err) {
+      toast({
+        title: "Recreate failed",
+        description: err instanceof Error ? err.message : "Network error",
+        variant: "destructive",
+      });
+    } finally {
+      setApplyingId(null);
+    }
+  };
+
   // Apply a featured (image-backed) template — sets canvas to the image's
   // native dimensions and adds it as a non-selectable bottom layer so the
   // user can drop their own text/elements on top without dragging it by
@@ -1095,13 +1140,11 @@ export function TemplatesPanel() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               {filteredFeatured.map((template, i) => (
-                <motion.button
+                <motion.div
                   key={template.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.03, duration: 0.2 }}
-                  onClick={() => handleApplyFeatured(template)}
-                  disabled={applyingId === template.id}
                   className={cn(
                     "relative rounded-lg overflow-hidden border border-border hover:border-brand-500 transition-all group bg-gray-100 dark:bg-gray-800",
                     template.width > template.height
@@ -1119,16 +1162,43 @@ export function TemplatesPanel() {
                     className="absolute inset-0 w-full h-full object-cover"
                   />
                   {applyingId === template.id && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                      <AISpinner className="h-5 w-5 animate-spin text-white" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-30">
+                      <div className="flex flex-col items-center gap-2">
+                        <AISpinner className="h-6 w-6 animate-spin text-white" />
+                        <p className="text-white text-[10px] font-medium">Recreating layers…</p>
+                      </div>
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5 translate-y-full group-hover:translate-y-0 transition-transform">
-                    <p className="text-white text-[10px] font-medium truncate">{template.name}</p>
-                    <p className="text-white/60 text-[9px]">{template.width}x{template.height}</p>
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
+
+                  {/* Hover action overlay — two stacked buttons */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                    <button
+                      type="button"
+                      onClick={() => handleApplyFeatured(template)}
+                      disabled={applyingId === template.id}
+                      className="w-full px-2 py-1.5 rounded-md bg-white/95 hover:bg-white text-gray-900 text-[10px] font-semibold shadow-lg transition-colors"
+                    >
+                      Use as Background
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleReproduce(template)}
+                      disabled={applyingId === template.id}
+                      className="w-full px-2 py-1.5 rounded-md bg-brand-500 hover:bg-brand-600 text-white text-[10px] font-semibold shadow-lg transition-colors flex items-center justify-center gap-1"
+                      title="Use Claude vision + OpenAI to rebuild every text and photo as editable Fabric layers"
+                    >
+                      <Sparkles className="h-2.5 w-2.5" />
+                      Recreate Editable · 150cr
+                    </button>
                   </div>
-                </motion.button>
+
+                  {/* Bottom name strip — visible always (no hover needed) */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1.5 z-10 pointer-events-none">
+                    <p className="text-white text-[10px] font-medium truncate">{template.name}</p>
+                    <p className="text-white/60 text-[9px]">{template.width}×{template.height}</p>
+                  </div>
+                </motion.div>
               ))}
             </div>
           </div>

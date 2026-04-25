@@ -144,6 +144,9 @@ export const DEFAULT_CREDIT_COSTS = {
   // --- AI Business Plan ---
   AI_BUSINESS_PLAN: 120,          // Full business plan: agent + adaptive thinking + 13 sections + charts (~$1.00)
   AI_BUSINESS_PLAN_REGENERATE: 35, // Partial regen with new instructions — reuses brand snapshot, swaps sections
+
+  // --- AI Template Reproduce (turn flat template image into editable Fabric design) ---
+  AI_TEMPLATE_REPRODUCE: 150,     // Vision pass + up to 8 OpenAI gpt-image-1 gens (~$0.30-0.60 actual)
 } as const;
 
 /**
@@ -211,6 +214,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_STORE_GENERATE: "AI store generation V2 ($5.00)",
   AI_BUSINESS_PLAN: "AI business plan generation",
   AI_BUSINESS_PLAN_REGENERATE: "AI business plan regeneration",
+  AI_TEMPLATE_REPRODUCE: "AI template reproduction (editable from flat image)",
 };
 
 /**
