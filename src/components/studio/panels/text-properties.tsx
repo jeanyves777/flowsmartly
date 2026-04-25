@@ -349,36 +349,51 @@ export function TextProperties() {
       <div>
         <label className="text-xs text-muted-foreground mb-1 block">Style Presets</label>
         <div className="grid grid-cols-3 gap-1.5">
-          {TEXT_PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => applyPreset(preset.id)}
-              className="group relative aspect-[16/9] rounded-md border overflow-hidden hover:border-brand-500 hover:shadow-md transition-all"
-              style={{ backgroundColor: preset.preview.background }}
-              title={`${preset.name}${preset.recommendedFont ? ` · ${preset.recommendedFont}` : ""}`}
-              aria-label={`Apply ${preset.name} text style`}
-            >
-              <span
-                className="absolute inset-0 flex items-center justify-center text-[14px] font-bold leading-none px-1"
-                style={{
-                  fontFamily: preset.recommendedFont || "inherit",
-                  color: preset.preview.color,
-                  background: preset.preview.gradient
-                    ? preset.preview.gradient
-                    : undefined,
-                  WebkitBackgroundClip: preset.preview.gradient ? "text" : undefined,
-                  WebkitTextFillColor: preset.preview.gradient ? "transparent" : undefined,
-                  textShadow: preset.preview.textShadow,
-                }}
+          {TEXT_PRESETS.map((preset) => {
+            // Default to a clean white card so the preset previews look
+            // like the canvas the user is designing on. Only fall back to
+            // the preset's original (dark) background when the text color
+            // is so light it'd be invisible on white — neon glows, chalk,
+            // etc. keep their dark backdrop so the effect reads.
+            const colorIsLight = isLightColor(preset.preview.color);
+            const bg = colorIsLight ? preset.preview.background : "#ffffff";
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => applyPreset(preset.id)}
+                className="group relative aspect-[16/9] rounded-md border border-border overflow-hidden hover:border-brand-500 hover:shadow-md transition-all"
+                style={{ backgroundColor: bg }}
+                title={`${preset.name}${preset.recommendedFont ? ` · ${preset.recommendedFont}` : ""}`}
+                aria-label={`Apply ${preset.name} text style`}
               >
-                Aa
-              </span>
-              <span className="absolute bottom-0 left-0 right-0 text-[8px] py-0.5 bg-black/60 text-white text-center truncate">
-                {preset.name}
-              </span>
-            </button>
-          ))}
+                <span
+                  className="absolute inset-0 flex items-center justify-center text-[14px] font-bold leading-none px-1"
+                  style={{
+                    fontFamily: preset.recommendedFont || "inherit",
+                    color: preset.preview.color,
+                    background: preset.preview.gradient
+                      ? preset.preview.gradient
+                      : undefined,
+                    WebkitBackgroundClip: preset.preview.gradient ? "text" : undefined,
+                    WebkitTextFillColor: preset.preview.gradient ? "transparent" : undefined,
+                    textShadow: preset.preview.textShadow,
+                  }}
+                >
+                  Aa
+                </span>
+                <span
+                  className={`absolute bottom-0 left-0 right-0 text-[8px] py-0.5 text-center truncate ${
+                    colorIsLight
+                      ? "bg-black/60 text-white"
+                      : "bg-white/85 text-gray-700 border-t border-gray-200"
+                  }`}
+                >
+                  {preset.name}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -745,4 +760,33 @@ export function TextProperties() {
       <BlendModeSelect />
     </div>
   );
+}
+
+// Returns true when the color is light enough that it'd be invisible on a
+// white card — drives the preset preview's bg choice. Accepts hex, rgb(),
+// rgba(), and 'white'/'transparent' literals. Falls back to false for
+// gradient strings (gradient text is colored across hues so it generally
+// reads OK on white anyway).
+function isLightColor(c: string | undefined): boolean {
+  if (!c) return false;
+  const v = c.trim().toLowerCase();
+  if (v === "white" || v === "#fff" || v === "#ffffff") return true;
+  // Hex
+  const hex = v.match(/^#([0-9a-f]{6})$/);
+  if (hex) {
+    const r = parseInt(hex[1].slice(0, 2), 16);
+    const g = parseInt(hex[1].slice(2, 4), 16);
+    const b = parseInt(hex[1].slice(4, 6), 16);
+    return relativeLuminance(r, g, b) > 0.7;
+  }
+  // rgb / rgba
+  const rgb = v.match(/^rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+  if (rgb) {
+    return relativeLuminance(+rgb[1], +rgb[2], +rgb[3]) > 0.7;
+  }
+  return false;
+}
+
+function relativeLuminance(r: number, g: number, b: number): number {
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
 }
