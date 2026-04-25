@@ -698,6 +698,39 @@ function StarterThumbnail({ template }: { template: StarterTemplate }) {
   );
 }
 
+/**
+ * Image-backed featured templates — real flyers/designs the user can apply
+ * as a starting canvas. The image lands as a non-selectable background
+ * layer (so dragging doesn't accidentally move it) and the user adds their
+ * own text/logo/elements on top. Click "lock" off in Layers to swap it.
+ *
+ * Source assets live in /public/templates/flyers/. Sizes match the source
+ * image so the canvas takes the design's native aspect.
+ */
+interface FeaturedTemplate {
+  id: string;
+  name: string;
+  category: "social_post" | "ad" | "flyer" | "poster" | "banner" | "signboard";
+  width: number;
+  height: number;
+  imageUrl: string;
+}
+
+const FEATURED_TEMPLATES: FeaturedTemplate[] = [
+  { id: "ft-bday-pastor-george",  name: "Birthday — Green & Gold",      category: "social_post", width: 1080, height: 1080, imageUrl: "/templates/flyers/02463050-170e-4101-816d-22fd55ded341.jpeg" },
+  { id: "ft-bday-honor-cruise",   name: "Birthday — Cruise & Balloons", category: "social_post", width: 1600, height: 1600, imageUrl: "/templates/flyers/1292f0db-e038-4d0f-9c41-a1a3b9e414b7.jpeg" },
+  { id: "ft-bday-polaroid-park",  name: "Birthday — Polaroid Pink",     category: "flyer",       width: 1080, height: 1350, imageUrl: "/templates/flyers/23aa436c-56ae-4d76-9f20-241f6b8e5955.jpeg" },
+  { id: "ft-bday-polaroid-beach", name: "Birthday — Polaroid Beach",    category: "flyer",       width: 1080, height: 1350, imageUrl: "/templates/flyers/b86592d5-8935-447c-9b10-d18e0f2728d5.jpeg" },
+  { id: "ft-bday-trio-yellow",    name: "Birthday — Family Yellow",     category: "flyer",       width: 1080, height: 1320, imageUrl: "/templates/flyers/fa1c35d0-2701-4329-a516-109e87b774ef.jpeg" },
+  { id: "ft-bday-royal-blue",     name: "Birthday — Royal Blue",        category: "flyer",       width: 1290, height: 1714, imageUrl: "/templates/flyers/unnamed-2.jpg" },
+  { id: "ft-bday-pastor-mike",    name: "Birthday — Photo Memorial",    category: "flyer",       width: 1290, height: 1657, imageUrl: "/templates/flyers/IMG_9848.jpeg" },
+  { id: "ft-event-tickets",       name: "Event — Concert Tickets",      category: "poster",      width: 1290, height: 1319, imageUrl: "/templates/flyers/IMG_9873.jpeg" },
+  { id: "ft-event-countdown",     name: "Event — Countdown Day",        category: "poster",      width: 1431, height: 1907, imageUrl: "/templates/flyers/5fa4cce9-3d09-4402-b745-03aa8f1d8f41.jpeg" },
+  { id: "ft-event-tomorrow",      name: "Event — Bold Lettering",       category: "flyer",       width: 1080, height: 1350, imageUrl: "/templates/flyers/unnamed-3.jpg" },
+  { id: "ft-marketing-hero",      name: "Ad — Hero & QR",               category: "ad",          width: 1290, height: 1523, imageUrl: "/templates/flyers/IMG_9870.jpeg" },
+  { id: "ft-product-luxury",      name: "Product — Luxury Showcase",    category: "ad",          width: 1290, height: 1398, imageUrl: "/templates/flyers/IMG_9901.jpeg" },
+];
+
 export function TemplatesPanel() {
   const canvas = useCanvasStore((s) => s.canvas);
   const setCanvasDimensions = useCanvasStore((s) => s.setCanvasDimensions);
@@ -918,6 +951,52 @@ export function TemplatesPanel() {
     };
   }
 
+  // Apply a featured (image-backed) template — sets canvas to the image's
+  // native dimensions and adds it as a non-selectable bottom layer so the
+  // user can drop their own text/elements on top without dragging it by
+  // mistake. They can still toggle the lock from the Layers panel.
+  const handleApplyFeatured = async (template: FeaturedTemplate) => {
+    if (!canvas) return;
+    if (!(await confirmBeforeClobber(template.name))) return;
+    setApplyingId(template.id);
+    try {
+      canvas.clear();
+      setCanvasDimensions(template.width, template.height);
+      canvas.setDimensions({ width: template.width, height: template.height });
+      canvas.backgroundColor = "#ffffff";
+
+      const fabric = await import("fabric");
+      const img = await fabric.FabricImage.fromURL(template.imageUrl, { crossOrigin: "anonymous" });
+      if (!img || !img.width || !img.height) {
+        throw new Error("Image failed to load");
+      }
+      // Stretch to fit the canvas — usually 1:1 since we set canvas dims
+      // to the image's native dims.
+      const sx = template.width / img.width;
+      const sy = template.height / img.height;
+      img.set({
+        left: 0,
+        top: 0,
+        originX: "left",
+        originY: "top",
+        scaleX: sx,
+        scaleY: sy,
+        selectable: false,
+        evented: false,
+      });
+      (img as unknown as { id: string; customName: string }).id = "featured-bg";
+      (img as unknown as { customName: string }).customName = `${template.name} (background)`;
+      canvas.add(img);
+      canvas.renderAll();
+      refreshLayers();
+      toast({ title: "Template applied!", description: "Add your text and elements on top." });
+    } catch {
+      toast({ title: "Failed to apply template", variant: "destructive" });
+    } finally {
+      setApplyingId(null);
+    }
+  };
+
   const handleApplyTemplate = async (template: DesignTemplate) => {
     if (!canvas) return;
     if (!(await confirmBeforeClobber(template.name))) return;
@@ -995,6 +1074,66 @@ export function TemplatesPanel() {
           </Badge>
         ))}
       </div>
+
+      {/* Featured (image-backed) templates — real designs you can apply
+          as a starting canvas + remix. Filtered by the same search +
+          category controls as everything else. */}
+      {(() => {
+        const filteredFeatured = FEATURED_TEMPLATES.filter((t) => {
+          if (selectedCategory && t.category !== selectedCategory) return false;
+          if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            return t.name.toLowerCase().includes(q) || t.category.includes(q);
+          }
+          return true;
+        });
+        if (filteredFeatured.length === 0) return null;
+        return (
+          <div className="mb-4">
+            <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+              Featured Designs
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {filteredFeatured.map((template, i) => (
+                <motion.button
+                  key={template.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.03, duration: 0.2 }}
+                  onClick={() => handleApplyFeatured(template)}
+                  disabled={applyingId === template.id}
+                  className={cn(
+                    "relative rounded-lg overflow-hidden border border-border hover:border-brand-500 transition-all group bg-gray-100 dark:bg-gray-800",
+                    template.width > template.height
+                      ? "aspect-video"
+                      : template.height > template.width * 1.5
+                        ? "aspect-[9/16]"
+                        : "aspect-[4/5]",
+                  )}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={template.imageUrl}
+                    alt={template.name}
+                    loading="lazy"
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                  {applyingId === template.id && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                      <AISpinner className="h-5 w-5 animate-spin text-white" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5 translate-y-full group-hover:translate-y-0 transition-transform">
+                    <p className="text-white text-[10px] font-medium truncate">{template.name}</p>
+                    <p className="text-white/60 text-[9px]">{template.width}x{template.height}</p>
+                  </div>
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {filteredStarters.length > 0 && (
         <div className="mb-4">
