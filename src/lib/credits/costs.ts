@@ -145,8 +145,8 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_BUSINESS_PLAN: 120,          // Full business plan: agent + adaptive thinking + 13 sections + charts (~$1.00)
   AI_BUSINESS_PLAN_REGENERATE: 35, // Partial regen with new instructions — reuses brand snapshot, swaps sections
 
-  // --- AI Template Remix (single-pass gpt-image-1 image-edit) ---
-  AI_TEMPLATE_REPRODUCE: 60,      // Single gpt-image-1 multi-image edit (~$0.05-0.10 actual). Was 150 with the old layer-by-layer approach which produced fragmented output.
+  // --- AI Template Reproduce (Claude vision + 1 bg gen + editable layers) ---
+  AI_TEMPLATE_REPRODUCE: 80,      // Claude vision pass (~$0.05) + ONE gpt-image-1 bg gen (~$0.04). Photos left as user-fillable placeholders to keep cost low and avoid AI generating the wrong people.
 } as const;
 
 /**
