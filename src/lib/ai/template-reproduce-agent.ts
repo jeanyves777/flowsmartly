@@ -44,7 +44,7 @@ export interface ReproduceResult {
 type FabricObject = Record<string, any>;
 
 interface SpecLayer {
-  type: "textbox" | "rect" | "circle" | "image_prompt";
+  type: "textbox" | "rect" | "circle" | "image_prompt" | "user_image";
   /** Top-left x in canvas pixels. */
   left: number;
   /** Top-left y in canvas pixels. */
@@ -74,6 +74,8 @@ interface SpecLayer {
   prompt?: string;
   /** "transparent" cuts the bg, "scene" keeps it (used for full-bleed bgs). */
   bgMode?: "transparent" | "scene";
+  /** user_image: 0-indexed pointer into the referenceImages array. */
+  userImageIndex?: number;
 }
 
 interface ReproduceSpec {
@@ -126,6 +128,13 @@ ABSOLUTE OUTPUT FORMAT — a single JSON object, no prose, no markdown fences:
       "left": 420, "top": 220, "width": 240, "height": 240,
       "prompt": "Professional headshot of a smiling Black man in his 40s wearing a grey suit jacket, photographed in soft warm lighting, cropped to chest-up, neutral indoor background",
       "bgMode": "transparent"
+    },
+    // USER-UPLOADED PHOTOS — only when the user attached reference images.
+    // Use these INSTEAD of image_prompt for any slot the user's photos fit:
+    {
+      "type": "user_image",
+      "left": 420, "top": 220, "width": 240, "height": 240,
+      "userImageIndex": 0
     }
   ]
 }
@@ -152,13 +161,18 @@ export interface ReproduceOptions {
   /** Optional BrandKit colors. When present, agent applies them to text
    *  fills, accents, and (where appropriate) backgrounds. */
   brandColors?: { primary?: string; secondary?: string; accent?: string } | null;
+  /** User-uploaded photos as data:image/* URLs. When provided, the agent
+   *  reuses these for image_prompt layers (mapped by best fit) instead of
+   *  generating new ones via OpenAI. Saves credits + gives the user
+   *  exact control over the imagery. */
+  referenceImages?: string[];
 }
 
 export async function reproduceTemplate(
   imageUrl: string,
   options: ReproduceOptions = {},
 ): Promise<ReproduceResult> {
-  const { maxImages = 8, customText, brandColors } = options;
+  const { maxImages = 8, customText, brandColors, referenceImages = [] } = options;
 
   console.log(`[TemplateReproduce] start url=${imageUrl}`);
   // Pull the source bytes. Local /public/* paths read off disk; remote URLs
@@ -201,8 +215,37 @@ accent for callout strokes / dividers / small badges. Background can stay if it'
 use a soft tint of primary if it's a flat color. Maintain enough contrast for readability.`,
     );
   }
+  if (referenceImages.length > 0) {
+    personalizationLines.push(
+      `USER-PROVIDED PHOTOS — ${referenceImages.length} image(s) attached after the template.
+The user has uploaded their own photos (people, products, scenes). For
+EVERY image_prompt layer in the design, instead of writing a generation
+prompt for OpenAI to invent a new image, set type to "user_image" and
+add a "userImageIndex" field pointing to the 0-indexed photo that best
+fits that slot. Match by content (a portrait slot → a person photo, a
+product slot → a product photo). If you have more layers than user
+photos, you may reuse photos. If a layer truly needs imagery the user
+didn't provide (e.g. a decorative starburst), keep type "image_prompt"
+as a fallback.`,
+    );
+  }
   const personalizationBlock =
     personalizationLines.length > 0 ? `\n\n${personalizationLines.join("\n\n")}\n` : "";
+
+  // Convert user-uploaded data URLs into Anthropic image content blocks
+  // so Claude can SEE them when deciding which slot each maps to.
+  const userImageBlocks = referenceImages.map((dataUrl) => {
+    const match = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
+    if (!match) return null;
+    return {
+      type: "image" as const,
+      source: {
+        type: "base64" as const,
+        media_type: match[1] as "image/png" | "image/jpeg" | "image/webp",
+        data: match[2],
+      },
+    };
+  }).filter((x): x is NonNullable<typeof x> => x !== null);
 
   // ─── Step 1: vision analysis ──────────────────────────────────────────
   const response = (await anthropic.messages.create({
@@ -219,6 +262,14 @@ use a soft tint of primary if it's a flat color. Maintain enough contrast for re
             type: "text",
             text: `Analyze this template image and return the JSON spec described in the system prompt. Be exhaustive with text layers — capture every word visible in the image, no matter how small.${personalizationBlock}`,
           },
+          // User-uploaded reference photos (if any) — Claude can SEE them
+          // and decide which slot in the design each maps to.
+          ...(userImageBlocks.length > 0
+            ? [
+                { type: "text" as const, text: "USER-PROVIDED PHOTOS (in order, indexed from 0):" },
+                ...userImageBlocks,
+              ]
+            : []),
         ],
       },
     ],
@@ -393,6 +444,30 @@ use a soft tint of primary if it's a flat color. Maintain enough contrast for re
           stroke: "#999",
           strokeWidth: 1,
           strokeDashArray: [4, 4],
+        });
+      }
+    } else if (l.type === "user_image") {
+      // Use the user-uploaded image at the indexed slot. Falls back to
+      // the first user image if the index is out of range.
+      const idxRequest = typeof l.userImageIndex === "number" ? l.userImageIndex : 0;
+      const userImg = referenceImages[idxRequest] || referenceImages[0];
+      if (userImg) {
+        objects.push({
+          type: "image",
+          left: l.left, top: l.top,
+          originX: "left", originY: "top",
+          scaleX: 1, scaleY: 1,
+          width: l.width, height: l.height,
+          src: userImg,
+        });
+      } else {
+        // No user image at all — placeholder.
+        objects.push({
+          type: "rect",
+          left: l.left, top: l.top, width: l.width, height: l.height,
+          originX: "left", originY: "top",
+          fill: "rgba(200,200,200,0.4)",
+          stroke: "#999", strokeWidth: 1, strokeDashArray: [4, 4],
         });
       }
     }

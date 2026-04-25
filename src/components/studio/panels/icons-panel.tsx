@@ -33,8 +33,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Search as SearchIcon } from "lucide-react";
 import { useCanvasStore } from "../hooks/use-canvas-store";
-import { addImageToCanvas } from "../utils/canvas-helpers";
-
 // Brand/social logos via Simple Icons CDN — free, no key, returns SVG.
 // URL pattern: https://cdn.simpleicons.org/{slug} for brand-color SVG.
 // We add the SVG as a Fabric image element so the user can scale/recolor
@@ -291,12 +289,53 @@ export function IconsPanel() {
   };
 
   // Click a brand icon → fetch the colored SVG from Simple Icons CDN and
-  // drop as an image on the canvas. addImageToCanvas handles SVG raster.
+  // load it as a Fabric vector group via loadSVGFromString. We can't use
+  // addImageToCanvas here because that path proxies through our image
+  // proxy as raster — Fabric's FabricImage on raw SVG-text URLs is
+  // unreliable in v7 and tends to render blanks or wrong content.
   const handleAddBrand = async (b: BrandIcon) => {
     if (!canvas) return;
     try {
       const fabric = await import("fabric");
-      await addImageToCanvas(canvas, brandIconUrl(b.slug), fabric);
+      // Route through our image-proxy so we get a guaranteed CORS-allowing
+      // response — the SimpleIcons CDN returns CORS-friendly headers in
+      // most browsers but we've seen edge cases where loadSVGFromString
+      // silently parses an empty string when CORS strips the body.
+      const proxied = `/api/image-proxy?url=${encodeURIComponent(brandIconUrl(b.slug))}`;
+      const res = await fetch(proxied);
+      if (!res.ok) throw new Error(`Simple Icons CDN returned ${res.status}`);
+      const svg = await res.text();
+      const result = await fabric.loadSVGFromString(svg);
+      const objects = (result.objects || []).filter(Boolean) as any[];
+      if (objects.length === 0) return;
+
+      const obj =
+        objects.length === 1
+          ? objects[0]
+          : new fabric.Group(objects, { subTargetCheck: false, originX: "left", originY: "top" });
+
+      // Center on canvas at a reasonable starting size (~120px).
+      const cw = canvas.getWidth();
+      const ch = canvas.getHeight();
+      const naturalW = obj.width || 24;
+      const naturalH = obj.height || 24;
+      const targetSize = 120;
+      const scale = targetSize / Math.max(naturalW, naturalH);
+      obj.set({
+        left: (cw - naturalW * scale) / 2,
+        top: (ch - naturalH * scale) / 2,
+        originX: "left",
+        originY: "top",
+        scaleX: scale,
+        scaleY: scale,
+      });
+      (obj as any).id = `brand-${b.slug}-${Date.now()}`;
+      (obj as any).customName = b.label;
+      canvas.add(obj);
+      canvas.setActiveObject(obj);
+      canvas.requestRenderAll();
+      refreshLayers();
+      setDirty(true);
     } catch (err) {
       console.error("[IconsPanel] Failed to add brand icon:", err);
     }

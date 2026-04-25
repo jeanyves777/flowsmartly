@@ -36,6 +36,14 @@ export async function POST(req: NextRequest) {
 
     const customText: string = typeof body.customText === "string" ? body.customText.slice(0, 2000) : "";
     const useBrandColors: boolean = !!body.useBrandColors;
+    // referenceImages: array of data:image/* URLs the user uploaded so the
+    // agent can use those instead of generating new ones via OpenAI.
+    // Cap at 4 to keep the agent payload sane (each image is base64).
+    const referenceImages: string[] = Array.isArray(body.referenceImages)
+      ? body.referenceImages
+          .filter((s: unknown): s is string => typeof s === "string" && s.startsWith("data:image/"))
+          .slice(0, 4)
+      : [];
 
     // Pull the user's BrandKit colors when requested. We pass them to the
     // agent as plain hex strings; if the user hasn't set up a BrandKit,
@@ -85,7 +93,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await reproduceTemplate(imageUrl, { customText, brandColors });
+    const result = await reproduceTemplate(imageUrl, { customText, brandColors, referenceImages });
 
     if (!isAdmin) {
       await prisma.$transaction([

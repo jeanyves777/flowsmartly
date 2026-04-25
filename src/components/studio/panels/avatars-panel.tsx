@@ -1,33 +1,43 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Users, RefreshCw, Sparkles } from "lucide-react";
+import { Users, RefreshCw, Sparkles, ImageIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import { addImageToCanvas } from "../utils/canvas-helpers";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils/cn";
 
 /**
- * Avatars + 3D Stickers panel — drop free, transparent-bg avatars and
- * emoji-style stickers onto the canvas without leaving the studio.
+ * Avatars panel — real human portraits + (optional) cartoon avatars +
+ * 3D emoji stickers. Tab-style sub-navigation since the user clarified
+ * "when we say avatar we are talking about real human avatars".
  *
- * Sources (no API key required):
- *  - DiceBear (api.dicebear.com) — cartoon/3D avatars in many styles.
- *    Returns SVG/PNG via URL, transparent bg by default. We hit the PNG
- *    endpoint so Fabric.js can rasterize cleanly.
- *  - Microsoft Fluent Emoji 3D — high-quality 3D emoji as transparent
- *    PNGs hosted on the official microsoft/fluentui-emoji GitHub repo.
- *
- * No server proxy needed — DiceBear + GitHub raw are CORS-friendly.
+ * Sources (all free, no key required):
+ *  - PEOPLE: Pexels portrait photos via /api/pexels/search (default tab).
+ *    Real human photos — backgrounds vary; user can crop/cut on canvas.
+ *  - CARTOON: DiceBear (api.dicebear.com) — cartoon avatars in many
+ *    styles. Returns transparent PNG by default.
+ *  - STICKERS: Microsoft Fluent 3D Emoji — 3D emoji as transparent PNGs
+ *    hosted on the official microsoft/fluentui-emoji GitHub repo.
  */
 
+type Tab = "people" | "cartoon" | "stickers";
+
+interface PexelsPhoto {
+  id: number;
+  width: number;
+  height: number;
+  alt: string;
+  photographer: string;
+  thumbUrl: string;
+  previewUrl: string;
+}
+
 interface DiceBearStyle {
-  /** Style id used in the DiceBear URL path. */
   id: string;
-  /** Display label. */
   label: string;
-  /** Short description for the section header. */
   description: string;
 }
 
@@ -46,13 +56,8 @@ const AVATAR_STYLES: DiceBearStyle[] = [
   { id: "avataaars", label: "Avataaars", description: "Sketch-style avatars" },
 ];
 
-// Curated set of common Microsoft Fluent 3D emoji — the GitHub repo path
-// pattern is: assets/{Display Name}/3D/{name}_3d.png. Names use _ underscores.
-// We pre-encode the display-name path component since some have spaces.
 interface FluentEmoji {
-  name: string;       // human label
-  display: string;    // path segment (matches asset folder name)
-  file: string;       // file slug
+  name: string; display: string; file: string;
 }
 
 const FLUENT_EMOJI: FluentEmoji[] = [
@@ -83,51 +88,82 @@ const FLUENT_EMOJI: FluentEmoji[] = [
 ];
 
 const FLUENT_BASE = "https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets";
+const fluentUrl = (e: FluentEmoji) => `${FLUENT_BASE}/${e.display}/3D/${e.file}_3d.png`;
+const dicebearUrl = (style: string, seed: string, size = 256) =>
+  `https://api.dicebear.com/9.x/${encodeURIComponent(style)}/png?seed=${encodeURIComponent(seed)}&size=${size}`;
 
-function fluentUrl(e: FluentEmoji): string {
-  return `${FLUENT_BASE}/${e.display}/3D/${e.file}_3d.png`;
-}
-
-function dicebearUrl(style: string, seed: string, size = 256): string {
-  // PNG variant — Fabric handles raster well. backgroundType=solid would
-  // give a colored bg; we explicitly want transparent for compositing.
-  return `https://api.dicebear.com/9.x/${encodeURIComponent(style)}/png?seed=${encodeURIComponent(seed)}&size=${size}&backgroundType=transparent`;
-}
-
-// Generate a small grid of randomized seeds — refresh button cycles them.
-function makeSeeds(count = 8): string[] {
+const makeSeeds = (count = 8): string[] => {
   const out: string[] = [];
-  for (let i = 0; i < count; i++) {
-    out.push(Math.random().toString(36).slice(2, 10));
-  }
+  for (let i = 0; i < count; i++) out.push(Math.random().toString(36).slice(2, 10));
   return out;
-}
+};
+
+// Pre-baked search suggestions for People tab — clicking applies the
+// keyword + portrait orientation so the user sees relevant headshots
+// immediately on first open.
+const PEOPLE_SUGGESTIONS = [
+  "professional portrait",
+  "smiling person",
+  "business headshot",
+  "diverse people",
+  "happy woman",
+  "happy man",
+  "elder portrait",
+  "child portrait",
+];
 
 export function AvatarsPanel() {
   const canvas = useCanvasStore((s) => s.canvas);
   const { toast } = useToast();
-  const [search, setSearch] = useState("");
-  const [activeStyle, setActiveStyle] = useState<string>("adventurer");
+  const [tab, setTab] = useState<Tab>("people");
+
+  // People (Pexels) state
+  const [peopleQuery, setPeopleQuery] = useState("professional portrait");
+  const [peopleDebounced, setPeopleDebounced] = useState(peopleQuery);
+  const [peopleLoading, setPeopleLoading] = useState(false);
+  const [peoplePhotos, setPeoplePhotos] = useState<PexelsPhoto[]>([]);
+
+  // Cartoon (DiceBear) state
+  const [activeStyle, setActiveStyle] = useState("adventurer");
   const [seeds, setSeeds] = useState<string[]>(() => makeSeeds());
+  const [stylesQuery, setStylesQuery] = useState("");
+
+  // Common state
   const [addingUrl, setAddingUrl] = useState<string | null>(null);
 
-  // Re-seed when user clicks Refresh.
-  const refreshSeeds = () => setSeeds(makeSeeds());
+  // ─── People tab: debounced Pexels search (portrait orientation) ───
+  useEffect(() => {
+    const t = setTimeout(() => setPeopleDebounced(peopleQuery), 350);
+    return () => clearTimeout(t);
+  }, [peopleQuery]);
 
-  // Filter visible styles by the search box.
+  useEffect(() => {
+    if (tab !== "people") return;
+    let cancelled = false;
+    setPeopleLoading(true);
+    const params = new URLSearchParams({
+      q: peopleDebounced,
+      per_page: "24",
+      orientation: "portrait",
+    });
+    fetch(`/api/pexels/search?${params}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setPeoplePhotos(data.success ? (data.photos || []) : []);
+      })
+      .catch(() => { if (!cancelled) setPeoplePhotos([]); })
+      .finally(() => { if (!cancelled) setPeopleLoading(false); });
+    return () => { cancelled = true; };
+  }, [peopleDebounced, tab]);
+
+  // ─── Cartoon tab: filter visible styles by query ───
   const visibleStyles = useMemo(() => {
-    if (!search.trim()) return AVATAR_STYLES;
-    const q = search.toLowerCase();
+    if (!stylesQuery.trim()) return AVATAR_STYLES;
+    const q = stylesQuery.toLowerCase();
     return AVATAR_STYLES.filter((s) => s.label.toLowerCase().includes(q) || s.id.includes(q));
-  }, [search]);
+  }, [stylesQuery]);
 
-  const visibleEmoji = useMemo(() => {
-    if (!search.trim()) return FLUENT_EMOJI;
-    const q = search.toLowerCase();
-    return FLUENT_EMOJI.filter((e) => e.name.toLowerCase().includes(q));
-  }, [search]);
-
-  // Reset to first matching style when search narrows the list down.
   useEffect(() => {
     if (visibleStyles.length === 0) return;
     if (!visibleStyles.some((s) => s.id === activeStyle)) {
@@ -154,40 +190,135 @@ export function AvatarsPanel() {
   };
 
   return (
-    <div className="p-3 space-y-4">
+    <div className="p-3 space-y-3">
       <h3 className="text-sm font-semibold flex items-center gap-1.5">
         <Users className="h-4 w-4 text-brand-500" />
-        Avatars &amp; Stickers
+        Avatars
       </h3>
 
-      <Input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search styles or stickers…"
-        className="h-8 text-xs"
-        aria-label="Search avatars and stickers"
-      />
-
-      {/* DiceBear avatars — pick a style, browse randomized seeds */}
-      {visibleStyles.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Cartoon Avatars
-            </h4>
+      {/* Tab switcher */}
+      <div className="flex gap-1 p-1 rounded-lg bg-muted">
+        {([
+          { id: "people", label: "Real People", icon: Users },
+          { id: "cartoon", label: "Cartoon", icon: ImageIcon },
+          { id: "stickers", label: "3D", icon: Sparkles },
+        ] as const).map((t) => {
+          const Icon = t.icon;
+          const isActive = tab === t.id;
+          return (
             <button
+              key={t.id}
               type="button"
-              onClick={refreshSeeds}
-              className="text-[10px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-              title="Generate fresh avatars"
+              onClick={() => setTab(t.id)}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[11px] font-medium transition-colors",
+                isActive
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
             >
-              <RefreshCw className="h-3 w-3" />
-              Shuffle
+              <Icon className="h-3 w-3" />
+              {t.label}
             </button>
+          );
+        })}
+      </div>
+
+      {/* PEOPLE TAB — Pexels portrait photos */}
+      {tab === "people" && (
+        <div className="space-y-3">
+          <Input
+            value={peopleQuery}
+            onChange={(e) => setPeopleQuery(e.target.value)}
+            placeholder="Search portraits…"
+            className="h-8 text-xs"
+            aria-label="Search real people portraits"
+          />
+
+          {/* Suggestion chips */}
+          <div className="flex flex-wrap gap-1">
+            {PEOPLE_SUGGESTIONS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setPeopleQuery(s)}
+                className={cn(
+                  "px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors",
+                  peopleQuery === s
+                    ? "bg-brand-500 text-white border-brand-500"
+                    : "border-border text-muted-foreground hover:border-brand-400 hover:text-foreground",
+                )}
+              >
+                {s}
+              </button>
+            ))}
           </div>
 
+          {peopleLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <AISpinner className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : peoplePhotos.length === 0 ? (
+            <div className="text-center py-6 text-xs text-muted-foreground">
+              No results — try another search
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-1.5">
+              {peoplePhotos.map((p) => {
+                const url = p.previewUrl;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => addToCanvas(url)}
+                    disabled={addingUrl === url}
+                    title={`${p.alt} — by ${p.photographer}`}
+                    className="relative aspect-[3/4] rounded-md border border-border hover:border-brand-500 hover:scale-[1.03] transition-all bg-gray-50 dark:bg-gray-800 group overflow-hidden"
+                    aria-label={`Add portrait by ${p.photographer}`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={p.thumbUrl}
+                      alt={p.alt}
+                      loading="lazy"
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                    {addingUrl === url && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-md">
+                        <AISpinner className="h-4 w-4 animate-spin text-white" />
+                      </div>
+                    )}
+                    {/* Photographer credit on hover (Pexels attribution) */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1 translate-y-full group-hover:translate-y-0 transition-transform pointer-events-none">
+                      <p className="text-white text-[8px] font-medium truncate">© {p.photographer}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <p className="text-[10px] text-muted-foreground/70 pt-1 text-center">
+            Free portraits from{" "}
+            <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+              Pexels
+            </a>
+          </p>
+        </div>
+      )}
+
+      {/* CARTOON TAB — DiceBear styles */}
+      {tab === "cartoon" && (
+        <div className="space-y-3">
+          <Input
+            value={stylesQuery}
+            onChange={(e) => setStylesQuery(e.target.value)}
+            placeholder="Search styles…"
+            className="h-8 text-xs"
+            aria-label="Search cartoon avatar styles"
+          />
+
           {/* Style chips */}
-          <div className="flex flex-wrap gap-1 mb-2.5">
+          <div className="flex flex-wrap gap-1">
             {visibleStyles.map((s) => {
               const isActive = activeStyle === s.id;
               return (
@@ -196,17 +327,29 @@ export function AvatarsPanel() {
                   type="button"
                   onClick={() => setActiveStyle(s.id)}
                   title={s.description}
-                  className={
-                    "px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors " +
-                    (isActive
+                  className={cn(
+                    "px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors",
+                    isActive
                       ? "bg-brand-500 text-white border-brand-500"
-                      : "border-border text-muted-foreground hover:border-brand-400 hover:text-foreground")
-                  }
+                      : "border-border text-muted-foreground hover:border-brand-400 hover:text-foreground",
+                  )}
                 >
                   {s.label}
                 </button>
               );
             })}
+          </div>
+
+          <div className="flex items-center justify-end -mt-1">
+            <button
+              type="button"
+              onClick={() => setSeeds(makeSeeds())}
+              className="text-[10px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+              title="Generate fresh avatars"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Shuffle
+            </button>
           </div>
 
           <div className="grid grid-cols-3 gap-1.5">
@@ -218,7 +361,7 @@ export function AvatarsPanel() {
                   type="button"
                   onClick={() => addToCanvas(url)}
                   disabled={addingUrl === url}
-                  className="relative aspect-square rounded-md border border-border hover:border-brand-500 hover:scale-[1.04] transition-all bg-gray-50 dark:bg-gray-800 group"
+                  className="relative aspect-square rounded-md border border-border hover:border-brand-500 hover:scale-[1.04] transition-all bg-gray-50 dark:bg-gray-800"
                   aria-label={`Add ${activeStyle} avatar`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -237,18 +380,14 @@ export function AvatarsPanel() {
               );
             })}
           </div>
-        </section>
+        </div>
       )}
 
-      {/* Microsoft Fluent 3D Emoji — colorful 3D stickers */}
-      {visibleEmoji.length > 0 && (
-        <section>
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" />
-            3D Stickers
-          </h4>
+      {/* STICKERS TAB — Microsoft Fluent 3D Emoji */}
+      {tab === "stickers" && (
+        <div className="space-y-3">
           <div className="grid grid-cols-4 gap-1.5">
-            {visibleEmoji.map((e) => {
+            {FLUENT_EMOJI.map((e) => {
               const url = fluentUrl(e);
               return (
                 <button
@@ -276,15 +415,9 @@ export function AvatarsPanel() {
               );
             })}
           </div>
-          <p className="text-[10px] text-muted-foreground/70 mt-2">
-            3D emoji from Microsoft Fluent · free to use under MIT license.
+          <p className="text-[10px] text-muted-foreground/70 pt-1 text-center">
+            3D emoji from Microsoft Fluent · MIT
           </p>
-        </section>
-      )}
-
-      {visibleStyles.length === 0 && visibleEmoji.length === 0 && (
-        <div className="text-center py-8 text-xs text-muted-foreground">
-          No matches for &ldquo;{search}&rdquo;
         </div>
       )}
     </div>
