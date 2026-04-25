@@ -10,7 +10,7 @@ import { useCanvasStore } from "../hooks/use-canvas-store";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { addImageToCanvas, createTextbox, safeLoadFromJSON } from "../utils/canvas-helpers";
 import { DESIGN_CATEGORIES } from "@/lib/constants/design-presets";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 
@@ -746,6 +746,7 @@ export function TemplatesPanel() {
   // Preview modal — clicking a Featured Designs card opens this so the
   // user sees the full template before deciding which action to take.
   const [previewTemplate, setPreviewTemplate] = useState<FeaturedTemplate | null>(null);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
@@ -1115,15 +1116,19 @@ export function TemplatesPanel() {
         Templates
       </h3>
 
-      <div className="relative mb-3">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search templates..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-8 h-8 text-sm"
-        />
-      </div>
+      {/* Search trigger — opens a full-screen modal that searches BOTH our
+          Featured Designs AND the Pexels stock-photo library in one place,
+          since the panel is too narrow to render search results well. */}
+      <button
+        type="button"
+        onClick={() => setSearchModalOpen(true)}
+        className="relative w-full mb-3 flex items-center gap-2 px-3 h-9 rounded-md border border-border bg-background hover:border-brand-500 hover:shadow-sm transition-all text-left"
+        aria-label="Open templates search"
+      >
+        <Search className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm text-muted-foreground flex-1">Search templates &amp; stock photos…</span>
+        <span className="text-[9px] text-muted-foreground/70 hidden sm:inline">⌘ + click</span>
+      </button>
 
       <div className="flex flex-wrap gap-1.5 mb-4">
         <Badge
@@ -1299,26 +1304,42 @@ export function TemplatesPanel() {
         </div>
       )}
 
-      {/* Featured Designs preview modal — opened by clicking a thumbnail.
-          Renders the full-size template + the two action choices (use as
-          background vs. recreate as editable). Lives outside the side
-          panel so it can overlay the whole studio. */}
-      {previewTemplate && (
-        <FeaturedTemplatePreview
-          template={previewTemplate}
-          onClose={() => setPreviewTemplate(null)}
-          onUseAsBackground={async () => {
-            const t = previewTemplate;
-            setPreviewTemplate(null);
-            await handleApplyFeatured(t);
-          }}
-          onRecreateEditable={async () => {
-            const t = previewTemplate;
-            setPreviewTemplate(null);
-            await handleReproduce(t);
-          }}
-        />
-      )}
+      {/* Modals — both wrapped in AnimatePresence so they fade/scale on
+          open AND close instead of popping in/out abruptly. */}
+      <AnimatePresence>
+        {previewTemplate && (
+          <FeaturedTemplatePreview
+            key="preview"
+            template={previewTemplate}
+            onClose={() => setPreviewTemplate(null)}
+            onUseAsBackground={async () => {
+              const t = previewTemplate;
+              setPreviewTemplate(null);
+              await handleApplyFeatured(t);
+            }}
+            onRecreateEditable={async () => {
+              const t = previewTemplate;
+              setPreviewTemplate(null);
+              await handleReproduce(t);
+            }}
+          />
+        )}
+        {searchModalOpen && (
+          <TemplateSearchModal
+            key="search"
+            onClose={() => setSearchModalOpen(false)}
+            onPickFeatured={(t) => {
+              setSearchModalOpen(false);
+              // Small delay so the search modal exit animation finishes
+              // before the preview modal enters — feels intentional rather
+              // than chaotic when one closes and another opens.
+              setTimeout(() => setPreviewTemplate(t), 220);
+            }}
+            initialQuery={searchQuery}
+            featuredTemplates={FEATURED_TEMPLATES}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1351,14 +1372,22 @@ function FeaturedTemplatePreview({
   }, [onClose]);
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
       className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={`Preview ${template.name}`}
     >
-      <div
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
         className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col w-full max-w-4xl max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
@@ -1420,7 +1449,239 @@ function FeaturedTemplatePreview({
             </Button>
           </div>
         </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/**
+ * Big unified search modal — opens from the top "Search templates &
+ * stock photos" bar. Searches BOTH our Featured Designs AND the Pexels
+ * stock-photo library in one place. Picking any result hands off to the
+ * standard FeaturedTemplatePreview modal so the user gets the same
+ * Use-as-Background / Recreate-as-Editable choice regardless of source.
+ *
+ * Pexels photos are wrapped as FeaturedTemplate so the preview + actions
+ * code path is identical — the photo's previewUrl becomes the background
+ * when applied flat, and gets passed to the reproduce agent for editable.
+ */
+function TemplateSearchModal({
+  onClose,
+  onPickFeatured,
+  initialQuery,
+  featuredTemplates,
+}: {
+  onClose: () => void;
+  onPickFeatured: (t: FeaturedTemplate) => void;
+  initialQuery: string;
+  featuredTemplates: FeaturedTemplate[];
+}) {
+  const [query, setQuery] = useState(initialQuery);
+  const [debounced, setDebounced] = useState(initialQuery);
+  const [pexelsLoading, setPexelsLoading] = useState(false);
+  const [pexelsResults, setPexelsResults] = useState<FeaturedTemplate[]>([]);
+
+  // ESC closes; lock body scroll while open.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  // Debounce the search input so typing doesn't fire a Pexels request per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(query), 350);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // Fetch Pexels results whenever the debounced query changes.
+  useEffect(() => {
+    let cancelled = false;
+    setPexelsLoading(true);
+    const params = new URLSearchParams({ q: debounced, per_page: "24" });
+    fetch(`/api/pexels/search?${params}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (!data.success) { setPexelsResults([]); return; }
+        // Wrap each Pexels photo as a FeaturedTemplate so it flows through
+        // the same preview + apply + reproduce code path. We tag the id
+        // with a 'pexels-' prefix so applyingId state still works.
+        const wrapped: FeaturedTemplate[] = (data.photos || []).map((p: {
+          id: number; width: number; height: number; alt: string; previewUrl: string;
+        }) => ({
+          id: `pexels-${p.id}`,
+          name: p.alt || debounced || "Stock Photo",
+          // Pexels has no design category — bucket as "ad" so it shows up in
+          // the marketing-style filter; user wouldn't notice the difference.
+          category: "ad" as const,
+          width: Math.min(p.width, 2048),
+          height: Math.min(p.height, 2048),
+          imageUrl: p.previewUrl,
+        }));
+        setPexelsResults(wrapped);
+      })
+      .catch(() => { if (!cancelled) setPexelsResults([]); })
+      .finally(() => { if (!cancelled) setPexelsLoading(false); });
+    return () => { cancelled = true; };
+  }, [debounced]);
+
+  // Filter local Featured Designs by the same query.
+  const featuredMatches = featuredTemplates.filter((t) => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return t.name.toLowerCase().includes(q) || t.category.includes(q);
+  });
+
+  const totalResults = featuredMatches.length + pexelsResults.length;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
+      className="fixed inset-0 z-[55] flex items-start justify-center pt-12 sm:pt-20 px-4 pb-4 bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Search templates and stock photos"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97, y: -12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.97, y: -12 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col w-full max-w-5xl max-h-[88vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Search header */}
+        <div className="flex items-center gap-3 p-4 border-b border-border">
+          <div className="flex items-center gap-2 px-2 rounded-md bg-brand-500/10 text-brand-600 dark:text-brand-400 text-[10px] font-semibold uppercase tracking-wider py-0.5">
+            <Sparkles className="h-3 w-3" />
+            AI Search
+          </div>
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search 'birthday flyer', 'mountain hero', 'product showcase'…"
+              className="h-11 pl-10 text-base"
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus
+            />
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            aria-label="Close search"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Results body */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          {/* Featured Designs */}
+          {featuredMatches.length > 0 && (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                <ImageIcon className="h-3.5 w-3.5" />
+                Featured Designs
+                <span className="text-[10px] font-normal text-muted-foreground/70">{featuredMatches.length}</span>
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {featuredMatches.map((t) => (
+                  <ResultCard key={t.id} template={t} onClick={() => onPickFeatured(t)} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Pexels Stock Photos */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+              <ImageIcon className="h-3.5 w-3.5" />
+              Stock Photos (Pexels)
+              {!pexelsLoading && (
+                <span className="text-[10px] font-normal text-muted-foreground/70">{pexelsResults.length}</span>
+              )}
+            </h3>
+            {pexelsLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <AISpinner className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : pexelsResults.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {pexelsResults.map((t) => (
+                  <ResultCard key={t.id} template={t} onClick={() => onPickFeatured(t)} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                No stock photos for &quot;{debounced || "—"}&quot;
+              </div>
+            )}
+          </section>
+
+          {totalResults === 0 && !pexelsLoading && (
+            <div className="text-center py-12 text-sm text-muted-foreground">
+              <ImageIcon className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p>No results — try a different keyword</p>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/** Single result thumbnail used by both rows in the search modal. */
+function ResultCard({
+  template,
+  onClick,
+}: {
+  template: FeaturedTemplate;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "relative rounded-lg overflow-hidden border border-border hover:border-brand-500 hover:scale-[1.02] transition-all group bg-gray-100 dark:bg-gray-800",
+        template.width > template.height
+          ? "aspect-video"
+          : template.height > template.width * 1.5
+            ? "aspect-[9/16]"
+            : "aspect-[4/5]",
+      )}
+      title={template.name}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={template.imageUrl}
+        alt={template.name}
+        loading="lazy"
+        className="absolute inset-0 w-full h-full object-cover"
+      />
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 text-gray-900 text-xs font-semibold shadow-lg">
+          <Eye className="h-3 w-3" />
+          Preview
+        </div>
       </div>
-    </div>
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1.5 z-10 pointer-events-none">
+        <p className="text-white text-[10px] font-medium truncate text-left">{template.name}</p>
+        <p className="text-white/60 text-[9px] text-left">{template.width}×{template.height}</p>
+      </div>
+    </button>
   );
 }
