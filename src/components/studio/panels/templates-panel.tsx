@@ -983,10 +983,8 @@ export function TemplatesPanel() {
     window.dispatchEvent(
       new CustomEvent("studio:show-loader", {
         detail: {
-          title: "Recreating your editable design…",
-          subtitle: options.customText
-            ? "Claude is rewriting the layers with your text. This takes 60-120 seconds."
-            : "Claude is mapping every text block and OpenAI is regenerating the imagery. This takes 60-120 seconds.",
+          title: "Remixing your design…",
+          subtitle: "AI is rendering your version with the new copy, brand colors, and photos. Takes 30-60 seconds.",
         },
       }),
     );
@@ -1006,30 +1004,49 @@ export function TemplatesPanel() {
         if (data?.error?.code === "INSUFFICIENT_CREDITS") {
           toast({ title: "Not enough credits", description: data.error.message, variant: "destructive" });
         } else {
-          toast({ title: "Recreate failed", description: data?.error?.message || "Try again", variant: "destructive" });
+          toast({ title: "Remix failed", description: data?.error?.message || "Try again", variant: "destructive" });
         }
         return;
       }
-      if (!data?.canvas?.objects || !Array.isArray(data.canvas.objects)) {
-        throw new Error("Agent returned no objects");
-      }
-      // Sync canvas dims, then load the agent's Fabric JSON spec.
+      const payload = data.data;
+      if (!payload?.imageBase64) throw new Error("Agent returned no image");
+
+      // New single-pass remix: server returns ONE base64 PNG that's a
+      // fully-rendered version of the template with the user's text +
+      // brand colors + reference photos baked in. Drop it as a single
+      // canvas-sized image. The user can add their own text/elements
+      // on top if they want extra customization.
       canvas.clear();
-      setCanvasDimensions(data.canvas.width, data.canvas.height);
-      canvas.setDimensions({ width: data.canvas.width, height: data.canvas.height });
-      canvas.backgroundColor = data.canvas.backgroundColor || "#ffffff";
-      // Fabric expects a top-level wrapper with `version` — keep it minimal
-      // so loadFromJSON treats the array as our object set.
-      await safeLoadFromJSON(canvas, {
-        version: "6.0.0",
-        objects: data.canvas.objects,
-        background: data.canvas.backgroundColor || "#ffffff",
+      setCanvasDimensions(payload.width, payload.height);
+      canvas.setDimensions({ width: payload.width, height: payload.height });
+      canvas.backgroundColor = "#ffffff";
+
+      const fabric = await import("fabric");
+      const dataUrl = `data:image/png;base64,${payload.imageBase64}`;
+      const img = await fabric.FabricImage.fromURL(dataUrl, { crossOrigin: "anonymous" });
+      if (!img || !img.width || !img.height) {
+        throw new Error("Failed to decode remix image");
+      }
+      const sx = payload.width / img.width;
+      const sy = payload.height / img.height;
+      img.set({
+        left: 0,
+        top: 0,
+        originX: "left",
+        originY: "top",
+        scaleX: sx,
+        scaleY: sy,
+        selectable: true,
+        evented: true,
       });
+      (img as unknown as { id: string; customName: string }).id = "remix-base";
+      (img as unknown as { customName: string }).customName = `${template.name} (remix)`;
+      canvas.add(img);
       canvas.renderAll();
       refreshLayers();
       toast({
-        title: "Editable design ready!",
-        description: `${data.data.imagesGenerated} images generated · ${data.data.creditsUsed} credits used`,
+        title: "Remix ready!",
+        description: `${payload.creditsUsed} credits used · add your own text on top if you want`,
       });
     } catch (err) {
       toast({
@@ -1477,8 +1494,8 @@ function FeaturedTemplatePreview({
             >
               <Wand2 className="h-4 w-4" />
               <div className="text-left">
-                <div className="font-semibold text-sm leading-tight">Recreate as Editable</div>
-                <div className="text-xs font-normal text-white/85">150 credits · AI rebuilds every text and photo as editable layers</div>
+                <div className="font-semibold text-sm leading-tight">Remix with AI</div>
+                <div className="text-xs font-normal text-white/85">60 credits · AI renders your version with new text, colors, photos</div>
               </div>
             </Button>
           </div>
@@ -1946,7 +1963,7 @@ function RecreateOptionsDialog({
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button onClick={handleConfirm} className="gap-2 bg-brand-500 hover:bg-brand-600">
             <Sparkles className="h-4 w-4" />
-            Recreate Now · 150cr
+            Remix Now · 60cr
           </Button>
         </div>
       </motion.div>

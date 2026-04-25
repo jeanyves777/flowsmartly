@@ -243,6 +243,17 @@ export function attachSmartGuides(canvas: any): () => void {
   canvas.on("object:modified", clearGuides);
   canvas.on("canvas:cleared", handleCanvasCleared);
 
+  // When the user toggles guides off via the top-toolbar magnet button,
+  // wipe whatever's drawn RIGHT NOW. Without this the dashed lines
+  // stay until the next render event — which may not fire for a long
+  // time if the user isn't moving anything.
+  const handleToggle = () => {
+    isUserDragging = false;
+    activeGuides = [];
+    canvas.requestRenderAll?.();
+  };
+  window.addEventListener("studio:smart-guides-changed", handleToggle);
+
   return () => {
     canvas.off("object:moving", handleMoving);
     canvas.off("object:scaling", handleScaling);
@@ -254,5 +265,6 @@ export function attachSmartGuides(canvas: any): () => void {
     canvas.off("object:modified", handleMouseUp);
     canvas.off("object:modified", clearGuides);
     canvas.off("canvas:cleared", handleCanvasCleared);
+    window.removeEventListener("studio:smart-guides-changed", handleToggle);
   };
 }

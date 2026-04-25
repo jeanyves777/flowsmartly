@@ -792,15 +792,21 @@ export function CanvasEditor({
           while waiting 60-120s for the agent. */}
       {studioLoader && (
         <div
-          className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
           role="status"
           aria-live="polite"
         >
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 max-w-md w-[min(90vw,420px)] mx-4">
-            <AIGenerationLoader
-              currentStep={studioLoader.title}
-              subtitle={studioLoader.subtitle}
-            />
+          {/* Card sized so the AIGenerationLoader's 16:9 inner panel +
+              140px logo ring + step text + progress bar all fit without
+              clipping. Min height 320 keeps it tall enough; padding
+              matches the card border-radius for breathing room. */}
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-5 sm:p-6 w-full max-w-[480px] min-h-[320px] flex items-center justify-center overflow-hidden">
+            <div className="w-full">
+              <AIGenerationLoader
+                currentStep={studioLoader.title}
+                subtitle={studioLoader.subtitle}
+              />
+            </div>
           </div>
         </div>
       )}

@@ -107,8 +107,8 @@ export async function POST(req: NextRequest) {
             type: "USAGE",
             amount: -creditCost,
             balanceAfter: (user?.aiCredits || 0) - creditCost,
-            referenceType: "ai_template_reproduce",
-            description: `Template reproduction (${result.imagesGenerated} image gens)`,
+            referenceType: "ai_template_remix",
+            description: `Template remix (single-pass image edit)`,
           },
         }),
       ]);
@@ -118,19 +118,20 @@ export async function POST(req: NextRequest) {
       data: {
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
-        feature: "template_reproduce",
-        model: "claude-opus-4-7",
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
+        feature: "template_remix",
+        model: "gpt-image-1",
+        inputTokens: 0,
+        outputTokens: 0,
         costCents: 0,
       },
     });
 
     return NextResponse.json({
       success: true,
-      canvas: result.canvas,
       data: {
-        imagesGenerated: result.imagesGenerated,
+        imageBase64: result.imageBase64,
+        width: result.width,
+        height: result.height,
         creditsUsed: isAdmin ? 0 : creditCost,
         creditsRemaining: isAdmin ? 999 : (user?.aiCredits || 0) - creditCost,
       },

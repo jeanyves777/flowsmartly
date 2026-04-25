@@ -221,6 +221,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       try {
         window.localStorage.setItem("studio:smartGuides", next ? "on" : "off");
       } catch {}
+      // Tell the live smart-guides utility to wipe whatever's currently
+      // drawn — without this the dashed lines stay on screen until the
+      // next render fires (which can be never if the user isn't moving
+      // anything). The utility re-renders on the event.
+      try {
+        window.dispatchEvent(new CustomEvent("studio:smart-guides-changed", { detail: { enabled: next } }));
+      } catch {}
       return { smartGuidesEnabled: next };
     }),
 

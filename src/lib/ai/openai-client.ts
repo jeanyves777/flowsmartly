@@ -144,6 +144,70 @@ class OpenAIClient {
     const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
     throw new Error(`OpenAI image edit failed: ${errMsg}`);
   }
+
+  /**
+   * Multi-reference image edit. Passes the source template + any number
+   * of user-supplied reference photos to gpt-image-1 in a single call.
+   * Returns the resulting image as base64 PNG.
+   *
+   * Use this for "remix this template into my version" workflows where
+   * the model needs to preserve layout/composition from the source while
+   * substituting the people/products/copy from the references.
+   */
+  async editMultiImage(
+    prompt: string,
+    images: Array<{ buffer: Buffer; filename: string; type: string }>,
+    options: {
+      size?: "1024x1024" | "1536x1024" | "1024x1536" | "auto";
+      quality?: "low" | "medium" | "high";
+    } = {},
+  ): Promise<string | null> {
+    const { size = "auto", quality = "high" } = options;
+
+    const maxRetries = 2;
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const imageFiles: Uploadable[] = await Promise.all(
+          images.map((img) => toFile(img.buffer, img.filename, { type: img.type })),
+        );
+
+        const response = await this.client.images.edit({
+          model: "gpt-image-1",
+          // SDK accepts Uploadable | Uploadable[] — multi-image supported
+          // by gpt-image-1 since 2025-04 release. First image is treated
+          // as the primary reference (composition); rest are auxiliary.
+          image: imageFiles,
+          prompt,
+          n: 1,
+          size,
+          quality,
+        });
+
+        const imageData = response.data?.[0];
+        if (imageData?.b64_json) return imageData.b64_json;
+        if (imageData?.url) {
+          const res = await fetch(imageData.url);
+          return Buffer.from(await res.arrayBuffer()).toString("base64");
+        }
+        return null;
+      } catch (error) {
+        lastError = error;
+        console.error(`OpenAI multi-image edit error (attempt ${attempt + 1}/${maxRetries + 1}):`, error);
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const isTransient = /rate|limit|timeout|503|529|overloaded|capacity/i.test(errMsg);
+        if (!isTransient) break;
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        }
+      }
+    }
+
+    throw new Error(
+      `OpenAI multi-image edit failed: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+    );
+  }
 }
 
 export const openaiClient = OpenAIClient.getInstance();

@@ -145,8 +145,8 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_BUSINESS_PLAN: 120,          // Full business plan: agent + adaptive thinking + 13 sections + charts (~$1.00)
   AI_BUSINESS_PLAN_REGENERATE: 35, // Partial regen with new instructions — reuses brand snapshot, swaps sections
 
-  // --- AI Template Reproduce (turn flat template image into editable Fabric design) ---
-  AI_TEMPLATE_REPRODUCE: 150,     // Vision pass + up to 8 OpenAI gpt-image-1 gens (~$0.30-0.60 actual)
+  // --- AI Template Remix (single-pass gpt-image-1 image-edit) ---
+  AI_TEMPLATE_REPRODUCE: 60,      // Single gpt-image-1 multi-image edit (~$0.05-0.10 actual). Was 150 with the old layer-by-layer approach which produced fragmented output.
 } as const;
 
 /**
