@@ -18,6 +18,7 @@ import {
   Smartphone,
   Clipboard,
   Keyboard,
+  Magnet,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -351,6 +352,7 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
 
       {/* Right: Export + Share */}
       <div className="flex items-center gap-1">
+        <SmartGuidesToggle />
         <Button
           variant="ghost"
           size="icon"
@@ -428,5 +430,28 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
       <MockupDialog open={showMockupDialog} onOpenChange={setShowMockupDialog} />
       <ShortcutsDialog open={showShortcutsDialog} onOpenChange={setShowShortcutsDialog} />
     </div>
+  );
+}
+
+/**
+ * Toggle the dashed alignment guides shown while dragging objects.
+ * When OFF, the smart-guides utility short-circuits before drawing.
+ * Persisted to localStorage so the user's choice survives reloads.
+ */
+function SmartGuidesToggle() {
+  const enabled = useCanvasStore((s) => s.smartGuidesEnabled);
+  const toggle = useCanvasStore((s) => s.toggleSmartGuides);
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8"
+      onClick={toggle}
+      title={enabled ? "Hide alignment guides" : "Show alignment guides"}
+      aria-label={enabled ? "Hide alignment guides" : "Show alignment guides"}
+      aria-pressed={enabled}
+    >
+      <Magnet className={`h-4 w-4 ${enabled ? "text-brand-500" : "text-muted-foreground"}`} />
+    </Button>
   );
 }

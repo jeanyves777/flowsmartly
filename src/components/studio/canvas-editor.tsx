@@ -100,6 +100,25 @@ export function CanvasEditor({
       const fabric = await import("fabric");
       fabricRef.current = fabric;
 
+      // Make selection handles + bounding-box border easier to grab. The
+      // default 6px transparent corners are nearly invisible — users
+      // reported they couldn't find the resize handles. We bump to 12px
+      // solid white squares with a brand-blue border, plus thicken the
+      // selection box itself.
+      const ProtoObj = (fabric as unknown as { FabricObject: { prototype: Record<string, unknown> } }).FabricObject;
+      if (ProtoObj?.prototype) {
+        ProtoObj.prototype.cornerSize = 12;
+        ProtoObj.prototype.cornerStyle = "rect";
+        ProtoObj.prototype.cornerColor = "#ffffff";
+        ProtoObj.prototype.cornerStrokeColor = "#3b82f6"; // brand-500
+        ProtoObj.prototype.transparentCorners = false;
+        ProtoObj.prototype.borderColor = "#3b82f6";
+        ProtoObj.prototype.borderScaleFactor = 2;
+        // Mid rotation handle gets the same treatment so the rotation
+        // grip is also easy to find.
+        ProtoObj.prototype.borderOpacityWhenMoving = 0.4;
+      }
+
       fabricCanvas = new fabric.Canvas(canvasElRef.current!, {
         width: canvasWidth,
         height: canvasHeight,
@@ -108,6 +127,10 @@ export function CanvasEditor({
         selection: true,
         stopContextMenu: true,
         fireRightClick: true,
+        // Selection box (drag-to-select) styling — match the brand look.
+        selectionColor: "rgba(59, 130, 246, 0.12)",
+        selectionBorderColor: "#3b82f6",
+        selectionLineWidth: 1,
       });
 
       // Selection events

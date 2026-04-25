@@ -41,8 +41,17 @@ export function attachSmartGuides(canvas: any): () => void {
     }
   };
 
+  const isEnabled = (): boolean => {
+    try {
+      return window.localStorage.getItem("studio:smartGuides") !== "off";
+    } catch {
+      return true;
+    }
+  };
+
   const handleMoving = (opt: any) => {
     if (!isUserDragging) return; // gate out programmatic moves
+    if (!isEnabled()) return;     // user turned guides off
     const obj = opt.target;
     if (!obj) return;
 
@@ -146,6 +155,7 @@ export function attachSmartGuides(canvas: any): () => void {
   // visualize when the new bounding box's edges happen to touch a guide.
   const handleScaling = (opt: any) => {
     if (!isUserDragging) return; // gate out programmatic resize during loadFromJSON
+    if (!isEnabled()) return;     // user turned guides off
     const obj = opt.target;
     if (!obj) return;
     const cw = canvas.getWidth();
@@ -211,12 +221,25 @@ export function attachSmartGuides(canvas: any): () => void {
     activeGuides = [];
   };
 
+  // Belt-and-suspenders cleanup: any of these states means the user is
+  // no longer interacting with an object and any leftover guides should
+  // disappear immediately.
+  const handleSelectionCleared = () => {
+    isUserDragging = false;
+    if (activeGuides.length > 0) {
+      activeGuides = [];
+      canvas.requestRenderAll?.();
+    }
+  };
+
   canvas.on("object:moving", handleMoving);
   canvas.on("object:scaling", handleScaling);
   canvas.on("object:resizing", handleScaling);
   canvas.on("after:render", handleAfterRender);
   canvas.on("mouse:down", handleMouseDown);
   canvas.on("mouse:up", handleMouseUp);
+  canvas.on("selection:cleared", handleSelectionCleared);
+  canvas.on("object:modified", handleMouseUp);
   canvas.on("object:modified", clearGuides);
   canvas.on("canvas:cleared", handleCanvasCleared);
 
@@ -227,6 +250,8 @@ export function attachSmartGuides(canvas: any): () => void {
     canvas.off("after:render", handleAfterRender);
     canvas.off("mouse:down", handleMouseDown);
     canvas.off("mouse:up", handleMouseUp);
+    canvas.off("selection:cleared", handleSelectionCleared);
+    canvas.off("object:modified", handleMouseUp);
     canvas.off("object:modified", clearGuides);
     canvas.off("canvas:cleared", handleCanvasCleared);
   };

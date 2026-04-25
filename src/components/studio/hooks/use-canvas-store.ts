@@ -93,6 +93,11 @@ interface CanvasState {
   isEditingText: boolean;
   setIsEditingText: (editing: boolean) => void;
 
+  // Smart alignment guides (the dashed pink lines that show during drag).
+  // Persisted to localStorage so the user's choice survives reloads.
+  smartGuidesEnabled: boolean;
+  toggleSmartGuides: () => void;
+
   // Collaboration
   collaborationRole: "OWNER" | "EDITOR" | "VIEWER" | null;
   isReadOnly: boolean;
@@ -203,6 +208,21 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   isEditingText: false,
   setIsEditingText: (editing) => set({ isEditingText: editing }),
+
+  // Smart guides — read initial value from localStorage so the user's
+  // preference persists across reloads. Default to ON.
+  smartGuidesEnabled:
+    typeof window !== "undefined"
+      ? window.localStorage.getItem("studio:smartGuides") !== "off"
+      : true,
+  toggleSmartGuides: () =>
+    set((s) => {
+      const next = !s.smartGuidesEnabled;
+      try {
+        window.localStorage.setItem("studio:smartGuides", next ? "on" : "off");
+      } catch {}
+      return { smartGuidesEnabled: next };
+    }),
 
   // Collaboration
   collaborationRole: null,
