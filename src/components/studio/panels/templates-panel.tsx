@@ -959,6 +959,17 @@ export function TemplatesPanel() {
     if (!canvas) return;
     if (!(await confirmBeforeClobber(template.name))) return;
     setApplyingId(template.id);
+    // Surface a centered loader on the canvas — the small spinner on the
+    // template card alone is too easy to miss while the agent runs for
+    // 60-120s. Auto-hides on completion or failure.
+    window.dispatchEvent(
+      new CustomEvent("studio:show-loader", {
+        detail: {
+          title: "Recreating your editable design…",
+          subtitle: "Claude is mapping every text block and OpenAI is regenerating the imagery. This takes 60-120 seconds.",
+        },
+      }),
+    );
     try {
       const res = await fetch("/api/studio/templates/reproduce", {
         method: "POST",
@@ -974,12 +985,22 @@ export function TemplatesPanel() {
         }
         return;
       }
+      if (!data?.canvas?.objects || !Array.isArray(data.canvas.objects)) {
+        throw new Error("Agent returned no objects");
+      }
       // Sync canvas dims, then load the agent's Fabric JSON spec.
       canvas.clear();
       setCanvasDimensions(data.canvas.width, data.canvas.height);
       canvas.setDimensions({ width: data.canvas.width, height: data.canvas.height });
       canvas.backgroundColor = data.canvas.backgroundColor || "#ffffff";
-      await safeLoadFromJSON(canvas, JSON.stringify({ objects: data.canvas.objects }));
+      // Fabric expects a top-level wrapper with `version` — keep it minimal
+      // so loadFromJSON treats the array as our object set.
+      await safeLoadFromJSON(canvas, {
+        version: "6.0.0",
+        objects: data.canvas.objects,
+        background: data.canvas.backgroundColor || "#ffffff",
+      });
+      canvas.renderAll();
       refreshLayers();
       toast({
         title: "Editable design ready!",
@@ -992,6 +1013,7 @@ export function TemplatesPanel() {
         variant: "destructive",
       });
     } finally {
+      window.dispatchEvent(new Event("studio:hide-loader"));
       setApplyingId(null);
     }
   };

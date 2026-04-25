@@ -149,9 +149,11 @@ export async function reproduceTemplate(
 ): Promise<ReproduceResult> {
   const { maxImages = 8 } = options;
 
+  console.log(`[TemplateReproduce] start url=${imageUrl}`);
   // Pull the source bytes. Local /public/* paths read off disk; remote URLs
   // get fetched. Pexels-hosted thumbnails would also work via the URL path.
   const { base64, mediaType } = await loadImageBytes(imageUrl);
+  console.log(`[TemplateReproduce] loaded ${base64.length} bytes (${mediaType})`);
 
   // ─── Step 1: vision analysis ──────────────────────────────────────────
   const response = (await anthropic.messages.create({
@@ -182,6 +184,7 @@ export async function reproduceTemplate(
   } catch (err) {
     throw new Error(`Reproduce agent JSON parse failed: ${err instanceof Error ? err.message : String(err)}`);
   }
+  console.log(`[TemplateReproduce] vision ok — ${spec.layers?.length || 0} layers, bg=${spec.background?.type}`);
 
   // Defensive: enforce sensible canvas dimensions
   spec.width = clampInt(spec.width, 400, 4096, 1080);
@@ -223,7 +226,10 @@ export async function reproduceTemplate(
     );
   }
 
+  console.log(`[TemplateReproduce] launching ${imagePromises.length} image gens (${allowedImagePromptIndices.length} layers + ${bgIsImagePrompt ? 1 : 0} bg)`);
   const results = await Promise.all(imagePromises);
+  const failed = results.filter((r) => !r.b64).length;
+  console.log(`[TemplateReproduce] image gens done — ${results.length - failed} ok, ${failed} failed`);
 
   // ─── Step 3: assemble Fabric canvas JSON ─────────────────────────────
   const objects: FabricObject[] = [];
@@ -235,7 +241,7 @@ export async function reproduceTemplate(
     backgroundColor = spec.background.color;
   } else if (spec.background.type === "gradient" && spec.background.gradient) {
     objects.push({
-      type: "Rect",
+      type: "rect",
       left: 0,
       top: 0,
       originX: "left",
@@ -254,7 +260,7 @@ export async function reproduceTemplate(
     const bgResult = results.find((r) => r.index === "background");
     if (bgResult?.b64) {
       objects.push({
-        type: "FabricImage",
+        type: "image",
         left: 0,
         top: 0,
         originX: "left",
@@ -277,7 +283,7 @@ export async function reproduceTemplate(
     const l = spec.layers[i];
     if (l.type === "textbox") {
       objects.push({
-        type: "Textbox",
+        type: "textbox",
         text: l.text || "",
         left: l.left, top: l.top, width: l.width,
         originX: "left", originY: "top",
@@ -293,7 +299,7 @@ export async function reproduceTemplate(
       });
     } else if (l.type === "rect") {
       objects.push({
-        type: "Rect",
+        type: "rect",
         left: l.left, top: l.top, width: l.width, height: l.height,
         originX: "left", originY: "top",
         fill: l.fill || "#cccccc",
@@ -306,7 +312,7 @@ export async function reproduceTemplate(
     } else if (l.type === "circle") {
       const radius = Math.min(l.width, l.height) / 2;
       objects.push({
-        type: "Circle",
+        type: "circle",
         left: l.left, top: l.top, radius,
         originX: "left", originY: "top",
         fill: l.fill || "#cccccc",
@@ -318,7 +324,7 @@ export async function reproduceTemplate(
       const imgResult = results.find((r) => r.index === i);
       if (imgResult?.b64) {
         objects.push({
-          type: "FabricImage",
+          type: "image",
           left: l.left, top: l.top,
           originX: "left", originY: "top",
           scaleX: 1, scaleY: 1, // sized below via width/height
@@ -328,7 +334,7 @@ export async function reproduceTemplate(
       } else {
         // Fallback: keep a placeholder so the layout doesn't collapse.
         objects.push({
-          type: "Rect",
+          type: "rect",
           left: l.left, top: l.top, width: l.width, height: l.height,
           originX: "left", originY: "top",
           fill: "rgba(200,200,200,0.4)",

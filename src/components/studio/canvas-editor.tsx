@@ -8,6 +8,7 @@ import { lockViewportTransform, safeLoadFromJSON } from "./utils/canvas-helpers"
 import { attachSmartGuides } from "./utils/smart-guides";
 import { RemoteCursors } from "./collaboration/remote-cursor";
 import { CanvasContextMenu, type ContextMenuState } from "./canvas-context-menu";
+import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import type { CollabUser, CanvasOperation } from "./hooks/use-collaboration";
 
 interface CanvasEditorProps {
@@ -51,6 +52,33 @@ export function CanvasEditor({
 
   const { pushState } = useCanvasHistory();
   useCanvasShortcuts();
+
+  // Long-running operations (template reproduce, agent runs) signal a
+  // canvas-centered loading state via window-level events rather than
+  // prop-drilling. Any caller can dispatch:
+  //   window.dispatchEvent(new CustomEvent("studio:show-loader",
+  //     { detail: { title: "...", subtitle: "..." } }));
+  //   window.dispatchEvent(new Event("studio:hide-loader"));
+  const [studioLoader, setStudioLoader] = useState<{
+    title: string;
+    subtitle?: string;
+  } | null>(null);
+  useEffect(() => {
+    const onShow = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      setStudioLoader({
+        title: detail.title || "Working on your design…",
+        subtitle: detail.subtitle,
+      });
+    };
+    const onHide = () => setStudioLoader(null);
+    window.addEventListener("studio:show-loader", onShow);
+    window.addEventListener("studio:hide-loader", onHide);
+    return () => {
+      window.removeEventListener("studio:show-loader", onShow);
+      window.removeEventListener("studio:hide-loader", onHide);
+    };
+  }, []);
 
   // Keep refs for callbacks used inside the one-shot canvas init effect (avoid stale closures)
   const pushStateRef = useRef(pushState);
@@ -735,6 +763,24 @@ export function CanvasEditor({
         state={contextMenuState}
         onClose={() => setContextMenuState(null)}
       />
+
+      {/* Centered loader for long-running operations (template reproduce,
+          agent runs). Sits over the canvas so the user can't miss it
+          while waiting 60-120s for the agent. */}
+      {studioLoader && (
+        <div
+          className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 max-w-md w-[min(90vw,420px)] mx-4">
+            <AIGenerationLoader
+              currentStep={studioLoader.title}
+              subtitle={studioLoader.subtitle}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
