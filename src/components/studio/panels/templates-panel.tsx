@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Search, LayoutGrid, Image as ImageIcon, Sparkles } from "lucide-react";
+import { Search, LayoutGrid, Image as ImageIcon, Sparkles, X, Eye, Wand2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
@@ -742,6 +743,9 @@ export function TemplatesPanel() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [applyingId, setApplyingId] = useState<string | null>(null);
+  // Preview modal — clicking a Featured Designs card opens this so the
+  // user sees the full template before deciding which action to take.
+  const [previewTemplate, setPreviewTemplate] = useState<FeaturedTemplate | null>(null);
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
@@ -1162,11 +1166,14 @@ export function TemplatesPanel() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               {filteredFeatured.map((template, i) => (
-                <motion.div
+                <motion.button
                   key={template.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.03, duration: 0.2 }}
+                  type="button"
+                  onClick={() => setPreviewTemplate(template)}
+                  disabled={applyingId === template.id}
                   className={cn(
                     "relative rounded-lg overflow-hidden border border-border hover:border-brand-500 transition-all group bg-gray-100 dark:bg-gray-800",
                     template.width > template.height
@@ -1175,6 +1182,7 @@ export function TemplatesPanel() {
                         ? "aspect-[9/16]"
                         : "aspect-[4/5]",
                   )}
+                  aria-label={`Preview ${template.name}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -1185,42 +1193,24 @@ export function TemplatesPanel() {
                   />
                   {applyingId === template.id && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-30">
-                      <div className="flex flex-col items-center gap-2">
-                        <AISpinner className="h-6 w-6 animate-spin text-white" />
-                        <p className="text-white text-[10px] font-medium">Recreating layers…</p>
-                      </div>
+                      <AISpinner className="h-6 w-6 animate-spin text-white" />
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
 
-                  {/* Hover action overlay — two stacked buttons */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                    <button
-                      type="button"
-                      onClick={() => handleApplyFeatured(template)}
-                      disabled={applyingId === template.id}
-                      className="w-full px-2 py-1.5 rounded-md bg-white/95 hover:bg-white text-gray-900 text-[10px] font-semibold shadow-lg transition-colors"
-                    >
-                      Use as Background
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleReproduce(template)}
-                      disabled={applyingId === template.id}
-                      className="w-full px-2 py-1.5 rounded-md bg-brand-500 hover:bg-brand-600 text-white text-[10px] font-semibold shadow-lg transition-colors flex items-center justify-center gap-1"
-                      title="Use Claude vision + OpenAI to rebuild every text and photo as editable Fabric layers"
-                    >
-                      <Sparkles className="h-2.5 w-2.5" />
-                      Recreate Editable · 150cr
-                    </button>
+                  {/* Hover overlay — single 'Preview' affordance */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 text-gray-900 text-xs font-semibold shadow-lg">
+                      <Eye className="h-3 w-3" />
+                      Preview
+                    </div>
                   </div>
 
-                  {/* Bottom name strip — visible always (no hover needed) */}
+                  {/* Bottom name strip — always visible */}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1.5 z-10 pointer-events-none">
-                    <p className="text-white text-[10px] font-medium truncate">{template.name}</p>
-                    <p className="text-white/60 text-[9px]">{template.width}×{template.height}</p>
+                    <p className="text-white text-[10px] font-medium truncate text-left">{template.name}</p>
+                    <p className="text-white/60 text-[9px] text-left">{template.width}×{template.height}</p>
                   </div>
-                </motion.div>
+                </motion.button>
               ))}
             </div>
           </div>
@@ -1308,6 +1298,129 @@ export function TemplatesPanel() {
           <p className="text-xs mt-1">Try a different category or search</p>
         </div>
       )}
+
+      {/* Featured Designs preview modal — opened by clicking a thumbnail.
+          Renders the full-size template + the two action choices (use as
+          background vs. recreate as editable). Lives outside the side
+          panel so it can overlay the whole studio. */}
+      {previewTemplate && (
+        <FeaturedTemplatePreview
+          template={previewTemplate}
+          onClose={() => setPreviewTemplate(null)}
+          onUseAsBackground={async () => {
+            const t = previewTemplate;
+            setPreviewTemplate(null);
+            await handleApplyFeatured(t);
+          }}
+          onRecreateEditable={async () => {
+            const t = previewTemplate;
+            setPreviewTemplate(null);
+            await handleReproduce(t);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Full-screen preview modal for a Featured Design. Shows the full-size
+ * template image + the two action buttons. Click outside or ESC closes.
+ */
+function FeaturedTemplatePreview({
+  template,
+  onClose,
+  onUseAsBackground,
+  onRecreateEditable,
+}: {
+  template: FeaturedTemplate;
+  onClose: () => void;
+  onUseAsBackground: () => void;
+  onRecreateEditable: () => void;
+}) {
+  // ESC to close + body scroll lock while open
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Preview ${template.name}`}
+    >
+      <div
+        className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col w-full max-w-4xl max-h-[92vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 p-4 border-b border-border">
+          <div>
+            <h2 className="text-lg font-semibold">{template.name}</h2>
+            <p className="text-xs text-muted-foreground capitalize mt-0.5">
+              {template.category.replace(/_/g, " ")} · {template.width}×{template.height}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0"
+            aria-label="Close preview"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Image preview — flexible scrollable area in case the design is taller than the viewport */}
+        <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-950 p-4 flex items-center justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={template.imageUrl}
+            alt={template.name}
+            className="max-w-full max-h-[70vh] w-auto h-auto rounded-lg shadow-lg object-contain"
+          />
+        </div>
+
+        {/* Actions */}
+        <div className="border-t border-border bg-background p-4">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={onUseAsBackground}
+              className="gap-2 h-auto py-3"
+            >
+              <ImageIcon className="h-4 w-4" />
+              <div className="text-left">
+                <div className="font-semibold text-sm leading-tight">Use as Background</div>
+                <div className="text-xs font-normal text-muted-foreground">Free · the design lands as a locked image you build on top of</div>
+              </div>
+            </Button>
+            <Button
+              type="button"
+              size="lg"
+              onClick={onRecreateEditable}
+              className="gap-2 h-auto py-3 bg-brand-500 hover:bg-brand-600"
+            >
+              <Wand2 className="h-4 w-4" />
+              <div className="text-left">
+                <div className="font-semibold text-sm leading-tight">Recreate as Editable</div>
+                <div className="text-xs font-normal text-white/85">150 credits · AI rebuilds every text and photo as editable layers</div>
+              </div>
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
