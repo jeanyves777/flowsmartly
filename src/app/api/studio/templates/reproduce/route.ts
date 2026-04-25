@@ -34,6 +34,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const customText: string = typeof body.customText === "string" ? body.customText.slice(0, 2000) : "";
+    const useBrandColors: boolean = !!body.useBrandColors;
+
+    // Pull the user's BrandKit colors when requested. We pass them to the
+    // agent as plain hex strings; if the user hasn't set up a BrandKit,
+    // we silently skip and the agent uses the template's original palette.
+    let brandColors: { primary?: string; secondary?: string; accent?: string } | null = null;
+    if (useBrandColors) {
+      try {
+        const kit = await prisma.brandKit.findFirst({
+          where: { userId: session.userId },
+          orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+          select: { colors: true },
+        });
+        if (kit?.colors) {
+          try {
+            const parsed = JSON.parse(kit.colors);
+            if (parsed && typeof parsed === "object") {
+              brandColors = {
+                primary: parsed.primary,
+                secondary: parsed.secondary,
+                accent: parsed.accent,
+              };
+            }
+          } catch { /* ignore — agent falls through to template palette */ }
+        }
+      } catch { /* ignore — non-fatal */ }
+    }
+
     const creditCost = await getDynamicCreditCost("AI_TEMPLATE_REPRODUCE");
     const isAdmin = !!session.adminId;
     const user = await prisma.user.findUnique({
@@ -56,7 +85,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await reproduceTemplate(imageUrl);
+    const result = await reproduceTemplate(imageUrl, { customText, brandColors });
 
     if (!isAdmin) {
       await prisma.$transaction([

@@ -747,6 +747,11 @@ export function TemplatesPanel() {
   // user sees the full template before deciding which action to take.
   const [previewTemplate, setPreviewTemplate] = useState<FeaturedTemplate | null>(null);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
+  // When the user picks "Recreate as Editable" from the preview modal, we
+  // open a second dialog asking for personalization options (their text,
+  // whether to apply their brand colors) BEFORE actually charging credits
+  // and running the agent.
+  const [recreateOptions, setRecreateOptions] = useState<FeaturedTemplate | null>(null);
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
@@ -960,18 +965,28 @@ export function TemplatesPanel() {
   // image-gen to rebuild it as fully-editable Fabric layers (textboxes
   // for every word, shapes for every accent, regenerated photos for the
   // imagery). Charges credits.
-  const handleReproduce = async (template: FeaturedTemplate) => {
+  //
+  // The user supplies optional details that personalize the output:
+  //   customText — freeform copy ("Happy 40th, Mom! From Sarah and Tom.")
+  //                that the agent uses to REPLACE the original design's
+  //                text blocks (headline, subhead, name, dates, etc.).
+  //   useBrandColors — if true, the API pulls the user's BrandKit colors
+  //                and passes them to the agent, which then applies them
+  //                throughout the output (text fills, accents, bg).
+  const handleReproduce = async (
+    template: FeaturedTemplate,
+    options: { customText?: string; useBrandColors?: boolean } = {},
+  ) => {
     if (!canvas) return;
     if (!(await confirmBeforeClobber(template.name))) return;
     setApplyingId(template.id);
-    // Surface a centered loader on the canvas — the small spinner on the
-    // template card alone is too easy to miss while the agent runs for
-    // 60-120s. Auto-hides on completion or failure.
     window.dispatchEvent(
       new CustomEvent("studio:show-loader", {
         detail: {
           title: "Recreating your editable design…",
-          subtitle: "Claude is mapping every text block and OpenAI is regenerating the imagery. This takes 60-120 seconds.",
+          subtitle: options.customText
+            ? "Claude is rewriting the layers with your text. This takes 60-120 seconds."
+            : "Claude is mapping every text block and OpenAI is regenerating the imagery. This takes 60-120 seconds.",
         },
       }),
     );
@@ -979,7 +994,11 @@ export function TemplatesPanel() {
       const res = await fetch("/api/studio/templates/reproduce", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: template.imageUrl }),
+        body: JSON.stringify({
+          imageUrl: template.imageUrl,
+          customText: options.customText || undefined,
+          useBrandColors: !!options.useBrandColors,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -1317,10 +1336,24 @@ export function TemplatesPanel() {
               setPreviewTemplate(null);
               await handleApplyFeatured(t);
             }}
-            onRecreateEditable={async () => {
+            onRecreateEditable={() => {
+              // Don't run the agent yet — open the options dialog so the
+              // user can supply their custom text + brand-color choice.
               const t = previewTemplate;
               setPreviewTemplate(null);
-              await handleReproduce(t);
+              setTimeout(() => setRecreateOptions(t), 220);
+            }}
+          />
+        )}
+        {recreateOptions && (
+          <RecreateOptionsDialog
+            key="recreate-opts"
+            template={recreateOptions}
+            onClose={() => setRecreateOptions(null)}
+            onConfirm={async (opts) => {
+              const t = recreateOptions;
+              setRecreateOptions(null);
+              await handleReproduce(t, opts);
             }}
           />
         )}
@@ -1683,5 +1716,138 @@ function ResultCard({
         <p className="text-white/60 text-[9px] text-left">{template.width}×{template.height}</p>
       </div>
     </button>
+  );
+}
+
+/**
+ * Pre-flight options dialog for "Recreate as Editable". Asks the user to
+ * provide their own text/copy and whether to apply their brand colors —
+ * BEFORE we charge credits and run the agent. Without this the AI would
+ * keep the template's stock text ("Pastor Mike", "Lady Pastor Julie")
+ * which the user almost certainly wants replaced with their own.
+ */
+function RecreateOptionsDialog({
+  template,
+  onClose,
+  onConfirm,
+}: {
+  template: FeaturedTemplate;
+  onClose: () => void;
+  onConfirm: (opts: { customText: string; useBrandColors: boolean }) => void | Promise<void>;
+}) {
+  const [customText, setCustomText] = useState("");
+  const [useBrandColors, setUseBrandColors] = useState(true);
+
+  // ESC closes; lock body scroll while open.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  const handleConfirm = () => {
+    onConfirm({ customText: customText.trim(), useBrandColors });
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Personalize before recreate"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden w-full max-w-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 p-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-500 flex items-center justify-center">
+              <Wand2 className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold leading-tight">Personalize your design</h2>
+              <p className="text-xs text-muted-foreground">Before we run the AI on “{template.name}”</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-5">
+          <div>
+            <label htmlFor="recreate-text" className="text-sm font-medium block mb-1">
+              Your text / copy
+            </label>
+            <p className="text-xs text-muted-foreground mb-2">
+              The AI will swap the design&apos;s stock text with yours. Include the headline, name, dates,
+              contact info — anything the design should say.
+            </p>
+            <textarea
+              id="recreate-text"
+              value={customText}
+              onChange={(e) => setCustomText(e.target.value)}
+              rows={5}
+              placeholder={`e.g.\nHappy 50th Birthday Mom!\nSarah & Tom\nApril 28, 2026`}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+            />
+            <p className="text-[10px] text-muted-foreground/70 mt-1">
+              Leave blank to keep the original text from the template.
+            </p>
+          </div>
+
+          <label
+            htmlFor="recreate-brand"
+            className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-brand-400 cursor-pointer transition-colors"
+          >
+            <input
+              id="recreate-brand"
+              type="checkbox"
+              checked={useBrandColors}
+              onChange={(e) => setUseBrandColors(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-input accent-brand-500"
+            />
+            <div className="flex-1">
+              <div className="text-sm font-medium">Use my brand colors</div>
+              <div className="text-xs text-muted-foreground">
+                Apply your BrandKit&apos;s primary, secondary, and accent colors to text fills, accents,
+                and backgrounds. Falls back to the template&apos;s palette if your BrandKit isn&apos;t set up.
+              </div>
+            </div>
+          </label>
+        </div>
+
+        {/* Actions */}
+        <div className="border-t border-border bg-background p-4 flex items-center justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleConfirm} className="gap-2 bg-brand-500 hover:bg-brand-600">
+            <Sparkles className="h-4 w-4" />
+            Recreate Now · 150cr
+          </Button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }

@@ -143,17 +143,66 @@ ANALYSIS RULES:
 
 Return ONLY the JSON object.`;
 
+export interface ReproduceOptions {
+  /** Cap on how many image_prompt layers we'll generate per call. */
+  maxImages?: number;
+  /** User-supplied copy that the agent should substitute for the original
+   *  text blocks. Free-form — agent decides which line maps to which slot. */
+  customText?: string;
+  /** Optional BrandKit colors. When present, agent applies them to text
+   *  fills, accents, and (where appropriate) backgrounds. */
+  brandColors?: { primary?: string; secondary?: string; accent?: string } | null;
+}
+
 export async function reproduceTemplate(
   imageUrl: string,
-  options: { maxImages?: number } = {},
+  options: ReproduceOptions = {},
 ): Promise<ReproduceResult> {
-  const { maxImages = 8 } = options;
+  const { maxImages = 8, customText, brandColors } = options;
 
   console.log(`[TemplateReproduce] start url=${imageUrl}`);
   // Pull the source bytes. Local /public/* paths read off disk; remote URLs
   // get fetched. Pexels-hosted thumbnails would also work via the URL path.
   const { base64, mediaType } = await loadImageBytes(imageUrl);
   console.log(`[TemplateReproduce] loaded ${base64.length} bytes (${mediaType})`);
+
+  // Build a personalization addendum to the user message — only if the
+  // caller supplied custom copy or asked for brand colors. The agent
+  // already knows how to read the image; this just tells it WHAT to swap.
+  const personalizationLines: string[] = [];
+  if (customText && customText.trim()) {
+    personalizationLines.push(
+      `IMPORTANT — REPLACE THE ORIGINAL TEXT.
+The user has supplied this copy for their version of the design. Map it
+sensibly across the textbox layers (headline → main display, names →
+the appropriate name slots, dates → date blocks, etc.). Trim or split
+across lines as needed. Keep all layout, font choices, and styling from
+the source — just swap the words. If the user copy is shorter than the
+source, drop or empty the surplus textboxes; if it's longer than will
+fit, truncate to keep the design clean.
+
+USER COPY:
+"""
+${customText.trim().slice(0, 1500)}
+"""`,
+    );
+  }
+  if (brandColors && (brandColors.primary || brandColors.secondary || brandColors.accent)) {
+    const palette = [
+      brandColors.primary && `primary ${brandColors.primary}`,
+      brandColors.secondary && `secondary ${brandColors.secondary}`,
+      brandColors.accent && `accent ${brandColors.accent}`,
+    ].filter(Boolean).join(", ");
+    personalizationLines.push(
+      `BRAND COLORS — apply throughout the design. Use these instead of the source's palette:
+${palette}.
+Strategy: use primary as the main display-text color, secondary for sub-headlines and shape fills,
+accent for callout strokes / dividers / small badges. Background can stay if it's photographic, or
+use a soft tint of primary if it's a flat color. Maintain enough contrast for readability.`,
+    );
+  }
+  const personalizationBlock =
+    personalizationLines.length > 0 ? `\n\n${personalizationLines.join("\n\n")}\n` : "";
 
   // ─── Step 1: vision analysis ──────────────────────────────────────────
   const response = (await anthropic.messages.create({
@@ -166,7 +215,10 @@ export async function reproduceTemplate(
         role: "user",
         content: [
           { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-          { type: "text", text: "Analyze this template image and return the JSON spec described in the system prompt. Be exhaustive with text layers — capture every word visible in the image, no matter how small." },
+          {
+            type: "text",
+            text: `Analyze this template image and return the JSON spec described in the system prompt. Be exhaustive with text layers — capture every word visible in the image, no matter how small.${personalizationBlock}`,
+          },
         ],
       },
     ],
