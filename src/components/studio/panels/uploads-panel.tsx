@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import { addImageToCanvas } from "../utils/canvas-helpers";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { PexelsPicker } from "@/components/shared/pexels-picker";
 
 interface MediaItem {
   id: string;
@@ -127,6 +128,21 @@ export function UploadsPanel() {
           <FolderOpen className="h-4 w-4" />
           Media Library
         </Button>
+      </div>
+
+      {/* Pexels stock-photo search — drops the photo as a regular image
+          element on the canvas (not as a background). User can position,
+          scale, mask it normally. */}
+      <div className="mb-4">
+        <PexelsPicker
+          label="Stock Photos"
+          cols={3}
+          onSelect={async (photo) => {
+            if (!canvas) return;
+            const fabric = await import("fabric");
+            await addImageToCanvas(canvas, photo.previewUrl, fabric);
+          }}
+        />
       </div>
 
       {/* Recent uploads grid */}

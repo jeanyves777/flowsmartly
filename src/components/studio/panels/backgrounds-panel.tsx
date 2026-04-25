@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import { useBrandColors } from "../hooks/use-brand-colors";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { PexelsPicker } from "@/components/shared/pexels-picker";
 
 interface MediaItem {
   id: string;
@@ -288,6 +289,19 @@ export function BackgroundsPanel() {
             <span className="text-xs text-muted-foreground">Upload image</span>
           </div>
         </label>
+      </div>
+
+      {/* Pexels Stock Photos — searchable, free, attribution shown on hover */}
+      <div className="mb-4">
+        <PexelsPicker
+          label="Stock Photos"
+          cols={3}
+          onSelect={async (photo) => {
+            // Use the large preview for backgrounds — full-size is overkill
+            // for canvas use and slows the load. Fabric will scale to fit.
+            await setImageBackground(photo.previewUrl);
+          }}
+        />
       </div>
 
       {/* From Library */}
