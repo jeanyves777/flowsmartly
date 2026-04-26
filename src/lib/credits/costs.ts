@@ -150,6 +150,9 @@ export const DEFAULT_CREDIT_COSTS = {
 
   // --- AI Template Discovery (low-quality prototype batch for search) ---
   AI_TEMPLATE_GENERATE: 10,       // 8x gpt-image-1 low-quality thumbnails (~$0.09). Cached forever per query hash so subsequent searchers get them free.
+
+  // --- AI Premium Template Designer (Claude → HTML+CSS → headless Chromium screenshot) ---
+  AI_TEMPLATE_HTML_DESIGN: 60,    // 8x Claude Opus 4.7 HTML designs with adaptive thinking (~$0.40 first batch, ~$0.20 with cache hits). Pixel-perfect typography via real Google Fonts + CSS gradients — replaces blurry gpt-image-1 text. Cached per (query, batch).
 } as const;
 
 /**
@@ -219,6 +222,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_BUSINESS_PLAN_REGENERATE: "AI business plan regeneration",
   AI_TEMPLATE_REPRODUCE: "AI template reproduction (editable from flat image)",
   AI_TEMPLATE_GENERATE: "AI template discovery (8 prototype thumbnails)",
+  AI_TEMPLATE_HTML_DESIGN: "AI premium template design (Claude HTML+CSS, pixel-perfect typography)",
 };
 
 /**

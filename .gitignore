@@ -58,3 +58,7 @@ next-build.zip
 
 # Docker model files (symlinks break Windows builds)
 docker/flow-ai/models/
+
+# Local smoke-test scratch outputs (HTML designer pipeline)
+tmp-smoke-test.html
+tmp-smoke-test.png

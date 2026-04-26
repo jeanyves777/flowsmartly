@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { OpenAIClient } from "@/lib/ai/openai-client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
+import { designTemplateAsHtml, HTML_STYLE_VARIANTS } from "@/lib/ai/template-html-designer";
+import { renderHtmlToPng } from "@/lib/utils/html-renderer";
 
 /**
  * POST /api/studio/templates/generate
@@ -46,6 +48,15 @@ export async function POST(req: NextRequest) {
     // second user clicking the same drill-down gets free results.
     if (body?.mode === "drill_down") {
       return handleDrillDown(req, body, isServerCall, session);
+    }
+
+    // ─── html_design mode (PREMIUM) ─────────────────────────────────
+    // Replaces gpt-image-1 with Claude → HTML+CSS → headless Chromium
+    // screenshot for pixel-perfect typography and real CSS effects.
+    // Same 8-style spread, just produced via a different generator.
+    // Costs ~6x more than gpt-image-1 but produces Featured-tier polish.
+    if (body?.mode === "html_design") {
+      return handleHtmlDesign(req, body, isServerCall, session);
     }
 
     const rawQuery = String(body?.query || "").trim();
@@ -506,6 +517,226 @@ async function handleDrillDown(
     success: true,
     cached: false,
     mode: "drill_down",
+    templates: inserted,
+    creditsUsed: isAdmin ? 0 : creditCost,
+    creditsRemaining,
+  });
+}
+
+/**
+ * Premium HTML designer — Claude Opus 4.7 emits a complete HTML+CSS
+ * document per style, headless Chromium screenshots it to PNG. Real
+ * Google Fonts, real CSS gradients, pixel-perfect typography. Replaces
+ * gpt-image-1 for users who want Featured-template tier polish.
+ *
+ * Body: { mode: "html_design", query: string, forceRegenerate?: boolean,
+ *         styleLabel?: string }  // styleLabel: drill-down to one style
+ */
+async function handleHtmlDesign(
+  req: NextRequest,
+  body: { query?: string; forceRegenerate?: boolean; styleLabel?: string },
+  isServerCall: boolean,
+  session: Awaited<ReturnType<typeof getSession>>,
+) {
+  void req;
+  const rawQuery = String(body?.query || "").trim();
+  if (!rawQuery || rawQuery.length < 2) {
+    return NextResponse.json(
+      { success: false, error: { message: "html_design requires a query" } },
+      { status: 400 },
+    );
+  }
+
+  // Optional single-style mode (drill-down equivalent for HTML).
+  const singleStyle = body?.styleLabel
+    ? HTML_STYLE_VARIANTS.find((v) => v.label === body.styleLabel)
+    : null;
+  if (body?.styleLabel && !singleStyle) {
+    return NextResponse.json(
+      { success: false, error: { message: `Unknown style: ${body.styleLabel}` } },
+      { status: 400 },
+    );
+  }
+
+  const normalized = rawQuery.toLowerCase().replace(/\s+/g, " ").slice(0, 200);
+  // Cache namespace separates HTML designs from gpt-image-1 thumbnails
+  // for the same query — they're different products at different price
+  // tiers, browseable side-by-side.
+  const cacheKey = singleStyle
+    ? `${normalized} :: html :: ${singleStyle.label.toLowerCase()}`
+    : `${normalized} :: html`;
+  const queryHash = createHash("sha256").update(cacheKey).digest("hex");
+
+  const force = !!body?.forceRegenerate;
+  const cached = force
+    ? []
+    : await prisma.aiTemplate.findMany({
+        where: { queryHash, hideFromLibrary: false },
+        orderBy: { position: "asc" },
+      });
+
+  // 4 = same threshold as discovery: enough survived moderation to be useful.
+  // For single-style mode 4 of the requested 1 is impossible, so this
+  // effectively means "any cached row" for that path.
+  const cacheThreshold = singleStyle ? 1 : 4;
+  if (cached.length >= cacheThreshold) {
+    console.log(`[AiTemplates] html_design cache HIT key="${cacheKey}" hash=${queryHash.slice(0, 8)} count=${cached.length}`);
+    return NextResponse.json({
+      success: true,
+      cached: true,
+      mode: "html_design",
+      templates: cached,
+      creditsUsed: 0,
+      creditsRemaining: null,
+    });
+  }
+
+  const isAdmin = isServerCall || !!session?.adminId;
+  const userId = session?.userId;
+  const fullCost = await getDynamicCreditCost("AI_TEMPLATE_HTML_DESIGN");
+  // Single-style mode is 1/8th the price (1 design vs 8). Round up.
+  const creditCost = singleStyle ? Math.max(1, Math.ceil(fullCost / 8)) : fullCost;
+
+  if (!isAdmin && userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { aiCredits: true },
+    });
+    if (!user || user.aiCredits < creditCost) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "INSUFFICIENT_CREDITS",
+            message: `Premium designer needs ${creditCost} credits. You have ${user?.aiCredits ?? 0}.`,
+            required: creditCost,
+            available: user?.aiCredits ?? 0,
+          },
+        },
+        { status: 402 },
+      );
+    }
+  }
+
+  const styles = singleStyle ? [singleStyle] : HTML_STYLE_VARIANTS;
+  console.log(`[AiTemplates] html_design cache MISS key="${cacheKey}" — generating ${styles.length} HTML designs via Claude`);
+
+  // Standard portrait flyer dimensions — matches the Bro George reference.
+  const VW = 1080;
+  const VH = 1350;
+
+  // Generate all styles in parallel. Claude calls + Chromium renders
+  // overlap nicely (Claude is ~5-15s, render is ~2-3s). We hold onto
+  // the raw HTML so we can save it alongside the PNG for high-fidelity
+  // future Recreate-as-Editable (parses HTML directly, no vision needed).
+  type Gen = { png: Buffer; html: string; style: string };
+  const settled = await Promise.allSettled(
+    styles.map(async (variant): Promise<Gen | null> => {
+      try {
+        const { html } = await designTemplateAsHtml({
+          query: rawQuery,
+          styleLabel: variant.label,
+          width: VW,
+          height: VH,
+        });
+        const png = await renderHtmlToPng(html, {
+          width: VW,
+          height: VH,
+          deviceScaleFactor: 2,
+          fontLoadDelayMs: 2000,
+        });
+        return { png, html, style: variant.label };
+      } catch (err) {
+        console.error(`[AiTemplates] html_design style "${variant.label}" failed:`, err);
+        return null;
+      }
+    }),
+  );
+
+  const successes: Gen[] = [];
+  for (const r of settled) {
+    if (r.status === "fulfilled" && r.value) successes.push(r.value);
+  }
+
+  if (successes.length === 0) {
+    throw new Error("All HTML design generations failed");
+  }
+  console.log(`[AiTemplates] html_design produced ${successes.length}/${styles.length} designs`);
+
+  const generationBatch = randomBytes(12).toString("hex");
+  const inserted = await Promise.all(
+    successes.map(async (s, i) => {
+      const pngKey = `designs/ai-templates/${queryHash}/${generationBatch}-${i}.png`;
+      const htmlKey = `designs/ai-templates/${queryHash}/${generationBatch}-${i}.html`;
+      // Upload PNG + HTML in parallel — they don't depend on each other.
+      const [imageUrl, htmlSourceUrl] = await Promise.all([
+        uploadToS3(pngKey, s.png, "image/png"),
+        uploadToS3(htmlKey, Buffer.from(s.html, "utf8"), "text/html; charset=utf-8"),
+      ]);
+      return prisma.aiTemplate.create({
+        data: {
+          queryHash,
+          query: `${rawQuery.slice(0, 180)} · ${s.style} (premium)`,
+          prompt: `[Claude HTML designer] ${s.style}`,
+          imageUrl,
+          // Persist the HTML source URL so the future Recreate-as-Editable
+          // path can fetch it and parse layers directly (no vision needed
+          // — text/colors/positions are already structured in the HTML).
+          htmlSourceUrl,
+          width: VW,
+          height: VH,
+          generationBatch,
+          position: i,
+          createdById: userId ?? null,
+        },
+      });
+    }),
+  );
+
+  let creditsRemaining: number | null = null;
+  if (!isAdmin && userId) {
+    const txn = await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: { aiCredits: { decrement: creditCost } },
+        select: { aiCredits: true },
+      }),
+      prisma.creditTransaction.create({
+        data: {
+          userId,
+          type: "USAGE",
+          amount: -creditCost,
+          balanceAfter: 0,
+          referenceType: "ai_template_html_design",
+          referenceId: generationBatch,
+          description: `Premium designer: "${rawQuery.slice(0, 80)}"${singleStyle ? ` · ${singleStyle.label}` : ""}`,
+        },
+      }),
+    ]);
+    creditsRemaining = txn[0].aiCredits;
+    await prisma.creditTransaction.updateMany({
+      where: { referenceId: generationBatch, balanceAfter: 0 },
+      data: { balanceAfter: creditsRemaining },
+    });
+  }
+
+  await prisma.aIUsage.create({
+    data: {
+      userId: userId ?? null,
+      adminId: session?.adminId ?? null,
+      feature: "ai_template_html_design",
+      model: "claude-opus-4-7",
+      inputTokens: 0,
+      outputTokens: 0,
+      // Rough cost estimate: ~$0.05 per Claude HTML design with cache hits.
+      costCents: Math.round(successes.length * 5),
+    },
+  });
+
+  return NextResponse.json({
+    success: true,
+    cached: false,
+    mode: "html_design",
     templates: inserted,
     creditsUsed: isAdmin ? 0 : creditCost,
     creditsRemaining,

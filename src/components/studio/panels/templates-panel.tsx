@@ -1555,6 +1555,10 @@ function TemplateSearchModal({
     error: string | null;
   } | null>(null);
   const drillRef = useRef<HTMLDivElement | null>(null);
+  // Tracks WHICH generator produced the current aiResults so the
+  // section header can show a "premium" badge. "fast" = gpt-image-1
+  // discovery / library browse. "premium" = Claude HTML+CSS designer.
+  const [aiSource, setAiSource] = useState<"fast" | "premium">("fast");
   const { toast } = useToast();
 
   // ESC closes; lock body scroll while open.
@@ -1634,6 +1638,7 @@ function TemplateSearchModal({
       setAiResults(wrapped);
       setAiCached(!!data.cached);
       setAwaitingGenerate(false);
+      setAiSource("fast");
       if (!data.cached && data.creditsUsed) {
         toast({
           title: "Templates generated!",
@@ -1650,6 +1655,69 @@ function TemplateSearchModal({
   useEffect(() => {
     void probeOrGenerate(debounced);
   }, [debounced, probeOrGenerate]);
+
+  // Fire the PREMIUM Claude HTML+CSS designer. Replaces the current
+  // aiResults with Featured-tier polished designs (real Google Fonts,
+  // real CSS gradients via headless Chromium screenshot). 6x more
+  // expensive than the gpt-image-1 fast path — opt-in only via the
+  // explicit "Premium" button. `regenerate` skips the cache lookup
+  // for fresh variations.
+  const firePremiumDesign = useCallback(async (
+    q: string,
+    opts: { regenerate?: boolean } = {},
+  ) => {
+    const trimmed = q.trim();
+    if (!trimmed) {
+      toast({ title: "Type a query first", variant: "destructive" });
+      return;
+    }
+    setAiError(null);
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/studio/templates/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "html_design",
+          query: trimmed,
+          forceRegenerate: !!opts.regenerate,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data?.error?.code === "INSUFFICIENT_CREDITS") {
+          toast({ title: "Not enough credits", description: data.error.message, variant: "destructive" });
+        } else {
+          setAiError(data?.error?.message || "Premium design failed");
+        }
+        return;
+      }
+      const wrapped: FeaturedTemplate[] = (data.templates || []).map((t: {
+        id: string; query: string; imageUrl: string; width: number; height: number;
+      }) => ({
+        id: `ai-${t.id}`,
+        name: t.query,
+        category: "flyer" as const,
+        width: t.width,
+        height: t.height,
+        imageUrl: t.imageUrl,
+      }));
+      setAiResults(wrapped);
+      setAiCached(!!data.cached);
+      setAwaitingGenerate(false);
+      setAiSource("premium");
+      if (!data.cached && data.creditsUsed) {
+        toast({
+          title: "Premium designs ready!",
+          description: `${data.creditsUsed} credits used · pixel-perfect typography`,
+        });
+      }
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setAiLoading(false);
+    }
+  }, [toast]);
 
   // Fire a "More like this" drill-down for a specific AI template.
   // Always charges 10 credits unless the (query, style) pair is already
@@ -1823,9 +1891,14 @@ function TemplateSearchModal({
               credit charge. Generated batches save to a master library
               that grows for everyone over time. */}
           <section>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2 flex-wrap">
               <Sparkles className="h-3.5 w-3.5" />
               AI-Generated Templates
+              {aiSource === "premium" && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                  ✨ Premium · Claude HTML
+                </span>
+              )}
               {aiCached && (
                 <span className="text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                   ♻ from library
@@ -1881,10 +1954,11 @@ function TemplateSearchModal({
                     />
                   ))}
                 </div>
-                {/* "Generate fresh batch" — only meaningful for an actual
-                    query (skipped on the empty-query library browse). */}
+                {/* Generate buttons — only meaningful for an actual query
+                    (skipped on the empty-query library browse). Two paths:
+                    fast (gpt-image-1, 10cr) and premium (Claude HTML, 60cr). */}
                 {debounced.trim() && (
-                  <div className="flex items-center justify-center pt-2">
+                  <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
                     <Button
                       type="button"
                       variant="outline"
@@ -1895,7 +1969,18 @@ function TemplateSearchModal({
                       title="Generate 8 brand new variations even though some exist"
                     >
                       <Sparkles className="h-3.5 w-3.5 text-brand-500" />
-                      Generate 8 more styles · 10 credits
+                      Generate 8 more · 10 credits
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="gap-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white border-0"
+                      disabled={aiLoading}
+                      onClick={() => firePremiumDesign(debounced, { regenerate: aiSource === "premium" })}
+                      title="Premium designer — Claude generates HTML+CSS for pixel-perfect typography (real Google Fonts, real CSS gradients)"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      ✨ Premium 8 · 60 credits
                     </Button>
                   </div>
                 )}
@@ -1905,18 +1990,31 @@ function TemplateSearchModal({
                 <Sparkles className="h-8 w-8 mx-auto mb-3 text-brand-500" />
                 <p className="text-sm font-medium mb-1">No templates yet for &ldquo;{debounced}&rdquo;</p>
                 <p className="text-xs text-muted-foreground mb-4">
-                  AI will generate 8 prototype thumbnails. Saved to the library so everyone benefits.
+                  Pick fast prototypes (gpt-image-1) or premium polished designs (Claude HTML+CSS).
                 </p>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="gap-2 bg-brand-500 hover:bg-brand-600"
-                  onClick={() => probeOrGenerate(debounced, { force: true })}
-                  disabled={aiLoading}
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Generate 8 templates · 10 credits
-                </Button>
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="gap-2 bg-brand-500 hover:bg-brand-600"
+                    onClick={() => probeOrGenerate(debounced, { force: true })}
+                    disabled={aiLoading}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Fast 8 · 10 credits
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="gap-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white border-0"
+                    onClick={() => firePremiumDesign(debounced)}
+                    disabled={aiLoading}
+                    title="Claude generates HTML+CSS — real Google Fonts, pixel-perfect typography"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    ✨ Premium 8 · 60 credits
+                  </Button>
+                </div>
               </div>
             ) : aiError ? (
               <div className="text-center py-8 text-sm text-destructive">{aiError}</div>

@@ -4684,6 +4684,12 @@ model AiTemplate {
   position        Int                   // 0-7 within the batch
   createdById     String?               // userId who triggered the first gen
   createdAt       DateTime @default(now())
+  // For premium HTML designs ("html_design" mode): URL to the raw
+  // HTML+CSS source on S3 alongside the rendered PNG. Recreate-as-
+  // Editable can use this directly (skip vision pass) for high-fidelity
+  // editable conversion since text/colors/positions are structured.
+  // null for fast gpt-image-1 thumbnails — no HTML source to save.
+  htmlSourceUrl    String?
   // Curation
   hideFromLibrary  Boolean @default(false)  // admin moderation — soft delete
   promotedFeatured Boolean @default(false)  // admin promotes great ones to FEATURED_TEMPLATES list
