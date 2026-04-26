@@ -38,6 +38,16 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+
+    // ─── drill_down mode ────────────────────────────────────────────
+    // Burst 8 variations of ONE specific style the user already liked.
+    // Cheaper-than-discovery in latency (single n=8 call) but same cost
+    // (8 paid images). Cached by sha256(parentQuery + styleLabel) so a
+    // second user clicking the same drill-down gets free results.
+    if (body?.mode === "drill_down") {
+      return handleDrillDown(req, body, isServerCall, session);
+    }
+
     const rawQuery = String(body?.query || "").trim();
     // Empty/short query → return a sample of the most-recent unique
     // queries' templates so the modal isn't blank when the user opens
@@ -328,4 +338,176 @@ function buildPrompt(query: string, variant: StyleVariant): string {
     "AVOID: thumbnails, alternate versions in a grid, labels, watermarks, surrounding white space, low-resolution feel, generic clipart aesthetic, lorem ipsum.",
     "INCLUDE: real-feeling text (headline + at least 2 supporting text levels), decorative accents appropriate to the style, full-bleed composition.",
   ].join("\n\n");
+}
+
+/**
+ * "More like this" drill-down — generates 8 variations of ONE specific
+ * style the user already saw and liked from the discovery batch. One
+ * single n=8 API call (vs discovery's 8 parallel calls) — same cost,
+ * marginally faster. Cached by parentQuery+styleLabel so a second user
+ * who clicks the same drill-down gets free results.
+ *
+ * Body: { mode: "drill_down", parentQuery: string, styleLabel: string, forceRegenerate?: boolean }
+ */
+async function handleDrillDown(
+  req: NextRequest,
+  body: { parentQuery?: string; styleLabel?: string; forceRegenerate?: boolean },
+  isServerCall: boolean,
+  session: Awaited<ReturnType<typeof getSession>>,
+) {
+  void req;
+  const parentQuery = String(body?.parentQuery || "").trim();
+  const styleLabel = String(body?.styleLabel || "").trim();
+
+  if (!parentQuery || !styleLabel) {
+    return NextResponse.json(
+      { success: false, error: { message: "drill_down requires parentQuery and styleLabel" } },
+      { status: 400 },
+    );
+  }
+
+  const variant = STYLE_VARIANTS.find((v) => v.label === styleLabel);
+  if (!variant) {
+    return NextResponse.json(
+      { success: false, error: { message: `Unknown style label: ${styleLabel}` } },
+      { status: 400 },
+    );
+  }
+
+  // Cache key includes both query AND style — drill-down for "Photo
+  // collage" is a different cache slot than discovery's "Photo collage"
+  // entry (different generation count, different intent).
+  const drillNorm = `${parentQuery.toLowerCase().replace(/\s+/g, " ").slice(0, 180)} :: ${styleLabel.toLowerCase()} :: drill`;
+  const drillHash = createHash("sha256").update(drillNorm).digest("hex");
+
+  const force = !!body?.forceRegenerate;
+  const cached = force
+    ? []
+    : await prisma.aiTemplate.findMany({
+        where: { queryHash: drillHash, hideFromLibrary: false },
+        orderBy: { position: "asc" },
+      });
+
+  if (cached.length >= 4) {
+    console.log(`[AiTemplates] drill_down cache HIT style="${styleLabel}" hash=${drillHash.slice(0, 8)}`);
+    return NextResponse.json({
+      success: true,
+      cached: true,
+      mode: "drill_down",
+      templates: cached,
+      creditsUsed: 0,
+      creditsRemaining: null,
+    });
+  }
+
+  const isAdmin = isServerCall || !!session?.adminId;
+  const userId = session?.userId;
+  const creditCost = await getDynamicCreditCost("AI_TEMPLATE_GENERATE");
+
+  if (!isAdmin && userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { aiCredits: true },
+    });
+    if (!user || user.aiCredits < creditCost) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "INSUFFICIENT_CREDITS",
+            message: `Generating 8 variations costs ${creditCost} credits. You have ${user?.aiCredits ?? 0}.`,
+            required: creditCost,
+            available: user?.aiCredits ?? 0,
+          },
+        },
+        { status: 402 },
+      );
+    }
+  }
+
+  console.log(`[AiTemplates] drill_down cache MISS style="${styleLabel}" query="${parentQuery}" — generating n=8 variations`);
+
+  const openai = OpenAIClient.getInstance();
+  const prompt = buildPrompt(parentQuery, variant);
+  const images = await openai.generateImagesBulk(prompt, {
+    n: 8,
+    size: "1024x1024",
+    quality: "low",
+    transparent: false,
+  });
+
+  if (images.length === 0) {
+    throw new Error("Drill-down generation returned 0 images");
+  }
+  console.log(`[AiTemplates] drill_down produced ${images.length}/8 variations`);
+
+  const generationBatch = randomBytes(12).toString("hex");
+  const inserted = await Promise.all(
+    images.map(async (b64, i) => {
+      const buf = Buffer.from(b64, "base64");
+      const key = `designs/ai-templates/${drillHash}/${generationBatch}-${i}.png`;
+      const url = await uploadToS3(key, buf, "image/png");
+      return prisma.aiTemplate.create({
+        data: {
+          queryHash: drillHash,
+          query: `${parentQuery.slice(0, 160)} · ${styleLabel} (variation)`,
+          prompt,
+          imageUrl: url,
+          width: 1024,
+          height: 1024,
+          generationBatch,
+          position: i,
+          createdById: userId ?? null,
+        },
+      });
+    }),
+  );
+
+  let creditsRemaining: number | null = null;
+  if (!isAdmin && userId) {
+    const txn = await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: { aiCredits: { decrement: creditCost } },
+        select: { aiCredits: true },
+      }),
+      prisma.creditTransaction.create({
+        data: {
+          userId,
+          type: "USAGE",
+          amount: -creditCost,
+          balanceAfter: 0,
+          referenceType: "ai_template_drill_down",
+          referenceId: generationBatch,
+          description: `Template drill-down: "${parentQuery.slice(0, 60)}" · ${styleLabel}`,
+        },
+      }),
+    ]);
+    creditsRemaining = txn[0].aiCredits;
+    await prisma.creditTransaction.updateMany({
+      where: { referenceId: generationBatch, balanceAfter: 0 },
+      data: { balanceAfter: creditsRemaining },
+    });
+  }
+
+  await prisma.aIUsage.create({
+    data: {
+      userId: userId ?? null,
+      adminId: session?.adminId ?? null,
+      feature: "ai_template_drill_down",
+      model: "gpt-image-1",
+      inputTokens: 0,
+      outputTokens: 0,
+      costCents: Math.round(images.length * 1.1),
+    },
+  });
+
+  return NextResponse.json({
+    success: true,
+    cached: false,
+    mode: "drill_down",
+    templates: inserted,
+    creditsUsed: isAdmin ? 0 : creditCost,
+    creditsRemaining,
+  });
 }

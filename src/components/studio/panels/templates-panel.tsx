@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Search, LayoutGrid, Image as ImageIcon, Sparkles, X, Eye, Wand2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -715,6 +715,25 @@ interface FeaturedTemplate {
   width: number;
   height: number;
   imageUrl: string;
+}
+
+/**
+ * AI templates are saved with `query · style` (e.g. "happy birthday · Photo
+ * collage" or "happy birthday · Photo collage (variation)" for drill-downs).
+ * This helper extracts both halves so we can render the style chip and pass
+ * the parent query into a "More like this" drill-down call. Returns null
+ * for hand-curated FEATURED_TEMPLATES (no `·` separator).
+ */
+function extractTemplateStyle(name: string): { parentQuery: string; style: string } | null {
+  const idx = name.lastIndexOf(" · ");
+  if (idx < 0) return null;
+  const parentQuery = name.slice(0, idx).trim();
+  const style = name
+    .slice(idx + 3)
+    .replace(/\s*\(variation\)\s*$/, "")
+    .trim();
+  if (!parentQuery || !style) return null;
+  return { parentQuery, style };
 }
 
 const FEATURED_TEMPLATES: FeaturedTemplate[] = [
@@ -1522,6 +1541,20 @@ function TemplateSearchModal({
   // satisfy from the cache so the user explicitly opts into the
   // credit charge.
   const [awaitingGenerate, setAwaitingGenerate] = useState(false);
+  // "More like this" drill-down: when set, an inline section below the
+  // AI grid shows 8 variations of one specific style the user clicked.
+  // Cached on the server by (parentQuery, styleLabel) — second user gets
+  // free results.
+  const [drillDown, setDrillDown] = useState<{
+    parent: FeaturedTemplate;
+    style: string;
+    parentQuery: string;
+    results: FeaturedTemplate[];
+    loading: boolean;
+    cached: boolean;
+    error: string | null;
+  } | null>(null);
+  const drillRef = useRef<HTMLDivElement | null>(null);
   const { toast } = useToast();
 
   // ESC closes; lock body scroll while open.
@@ -1617,6 +1650,98 @@ function TemplateSearchModal({
   useEffect(() => {
     void probeOrGenerate(debounced);
   }, [debounced, probeOrGenerate]);
+
+  // Fire a "More like this" drill-down for a specific AI template.
+  // Always charges 10 credits unless the (query, style) pair is already
+  // in the cache. Replaces any existing drill-down state so only one
+  // expanded section is visible at a time. `regenerate: true` skips the
+  // cache lookup entirely so the user gets fresh variations on demand.
+  const fireDrillDown = useCallback(async (
+    parent: FeaturedTemplate,
+    opts: { regenerate?: boolean } = {},
+  ) => {
+    const meta = extractTemplateStyle(parent.name);
+    if (!meta) {
+      toast({
+        title: "Can't drill down",
+        description: "This template doesn't have style metadata.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setDrillDown({
+      parent,
+      style: meta.style,
+      parentQuery: meta.parentQuery,
+      results: [],
+      loading: true,
+      cached: false,
+      error: null,
+    });
+    // Smooth-scroll the drill-down section into view on the next paint.
+    requestAnimationFrame(() => {
+      drillRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    try {
+      const res = await fetch("/api/studio/templates/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "drill_down",
+          parentQuery: meta.parentQuery,
+          styleLabel: meta.style,
+          forceRegenerate: !!opts.regenerate,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data?.error?.code === "INSUFFICIENT_CREDITS") {
+          toast({
+            title: "Not enough credits",
+            description: data.error.message,
+            variant: "destructive",
+          });
+        }
+        setDrillDown((prev) =>
+          prev
+            ? { ...prev, loading: false, error: data?.error?.message || "Drill-down failed" }
+            : null,
+        );
+        return;
+      }
+      const wrapped: FeaturedTemplate[] = (data.templates || []).map((t: {
+        id: string; query: string; imageUrl: string; width: number; height: number;
+      }) => ({
+        id: `ai-${t.id}`,
+        name: t.query,
+        category: "flyer" as const,
+        width: t.width,
+        height: t.height,
+        imageUrl: t.imageUrl,
+      }));
+      setDrillDown((prev) =>
+        prev
+          ? { ...prev, results: wrapped, loading: false, cached: !!data.cached }
+          : null,
+      );
+      if (!data.cached && data.creditsUsed) {
+        toast({
+          title: "8 variations generated!",
+          description: `${data.creditsUsed} credits used · saved to library for everyone`,
+        });
+      }
+    } catch (err) {
+      setDrillDown((prev) =>
+        prev
+          ? {
+              ...prev,
+              loading: false,
+              error: err instanceof Error ? err.message : "Network error",
+            }
+          : null,
+      );
+    }
+  }, [toast]);
 
   // Filter local Featured Designs by the same query.
   const featuredMatches = featuredTemplates.filter((t) => {
@@ -1744,7 +1869,16 @@ function TemplateSearchModal({
               <div className="space-y-3">
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {aiResults.map((t) => (
-                    <ResultCard key={t.id} template={t} onClick={() => onPickFeatured(t)} />
+                    <ResultCard
+                      key={t.id}
+                      template={t}
+                      onClick={() => onPickFeatured(t)}
+                      // Only AI templates have style metadata in their name
+                      // (`query · style`); featured/curated ones don't.
+                      onDrillDown={
+                        extractTemplateStyle(t.name) ? () => fireDrillDown(t) : undefined
+                      }
+                    />
                   ))}
                 </div>
                 {/* "Generate fresh batch" — only meaningful for an actual
@@ -1794,6 +1928,100 @@ function TemplateSearchModal({
                 user's explicit ask. */}
           </section>
 
+          {/* "More like this" drill-down — appears below the AI grid
+              when the user clicks the small ✨ More pill on any AI card.
+              Renders 8 variations of that exact style (single n=8 call
+              server-side). Self-contained section that can be closed. */}
+          <AnimatePresence>
+            {drillDown && (
+              <motion.section
+                ref={drillRef}
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="rounded-xl border-2 border-brand-500/30 bg-brand-500/5 p-4 space-y-3"
+              >
+                <div className="flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={drillDown.parent.imageUrl}
+                    alt={drillDown.parent.name}
+                    className="w-12 h-12 rounded-md object-cover border border-border flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold flex items-center gap-2 flex-wrap">
+                      <Sparkles className="h-3.5 w-3.5 text-brand-500 flex-shrink-0" />
+                      More like this
+                      <span className="text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400">
+                        {drillDown.style}
+                      </span>
+                      {drillDown.cached && !drillDown.loading && (
+                        <span className="text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                          ♻ from library
+                        </span>
+                      )}
+                      {drillDown.loading && (
+                        <AISpinner className="h-3.5 w-3.5 animate-spin text-brand-500" />
+                      )}
+                    </h3>
+                    <p className="text-xs text-muted-foreground truncate">
+                      8 variations of this exact aesthetic for &ldquo;{drillDown.parentQuery}&rdquo;
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDrillDown(null)}
+                    className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0"
+                    aria-label="Close more-like-this"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {drillDown.loading ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="relative aspect-square rounded-lg bg-muted/40 overflow-hidden"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 dark:via-white/5 to-transparent animate-pulse" />
+                      </div>
+                    ))}
+                  </div>
+                ) : drillDown.error ? (
+                  <div className="text-center py-6 text-sm text-destructive">{drillDown.error}</div>
+                ) : drillDown.results.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {drillDown.results.map((t) => (
+                        <ResultCard
+                          key={t.id}
+                          template={t}
+                          onClick={() => onPickFeatured(t)}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-center pt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => fireDrillDown(drillDown.parent, { regenerate: true })}
+                        title="Generate 8 brand-new variations of this style"
+                      >
+                        <Sparkles className="h-3.5 w-3.5 text-brand-500" />
+                        Generate 8 more · 10 credits
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </motion.section>
+            )}
+          </AnimatePresence>
+
           {totalResults === 0 && !aiLoading && !awaitingGenerate && debounced.trim() && (
             <div className="text-center py-12 text-sm text-muted-foreground">
               <ImageIcon className="h-10 w-10 mx-auto mb-3 opacity-40" />
@@ -1806,20 +2034,35 @@ function TemplateSearchModal({
   );
 }
 
-/** Single result thumbnail used by both rows in the search modal. */
+/** Single result thumbnail used by both rows in the search modal.
+ *  When `onDrillDown` is provided, a small "More" pill appears in the
+ *  top-right on hover — clicking it bursts 8 variations of this exact
+ *  style into a section below the grid. Outer element is a div+role
+ *  rather than a button so we can nest the inner action button cleanly
+ *  (HTML doesn't allow nested buttons).
+ */
 function ResultCard({
   template,
   onClick,
+  onDrillDown,
 }: {
   template: FeaturedTemplate;
   onClick: () => void;
+  onDrillDown?: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        "relative rounded-lg overflow-hidden border border-border hover:border-brand-500 hover:scale-[1.02] transition-all group bg-gray-100 dark:bg-gray-800",
+        "relative rounded-lg overflow-hidden border border-border hover:border-brand-500 hover:scale-[1.02] transition-all group bg-gray-100 dark:bg-gray-800 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
         template.width > template.height
           ? "aspect-video"
           : template.height > template.width * 1.5
@@ -1841,11 +2084,25 @@ function ResultCard({
           Preview
         </div>
       </div>
+      {onDrillDown && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDrillDown();
+          }}
+          className="absolute top-1.5 right-1.5 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 px-2 py-1 rounded-full bg-brand-500/95 hover:bg-brand-600 text-white text-[10px] font-semibold shadow-lg"
+          title="Generate 8 variations of this style — 10 credits"
+        >
+          <Sparkles className="h-3 w-3" />
+          More
+        </button>
+      )}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1.5 z-10 pointer-events-none">
         <p className="text-white text-[10px] font-medium truncate text-left">{template.name}</p>
         <p className="text-white/60 text-[9px] text-left">{template.width}×{template.height}</p>
       </div>
-    </button>
+    </div>
   );
 }
 
