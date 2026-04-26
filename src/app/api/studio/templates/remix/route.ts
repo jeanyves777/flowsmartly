@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
@@ -89,6 +89,35 @@ export async function POST(req: NextRequest) {
     const buf = Buffer.from(result.b64, "base64");
     const key = `media/${session.userId}-remix-${randomBytes(6).toString("hex")}.png`;
     const remixedImageUrl = await uploadToS3(key, buf, "image/png");
+
+    // Auto-promote to the master AiTemplate library so the stock grows
+    // organically with every remix. Visible to all users in the AI-
+    // Generated Templates section — they can use it as a starting point
+    // for their own remix. Tagged `(personalized)` in the query so admins
+    // can hide it later if it's too user-specific. Non-fatal — a DB
+    // hiccup here shouldn't lose the user's remix.
+    const remixBatch = randomBytes(12).toString("hex");
+    try {
+      const queryHash = createHash("sha256").update(`${imageUrl} :: remix :: ${remixBatch}`).digest("hex");
+      const queryLabel = customText.trim()
+        ? `${customText.trim().split(/\n+/)[0].slice(0, 80)} (personalized remix)`
+        : `Personalized remix (${imageUrl.split("/").pop()?.split(".")[0]?.slice(0, 40) ?? "template"})`;
+      await prisma.aiTemplate.create({
+        data: {
+          queryHash,
+          query: queryLabel,
+          prompt: `[Remix] source=${imageUrl}${userPhotos.length ? ` +${userPhotos.length}photos` : ""}`,
+          imageUrl: remixedImageUrl,
+          width: result.outputWidth,
+          height: result.outputHeight,
+          generationBatch: remixBatch,
+          position: 0,
+          createdById: session.userId,
+        },
+      });
+    } catch (err) {
+      console.warn("[TemplateRemix] failed to promote to library (non-fatal):", err);
+    }
 
     // Phase 2: Claude vision reads the SOURCE design (where original
     // text is rendered cleanly) and emits Fabric textbox specs in

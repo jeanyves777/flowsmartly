@@ -48,8 +48,25 @@ export interface TextOverlayResult {
   outputTokens: number;
 }
 
+/** Sniff the image MIME type from the first few bytes of a base64 string.
+ *  Anthropic vision rejects requests where the declared media_type doesn't
+ *  match the actual image bytes (returns 400). Featured Templates are
+ *  JPEGs, AI/Premium templates are PNGs — so we can't hardcode either. */
+function sniffImageMime(b64: string): "image/png" | "image/jpeg" | "image/webp" | "image/gif" {
+  // Decode just the first 12 bytes — enough for every magic-number prefix.
+  const head = Buffer.from(b64.slice(0, 24), "base64");
+  if (head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47) return "image/png";
+  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return "image/jpeg";
+  if (head[0] === 0x47 && head[1] === 0x49 && head[2] === 0x46) return "image/gif";
+  // WebP: "RIFF" at 0..3 then "WEBP" at 8..11
+  if (head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46
+      && head[8] === 0x57 && head[9] === 0x45 && head[10] === 0x42 && head[11] === 0x50) return "image/webp";
+  // Default to JPEG — common Featured-Template format.
+  return "image/jpeg";
+}
+
 export async function generateTextOverlay(opts: {
-  /** Base64 PNG of the SOURCE design — Claude reads this for text styling. */
+  /** Base64 of the SOURCE design (any of png/jpeg/webp/gif — sniffed). */
   sourceImageB64: string;
   /** Source image dimensions in pixels — coord space for textbox positions. */
   width: number;
@@ -60,6 +77,7 @@ export async function generateTextOverlay(opts: {
   customText?: string;
 }): Promise<TextOverlayResult> {
   const { sourceImageB64, width, height, customText = "" } = opts;
+  const mediaType = sniffImageMime(sourceImageB64);
 
   const systemPrompt = `You are a text-extraction agent for an editable canvas system. Your job is to look at a flyer/poster source design and identify every text region, then emit a JSON array of Fabric.js textbox specs that mirror what the source has — so the user can edit each text element later in the canvas.
 
@@ -119,7 +137,7 @@ For text regions you can't map to user content, MIRROR the original text from th
         content: [
           {
             type: "image",
-            source: { type: "base64", media_type: "image/png", data: sourceImageB64 },
+            source: { type: "base64", media_type: mediaType, data: sourceImageB64 },
           },
           { type: "text", text: userText },
         ],
