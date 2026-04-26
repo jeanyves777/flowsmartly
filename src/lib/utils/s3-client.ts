@@ -259,17 +259,30 @@ export function sanitizeCanvasJsonForStorage(canvasJson: string): string {
   }
 }
 
+// Matches both relative ("/api/image-proxy?url=…") AND absolute
+// ("https://flowsmartly.com/api/image-proxy?url=…") proxy wrappers.
+// Fabric serializes loaded image src as absolute, so old designs hit
+// the absolute path; the previous startsWith("/api/image-proxy?url=")
+// check missed those and the inner expired signature leaked through.
+const PROXY_WRAPPER_RE = /^(?:https?:\/\/[^/]+)?\/api\/image-proxy\?url=(.+)$/i;
+
+function _extractProxyInner(src: string): string | null {
+  const m = PROXY_WRAPPER_RE.exec(src);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return null;
+  }
+}
+
 function _sanitizeSrc(src: string): string {
-  // Strip /api/image-proxy?url=<encoded> wrapper
-  if (src.startsWith("/api/image-proxy?url=")) {
-    try {
-      const decoded = decodeURIComponent(src.slice("/api/image-proxy?url=".length));
-      const base = decoded.split("?")[0];
-      // Only keep if it's actually an S3 URL we manage
-      if (isS3Url(base) || isS3Key(base)) return base;
-    } catch {
-      /* ignore malformed encoding */
-    }
+  // Strip /api/image-proxy?url=<encoded> wrapper (relative OR absolute)
+  const inner = _extractProxyInner(src);
+  if (inner) {
+    const base = inner.split("?")[0];
+    // Only keep if it's actually an S3 URL we manage
+    if (isS3Url(base) || isS3Key(base)) return base;
   }
   // Strip presign query params from bare S3 URLs
   if (isS3Url(src)) return src.split("?")[0];
@@ -319,17 +332,17 @@ async function _presignSrc(src: string): Promise<string> {
     const signed = await getPresignedUrl(cleanUrl);
     return `/api/image-proxy?url=${encodeURIComponent(signed)}`;
   }
-  // Legacy: /api/image-proxy?url=<encoded expired presigned url>
-  if (src.startsWith("/api/image-proxy?url=")) {
-    try {
-      const decoded = decodeURIComponent(src.slice("/api/image-proxy?url=".length));
-      const cleanUrl = decoded.split("?")[0];
-      if (isS3Url(cleanUrl) || isS3Key(cleanUrl)) {
-        const signed = await getPresignedUrl(cleanUrl);
-        return `/api/image-proxy?url=${encodeURIComponent(signed)}`;
-      }
-    } catch {
-      /* ignore */
+  // Legacy: /api/image-proxy?url=<encoded expired presigned url>.
+  // Match BOTH relative ("/api/image-proxy?url=…") AND absolute
+  // ("https://flowsmartly.com/api/image-proxy?url=…") forms — Fabric
+  // serializes loaded image src as absolute, so older designs hit the
+  // absolute path and were previously missed by this re-presign step.
+  const inner = _extractProxyInner(src);
+  if (inner) {
+    const cleanUrl = inner.split("?")[0];
+    if (isS3Url(cleanUrl) || isS3Key(cleanUrl)) {
+      const signed = await getPresignedUrl(cleanUrl);
+      return `/api/image-proxy?url=${encodeURIComponent(signed)}`;
     }
   }
   // Bare S3 key stored as a string (e.g. "media/abc.png")
