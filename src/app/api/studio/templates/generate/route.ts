@@ -39,16 +39,32 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const rawQuery = String(body?.query || "").trim();
+    // Empty/short query → return a sample of the most-recent unique
+    // queries' templates so the modal isn't blank when the user opens
+    // it. Acts as a "browse the library" mode.
     if (!rawQuery || rawQuery.length < 2) {
-      return NextResponse.json(
-        { success: false, error: { message: "query is required (min 2 chars)" } },
-        { status: 400 },
-      );
+      const recent = await prisma.aiTemplate.findMany({
+        where: { hideFromLibrary: false },
+        orderBy: { createdAt: "desc" },
+        take: 24,
+      });
+      return NextResponse.json({
+        success: true,
+        cached: true,
+        library: true,
+        templates: recent,
+        creditsUsed: 0,
+        creditsRemaining: null,
+      });
     }
     // cacheOnly: true means PROBE — return cached if present, otherwise
     // 404 with code CACHE_MISS so the client can prompt the user to
     // explicitly opt into the credit charge before we generate.
     const cacheOnly = !!body?.cacheOnly;
+    // forceRegenerate: skip the cache lookup entirely. Used when the user
+    // hits "Generate fresh batch" to get NEW variations even though the
+    // query already has cached results.
+    const forceRegenerate = !!body?.forceRegenerate;
 
     // Normalize for cache key — lowercase + collapse whitespace. Two
     // users searching "Wedding Invitation" and "  wedding   invitation"
@@ -57,10 +73,13 @@ export async function POST(req: NextRequest) {
     const queryHash = createHash("sha256").update(normalized).digest("hex");
 
     // ─── Cache lookup ────────────────────────────────────────────────
-    const cached = await prisma.aiTemplate.findMany({
-      where: { queryHash, hideFromLibrary: false },
-      orderBy: { position: "asc" },
-    });
+    // Skip the lookup when the user explicitly asked for a fresh batch.
+    const cached = forceRegenerate
+      ? []
+      : await prisma.aiTemplate.findMany({
+          where: { queryHash, hideFromLibrary: false },
+          orderBy: { position: "asc" },
+        });
 
     // We consider a batch "cached" if at least 4 thumbnails survived.
     // Below 4 means too many were hidden by moderation — regenerate

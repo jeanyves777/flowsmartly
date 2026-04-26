@@ -1545,25 +1545,32 @@ function TemplateSearchModal({
   // On debounced query change: probe for cached results. If found,
   // show them immediately. If not, surface a "Generate (10 cr)" button
   // so the user opts into the charge.
-  const probeOrGenerate = useCallback(async (q: string, force = false) => {
-    if (!q.trim()) {
-      setAiResults([]);
-      setAwaitingGenerate(false);
-      setAiCached(false);
-      setAiError(null);
-      return;
-    }
+  // `force` here means "skip the cacheOnly probe and actually charge
+  //   the user to generate" — used when they click the Generate or
+  //   'Generate fresh batch' button.
+  // `regenerate` = "skip the cache LOOKUP entirely and produce a fresh
+  //   batch even if cached results exist" — for variety on demand.
+  const probeOrGenerate = useCallback(async (
+    q: string,
+    opts: { force?: boolean; regenerate?: boolean } = {},
+  ) => {
+    const { force = false, regenerate = false } = opts;
     setAiError(null);
     setAiLoading(true);
     try {
       const res = await fetch("/api/studio/templates/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Probe mode: send `cacheOnly: true` first time. If miss, server
-        // returns the cache-miss code without charging — user clicks
-        // Generate to confirm. (We pass `force: true` from the button
-        // click to actually generate.)
-        body: JSON.stringify({ query: q, cacheOnly: !force }),
+        // Empty query: server returns recent library templates — always
+        //   safe (no credit charge), no probe needed.
+        // Non-empty + !force: probe-only, server returns 404 CACHE_MISS
+        //   if uncached so we can show a Generate button.
+        // Non-empty + force: actually generate, charge credits.
+        body: JSON.stringify({
+          query: q,
+          cacheOnly: q.trim() ? !force : false,
+          forceRegenerate: regenerate,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -1608,7 +1615,7 @@ function TemplateSearchModal({
   }, [toast]);
 
   useEffect(() => {
-    void probeOrGenerate(debounced, false);
+    void probeOrGenerate(debounced);
   }, [debounced, probeOrGenerate]);
 
   // Filter local Featured Designs by the same query.
@@ -1734,10 +1741,30 @@ function TemplateSearchModal({
                 </div>
               </div>
             ) : aiResults.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {aiResults.map((t) => (
-                  <ResultCard key={t.id} template={t} onClick={() => onPickFeatured(t)} />
-                ))}
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {aiResults.map((t) => (
+                    <ResultCard key={t.id} template={t} onClick={() => onPickFeatured(t)} />
+                  ))}
+                </div>
+                {/* "Generate fresh batch" — only meaningful for an actual
+                    query (skipped on the empty-query library browse). */}
+                {debounced.trim() && (
+                  <div className="flex items-center justify-center pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      disabled={aiLoading}
+                      onClick={() => probeOrGenerate(debounced, { force: true, regenerate: true })}
+                      title="Generate 8 brand new variations even though some exist"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-brand-500" />
+                      Generate 8 more styles · 10 credits
+                    </Button>
+                  </div>
+                )}
               </div>
             ) : awaitingGenerate && debounced.trim() ? (
               <div className="text-center py-8 px-4 rounded-lg border border-dashed border-border bg-muted/20">
@@ -1750,7 +1777,7 @@ function TemplateSearchModal({
                   type="button"
                   size="sm"
                   className="gap-2 bg-brand-500 hover:bg-brand-600"
-                  onClick={() => probeOrGenerate(debounced, true)}
+                  onClick={() => probeOrGenerate(debounced, { force: true })}
                   disabled={aiLoading}
                 >
                   <Sparkles className="h-3.5 w-3.5" />
@@ -1759,11 +1786,12 @@ function TemplateSearchModal({
               </div>
             ) : aiError ? (
               <div className="text-center py-8 text-sm text-destructive">{aiError}</div>
-            ) : !debounced.trim() ? (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                Search above to discover designs · cached results free
-              </div>
             ) : null}
+            {/* Empty-state message intentionally omitted — when the query
+                is empty we render the recent library batch from the
+                server, when it's not we either show results or the
+                Generate CTA. Letting the modal scroll naturally was the
+                user's explicit ask. */}
           </section>
 
           {totalResults === 0 && !aiLoading && !awaitingGenerate && debounced.trim() && (
