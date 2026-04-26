@@ -975,7 +975,7 @@ export function TemplatesPanel() {
   //                throughout the output (text fills, accents, bg).
   const handleReproduce = async (
     template: FeaturedTemplate,
-    options: { customText?: string; useBrandColors?: boolean; referenceImages?: string[] } = {},
+    options: { customText?: string; useBrandColors?: boolean } = {},
   ) => {
     if (!canvas) return;
     if (!(await confirmBeforeClobber(template.name))) return;
@@ -996,7 +996,6 @@ export function TemplatesPanel() {
           imageUrl: template.imageUrl,
           customText: options.customText || undefined,
           useBrandColors: !!options.useBrandColors,
-          referenceImages: options.referenceImages?.length ? options.referenceImages : undefined,
         }),
       });
       const data = await res.json();
@@ -1725,15 +1724,6 @@ function ResultCard({
  * keep the template's stock text ("Pastor Mike", "Lady Pastor Julie")
  * which the user almost certainly wants replaced with their own.
  */
-interface ReferenceImage {
-  /** Generated client-side just for keys/dedupe. */
-  id: string;
-  /** Display name. */
-  name: string;
-  /** data:image/png;base64,... — passed to the server as-is. */
-  dataUrl: string;
-}
-
 function RecreateOptionsDialog({
   template,
   onClose,
@@ -1744,42 +1734,10 @@ function RecreateOptionsDialog({
   onConfirm: (opts: {
     customText: string;
     useBrandColors: boolean;
-    referenceImages: string[];
   }) => void | Promise<void>;
 }) {
   const [customText, setCustomText] = useState("");
   const [useBrandColors, setUseBrandColors] = useState(true);
-  const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
-
-  // Cap reference images to keep payload sane and within Anthropic vision
-  // limits. Each base64 PNG can easily be 1-3MB; 4 = ~12MB max payload.
-  const MAX_REF_IMAGES = 4;
-
-  const handleFiles = async (files: FileList | null) => {
-    if (!files) return;
-    const remaining = MAX_REF_IMAGES - referenceImages.length;
-    const toAdd = Array.from(files).slice(0, remaining);
-    const reads = await Promise.all(
-      toAdd.map(
-        (file) =>
-          new Promise<ReferenceImage>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () =>
-              resolve({
-                id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                name: file.name,
-                dataUrl: String(reader.result || ""),
-              });
-            reader.onerror = () => reject(reader.error);
-            reader.readAsDataURL(file);
-          }),
-      ),
-    );
-    setReferenceImages((prev) => [...prev, ...reads]);
-  };
-
-  const removeImage = (id: string) =>
-    setReferenceImages((prev) => prev.filter((r) => r.id !== id));
 
   // ESC closes; lock body scroll while open.
   useEffect(() => {
@@ -1797,7 +1755,6 @@ function RecreateOptionsDialog({
     onConfirm({
       customText: customText.trim(),
       useBrandColors,
-      referenceImages: referenceImages.map((r) => r.dataUrl),
     });
   };
 
@@ -1885,57 +1842,13 @@ function RecreateOptionsDialog({
             </div>
           </label>
 
-          {/* Reference image upload — when provided, the AI uses these
-              instead of generating photos via OpenAI. Saves credits and
-              gives the user exact control over the imagery. */}
-          <div>
-            <label className="text-sm font-medium block mb-1">
-              Your photos (optional)
-            </label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Upload your own photos (people, products, scenes). The AI will use them for the
-              imagery in this design instead of generating new ones. Leave blank to let AI invent.
-              Up to {MAX_REF_IMAGES}.
-            </p>
-
-            {referenceImages.length > 0 && (
-              <div className="grid grid-cols-4 gap-2 mb-2">
-                {referenceImages.map((r) => (
-                  <div
-                    key={r.id}
-                    className="relative aspect-square rounded-md border border-border overflow-hidden bg-gray-100 dark:bg-gray-800"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={r.dataUrl} alt={r.name} className="absolute inset-0 w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(r.id)}
-                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
-                      aria-label={`Remove ${r.name}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {referenceImages.length < MAX_REF_IMAGES && (
-              <label className="flex items-center justify-center gap-2 w-full h-16 rounded-md border-2 border-dashed border-border hover:border-brand-400 cursor-pointer transition-colors text-xs text-muted-foreground">
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    handleFiles(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
-                <ImageIcon className="h-4 w-4" />
-                Click to add photos
-              </label>
-            )}
+          {/* Photo placement note — explicit so the user knows what to
+              expect. Photos are added on the canvas after recreate; the
+              dialog stays focused on text + brand color choices only. */}
+          <div className="text-xs text-muted-foreground bg-muted/40 rounded-md p-3 leading-relaxed">
+            💡 The design will be recreated with empty photo slots. After it loads,
+            drop your own photos into each slot from the Uploads panel — use the
+            Background Removal tool if you need to cut them out cleanly.
           </div>
         </div>
 

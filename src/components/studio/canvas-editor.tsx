@@ -796,11 +796,10 @@ export function CanvasEditor({
           role="status"
           aria-live="polite"
         >
-          {/* Card sized so the AIGenerationLoader's 16:9 inner panel +
-              140px logo ring + step text + progress bar all fit without
-              clipping. Min height 320 keeps it tall enough; padding
-              matches the card border-radius for breathing room. */}
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-5 sm:p-6 w-full max-w-[480px] min-h-[320px] flex items-center justify-center overflow-hidden">
+          {/* Bigger card per user feedback — was 480/320, now 640/440 so the
+              animated logo + spinner + tip text + progress bar all have
+              breathing room and the design feels intentional, not cramped. */}
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-[640px] min-h-[440px] flex items-center justify-center overflow-hidden">
             <div className="w-full">
               <AIGenerationLoader
                 currentStep={studioLoader.title}
