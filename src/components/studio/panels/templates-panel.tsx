@@ -1139,12 +1139,16 @@ export function TemplatesPanel() {
       <button
         type="button"
         onClick={() => setSearchModalOpen(true)}
-        className="relative w-full mb-3 flex items-center gap-2 px-3 h-9 rounded-md border border-border bg-background hover:border-brand-500 hover:shadow-sm transition-all text-left"
+        className="relative w-full mb-3 flex items-center gap-2 px-3 h-9 rounded-md border border-border bg-background hover:border-brand-500 hover:shadow-sm transition-all text-left overflow-hidden"
         aria-label="Open templates search"
       >
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground flex-1">Search design templates &amp; inspiration…</span>
-        <span className="text-[9px] text-muted-foreground/70 hidden sm:inline">⌘ + click</span>
+        <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+        {/* Truncate + nowrap so the placeholder never wraps in the
+            narrow side panel (was breaking onto 3 lines and overlapping
+            the magnifying-glass icon). */}
+        <span className="text-sm text-muted-foreground flex-1 truncate whitespace-nowrap">
+          Search templates…
+        </span>
       </button>
 
       <div className="flex flex-wrap gap-1.5 mb-4">
@@ -1701,14 +1705,33 @@ function TemplateSearchModal({
             </h3>
 
             {aiLoading ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {/* 8 skeleton placeholders matching the grid we'll fill */}
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="aspect-square rounded-lg bg-muted/40 animate-pulse"
-                  />
-                ))}
+              <div className="space-y-4">
+                {/* Prominent loading banner so the user knows AI is working
+                    (skeletons alone read as 'still loading' indefinitely
+                    — the user complained nothing told them what was
+                    happening). */}
+                <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-brand-500/10 border border-brand-500/30">
+                  <AISpinner className="h-5 w-5 animate-spin text-brand-500 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">
+                      Generating 8 design styles for &ldquo;{debounced}&rdquo;…
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Each thumbnail uses a different aesthetic (collage, elegant, bold typography, vibrant, minimalist, photographic, vintage, corporate). About 15 seconds.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="relative aspect-square rounded-lg bg-muted/40 overflow-hidden"
+                    >
+                      {/* Shimmer sweep across each placeholder */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 dark:via-white/5 to-transparent animate-pulse" />
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : aiResults.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
