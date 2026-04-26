@@ -1509,8 +1509,16 @@ function TemplateSearchModal({
 }) {
   const [query, setQuery] = useState(initialQuery);
   const [debounced, setDebounced] = useState(initialQuery);
-  const [pexelsLoading, setPexelsLoading] = useState(false);
-  const [pexelsResults, setPexelsResults] = useState<FeaturedTemplate[]>([]);
+  const [aiResults, setAiResults] = useState<FeaturedTemplate[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiCached, setAiCached] = useState(false);
+  // When `awaitingGenerate` is true the section shows a "Generate"
+  // button instead of auto-firing — used for queries we couldn't
+  // satisfy from the cache so the user explicitly opts into the
+  // credit charge.
+  const [awaitingGenerate, setAwaitingGenerate] = useState(false);
+  const { toast } = useToast();
 
   // ESC closes; lock body scroll while open.
   useEffect(() => {
@@ -1524,47 +1532,80 @@ function TemplateSearchModal({
     };
   }, [onClose]);
 
-  // Debounce the search input so typing doesn't fire a Pexels request per keystroke.
+  // Debounce the search input.
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query), 350);
     return () => clearTimeout(t);
   }, [query]);
 
-  // Fetch Pexels results whenever the debounced query changes. Bias the
-  // query toward DESIGN content — user is searching from the templates
-  // panel so they expect flyers/posters/cards/templates, not raw photos
-  // (Pexels' generic search returns lifestyle photography otherwise).
-  // Empty query falls through to Pexels' curated feed (no bias).
+  // On debounced query change: probe for cached results. If found,
+  // show them immediately. If not, surface a "Generate (10 cr)" button
+  // so the user opts into the charge.
+  const probeOrGenerate = useCallback(async (q: string, force = false) => {
+    if (!q.trim()) {
+      setAiResults([]);
+      setAwaitingGenerate(false);
+      setAiCached(false);
+      setAiError(null);
+      return;
+    }
+    setAiError(null);
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/studio/templates/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // Probe mode: send `cacheOnly: true` first time. If miss, server
+        // returns the cache-miss code without charging — user clicks
+        // Generate to confirm. (We pass `force: true` from the button
+        // click to actually generate.)
+        body: JSON.stringify({ query: q, cacheOnly: !force }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data?.error?.code === "INSUFFICIENT_CREDITS") {
+          toast({ title: "Not enough credits", description: data.error.message, variant: "destructive" });
+        } else if (data?.error?.code === "CACHE_MISS") {
+          // No cache — wait for explicit Generate click.
+          setAwaitingGenerate(true);
+          setAiResults([]);
+          setAiCached(false);
+        } else {
+          setAiError(data?.error?.message || "Search failed");
+        }
+        return;
+      }
+      // Success — wrap each AiTemplate as a FeaturedTemplate so it
+      // flows through the existing preview / recreate code path.
+      const wrapped: FeaturedTemplate[] = (data.templates || []).map((t: {
+        id: string; query: string; imageUrl: string; width: number; height: number;
+      }) => ({
+        id: `ai-${t.id}`,
+        name: t.query,
+        category: "flyer" as const,
+        width: t.width,
+        height: t.height,
+        imageUrl: t.imageUrl,
+      }));
+      setAiResults(wrapped);
+      setAiCached(!!data.cached);
+      setAwaitingGenerate(false);
+      if (!data.cached && data.creditsUsed) {
+        toast({
+          title: "Templates generated!",
+          description: `${data.creditsUsed} credits used · saved to library for everyone`,
+        });
+      }
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setAiLoading(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
-    let cancelled = false;
-    setPexelsLoading(true);
-    const designQuery = debounced.trim()
-      ? `${debounced.trim()} flyer poster card design template`
-      : "design template flyer";
-    const params = new URLSearchParams({ q: designQuery, per_page: "24" });
-    fetch(`/api/pexels/search?${params}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (cancelled) return;
-        if (!data.success) { setPexelsResults([]); return; }
-        // Wrap each Pexels photo as a FeaturedTemplate so it flows through
-        // the same preview + apply + reproduce code path.
-        const wrapped: FeaturedTemplate[] = (data.photos || []).map((p: {
-          id: number; width: number; height: number; alt: string; previewUrl: string;
-        }) => ({
-          id: `pexels-${p.id}`,
-          name: p.alt || debounced || "Design Inspiration",
-          category: "flyer" as const,
-          width: Math.min(p.width, 2048),
-          height: Math.min(p.height, 2048),
-          imageUrl: p.previewUrl,
-        }));
-        setPexelsResults(wrapped);
-      })
-      .catch(() => { if (!cancelled) setPexelsResults([]); })
-      .finally(() => { if (!cancelled) setPexelsLoading(false); });
-    return () => { cancelled = true; };
-  }, [debounced]);
+    void probeOrGenerate(debounced, false);
+  }, [debounced, probeOrGenerate]);
 
   // Filter local Featured Designs by the same query.
   const featuredMatches = featuredTemplates.filter((t) => {
@@ -1573,7 +1614,7 @@ function TemplateSearchModal({
     return t.name.toLowerCase().includes(q) || t.category.includes(q);
   });
 
-  const totalResults = featuredMatches.length + pexelsResults.length;
+  const totalResults = featuredMatches.length + aiResults.length;
 
   return (
     <motion.div
@@ -1640,36 +1681,69 @@ function TemplateSearchModal({
             </section>
           )}
 
-          {/* Pexels — biased toward DESIGN imagery (we append "flyer
-              poster card design template" to the user's query so Pexels
-              returns flat-lay design photography, branded mockups, and
-              actual flyer photos rather than generic lifestyle shots). */}
+          {/* AI-Generated Templates — every search hits a shared cache
+              keyed by query hash. Cache hit = instant + free. Cache
+              miss = explicit Generate button so the user opts into the
+              credit charge. Generated batches save to a master library
+              that grows for everyone over time. */}
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-              <ImageIcon className="h-3.5 w-3.5" />
-              Design Inspirations
-              {!pexelsLoading && (
-                <span className="text-[10px] font-normal text-muted-foreground/70">{pexelsResults.length}</span>
+              <Sparkles className="h-3.5 w-3.5" />
+              AI-Generated Templates
+              {aiCached && (
+                <span className="text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  ♻ from library
+                </span>
+              )}
+              {!aiLoading && aiResults.length > 0 && (
+                <span className="text-[10px] font-normal text-muted-foreground/70">{aiResults.length}</span>
               )}
             </h3>
-            {pexelsLoading ? (
-              <div className="flex items-center justify-center py-10">
-                <AISpinner className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : pexelsResults.length > 0 ? (
+
+            {aiLoading ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {pexelsResults.map((t) => (
+                {/* 8 skeleton placeholders matching the grid we'll fill */}
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="aspect-square rounded-lg bg-muted/40 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : aiResults.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {aiResults.map((t) => (
                   <ResultCard key={t.id} template={t} onClick={() => onPickFeatured(t)} />
                 ))}
               </div>
-            ) : (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                No design inspirations for &quot;{debounced || "—"}&quot;
+            ) : awaitingGenerate && debounced.trim() ? (
+              <div className="text-center py-8 px-4 rounded-lg border border-dashed border-border bg-muted/20">
+                <Sparkles className="h-8 w-8 mx-auto mb-3 text-brand-500" />
+                <p className="text-sm font-medium mb-1">No templates yet for &ldquo;{debounced}&rdquo;</p>
+                <p className="text-xs text-muted-foreground mb-4">
+                  AI will generate 8 prototype thumbnails. Saved to the library so everyone benefits.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-2 bg-brand-500 hover:bg-brand-600"
+                  onClick={() => probeOrGenerate(debounced, true)}
+                  disabled={aiLoading}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Generate 8 templates · 10 credits
+                </Button>
               </div>
-            )}
+            ) : aiError ? (
+              <div className="text-center py-8 text-sm text-destructive">{aiError}</div>
+            ) : !debounced.trim() ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                Search above to discover designs · cached results free
+              </div>
+            ) : null}
           </section>
 
-          {totalResults === 0 && !pexelsLoading && (
+          {totalResults === 0 && !aiLoading && !awaitingGenerate && debounced.trim() && (
             <div className="text-center py-12 text-sm text-muted-foreground">
               <ImageIcon className="h-10 w-10 mx-auto mb-3 opacity-40" />
               <p>No results — try a different keyword</p>

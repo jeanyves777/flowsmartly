@@ -147,6 +147,9 @@ export const DEFAULT_CREDIT_COSTS = {
 
   // --- AI Template Reproduce (Claude vision + 1 bg gen + editable layers) ---
   AI_TEMPLATE_REPRODUCE: 80,      // Claude vision pass (~$0.05) + ONE gpt-image-1 bg gen (~$0.04). Photos left as user-fillable placeholders to keep cost low and avoid AI generating the wrong people.
+
+  // --- AI Template Discovery (low-quality prototype batch for search) ---
+  AI_TEMPLATE_GENERATE: 10,       // 8x gpt-image-1 low-quality thumbnails (~$0.09). Cached forever per query hash so subsequent searchers get them free.
 } as const;
 
 /**
@@ -215,6 +218,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_BUSINESS_PLAN: "AI business plan generation",
   AI_BUSINESS_PLAN_REGENERATE: "AI business plan regeneration",
   AI_TEMPLATE_REPRODUCE: "AI template reproduction (editable from flat image)",
+  AI_TEMPLATE_GENERATE: "AI template discovery (8 prototype thumbnails)",
 };
 
 /**

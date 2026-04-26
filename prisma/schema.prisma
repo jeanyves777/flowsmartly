@@ -4657,3 +4657,38 @@ model WebsiteFormSubmission {
   @@index([websiteId])
   @@index([createdAt])
 }
+
+// ============================================
+// AI-GENERATED TEMPLATES (master library)
+// ============================================
+// Shared cache of AI-generated design prototypes. The studio templates
+// search calls /api/studio/templates/generate which (a) looks up by
+// queryHash to reuse existing batches across users, or (b) calls
+// gpt-image-1 with n=8 low-quality + saves the 8 PNGs as rows.
+//
+// Cached results never charge credits; cache misses charge once and the
+// result becomes free for subsequent users searching the same term.
+//
+// Library grows organically — popular searches accumulate over time
+// becoming a free curated catalog.
+
+model AiTemplate {
+  id              String   @id @default(cuid())
+  queryHash       String                // sha256 of normalized query — cache key
+  query           String                // original query text — admin browsing/search
+  prompt          String                // full prompt sent to gpt-image-1
+  imageUrl        String                // S3 URL of the generated PNG
+  width           Int                   // typically 1024
+  height          Int                   // typically 1024
+  generationBatch String                // groups the 8 thumbnails from one batch
+  position        Int                   // 0-7 within the batch
+  createdById     String?               // userId who triggered the first gen
+  createdAt       DateTime @default(now())
+  // Curation
+  hideFromLibrary  Boolean @default(false)  // admin moderation — soft delete
+  promotedFeatured Boolean @default(false)  // admin promotes great ones to FEATURED_TEMPLATES list
+
+  @@index([queryHash])
+  @@index([generationBatch])
+  @@index([createdAt])
+}

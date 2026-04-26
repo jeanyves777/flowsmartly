@@ -84,6 +84,73 @@ class OpenAIClient {
     const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
     throw new Error(`OpenAI image generation failed: ${errMsg}`);
   }
+
+  /**
+   * Generate N images from a single prompt in one API call (gpt-image-1
+   * supports n=1..10). Used by the studio template-discovery search to
+   * return 8 prototype thumbnails for ~$0.09 in ~12 seconds.
+   *
+   * Always returns an array — caller maps over it. Failed generations
+   * (any image with no b64_json AND no fetchable URL) are filtered out
+   * silently rather than failing the whole batch.
+   */
+  async generateImagesBulk(
+    prompt: string,
+    options: {
+      n?: number;                // 1..10, default 4
+      size?: "1024x1024" | "1536x1024" | "1024x1536" | "auto";
+      quality?: "low" | "medium" | "high";
+      transparent?: boolean;
+    } = {},
+  ): Promise<string[]> {
+    const { n = 4, size = "1024x1024", quality = "low", transparent = false } = options;
+    const safeN = Math.max(1, Math.min(10, n));
+
+    const maxRetries = 2;
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await this.client.images.generate({
+          model: "gpt-image-1",
+          prompt,
+          n: safeN,
+          size,
+          quality,
+          ...(transparent ? { background: "transparent" as const } : {}),
+        });
+
+        const datas = response.data || [];
+        // Resolve each datum: prefer b64_json, fall back to url-fetch.
+        const resolved = await Promise.all(
+          datas.map(async (d) => {
+            if (d.b64_json) return d.b64_json;
+            if (d.url) {
+              try {
+                const r = await fetch(d.url);
+                return Buffer.from(await r.arrayBuffer()).toString("base64");
+              } catch { return null; }
+            }
+            return null;
+          }),
+        );
+        return resolved.filter((b): b is string => !!b);
+      } catch (error) {
+        lastError = error;
+        console.error(`OpenAI bulk image gen error (attempt ${attempt + 1}/${maxRetries + 1}):`, error);
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const isTransient = /rate|limit|timeout|503|529|overloaded|capacity/i.test(errMsg);
+        if (!isTransient) break;
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        }
+      }
+    }
+
+    const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(`OpenAI bulk image gen failed: ${errMsg}`);
+  }
+
   /**
    * Edit/reference an image using gpt-image-1
    * Uses images.edit() with a reference image for template-based generation
