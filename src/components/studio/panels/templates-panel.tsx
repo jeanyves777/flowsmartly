@@ -1143,7 +1143,7 @@ export function TemplatesPanel() {
         aria-label="Open templates search"
       >
         <Search className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground flex-1">Search templates &amp; stock photos…</span>
+        <span className="text-sm text-muted-foreground flex-1">Search design templates &amp; inspiration…</span>
         <span className="text-[9px] text-muted-foreground/70 hidden sm:inline">⌘ + click</span>
       </button>
 
@@ -1530,27 +1530,31 @@ function TemplateSearchModal({
     return () => clearTimeout(t);
   }, [query]);
 
-  // Fetch Pexels results whenever the debounced query changes.
+  // Fetch Pexels results whenever the debounced query changes. Bias the
+  // query toward DESIGN content — user is searching from the templates
+  // panel so they expect flyers/posters/cards/templates, not raw photos
+  // (Pexels' generic search returns lifestyle photography otherwise).
+  // Empty query falls through to Pexels' curated feed (no bias).
   useEffect(() => {
     let cancelled = false;
     setPexelsLoading(true);
-    const params = new URLSearchParams({ q: debounced, per_page: "24" });
+    const designQuery = debounced.trim()
+      ? `${debounced.trim()} flyer poster card design template`
+      : "design template flyer";
+    const params = new URLSearchParams({ q: designQuery, per_page: "24" });
     fetch(`/api/pexels/search?${params}`)
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
         if (!data.success) { setPexelsResults([]); return; }
         // Wrap each Pexels photo as a FeaturedTemplate so it flows through
-        // the same preview + apply + reproduce code path. We tag the id
-        // with a 'pexels-' prefix so applyingId state still works.
+        // the same preview + apply + reproduce code path.
         const wrapped: FeaturedTemplate[] = (data.photos || []).map((p: {
           id: number; width: number; height: number; alt: string; previewUrl: string;
         }) => ({
           id: `pexels-${p.id}`,
-          name: p.alt || debounced || "Stock Photo",
-          // Pexels has no design category — bucket as "ad" so it shows up in
-          // the marketing-style filter; user wouldn't notice the difference.
-          category: "ad" as const,
+          name: p.alt || debounced || "Design Inspiration",
+          category: "flyer" as const,
           width: Math.min(p.width, 2048),
           height: Math.min(p.height, 2048),
           imageUrl: p.previewUrl,
@@ -1602,7 +1606,7 @@ function TemplateSearchModal({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search 'birthday flyer', 'mountain hero', 'product showcase'…"
+              placeholder="Search 'birthday flyer', 'wedding poster', 'product launch'…"
               className="h-11 pl-10 text-base"
               // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
@@ -1636,11 +1640,14 @@ function TemplateSearchModal({
             </section>
           )}
 
-          {/* Pexels Stock Photos */}
+          {/* Pexels — biased toward DESIGN imagery (we append "flyer
+              poster card design template" to the user's query so Pexels
+              returns flat-lay design photography, branded mockups, and
+              actual flyer photos rather than generic lifestyle shots). */}
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
               <ImageIcon className="h-3.5 w-3.5" />
-              Stock Photos (Pexels)
+              Design Inspirations
               {!pexelsLoading && (
                 <span className="text-[10px] font-normal text-muted-foreground/70">{pexelsResults.length}</span>
               )}
@@ -1657,7 +1664,7 @@ function TemplateSearchModal({
               </div>
             ) : (
               <div className="text-center py-8 text-sm text-muted-foreground">
-                No stock photos for &quot;{debounced || "—"}&quot;
+                No design inspirations for &quot;{debounced || "—"}&quot;
               </div>
             )}
           </section>
