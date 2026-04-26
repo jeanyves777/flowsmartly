@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { remixTemplate } from "@/lib/ai/template-remix-agent";
+import { generateTextOverlay } from "@/lib/ai/template-text-overlay-agent";
 
 /**
  * POST /api/studio/templates/remix
@@ -89,6 +90,28 @@ export async function POST(req: NextRequest) {
     const key = `media/${session.userId}-remix-${randomBytes(6).toString("hex")}.png`;
     const remixedImageUrl = await uploadToS3(key, buf, "image/png");
 
+    // Hand off to Claude for editable text overlays — looks at the
+    // rendered image, identifies each text region, emits Fabric textbox
+    // specs that visually match what was rendered. The frontend stacks
+    // these on top of the locked bg so the user can edit text later
+    // without redoing the gpt-image-1 step. Failure is non-fatal — we
+    // still return the bg image so the user gets *something* useful.
+    let textLayers: Awaited<ReturnType<typeof generateTextOverlay>>["layers"] = [];
+    let overlayUsage = { inputTokens: 0, outputTokens: 0 };
+    try {
+      const overlay = await generateTextOverlay({
+        remixedImageB64: result.b64,
+        width: 1024,
+        height: 1536,
+        customText,
+      });
+      textLayers = overlay.layers;
+      overlayUsage = { inputTokens: overlay.inputTokens, outputTokens: overlay.outputTokens };
+      console.log(`[TemplateRemix] text overlay: ${textLayers.length} editable textboxes (${overlayUsage.outputTokens} tokens)`);
+    } catch (err) {
+      console.warn("[TemplateRemix] text overlay failed (non-fatal):", err);
+    }
+
     if (!isAdmin) {
       await prisma.$transaction([
         prisma.user.update({
@@ -113,11 +136,12 @@ export async function POST(req: NextRequest) {
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
         feature: "template_remix",
-        model: "gpt-image-1",
-        inputTokens: 0,
-        outputTokens: 0,
-        // Rough — gpt-image-1 edit-multi high quality runs ~$0.10-0.20.
-        costCents: result.usedUserPhotos ? 18 : 12,
+        // Combined feature — gpt-image-1 + Claude vision text overlay
+        model: "gpt-image-1+claude-opus-4-7",
+        inputTokens: overlayUsage.inputTokens,
+        outputTokens: overlayUsage.outputTokens,
+        // Rough — gpt-image-1 high (~$0.15) + Claude vision (~$0.05) ≈ $0.20
+        costCents: (result.usedUserPhotos ? 18 : 12) + 5,
       },
     });
 
@@ -126,6 +150,10 @@ export async function POST(req: NextRequest) {
       remixedImageUrl,
       width: 1024,
       height: 1536,
+      // Editable text layers Claude extracted from the rendered design —
+      // frontend layers them on top of the locked bg image so users can
+      // tap any text and edit it without redoing the gpt-image-1 step.
+      textLayers,
       creditsUsed: isAdmin ? 0 : creditCost,
       creditsRemaining: isAdmin ? 999 : (user?.aiCredits || 0) - creditCost,
     });

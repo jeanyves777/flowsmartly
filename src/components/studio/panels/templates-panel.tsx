@@ -1105,6 +1105,18 @@ export function TemplatesPanel() {
       const remixedUrl: string = data.remixedImageUrl;
       const w: number = data.width || template.width;
       const h: number = data.height || template.height;
+      // Claude-extracted editable text overlays — array of Fabric textbox
+      // specs that match the text rendered into the bg image. Empty if
+      // the overlay pass failed (we still get the bg).
+      type TextLayer = {
+        text: string; left: number; top: number; width: number;
+        fontFamily: string; fontSize: number; fontWeight: string | number;
+        fontStyle?: string; fill: string;
+        textAlign: "left" | "center" | "right";
+        charSpacing?: number; lineHeight?: number;
+        angle?: number; opacity?: number;
+      };
+      const textLayers: TextLayer[] = Array.isArray(data.textLayers) ? data.textLayers : [];
 
       canvas.clear();
       setCanvasDimensions(w, h);
@@ -1129,11 +1141,38 @@ export function TemplatesPanel() {
       (img as unknown as { id: string; customName: string }).id = "remix-bg";
       (img as unknown as { customName: string }).customName = `${template.name} (personalized)`;
       canvas.add(img);
+
+      // Layer Claude's editable textboxes on top of the locked bg. They
+      // visually overlap the text already rendered into the image, but
+      // since they have the same content/styling the result is
+      // visually indistinguishable — and now editable.
+      for (let i = 0; i < textLayers.length; i++) {
+        const t = textLayers[i];
+        const tb = createTextbox(fabric, {
+          text: t.text,
+          left: t.left,
+          top: t.top,
+          width: t.width,
+          fontFamily: t.fontFamily,
+          fontSize: t.fontSize,
+          fontWeight: t.fontWeight,
+          fontStyle: t.fontStyle || "normal",
+          fill: t.fill,
+          textAlign: t.textAlign,
+          charSpacing: t.charSpacing ?? 0,
+          lineHeight: t.lineHeight ?? 1.16,
+          angle: t.angle ?? 0,
+          opacity: t.opacity ?? 1,
+          customName: `Text ${i + 1}`,
+        });
+        canvas.add(tb);
+      }
+
       canvas.renderAll();
       refreshLayers();
       toast({
         title: "Personalized design applied!",
-        description: `${data.creditsUsed} credits used · drop your own elements on top`,
+        description: `${data.creditsUsed} credits used${textLayers.length > 0 ? ` · ${textLayers.length} editable text layer${textLayers.length > 1 ? "s" : ""}` : ""}`,
       });
     } catch (err) {
       toast({
