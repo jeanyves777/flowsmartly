@@ -12,8 +12,11 @@ import puppeteer, { Browser } from "puppeteer";
  * text` for gradient text fills — none of which gpt-image-1 produces
  * reliably.
  *
- * One shared browser instance, per-request page. Browser closes on
- * process exit. PM2 reload kills it cleanly.
+ * Concurrency: 8 simultaneous page renders kill the shared Chromium on
+ * a 4-core box (ConnectionClosedError from OOM/IPC overload). We cap
+ * concurrent renders to MAX_CONCURRENT (2) via an in-process semaphore.
+ * Browser is auto-reset on `disconnected` so a single bad render doesn't
+ * brick the singleton for all subsequent requests.
  */
 let browserPromise: Promise<Browser> | null = null;
 
@@ -22,22 +25,59 @@ function getBrowser(): Promise<Browser> {
   browserPromise = puppeteer
     .launch({
       headless: true,
-      // Sandbox flags required when running as root (prod PM2 user is
-      // `root`). Locally on Windows these are no-ops.
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
+        // Reduce Chromium memory pressure under concurrent load.
+        "--no-zygote",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
       ],
     })
+    .then((b) => {
+      // If Chromium dies for any reason (OOM, manual kill, etc.) clear
+      // the singleton so the next call relaunches a fresh process
+      // instead of replaying the dead handle.
+      b.on("disconnected", () => {
+        if (browserPromise) {
+          console.warn("[html-renderer] Chromium disconnected — clearing singleton");
+        }
+        browserPromise = null;
+      });
+      return b;
+    })
     .catch((err) => {
-      // Reset so the next request can retry instead of replaying a
-      // failed launch forever.
       browserPromise = null;
       throw err;
     });
   return browserPromise;
+}
+
+// ─── In-process render semaphore ──────────────────────────────────────
+// Bounds simultaneous page renders to MAX_CONCURRENT to keep Chromium
+// from crashing under the 8-way parallel load of a full template batch.
+// Claude generation (~10-30s per call) stays fully parallel; only the
+// ~2-3s render step is throttled.
+const MAX_CONCURRENT = 2;
+let renderInFlight = 0;
+const renderQueue: Array<() => void> = [];
+
+async function acquireRenderSlot(): Promise<void> {
+  if (renderInFlight < MAX_CONCURRENT) {
+    renderInFlight += 1;
+    return;
+  }
+  await new Promise<void>((resolve) => renderQueue.push(resolve));
+  renderInFlight += 1;
+}
+
+function releaseRenderSlot(): void {
+  renderInFlight = Math.max(0, renderInFlight - 1);
+  const next = renderQueue.shift();
+  if (next) next();
 }
 
 export interface RenderHtmlOptions {
@@ -59,22 +99,38 @@ export interface RenderHtmlOptions {
 
 /**
  * Render a full HTML document (must include `<html>...</html>`) at the
- * requested viewport and return a PNG Buffer. Caller is responsible
- * for embedding any external image refs as data URIs OR ensuring they
- * are publicly fetchable from the headless browser's network.
+ * requested viewport and return a PNG Buffer. Throttled to MAX_CONCURRENT
+ * concurrent renders. On a Chromium connection loss, retries once with
+ * a fresh browser instance.
  */
 export async function renderHtmlToPng(
   html: string,
   opts: RenderHtmlOptions,
 ): Promise<Buffer> {
+  await acquireRenderSlot();
+  try {
+    return await renderOnce(html, opts);
+  } catch (err) {
+    // If the browser died mid-render, drop the singleton and retry once
+    // with a fresh launch. After two failures we surface the error.
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/Connection closed|Target closed|disconnected|Protocol error/i.test(msg)) {
+      console.warn(`[html-renderer] render failed (${msg}) — relaunching Chromium and retrying once`);
+      browserPromise = null;
+      return await renderOnce(html, opts);
+    }
+    throw err;
+  } finally {
+    releaseRenderSlot();
+  }
+}
+
+async function renderOnce(html: string, opts: RenderHtmlOptions): Promise<Buffer> {
   const { width, height, deviceScaleFactor = 2, fontLoadDelayMs = 2000 } = opts;
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
     await page.setViewport({ width, height, deviceScaleFactor });
-    // Use setContent + waitUntil:networkidle0 so external Google Fonts
-    // resolve before we screenshot. Without this, text falls back to
-    // the system default and the design loses its identity.
     await page.setContent(html, { waitUntil: "networkidle0", timeout: 30_000 });
     if (fontLoadDelayMs > 0) {
       await new Promise((r) => setTimeout(r, fontLoadDelayMs));
@@ -82,9 +138,6 @@ export async function renderHtmlToPng(
     const screenshot = await page.screenshot({
       type: "png",
       omitBackground: false,
-      // clip to viewport — the body is sized exactly to W×H so we
-      // don't need to specify clip explicitly, but full-page would
-      // capture overflow if any.
       fullPage: false,
     });
     return Buffer.from(screenshot);
