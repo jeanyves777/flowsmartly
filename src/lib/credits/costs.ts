@@ -153,6 +153,9 @@ export const DEFAULT_CREDIT_COSTS = {
 
   // --- AI Premium Template Designer (Claude → HTML+CSS → headless Chromium screenshot) ---
   AI_TEMPLATE_HTML_DESIGN: 60,    // 8x Claude Opus 4.7 HTML designs with adaptive thinking (~$0.40 first batch, ~$0.20 with cache hits). Pixel-perfect typography via real Google Fonts + CSS gradients — replaces blurry gpt-image-1 text. Cached per (query, batch).
+
+  // --- AI Template Remix (gpt-image-1 edit-multi: keep design layout, swap text + photos) ---
+  AI_TEMPLATE_REMIX: 30,          // ONE gpt-image-1 edit-multi call (~$0.10-0.20). Source design = primary reference (composition preserved), user photos = aux refs to drop into placeholders, custom text overlaid in same hierarchy. FLAT output — for editable, use AI_TEMPLATE_REPRODUCE instead.
 } as const;
 
 /**
@@ -223,6 +226,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_TEMPLATE_REPRODUCE: "AI template reproduction (editable from flat image)",
   AI_TEMPLATE_GENERATE: "AI template discovery (8 prototype thumbnails)",
   AI_TEMPLATE_HTML_DESIGN: "AI premium template design (Claude HTML+CSS, pixel-perfect typography)",
+  AI_TEMPLATE_REMIX: "AI template remix (personalize with your text + photos, flat output)",
 };
 
 /**

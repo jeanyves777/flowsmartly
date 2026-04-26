@@ -771,6 +771,9 @@ export function TemplatesPanel() {
   // whether to apply their brand colors) BEFORE actually charging credits
   // and running the agent.
   const [recreateOptions, setRecreateOptions] = useState<FeaturedTemplate | null>(null);
+  // Pre-flight options for "Use as Background" → gpt-image-1 remix
+  // (personalize text + photos before flat output lands on canvas).
+  const [remixOptions, setRemixOptions] = useState<FeaturedTemplate | null>(null);
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
@@ -1050,6 +1053,91 @@ export function TemplatesPanel() {
     } catch (err) {
       toast({
         title: "Recreate failed",
+        description: err instanceof Error ? err.message : "Network error",
+        variant: "destructive",
+      });
+    } finally {
+      window.dispatchEvent(new Event("studio:hide-loader"));
+      setApplyingId(null);
+    }
+  };
+
+  // "Use as Background" → personalize via gpt-image-1 edit-multi.
+  // Output is FLAT (single image) and lands as the canvas background,
+  // same as the legacy free path but with the user's text + photos
+  // swapped in via gpt-image-1's edit-multi endpoint (source = primary
+  // composition reference; user photos = aux refs into placeholders).
+  const handleRemix = async (
+    template: FeaturedTemplate,
+    options: { customText?: string; userPhotos?: string[] } = {},
+  ) => {
+    if (!canvas) return;
+    if (!(await confirmBeforeClobber(template.name))) return;
+    setApplyingId(template.id);
+    const photoCount = options.userPhotos?.length ?? 0;
+    window.dispatchEvent(
+      new CustomEvent("studio:show-loader", {
+        detail: {
+          title: "Personalizing your design…",
+          subtitle: `gpt-image-1 is preserving the layout and swapping in your text${photoCount ? ` + ${photoCount} photo${photoCount > 1 ? "s" : ""}` : " (photo slots stay empty for you to fill)"}. About 30-60 seconds.`,
+        },
+      }),
+    );
+    try {
+      const res = await fetch("/api/studio/templates/remix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUrl: template.imageUrl,
+          customText: options.customText || undefined,
+          userPhotos: options.userPhotos || [],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data?.error?.code === "INSUFFICIENT_CREDITS") {
+          toast({ title: "Not enough credits", description: data.error.message, variant: "destructive" });
+        } else {
+          toast({ title: "Personalize failed", description: data?.error?.message || "Try again", variant: "destructive" });
+        }
+        return;
+      }
+      const remixedUrl: string = data.remixedImageUrl;
+      const w: number = data.width || template.width;
+      const h: number = data.height || template.height;
+
+      canvas.clear();
+      setCanvasDimensions(w, h);
+      canvas.setDimensions({ width: w, height: h });
+      canvas.backgroundColor = "#ffffff";
+
+      const fabric = await import("fabric");
+      const img = await fabric.FabricImage.fromURL(remixedUrl, { crossOrigin: "anonymous" });
+      if (!img || !img.width || !img.height) throw new Error("Remixed image failed to load");
+      const sx = w / img.width;
+      const sy = h / img.height;
+      img.set({
+        left: 0,
+        top: 0,
+        originX: "left",
+        originY: "top",
+        scaleX: sx,
+        scaleY: sy,
+        selectable: false,
+        evented: false,
+      });
+      (img as unknown as { id: string; customName: string }).id = "remix-bg";
+      (img as unknown as { customName: string }).customName = `${template.name} (personalized)`;
+      canvas.add(img);
+      canvas.renderAll();
+      refreshLayers();
+      toast({
+        title: "Personalized design applied!",
+        description: `${data.creditsUsed} credits used · drop your own elements on top`,
+      });
+    } catch (err) {
+      toast({
+        title: "Personalize failed",
         description: err instanceof Error ? err.message : "Network error",
         variant: "destructive",
       });
@@ -1352,10 +1440,14 @@ export function TemplatesPanel() {
             key="preview"
             template={previewTemplate}
             onClose={() => setPreviewTemplate(null)}
-            onUseAsBackground={async () => {
+            onUseAsBackground={() => {
+              // No longer applies the raw image directly — opens the
+              // remix options dialog so the user can supply text + photos
+              // (gpt-image-1 then preserves the design and personalizes
+              // the placeholders before it lands on the canvas).
               const t = previewTemplate;
               setPreviewTemplate(null);
-              await handleApplyFeatured(t);
+              setTimeout(() => setRemixOptions(t), 220);
             }}
             onRecreateEditable={() => {
               // Don't run the agent yet — open the options dialog so the
@@ -1375,6 +1467,24 @@ export function TemplatesPanel() {
               const t = recreateOptions;
               setRecreateOptions(null);
               await handleReproduce(t, opts);
+            }}
+          />
+        )}
+        {remixOptions && (
+          <RemixOptionsDialog
+            key="remix-opts"
+            template={remixOptions}
+            onClose={() => setRemixOptions(null)}
+            onConfirm={async (opts) => {
+              const t = remixOptions;
+              setRemixOptions(null);
+              await handleRemix(t, opts);
+            }}
+            onApplyAsIs={async () => {
+              // Free escape hatch — same as the legacy free path.
+              const t = remixOptions;
+              setRemixOptions(null);
+              await handleApplyFeatured(t);
             }}
           />
         )}
@@ -1486,7 +1596,10 @@ function FeaturedTemplatePreview({
               <ImageIcon className="h-4 w-4" />
               <div className="text-left">
                 <div className="font-semibold text-sm leading-tight">Use as Background</div>
-                <div className="text-xs font-normal text-muted-foreground">Free · the design lands as a locked image you build on top of</div>
+                <div className="text-xs font-normal text-muted-foreground">
+                  30 credits · gpt-image-1 swaps your text + photos into the design
+                  <span className="block mt-0.5 text-muted-foreground/70">(or skip personalization for free)</span>
+                </div>
               </div>
             </Button>
             <Button
@@ -2346,6 +2459,254 @@ function RecreateOptionsDialog({
             <Sparkles className="h-4 w-4" />
             Recreate Now · 80cr
           </Button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/**
+ * Pre-flight dialog for "Use as Background" — gpt-image-1 edit-multi.
+ * Asks the user for custom text + (optionally) up to 4 photos to drop
+ * into the design's photo placeholders. Output is a flat PNG that lands
+ * as a locked canvas background — same role as the old free path but
+ * personalized with their content.
+ *
+ * If `userPhotos` is empty, the prompt tells gpt-image-1 to render the
+ * photo slots as empty (clean dashed-frame placeholders) so the user
+ * can drop their own photos via the Uploads panel after the remix lands.
+ *
+ * Also exposes a small "apply as-is (free, no AI)" link so users who
+ * just want the unmodified design as a starting backdrop can skip the
+ * remix entirely without paying credits.
+ */
+function RemixOptionsDialog({
+  template,
+  onClose,
+  onConfirm,
+  onApplyAsIs,
+}: {
+  template: FeaturedTemplate;
+  onClose: () => void;
+  onConfirm: (opts: { customText: string; userPhotos: string[] }) => void | Promise<void>;
+  onApplyAsIs: () => void | Promise<void>;
+}) {
+  const [customText, setCustomText] = useState("");
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [skipPhotos, setSkipPhotos] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const remaining = 4 - photos.length;
+    if (remaining <= 0) {
+      toast({ title: "Max 4 photos", variant: "destructive" });
+      return;
+    }
+    const incoming = Array.from(files).slice(0, remaining);
+    const dataUrls: string[] = [];
+    for (const file of incoming) {
+      if (!file.type.startsWith("image/")) continue;
+      // 10MB hard cap per file — gpt-image-1 edit-multi payload limits.
+      if (file.size > 10 * 1024 * 1024) {
+        toast({ title: `${file.name} is too large (max 10MB)`, variant: "destructive" });
+        continue;
+      }
+      const reader = new FileReader();
+      const url = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      dataUrls.push(url);
+    }
+    if (dataUrls.length > 0) {
+      setPhotos((prev) => [...prev, ...dataUrls]);
+      setSkipPhotos(false);
+    }
+  };
+
+  const removePhoto = (i: number) => {
+    setPhotos((prev) => prev.filter((_, idx) => idx !== i));
+  };
+
+  const handleConfirm = () => {
+    onConfirm({
+      customText: customText.trim(),
+      // If the user toggled "I'll add photos myself", send an empty
+      // array even if they had photos staged — the toggle wins.
+      userPhotos: skipPhotos ? [] : photos,
+    });
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Personalize before applying"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden w-full max-w-lg max-h-[92vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 p-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-500 flex items-center justify-center">
+              <ImageIcon className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold leading-tight">Personalize background</h2>
+              <p className="text-xs text-muted-foreground">gpt-image-1 will swap text + photos into &ldquo;{template.name}&rdquo;</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-5 overflow-y-auto">
+          <div>
+            <label htmlFor="remix-text" className="text-sm font-medium block mb-1">
+              Your text / copy
+            </label>
+            <p className="text-xs text-muted-foreground mb-2">
+              The AI keeps the design&apos;s exact layout and fonts and just swaps the words.
+              Include the headline, name, dates, contact info — anything the design should say.
+            </p>
+            <textarea
+              id="remix-text"
+              value={customText}
+              onChange={(e) => setCustomText(e.target.value)}
+              rows={5}
+              placeholder={`e.g.\nHappy 50th Birthday Mom!\nSarah & Tom\nApril 28, 2026`}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+            />
+            <p className="text-[10px] text-muted-foreground/70 mt-1">
+              Leave blank to keep the original text from the template.
+            </p>
+          </div>
+
+          {/* Photos section */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium">Photos for the placeholders</label>
+              <span className="text-[10px] text-muted-foreground">{photos.length}/4</span>
+            </div>
+
+            {/* Skip-photos toggle: ON by default. The user can opt in to
+                photo upload by unchecking it OR by dropping a photo
+                (which auto-flips the toggle off). */}
+            <label
+              htmlFor="remix-skip-photos"
+              className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-brand-400 cursor-pointer transition-colors mb-3"
+            >
+              <input
+                id="remix-skip-photos"
+                type="checkbox"
+                checked={skipPhotos}
+                onChange={(e) => setSkipPhotos(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-input accent-brand-500"
+              />
+              <div className="flex-1">
+                <div className="text-sm font-medium">I&apos;ll add my photos in the editor</div>
+                <div className="text-xs text-muted-foreground">
+                  AI keeps the photo slots empty (clean placeholders). After it lands,
+                  drop your own photos in via the Uploads panel — best for full control
+                  over framing or when photos aren&apos;t handy yet.
+                </div>
+              </div>
+            </label>
+
+            {!skipPhotos && (
+              <>
+                <div className="grid grid-cols-4 gap-2 mb-2">
+                  {photos.map((src, i) => (
+                    <div key={i} className="relative aspect-square rounded-md overflow-hidden border border-border bg-muted">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={src} alt={`photo ${i + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(i)}
+                        className="absolute top-1 right-1 p-1 rounded-full bg-black/70 hover:bg-black/90 text-white"
+                        aria-label={`Remove photo ${i + 1}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {photos.length < 4 && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="aspect-square rounded-md border-2 border-dashed border-border hover:border-brand-500 transition-colors flex items-center justify-center text-muted-foreground hover:text-brand-500"
+                      title="Add photo"
+                    >
+                      <span className="text-2xl">+</span>
+                    </button>
+                  )}
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => { void handleFiles(e.target.files); e.target.value = ""; }}
+                />
+                <p className="text-[10px] text-muted-foreground/70">
+                  AI removes backgrounds and matches the source design&apos;s framing (circle / polaroid / rectangle).
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="border-t border-border bg-background p-4 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={onApplyAsIs}
+            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+            title="Skip personalization — apply the template as-is, free"
+          >
+            or apply as-is (free)
+          </button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button onClick={handleConfirm} className="gap-2 bg-brand-500 hover:bg-brand-600">
+              <Sparkles className="h-4 w-4" />
+              Personalize · 30cr
+            </Button>
+          </div>
         </div>
       </motion.div>
     </motion.div>
