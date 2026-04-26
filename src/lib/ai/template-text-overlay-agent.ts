@@ -3,45 +3,42 @@ import Anthropic from "@anthropic-ai/sdk";
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 /**
- * Text Overlay Agent — Claude vision pass that converts the rendered
- * text in a flat design (e.g. a gpt-image-1 remix output) into a list
- * of editable Fabric textbox specs that can be added on top of the
- * locked background image.
+ * Text Overlay Agent — Claude vision pass that examines the SOURCE
+ * design (where original text is cleanly rendered) and emits a list
+ * of editable Fabric textbox specs that mirror each text region.
  *
- * Why this exists: gpt-image-1 produces beautiful flat output, but the
- * text is BAKED IN — users can't tweak typos, change the date, or
- * rephrase a line without redoing the whole AI step. By having Claude
- * vision identify each text region in the rendered image and emit a
- * matching Fabric textbox (same font, size, color, position), the
- * canvas ends up with: locked image bg (with the text in pixels) +
- * editable textboxes overlapping each text region (same content). The
- * two are visually indistinguishable, but the textboxes are now
- * fully editable.
+ * Pairs with template-remix-agent.ts in /api/studio/templates/remix:
+ *   - remix-agent (gpt-image-1) produces a TEXT-FREE flat composition
+ *     (we deliberately ask it to render no text — gpt-image-1 garbles
+ *     typography and bakes wording in non-editably)
+ *   - this agent (Claude vision) reads the SOURCE design (which still
+ *     has the original text in pixels) to pull positions, fonts, sizes,
+ *     colors, alignment, etc., then emits editable Fabric textbox specs
+ *     populated with the USER'S customText (or kept original if blank)
+ *   - frontend stacks the textboxes on top of the gpt-image-1 image at
+ *     scaled positions → visually polished AND fully editable
  *
- * Pairs with template-remix-agent.ts in the /api/studio/templates/remix
- * route. ~$0.05 per pass with adaptive thinking.
+ * Positions returned are in SOURCE coordinate space (the dimensions
+ * Claude sees in the image). The caller must scale them into the output
+ * canvas's coord space before adding them to Fabric.
  */
 
 export interface EditableTextLayer {
-  /** Same text the AI baked into the image — caller adds this as a
-   *  Fabric textbox so the user can edit it later. */
   text: string;
-  /** Top-left x/y in canvas pixels (relative to the rendered image). */
+  /** Top-left x/y in SOURCE pixels — caller scales to output canvas. */
   left: number;
   top: number;
-  /** Width of the textbox; height auto-computed from font + lineHeight. */
+  /** Width of the textbox in SOURCE pixels. Generous so text doesn't auto-wrap. */
   width: number;
   fontFamily: string;
   fontSize: number;
   fontWeight: string | number;
-  fontStyle?: string;       // "normal" | "italic"
-  fill: string;             // hex string
+  fontStyle?: string;
+  fill: string;
   textAlign: "left" | "center" | "right";
   charSpacing?: number;
   lineHeight?: number;
-  /** Optional rotation in degrees, e.g. for tilted "Sale!" badges. */
   angle?: number;
-  /** Opacity 0-1. */
   opacity?: number;
 }
 
@@ -51,29 +48,20 @@ export interface TextOverlayResult {
   outputTokens: number;
 }
 
-/**
- * Look at the rendered design and emit one Fabric textbox spec per
- * visible text region. The user's customText (if provided) is what was
- * baked into the image — Claude identifies WHERE that text landed and
- * mirrors its styling into editable layers.
- *
- * The image must be a base64 PNG (no data URI prefix). Output dimensions
- * tell Claude the coordinate space the textbox `left`/`top` should use.
- */
 export async function generateTextOverlay(opts: {
-  /** Base64 PNG of the gpt-image-1 remix output (no data URI prefix). */
-  remixedImageB64: string;
-  /** Width of the rendered image in pixels — coord space for textbox positions. */
+  /** Base64 PNG of the SOURCE design — Claude reads this for text styling. */
+  sourceImageB64: string;
+  /** Source image dimensions in pixels — coord space for textbox positions. */
   width: number;
-  /** Height of the rendered image in pixels. */
   height: number;
-  /** What text the AI baked in — Claude uses this as the source of truth
-   *  for textbox content. Lines roughly correspond to one textbox each. */
+  /** What text the USER wants. Each "block" (separated by blank lines)
+   *  maps to one text region in priority order (headline → subhead →
+   *  body → footer). Blank = mirror the original text from the source. */
   customText?: string;
 }): Promise<TextOverlayResult> {
-  const { remixedImageB64, width, height, customText = "" } = opts;
+  const { sourceImageB64, width, height, customText = "" } = opts;
 
-  const systemPrompt = `You are a text-extraction agent for an editable canvas system. Your job is to look at a rendered flyer/poster design and identify every text region, then emit a JSON array of Fabric.js textbox specs that mirror what is rendered — so the user can edit each text element later in the canvas.
+  const systemPrompt = `You are a text-extraction agent for an editable canvas system. Your job is to look at a flyer/poster source design and identify every text region, then emit a JSON array of Fabric.js textbox specs that mirror what the source has — so the user can edit each text element later in the canvas.
 
 # OUTPUT CONTRACT
 
@@ -81,11 +69,11 @@ Return ONLY a JSON object of the form:
 {
   "layers": [
     {
-      "text": "<the actual text content as rendered, character-perfect>",
+      "text": "<the text content for this region>",
       "left": <x in pixels from top-left>,
       "top": <y in pixels from top-left>,
       "width": <pixel width — set generously so the text doesn't auto-wrap unexpectedly>,
-      "fontFamily": "<best-match Google Font name — e.g. 'Playfair Display', 'Inter', 'Great Vibes', 'Bebas Neue', 'Montserrat'>",
+      "fontFamily": "<best-match Google Font name — e.g. 'Playfair Display', 'Inter', 'Great Vibes', 'Bebas Neue', 'Montserrat', 'Poppins', 'Anton'>",
       "fontSize": <pixel size>,
       "fontWeight": "<'normal' | 'bold' | '300'..'900' as appropriate>",
       "fontStyle": "<'normal' | 'italic'>",
@@ -103,19 +91,23 @@ NO PROSE. NO MARKDOWN FENCES. Just the JSON object.
 
 # RULES
 
-1. ONE textbox per logical text element. A multi-line block IS one textbox if the lines share font/style; otherwise split into separate textboxes.
-2. The 'text' field MUST match what's rendered character-for-character (capitalization, punctuation, line breaks via \\n).
-3. Positions are TOP-LEFT corner, in pixels of a ${width}×${height} canvas.
-4. Width should fit the text comfortably with ~20px breathing room — too narrow forces unwanted wrapping, too wide makes the textbox grab clicks far from the text.
-5. Pick the closest GOOGLE FONT match for each typeface (Playfair Display for elegant serifs, Great Vibes for script, Bebas Neue / Anton for big display, Inter / Montserrat / Poppins for clean sans, etc.). The user has all common Google Fonts loaded.
-6. Color must be the visible color — for gradient-fill text, pick the dominant mid-tone.
-7. If text is centered horizontally, set textAlign='center' AND set 'left' to the text's CENTER, then subtract width/2. (Or: set textAlign='left' with left = visual top-left of the text.)
-8. Skip purely decorative graphics (lines, ornaments, icons). ONLY actual readable text.
+1. ONE textbox per logical text element. A multi-line block is one textbox if the lines share font/style; otherwise split.
+2. The image you see is ${width}×${height} pixels — emit positions in that coord space (top-left origin).
+3. 'left' / 'top' = TOP-LEFT corner of the textbox. If the original text is centered horizontally, set textAlign='center' AND set 'left' so the textbox is centered on the original text's center (left = textCenter - width/2).
+4. Width should fit the text comfortably with ~10-30px of breathing room each side. Too narrow forces wrapping; too wide grabs clicks far from the text.
+5. Pick the closest GOOGLE FONT. Common picks: Playfair Display (elegant serif), Great Vibes (script), Bebas Neue or Anton (big condensed display), Inter / Poppins / Montserrat (clean sans), DM Serif Display (modern serif), Pacifico or Caveat (handwritten). The user has all common Google Fonts loaded.
+6. Color must be the visible color. For gradient-fill text (e.g. gold foil), pick the dominant mid-tone (e.g. '#dcb25c' for gold foil).
+7. For 'rotated' text (tilted "Sale!" badges, vertical sidebar text, etc.), set 'angle' in degrees.
+8. Skip purely decorative graphics (lines, ornaments, dots, icons). ONLY actual readable text.
 9. If you cannot identify any text, return {"layers": []} — never invent text.`;
 
   const userText = customText.trim()
-    ? `The following text was baked into this image — your textboxes should mirror it character-for-character (this is what the user wants to be able to edit later):\n\n${customText.trim()}`
-    : "Identify every text region as it appears in the image and mirror it.";
+    ? `The user wants the following content in the design — distribute these lines across the source design's text regions in priority order (headline → subhead → body → footer). Match the source's typography exactly but use the user's text content:
+
+${customText.trim()}
+
+For text regions you can't map to user content, MIRROR the original text from the source character-for-character.`
+    : "Mirror every text region from the source character-for-character (capitalization, punctuation, line breaks via \\n).";
 
   const response = (await anthropic.messages.create({
     model: "claude-opus-4-7",
@@ -127,7 +119,7 @@ NO PROSE. NO MARKDOWN FENCES. Just the JSON object.
         content: [
           {
             type: "image",
-            source: { type: "base64", media_type: "image/png", data: remixedImageB64 },
+            source: { type: "base64", media_type: "image/png", data: sourceImageB64 },
           },
           { type: "text", text: userText },
         ],
@@ -150,7 +142,6 @@ NO PROSE. NO MARKDOWN FENCES. Just the JSON object.
 /** Strip optional code fences and parse the JSON Claude returned. */
 function parseLayersJson(raw: string): EditableTextLayer[] {
   const trimmed = raw.trim();
-  // Strip ```json ... ``` if Claude added one despite the contract.
   const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n```\s*$/i.exec(trimmed);
   const candidate = fenced ? fenced[1].trim() : trimmed;
   try {

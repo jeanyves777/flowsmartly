@@ -75,13 +75,13 @@ export async function POST(req: NextRequest) {
       `[TemplateRemix] user=${session.userId} src=${imageUrl.slice(0, 80)} text=${customText.length}ch photos=${userPhotos.length}`,
     );
 
+    // Phase 1: gpt-image-1 produces a TEXT-FREE composition. The agent
+    // also returns the source buffer + dims (we'll reuse them for the
+    // overlay agent below) and picks the gpt-image-1 size that best
+    // matches the source's aspect ratio.
     const result = await remixTemplate({
       sourceImageUrl: imageUrl,
-      customText,
       userPhotosDataUrls: userPhotos,
-      // Portrait flyer is the dominant Featured/Premium aspect — match it.
-      // gpt-image-1 will resize to fit if the source is square or landscape.
-      size: "1024x1536",
       quality: "high",
     });
 
@@ -90,24 +90,35 @@ export async function POST(req: NextRequest) {
     const key = `media/${session.userId}-remix-${randomBytes(6).toString("hex")}.png`;
     const remixedImageUrl = await uploadToS3(key, buf, "image/png");
 
-    // Hand off to Claude for editable text overlays — looks at the
-    // rendered image, identifies each text region, emits Fabric textbox
-    // specs that visually match what was rendered. The frontend stacks
-    // these on top of the locked bg so the user can edit text later
-    // without redoing the gpt-image-1 step. Failure is non-fatal — we
-    // still return the bg image so the user gets *something* useful.
-    let textLayers: Awaited<ReturnType<typeof generateTextOverlay>>["layers"] = [];
+    // Phase 2: Claude vision reads the SOURCE design (where original
+    // text is rendered cleanly) and emits Fabric textbox specs in
+    // SOURCE coord space. We then scale them to the output canvas.
+    // Failure is non-fatal — we still return the bg image.
+    let scaledTextLayers: Awaited<ReturnType<typeof generateTextOverlay>>["layers"] = [];
     let overlayUsage = { inputTokens: 0, outputTokens: 0 };
     try {
       const overlay = await generateTextOverlay({
-        remixedImageB64: result.b64,
-        width: 1024,
-        height: 1536,
+        sourceImageB64: result.sourceBuffer.toString("base64"),
+        width: result.sourceWidth,
+        height: result.sourceHeight,
         customText,
       });
-      textLayers = overlay.layers;
+      // Scale source-space coords → output canvas coords.
+      // Uniform-min for fontSize so type doesn't get stretched.
+      const sx = result.outputWidth / result.sourceWidth;
+      const sy = result.outputHeight / result.sourceHeight;
+      const fontScale = Math.min(sx, sy);
+      scaledTextLayers = overlay.layers.map((l) => ({
+        ...l,
+        left: Math.round(l.left * sx),
+        top: Math.round(l.top * sy),
+        width: Math.round(l.width * sx),
+        fontSize: Math.round(l.fontSize * fontScale),
+      }));
       overlayUsage = { inputTokens: overlay.inputTokens, outputTokens: overlay.outputTokens };
-      console.log(`[TemplateRemix] text overlay: ${textLayers.length} editable textboxes (${overlayUsage.outputTokens} tokens)`);
+      console.log(
+        `[TemplateRemix] text overlay: ${scaledTextLayers.length} layers, source ${result.sourceWidth}x${result.sourceHeight} → output ${result.outputWidth}x${result.outputHeight}, scale (${sx.toFixed(2)},${sy.toFixed(2)})`,
+      );
     } catch (err) {
       console.warn("[TemplateRemix] text overlay failed (non-fatal):", err);
     }
@@ -148,12 +159,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       remixedImageUrl,
-      width: 1024,
-      height: 1536,
-      // Editable text layers Claude extracted from the rendered design —
-      // frontend layers them on top of the locked bg image so users can
-      // tap any text and edit it without redoing the gpt-image-1 step.
-      textLayers,
+      width: result.outputWidth,
+      height: result.outputHeight,
+      // Editable text layers Claude extracted from the source design —
+      // already scaled into output canvas coords. Frontend layers them
+      // on top of the locked bg image so users can edit any text
+      // without redoing the gpt-image-1 step.
+      textLayers: scaledTextLayers,
       creditsUsed: isAdmin ? 0 : creditCost,
       creditsRemaining: isAdmin ? 999 : (user?.aiCredits || 0) - creditCost,
     });
