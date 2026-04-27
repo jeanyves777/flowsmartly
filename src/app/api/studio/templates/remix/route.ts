@@ -48,6 +48,34 @@ export async function POST(req: NextRequest) {
           .filter((s: unknown): s is string => typeof s === "string" && s.startsWith("data:image/"))
           .slice(0, 4)
       : [];
+    const useBrandColors: boolean = !!body?.useBrandColors;
+
+    // Pull the user's BrandKit colors when requested. Same pattern as
+    // /api/studio/templates/reproduce — pass plain hex strings to the
+    // agent. If the user hasn't set up a BrandKit, silently skip and
+    // gpt-image-1 uses the source's original palette.
+    let brandColors: { primary?: string; secondary?: string; accent?: string } | undefined;
+    if (useBrandColors) {
+      try {
+        const kit = await prisma.brandKit.findFirst({
+          where: { userId: session.userId },
+          orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+          select: { colors: true },
+        });
+        if (kit?.colors) {
+          try {
+            const parsed = JSON.parse(kit.colors);
+            if (parsed && typeof parsed === "object") {
+              brandColors = {
+                primary: parsed.primary,
+                secondary: parsed.secondary,
+                accent: parsed.accent,
+              };
+            }
+          } catch { /* ignore — agent falls through to source palette */ }
+        }
+      } catch { /* ignore — non-fatal */ }
+    }
 
     const creditCost = await getDynamicCreditCost("AI_TEMPLATE_REMIX");
     const isAdmin = !!session.adminId;
@@ -82,6 +110,7 @@ export async function POST(req: NextRequest) {
     const result = await remixTemplate({
       sourceImageUrl: imageUrl,
       userPhotosDataUrls: userPhotos,
+      brandColors,
       quality: "high",
     });
 

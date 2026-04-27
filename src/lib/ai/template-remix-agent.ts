@@ -25,6 +25,11 @@ interface RemixOptions {
    *  and matching the original framing style (circle/polaroid/rect).
    *  Empty array = leave placeholders looking exactly like the source. */
   userPhotosDataUrls?: string[];
+  /** When provided, gpt-image-1 will swap the source's palette for the
+   *  user's brand colors while preserving the design's structure. The
+   *  caller (route) fetches the BrandKit; this agent just consumes the
+   *  hex strings. */
+  brandColors?: { primary?: string; secondary?: string; accent?: string };
   /** Output size override. If omitted, the agent picks the gpt-image-1
    *  size whose aspect ratio is closest to the source's, minimizing
    *  letterboxing / stretching. */
@@ -103,54 +108,75 @@ function parseSize(size: "1024x1024" | "1536x1024" | "1024x1536"): { w: number; 
   return { w, h };
 }
 
-function buildRemixPrompt(opts: { numPhotos: number }): string {
-  const { numPhotos } = opts;
+function buildRemixPrompt(opts: {
+  numPhotos: number;
+  brandColors?: { primary?: string; secondary?: string; accent?: string };
+}): string {
+  const { numPhotos, brandColors } = opts;
   const lines: string[] = [];
+
+  // Frame the source as STYLE REFERENCE ONLY — not as a base to edit.
+  // gpt-image-1 trained on edit tasks naturally tries to PRESERVE the
+  // input pixels (which is why it leaks the original text and barely
+  // changes the design). Telling it explicitly "this is a style ref,
+  // GENERATE A NEW IMAGE inspired by it" gives it permission to produce
+  // a fresh composition without trying to preserve every pixel.
   lines.push(
-    "REMIX TASK — preserve this exact design composition. The FIRST image is the source design (composition reference). DO NOT redesign anything.",
+    "GENERATE A NEW IMAGE — do NOT edit the input. The FIRST image is a STYLE REFERENCE ONLY (showing the visual style we want to match). Your output is a brand-new image generated from scratch, inspired by that style.",
   );
   lines.push("");
-  lines.push("MUST PRESERVE EXACTLY from the source:");
-  lines.push("- Overall layout, composition, and proportions");
-  lines.push("- Color palette (every color, gradient, and tone)");
-  lines.push("- Decorative elements: flourishes, ornaments, sparkles, frames, borders, shadows");
-  lines.push("- Background style: the same gradient / texture / atmospheric layering");
+  lines.push("Treat the reference like a designer's mood-board entry — look at it, absorb the style, then produce your own fresh composition that matches the same visual language. Do NOT trace or preserve the reference's pixels.");
+  lines.push("");
+  lines.push("STYLE TO MATCH (from the reference):");
+  lines.push("- Layout philosophy / composition / proportions");
+  if (brandColors && (brandColors.primary || brandColors.secondary || brandColors.accent)) {
+    // Brand colors override the reference's palette — keep the same
+    // gradient feel and color relationships, just remap the source's
+    // hues to the user's brand. Preserves design while making it theirs.
+    const palette: string[] = [];
+    if (brandColors.primary)   palette.push(`PRIMARY ${brandColors.primary}`);
+    if (brandColors.secondary) palette.push(`SECONDARY ${brandColors.secondary}`);
+    if (brandColors.accent)    palette.push(`ACCENT ${brandColors.accent}`);
+    lines.push(`- Color palette: REPLACE the reference's palette with the user's brand colors — ${palette.join(", ")}. Map the reference's dominant color → primary, secondary color → secondary, highlight/decoration → accent. Keep gradients and color relationships, just swap the hues.`);
+  } else {
+    lines.push("- Color palette (every color, gradient, and tone)");
+  }
+  lines.push("- Decorative language: flourishes, ornaments, sparkles, frames, borders, shadows");
+  lines.push("- Background treatment: gradient / texture / atmospheric layering");
   lines.push("- Photo-placeholder positions and framing style (circular, polaroid tilt, rectangular, gold ring, drop shadow, etc.)");
   lines.push("");
 
   // CRITICAL — text is handled by a separate editable Fabric layer.
   // gpt-image-1 must produce a clean text-free composition so the
-  // overlay sits on a clean base.
+  // Claude overlay sits on a clean base.
   lines.push("CRITICAL — RENDER NO TEXT:");
   lines.push("- DO NOT render any letters, words, characters, numbers, or readable typography in the output.");
-  lines.push("- Where text appears in the source, leave that region COMPLETELY EMPTY/BLANK — preserve the surrounding decoration and color, but no text glyphs.");
-  lines.push("- Editable text will be added on top as a separate layer — your job is the visual composition only.");
-  lines.push("- Treat any logos / wordmarks / icons in the source as decoration (keep them rendered).");
+  lines.push("- Where the reference shows text, your output should have NO text in that region — preserve the surrounding decoration and color, but ZERO text glyphs.");
+  lines.push("- Editable text is added on top as a separate layer by Claude — your job is the visual composition only.");
+  lines.push("- Treat any logos / wordmarks / icons in the reference as decoration (keep them rendered).");
   lines.push("");
 
   if (numPhotos > 0) {
     lines.push(
-      `PHOTO PLACEHOLDERS — drop the ${numPhotos} reference image${numPhotos > 1 ? "s" : ""} that follow the source into the placeholders:`,
+      `PHOTO PLACEHOLDERS — drop the ${numPhotos} reference image${numPhotos > 1 ? "s" : ""} that follow the style-reference into the placeholders:`,
     );
-    lines.push("- Cleanly remove each reference photo's existing background");
-    lines.push("- Fit it into the next available photo placeholder in the source design");
-    lines.push("- Match the source's framing style EXACTLY (circular crop, polaroid tilt, rectangular border, gold ring, drop shadow, etc.)");
-    lines.push("- Match the source's lighting / color tone for cohesion");
+    lines.push("- Cleanly remove each photo's existing background");
+    lines.push("- Fit it into the next available photo placeholder in the new design");
+    lines.push("- Match the style-reference's framing EXACTLY (circular crop, polaroid tilt, rectangular border, gold ring, drop shadow, etc.)");
+    lines.push("- Match the style-reference's lighting / color tone for cohesion");
     lines.push("");
   } else {
     // CRITICAL — no photos provided. Don't add gray fills or new shapes.
-    // Keep the placeholders looking IDENTICAL to the source so the user
-    // can drop their own photos into them naturally in the canvas editor.
     lines.push("PHOTO PLACEHOLDERS — NO USER PHOTOS PROVIDED:");
-    lines.push("- KEEP THE PLACEHOLDERS LOOKING IDENTICAL to the source — same fill, same framing, same decoration around them.");
-    lines.push("- DO NOT add gray circles, solid color fills, dashed borders, or any new shapes/styling that wasn't in the source.");
+    lines.push("- Render the photo placeholders the SAME WAY the style-reference shows them — same fill, framing, decoration around them.");
+    lines.push("- DO NOT add gray circles, solid color fills, dashed borders, or any new shapes/styling that the reference doesn't have.");
     lines.push("- DO NOT invent specific people, faces, or stock photos.");
-    lines.push("- The user will drop their own photos into the placeholders later in the editor — leave them naturally exactly as the source has them.");
+    lines.push("- The user will drop their own photos into the placeholders later in the editor.");
     lines.push("");
   }
 
   lines.push(
-    "OUTPUT: a single polished flat image matching the source's exact layout and aesthetic, with NO TEXT, and photo placeholders treated per the rules above. No extra elements, no labels, no watermarks.",
+    "OUTPUT: a single polished flat image — a fresh new composition inspired by the style-reference, with NO TEXT and photo placeholders rendered per the rules above. No extra elements, no labels, no watermarks.",
   );
   return lines.join("\n");
 }
@@ -159,6 +185,7 @@ export async function remixTemplate(opts: RemixOptions): Promise<RemixResult> {
   const {
     sourceImageUrl,
     userPhotosDataUrls = [],
+    brandColors,
     size: sizeOverride,
     quality = "high",
   } = opts;
@@ -193,7 +220,10 @@ export async function remixTemplate(opts: RemixOptions): Promise<RemixResult> {
     ...userPhotoBuffers,
   ];
 
-  const prompt = buildRemixPrompt({ numPhotos: userPhotoBuffers.length });
+  const prompt = buildRemixPrompt({
+    numPhotos: userPhotoBuffers.length,
+    brandColors,
+  });
 
   const openai = OpenAIClient.getInstance();
   const b64 = await openai.editMultiImage(prompt, payload, { size, quality });

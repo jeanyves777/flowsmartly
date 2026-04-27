@@ -1069,7 +1069,7 @@ export function TemplatesPanel() {
   // composition reference; user photos = aux refs into placeholders).
   const handleRemix = async (
     template: FeaturedTemplate,
-    options: { customText?: string; userPhotos?: string[] } = {},
+    options: { customText?: string; userPhotos?: string[]; useBrandColors?: boolean } = {},
   ) => {
     if (!canvas) return;
     if (!(await confirmBeforeClobber(template.name))) return;
@@ -1091,6 +1091,7 @@ export function TemplatesPanel() {
           imageUrl: template.imageUrl,
           customText: options.customText || undefined,
           userPhotos: options.userPhotos || [],
+          useBrandColors: !!options.useBrandColors,
         }),
       });
       const data = await res.json();
@@ -2527,12 +2528,17 @@ function RemixOptionsDialog({
 }: {
   template: FeaturedTemplate;
   onClose: () => void;
-  onConfirm: (opts: { customText: string; userPhotos: string[] }) => void | Promise<void>;
+  onConfirm: (opts: {
+    customText: string;
+    userPhotos: string[];
+    useBrandColors: boolean;
+  }) => void | Promise<void>;
   onApplyAsIs: () => void | Promise<void>;
 }) {
   const [customText, setCustomText] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
   const [skipPhotos, setSkipPhotos] = useState(true);
+  const [useBrandColors, setUseBrandColors] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
 
@@ -2587,6 +2593,7 @@ function RemixOptionsDialog({
       // If the user toggled "I'll add photos myself", send an empty
       // array even if they had photos staged — the toggle wins.
       userPhotos: skipPhotos ? [] : photos,
+      useBrandColors,
     });
   };
 
@@ -2727,6 +2734,31 @@ function RemixOptionsDialog({
               </>
             )}
           </div>
+
+          {/* Brand colors toggle — when on, swap the source's palette
+              for the user's BrandKit (primary/secondary/accent) while
+              preserving gradient/composition. Same pattern as the
+              Recreate-as-Editable dialog. */}
+          <label
+            htmlFor="remix-brand"
+            className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-brand-400 cursor-pointer transition-colors"
+          >
+            <input
+              id="remix-brand"
+              type="checkbox"
+              checked={useBrandColors}
+              onChange={(e) => setUseBrandColors(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-input accent-brand-500"
+            />
+            <div className="flex-1">
+              <div className="text-sm font-medium">Use my brand colors</div>
+              <div className="text-xs text-muted-foreground">
+                Swap the design&apos;s palette for your BrandKit&apos;s primary, secondary,
+                and accent colors. Keeps the gradient and composition; just remaps the hues.
+                Falls back to the source&apos;s palette if your BrandKit isn&apos;t set up.
+              </div>
+            </div>
+          </label>
         </div>
 
         {/* Actions */}
