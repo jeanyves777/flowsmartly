@@ -148,12 +148,14 @@ function buildRemixPrompt(opts: {
 
   // CRITICAL — text is handled by a separate editable Fabric layer.
   // gpt-image-1 must produce a clean text-free composition so the
-  // Claude overlay sits on a clean base.
-  lines.push("CRITICAL — RENDER NO TEXT:");
+  // Claude overlay sits on a clean base. Where text was, the bg
+  // should FLOW THROUGH naturally — not be replaced by a placeholder
+  // rectangle/box (gpt-image-1's default failure mode).
+  lines.push("CRITICAL — RENDER NO TEXT and NO TEXT-PLACEHOLDER BOXES:");
   lines.push("- DO NOT render any letters, words, characters, numbers, or readable typography in the output.");
-  lines.push("- Where the reference shows text, your output should have NO text in that region — preserve the surrounding decoration and color, but ZERO text glyphs.");
+  lines.push("- DO NOT draw gray rounded rectangles, white boxes, dashed frames, or any other 'placeholder' shape where the text was. The bg gradient/decoration should FLOW THROUGH that region naturally — as if the text was simply never there.");
   lines.push("- Editable text is added on top as a separate layer by Claude — your job is the visual composition only.");
-  lines.push("- Treat any logos / wordmarks / icons in the reference as decoration (keep them rendered).");
+  lines.push("- DO NOT include any LOGOS, WORDMARKS, BRAND ICONS, or organization names from the reference. Those are brand-specific to the original design and must NOT appear in the output. Treat them like text — leave that region blended into the bg.");
   lines.push("");
 
   if (numPhotos > 0) {
@@ -166,12 +168,13 @@ function buildRemixPrompt(opts: {
     lines.push("- Match the style-reference's lighting / color tone for cohesion");
     lines.push("");
   } else {
-    // CRITICAL — no photos provided. Don't add gray fills or new shapes.
+    // CRITICAL — no photos provided. The reference's photo regions
+    // should BLEND into the bg, not be replaced by gray fills/circles.
     lines.push("PHOTO PLACEHOLDERS — NO USER PHOTOS PROVIDED:");
-    lines.push("- Render the photo placeholders the SAME WAY the style-reference shows them — same fill, framing, decoration around them.");
-    lines.push("- DO NOT add gray circles, solid color fills, dashed borders, or any new shapes/styling that the reference doesn't have.");
+    lines.push("- LEAVE THE PHOTO REGIONS BLENDED INTO THE BACKGROUND. The bg gradient and decoration should FLOW THROUGH those regions naturally — as if the photo placeholders were not there at all.");
+    lines.push("- DO NOT draw gray circles, gray rounded rectangles, white shapes, dashed-border frames, solid color fills, or ANY new placeholder shape where photos would go. The output should NOT advertise that there are empty photo slots.");
     lines.push("- DO NOT invent specific people, faces, or stock photos.");
-    lines.push("- The user will drop their own photos into the placeholders later in the editor.");
+    lines.push("- The user will add their own photos later via the editor by clicking on the area where they want the photo.");
     lines.push("");
   }
 
