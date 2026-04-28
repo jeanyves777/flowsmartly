@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ImageIcon, Upload, Search, Palette, Layout, Sparkles, ExternalLink, Check } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -30,8 +30,8 @@ export function ChatCard({ card, onAction }: { card: CardSpec; onAction?: (text:
           allowBrowse={card.allowBrowse}
           suggestedQuery={card.suggestedQuery}
           onSkip={() => send("Skip the reference image, design from scratch")}
-          onPickFromLibrary={(t) =>
-            send(`Use this reference template: ${t.imageUrl}`)
+          onPickReference={(url) =>
+            send(`Use this reference image: ${url}`)
           }
         />
       );
@@ -194,28 +194,37 @@ interface LibraryTemplate {
   query?: string;
 }
 
+interface UserMediaItem {
+  id: string;
+  url: string;
+  originalName: string;
+  type: string;
+}
+
 function ReferencePickerCard({
   allowUpload,
   allowBrowse,
   suggestedQuery,
   onSkip,
-  onPickFromLibrary,
+  onPickReference,
 }: {
   allowUpload: boolean;
   allowBrowse: boolean;
   suggestedQuery?: string;
   onSkip: () => void;
-  onPickFromLibrary: (t: LibraryTemplate) => void;
+  onPickReference: (url: string) => void;
 }) {
   const [tab, setTab] = useState<"upload" | "browse">(allowUpload ? "upload" : "browse");
   const [libraryItems, setLibraryItems] = useState<LibraryTemplate[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [libraryLoaded, setLibraryLoaded] = useState(false);
+  const [userMedia, setUserMedia] = useState<UserMediaItem[]>([]);
+  const [userMediaLoaded, setUserMediaLoaded] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Lazy-load the library on first switch to the Browse tab. The
-  // existing /api/studio/templates/generate endpoint returns recent
-  // library entries when called with empty/short query — perfect for
-  // an instant inline browse without firing a credit-charging gen.
+  // Lazy-load the system library on first switch to the Browse tab.
   useEffect(() => {
     if (tab !== "browse" || libraryLoaded || libraryLoading) return;
     setLibraryLoading(true);
@@ -224,10 +233,7 @@ function ReferencePickerCard({
         const res = await fetch("/api/studio/templates/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query: suggestedQuery || "",
-            cacheOnly: true,
-          }),
+          body: JSON.stringify({ query: suggestedQuery || "", cacheOnly: true }),
         });
         const data = await res.json();
         if (res.ok && Array.isArray(data.templates)) {
@@ -241,12 +247,63 @@ function ReferencePickerCard({
             })),
           );
         }
-      } catch { /* non-fatal — show empty state */ } finally {
+      } catch { /* non-fatal */ } finally {
         setLibraryLoading(false);
         setLibraryLoaded(true);
       }
     })();
   }, [tab, libraryLoaded, libraryLoading, suggestedQuery]);
+
+  // Lazy-load the user's recent media on first switch to the Upload tab.
+  useEffect(() => {
+    if (tab !== "upload" || userMediaLoaded) return;
+    (async () => {
+      try {
+        const res = await fetch("/api/media?type=image&limit=12&page=1");
+        const data = await res.json();
+        const files = data?.data?.files;
+        if (Array.isArray(files)) {
+          setUserMedia(
+            files.map((f: { id: string; url: string; originalName: string; type: string }) => ({
+              id: f.id,
+              url: f.url,
+              originalName: f.originalName,
+              type: f.type,
+            })),
+          );
+        }
+      } catch { /* non-fatal */ } finally {
+        setUserMediaLoaded(true);
+      }
+    })();
+  }, [tab, userMediaLoaded]);
+
+  // Inline upload — same pipeline as the chat input paperclip but
+  // initiated from inside the card. After upload completes we route
+  // through onPickReference so the URL becomes a synthetic "Use this
+  // reference image: <url>" message back to the agent.
+  const uploadFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 5 * 1024 * 1024) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("type", "general");
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (res.ok && data.success && data.data?.url) {
+        // Optimistically prepend to user media so it shows up in the grid.
+        setUserMedia((prev) => [
+          { id: data.data.mediaFileId, url: data.data.url, originalName: data.data.filename, type: "image" },
+          ...prev,
+        ]);
+        onPickReference(data.data.url);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <CardShell icon={<ImageIcon className="h-3.5 w-3.5" />} title="Reference image" accent="brand">
@@ -263,7 +320,7 @@ function ReferencePickerCard({
             )}
           >
             <Upload className="h-3 w-3" />
-            Upload
+            Upload / My media
           </button>
         )}
         {allowBrowse && (
@@ -278,20 +335,77 @@ function ReferencePickerCard({
             )}
           >
             <Search className="h-3 w-3" />
-            Browse library
+            System library
           </button>
         )}
       </div>
 
       {tab === "upload" && (
-        <div className="border-2 border-dashed border-border rounded-md p-6 text-center">
-          <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
-          <p className="text-xs text-muted-foreground">
-            Use the paperclip 📎 in the chat input below to drop a reference image.
-          </p>
-          <p className="text-[10px] text-muted-foreground/70 mt-1">
-            PNG, JPEG, WebP, SVG · 5MB max
-          </p>
+        <div className="space-y-3">
+          {/* Click + drag-drop upload zone */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void uploadFile(f);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const f = e.dataTransfer.files?.[0];
+              if (f) void uploadFile(f);
+            }}
+            disabled={uploading}
+            className={cn(
+              "w-full border-2 border-dashed rounded-md p-6 text-center transition-colors",
+              dragOver
+                ? "border-brand-500 bg-brand-500/10"
+                : "border-border hover:border-brand-500 hover:bg-brand-500/5",
+              uploading && "opacity-60 pointer-events-none",
+            )}
+          >
+            <Upload className={cn("h-6 w-6 mx-auto mb-2", uploading ? "animate-pulse text-brand-500" : "text-muted-foreground")} />
+            <p className="text-xs font-medium text-foreground">
+              {uploading ? "Uploading…" : "Click or drop an image here"}
+            </p>
+            <p className="text-[10px] text-muted-foreground/70 mt-1">
+              PNG, JPEG, WebP, SVG · 5MB max
+            </p>
+          </button>
+
+          {/* User's recent media — pick to reuse without re-uploading */}
+          {userMedia.length > 0 && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
+                Your recent uploads
+              </p>
+              <div className="grid grid-cols-4 gap-1.5">
+                {userMedia.slice(0, 8).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => onPickReference(m.url)}
+                    className="relative aspect-square rounded-md overflow-hidden border border-border hover:border-brand-500 hover:scale-[1.03] transition-all group"
+                    title={m.originalName}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={m.url} alt="" loading="lazy" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
       {tab === "browse" && (
@@ -314,7 +428,7 @@ function ReferencePickerCard({
                 <button
                   key={t.id}
                   type="button"
-                  onClick={() => onPickFromLibrary(t)}
+                  onClick={() => onPickReference(t.imageUrl)}
                   className="relative aspect-square rounded-md overflow-hidden border border-border hover:border-brand-500 hover:scale-[1.03] transition-all group"
                   title={t.query || "Library template"}
                 >
