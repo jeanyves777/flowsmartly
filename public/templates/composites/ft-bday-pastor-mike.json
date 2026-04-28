@@ -1,0 +1,293 @@
+{
+  "sourceImageUrl": "/templates/flyers/IMG_9848.jpeg",
+  "generatedAt": "2026-04-28T17:26:21.011Z",
+  "canvas": {
+    "width": 1080,
+    "height": 1400,
+    "backgroundColor": "#ffffff",
+    "objects": [
+      {
+        "type": "rect",
+        "left": 0,
+        "top": 0,
+        "originX": "left",
+        "originY": "top",
+        "width": 1080,
+        "height": 1400,
+        "selectable": false,
+        "evented": false,
+        "fill": {
+          "type": "linear",
+          "coords": {
+            "x1": 45.025253169416715,
+            "y1": 205.02525316941677,
+            "x2": 1034.9747468305832,
+            "y2": 1194.9747468305832
+          },
+          "colorStops": [
+            {
+              "offset": 0,
+              "color": "#3a3236"
+            },
+            {
+              "offset": 1,
+              "color": "#1f1a1d"
+            }
+          ]
+        }
+      },
+      {
+        "type": "rect",
+        "left": 0,
+        "top": 0,
+        "width": 540,
+        "height": 700,
+        "originX": "left",
+        "originY": "top",
+        "fill": "rgba(99, 102, 241, 0.06)",
+        "stroke": "#2a2426",
+        "strokeWidth": 2,
+        "strokeDashArray": [
+          8,
+          6
+        ],
+        "rx": 0,
+        "ry": 8
+      },
+      {
+        "type": "textbox",
+        "text": "📷 Background photo top-left (Pastor Mike candid)",
+        "left": 8,
+        "top": 338,
+        "width": 524,
+        "originX": "left",
+        "originY": "top",
+        "fontSize": 20,
+        "fontFamily": "Inter",
+        "fontWeight": "500",
+        "textAlign": "center",
+        "fill": "#64748b",
+        "editable": false
+      },
+      {
+        "type": "rect",
+        "left": 540,
+        "top": 0,
+        "width": 540,
+        "height": 700,
+        "originX": "left",
+        "originY": "top",
+        "fill": "rgba(99, 102, 241, 0.06)",
+        "stroke": "#2a2426",
+        "strokeWidth": 2,
+        "strokeDashArray": [
+          8,
+          6
+        ],
+        "rx": 0,
+        "ry": 8
+      },
+      {
+        "type": "textbox",
+        "text": "📷 Background photo top-right (Pastor Mike candid)",
+        "left": 548,
+        "top": 338,
+        "width": 524,
+        "originX": "left",
+        "originY": "top",
+        "fontSize": 20,
+        "fontFamily": "Inter",
+        "fontWeight": "500",
+        "textAlign": "center",
+        "fill": "#64748b",
+        "editable": false
+      },
+      {
+        "type": "rect",
+        "left": 0,
+        "top": 700,
+        "width": 540,
+        "height": 700,
+        "originX": "left",
+        "originY": "top",
+        "fill": "rgba(99, 102, 241, 0.06)",
+        "stroke": "#2a2426",
+        "strokeWidth": 2,
+        "strokeDashArray": [
+          8,
+          6
+        ],
+        "rx": 0,
+        "ry": 8
+      },
+      {
+        "type": "textbox",
+        "text": "📷 Background photo bottom-left (Pastor Mike candid)",
+        "left": 8,
+        "top": 1038,
+        "width": 524,
+        "originX": "left",
+        "originY": "top",
+        "fontSize": 20,
+        "fontFamily": "Inter",
+        "fontWeight": "500",
+        "textAlign": "center",
+        "fill": "#64748b",
+        "editable": false
+      },
+      {
+        "type": "rect",
+        "left": 540,
+        "top": 700,
+        "width": 540,
+        "height": 700,
+        "originX": "left",
+        "originY": "top",
+        "fill": "rgba(99, 102, 241, 0.06)",
+        "stroke": "#2a2426",
+        "strokeWidth": 2,
+        "strokeDashArray": [
+          8,
+          6
+        ],
+        "rx": 0,
+        "ry": 8
+      },
+      {
+        "type": "textbox",
+        "text": "📷 Background photo bottom-right (Pastor Mike candid)",
+        "left": 548,
+        "top": 1038,
+        "width": 524,
+        "originX": "left",
+        "originY": "top",
+        "fontSize": 20,
+        "fontFamily": "Inter",
+        "fontWeight": "500",
+        "textAlign": "center",
+        "fill": "#64748b",
+        "editable": false
+      },
+      {
+        "type": "rect",
+        "left": 330,
+        "top": 50,
+        "width": 470,
+        "height": 600,
+        "originX": "left",
+        "originY": "top",
+        "fill": "rgba(99, 102, 241, 0.06)",
+        "stroke": "#1a1416",
+        "strokeWidth": 14,
+        "strokeDashArray": [
+          8,
+          6
+        ],
+        "rx": 4,
+        "ry": 8
+      },
+      {
+        "type": "textbox",
+        "text": "📷 Featured photo 1 of Pastor Mike (film-frame style, tilted)",
+        "left": 338,
+        "top": 338,
+        "width": 454,
+        "originX": "left",
+        "originY": "top",
+        "fontSize": 20,
+        "fontFamily": "Inter",
+        "fontWeight": "500",
+        "textAlign": "center",
+        "fill": "#64748b",
+        "editable": false
+      },
+      {
+        "type": "textbox",
+        "text": "Happy Birthday",
+        "left": 280,
+        "top": 670,
+        "width": 720,
+        "originX": "left",
+        "originY": "top",
+        "fontSize": 64,
+        "fontFamily": "Allura",
+        "fontWeight": "normal",
+        "fontStyle": "italic",
+        "textAlign": "center",
+        "fill": "#fdf6e6",
+        "charSpacing": 40,
+        "lineHeight": 1,
+        "editable": true
+      },
+      {
+        "type": "textbox",
+        "text": "PASTOR MIKE",
+        "left": 60,
+        "top": 760,
+        "width": 960,
+        "originX": "left",
+        "originY": "top",
+        "fontSize": 118,
+        "fontFamily": "Cormorant Garamond",
+        "fontWeight": "bold",
+        "fontStyle": "italic",
+        "textAlign": "center",
+        "fill": "#fdf6e6",
+        "charSpacing": 80,
+        "lineHeight": 1,
+        "editable": true
+      },
+      {
+        "type": "rect",
+        "left": 330,
+        "top": 870,
+        "width": 470,
+        "height": 510,
+        "originX": "left",
+        "originY": "top",
+        "fill": "rgba(99, 102, 241, 0.06)",
+        "stroke": "#1a1416",
+        "strokeWidth": 14,
+        "strokeDashArray": [
+          8,
+          6
+        ],
+        "rx": 4,
+        "ry": 8
+      },
+      {
+        "type": "textbox",
+        "text": "📷 Featured photo 2 of Pastor Mike (film-frame style, tilted)",
+        "left": 338,
+        "top": 1113,
+        "width": 454,
+        "originX": "left",
+        "originY": "top",
+        "fontSize": 20,
+        "fontFamily": "Inter",
+        "fontWeight": "500",
+        "textAlign": "center",
+        "fill": "#64748b",
+        "editable": false
+      },
+      {
+        "type": "textbox",
+        "text": "APRIL 20TH",
+        "left": 280,
+        "top": 935,
+        "width": 720,
+        "originX": "left",
+        "originY": "top",
+        "fontSize": 48,
+        "fontFamily": "Cormorant Garamond",
+        "fontWeight": "bold",
+        "fontStyle": "italic",
+        "textAlign": "center",
+        "fill": "#fdf6e6",
+        "charSpacing": 120,
+        "lineHeight": 1,
+        "editable": true
+      }
+    ]
+  }
+}

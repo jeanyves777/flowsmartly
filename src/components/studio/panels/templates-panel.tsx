@@ -714,7 +714,12 @@ interface FeaturedTemplate {
   category: "social_post" | "ad" | "flyer" | "poster" | "banner" | "signboard";
   width: number;
   height: number;
+  /** Flat preview JPEG used in the panel grid + preview modal thumbnail. */
   imageUrl: string;
+  /** Pre-built editable Fabric JSON spec at /public/templates/composites/.
+   *  Loaded directly into the canvas on click — no AI call, no credits.
+   *  Generated once via scripts/build-featured-composites.ts. */
+  compositeUrl?: string;
 }
 
 /**
@@ -737,18 +742,18 @@ function extractTemplateStyle(name: string): { parentQuery: string; style: strin
 }
 
 const FEATURED_TEMPLATES: FeaturedTemplate[] = [
-  { id: "ft-bday-pastor-george",  name: "Birthday — Green & Gold",      category: "social_post", width: 1080, height: 1080, imageUrl: "/templates/flyers/02463050-170e-4101-816d-22fd55ded341.jpeg" },
-  { id: "ft-bday-honor-cruise",   name: "Birthday — Cruise & Balloons", category: "social_post", width: 1600, height: 1600, imageUrl: "/templates/flyers/1292f0db-e038-4d0f-9c41-a1a3b9e414b7.jpeg" },
-  { id: "ft-bday-polaroid-park",  name: "Birthday — Polaroid Pink",     category: "flyer",       width: 1080, height: 1350, imageUrl: "/templates/flyers/23aa436c-56ae-4d76-9f20-241f6b8e5955.jpeg" },
-  { id: "ft-bday-polaroid-beach", name: "Birthday — Polaroid Beach",    category: "flyer",       width: 1080, height: 1350, imageUrl: "/templates/flyers/b86592d5-8935-447c-9b10-d18e0f2728d5.jpeg" },
-  { id: "ft-bday-trio-yellow",    name: "Birthday — Family Yellow",     category: "flyer",       width: 1080, height: 1320, imageUrl: "/templates/flyers/fa1c35d0-2701-4329-a516-109e87b774ef.jpeg" },
-  { id: "ft-bday-royal-blue",     name: "Birthday — Royal Blue",        category: "flyer",       width: 1290, height: 1714, imageUrl: "/templates/flyers/unnamed-2.jpg" },
-  { id: "ft-bday-pastor-mike",    name: "Birthday — Photo Memorial",    category: "flyer",       width: 1290, height: 1657, imageUrl: "/templates/flyers/IMG_9848.jpeg" },
-  { id: "ft-event-tickets",       name: "Event — Concert Tickets",      category: "poster",      width: 1290, height: 1319, imageUrl: "/templates/flyers/IMG_9873.jpeg" },
-  { id: "ft-event-countdown",     name: "Event — Countdown Day",        category: "poster",      width: 1431, height: 1907, imageUrl: "/templates/flyers/5fa4cce9-3d09-4402-b745-03aa8f1d8f41.jpeg" },
-  { id: "ft-event-tomorrow",      name: "Event — Bold Lettering",       category: "flyer",       width: 1080, height: 1350, imageUrl: "/templates/flyers/unnamed-3.jpg" },
-  { id: "ft-marketing-hero",      name: "Ad — Hero & QR",               category: "ad",          width: 1290, height: 1523, imageUrl: "/templates/flyers/IMG_9870.jpeg" },
-  { id: "ft-product-luxury",      name: "Product — Luxury Showcase",    category: "ad",          width: 1290, height: 1398, imageUrl: "/templates/flyers/IMG_9901.jpeg" },
+  { id: "ft-bday-pastor-george",  name: "Birthday — Green & Gold",      category: "social_post", width: 1080, height: 1080, imageUrl: "/templates/flyers/02463050-170e-4101-816d-22fd55ded341.jpeg",   compositeUrl: "/templates/composites/ft-bday-pastor-george.json" },
+  { id: "ft-bday-honor-cruise",   name: "Birthday — Cruise & Balloons", category: "social_post", width: 1600, height: 1600, imageUrl: "/templates/flyers/1292f0db-e038-4d0f-9c41-a1a3b9e414b7.jpeg",   compositeUrl: "/templates/composites/ft-bday-honor-cruise.json" },
+  { id: "ft-bday-polaroid-park",  name: "Birthday — Polaroid Pink",     category: "flyer",       width: 1080, height: 1350, imageUrl: "/templates/flyers/23aa436c-56ae-4d76-9f20-241f6b8e5955.jpeg",   compositeUrl: "/templates/composites/ft-bday-polaroid-park.json" },
+  { id: "ft-bday-polaroid-beach", name: "Birthday — Polaroid Beach",    category: "flyer",       width: 1080, height: 1350, imageUrl: "/templates/flyers/b86592d5-8935-447c-9b10-d18e0f2728d5.jpeg",   compositeUrl: "/templates/composites/ft-bday-polaroid-beach.json" },
+  { id: "ft-bday-trio-yellow",    name: "Birthday — Family Yellow",     category: "flyer",       width: 1080, height: 1320, imageUrl: "/templates/flyers/fa1c35d0-2701-4329-a516-109e87b774ef.jpeg",   compositeUrl: "/templates/composites/ft-bday-trio-yellow.json" },
+  { id: "ft-bday-royal-blue",     name: "Birthday — Royal Blue",        category: "flyer",       width: 1290, height: 1714, imageUrl: "/templates/flyers/unnamed-2.jpg",                                compositeUrl: "/templates/composites/ft-bday-royal-blue.json" },
+  { id: "ft-bday-pastor-mike",    name: "Birthday — Photo Memorial",    category: "flyer",       width: 1290, height: 1657, imageUrl: "/templates/flyers/IMG_9848.jpeg",                               compositeUrl: "/templates/composites/ft-bday-pastor-mike.json" },
+  { id: "ft-event-tickets",       name: "Event — Concert Tickets",      category: "poster",      width: 1290, height: 1319, imageUrl: "/templates/flyers/IMG_9873.jpeg",                               compositeUrl: "/templates/composites/ft-event-tickets.json" },
+  { id: "ft-event-countdown",     name: "Event — Countdown Day",        category: "poster",      width: 1431, height: 1907, imageUrl: "/templates/flyers/5fa4cce9-3d09-4402-b745-03aa8f1d8f41.jpeg",   compositeUrl: "/templates/composites/ft-event-countdown.json" },
+  { id: "ft-event-tomorrow",      name: "Event — Bold Lettering",       category: "flyer",       width: 1080, height: 1350, imageUrl: "/templates/flyers/unnamed-3.jpg",                                compositeUrl: "/templates/composites/ft-event-tomorrow.json" },
+  { id: "ft-marketing-hero",      name: "Ad — Hero & QR",               category: "ad",          width: 1290, height: 1523, imageUrl: "/templates/flyers/IMG_9870.jpeg",                               compositeUrl: "/templates/composites/ft-marketing-hero.json" },
+  { id: "ft-product-luxury",      name: "Product — Luxury Showcase",    category: "ad",          width: 1290, height: 1398, imageUrl: "/templates/flyers/IMG_9901.jpeg",                               compositeUrl: "/templates/composites/ft-product-luxury.json" },
 ];
 
 export function TemplatesPanel() {
@@ -767,13 +772,9 @@ export function TemplatesPanel() {
   const [previewTemplate, setPreviewTemplate] = useState<FeaturedTemplate | null>(null);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   // When the user picks "Recreate as Editable" from the preview modal, we
-  // open a second dialog asking for personalization options (their text,
-  // whether to apply their brand colors) BEFORE actually charging credits
-  // and running the agent.
-  const [recreateOptions, setRecreateOptions] = useState<FeaturedTemplate | null>(null);
-  // Pre-flight options for "Use as Background" → gpt-image-1 remix
-  // (personalize text + photos before flat output lands on canvas).
-  const [remixOptions, setRemixOptions] = useState<FeaturedTemplate | null>(null);
+  // (Phase 3 cleanup — recreateOptions / remixOptions state removed.
+  //  Featured Designs are now pre-built editable composites loaded
+  //  directly via handleApplyFeatured; no per-template AI options.)
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
@@ -1196,6 +1197,36 @@ export function TemplatesPanel() {
     if (!(await confirmBeforeClobber(template.name))) return;
     setApplyingId(template.id);
     try {
+      // Phase 3 — Featured Designs are pre-built editable composites.
+      // Load the canvas JSON directly; no AI step, no credit charge.
+      // Falls back to the flat-image bg path if the composite isn't
+      // available (defensive — should always exist for shipped templates).
+      if (template.compositeUrl) {
+        const res = await fetch(template.compositeUrl);
+        if (!res.ok) throw new Error(`Composite fetch failed (${res.status})`);
+        const data = await res.json();
+        const c = data?.canvas;
+        if (!c?.objects || !Array.isArray(c.objects)) {
+          throw new Error("Composite JSON missing canvas.objects");
+        }
+        canvas.clear();
+        const w = c.width || template.width;
+        const h = c.height || template.height;
+        setCanvasDimensions(w, h);
+        canvas.setDimensions({ width: w, height: h });
+        canvas.backgroundColor = c.backgroundColor || "#ffffff";
+        await safeLoadFromJSON(canvas, {
+          version: "6.0.0",
+          objects: c.objects,
+          background: c.backgroundColor || "#ffffff",
+        });
+        canvas.renderAll();
+        refreshLayers();
+        toast({ title: "Template ready!", description: "All layers are editable — click to modify." });
+        return;
+      }
+
+      // Legacy fallback (no composite yet) — flat image as locked bg.
       canvas.clear();
       setCanvasDimensions(template.width, template.height);
       canvas.setDimensions({ width: template.width, height: template.height });
@@ -1206,8 +1237,6 @@ export function TemplatesPanel() {
       if (!img || !img.width || !img.height) {
         throw new Error("Image failed to load");
       }
-      // Stretch to fit the canvas — usually 1:1 since we set canvas dims
-      // to the image's native dims.
       const sx = template.width / img.width;
       const sy = template.height / img.height;
       img.set({
@@ -1226,8 +1255,12 @@ export function TemplatesPanel() {
       canvas.renderAll();
       refreshLayers();
       toast({ title: "Template applied!", description: "Add your text and elements on top." });
-    } catch {
-      toast({ title: "Failed to apply template", variant: "destructive" });
+    } catch (err) {
+      toast({
+        title: "Failed to apply template",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
     } finally {
       setApplyingId(null);
     }
@@ -1480,54 +1513,21 @@ export function TemplatesPanel() {
             key="preview"
             template={previewTemplate}
             onClose={() => setPreviewTemplate(null)}
-            onUseAsBackground={() => {
-              // No longer applies the raw image directly — opens the
-              // remix options dialog so the user can supply text + photos
-              // (gpt-image-1 then preserves the design and personalizes
-              // the placeholders before it lands on the canvas).
+            onUseTemplate={async () => {
+              // Phase 3 — single action: load the pre-built editable
+              // composite directly into the canvas. No remix dialog,
+              // no recreate dialog, no AI step, no credit charge.
               const t = previewTemplate;
               setPreviewTemplate(null);
-              setTimeout(() => setRemixOptions(t), 220);
-            }}
-            onRecreateEditable={() => {
-              // Don't run the agent yet — open the options dialog so the
-              // user can supply their custom text + brand-color choice.
-              const t = previewTemplate;
-              setPreviewTemplate(null);
-              setTimeout(() => setRecreateOptions(t), 220);
-            }}
-          />
-        )}
-        {recreateOptions && (
-          <RecreateOptionsDialog
-            key="recreate-opts"
-            template={recreateOptions}
-            onClose={() => setRecreateOptions(null)}
-            onConfirm={async (opts) => {
-              const t = recreateOptions;
-              setRecreateOptions(null);
-              await handleReproduce(t, opts);
-            }}
-          />
-        )}
-        {remixOptions && (
-          <RemixOptionsDialog
-            key="remix-opts"
-            template={remixOptions}
-            onClose={() => setRemixOptions(null)}
-            onConfirm={async (opts) => {
-              const t = remixOptions;
-              setRemixOptions(null);
-              await handleRemix(t, opts);
-            }}
-            onApplyAsIs={async () => {
-              // Free escape hatch — same as the legacy free path.
-              const t = remixOptions;
-              setRemixOptions(null);
               await handleApplyFeatured(t);
             }}
           />
         )}
+        {/* RecreateOptionsDialog and RemixOptionsDialog removed in Phase 3.
+            Featured templates load as pre-built editable composites — no
+            per-template AI dialog needed. The dialog components themselves
+            still exist below as dead code; will be excised in a follow-up
+            cleanup commit (kept now to keep this diff scoped). */}
         {searchModalOpen && (
           <TemplateSearchModal
             key="search"
@@ -1555,13 +1555,11 @@ export function TemplatesPanel() {
 function FeaturedTemplatePreview({
   template,
   onClose,
-  onUseAsBackground,
-  onRecreateEditable,
+  onUseTemplate,
 }: {
   template: FeaturedTemplate;
   onClose: () => void;
-  onUseAsBackground: () => void;
-  onRecreateEditable: () => void;
+  onUseTemplate: () => void | Promise<void>;
 }) {
   // ESC to close + body scroll lock while open
   useEffect(() => {
@@ -1623,38 +1621,24 @@ function FeaturedTemplatePreview({
           />
         </div>
 
-        {/* Actions */}
+        {/* Actions — single "Use this template" button. The template
+            is a pre-built editable composite (Phase 3); clicking loads
+            all layers into the canvas instantly. No AI step, no credits. */}
         <div className="border-t border-border bg-background p-4">
-          <div className="grid sm:grid-cols-2 gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={onUseAsBackground}
-              className="gap-2 h-auto py-3"
-            >
-              <ImageIcon className="h-4 w-4" />
-              <div className="text-left">
-                <div className="font-semibold text-sm leading-tight">Use as Background</div>
-                <div className="text-xs font-normal text-muted-foreground">
-                  30 credits · gpt-image-1 swaps your text + photos into the design
-                  <span className="block mt-0.5 text-muted-foreground/70">(or skip personalization for free)</span>
-                </div>
+          <Button
+            type="button"
+            size="lg"
+            onClick={onUseTemplate}
+            className="w-full gap-2 h-auto py-3 bg-brand-500 hover:bg-brand-600"
+          >
+            <Wand2 className="h-4 w-4" />
+            <div className="text-left">
+              <div className="font-semibold text-sm leading-tight">Use this template</div>
+              <div className="text-xs font-normal text-white/85">
+                Free · all layers editable on the canvas — drop in your photos and edit any text
               </div>
-            </Button>
-            <Button
-              type="button"
-              size="lg"
-              onClick={onRecreateEditable}
-              className="gap-2 h-auto py-3 bg-brand-500 hover:bg-brand-600"
-            >
-              <Wand2 className="h-4 w-4" />
-              <div className="text-left">
-                <div className="font-semibold text-sm leading-tight">Recreate as Editable</div>
-                <div className="text-xs font-normal text-white/85">80 credits · Claude rebuilds layers; you drop your own photos in the slots</div>
-              </div>
-            </Button>
-          </div>
+            </div>
+          </Button>
         </div>
       </motion.div>
     </motion.div>
