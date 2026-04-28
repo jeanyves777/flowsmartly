@@ -65,7 +65,7 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
   } = useCanvasStore();
 
   const { undo, redo } = useCanvasHistory();
-  const { exportPNG, exportJPG, exportSVG, exportPDF, copyPNGToClipboard } = useCanvasExport();
+  const { exportPNG, exportJPG, exportSVG, exportPDF, exportPrintSheet, copyPNGToClipboard } = useCanvasExport();
   const { toast } = useToast();
 
   const handleCopyToClipboard = async () => {
@@ -402,6 +402,21 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
             <DropdownMenuItem onClick={() => exportPDF()}>
               <File className="h-4 w-4 mr-2" />
               PDF
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={async () => {
+                const ok = await exportPrintSheet("A4");
+                if (!ok) {
+                  toast({
+                    title: "Card too big for A4",
+                    description: "Resize the canvas to standard business-card dims (e.g. 1050×600) and try again.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              <File className="h-4 w-4 mr-2" />
+              Print sheet (A4 multi-up) — for business cards
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleCopyToClipboard}>

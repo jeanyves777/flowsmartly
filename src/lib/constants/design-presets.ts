@@ -1,4 +1,4 @@
-export type DesignCategory = "social_post" | "ad" | "flyer" | "poster" | "banner" | "signboard";
+export type DesignCategory = "social_post" | "ad" | "flyer" | "poster" | "banner" | "signboard" | "business_card";
 export type ImageProvider = "openai" | "xai" | "gemini";
 
 export interface SizePreset {
@@ -83,6 +83,22 @@ export const DESIGN_CATEGORIES: CategoryConfig[] = [
     presets: [
       { name: "Square Sign", width: 2000, height: 2000 },
       { name: "Small Sign", width: 1500, height: 750 },
+    ],
+  },
+  {
+    id: "business_card",
+    name: "Business Card",
+    description: "Print-ready business cards (single or double-sided)",
+    icon: "CreditCard",
+    presets: [
+      // All sizes are 300dpi print-ready (with 0.125" / 3mm bleed
+      // baked in where applicable). Width × height in pixels.
+      { name: "US Standard (3.5\" × 2\")", width: 1050, height: 600 },
+      { name: "US with bleed (3.75\" × 2.25\")", width: 1125, height: 675 },
+      { name: "European (85mm × 55mm)", width: 1004, height: 650 },
+      { name: "European with bleed (91mm × 61mm)", width: 1075, height: 720 },
+      { name: "Square (2.5\" × 2.5\")", width: 750, height: 750 },
+      { name: "Mini Card (3\" × 1\")", width: 900, height: 300 },
     ],
   },
 ];

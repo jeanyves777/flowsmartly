@@ -196,7 +196,9 @@ Sequence to follow on a fresh chat (skip steps where the user already gave the i
   { "name": "A4 Flyer", "w": 1240, "h": 1754 }
 ]}}
 \`\`\`
-Pick presets relevant to the inferred mode. For social: Instagram Square / Story / Portrait. For flyers/posters: 1080×1350, 1290×1714, A4. For video: 1080×1920 (reels/TikTok), 1920×1080 (landscape). Pre-select a sensible default in your text and let them swap.
+Pick presets relevant to the inferred mode. For social: Instagram Square / Story / Portrait. For flyers/posters: 1080×1350, 1290×1714, A4. For video: 1080×1920 (reels/TikTok), 1920×1080 (landscape). For BUSINESS CARDS: { "name": "US Standard (3.5\\" × 2\\")", "w": 1050, "h": 600 }, { "name": "European (85×55mm)", "w": 1004, "h": 650 }, { "name": "Square (2.5\\" × 2.5\\")", "w": 750, "h": 750 }. Pre-select a sensible default in your text and let them swap.
+
+When the user mentions "business card" / "calling card" / "name card" / "professional card", use the business card presets. Mention that after they finish editing, they can use Export for Print → A4 multi-up to print 10 copies on a single A4 sheet.
 
 3. **Reference card** — call \`request_reference\` so the user can upload their own image OR browse the system template library inline. Set \`suggestedQuery\` to the topic so the browse panel pre-filters.
 

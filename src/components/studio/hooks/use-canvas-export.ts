@@ -184,6 +184,125 @@ export function useCanvasExport() {
     pdf.save(`${safeName}.pdf`);
   }, [canvas, safeName]);
 
+  /**
+   * Export the current canvas (typically a business card) as a
+   * print-ready A4 PDF with multiple copies tiled in a grid + crop
+   * marks. Auto-fits the most copies that fit with a 5mm gutter and
+   * 10mm page margin. Cards are laid out in their native aspect
+   * ratio, NOT scaled, so trim sizes match the user's spec exactly.
+   *
+   * @param sheetSize "A4" (default) | "US Letter" — paper to tile onto.
+   * @param showCropMarks default true — small black tick marks at each
+   *                      card corner for trim alignment.
+   */
+  const exportPrintSheet = useCallback(async (
+    sheetSize: "A4" | "US Letter" = "A4",
+    showCropMarks = true,
+  ) => {
+    if (!canvas) return false;
+    canvas.discardActiveObject();
+    canvas.renderAll();
+
+    // Snapshot the card as PNG at 2x for crisp print output.
+    const dataUrl = canvas.toDataURL({ format: "png", multiplier: 2 });
+    const cardW = canvas.width!;
+    const cardH = canvas.height!;
+
+    // Convert card pixel dims to mm (assume 300 DPI ⇒ 1mm = 11.811 px).
+    const PX_PER_MM = 11.811;
+    const cardWmm = cardW / PX_PER_MM;
+    const cardHmm = cardH / PX_PER_MM;
+
+    // Sheet dimensions in mm.
+    const sheet = sheetSize === "A4"
+      ? { w: 210, h: 297 }
+      : { w: 215.9, h: 279.4 };
+    const margin = 10;     // mm — page edge to first card
+    const gutter = 5;      // mm — between cards
+
+    // Compute grid that maximizes copies fit.
+    // Try both portrait and landscape card orientations on the sheet.
+    function gridFit(cw: number, ch: number) {
+      const cols = Math.floor((sheet.w - 2 * margin + gutter) / (cw + gutter));
+      const rows = Math.floor((sheet.h - 2 * margin + gutter) / (ch + gutter));
+      return cols > 0 && rows > 0 ? { cols, rows, total: cols * rows, cw, ch, rotated: false } : null;
+    }
+    const orientA = gridFit(cardWmm, cardHmm);
+    const orientB = gridFit(cardHmm, cardWmm);
+    const best = [orientA, orientB]
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      .sort((a, b) => b.total - a.total)[0];
+    if (!best) {
+      return false; // card too big for sheet
+    }
+    const { cols, rows, cw, ch, cardWmm: _w, cardHmm: _h } = best as { cols: number; rows: number; cw: number; ch: number; cardWmm?: number; cardHmm?: number };
+    // Compute non-rotated equivalents for rendering — orientA was original.
+    const isRotated = best === orientB;
+    void _w; void _h;
+
+    const { jsPDF } = await import("jspdf");
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: sheetSize === "A4" ? "a4" : "letter" });
+
+    // Center the grid block on the sheet.
+    const blockW = cols * cw + (cols - 1) * gutter;
+    const blockH = rows * ch + (rows - 1) * gutter;
+    const startX = (sheet.w - blockW) / 2;
+    const startY = (sheet.h - blockH) / 2;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = startX + c * (cw + gutter);
+        const y = startY + r * (ch + gutter);
+        if (isRotated) {
+          // Rotate the card 90° via jsPDF's rotate option. Width/height
+          // swap because the card is laid sideways on the sheet.
+          pdf.addImage(dataUrl, "PNG", x, y, cw, ch, undefined, "FAST", 90);
+        } else {
+          pdf.addImage(dataUrl, "PNG", x, y, cw, ch);
+        }
+      }
+    }
+
+    if (showCropMarks) {
+      // 2mm tick marks at each card's outer corners — keeps inner
+      // crop marks subtle so they don't dirty the trimmed edge.
+      pdf.setLineWidth(0.15);
+      pdf.setDrawColor(0, 0, 0);
+      const tick = 2;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const x = startX + c * (cw + gutter);
+          const y = startY + r * (ch + gutter);
+          // Top-left corner
+          pdf.line(x - tick - 0.5, y, x - 0.5, y);
+          pdf.line(x, y - tick - 0.5, x, y - 0.5);
+          // Top-right
+          pdf.line(x + cw + 0.5, y, x + cw + tick + 0.5, y);
+          pdf.line(x + cw, y - tick - 0.5, x + cw, y - 0.5);
+          // Bottom-left
+          pdf.line(x - tick - 0.5, y + ch, x - 0.5, y + ch);
+          pdf.line(x, y + ch + 0.5, x, y + ch + tick + 0.5);
+          // Bottom-right
+          pdf.line(x + cw + 0.5, y + ch, x + cw + tick + 0.5, y + ch);
+          pdf.line(x + cw, y + ch + 0.5, x + cw, y + ch + tick + 0.5);
+        }
+      }
+    }
+
+    // Header line — small, faint, doesn't clutter the print sheet.
+    pdf.setFontSize(7);
+    pdf.setTextColor(180, 180, 180);
+    pdf.text(
+      `${cols * rows} copies · card ${Math.round(cardWmm * 10) / 10}×${Math.round(cardHmm * 10) / 10}mm · ${sheetSize}`,
+      sheet.w / 2,
+      sheet.h - 4,
+      { align: "center" },
+    );
+
+    pdf.save(`${safeName}-print-${sheetSize.toLowerCase().replace(" ", "")}.pdf`);
+    return true;
+  }, [canvas, safeName]);
+
   // Get canvas as data URL (for save/AI)
   const getCanvasDataUrl = useCallback(
     (format: "png" | "jpeg" = "png", multiplier = 1) => {
@@ -203,5 +322,5 @@ export function useCanvasExport() {
     );
   }, [canvas]);
 
-  return { exportPNG, exportJPG, exportSVG, exportPDF, copyPNGToClipboard, getCanvasDataUrl, getCanvasJSON };
+  return { exportPNG, exportJPG, exportSVG, exportPDF, exportPrintSheet, copyPNGToClipboard, getCanvasDataUrl, getCanvasJSON };
 }

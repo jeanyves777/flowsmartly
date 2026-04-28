@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Send, Paperclip, X, Plus, MessageSquare, ChevronLeft, Loader2, Image as ImageIcon, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { ChatCard } from "./chat-card";
 import type { CardSpec } from "@/lib/ai/studio-chat-agent";
 
@@ -313,7 +314,14 @@ export function StudioCreateChatShell({
                       type="button"
                       onClick={async (e) => {
                         e.stopPropagation();
-                        if (!confirm(`Delete chat "${c.title}"?`)) return;
+                        const ok = await confirmDialog({
+                          title: "Delete chat?",
+                          description: `"${c.title}" will be archived. You can't restore it from here.`,
+                          confirmText: "Delete",
+                          cancelText: "Keep",
+                          variant: "destructive",
+                        });
+                        if (!ok) return;
                         try {
                           await fetch(`/api/studio/chat/${c.id}`, { method: "DELETE" });
                           setChatList((prev) => prev.filter((x) => x.id !== c.id));
