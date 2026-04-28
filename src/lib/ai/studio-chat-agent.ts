@@ -33,6 +33,63 @@ export type CardSpec =
   | { type: "branch_compare"; branchIds: string[] }
   | { type: "info"; title: string; body?: string };
 
+// ─── Dispatch envelope (agent → route hand-off) ───────────────────────
+// The agent's dispatch tools don't actually fire workers — they record
+// these envelopes which the route reads and dispatches after the loop.
+// This keeps the agent module pure (no HTTP) and lets the route forward
+// session cookies, charge credits, and persist designs in one place.
+export type DispatchEnvelope =
+  | {
+      kind: "design";
+      args: {
+        mode: "ai_image" | "smart_layout";
+        prompt: string;
+        width: number;
+        height: number;
+        category?: string;
+        style?: string;
+        ctaText?: string;
+        referenceImageUrl?: string;
+        useBrandColors?: boolean;
+        branchId: string;
+      };
+      status: "pending" | "complete" | "failed";
+      designId?: string;
+      imageUrl?: string;
+      width?: number;
+      height?: number;
+      error?: string;
+    }
+  | {
+      kind: "video";
+      args: {
+        prompt: string;
+        aspectRatio?: "9:16" | "16:9" | "1:1";
+        durationSeconds?: number;
+        voiceover?: boolean;
+        referenceImageUrl?: string;
+      };
+      status: "pending" | "complete" | "failed";
+      designId?: string;
+      videoUrl?: string;
+      error?: string;
+    }
+  | {
+      kind: "remix";
+      args: {
+        sourceImageUrl: string;
+        customText?: string;
+        useBrandColors?: boolean;
+        fromBranchId?: string;
+      };
+      status: "pending" | "complete" | "failed";
+      designId?: string;
+      imageUrl?: string;
+      width?: number;
+      height?: number;
+      error?: string;
+    };
+
 // ─── Conversation context ─────────────────────────────────────────────
 export interface ChatTurn {
   role: "user" | "agent";
@@ -81,9 +138,12 @@ export interface RunChatTurnResult {
   text: string;
   /** Cards the agent emitted via show_card. Frontend renders them inline. */
   cards: CardSpec[];
-  /** Dispatched jobs (results pending or already complete). Frontend renders
-   *  these as result cards in the chat. */
-  dispatched: Array<{ kind: "design" | "video" | "remix"; designId?: string; imageUrl?: string; status: "pending" | "complete" | "failed"; error?: string }>;
+  /** Dispatched jobs (results pending or already complete). The route
+   *  layer reads these envelopes after the agent loop returns and fires
+   *  the appropriate worker endpoint, then enriches each envelope with
+   *  the result. Frontend renders dispatched results as inline result
+   *  cards in the chat. */
+  dispatched: DispatchEnvelope[];
   /** Mutations to apply to the chat's persisted state blob. */
   stateUpdate: Partial<ChatState>;
   /** Tool call audit log for debugging / future replays. */
@@ -134,7 +194,7 @@ Conversational, warm, brief. No corporate fluff. No "I'd be happy to help…" pr
 function buildTools(opts: RunChatTurnOpts) {
   // Tools mutate these closures, then we read them back into the result.
   const cards: CardSpec[] = [];
-  const dispatched: RunChatTurnResult["dispatched"] = [];
+  const dispatched: DispatchEnvelope[] = [];
   const stateUpdate: Partial<ChatState> = {};
   const toolCalls: RunChatTurnResult["toolCalls"] = [];
 
@@ -227,13 +287,28 @@ function buildTools(opts: RunChatTurnOpts) {
         required: ["mode", "prompt", "width", "height"],
       },
       handler: async (input) => {
-        // Phase 1 stub — real handler in routes/chat-dispatch.ts will
-        // fetch from /api/ai/visual or /api/ai/design-layout. For now
-        // we record the request so the route can fire it asynchronously
-        // after the agent loop returns. This keeps Claude's loop fast
-        // (single turn, no awaiting workers).
+        // Record the full args envelope. The route layer reads
+        // dispatched[] after the agent loop and fires the worker
+        // synchronously, attaching the result to the envelope before
+        // returning to the frontend.
         const branchId = (input.branchId as string) || opts.state.currentBranchId || "main";
-        dispatched.push({ kind: "design", status: "pending" });
+        const mode = (input.mode === "smart_layout" ? "smart_layout" : "ai_image") as "ai_image" | "smart_layout";
+        dispatched.push({
+          kind: "design",
+          status: "pending",
+          args: {
+            mode,
+            prompt: String(input.prompt || ""),
+            width: typeof input.width === "number" ? input.width : 1080,
+            height: typeof input.height === "number" ? input.height : 1080,
+            category: typeof input.category === "string" ? input.category : undefined,
+            style: typeof input.style === "string" ? input.style : undefined,
+            ctaText: typeof input.ctaText === "string" ? input.ctaText : undefined,
+            referenceImageUrl: typeof input.referenceImageUrl === "string" ? input.referenceImageUrl : undefined,
+            useBrandColors: input.useBrandColors === true,
+            branchId,
+          },
+        });
         stateUpdate.currentBranchId = branchId;
         return {
           ok: true,
@@ -258,8 +333,17 @@ function buildTools(opts: RunChatTurnOpts) {
         required: ["prompt"],
       },
       handler: async (input) => {
-        void input;
-        dispatched.push({ kind: "video", status: "pending" });
+        dispatched.push({
+          kind: "video",
+          status: "pending",
+          args: {
+            prompt: String(input.prompt || ""),
+            aspectRatio: input.aspectRatio === "16:9" || input.aspectRatio === "1:1" ? input.aspectRatio : "9:16",
+            durationSeconds: typeof input.durationSeconds === "number" ? input.durationSeconds : undefined,
+            voiceover: input.voiceover === true,
+            referenceImageUrl: typeof input.referenceImageUrl === "string" ? input.referenceImageUrl : undefined,
+          },
+        });
         return { ok: true, status: "queued" };
       },
     },
@@ -277,8 +361,23 @@ function buildTools(opts: RunChatTurnOpts) {
         },
       },
       handler: async (input) => {
-        void input;
-        dispatched.push({ kind: "remix", status: "pending" });
+        const sourceImageUrl =
+          (typeof input.sourceImageUrl === "string" && input.sourceImageUrl) ||
+          opts.state.lastResultImageUrl ||
+          "";
+        if (!sourceImageUrl) {
+          return { ok: false, error: "No source image — generate one first or pass sourceImageUrl explicitly." };
+        }
+        dispatched.push({
+          kind: "remix",
+          status: "pending",
+          args: {
+            sourceImageUrl,
+            customText: typeof input.customText === "string" ? input.customText : undefined,
+            useBrandColors: input.useBrandColors === true,
+            fromBranchId: typeof input.fromBranchId === "string" ? input.fromBranchId : opts.state.currentBranchId,
+          },
+        });
         return { ok: true, status: "queued" };
       },
     },

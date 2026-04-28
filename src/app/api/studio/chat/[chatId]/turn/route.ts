@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { runChatTurn, type ChatState, type ChatTurn, type CardSpec } from "@/lib/ai/studio-chat-agent";
+import { dispatchAll } from "@/lib/ai/studio-chat-dispatcher";
 
 /**
  * POST /api/studio/chat/[chatId]/turn — submit a user turn, run the
@@ -106,6 +107,38 @@ export async function POST(
 
     // Merge state.
     const newState: ChatState = { ...state, ...result.stateUpdate };
+
+    // Phase 1.5 — fire dispatched workers (image / video / remix) in
+    // parallel. Each envelope is mutated in place with the result.
+    // Forward the user's session cookie so the worker authenticates as
+    // the same user that owns this chat.
+    if (result.dispatched.length > 0) {
+      const origin = req.nextUrl.origin;
+      const cookieHeader = req.headers.get("cookie");
+      await dispatchAll(result.dispatched, { cookieHeader, chatId, origin });
+      // Attach result cards inline so the frontend renders them
+      // immediately without a second round-trip. Also stash the most
+      // recent successful image URL into chat state so future "remix
+      // this" turns can pick it up via state.lastResultImageUrl.
+      for (const env of result.dispatched) {
+        if (env.status !== "complete") continue;
+        if (env.kind === "design" || env.kind === "remix") {
+          if (env.imageUrl) {
+            newState.lastResultImageUrl = env.imageUrl;
+            newState.lastResultDesignId = env.designId;
+            newState.lastResultBranchId = env.kind === "design" ? env.args.branchId : env.args.fromBranchId;
+            result.cards.push({
+              type: "result",
+              designId: env.designId ?? "",
+              imageUrl: env.imageUrl,
+              width: env.width ?? 1080,
+              height: env.height ?? 1080,
+              branchId: (env.kind === "design" ? env.args.branchId : env.args.fromBranchId) || newState.currentBranchId || "main",
+            });
+          }
+        }
+      }
+    }
 
     // Persist the agent's turn.
     const agentTurn = await prisma.designChatTurn.create({
