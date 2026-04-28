@@ -98,9 +98,13 @@ export async function POST(req: NextRequest) {
         let tokenCount = 0;
 
         try {
+          // Sonnet 4.6 — same fast model the redesigned /flow-ai page
+          // uses. Was implicitly Opus 4.7 via DEFAULT_MODEL which was
+          // why the chat widget felt slow vs the page.
           for await (const chunk of ai.streamConversation(messages, {
             systemPrompt,
-            maxTokens: 2048,
+            model: "claude-sonnet-4-6",
+            maxTokens: 1024,
             temperature: 0.7,
           })) {
             fullResponse += chunk;

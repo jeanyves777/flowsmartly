@@ -328,17 +328,28 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
               </div>
             ) : (
               <div className="space-y-2">
-                {messages.map((msg) => (
-                  <MessageBubble
-                    key={msg.id}
-                    role={msg.role}
-                    content={msg.content}
-                    createdAt={msg.createdAt}
-                    mediaType={msg.mediaType}
-                    mediaUrl={msg.mediaUrl}
-                    messageId={msg.id}
-                  />
-                ))}
+                {messages.map((msg, idx) => {
+                  // Hide the trailing empty assistant placeholder while
+                  // streaming — TypingIndicator below covers that state.
+                  // Without this skip, the empty bubble's avatar renders
+                  // alongside the typing indicator's avatar, looking like
+                  // two icons stacked.
+                  const isLast = idx === messages.length - 1;
+                  if (isLast && isStreaming && msg.role === "assistant" && !msg.content) {
+                    return null;
+                  }
+                  return (
+                    <MessageBubble
+                      key={msg.id}
+                      role={msg.role}
+                      content={msg.content}
+                      createdAt={msg.createdAt}
+                      mediaType={msg.mediaType}
+                      mediaUrl={msg.mediaUrl}
+                      messageId={msg.id}
+                    />
+                  );
+                })}
                 {isStreaming &&
                   messages[messages.length - 1]?.content === "" && (
                     <TypingIndicator />
