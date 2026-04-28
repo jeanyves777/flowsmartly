@@ -113,7 +113,14 @@ export async function POST(
     // Forward the user's session cookie so the worker authenticates as
     // the same user that owns this chat.
     if (result.dispatched.length > 0) {
-      const origin = req.nextUrl.origin;
+      // Internal worker fetches MUST go to the local Node port, not the
+      // public HTTPS origin. Using req.nextUrl.origin (https://flowsmartly.com)
+      // hairpins through nginx and trips a "wrong version number" SSL
+      // error on the Node fetch — even though the URL is technically
+      // valid. Calling localhost:PORT skips the loop and lets us
+      // forward the user's session cookie cleanly.
+      const port = process.env.PORT || "3000";
+      const origin = `http://127.0.0.1:${port}`;
       const cookieHeader = req.headers.get("cookie");
       await dispatchAll(result.dispatched, { cookieHeader, chatId, origin });
       // Attach result cards inline so the frontend renders them
@@ -121,21 +128,33 @@ export async function POST(
       // recent successful image URL into chat state so future "remix
       // this" turns can pick it up via state.lastResultImageUrl.
       for (const env of result.dispatched) {
-        if (env.status !== "complete") continue;
-        if (env.kind === "design" || env.kind === "remix") {
-          if (env.imageUrl) {
-            newState.lastResultImageUrl = env.imageUrl;
-            newState.lastResultDesignId = env.designId;
-            newState.lastResultBranchId = env.kind === "design" ? env.args.branchId : env.args.fromBranchId;
-            result.cards.push({
-              type: "result",
-              designId: env.designId ?? "",
-              imageUrl: env.imageUrl,
-              width: env.width ?? 1080,
-              height: env.height ?? 1080,
-              branchId: (env.kind === "design" ? env.args.branchId : env.args.fromBranchId) || newState.currentBranchId || "main",
-            });
+        if (env.status === "complete") {
+          if (env.kind === "design" || env.kind === "remix") {
+            if (env.imageUrl) {
+              newState.lastResultImageUrl = env.imageUrl;
+              newState.lastResultDesignId = env.designId;
+              newState.lastResultBranchId = env.kind === "design" ? env.args.branchId : env.args.fromBranchId;
+              result.cards.push({
+                type: "result",
+                designId: env.designId ?? "",
+                imageUrl: env.imageUrl,
+                width: env.width ?? 1080,
+                height: env.height ?? 1080,
+                branchId: (env.kind === "design" ? env.args.branchId : env.args.fromBranchId) || newState.currentBranchId || "main",
+              });
+            }
           }
+        } else if (env.status === "failed") {
+          // Surface the failure inline as an info card + bake into the
+          // agent text so the user knows what happened. Without this,
+          // failed dispatches silently disappear and the user thinks
+          // the chat is frozen.
+          const label = env.kind === "design" ? "Design generation" : env.kind === "video" ? "Video generation" : "Remix";
+          result.cards.push({
+            type: "info",
+            title: `${label} failed`,
+            body: env.error || "Worker returned an error. Try again or simplify the request.",
+          });
         }
       }
     }
