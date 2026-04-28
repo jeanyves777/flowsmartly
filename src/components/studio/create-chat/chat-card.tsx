@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { ImageIcon, Upload, Search, Palette, Layout, Sparkles, ExternalLink, Check } from "lucide-react";
+import { ImageIcon, Upload, Search, Palette, Layout, Sparkles, ExternalLink, Check, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import type { CardSpec } from "@/lib/ai/studio-chat-agent";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 
 /**
  * ChatCard — renders one of the typed CardSpec variants the agent emits.
@@ -222,6 +223,7 @@ function ReferencePickerCard({
   const [userMediaLoaded, setUserMediaLoaded] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [browseAllOpen, setBrowseAllOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Lazy-load the system library on first switch to the Browse tab.
@@ -386,9 +388,19 @@ function ReferencePickerCard({
           {/* User's recent media — pick to reuse without re-uploading */}
           {userMedia.length > 0 && (
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
-                Your recent uploads
-              </p>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Your recent uploads
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setBrowseAllOpen(true)}
+                  className="text-[10px] font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 inline-flex items-center gap-1"
+                >
+                  <FolderOpen className="h-3 w-3" />
+                  Browse all
+                </button>
+              </div>
               <div className="grid grid-cols-4 gap-1.5">
                 {userMedia.slice(0, 8).map((m) => (
                   <button
@@ -406,6 +418,30 @@ function ReferencePickerCard({
               </div>
             </div>
           )}
+          {userMedia.length === 0 && userMediaLoaded && (
+            <button
+              type="button"
+              onClick={() => setBrowseAllOpen(true)}
+              className="w-full text-xs text-muted-foreground hover:text-foreground inline-flex items-center justify-center gap-1.5 py-1.5"
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              Browse my full media library
+            </button>
+          )}
+
+          {/* Full media library modal — opens over the chat. Filter to
+              images so SVG / video clutter doesn't appear in the picker.
+              On select: route through the same onPickReference handler. */}
+          <MediaLibraryPicker
+            open={browseAllOpen}
+            onClose={() => setBrowseAllOpen(false)}
+            onSelect={(url) => {
+              setBrowseAllOpen(false);
+              onPickReference(url);
+            }}
+            filterTypes={["image", "svg"]}
+            title="Pick a reference image"
+          />
         </div>
       )}
       {tab === "browse" && (
