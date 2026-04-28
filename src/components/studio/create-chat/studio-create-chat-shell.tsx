@@ -59,7 +59,14 @@ export function StudioCreateChatShell({
   const [chatList, setChatList] = useState<ChatListItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [creatingNew, setCreatingNew] = useState(false);
+  // Reference images the user has staged for the next turn (paperclip
+  // upload OR library browse pick). Sent on the next send() call as
+  // attachments and persisted on the user turn server-side.
+  const [pendingAttachments, setPendingAttachments] = useState<
+    Array<{ kind: "upload" | "library"; url: string; mime?: string; templateId?: string; uploading?: boolean }>
+  >([]);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Load chat history + sidebar list on mount.
   useEffect(() => {
@@ -96,11 +103,71 @@ export function StudioCreateChatShell({
     }
   }, [turns]);
 
+  // Upload a single file → /api/upload, then push the resulting URL
+  // into pendingAttachments so the user sees a thumbnail above the
+  // input and the URL ships with the next turn.
+  const uploadFile = useCallback(
+    async (file: File) => {
+      if (!file.type.startsWith("image/")) {
+        toast({ title: "Only image files for now", variant: "destructive" });
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast({ title: "File too large (5MB max)", variant: "destructive" });
+        return;
+      }
+      // Optimistic: show a placeholder while uploading.
+      const tmpId = `tmp-${Date.now()}`;
+      setPendingAttachments((prev) => [
+        ...prev,
+        { kind: "upload", url: tmpId, mime: file.type, uploading: true },
+      ]);
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("type", "general");
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data?.error?.message || "Upload failed");
+        const finalUrl: string = data.data.url;
+        setPendingAttachments((prev) =>
+          prev.map((a) => (a.url === tmpId ? { kind: "upload", url: finalUrl, mime: file.type } : a)),
+        );
+      } catch (err) {
+        setPendingAttachments((prev) => prev.filter((a) => a.url !== tmpId));
+        toast({
+          title: "Couldn't upload that image",
+          description: err instanceof Error ? err.message : undefined,
+          variant: "destructive",
+        });
+      }
+    },
+    [toast],
+  );
+
+  const removeAttachment = useCallback((url: string) => {
+    setPendingAttachments((prev) => prev.filter((a) => a.url !== url));
+  }, []);
+
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed || sending) return;
+      // Allow attachment-only sends (user dropped an image without typing).
+      if (!trimmed && pendingAttachments.length === 0) return;
+      if (sending) return;
+      // Block if any attachment is still uploading.
+      if (pendingAttachments.some((a) => a.uploading)) {
+        toast({ title: "Wait for uploads to finish", variant: "destructive" });
+        return;
+      }
       setInput("");
+      const attachmentsToSend = pendingAttachments.map(({ kind, url, mime, templateId }) => ({
+        kind,
+        url,
+        mime,
+        templateId,
+      }));
+      setPendingAttachments([]);
       setSending(true);
 
       // Optimistic user turn for snappy UI.
@@ -108,6 +175,7 @@ export function StudioCreateChatShell({
         id: `tmp-${Date.now()}`,
         role: "user",
         content: trimmed,
+        attachments: attachmentsToSend.length ? attachmentsToSend : undefined,
         createdAt: new Date().toISOString(),
       };
       const optimisticAgent: ChatTurnView = {
@@ -123,7 +191,10 @@ export function StudioCreateChatShell({
         const res = await fetch(`/api/studio/chat/${chatId}/turn`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: trimmed }),
+          body: JSON.stringify({
+            content: trimmed,
+            attachments: attachmentsToSend.length ? attachmentsToSend : undefined,
+          }),
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
@@ -153,7 +224,7 @@ export function StudioCreateChatShell({
         setSending(false);
       }
     },
-    [chatId, sending, toast, title],
+    [chatId, sending, toast, title, pendingAttachments],
   );
 
   const handleNewChat = useCallback(async () => {
@@ -321,14 +392,54 @@ export function StudioCreateChatShell({
         {/* Input bar */}
         <div className="border-t border-border bg-white/60 dark:bg-gray-900/60 backdrop-blur px-4 sm:px-6 py-3">
           <div className="max-w-3xl mx-auto">
+            {/* Pending attachments — thumbnails above the input */}
+            {pendingAttachments.length > 0 && (
+              <div className="flex gap-2 mb-2 flex-wrap">
+                {pendingAttachments.map((att) => (
+                  <div key={att.url} className="relative w-16 h-16 rounded-md overflow-hidden border border-border bg-muted">
+                    {att.uploading ? (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={att.url} alt="reference" className="w-full h-full object-cover" />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(att.url)}
+                      className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-black/70 hover:bg-black/90 text-white"
+                      aria-label="Remove attachment"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = e.target.files;
+                if (!files) return;
+                Array.from(files).forEach((f) => void uploadFile(f));
+                e.target.value = "";
+              }}
+            />
             <ChatInput
               value={input}
               onChange={setInput}
               onSend={() => send(input)}
+              onAttach={() => fileInputRef.current?.click()}
               disabled={sending}
             />
             <p className="text-[10px] text-muted-foreground/70 mt-1.5 text-center">
-              FlowAI may take a moment for complex designs · Drop an image to use as reference
+              FlowAI may take a moment for complex designs · Click 📎 to drop a reference image
             </p>
           </div>
         </div>
@@ -436,11 +547,13 @@ function ChatInput({
   value,
   onChange,
   onSend,
+  onAttach,
   disabled,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
+  onAttach?: () => void;
   disabled?: boolean;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -457,10 +570,11 @@ function ChatInput({
     <div className="flex items-end gap-2 rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm focus-within:border-brand-500 focus-within:shadow-md transition-all px-2 py-1.5">
       <button
         type="button"
-        className="h-9 w-9 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center flex-shrink-0"
-        aria-label="Attach image"
-        title="Attach reference image (coming soon)"
-        disabled
+        onClick={onAttach}
+        className="h-9 w-9 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center flex-shrink-0 disabled:opacity-40"
+        aria-label="Attach reference image"
+        title="Attach reference image"
+        disabled={disabled || !onAttach}
       >
         <Paperclip className="h-4 w-4" />
       </button>

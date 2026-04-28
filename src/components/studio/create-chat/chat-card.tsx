@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ImageIcon, Upload, Search, Palette, Layout, Sparkles, ExternalLink, Check } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -30,6 +30,9 @@ export function ChatCard({ card, onAction }: { card: CardSpec; onAction?: (text:
           allowBrowse={card.allowBrowse}
           suggestedQuery={card.suggestedQuery}
           onSkip={() => send("Skip the reference image, design from scratch")}
+          onPickFromLibrary={(t) =>
+            send(`Use this reference template: ${t.imageUrl}`)
+          }
         />
       );
     case "brand_toggle":
@@ -183,18 +186,68 @@ function pickNumber(obj: Record<string, unknown>, keys: string[]): number | null
   return null;
 }
 
+interface LibraryTemplate {
+  id: string;
+  imageUrl: string;
+  width: number;
+  height: number;
+  query?: string;
+}
+
 function ReferencePickerCard({
   allowUpload,
   allowBrowse,
   suggestedQuery,
   onSkip,
+  onPickFromLibrary,
 }: {
   allowUpload: boolean;
   allowBrowse: boolean;
   suggestedQuery?: string;
   onSkip: () => void;
+  onPickFromLibrary: (t: LibraryTemplate) => void;
 }) {
   const [tab, setTab] = useState<"upload" | "browse">(allowUpload ? "upload" : "browse");
+  const [libraryItems, setLibraryItems] = useState<LibraryTemplate[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryLoaded, setLibraryLoaded] = useState(false);
+
+  // Lazy-load the library on first switch to the Browse tab. The
+  // existing /api/studio/templates/generate endpoint returns recent
+  // library entries when called with empty/short query — perfect for
+  // an instant inline browse without firing a credit-charging gen.
+  useEffect(() => {
+    if (tab !== "browse" || libraryLoaded || libraryLoading) return;
+    setLibraryLoading(true);
+    (async () => {
+      try {
+        const res = await fetch("/api/studio/templates/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: suggestedQuery || "",
+            cacheOnly: true,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && Array.isArray(data.templates)) {
+          setLibraryItems(
+            data.templates.slice(0, 12).map((t: { id: string; imageUrl: string; width: number; height: number; query?: string }) => ({
+              id: t.id,
+              imageUrl: t.imageUrl,
+              width: t.width,
+              height: t.height,
+              query: t.query,
+            })),
+          );
+        }
+      } catch { /* non-fatal — show empty state */ } finally {
+        setLibraryLoading(false);
+        setLibraryLoaded(true);
+      }
+    })();
+  }, [tab, libraryLoaded, libraryLoading, suggestedQuery]);
+
   return (
     <CardShell icon={<ImageIcon className="h-3.5 w-3.5" />} title="Reference image" accent="brand">
       <div className="flex gap-1 mb-3 p-1 rounded-md bg-muted/40">
@@ -234,23 +287,49 @@ function ReferencePickerCard({
         <div className="border-2 border-dashed border-border rounded-md p-6 text-center">
           <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
           <p className="text-xs text-muted-foreground">
-            Use the paperclip in the chat input to drop a reference image.
+            Use the paperclip 📎 in the chat input below to drop a reference image.
           </p>
           <p className="text-[10px] text-muted-foreground/70 mt-1">
-            (Inline picker upload coming next)
+            PNG, JPEG, WebP, SVG · 5MB max
           </p>
         </div>
       )}
       {tab === "browse" && (
-        <div className="text-center py-6 text-xs text-muted-foreground">
-          {suggestedQuery ? (
-            <>Browse pre-filtered for &quot;{suggestedQuery}&quot;…</>
+        <div>
+          {libraryLoading ? (
+            <div className="grid grid-cols-3 gap-1.5">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="aspect-square rounded-md bg-muted/40 animate-pulse" />
+              ))}
+            </div>
+          ) : libraryItems.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-6">
+              {suggestedQuery
+                ? <>No library matches for &quot;{suggestedQuery}&quot; yet.</>
+                : <>Library is empty.</>}
+            </p>
           ) : (
-            <>Browse system templates from the library…</>
+            <div className="grid grid-cols-3 gap-1.5">
+              {libraryItems.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => onPickFromLibrary(t)}
+                  className="relative aspect-square rounded-md overflow-hidden border border-border hover:border-brand-500 hover:scale-[1.03] transition-all group"
+                  title={t.query || "Library template"}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={t.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
+                </button>
+              ))}
+            </div>
           )}
-          <p className="text-[10px] text-muted-foreground/70 mt-2">
-            (Inline library browse coming next)
-          </p>
+          {suggestedQuery && (
+            <p className="text-[10px] text-muted-foreground/70 mt-2 text-center">
+              Pre-filtered for &quot;{suggestedQuery}&quot;
+            </p>
+          )}
         </div>
       )}
       <button
