@@ -8,6 +8,7 @@ import { useCanvasStore } from "../hooks/use-canvas-store";
 import { addImageToCanvas } from "../utils/canvas-helpers";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { PexelsPicker } from "@/components/shared/pexels-picker";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 
 interface MediaItem {
   id: string;
@@ -23,7 +24,11 @@ export function UploadsPanel() {
   const { toast } = useToast();
   const [uploads, setUploads] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showLibrary, setShowLibrary] = useState(false);
+  // Toggles the full MediaLibraryPicker modal. Was previously a dead
+  // toggle that nothing rendered from — now opens the real shared picker
+  // so the user can browse / search / paginate their entire media library
+  // (not just the 6-12 thumbnails the inline grid loads).
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
 
@@ -123,12 +128,33 @@ export function UploadsPanel() {
           variant="outline"
           size="sm"
           className="w-full gap-1.5"
-          onClick={() => setShowLibrary(!showLibrary)}
+          onClick={() => setLibraryOpen(true)}
         >
           <FolderOpen className="h-4 w-4" />
           Media Library
         </Button>
       </div>
+
+      {/* Full media library — shared picker (folders, search, pagination,
+          type filter). On select: drop the chosen image onto the canvas
+          via the same addImageToCanvas helper used by the recent-uploads
+          grid below. */}
+      <MediaLibraryPicker
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        onSelect={async (url) => {
+          setLibraryOpen(false);
+          if (!canvas) return;
+          try {
+            const fabric = await import("fabric");
+            await addImageToCanvas(canvas, url, fabric);
+          } catch {
+            toast({ title: "Couldn't add image", variant: "destructive" });
+          }
+        }}
+        filterTypes={["image", "svg"]}
+        title="Pick from your media library"
+      />
 
       {/* Pexels stock-photo search — drops the photo as a regular image
           element on the canvas (not as a background). User can position,
