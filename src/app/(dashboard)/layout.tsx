@@ -271,6 +271,21 @@ export default function DashboardLayout({
     return null;
   }
 
+  // Phase 2B — Studio + FlowAI render their own fullscreen shell. Skip
+  // the dashboard chrome entirely (Header, Sidebar, padding, banners)
+  // so they own the full viewport. The pages themselves use the same
+  // motion.div fixed inset-0 z-50 overlay pattern, but rendering the
+  // chrome underneath wastes paint cycles + interferes with focus
+  // trapping. Cleaner to just not render it.
+  const isFullscreenPage =
+    pathname === "/studio" ||
+    pathname.startsWith("/studio/") ||
+    pathname === "/flow-ai" ||
+    pathname.startsWith("/flow-ai/");
+  if (isFullscreenPage) {
+    return <>{children}</>;
+  }
+
   const exitImpersonation = async () => {
     try {
       await fetch("/api/agent/impersonate", { method: "DELETE" });

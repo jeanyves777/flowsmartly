@@ -15,7 +15,7 @@ export function StudioLayout() {
   const collab = useCollaboration(designId);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-background">
+    <div className="flex flex-col h-screen overflow-hidden bg-background">
       {/* Top Toolbar - fixed at top */}
       <TopToolbar
         activeUsers={collab.activeUsers}

@@ -16,7 +16,7 @@ const StudioLayout = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex items-center justify-center h-[calc(100vh-64px)] bg-background">
+      <div className="flex items-center justify-center h-screen bg-background">
         <div className="flex flex-col items-center gap-3">
           <AISpinner className="h-8 w-8 animate-spin text-brand-500" />
           <p className="text-sm text-muted-foreground">Loading Design Studio...</p>
@@ -463,7 +463,7 @@ export default function StudioPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center h-[calc(100vh-64px)]">
+        <div className="flex items-center justify-center h-screen">
           <AISpinner className="h-8 w-8 animate-spin text-brand-500" />
         </div>
       }
