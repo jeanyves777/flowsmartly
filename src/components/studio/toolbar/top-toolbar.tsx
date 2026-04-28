@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import {
   Undo2,
   Redo2,
@@ -19,6 +20,7 @@ import {
   Clipboard,
   Keyboard,
   Magnet,
+  Home,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -157,8 +159,19 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
       role="toolbar"
       aria-label="Design toolbar"
     >
-      {/* Left: Design name + save */}
+      {/* Left: Exit button + design name + save */}
       <div className="flex items-center gap-2 min-w-0">
+        {/* Exit — back to /designs. Phase 2B made /studio fullscreen
+            (dropped dashboard chrome) which removed the only way back;
+            this button restores it. */}
+        <Link
+          href="/designs"
+          className="h-8 w-8 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center flex-shrink-0"
+          aria-label="Exit to dashboard"
+          title="Exit to dashboard"
+        >
+          <Home className="h-4 w-4" />
+        </Link>
         {isEditingName ? (
           <input
             ref={nameInputRef}

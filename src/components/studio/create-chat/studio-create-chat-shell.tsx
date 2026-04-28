@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Send, Paperclip, X, Plus, MessageSquare, ChevronLeft, Loader2, Image as ImageIcon } from "lucide-react";
+import { Sparkles, Send, Paperclip, X, Plus, MessageSquare, ChevronLeft, Loader2, Image as ImageIcon, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { ChatCard } from "./chat-card";
@@ -220,12 +220,14 @@ export function StudioCreateChatShell({
                 <p className="text-xs text-muted-foreground p-3">No chats yet</p>
               ) : (
                 chatList.map((c) => (
-                  <button
+                  <div
                     key={c.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => router.push(`/studio/create/${c.id}`)}
+                    onKeyDown={(e) => { if (e.key === "Enter") router.push(`/studio/create/${c.id}`); }}
                     className={cn(
-                      "w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2",
+                      "group w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2 cursor-pointer",
                       c.id === chatId
                         ? "bg-brand-500/10 text-brand-700 dark:text-brand-300"
                         : "hover:bg-muted text-foreground",
@@ -236,7 +238,28 @@ export function StudioCreateChatShell({
                     {c.designCount > 0 && (
                       <span className="text-[10px] opacity-60">{c.designCount}</span>
                     )}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!confirm(`Delete chat "${c.title}"?`)) return;
+                        try {
+                          await fetch(`/api/studio/chat/${c.id}`, { method: "DELETE" });
+                          setChatList((prev) => prev.filter((x) => x.id !== c.id));
+                          if (c.id === chatId) {
+                            // Just deleted the active chat — start a fresh one.
+                            void handleNewChat();
+                          }
+                        } catch {
+                          toast({ title: "Couldn't delete", variant: "destructive" });
+                        }
+                      }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex-shrink-0"
+                      aria-label={`Delete ${c.title}`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
                 ))
               )}
             </div>
@@ -288,7 +311,9 @@ export function StudioCreateChatShell({
             ) : turns.length === 0 ? (
               <EmptyState onSuggest={(q) => send(q)} />
             ) : (
-              turns.map((turn) => <TurnView key={turn.id} turn={turn} />)
+              turns.map((turn) => (
+                <TurnView key={turn.id} turn={turn} onCardAction={(text) => send(text)} />
+              ))
             )}
           </div>
         </div>
@@ -344,7 +369,7 @@ function EmptyState({ onSuggest }: { onSuggest: (q: string) => void }) {
   );
 }
 
-function TurnView({ turn }: { turn: ChatTurnView }) {
+function TurnView({ turn, onCardAction }: { turn: ChatTurnView; onCardAction?: (text: string) => void }) {
   const isUser = turn.role === "user";
   return (
     <div className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
@@ -398,7 +423,7 @@ function TurnView({ turn }: { turn: ChatTurnView }) {
         {turn.cards?.length ? (
           <div className="space-y-2 mt-1 max-w-full">
             {turn.cards.map((card, i) => (
-              <ChatCard key={i} card={card} />
+              <ChatCard key={i} card={card} onAction={onCardAction} />
             ))}
           </div>
         ) : null}

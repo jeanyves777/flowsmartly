@@ -8,27 +8,28 @@ import type { CardSpec } from "@/lib/ai/studio-chat-agent";
 
 /**
  * ChatCard — renders one of the typed CardSpec variants the agent emits.
- * Each card is a self-contained interactive widget. Cards do NOT post
- * back to the agent directly (Phase 1) — clicking a card fires a normal
- * user message that the agent responds to ("I picked Image" → next turn
- * begins).
+ * Cards are interactive: clicking an option fires `onAction(text)` which
+ * the parent shell sends as a synthetic user message. The agent reads it
+ * and updates state / advances the flow.
  *
  * Card types covered: mode_picker, size_picker, reference_picker,
  * brand_toggle, social_handles, contact_info, confirm_summary, result,
  * branch_compare, info.
  */
-export function ChatCard({ card }: { card: CardSpec }) {
+export function ChatCard({ card, onAction }: { card: CardSpec; onAction?: (text: string) => void }) {
+  const send = onAction ?? (() => {});
   switch (card.type) {
     case "mode_picker":
-      return <ModePickerCard options={card.options} />;
+      return <ModePickerCard options={card.options} onPick={(opt) => send(`I want to create ${opt === "image" ? "an image" : "a video"}`)} />;
     case "size_picker":
-      return <SizePickerCard presets={card.presets} />;
+      return <SizePickerCard presets={card.presets} onPick={(p) => send(`Use ${p.name} size (${p.w}×${p.h})`)} />;
     case "reference_picker":
       return (
         <ReferencePickerCard
           allowUpload={card.allowUpload}
           allowBrowse={card.allowBrowse}
           suggestedQuery={card.suggestedQuery}
+          onSkip={() => send("Skip the reference image, design from scratch")}
         />
       );
     case "brand_toggle":
@@ -38,6 +39,7 @@ export function ChatCard({ card }: { card: CardSpec }) {
           primary={card.primary}
           secondary={card.secondary}
           accent={card.accent}
+          onChoose={(enabled) => send(enabled ? "Yes, use my brand colors" : "No, skip brand colors")}
         />
       );
     case "social_handles":
@@ -45,7 +47,7 @@ export function ChatCard({ card }: { card: CardSpec }) {
     case "contact_info":
       return <ContactInfoCard />;
     case "confirm_summary":
-      return <ConfirmSummaryCard collected={card.collected} />;
+      return <ConfirmSummaryCard collected={card.collected} onConfirm={() => send("Generate now")} />;
     case "result":
       return (
         <ResultCard
@@ -54,6 +56,7 @@ export function ChatCard({ card }: { card: CardSpec }) {
           width={card.width}
           height={card.height}
           branchId={card.branchId}
+          onRegenerate={() => send("Regenerate this")}
         />
       );
     case "branch_compare":
@@ -95,7 +98,13 @@ function CardShell({
   );
 }
 
-function ModePickerCard({ options }: { options: Array<"image" | "video"> }) {
+function ModePickerCard({
+  options,
+  onPick,
+}: {
+  options: Array<"image" | "video">;
+  onPick: (opt: "image" | "video") => void;
+}) {
   return (
     <CardShell icon={<Layout className="h-3.5 w-3.5" />} title="What are you creating?">
       <div className="grid grid-cols-2 gap-2">
@@ -103,8 +112,8 @@ function ModePickerCard({ options }: { options: Array<"image" | "video"> }) {
           <button
             key={opt}
             type="button"
+            onClick={() => onPick(opt)}
             className="flex flex-col items-center gap-1 p-3 rounded-lg border border-border hover:border-brand-500 hover:bg-brand-500/5 transition-colors"
-            data-card-action={`pick-mode:${opt}`}
           >
             {opt === "image" ? <ImageIcon className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
             <span className="text-sm font-medium capitalize">{opt}</span>
@@ -115,16 +124,46 @@ function ModePickerCard({ options }: { options: Array<"image" | "video"> }) {
   );
 }
 
-function SizePickerCard({ presets }: { presets: Array<{ name: string; w: number; h: number }> }) {
+function SizePickerCard({
+  presets,
+  onPick,
+}: {
+  // Accept several field-name variants Claude might emit. We normalize
+  // to {name, w, h} on render. Defensive — Claude is free-form text and
+  // sometimes ignores schema details.
+  presets: Array<Record<string, unknown>>;
+  onPick: (preset: { name: string; w: number; h: number }) => void;
+}) {
+  const normalized = (presets || [])
+    .map((raw) => {
+      const name =
+        (typeof raw.name === "string" && raw.name) ||
+        (typeof raw.label === "string" && raw.label) ||
+        (typeof raw.title === "string" && raw.title) ||
+        "";
+      const w = pickNumber(raw, ["w", "width"]);
+      const h = pickNumber(raw, ["h", "height"]);
+      return name && w && h ? { name, w, h } : null;
+    })
+    .filter((p): p is { name: string; w: number; h: number } => !!p);
+
+  if (normalized.length === 0) {
+    return (
+      <CardShell icon={<Layout className="h-3.5 w-3.5" />} title="Pick a size">
+        <p className="text-xs text-muted-foreground">No sizes were sent — type the size you want (e.g. &quot;Instagram Square&quot;).</p>
+      </CardShell>
+    );
+  }
+
   return (
     <CardShell icon={<Layout className="h-3.5 w-3.5" />} title="Pick a size">
       <div className="grid gap-1.5">
-        {presets.map((p) => (
+        {normalized.map((p) => (
           <button
             key={p.name}
             type="button"
+            onClick={() => onPick(p)}
             className="flex items-center justify-between px-3 py-2 rounded-md border border-border hover:border-brand-500 hover:bg-brand-500/5 transition-colors text-left"
-            data-card-action={`pick-size:${p.name}`}
           >
             <span className="text-sm font-medium">{p.name}</span>
             <span className="text-xs text-muted-foreground">{p.w}×{p.h}</span>
@@ -135,14 +174,25 @@ function SizePickerCard({ presets }: { presets: Array<{ name: string; w: number;
   );
 }
 
+function pickNumber(obj: Record<string, unknown>, keys: string[]): number | null {
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string" && /^\d+$/.test(v.trim())) return parseInt(v, 10);
+  }
+  return null;
+}
+
 function ReferencePickerCard({
   allowUpload,
   allowBrowse,
   suggestedQuery,
+  onSkip,
 }: {
   allowUpload: boolean;
   allowBrowse: boolean;
   suggestedQuery?: string;
+  onSkip: () => void;
 }) {
   const [tab, setTab] = useState<"upload" | "browse">(allowUpload ? "upload" : "browse");
   return (
@@ -184,10 +234,10 @@ function ReferencePickerCard({
         <div className="border-2 border-dashed border-border rounded-md p-6 text-center">
           <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
           <p className="text-xs text-muted-foreground">
-            Drop image here or click to upload
+            Use the paperclip in the chat input to drop a reference image.
           </p>
           <p className="text-[10px] text-muted-foreground/70 mt-1">
-            (Phase 1 stub — wiring to existing /api/upload follows in next iteration)
+            (Inline picker upload coming next)
           </p>
         </div>
       )}
@@ -199,10 +249,17 @@ function ReferencePickerCard({
             <>Browse system templates from the library…</>
           )}
           <p className="text-[10px] text-muted-foreground/70 mt-2">
-            (Phase 1 stub — inline browse panel hooks to /api/studio/templates/generate next)
+            (Inline library browse coming next)
           </p>
         </div>
       )}
+      <button
+        type="button"
+        onClick={onSkip}
+        className="mt-2 w-full text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+      >
+        Skip — design from scratch
+      </button>
     </CardShell>
   );
 }
@@ -212,11 +269,13 @@ function BrandToggleCard({
   primary,
   secondary,
   accent,
+  onChoose,
 }: {
   brandName?: string;
   primary?: string;
   secondary?: string;
   accent?: string;
+  onChoose: (enabled: boolean) => void;
 }) {
   const [enabled, setEnabled] = useState(true);
   return (
@@ -231,19 +290,28 @@ function BrandToggleCard({
           {brandName && <p className="text-xs font-medium truncate">{brandName}</p>}
           <p className="text-[10px] text-muted-foreground">From your BrandKit</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setEnabled((v) => !v)}
-          className={cn(
-            "px-3 h-7 rounded-full text-xs font-medium transition-colors",
-            enabled
-              ? "bg-brand-500 text-white"
-              : "bg-muted text-muted-foreground hover:text-foreground",
-          )}
-          data-card-action={`brand-toggle:${enabled ? "off" : "on"}`}
-        >
-          {enabled ? <span className="flex items-center gap-1"><Check className="h-3 w-3" /> On</span> : "Off"}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => { setEnabled(true); onChoose(true); }}
+            className={cn(
+              "px-3 h-7 rounded-full text-xs font-medium transition-colors",
+              enabled ? "bg-brand-500 text-white" : "bg-muted text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <span className="flex items-center gap-1"><Check className="h-3 w-3" /> Use</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setEnabled(false); onChoose(false); }}
+            className={cn(
+              "px-3 h-7 rounded-full text-xs font-medium transition-colors",
+              !enabled ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground",
+            )}
+          >
+            Skip
+          </button>
+        </div>
       </div>
     </CardShell>
   );
@@ -269,7 +337,13 @@ function ContactInfoCard() {
   );
 }
 
-function ConfirmSummaryCard({ collected }: { collected: Record<string, unknown> }) {
+function ConfirmSummaryCard({
+  collected,
+  onConfirm,
+}: {
+  collected: Record<string, unknown>;
+  onConfirm: () => void;
+}) {
   const fields = Object.entries(collected).filter(([, v]) => v !== undefined && v !== null && v !== "");
   return (
     <CardShell icon={<Check className="h-3.5 w-3.5" />} title="Ready to generate?" accent="amber">
@@ -285,8 +359,8 @@ function ConfirmSummaryCard({ collected }: { collected: Record<string, unknown> 
       </dl>
       <button
         type="button"
+        onClick={onConfirm}
         className="w-full h-8 rounded-md bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors"
-        data-card-action="confirm-generate"
       >
         Generate
       </button>
@@ -300,12 +374,14 @@ function ResultCard({
   width,
   height,
   branchId,
+  onRegenerate,
 }: {
   designId: string;
   imageUrl: string;
   width: number;
   height: number;
   branchId: string;
+  onRegenerate: () => void;
 }) {
   return (
     <CardShell icon={<Sparkles className="h-3.5 w-3.5" />} title={`Result · ${branchId}`} accent="brand">
@@ -328,8 +404,8 @@ function ResultCard({
         </Link>
         <button
           type="button"
+          onClick={onRegenerate}
           className="flex-1 h-8 rounded-md border border-border hover:border-brand-500 hover:bg-brand-500/5 text-xs font-medium transition-colors"
-          data-card-action={`regenerate:${designId}`}
         >
           Regenerate
         </button>
