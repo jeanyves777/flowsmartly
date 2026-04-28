@@ -28,11 +28,28 @@ export function ChatCard({
 }) {
   const send = onAction ?? (() => {});
   const attach = onAttachReference ?? (() => {});
+  // Guard against the agent emitting a malformed card payload — a single
+  // missing field shouldn't crash the entire chat route. Each variant
+  // gets its expected props with safe fallbacks. If the type itself is
+  // unrecognized, render an inert info card so the user sees something.
+  if (!card || typeof card !== "object" || !("type" in card)) {
+    return null;
+  }
   switch (card.type) {
     case "mode_picker":
-      return <ModePickerCard options={card.options} onPick={(opt) => send(`I want to create ${opt === "image" ? "an image" : "a video"}`)} />;
+      return (
+        <ModePickerCard
+          options={Array.isArray(card.options) ? card.options : ["image", "video"]}
+          onPick={(opt) => send(`I want to create ${opt === "image" ? "an image" : "a video"}`)}
+        />
+      );
     case "size_picker":
-      return <SizePickerCard presets={card.presets} onPick={(p) => send(`Use ${p.name} size (${p.w}×${p.h})`)} />;
+      return (
+        <SizePickerCard
+          presets={Array.isArray(card.presets) ? card.presets : []}
+          onPick={(p) => send(`Use ${p.name} size (${p.w}×${p.h})`)}
+        />
+      );
     case "reference_picker":
       return (
         <ReferencePickerCard
@@ -64,21 +81,66 @@ export function ChatCard({
     case "confirm_summary":
       return <ConfirmSummaryCard collected={card.collected} onConfirm={() => send("Generate now")} />;
     case "result":
+      // Without an imageUrl the result card is meaningless; fall back to
+      // a small failure note rather than rendering a broken thumbnail.
+      if (!card.imageUrl) {
+        return <InfoCard title="Result missing" body="The worker finished but returned no image. Try again or simplify the request." />;
+      }
       return (
         <ResultCard
-          designId={card.designId}
+          designId={card.designId || ""}
           imageUrl={card.imageUrl}
-          width={card.width}
-          height={card.height}
-          branchId={card.branchId}
+          width={typeof card.width === "number" ? card.width : 1080}
+          height={typeof card.height === "number" ? card.height : 1080}
+          branchId={card.branchId || "main"}
           onRegenerate={() => send("Regenerate this")}
         />
       );
     case "branch_compare":
-      return <BranchCompareCard branchIds={card.branchIds} />;
+      return <BranchCompareCard branchIds={Array.isArray(card.branchIds) ? card.branchIds : []} />;
     case "info":
-      return <InfoCard title={card.title} body={card.body} />;
+      return <InfoCard title={card.title || "Info"} body={card.body} />;
+    case "quick_reply":
+      return (
+        <QuickReplyCard
+          question={card.question}
+          options={Array.isArray(card.options) ? card.options : []}
+          onPick={(opt) => send(opt.value || opt.label)}
+        />
+      );
+    default:
+      // Unknown card type — render nothing rather than crash. Keeps the
+      // chat usable if Claude invents a card variant we haven't defined.
+      return null;
   }
+}
+
+function QuickReplyCard({
+  question,
+  options,
+  onPick,
+}: {
+  question?: string;
+  options: Array<{ label: string; value?: string }>;
+  onPick: (opt: { label: string; value?: string }) => void;
+}) {
+  if (options.length === 0) return null;
+  return (
+    <CardShell icon={<Sparkles className="h-3.5 w-3.5" />} title={question || "Pick one"}>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((opt, i) => (
+          <button
+            key={`${opt.label}-${i}`}
+            type="button"
+            onClick={() => onPick(opt)}
+            className="px-3 h-8 rounded-full text-xs font-medium border border-border hover:border-brand-500 hover:bg-brand-500/5 transition-colors"
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </CardShell>
+  );
 }
 
 // ─── Individual card variants ─────────────────────────────────────────
@@ -584,7 +646,16 @@ function ConfirmSummaryCard({
   collected: Record<string, unknown>;
   onConfirm: () => void;
 }) {
-  const fields = Object.entries(collected).filter(([, v]) => v !== undefined && v !== null && v !== "");
+  // Guard: Claude sometimes emits the card without a `collected` field
+  // or with collected: null. Object.entries(null) throws and crashes the
+  // whole route (the user's "Design Studio crashed" report). Treat any
+  // non-object value as an empty payload — the Generate button still
+  // works; we just show no field summary.
+  const safeCollected =
+    collected && typeof collected === "object" && !Array.isArray(collected)
+      ? (collected as Record<string, unknown>)
+      : {};
+  const fields = Object.entries(safeCollected).filter(([, v]) => v !== undefined && v !== null && v !== "");
   return (
     <CardShell icon={<Check className="h-3.5 w-3.5" />} title="Ready to generate?" accent="amber">
       <dl className="space-y-1 mb-3">
