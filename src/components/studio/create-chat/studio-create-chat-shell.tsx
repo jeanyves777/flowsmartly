@@ -151,24 +151,37 @@ export function StudioCreateChatShell({
   }, []);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, explicitAttachments?: Array<{ kind: "upload" | "library"; url: string; mime?: string; templateId?: string }>) => {
       const trimmed = text.trim();
+      // attachReference() races with setPendingAttachments — by the time
+      // it calls send(), pendingAttachments is still the prior value. So
+      // attachReference passes its just-pushed attachment via this
+      // explicit override instead of relying on closure state.
+      const usingExplicit = !!explicitAttachments;
+      const attachmentsSource = usingExplicit
+        ? explicitAttachments
+        : pendingAttachments;
+
       // Allow attachment-only sends (user dropped an image without typing).
-      if (!trimmed && pendingAttachments.length === 0) return;
+      if (!trimmed && attachmentsSource.length === 0) return;
       if (sending) return;
       // Block if any attachment is still uploading.
-      if (pendingAttachments.some((a) => a.uploading)) {
+      if (attachmentsSource.some((a) => "uploading" in a && a.uploading)) {
         toast({ title: "Wait for uploads to finish", variant: "destructive" });
         return;
       }
       setInput("");
-      const attachmentsToSend = pendingAttachments.map(({ kind, url, mime, templateId }) => ({
+      const attachmentsToSend = attachmentsSource.map(({ kind, url, mime, templateId }) => ({
         kind,
         url,
         mime,
         templateId,
       }));
-      setPendingAttachments([]);
+      // Only clear pendingAttachments if we used them — preserves any
+      // staged-via-paperclip that an attachReference call shouldn't drop.
+      if (!usingExplicit) {
+        setPendingAttachments([]);
+      }
       setSending(true);
 
       // Optimistic user turn for snappy UI.
@@ -233,13 +246,18 @@ export function StudioCreateChatShell({
   // signal message. Routes the URL through the attachments field instead
   // of as visible chat text — avoids dumping a 500-char S3 URL into the
   // chat bubble (the "bush of code" the user reported).
+  //
+  // Race fix: setPendingAttachments is async, so by the time send() runs,
+  // its closure still sees the prior pendingAttachments value. Pass the
+  // attachment via send's explicit override arg so it always travels
+  // with this turn, not the next one.
   const attachReference = useCallback(
     (url: string, kind: "upload" | "library" = "upload") => {
-      setPendingAttachments((prev) => {
-        if (prev.some((a) => a.url === url)) return prev;
-        return [...prev, { kind, url }];
-      });
-      void send("Here's a reference image to use");
+      const att = { kind, url };
+      setPendingAttachments((prev) =>
+        prev.some((a) => a.url === url) ? prev : [...prev, att],
+      );
+      void send("Here's a reference image to use", [att]);
     },
     [send],
   );

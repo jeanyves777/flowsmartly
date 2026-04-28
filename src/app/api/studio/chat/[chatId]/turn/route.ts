@@ -96,6 +96,44 @@ export async function POST(
       state = JSON.parse(chat.state || "{}") as ChatState;
     } catch { /* keep empty */ }
 
+    // Hydrate the user's BrandKit on every turn so the agent always
+    // knows brand context (name, voice tone, colors). Without this the
+    // agent asks "what's your church/ministry name?" even when a kit is
+    // on file (user-reported bug). The kit is treated as READ-ONLY
+    // context — re-loaded each turn so it stays fresh if the user
+    // edits their kit between turns. Failure is non-fatal — agent just
+    // doesn't get brand context.
+    try {
+      const kit = await prisma.brandKit.findFirst({
+        where: { userId: session.userId },
+        orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+        select: { name: true, tagline: true, industry: true, voiceTone: true, colors: true },
+      });
+      if (kit) {
+        let colors: { primary?: string; secondary?: string; accent?: string } = {};
+        try {
+          const parsed = JSON.parse(kit.colors || "{}");
+          if (parsed && typeof parsed === "object") {
+            colors = {
+              primary: typeof parsed.primary === "string" ? parsed.primary : undefined,
+              secondary: typeof parsed.secondary === "string" ? parsed.secondary : undefined,
+              accent: typeof parsed.accent === "string" ? parsed.accent : undefined,
+            };
+          }
+        } catch { /* ignore */ }
+        state = {
+          ...state,
+          brandKit: {
+            name: kit.name || undefined,
+            tagline: kit.tagline || undefined,
+            industry: kit.industry || undefined,
+            voiceTone: kit.voiceTone || undefined,
+            ...colors,
+          },
+        };
+      }
+    } catch { /* ignore — non-fatal */ }
+
     // Run the agent.
     const result = await runChatTurn({
       history,
@@ -107,6 +145,23 @@ export async function POST(
 
     // Merge state.
     const newState: ChatState = { ...state, ...result.stateUpdate };
+
+    // Merge any attachments from this user turn into state.references
+    // (deduped by URL). Without this, the agent sees the user message
+    // text but state.references stays empty and the agent re-asks for
+    // a reference on every subsequent turn. Bug-fix from prod report:
+    // "it keep asking for media over and over after user select one
+    // from the library preview".
+    if (body.attachments?.length) {
+      const existing = Array.isArray(newState.references) ? newState.references : [];
+      const existingUrls = new Set(existing.map((r) => r.url));
+      const fresh = body.attachments
+        .filter((a) => !existingUrls.has(a.url))
+        .map((a) => ({ kind: a.kind, url: a.url, templateId: a.templateId }));
+      if (fresh.length > 0) {
+        newState.references = [...existing, ...fresh];
+      }
+    }
 
     // Phase 1.5 — fire dispatched workers (image / video / remix) in
     // parallel. Each envelope is mutated in place with the result.
