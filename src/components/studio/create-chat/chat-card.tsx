@@ -17,8 +17,17 @@ import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
  * brand_toggle, social_handles, contact_info, confirm_summary, result,
  * branch_compare, info.
  */
-export function ChatCard({ card, onAction }: { card: CardSpec; onAction?: (text: string) => void }) {
+export function ChatCard({
+  card,
+  onAction,
+  onAttachReference,
+}: {
+  card: CardSpec;
+  onAction?: (text: string) => void;
+  onAttachReference?: (url: string, kind?: "upload" | "library") => void;
+}) {
   const send = onAction ?? (() => {});
+  const attach = onAttachReference ?? (() => {});
   switch (card.type) {
     case "mode_picker":
       return <ModePickerCard options={card.options} onPick={(opt) => send(`I want to create ${opt === "image" ? "an image" : "a video"}`)} />;
@@ -31,9 +40,11 @@ export function ChatCard({ card, onAction }: { card: CardSpec; onAction?: (text:
           allowBrowse={card.allowBrowse}
           suggestedQuery={card.suggestedQuery}
           onSkip={() => send("Skip the reference image, design from scratch")}
-          onPickReference={(url) =>
-            send(`Use this reference image: ${url}`)
-          }
+          // Routes the picked URL through the parent shell's
+          // attachReference() — pushes to pendingAttachments + auto-sends
+          // a short signal. Avoids dumping the giant S3 URL into the
+          // visible chat bubble (the "bush of code" failure mode).
+          onPickReference={(url, source) => attach(url, source)}
         />
       );
     case "brand_toggle":
@@ -213,7 +224,7 @@ function ReferencePickerCard({
   allowBrowse: boolean;
   suggestedQuery?: string;
   onSkip: () => void;
-  onPickReference: (url: string) => void;
+  onPickReference: (url: string, source: "upload" | "library") => void;
 }) {
   const [tab, setTab] = useState<"upload" | "browse">(allowUpload ? "upload" : "browse");
   const [libraryItems, setLibraryItems] = useState<LibraryTemplate[]>([]);
@@ -300,7 +311,7 @@ function ReferencePickerCard({
           { id: data.data.mediaFileId, url: data.data.url, originalName: data.data.filename, type: "image" },
           ...prev,
         ]);
-        onPickReference(data.data.url);
+        onPickReference(data.data.url, "upload");
       }
     } finally {
       setUploading(false);
@@ -406,7 +417,7 @@ function ReferencePickerCard({
                   <button
                     key={m.id}
                     type="button"
-                    onClick={() => onPickReference(m.url)}
+                    onClick={() => onPickReference(m.url, "upload")}
                     className="relative aspect-square rounded-md overflow-hidden border border-border hover:border-brand-500 hover:scale-[1.03] transition-all group"
                     title={m.originalName}
                   >
@@ -437,7 +448,7 @@ function ReferencePickerCard({
             onClose={() => setBrowseAllOpen(false)}
             onSelect={(url) => {
               setBrowseAllOpen(false);
-              onPickReference(url);
+              onPickReference(url, "upload");
             }}
             filterTypes={["image", "svg"]}
             title="Pick a reference image"
@@ -464,7 +475,7 @@ function ReferencePickerCard({
                 <button
                   key={t.id}
                   type="button"
-                  onClick={() => onPickReference(t.imageUrl)}
+                  onClick={() => onPickReference(t.imageUrl, "library")}
                   className="relative aspect-square rounded-md overflow-hidden border border-border hover:border-brand-500 hover:scale-[1.03] transition-all group"
                   title={t.query || "Library template"}
                 >

@@ -228,6 +228,22 @@ export function StudioCreateChatShell({
     [chatId, sending, toast, title, pendingAttachments],
   );
 
+  // Reference picks from inside a chat card (upload zone, library grid,
+  // MediaLibraryPicker) → push to pendingAttachments + auto-send a short
+  // signal message. Routes the URL through the attachments field instead
+  // of as visible chat text — avoids dumping a 500-char S3 URL into the
+  // chat bubble (the "bush of code" the user reported).
+  const attachReference = useCallback(
+    (url: string, kind: "upload" | "library" = "upload") => {
+      setPendingAttachments((prev) => {
+        if (prev.some((a) => a.url === url)) return prev;
+        return [...prev, { kind, url }];
+      });
+      void send("Here's a reference image to use");
+    },
+    [send],
+  );
+
   const handleNewChat = useCallback(async () => {
     if (creatingNew) return;
     setCreatingNew(true);
@@ -391,7 +407,12 @@ export function StudioCreateChatShell({
               <EmptyState onSuggest={(q) => send(q)} />
             ) : (
               turns.map((turn) => (
-                <TurnView key={turn.id} turn={turn} onCardAction={(text) => send(text)} />
+                <TurnView
+                  key={turn.id}
+                  turn={turn}
+                  onCardAction={(text) => send(text)}
+                  onAttachReference={(url, kind) => attachReference(url, kind)}
+                />
               ))
             )}
           </div>
@@ -488,7 +509,15 @@ function EmptyState({ onSuggest }: { onSuggest: (q: string) => void }) {
   );
 }
 
-function TurnView({ turn, onCardAction }: { turn: ChatTurnView; onCardAction?: (text: string) => void }) {
+function TurnView({
+  turn,
+  onCardAction,
+  onAttachReference,
+}: {
+  turn: ChatTurnView;
+  onCardAction?: (text: string) => void;
+  onAttachReference?: (url: string, kind?: "upload" | "library") => void;
+}) {
   const isUser = turn.role === "user";
   return (
     <div className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
@@ -542,7 +571,12 @@ function TurnView({ turn, onCardAction }: { turn: ChatTurnView; onCardAction?: (
         {turn.cards?.length ? (
           <div className="space-y-2 mt-1 max-w-full">
             {turn.cards.map((card, i) => (
-              <ChatCard key={i} card={card} onAction={onCardAction} />
+              <ChatCard
+                key={i}
+                card={card}
+                onAction={onCardAction}
+                onAttachReference={onAttachReference}
+              />
             ))}
           </div>
         ) : null}
