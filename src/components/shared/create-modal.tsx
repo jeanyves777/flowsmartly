@@ -74,9 +74,48 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-export function openCreateModal(tab?: "image" | "video") {
-  state = { open: true, defaultTab: tab || "image" };
-  emit();
+/**
+ * Phase 1 of the Studio Create Chat (see
+ * docs/superpowers/specs/2026-04-26-studio-create-chat-design.md):
+ * `openCreateModal` now routes to the new conversational chat front
+ * door instead of opening the legacy modal. Mints a fresh DesignChat
+ * via POST /api/studio/chat then navigates to /studio/create/[chatId].
+ *
+ * The legacy <CreateModal /> stays mounted as a safety fallback when
+ * the network call fails — that way the user always gets SOMETHING.
+ *
+ * @param tab seeds the agent's mode hint via the initialPrompt — if
+ *            "video" we prepend a hint so the chat opens with video
+ *            context. Optional; agent infers from the user's first
+ *            message when omitted.
+ */
+export async function openCreateModal(tab?: "image" | "video") {
+  // Optimistically navigate quickly — most users won't notice the
+  // round-trip. If the chat creation fails, fall back to the legacy
+  // modal so they're not stuck.
+  try {
+    const seed = tab === "video"
+      ? "I want to create a short video"
+      : tab === "image"
+        ? "I want to create an image"
+        : undefined;
+    const res = await fetch("/api/studio/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(seed ? { initialPrompt: seed } : {}),
+    });
+    const data = await res.json();
+    if (!res.ok || !data?.chat?.id) throw new Error(data?.error?.message || "Couldn't start chat");
+    if (typeof window !== "undefined") {
+      window.location.href = `/studio/create/${data.chat.id}`;
+    }
+    return;
+  } catch (err) {
+    console.error("[openCreateModal] failed to mint chat — falling back to legacy modal:", err);
+    // Fallback to the legacy form so users aren't blocked.
+    state = { open: true, defaultTab: tab || "image" };
+    emit();
+  }
 }
 
 export function closeCreateModal() {

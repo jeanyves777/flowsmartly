@@ -81,6 +81,7 @@ model User {
   creditTransactions CreditTransaction[]
   invoices          Invoice[]
   designs           Design[]
+  designChats       DesignChat[]
   designFolders     DesignFolder[]
   designShares           DesignShare[]         @relation("DesignShareCreator")
   designCollaborations   DesignCollaborator[]  @relation("DesignCollaborator")
@@ -1918,6 +1919,15 @@ model Design {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
+  // Chat-front-door linkage (Phase 1 of Studio Create Chat — see
+  // docs/superpowers/specs/2026-04-26-studio-create-chat-design.md).
+  // Designs spawned via the chat reference their producing chat + branch
+  // so the user can resume iteration. NULL for designs created via the
+  // legacy modal flow or directly via API.
+  chatId      String?
+  chat        DesignChat? @relation(fields: [chatId], references: [id], onDelete: SetNull)
+  branchId    String?
+
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   shares         DesignShare[]
   collaborators  DesignCollaborator[]
@@ -1927,6 +1937,51 @@ model Design {
   @@index([category])
   @@index([createdAt])
   @@index([folderId])
+  @@index([chatId])
+}
+
+/// Chat-driven design session — the conversation a user has with FlowAI
+/// to create/iterate on a design. Phase 1 of the Studio Create Chat
+/// rebuild (Image + Video unified front door). Each chat owns 0..N
+/// generated designs across 1..N branches. State JSON holds the running
+/// collected fields (mode, prompt, size, brandColors, references, etc.)
+/// so the agent can resume mid-conversation. See
+/// docs/superpowers/specs/2026-04-26-studio-create-chat-design.md
+model DesignChat {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String   @default("New chat")  // auto-set from first user message
+  state       String   @default("{}")        // JSON: collected fields (mode, prompt, size, brand, refs, branches)
+  status      String   @default("active")    // active | archived
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  turns       DesignChatTurn[]
+  designs     Design[]
+
+  @@index([userId, updatedAt])
+  @@index([userId, status])
+}
+
+/// One message in a DesignChat. Role can be user / agent / system.
+/// `cards` carries any UI cards the agent emitted that turn (mode picker,
+/// reference picker, result, branch_compare, etc.) as a JSON array of
+/// typed card specs. `attachments` carries reference images the user
+/// uploaded or system templates they picked. branchId scopes the turn
+/// to a specific branch within the chat for branched iteration.
+model DesignChatTurn {
+  id          String     @id @default(cuid())
+  chatId      String
+  chat        DesignChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role        String     // user | agent | system
+  content     String     @default("")        // free-form text
+  cards       String?                         // JSON array of card specs
+  attachments String?                         // JSON array of references
+  toolCalls   String?                         // JSON array of tool calls + results (debug/audit)
+  branchId    String?                         // null = main branch
+  createdAt   DateTime   @default(now())
+
+  @@index([chatId, createdAt])
 }
 
 model DesignFolder {
