@@ -7,8 +7,11 @@ import { xaiClient, sizeToAspectRatio } from "@/lib/ai/xai-client";
 import { geminiImageClient, sizeToAspectRatioGemini } from "@/lib/ai/gemini-image-client";
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
-import { readFile } from "fs/promises";
+import { readFile, writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
+import os from "os";
+import { randomUUID } from "crypto";
+import { removeBackground, isRembgAvailable } from "@/lib/image-tools/background-remover";
 import { saveDesignImage } from "@/lib/utils/file-storage";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 import { presignAllUrls } from "@/lib/utils/s3-client";
@@ -30,6 +33,40 @@ function getGptImageSize(width: number, height: number): "1024x1024" | "1536x102
   if (aspectRatio > 1.3) return "1536x1024";
   if (aspectRatio < 0.77) return "1024x1536";
   return "1024x1024";
+}
+
+/**
+ * Run rembg on a reference buffer and return a transparent-background
+ * cutout. Falls back to the original buffer when rembg isn't installed
+ * (Windows dev) or the call fails. The hybrid composite path needs this
+ * so the subject blends into the generated background instead of being
+ * pasted as a visible rectangle (the bug from the "JESUS SAVIOUR" flyer
+ * — the pastor photo had its original studio background slapped on top).
+ */
+async function stripReferenceBg(refBuffer: Buffer): Promise<Buffer | null> {
+  if (!isRembgAvailable()) return null;
+  const tmpDir = path.join(os.tmpdir(), "fs-bg");
+  try {
+    await mkdir(tmpDir, { recursive: true });
+    const inPath = path.join(tmpDir, `${randomUUID()}.png`);
+    // Normalize to PNG before passing in — rembg handles JPGs fine but
+    // sharp's normalization smooths edge artifacts on phone screenshots.
+    const normalized = await sharp(refBuffer).png().toBuffer();
+    await writeFile(inPath, normalized);
+    try {
+      const result = await removeBackground(inPath, { model: "u2net" });
+      const cutout = await readFile(result.outputPath);
+      // Best-effort cleanup; ignore errors so we don't break the request.
+      void unlink(inPath).catch(() => undefined);
+      void unlink(result.outputPath).catch(() => undefined);
+      return cutout;
+    } finally {
+      void unlink(inPath).catch(() => undefined);
+    }
+  } catch (err) {
+    console.warn("[Visual] Background removal failed, using original ref:", err);
+    return null;
+  }
 }
 
 /** Resolve an image URL (S3 presigned, /uploads/, or /public/) to a Buffer */
@@ -446,7 +483,11 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
 
   // For hybrid mode: generate background-only design, then composite the user's exact image
   const bgOnlyPrompt = useHybridComposite
-    ? `${designPrompt}\n\nCRITICAL LAYOUT INSTRUCTION: Leave the RIGHT HALF of the design (from center to right edge) as a clean, uncluttered area — this is a PLACEHOLDER ZONE where the user's real photograph will be composited later. Do NOT place any text, graphics, or busy patterns in this zone. Use a subtle gradient, solid color, or minimal abstract shapes that blend with the overall design. All text, headlines, descriptions, call-to-action elements, and branding must be placed in the LEFT HALF of the design. The right half should have a visually clean background that will look good behind a composited photo.`
+    ? `${designPrompt}\n\nCRITICAL LAYOUT INSTRUCTIONS — read carefully:
+1. The RIGHT HALF of the canvas (from center to right edge) is a RESERVED PHOTO ZONE. Leave it visually quiet — a soft gradient, single solid colour, or one subtle abstract shape that will read well behind a person/product photo. NO text, NO graphics, NO logos, NO busy patterns in this zone.
+2. ALL headline text, sub-text, dates, CTAs, and brand marks live in the LEFT HALF (or top/bottom strip if the layout is portrait). Use the literal copy from the prompt above — do NOT invent your own headlines or scripture or names. If the prompt gives "Sunday Revelation Service" as the headline, the headline is "Sunday Revelation Service", not anything else.
+3. The lighting / colour temperature of the right-half background should match a typical portrait photograph (slightly cooler / neutral) so a composited person blends in naturally rather than looking pasted.
+4. Do NOT render any rectangular "photo placeholder" outline. The right half should look like an intentional design choice, not a hole waiting to be filled.`
     : null;
 
   // ── Generate image via selected provider ──
@@ -540,27 +581,89 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
   if (useHybridComposite && refBuffer) {
     try {
       console.log("[Visual] Hybrid compositing: placing user's exact image on generated design...");
+
+      // Strip the reference's background FIRST so the subject blends into
+      // the generated design instead of being pasted as a visible
+      // rectangle (the studio background of a pastor photo etc.). Falls
+      // back to the original buffer on Windows dev where rembg isn't set
+      // up — better than no composite at all.
+      const cutoutBuffer = await stripReferenceBg(refBuffer);
+      const useCutout = !!cutoutBuffer;
+      const subjectSrc = cutoutBuffer ?? refBuffer;
+      console.log(`[Visual] Reference bg removal: ${useCutout ? "applied" : "skipped/failed"}`);
+
       const bgBuffer = Buffer.from(finalBase64, "base64");
       const bgMeta = await sharp(bgBuffer).metadata();
       const bgW = bgMeta.width || finalW;
       const bgH = bgMeta.height || finalH;
 
-      // Resize user image to fit the right half of the design (with padding)
-      const subjectW = Math.round(bgW * 0.45);
-      const subjectH = Math.round(bgH * 0.85);
-      const resizedSubject = await sharp(refBuffer)
+      // Resize subject to fit the right half. When we have a cutout we
+      // can go a touch larger because edges blend cleanly; when we
+      // don't, keep it smaller to make the rectangle less obvious.
+      const widthFraction = useCutout ? 0.5 : 0.4;
+      const heightFraction = useCutout ? 0.9 : 0.75;
+      const subjectW = Math.round(bgW * widthFraction);
+      const subjectH = Math.round(bgH * heightFraction);
+      let resizedSubject = await sharp(subjectSrc)
         .resize(subjectW, subjectH, { fit: "inside", withoutEnlargement: false })
         .png()
         .toBuffer();
 
-      // Get actual resized dimensions
+      // For cutouts: add a subtle dark drop shadow so the subject feels
+      // grounded in the scene instead of floating. Cheap synthetic
+      // shadow built from the alpha channel of the cutout itself.
+      if (useCutout) {
+        try {
+          const subMeta0 = await sharp(resizedSubject).metadata();
+          const sw = subMeta0.width || subjectW;
+          const sh = subMeta0.height || subjectH;
+          const alphaShadow = await sharp(resizedSubject)
+            .extractChannel("alpha")
+            .blur(20)
+            .toColourspace("b-w")
+            .toBuffer();
+          const shadowLayer = await sharp({
+            create: { width: sw, height: sh, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+          })
+            .composite([{ input: alphaShadow, blend: "dest-in" }])
+            .ensureAlpha()
+            .png()
+            .toBuffer();
+          // Knock the shadow opacity down so it feels natural.
+          const dimmedShadow = await sharp(shadowLayer)
+            .composite([{
+              input: Buffer.from([0, 0, 0, Math.round(255 * 0.35)]),
+              raw: { width: 1, height: 1, channels: 4 },
+              tile: true,
+              blend: "dest-in",
+            }])
+            .png()
+            .toBuffer();
+          resizedSubject = await sharp({
+            create: { width: sw + 30, height: sh + 30, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+          })
+            .composite([
+              { input: dimmedShadow, left: 15, top: 22 },
+              { input: resizedSubject, left: 0, top: 0 },
+            ])
+            .png()
+            .toBuffer();
+        } catch (shadowErr) {
+          console.warn("[Visual] Shadow synthesis failed, continuing without it:", shadowErr);
+        }
+      }
+
       const subMeta = await sharp(resizedSubject).metadata();
       const actualW = subMeta.width || subjectW;
       const actualH = subMeta.height || subjectH;
 
-      // Position: right half, vertically centered towards bottom
-      const left = Math.round(bgW * 0.52);
-      const top = Math.round(bgH - actualH - bgH * 0.05); // 5% from bottom
+      // Position: right half, anchored to the bottom for people / products
+      // so they look grounded. With a cutout we can go all the way to the
+      // edge; with a raw rectangle we leave a small buffer.
+      const rightInset = useCutout ? 0.50 : 0.55;
+      const bottomInset = useCutout ? 0.0 : 0.04;
+      const left = Math.round(bgW * rightInset);
+      const top = Math.round(bgH - actualH - bgH * bottomInset);
 
       const composited = await sharp(bgBuffer)
         .composite([{
@@ -572,7 +675,7 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
         .toBuffer();
 
       finalBase64 = composited.toString("base64");
-      console.log(`[Visual] Hybrid composite done: subject ${actualW}x${actualH} placed at (${left}, ${top})`);
+      console.log(`[Visual] Hybrid composite done: subject ${actualW}x${actualH} placed at (${left}, ${top})${useCutout ? " (cutout)" : " (raw)"}`);
     } catch (compErr) {
       console.error("[Visual] Hybrid composite failed, using AI-generated image as-is:", compErr);
     }

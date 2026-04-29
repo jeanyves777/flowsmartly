@@ -122,6 +122,18 @@ export interface ChatState {
   socialHandles?: Record<string, string>;
   contactInfo?: Record<string, string>;
   references?: Array<{ kind: "upload" | "library"; url: string; templateId?: string }>;
+  /** Explicit text payload the agent collected from the user — the
+   *  literal words that should appear ON the design (headline, subhead,
+   *  date/time, speaker name, scripture, location, etc.). Without this
+   *  the worker hallucinates random copy ("JESUS SAVIOUR OF THE WORLD"
+   *  instead of "Sunday Revelation Service"). Free-form string the agent
+   *  composes after asking clarifying questions. */
+  designText?: string;
+  /** Output mode chosen by the user just before dispatch. "editable" =
+   *  smart_layout pipeline (Fabric layers the user can tweak). "flat" =
+   *  ai_image pipeline (gpt-image-1 polished image). Persisted so the
+   *  dispatch tool can route to the right backend deterministically. */
+  outputMode?: "editable" | "flat";
   /** Branch the next dispatch belongs to. Default: "main". */
   currentBranchId?: string;
   /** Last result image URL — for remix-from-current iterations. */
@@ -285,9 +297,25 @@ When the user mentions "business card" / "calling card" / "name card" / "profess
 
    **CRITICAL — skip this step entirely if state.references already has entries.** When the user picked a reference (uploaded, browsed library, picked from media), the route appends the URL to state.references. If state.references.length > 0, the user already provided a reference — do NOT show another reference_picker card. Move on to confirm_summary. Re-asking after they've provided is the #1 frustration users have reported.
 
-5. **Confirm summary card** — once size + brand + reference prefs are in, call \`show_card\` with type='confirm_summary' and the collected fields (always pass a non-null object even if some fields are unset — empty {} is fine). Tell the user "Click Generate when ready, or tell me anything to change."
+5. **Text content — REQUIRED before confirming** — every design needs the literal words that will appear ON it. NEVER dispatch without this. Ask the user (in plain text, not a card — it's free-form) for the exact copy: headline / subhead / date & time / speaker / scripture / location / CTA — whichever apply to the topic. Examples:
+   - Flyer for a church service → "What should the flyer say? E.g. headline, the date/time, speaker, scripture if any."
+   - Birthday flyer → "What's the headline? Any date/venue/RSVP details?"
+   - Business card → "Name, title, company, phone, email — anything else?"
+   - Sale post → "What's the offer headline? Any expiry date or promo code?"
+   Capture the user's reply as a single free-form string and persist it via update_state with the field \`designText\`. This MUST be included in the dispatch_design \`prompt\` field — concatenate it into the prompt explicitly so the worker doesn't invent text. If the user says "you pick" or "just make something up", write a short headline yourself (3–6 words tied to the topic) and confirm it back to them before dispatching.
 
-6. **Dispatch** — call dispatch_design / dispatch_video ONLY when ALL of these are true:
+6. **Editable vs flat — REQUIRED final question** — before showing confirm_summary, ask the user how they want the output via a quick_reply card:
+\`\`\`
+{ "card": { "type": "quick_reply", "question": "How do you want the final design?", "options": [
+  { "label": "Editable design (I can tweak text & layers)", "value": "editable" },
+  { "label": "Polished AI image (flat, ready to share)", "value": "flat" }
+]}}
+\`\`\`
+Persist the choice via update_state with \`outputMode\` ("editable" or "flat"). If the user picks editable → dispatch_design with mode='smart_layout'. If flat → dispatch_design with mode='ai_image'. Without an explicit pick, DEFAULT to editable — the user benefits more from being able to tweak. Never assume; always ask.
+
+7. **Confirm summary card** — once size + brand + reference prefs + designText + outputMode are all in, call \`show_card\` with type='confirm_summary' and the collected fields including the designText snippet so the user can sanity-check the words. Tell the user "Click Generate when ready, or tell me anything to change."
+
+8. **Dispatch** — call dispatch_design / dispatch_video ONLY when ALL of these are true:
    (a) You showed a confirm_summary card in a previous agent turn (NOT this turn — the user must have had a chance to see it).
    (b) The user's most recent message is the literal string "Generate now" — this is what the confirm_summary card's Generate button sends. NOTHING ELSE counts as a dispatch trigger.
 
@@ -336,9 +364,11 @@ Conversational, warm, brief. No corporate fluff. No "I'd be happy to help…" pr
 
 # Things to NEVER do
 
-- Don't auto-dispatch on the first message. Walk the user through size → reference → brand → confirm first. This is the #1 thing the user wants.
-- Don't claim work is happening when you didn't call a dispatch tool. This is the #2 failure mode.
-- Don't ask in plain text for things you have cards for (size, reference, brand). Use the card.
+- Don't auto-dispatch on the first message. Walk the user through size → brand → reference → text content → editable/flat → confirm first. This is the #1 thing the user wants.
+- Don't dispatch without a designText payload. Without it the worker invents random copy ("JESUS SAVIOUR OF THE WORLD" instead of the user's actual headline). The user's literal words MUST live inside state.designText AND inside the prompt argument of dispatch_design.
+- Don't dispatch without an outputMode pick (editable vs flat). Always ask the quick_reply BEFORE confirm_summary. If skipped, default to editable — never silently default to flat.
+- Don't claim work is happening when you didn't call a dispatch tool.
+- Don't ask in plain text for things you have cards for (size, reference, brand, editable/flat). Use the card.
 - Don't ask three questions in one turn — bundle them into cards instead.
 - Don't lecture or summarize. The user wants the design, not a meeting.
 - Don't render Markdown headers / bullet lists in conversational replies.
@@ -423,7 +453,7 @@ function buildTools(opts: RunChatTurnOpts) {
     {
       name: "dispatch_design",
       description:
-        "Fire the image-design worker. Pass the collected state. mode='ai_image' uses the gpt-image-1 visual pipeline (flat polished output); mode='smart_layout' uses the Claude-driven layout pipeline (editable Fabric layers). Default to ai_image unless the user said 'editable' or 'I want to tweak the layers'. Returns design id + image url once the worker completes.",
+        "Fire the image-design worker. ROUTE BY state.outputMode — if outputMode='editable' you MUST pass mode='smart_layout' (Fabric editable layers); if outputMode='flat' you MUST pass mode='ai_image' (gpt-image-1 polished image); default to 'smart_layout' if outputMode is unset. The `prompt` field MUST literally contain the user-supplied designText (headline, dates, speaker, etc.) so the worker doesn't invent its own copy — concatenate state.designText into the prompt explicitly along with topic / vibe / style cues. Returns design id + image url once the worker completes.",
       input_schema: {
         type: "object",
         properties: {

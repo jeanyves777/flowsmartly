@@ -7,6 +7,7 @@ import { Sparkles, Send, Paperclip, X, Plus, MessageSquare, ChevronLeft, Loader2
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
+import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { ChatCard } from "./chat-card";
 import type { CardSpec } from "@/lib/ai/studio-chat-agent";
 
@@ -424,14 +425,27 @@ export function StudioCreateChatShell({
             ) : turns.length === 0 ? (
               <EmptyState onSuggest={(q) => send(q)} />
             ) : (
-              turns.map((turn) => (
-                <TurnView
-                  key={turn.id}
-                  turn={turn}
-                  onCardAction={(text) => send(text)}
-                  onAttachReference={(url, kind) => attachReference(url, kind)}
-                />
-              ))
+              turns.map((turn, idx) => {
+                // The pending agent turn is "dispatching" only when the
+                // user's previous message was the literal "Generate now"
+                // — that's the trigger the confirm-summary card sends.
+                // Anything else is just the agent thinking, so we show a
+                // small bubble instead of the full glowing-logo loader.
+                const prev = idx > 0 ? turns[idx - 1] : undefined;
+                const dispatching =
+                  turn.pending === true &&
+                  prev?.role === "user" &&
+                  /^generate now$/i.test(prev.content?.trim() || "");
+                return (
+                  <TurnView
+                    key={turn.id}
+                    turn={turn}
+                    dispatching={dispatching}
+                    onCardAction={(text) => send(text)}
+                    onAttachReference={(url, kind) => attachReference(url, kind)}
+                  />
+                );
+              })
             )}
           </div>
         </div>
@@ -529,10 +543,12 @@ function EmptyState({ onSuggest }: { onSuggest: (q: string) => void }) {
 
 function TurnView({
   turn,
+  dispatching,
   onCardAction,
   onAttachReference,
 }: {
   turn: ChatTurnView;
+  dispatching?: boolean;
   onCardAction?: (text: string) => void;
   onAttachReference?: (url: string, kind?: "upload" | "library") => void;
 }) {
@@ -564,15 +580,30 @@ function TurnView({
         ) : null}
         {/* Text bubble */}
         {turn.pending ? (
-          <div
-            className={cn(
-              "inline-flex items-center gap-2 px-3 py-2 rounded-2xl text-sm",
-              "bg-muted/60 text-muted-foreground",
-            )}
-          >
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            FlowAI is thinking…
-          </div>
+          dispatching ? (
+            // Square "scare" card with the glowing FlowSmartly logo while
+            // a worker is firing. The user explicitly asked for this
+            // visual cue when generation is happening — distinct from the
+            // small thinking pill that shows on regular agent turns.
+            <div className="w-full max-w-sm aspect-square rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm overflow-hidden flex items-center justify-center">
+              <AIGenerationLoader
+                currentStep="Designing your visual…"
+                subtitle="This usually takes 30–60 seconds."
+                showProgressBar={false}
+                compact
+              />
+            </div>
+          ) : (
+            <div
+              className={cn(
+                "inline-flex items-center gap-2 px-3 py-2 rounded-2xl text-sm",
+                "bg-muted/60 text-muted-foreground",
+              )}
+            >
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              FlowAI is thinking…
+            </div>
+          )
         ) : turn.content ? (
           <div
             className={cn(
