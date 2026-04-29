@@ -7,8 +7,11 @@ import { xaiClient, sizeToAspectRatio } from "@/lib/ai/xai-client";
 import { geminiImageClient, sizeToAspectRatioGemini } from "@/lib/ai/gemini-image-client";
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
-import { readFile } from "fs/promises";
+import { readFile, writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
+import os from "os";
+import { randomUUID } from "crypto";
+import { removeBackground, isRembgAvailable } from "@/lib/image-tools/background-remover";
 import { saveDesignImage } from "@/lib/utils/file-storage";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 import { presignAllUrls } from "@/lib/utils/s3-client";
@@ -30,6 +33,35 @@ function getGptImageSize(width: number, height: number): "1024x1024" | "1536x102
   if (aspectRatio > 1.3) return "1536x1024";
   if (aspectRatio < 0.77) return "1024x1536";
   return "1024x1024";
+}
+
+/**
+ * Run rembg on a reference buffer and return a transparent-background
+ * cutout for clean compositing onto a generated background. Falls back
+ * to null when rembg isn't installed (Windows dev) or fails — caller
+ * uses the raw buffer in that case.
+ */
+async function stripReferenceBg(refBuffer: Buffer): Promise<Buffer | null> {
+  if (!isRembgAvailable()) return null;
+  const tmpDir = path.join(os.tmpdir(), "fs-bg");
+  try {
+    await mkdir(tmpDir, { recursive: true });
+    const inPath = path.join(tmpDir, `${randomUUID()}.png`);
+    const normalized = await sharp(refBuffer).png().toBuffer();
+    await writeFile(inPath, normalized);
+    try {
+      const result = await removeBackground(inPath, { model: "u2net" });
+      const cutout = await readFile(result.outputPath);
+      void unlink(inPath).catch(() => undefined);
+      void unlink(result.outputPath).catch(() => undefined);
+      return cutout;
+    } finally {
+      void unlink(inPath).catch(() => undefined);
+    }
+  } catch (err) {
+    console.warn("[Visual] rembg failed, using raw ref:", err);
+    return null;
+  }
 }
 
 /** Resolve an image URL (S3 presigned, /uploads/, or /public/) to a Buffer */
@@ -435,44 +467,53 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
   }
 
   // ── ENGINE ROUTING ───────────────────────────────────────────────
-  // FLAT engine — when the user supplies a reference image, we send
-  // the buffer to gpt-image-1.edit and let the model itself bake the
-  // subject into the composition. Previously we hijacked this path
-  // and ran a sharp.composite() paste-on-top instead, which produced
-  // the "photo dumped on a flat AI background" look (text overlaps,
-  // visible rectangle). That path is gone — the reference always
-  // goes to the model now.
+  // When a USER REFERENCE IMAGE is supplied (referenceImageUrl):
+  //   We use the HYBRID COMPOSITE path so the user's REAL photo ends
+  //   up in the result (not a gpt-image-1 regeneration). Steps:
+  //     1) gpt-image-1.generate creates a designed background ONLY,
+  //        with the right zone left clean (bgOnlyPrompt enforces this).
+  //     2) rembg strips the user's photo background → clean cutout.
+  //     3) sharp composites the cutout into the right zone with a soft
+  //        drop shadow so it grounds naturally instead of "floating".
+  //   Result: polished design with the user's actual photo, pixel-exact.
   //
-  // The model gets explicit instructions to:
-  //  - preserve the subject's identity exactly (no re-drawing the face)
-  //  - remove the original background and blend into the new design
-  //  - use the literal copy from the prompt (no hallucinated headlines)
-  //  - place text and subject so they DON'T collide
+  // When a TEMPLATE REFERENCE is supplied (templateImageUrl, no userRef):
+  //   We use gpt-image-1.edit so the model recreates the design in the
+  //   template's style. Templates aren't meant to be pixel-preserved.
+  //
+  // No reference at all:
+  //   Standard text-to-image via gpt-image-1.generate.
   // ────────────────────────────────────────────────────────────────
 
-  const refPrompt = refBuffer
-    ? params.referenceImageUrl
-      ? `You are designing a polished, print-ready ${params.category} that INCORPORATES the subject from the attached photograph.
+  const useHybridComposite = !!refBuffer && !!params.referenceImageUrl;
+  const useTemplateEdit = !!refBuffer && !params.referenceImageUrl;
 
-ABOUT THE SUBJECT:
-- The attached image is a real photograph the user provided. You MUST use the exact same person/product/object — preserve their face, pose, clothing, colours, proportions exactly. Do NOT redraw or "stylise" them.
-- Remove the photo's original background. Re-light and re-grade the subject so they sit naturally in the new design (matching colour temperature, shadow direction, contrast).
-- The integration must be seamless — no rectangular cut-out edges, no visible "pasted photo" look.
+  const templateRefPrompt = useTemplateEdit
+    ? `IMPORTANT: Use the provided image as a DESIGN TEMPLATE REFERENCE. Recreate a very similar design following the same layout, composition, visual style, color scheme, and arrangement of elements — but customize it with the specific content, branding, and details described below.\n\n${designPrompt}`
+    : null;
 
-LAYOUT — text and subject MUST NOT collide:
-- Decide on ONE clear zone for the subject (typically the right half or right third) and ONE clear zone for all the text (the opposite side or top/bottom strip).
-- All headlines, sub-text, dates, contact info, brand marks, and CTAs must sit ENTIRELY inside the text zone — no letter ever overlaps the subject.
-- If the subject is a PERSON, anchor their feet to the bottom edge with natural headroom above.
-- If the subject is a PRODUCT, ground it on an implied surface or soft shadow.
+  const bgOnlyPrompt = useHybridComposite
+    ? `${designPrompt}
 
-COPY — use these exact words, do NOT invent your own:
-${designPrompt}
+CRITICAL LAYOUT RULES — read carefully, this design will have a REAL PHOTOGRAPH composited onto it later:
 
-FINAL CHECK before you output:
-- Is every word from the brief above visible and readable, sitting clear of the subject?
-- Is the subject's face/identity preserved exactly?
-- Does the design fill all four edges (no margin, no nested card-on-background)?`
-      : `IMPORTANT: Use the provided image as a DESIGN TEMPLATE REFERENCE. Recreate a very similar design following the same layout, composition, visual style, color scheme, and arrangement of elements — but customize it with the specific content, branding, and details described below.\n\n${designPrompt}`
+1. RESERVED PHOTO ZONE: The right 50% of the canvas (from horizontal centre to right edge), AND the bottom 50% of that zone, is RESERVED for a real person/product photograph that will be placed on top later. This zone MUST be visually quiet:
+   - NO text, NO words, NO letters anywhere in the right half.
+   - NO graphics, NO icons, NO logos in the right half.
+   - NO patterns, NO ornaments, NO decorative shapes in the right half.
+   - JUST a soft gradient, single solid colour, or one very subtle abstract shape that will read well behind a person.
+
+2. TEXT ZONE: ALL headline text, sub-text, dates, addresses, phone numbers, scripture, CTAs, and brand marks must live in the LEFT 45% of the canvas. Not 50% — 45%, leaving a 5% safety gap before the photo zone. NEVER let any letter cross the horizontal midpoint.
+
+3. COPY: use the EXACT words from the brief above. Do NOT invent your own headlines, scripture, names, or addresses.
+
+4. NO PLACEHOLDER OUTLINES: Do NOT draw a rectangular outline, dashed border, or "photo goes here" box. The right half should look like an intentional design choice (a colour block, a soft gradient, a single abstract curve).
+
+5. LIGHTING: The right half's colour temperature should be slightly cooler / neutral so a composited portrait blends in.
+
+6. EDGE-TO-EDGE: The design fills all four edges, no margin, no nested card-on-background.
+
+Output a polished, print-ready ${params.category} background. The photo will be added afterwards.`
     : null;
 
   // ── Generate image via selected provider ──
@@ -481,10 +522,9 @@ FINAL CHECK before you output:
   let model: string;
   const hasRef = !!refBuffer;
 
-  // Reference present → ALWAYS send to gpt-image-1 edit API.
-  // No reference → standard text-to-image generation.
-  const generationPrompt = refPrompt || designPrompt;
-  const useEditApi = hasRef;
+  // bg-only when user ref → composite later; template edit when no userRef; raw text-to-image otherwise.
+  const generationPrompt = bgOnlyPrompt || templateRefPrompt || designPrompt;
+  const useEditApi = useTemplateEdit;
 
   switch (provider) {
     case "openai": {
@@ -492,7 +532,7 @@ FINAL CHECK before you output:
       console.log(`[Visual] OpenAI gpt-image-1 @ ${gptSize}${hasRef ? " (with reference → edit API)" : ""}`);
 
       if (useEditApi && refBuffer) {
-        base64 = await openaiClient.editImage(refPrompt!, refBuffer, {
+        base64 = await openaiClient.editImage(templateRefPrompt!, refBuffer, {
           size: gptSize,
           quality: "high",
         });
@@ -515,7 +555,7 @@ FINAL CHECK before you output:
       }
       if (useEditApi && refBuffer) {
         const refBase64 = refBuffer.toString("base64");
-        base64 = await xaiClient.editImage(refPrompt!, refBase64, { aspectRatio });
+        base64 = await xaiClient.editImage(templateRefPrompt!, refBase64, { aspectRatio });
       } else {
         base64 = await xaiClient.generateImage(generationPrompt, { aspectRatio });
       }
@@ -532,7 +572,7 @@ FINAL CHECK before you output:
       }
       if (useEditApi && refBuffer) {
         const refBase64 = refBuffer.toString("base64");
-        base64 = await geminiImageClient.editImage(refPrompt!, refBase64, { aspectRatio });
+        base64 = await geminiImageClient.editImage(templateRefPrompt!, refBase64, { aspectRatio });
       } else {
         base64 = await geminiImageClient.generateImage(generationPrompt, { aspectRatio });
       }
@@ -561,6 +601,106 @@ FINAL CHECK before you output:
     console.log(`[Visual] Generated image: ${finalW}x${finalH} (target was ${width}x${height})`);
   } catch {
     console.warn("[Visual] Could not read image metadata, using target dimensions");
+  }
+
+  // ── HYBRID COMPOSITE: drop the user's REAL photo onto the bg-only design ──
+  // Runs only when useHybridComposite (referenceImageUrl was provided).
+  // The model produced a clean right-side photo zone; we now place the
+  // user's actual photograph (rembg cutout + soft drop shadow) into it.
+  if (useHybridComposite && refBuffer) {
+    try {
+      const cutoutBuffer = await stripReferenceBg(refBuffer);
+      const useCutout = !!cutoutBuffer;
+      const subjectSrc = cutoutBuffer ?? refBuffer;
+      console.log(`[Visual] Hybrid composite: rembg ${useCutout ? "ok" : "skipped"}; placing user's real photo`);
+
+      const bgBuffer = Buffer.from(finalBase64, "base64");
+      const bgMeta = await sharp(bgBuffer).metadata();
+      const bgW = bgMeta.width || finalW;
+      const bgH = bgMeta.height || finalH;
+
+      // Subject takes ~45% of width / 85% of height when cut out cleanly,
+      // smaller when raw rectangle (so the visible edge is less obvious).
+      const widthFraction = useCutout ? 0.46 : 0.36;
+      const heightFraction = useCutout ? 0.88 : 0.72;
+      const subjectW = Math.round(bgW * widthFraction);
+      const subjectH = Math.round(bgH * heightFraction);
+      let resizedSubject = await sharp(subjectSrc)
+        .resize(subjectW, subjectH, { fit: "inside", withoutEnlargement: false })
+        .png()
+        .toBuffer();
+
+      // Soft drop shadow synthesised from the cutout's alpha — grounds
+      // the subject so it doesn't float over the bg like a sticker.
+      if (useCutout) {
+        try {
+          const subMeta0 = await sharp(resizedSubject).metadata();
+          const sw = subMeta0.width || subjectW;
+          const sh = subMeta0.height || subjectH;
+          const alphaShadow = await sharp(resizedSubject)
+            .extractChannel("alpha")
+            .blur(20)
+            .toColourspace("b-w")
+            .toBuffer();
+          const shadowLayer = await sharp({
+            create: { width: sw, height: sh, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+          })
+            .composite([{ input: alphaShadow, blend: "dest-in" }])
+            .ensureAlpha()
+            .png()
+            .toBuffer();
+          const dimmedShadow = await sharp(shadowLayer)
+            .composite([{
+              input: Buffer.from([0, 0, 0, Math.round(255 * 0.32)]),
+              raw: { width: 1, height: 1, channels: 4 },
+              tile: true,
+              blend: "dest-in",
+            }])
+            .png()
+            .toBuffer();
+          resizedSubject = await sharp({
+            create: { width: sw + 30, height: sh + 30, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+          })
+            .composite([
+              { input: dimmedShadow, left: 15, top: 22 },
+              { input: resizedSubject, left: 0, top: 0 },
+            ])
+            .png()
+            .toBuffer();
+        } catch (shadowErr) {
+          console.warn("[Visual] drop shadow synthesis failed (continuing):", shadowErr);
+        }
+      }
+
+      const subMeta = await sharp(resizedSubject).metadata();
+      const actualW = subMeta.width || subjectW;
+      const actualH = subMeta.height || subjectH;
+
+      // Anchor in the right zone: feet to bottom edge with small breathing
+      // room. With cutouts we go to the literal right edge; with raw
+      // rectangles we leave a small gap so the edge is less obvious.
+      const rightInset = useCutout ? 0.50 : 0.58;
+      const bottomInset = useCutout ? 0.0 : 0.04;
+      const left = Math.round(bgW * rightInset);
+      const top = Math.round(bgH - actualH - bgH * bottomInset);
+
+      const composited = await sharp(bgBuffer)
+        .composite([{
+          input: resizedSubject,
+          left: Math.min(left, bgW - actualW),
+          top: Math.max(0, top),
+        }])
+        .png()
+        .toBuffer();
+
+      finalBase64 = composited.toString("base64");
+      // Refresh dimensions in case sharp normalised anything.
+      const finalMeta = await sharp(composited).metadata();
+      finalW = finalMeta.width || finalW;
+      finalH = finalMeta.height || finalH;
+    } catch (compErr) {
+      console.error("[Visual] Hybrid composite failed (using bg-only image):", compErr);
+    }
   }
 
   // ── Auto-trim white/light borders AI models often add ──

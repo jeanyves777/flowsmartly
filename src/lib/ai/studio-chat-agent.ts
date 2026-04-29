@@ -29,7 +29,7 @@ export type CardSpec =
   | { type: "social_handles" }
   | { type: "contact_info" }
   | { type: "confirm_summary"; collected: Record<string, unknown> }
-  | { type: "result"; designId: string; imageUrl: string; width: number; height: number; branchId: string }
+  | { type: "result"; designId: string; imageUrl: string; width: number; height: number; branchId: string; mode?: "ai_image" | "smart_layout" }
   | { type: "branch_compare"; branchIds: string[] }
   | { type: "info"; title: string; body?: string }
   | {

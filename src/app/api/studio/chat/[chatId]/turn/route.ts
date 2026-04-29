@@ -235,6 +235,7 @@ export async function POST(
                 width: env.width ?? 1080,
                 height: env.height ?? 1080,
                 branchId: (env.kind === "design" ? env.args.branchId : env.args.fromBranchId) || newState.currentBranchId || "main",
+                mode: env.kind === "design" ? env.args.mode : undefined,
               });
             }
           }

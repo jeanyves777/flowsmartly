@@ -93,6 +93,7 @@ export function ChatCard({
           width={typeof card.width === "number" ? card.width : 1080}
           height={typeof card.height === "number" ? card.height : 1080}
           branchId={card.branchId || "main"}
+          mode={card.mode}
           onRegenerate={() => send("Regenerate this")}
         />
       );
@@ -685,6 +686,7 @@ function ResultCard({
   width,
   height,
   branchId,
+  mode,
   onRegenerate,
 }: {
   designId: string;
@@ -692,8 +694,10 @@ function ResultCard({
   width: number;
   height: number;
   branchId: string;
+  mode?: "ai_image" | "smart_layout";
   onRegenerate: () => void;
 }) {
+  const isEditable = mode === "smart_layout";
   return (
     <CardShell icon={<Sparkles className="h-3.5 w-3.5" />} title={`Result · ${branchId}`} accent="brand">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -702,8 +706,16 @@ function ResultCard({
         alt="Generated design"
         className="w-full rounded-md border border-border mb-2"
       />
+      {isEditable ? (
+        <div className="mb-2 px-2 py-1.5 rounded-md bg-brand-500/10 border border-brand-500/20 text-[11px] leading-snug text-brand-700 dark:text-brand-300">
+          <span className="font-semibold">Visual preview only.</span>{" "}
+          Click <span className="font-semibold">Open in Canvas</span> to edit text, swap layers,
+          and tweak the layout — every block is editable.
+        </div>
+      ) : null}
       <p className="text-[10px] text-muted-foreground mb-2">
         {width}×{height}
+        {isEditable ? " · editable layers ready in editor" : " · flat polished image"}
       </p>
       <div className="flex items-center gap-2">
         <Link
