@@ -1,6 +1,53 @@
 import { prisma } from "@/lib/db/client";
 import type { DispatchEnvelope } from "@/lib/ai/studio-chat-agent";
 import { reproduceTemplate } from "@/lib/ai/template-reproduce-agent";
+import { removeBackground, isRembgAvailable } from "@/lib/image-tools/background-remover";
+import { readFile, writeFile, mkdir, unlink } from "fs/promises";
+import path from "path";
+import os from "os";
+import { randomUUID } from "crypto";
+import sharp from "sharp";
+
+/**
+ * Run rembg on a remote/local image URL and return the cutout as a
+ * data URL we can drop straight into a Fabric image element. Falls
+ * back to the original URL when rembg isn't available (Windows dev)
+ * or the call fails — better to show the user's photo with its
+ * original background than a blank placeholder.
+ */
+async function cutoutAsDataUrl(imageUrl: string): Promise<string> {
+  if (!isRembgAvailable()) return imageUrl;
+  const tmpDir = path.join(os.tmpdir(), "fs-bg");
+  try {
+    await mkdir(tmpDir, { recursive: true });
+    let buf: Buffer;
+    if (imageUrl.startsWith("data:")) {
+      const b64 = imageUrl.replace(/^data:image\/[^;]+;base64,/, "");
+      buf = Buffer.from(b64, "base64");
+    } else if (imageUrl.startsWith("http")) {
+      const r = await fetch(imageUrl);
+      if (!r.ok) return imageUrl;
+      buf = Buffer.from(await r.arrayBuffer());
+    } else {
+      buf = await readFile(path.join(process.cwd(), "public", imageUrl.replace(/^\//, "")));
+    }
+    const inPath = path.join(tmpDir, `${randomUUID()}.png`);
+    const normalized = await sharp(buf).png().toBuffer();
+    await writeFile(inPath, normalized);
+    try {
+      const result = await removeBackground(inPath, { model: "u2net" });
+      const cutout = await readFile(result.outputPath);
+      void unlink(inPath).catch(() => undefined);
+      void unlink(result.outputPath).catch(() => undefined);
+      return `data:image/png;base64,${cutout.toString("base64")}`;
+    } finally {
+      void unlink(inPath).catch(() => undefined);
+    }
+  } catch (err) {
+    console.warn("[ChatDispatcher] cutout failed, using original ref:", err);
+    return imageUrl;
+  }
+}
 
 /**
  * Studio Chat Dispatcher — fires worker endpoints after the agent loop.
@@ -177,10 +224,27 @@ async function dispatchDesign(
         }
       }
 
+      // If the user supplied a reference photo, run rembg on it and
+      // pass the cutout in as a referenceImage. reproduceTemplate uses
+      // these to FILL the image_placeholder slots in the editable
+      // canvas. Without this the placeholder shows up empty in the
+      // editor (the "Photo of pastor / speaker" dashed box).
+      const referenceImages: string[] = [];
+      if (referenceImageUrl) {
+        try {
+          const cutout = await cutoutAsDataUrl(referenceImageUrl);
+          referenceImages.push(cutout);
+        } catch (err) {
+          console.warn("[ChatDispatcher] failed to prep ref cutout, using URL as-is:", err);
+          referenceImages.push(referenceImageUrl);
+        }
+      }
+
       const reproduce = await reproduceTemplate(imageUrl, {
         customText: prompt,
         brandColors,
         brandFonts,
+        referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
       });
       const canvasData = JSON.stringify(reproduce.canvas);
       if (designId) {
