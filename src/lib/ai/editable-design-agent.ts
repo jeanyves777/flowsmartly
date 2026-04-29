@@ -251,6 +251,10 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
       systemPrompt,
       mcpServers: { editable_design_engine: server },
       allowedTools,
+      // Haiku 4.5 for orchestration. Layer extraction inside finalize
+      // still uses Opus 4.7 via reproduceTemplate where vision quality
+      // matters most.
+      model: "claude-haiku-4-5",
       // See note in flat-image-agent.ts: canUseTool always-allow is safe
       // because allowedTools restricts to our own MCP handlers.
       canUseTool: async () => ({ behavior: "allow" as const, updatedInput: {} }),

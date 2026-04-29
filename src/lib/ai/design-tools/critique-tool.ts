@@ -78,10 +78,12 @@ export async function critiqueDesign(
   const src = store.get(args.image_id);
   const { b64, mediaType } = await shrinkForVision(src.buffer);
 
+  // Haiku 4.5 for vision review — structured JSON output, no creative
+  // generation, plenty smart enough for "ship/iterate" + a few short
+  // suggestions. 5x cheaper than Opus and ~3x faster.
   const response = (await anthropic.messages.create({
-    model: "claude-opus-4-7",
+    model: "claude-haiku-4-5",
     max_tokens: 2000,
-    thinking: { type: "adaptive" },
     system: CRITIQUE_SYSTEM,
     messages: [
       {

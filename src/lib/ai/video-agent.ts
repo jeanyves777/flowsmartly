@@ -215,6 +215,7 @@ export async function runVideoAgent(brief: VideoBrief): Promise<VideoResult> {
       systemPrompt,
       mcpServers: { video_engine: server },
       allowedTools,
+      model: "claude-haiku-4-5",
       canUseTool: async () => ({ behavior: "allow" as const, updatedInput: {} }),
       maxTurns: 15,
       pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),

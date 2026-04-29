@@ -251,6 +251,13 @@ export async function runFlatImageAgent(brief: FlatImageBrief): Promise<FlatImag
       systemPrompt,
       mcpServers: { flat_image_engine: server },
       allowedTools,
+      // Haiku 4.5 for orchestration — 5x cheaper than Sonnet, plenty
+      // smart for tool routing. The expensive thinking happens inside
+      // gpt-image-1 (image gen) and the critique tool (which we also
+      // run on Haiku now). True heavyweight work — extracting Fabric
+      // layers from the final image — still uses Opus inside
+      // reproduceTemplate.
+      model: "claude-haiku-4-5",
       // Programmatic auto-approval. We can't use permissionMode: "bypassPermissions"
       // because the Claude CLI refuses --dangerously-skip-permissions under
       // root (PM2 runs as root in prod). canUseTool always-allow is safe
