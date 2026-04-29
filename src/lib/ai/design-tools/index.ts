@@ -32,3 +32,6 @@ export { critiqueDesign } from "./critique-tool";
 export type { CritiqueResult } from "./critique-tool";
 
 export { getClaudeCodeBinaryPath } from "./sdk-binary-path";
+
+export { CompositionGraph } from "./fabric-composition";
+export type { FabricCanvasSpec, FabricLayer } from "./fabric-composition";

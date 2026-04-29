@@ -1,18 +1,18 @@
 /**
- * Editable Design Agent — produces a polished design WITH editable
- * Fabric layers extracted, ready for the Studio editor.
+ * Editable Design Agent v2 — composition-graph architecture.
  *
- * Built on the official Claude Agent SDK. Same architecture as the
- * flat agent, with one key difference: the `finalize` tool runs
- * reproduceTemplate() over the chosen image to extract editable
- * Fabric layers (every text block, photo slot, decorative accent
- * becomes a separate editable object). The user's bg-removed cutout
- * is dropped into the photo placeholder so they see their real photo
- * in the editor.
+ * Old approach: agent built a flat polished image, then reproduceTemplate
+ * (Claude vision) tried to reverse-engineer Fabric layers from the
+ * pixels. This was lossy — vision routinely missed photo placeholders,
+ * decorative shapes, color panels, sun-rays. The user opened the editor
+ * and saw a stripped-down version of the design.
  *
- * Per user direction: "do no mix them each must have his own agent" —
- * separate file, separate prompt, separate tool curation, separate
- * terminal contract.
+ * New approach: the agent thinks in LAYERS as it builds. Each tool call
+ * appends a Fabric layer descriptor to a CompositionGraph. At finalize:
+ *   - Render preview image from the graph (sharp.composite stack).
+ *   - Build Fabric canvas spec directly from the graph — lossless.
+ *
+ * The agent's intent IS the canvas spec. Nothing has to be inferred.
  */
 
 import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
@@ -22,21 +22,14 @@ import {
   ImageStore,
   resolveToBuffer,
   generateImage as genImage,
-  editImage as edImage,
   removeImageBackground,
-  compositeImages,
-  colorGrade,
-  addDropShadow,
-  rotateImage,
-  cropImage,
-  addPolaroidFrame,
-  generateQrCode,
   loadBrandLogo,
-  addDecorativeShape,
+  generateQrCode,
   critiqueDesign,
   getClaudeCodeBinaryPath,
+  CompositionGraph,
+  type FabricCanvasSpec,
 } from "./design-tools";
-import { reproduceTemplate } from "./template-reproduce-agent";
 
 export interface EditableDesignBrief {
   category: string;
@@ -61,12 +54,7 @@ export interface EditableDesignResult {
   imageDataUrl: string;
   width: number;
   height: number;
-  canvas: {
-    width: number;
-    height: number;
-    backgroundColor: string;
-    objects: Record<string, unknown>[];
-  };
+  canvas: FabricCanvasSpec;
   iterations: number;
   toolsUsed: string[];
   totalCostUsd?: number;
@@ -75,13 +63,15 @@ export interface EditableDesignResult {
 
 export async function runEditableDesignAgent(brief: EditableDesignBrief): Promise<EditableDesignResult> {
   const store = new ImageStore();
+  const graph = new CompositionGraph(brief.width, brief.height);
   const critiqueLog: Array<{ score: number; verdict: "ship" | "iterate" }> = [];
-  let finalImageId: string | null = null;
-  let finalCanvas: EditableDesignResult["canvas"] | null = null;
-  let cutoutHandle: string | null = null;
+  let finalized = false;
 
-  // Pre-load reference photo if supplied.
+  // Pre-load reference photo + brand logo as image handles.
   let referenceHandle: string | null = null;
+  let cutoutHandle: string | null = null;
+  let logoHandle: string | null = null;
+
   if (brief.referenceImageUrl) {
     try {
       const buf = await resolveToBuffer(brief.referenceImageUrl);
@@ -92,10 +82,19 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
         width: meta.width,
         height: meta.height,
         source: "user_reference",
-        note: "user-uploaded reference photo (raw)",
+        note: "user-uploaded reference photo",
       });
     } catch (err) {
-      console.warn("[EditableDesignAgent] failed to load reference image (continuing):", err);
+      console.warn("[EditableDesignAgent] failed to load reference (continuing):", err);
+    }
+  }
+
+  if (brief.brand?.logoUrl) {
+    try {
+      const r = await loadBrandLogo(store, { logo_url: brief.brand.logoUrl });
+      logoHandle = r.image_id;
+    } catch (err) {
+      console.warn("[EditableDesignAgent] failed to load brand logo (continuing):", err);
     }
   }
 
@@ -103,131 +102,214 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
     content: [{ type: "text" as const, text: typeof data === "string" ? data : JSON.stringify(data) }],
   });
 
+  const dataUrl = (id: string): string => {
+    const img = store.get(id);
+    return `data:${img.mimeType};base64,${img.buffer.toString("base64")}`;
+  };
+
   const tools = [
+    // ── Layer-emitting tools — every call mutates the composition graph.
     tool(
-      "generate_image",
-      "Draft a fresh image via gpt-image-1. Use for the BACKGROUND of the design (no person/subject in the prompt). Returns image_id.",
+      "set_canvas_background_color",
+      "Set the canvas background to a solid color. Always call this once first to anchor the design palette. Pass a hex color matching the brand palette or topic vibe.",
+      { color: z.string() },
+      async (args) => {
+        graph.setBackgroundColor(args.color);
+        return ok({ ok: true, message: `bg color = ${args.color}`, layer_count: graph.size() });
+      },
+    ),
+    tool(
+      "set_canvas_background_gradient",
+      "Set the canvas background to a linear gradient. angle in degrees, stops as [{offset 0-1, color hex}].",
       {
-        prompt: z.string().describe("What to draft. Be specific. NEVER include people/subjects/persons in the prompt when a user reference is pre-loaded — use remove_background + composite_images on that instead."),
-        width: z.number().optional(),
-        height: z.number().optional(),
-        quality: z.enum(["low", "medium", "high"]).optional(),
+        angle: z.number(),
+        stops: z.array(z.object({ offset: z.number(), color: z.string() })),
       },
       async (args) => {
-        // Hard guardrail: when a user reference is pre-loaded, the agent
-        // MUST call remove_background first. Without this enforcement the
-        // agent often generates a fake person via gpt-image-1 and ignores
-        // the user's actual photo. The prompt requests this; this guarantees it.
-        const hasUserRef = store.inventory().some((h) => store.get(h.id).source === "user_reference");
-        const hasCutout = store.inventory().some((h) => store.get(h.id).source === "background_removed");
-        if (hasUserRef && !hasCutout) {
-          throw new Error(
-            "REFUSED: a user reference photo is pre-loaded but you have not called remove_background yet. Call remove_background on the user_reference handle FIRST. Then generate_image is allowed (only for a STYLED BACKGROUND — no people/subjects in the prompt; the user's actual photo IS the subject).",
-          );
-        }
-        return ok(await genImage(store, {
-          prompt: args.prompt,
-          width: args.width ?? brief.width,
-          height: args.height ?? brief.height,
-          quality: args.quality,
-        }));
+        graph.addLayer({ kind: "background_gradient", angle: args.angle, stops: args.stops });
+        return ok({ ok: true, layer_count: graph.size() });
       },
     ),
     tool(
-      "edit_image",
-      "Revise an image via gpt-image-1.edit. Returns a new image_id.",
+      "generate_background_image",
+      "Generate a STYLED BACKGROUND image via gpt-image-1 and add it as the canvas background layer. The prompt must describe ONLY the bg — no people, no text. Returns image_id.",
       {
-        image_id: z.string(),
-        instruction: z.string(),
+        prompt: z.string().describe("Background ONLY. No people, no text, no headlines. Describe colour panels, gradients, decorative scenes."),
       },
-      async (args) => ok(await edImage(store, {
-        image_id: args.image_id,
-        instruction: args.instruction,
-        width: brief.width,
-        height: brief.height,
-      })),
+      async (args) => {
+        const r = await genImage(store, {
+          prompt: args.prompt,
+          width: brief.width,
+          height: brief.height,
+          quality: "high",
+        });
+        graph.replaceLast("background_image", { kind: "background_image", src: dataUrl(r.image_id) });
+        return ok({ ...r, layer_count: graph.size() });
+      },
     ),
     tool(
-      "remove_background",
-      "Strip the background from an image via rembg. Returns a transparent-PNG handle.",
+      "remove_subject_background",
+      "Strip the background from the pre-loaded reference photo. Returns a transparent-bg cutout image_id you can place via add_photo_layer.",
       { image_id: z.string() },
       async (args) => {
         const r = await removeImageBackground(store, { image_id: args.image_id });
-        if (!cutoutHandle) cutoutHandle = r.image_id;
+        cutoutHandle = r.image_id;
         return ok(r);
       },
     ),
     tool(
-      "composite_images",
-      "Layer images on top of a base. Each overlay positioned by percent. Optional rotation_degrees for angled placements (polaroid stacks, tilted tickets).",
-      {
-        base_id: z.string(),
-        overlays: z.array(z.object({
-          image_id: z.string(),
-          x_pct: z.number(),
-          y_pct: z.number(),
-          width_pct: z.number().optional(),
-          opacity: z.number().optional(),
-          rotation_degrees: z.number().optional(),
-        })),
-      },
-      async (args) => ok(await compositeImages(store, args)),
-    ),
-    tool(
-      "color_grade",
-      "Tweak saturation / brightness / hue. Returns a new image_id.",
+      "add_photo_layer",
+      "Place an image as a layer on the canvas. left/top/width/height in canvas pixels. role hints what the photo is (user_photo, logo, qr, decorative).",
       {
         image_id: z.string(),
-        saturation: z.number().optional(),
-        brightness: z.number().optional(),
-        hue: z.number().optional(),
-      },
-      async (args) => ok(await colorGrade(store, args)),
-    ),
-    tool(
-      "add_drop_shadow",
-      "Soft drop shadow from alpha. Grounds cutouts.",
-      {
-        image_id: z.string(),
-        blur_radius: z.number().optional(),
+        left: z.number(),
+        top: z.number(),
+        width: z.number(),
+        height: z.number(),
+        angle: z.number().optional(),
         opacity: z.number().optional(),
-        offset_x: z.number().optional(),
-        offset_y: z.number().optional(),
+        role: z.string().optional(),
       },
-      async (args) => ok(await addDropShadow(store, args)),
+      async (args) => {
+        graph.addLayer({
+          kind: "image",
+          src: dataUrl(args.image_id),
+          left: args.left,
+          top: args.top,
+          width: args.width,
+          height: args.height,
+          angle: args.angle,
+          opacity: args.opacity,
+          role: args.role,
+        });
+        return ok({ ok: true, layer_count: graph.size() });
+      },
     ),
     tool(
-      "rotate_image",
-      "Rotate an image by N degrees (positive=clockwise). Transparent fill so the result composites cleanly. Useful for tilted polaroids, angled tickets.",
-      { image_id: z.string(), degrees: z.number() },
-      async (args) => ok(await rotateImage(store, args)),
-    ),
-    tool(
-      "crop_image",
-      "Crop to a percentage-defined box. Useful for extracting a face/focal region before placing as a polaroid or hero.",
+      "add_text_layer",
+      "Add an editable text layer (Fabric Textbox in the editor — fully editable). REQUIRED for every text block on the design (headline, subhead, contact info, CTA, etc). Don't bake text into gpt-image-1; create separate text layers here so the user can edit them in the canvas.",
       {
-        image_id: z.string(),
-        x_pct: z.number(),
-        y_pct: z.number(),
-        width_pct: z.number(),
-        height_pct: z.number(),
+        text: z.string(),
+        left: z.number(),
+        top: z.number(),
+        width: z.number(),
+        font_size: z.number(),
+        font_family: z.string(),
+        font_weight: z.string().optional(),
+        font_style: z.string().optional(),
+        text_align: z.enum(["left", "center", "right"]).optional(),
+        fill: z.string(),
+        line_height: z.number().optional(),
+        char_spacing: z.number().optional(),
+        role: z.enum(["headline", "subheadline", "body", "cta", "caption", "contact", "brand"]).optional(),
       },
-      async (args) => ok(await cropImage(store, args)),
+      async (args) => {
+        graph.addLayer({
+          kind: "text",
+          text: args.text,
+          left: args.left,
+          top: args.top,
+          width: args.width,
+          fontSize: args.font_size,
+          fontFamily: args.font_family,
+          fontWeight: args.font_weight,
+          fontStyle: args.font_style,
+          textAlign: args.text_align,
+          fill: args.fill,
+          lineHeight: args.line_height,
+          charSpacing: args.char_spacing,
+          role: args.role,
+        });
+        return ok({ ok: true, layer_count: graph.size() });
+      },
     ),
     tool(
-      "add_polaroid_frame",
-      "Wrap an image in a Polaroid-style white border + optional rotation + drop shadow. Used in birthday flyers, throwback collages. Pair with composite_images to layer 2-3 polaroids of the same subject at different rotations.",
+      "add_rect_layer",
+      "Add a rectangle layer — color panels, accent bars, ribbon banners, badge backgrounds. left/top/width/height in canvas px.",
       {
-        image_id: z.string(),
-        border_pct: z.number().optional(),
-        rotation_degrees: z.number().optional(),
-        add_shadow: z.boolean().optional(),
+        left: z.number(),
+        top: z.number(),
+        width: z.number(),
+        height: z.number(),
+        fill: z.string(),
+        stroke: z.string().optional(),
+        stroke_width: z.number().optional(),
+        rx: z.number().optional(),
+        ry: z.number().optional(),
+        angle: z.number().optional(),
+        opacity: z.number().optional(),
       },
-      async (args) => ok(await addPolaroidFrame(store, args)),
+      async (args) => {
+        graph.addLayer({
+          kind: "rect",
+          left: args.left,
+          top: args.top,
+          width: args.width,
+          height: args.height,
+          fill: args.fill,
+          stroke: args.stroke,
+          strokeWidth: args.stroke_width,
+          rx: args.rx,
+          ry: args.ry,
+          angle: args.angle,
+          opacity: args.opacity,
+        });
+        return ok({ ok: true, layer_count: graph.size() });
+      },
+    ),
+    tool(
+      "add_circle_layer",
+      "Add a circle layer — sun-burst centerpoint, badge backdrop, decorative dot.",
+      {
+        left: z.number(),
+        top: z.number(),
+        radius: z.number(),
+        fill: z.string(),
+        stroke: z.string().optional(),
+        stroke_width: z.number().optional(),
+        opacity: z.number().optional(),
+      },
+      async (args) => {
+        graph.addLayer({
+          kind: "circle",
+          left: args.left,
+          top: args.top,
+          radius: args.radius,
+          fill: args.fill,
+          stroke: args.stroke,
+          strokeWidth: args.stroke_width,
+          opacity: args.opacity,
+        });
+        return ok({ ok: true, layer_count: graph.size() });
+      },
+    ),
+    tool(
+      "add_line_layer",
+      "Add a line layer — gold dividers under headlines, accent rules above contact blocks, separator strokes.",
+      {
+        x1: z.number(),
+        y1: z.number(),
+        x2: z.number(),
+        y2: z.number(),
+        stroke: z.string(),
+        stroke_width: z.number().optional(),
+      },
+      async (args) => {
+        graph.addLayer({
+          kind: "line",
+          x1: args.x1,
+          y1: args.y1,
+          x2: args.x2,
+          y2: args.y2,
+          stroke: args.stroke,
+          strokeWidth: args.stroke_width,
+        });
+        return ok({ ok: true, layer_count: graph.size() });
+      },
     ),
     tool(
       "generate_qr_code",
-      "Generate a QR code as a square PNG. Useful for event flyers (RSVP URL), business cards (vCard).",
+      "Generate a QR code as a square PNG. Returns image_id you can pass to add_photo_layer to place on the canvas.",
       {
         text: z.string(),
         size: z.number().optional(),
@@ -237,30 +319,27 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
       async (args) => ok(await generateQrCode(store, args)),
     ),
     tool(
-      "load_brand_logo",
-      "Load the user's brand logo (URL provided in brief.brand.logoUrl) into the image store as a handle. Then composite it onto the design — typically top-left or footer strip.",
-      { logo_url: z.string() },
-      async (args) => ok(await loadBrandLogo(store, args)),
+      "list_layers",
+      "List the current composition layers in order. Useful for sanity-checking your composition before finalize.",
+      {},
+      async () => ok({ layer_count: graph.size(), inventory: graph.inventory() }),
     ),
     tool(
-      "add_decorative_shape",
-      "Render a simple decorative shape (rect, circle, ribbon) as a transparent PNG. Cheaper and more deterministic than gpt-image-1 for color blocks, accent bars, ribbon banners under headlines.",
-      {
-        shape: z.enum(["rect", "circle", "ribbon"]),
-        width: z.number(),
-        height: z.number(),
-        color: z.string(),
-        corner_radius: z.number().optional(),
-      },
-      async (args) => ok(await addDecorativeShape(store, args)),
-    ),
-    tool(
-      "critique_design",
-      "Claude-vision review. Returns verdict (ship|iterate), score 1-10, suggestions. Critique an editable design especially for: clean separability of text blocks, photo placement that vision can reverse-engineer cleanly, hierarchy.",
-      { image_id: z.string() },
-      async (args) => {
+      "critique_composition",
+      "Render the current composition graph as a preview image and get a Claude-vision critique against the brief. Returns verdict (ship|iterate), score 1-10, suggestions. Call BEFORE finalize.",
+      {},
+      async () => {
+        const previewBuf = await renderComposition(graph, store);
+        const previewId = store.register({
+          buffer: previewBuf,
+          mimeType: "image/png",
+          width: brief.width,
+          height: brief.height,
+          source: "composited",
+          note: "preview render of composition graph",
+        });
         const result = await critiqueDesign(store, {
-          image_id: args.image_id,
+          image_id: previewId,
           brief: buildBriefSummary(brief),
         });
         critiqueLog.push({ score: result.score, verdict: result.verdict });
@@ -269,55 +348,26 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
     ),
     tool(
       "finalize",
-      "TERMINAL TOOL — commits the editable design. The system runs Claude vision over your final image to extract Fabric layers (every text block, shape, photo slot becomes editable). The user's reference cutout is dropped into the photo placeholder. After finalize, do not call more tools or write text.",
-      { image_id: z.string() },
-      async (args) => {
-        if (!store.has(args.image_id)) {
-          return ok({ error: `unknown image_id: ${args.image_id}` });
-        }
-        const finalImg = store.get(args.image_id);
-
-        const refForLayers: string[] = [];
-        if (cutoutHandle && store.has(cutoutHandle)) {
-          const c = store.get(cutoutHandle);
-          refForLayers.push(`data:${c.mimeType};base64,${c.buffer.toString("base64")}`);
-        } else if (referenceHandle && store.has(referenceHandle)) {
-          const r = store.get(referenceHandle);
-          refForLayers.push(`data:${r.mimeType};base64,${r.buffer.toString("base64")}`);
-        }
-
-        const dataUrl = `data:${finalImg.mimeType};base64,${finalImg.buffer.toString("base64")}`;
-        const reproduce = await reproduceTemplate(dataUrl, {
-          customText: brief.designText,
-          brandColors: brief.brand
-            ? { primary: brief.brand.primary, secondary: brief.brand.secondary, accent: brief.brand.accent }
-            : null,
-          brandFonts: brief.brand?.fonts ?? null,
-          referenceImages: refForLayers.length > 0 ? refForLayers : undefined,
-        });
-
-        finalImageId = args.image_id;
-        finalCanvas = reproduce.canvas;
-        return ok({
-          ok: true,
-          message: `Editable design finalized — ${reproduce.canvas.objects.length} editable layers extracted. Stop calling tools.`,
-          layers_count: reproduce.canvas.objects.length,
-        });
+      "TERMINAL TOOL — commits the editable design. The composition graph IS the canvas spec (lossless). The system also renders a preview image from the graph for the chat result card. After finalize, do not call more tools or write text.",
+      {},
+      async () => {
+        finalized = true;
+        return ok({ ok: true, message: "Design finalized.", layer_count: graph.size() });
       },
     ),
   ];
 
   const server = createSdkMcpServer({
     name: "editable_design_engine",
-    version: "1.0.0",
+    version: "2.0.0",
     tools,
     alwaysLoad: true,
   });
 
   const allowedTools = tools.map((t) => `mcp__editable_design_engine__${t.name}`);
 
-  const systemPrompt = buildEditableSystemPrompt(brief, referenceHandle);
-  const userPrompt = buildEditableUserMessage(brief, referenceHandle, store);
+  const systemPrompt = buildSystemPrompt(brief, referenceHandle, logoHandle);
+  const userPrompt = buildUserMessage(brief, referenceHandle, logoHandle, store);
 
   let iterations = 0;
   const toolsUsed: string[] = [];
@@ -329,14 +379,9 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
       systemPrompt,
       mcpServers: { editable_design_engine: server },
       allowedTools,
-      // Sonnet 4.6 for orchestration. Haiku skipped the reference-
-      // photo instruction in early prod runs. Layer extraction inside
-      // finalize still uses Opus 4.7 via reproduceTemplate.
       model: "claude-sonnet-4-6",
-      // See note in flat-image-agent.ts: canUseTool always-allow is safe
-      // because allowedTools restricts to our own MCP handlers.
       canUseTool: async () => ({ behavior: "allow" as const, updatedInput: {} }),
-      maxTurns: 35,
+      maxTurns: 30,
       pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
       stderr: (msg: string) => console.error(`[editable-agent/cli] ${msg.trimEnd()}`),
     },
@@ -353,18 +398,26 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
     }
   }
 
-  if (!finalImageId || !finalCanvas) {
+  if (!finalized || graph.size() === 0) {
     throw new Error(
-      `Editable agent finished without calling finalize (iterations=${iterations}, tools=${toolsUsed.join(",")})`,
+      `Editable agent finished without finalizing or with empty graph (iterations=${iterations}, layers=${graph.size()}, tools=${toolsUsed.join(",")})`,
     );
   }
 
-  const finalImage = store.get(finalImageId);
-  const finalMeta = await sharp(finalImage.buffer).metadata();
+  // Use cutout if available — drop into composition automatically? No,
+  // the agent already added it via add_photo_layer with the cutout id.
+  // (cutoutHandle is just bookkeeping in case the dispatcher wants the
+  // raw cutout for any post-processing.)
+  void cutoutHandle;
+
+  // Render the preview image from the graph.
+  const previewBuf = await renderComposition(graph, store);
+  const finalCanvas = graph.toCanvasSpec();
+
   return {
-    imageDataUrl: `data:image/png;base64,${finalImage.buffer.toString("base64")}`,
-    width: finalMeta.width || brief.width,
-    height: finalMeta.height || brief.height,
+    imageDataUrl: `data:image/png;base64,${previewBuf.toString("base64")}`,
+    width: brief.width,
+    height: brief.height,
     canvas: finalCanvas,
     iterations,
     toolsUsed,
@@ -373,86 +426,231 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
   };
 }
 
-// ─── prompt builders ──────────────────────────────────────────────────
+// ─── Server-side composition renderer ─────────────────────────────────
+// Renders the composition graph as a PNG for the preview image. Uses
+// sharp.composite for image layers + svg overlays for text/shapes/lines.
+// This is best-effort — text rendering via svg has font-loading limits;
+// the editor canvas always shows the precise truth via Fabric.
+async function renderComposition(graph: CompositionGraph, _store: ImageStore): Promise<Buffer> {
+  const spec = graph.toCanvasSpec();
+  const W = spec.width;
+  const H = spec.height;
 
-function buildEditableSystemPrompt(_brief: EditableDesignBrief, hasReference: string | null): string {
-  return `You are FlowAI Editable-Design Engine — a senior creative director producing one polished design that will become EDITABLE Fabric layers in the Studio editor.
+  // Start with the bg color.
+  let canvas = await sharp({
+    create: {
+      width: W,
+      height: H,
+      channels: 4,
+      background: hexToRgb(spec.backgroundColor),
+    },
+  })
+    .png()
+    .toBuffer();
 
-Your job: build a polished composition + call finalize. The system handles the editable-layer extraction (Claude vision walks your final image and emits a Fabric canvas spec where every text block, shape, and photo slot is a separately editable object).
+  // Walk objects in order, compositing each onto the canvas.
+  const composites: sharp.OverlayOptions[] = [];
+  for (const obj of spec.objects) {
+    const o = obj as Record<string, unknown>;
+    const type = String(o.type || "");
+    if (type === "image" && typeof o.src === "string") {
+      const src = o.src;
+      let buf: Buffer;
+      if (src.startsWith("data:")) {
+        buf = Buffer.from(src.replace(/^data:image\/[^;]+;base64,/, ""), "base64");
+      } else {
+        try {
+          buf = await resolveToBuffer(src);
+        } catch {
+          continue;
+        }
+      }
+      const targetW = typeof o.width === "number" ? Math.round(o.width) : 100;
+      const targetH = typeof o.height === "number" ? Math.round(o.height) : 100;
+      const angle = typeof o.angle === "number" ? o.angle : 0;
+      let layer = sharp(buf).resize(targetW, targetH, { fit: "inside" });
+      if (angle !== 0) {
+        layer = layer.rotate(angle, { background: { r: 0, g: 0, b: 0, alpha: 0 } });
+      }
+      const layerBuf = await layer.png().toBuffer();
+      composites.push({
+        input: layerBuf,
+        left: clamp(Math.round((o.left as number) || 0), 0, W),
+        top: clamp(Math.round((o.top as number) || 0), 0, H),
+      });
+    } else if (type === "rect") {
+      const w = Math.max(1, Math.round((o.width as number) || 1));
+      const h = Math.max(1, Math.round((o.height as number) || 1));
+      const fill = String(o.fill || "#000000");
+      const stroke = typeof o.stroke === "string" ? o.stroke : "none";
+      const strokeWidth = typeof o.strokeWidth === "number" ? o.strokeWidth : 0;
+      const rx = typeof o.rx === "number" ? o.rx : 0;
+      const ry = typeof o.ry === "number" ? o.ry : 0;
+      const opacity = typeof o.opacity === "number" ? o.opacity : 1;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect x="0" y="0" width="${w}" height="${h}" rx="${rx}" ry="${ry}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" opacity="${opacity}" /></svg>`;
+      const layerBuf = await sharp(Buffer.from(svg)).png().toBuffer();
+      composites.push({
+        input: layerBuf,
+        left: clamp(Math.round((o.left as number) || 0), 0, W),
+        top: clamp(Math.round((o.top as number) || 0), 0, H),
+      });
+    } else if (type === "circle") {
+      const r = Math.max(1, Math.round((o.radius as number) || 1));
+      const d = r * 2;
+      const fill = String(o.fill || "#000000");
+      const stroke = typeof o.stroke === "string" ? o.stroke : "none";
+      const strokeWidth = typeof o.strokeWidth === "number" ? o.strokeWidth : 0;
+      const opacity = typeof o.opacity === "number" ? o.opacity : 1;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}"><circle cx="${r}" cy="${r}" r="${r - strokeWidth / 2}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" opacity="${opacity}" /></svg>`;
+      const layerBuf = await sharp(Buffer.from(svg)).png().toBuffer();
+      composites.push({
+        input: layerBuf,
+        left: clamp(Math.round((o.left as number) || 0), 0, W),
+        top: clamp(Math.round((o.top as number) || 0), 0, H),
+      });
+    } else if (type === "line") {
+      const x1 = Math.round((o.x1 as number) || 0);
+      const y1 = Math.round((o.y1 as number) || 0);
+      const x2 = Math.round((o.x2 as number) || 0);
+      const y2 = Math.round((o.y2 as number) || 0);
+      const stroke = String(o.stroke || "#000000");
+      const sw = typeof o.strokeWidth === "number" ? o.strokeWidth : 1;
+      // Render as a full-canvas svg so positioning is exact.
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${sw}" /></svg>`;
+      const layerBuf = await sharp(Buffer.from(svg)).png().toBuffer();
+      composites.push({ input: layerBuf, left: 0, top: 0 });
+    } else if (type === "textbox" && typeof o.text === "string") {
+      const text = String(o.text);
+      const fontSize = typeof o.fontSize === "number" ? o.fontSize : 32;
+      const fontFamily = String(o.fontFamily || "Arial, sans-serif");
+      const fontWeight = String(o.fontWeight || "normal");
+      const fontStyle = String(o.fontStyle || "normal");
+      const fill = String(o.fill || "#000000");
+      const textAlign = String(o.textAlign || "left");
+      const wPx = Math.max(50, Math.round((o.width as number) || 200));
+      // Approximate height per line; allow word wrap via foreignObject.
+      const lineHeight = typeof o.lineHeight === "number" ? o.lineHeight : 1.2;
+      const escTxt = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${wPx}" height="${Math.round(fontSize * lineHeight * Math.max(1, escTxt.split("\n").length) * 1.5)}" >
+  <foreignObject x="0" y="0" width="${wPx}" height="100%">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:${fontFamily};font-size:${fontSize}px;font-weight:${fontWeight};font-style:${fontStyle};color:${fill};text-align:${textAlign};line-height:${lineHeight};word-wrap:break-word;">
+      ${escTxt.split("\n").map((l) => `<div>${l}</div>`).join("")}
+    </div>
+  </foreignObject>
+</svg>`;
+      try {
+        const layerBuf = await sharp(Buffer.from(svg)).png().toBuffer();
+        composites.push({
+          input: layerBuf,
+          left: clamp(Math.round((o.left as number) || 0), 0, W),
+          top: clamp(Math.round((o.top as number) || 0), 0, H),
+        });
+      } catch {
+        // sharp svg renderer has font limits; if it fails, skip — the
+        // editor canvas will still show the text correctly via Fabric.
+      }
+    }
+  }
 
-Tool inventory (all reachable via the editable_design_engine MCP server):
-- generate_image — draft a fresh image (gpt-image-1).
-- edit_image — revise an image with an instruction.
-- remove_background — strip a photo's background (rembg).
-- composite_images — layer images at percent positions, with optional rotation_degrees per overlay.
-- rotate_image — rotate by N degrees.
-- crop_image — extract a region by percent box. Use to tight-crop a face from a wider photo.
-- add_polaroid_frame — white-bordered Polaroid look with shadow + tilt. Pair with composite to make polaroid stacks.
-- add_drop_shadow — soft shadow for cutouts.
-- color_grade — saturation / brightness / hue tweak.
-- generate_qr_code — square QR PNG for an RSVP URL or vCard.
-- load_brand_logo — fetch the brand logo (URL in brief.brand.logoUrl) into the store as a handle.
-- add_decorative_shape — render rect/circle/ribbon as transparent PNG. Faster + more deterministic than gpt-image-1 for shapes.
-- critique_design — Claude-vision review (ship/iterate + suggestions).
-- finalize — TERMINAL: extracts editable Fabric layers and commits.
+  if (composites.length > 0) {
+    canvas = await sharp(canvas).composite(composites).png().toBuffer();
+  }
 
-REQUIRED WORKFLOW when a reference photo is pre-loaded:
-${hasReference ? `
-   1. FIRST tool call: remove_background on the pre-loaded reference handle.
-      This both creates a clean cutout AND signals to the system to drop
-      the cutout into the editable canvas's photo placeholder.
-   2. SECOND tool call: generate_image for a STYLED BACKGROUND. Describe
-      designed elements — colour panels, soft gradients, geometric
-      accents, ribbon shapes — with one zone left quiet for the cutout.
-      DO NOT include a person/subject in this prompt — your subject is
-      the cutout from step 1.
-   3. THIRD tool call: composite_images placing the cutout onto the
-      generated bg in a deliberate position (typically right zone, anchored
-      to bottom).
-   4. (Optional) edit_image or color_grade if the composite needs polish.
-   5. critique_design ONCE. Ship if "ship", one fix if "iterate".
-   6. finalize.
-   YOU WILL BE CUT OFF if you skip remove_background. Calling generate_image
-   with a person prompt instead is the #1 failure we are trying to avoid —
-   it produces stock-photo-looking strangers in place of the user's actual
-   subject.` : `
-   1. Draft via generate_image.
-   2. critique_design ONCE.
-   3. (At most ONE fix.)
-   4. finalize.`}
-
-DESIGN WITH EDITABILITY IN MIND:
-- Every text block in the final image will be reverse-engineered into a
-  Fabric Textbox by Claude vision. Help the extractor: keep text crisp,
-  well-separated, never overlapping graphics or the photo. Use clear,
-  high-contrast typography.
-- The photo placement zone becomes a photo placeholder in the editor and
-  is auto-filled with the user's real cutout. Make it a defined,
-  geometrically clear region (rect, rounded rect, polaroid frame).
-- Avoid super-busy collages or text on photos — they reverse-engineer
-  poorly. Solid / gradient / minimal-illustration backgrounds work best.
-
-QUALITY BAR — agency-grade output:
-- Layered composition with decorative chrome (gold dividers, accent
-  rules, color blocks, geometric shapes), not just text-on-bg.
-- Typographic hierarchy ≥3×, one display + one body font, left-aligned.
-- ≤3 colors + WCAG AA contrast.
-- Edge-to-edge fill, no AI watermarks, no nested cards.
-
-Process with BUDGET DISCIPLINE. Hard 25-turn cap. When critique says "ship" you MUST call finalize immediately. A strong second draft beats a perfect third draft you never finished.
-
-Innovate. The brief is a brief, not a template recipe.`;
+  return canvas;
 }
 
-function buildEditableUserMessage(brief: EditableDesignBrief, refHandle: string | null, store: ImageStore): string {
+function hexToRgb(hex: string): { r: number; g: number; b: number; alpha: number } {
+  const s = hex.replace(/^#/, "");
+  if (s.length === 3) {
+    return {
+      r: parseInt(s[0] + s[0], 16),
+      g: parseInt(s[1] + s[1], 16),
+      b: parseInt(s[2] + s[2], 16),
+      alpha: 1,
+    };
+  }
+  if (s.length === 6) {
+    return {
+      r: parseInt(s.substring(0, 2), 16),
+      g: parseInt(s.substring(2, 4), 16),
+      b: parseInt(s.substring(4, 6), 16),
+      alpha: 1,
+    };
+  }
+  return { r: 255, g: 255, b: 255, alpha: 1 };
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+// ─── prompt builders ──────────────────────────────────────────────────
+
+function buildSystemPrompt(_brief: EditableDesignBrief, hasReference: string | null, hasLogo: string | null): string {
+  return `You are FlowAI Editable-Design Engine v2 — a senior creative director composing designs LAYER BY LAYER.
+
+ARCHITECTURE — read carefully:
+You build the design as a composition graph of editable Fabric layers. Each tool you call appends a layer to the graph. At finalize, the graph IS the canvas spec — every text block, shape, line, and image is its own editable object in the Studio editor (lossless).
+
+DO NOT bake text into a generated background image. Generated images are pixels — pixels are NOT editable. Use add_text_layer for every text block so the user can edit them in the canvas.
+
+Tool inventory (all reachable via the editable_design_engine MCP server):
+LAYER-EMITTING TOOLS (each call adds ONE Fabric layer to the composition):
+- set_canvas_background_color — solid bg color (call this first to anchor the palette)
+- set_canvas_background_gradient — linear gradient bg
+- generate_background_image — gpt-image-1 image as bg layer (NO text in the prompt)
+- add_photo_layer — place an image (cutout, logo, qr code, decorative) at left/top with given size
+- add_text_layer — editable Fabric Textbox. USE THIS FOR EVERY TEXT BLOCK (headline, subhead, dates, contact lines, CTA, brand mark)
+- add_rect_layer — color panels, accent bars, ribbon banners, badge backgrounds
+- add_circle_layer — sun-burst centerpoint, decorative dot, badge backdrop
+- add_line_layer — gold dividers, accent rules, separators
+
+UTILITY TOOLS:
+- remove_subject_background — strip bg from the pre-loaded reference photo, returns a cutout image_id
+- generate_qr_code — make a QR PNG (then add_photo_layer to place it)
+- list_layers — sanity-check the composition
+- critique_composition — render preview + Claude-vision critique
+- finalize — TERMINAL: emits the canvas spec from the graph
+
+WORKFLOW (typical for a design with a reference photo):
+${hasReference ? `   1. set_canvas_background_color (anchor the palette).
+   2. (Optional) generate_background_image for a styled bg, OR set_canvas_background_gradient.
+   3. (Optional) add_rect_layer / add_circle_layer for decorative panels and accent shapes.
+   4. remove_subject_background on the user reference handle → get cutout image_id.
+   5. add_photo_layer placing the cutout in the chosen photo zone (typically right half).
+   6. add_text_layer for each text block: headline, subhead, dates, contact lines, brand mark.
+      Use real font names (Playfair Display, Lato, Bebas Neue, Open Sans, Montserrat, etc.).
+      Headline ≥3× body. Use brand colors.
+   7. add_line_layer for accent rules under the headline / above the contact strip.
+   ${hasLogo ? "8. add_photo_layer for the brand logo (typically top-left or footer)." : ""}
+   ${hasLogo ? "9" : "8"}. critique_composition once.
+   ${hasLogo ? "10" : "9"}. If 'iterate' → adjust 1-2 layers (add/remove, reposition) → critique again → finalize.
+   ${hasLogo ? "11" : "10"}. finalize.` : `   1. set_canvas_background_color or set_canvas_background_gradient or generate_background_image.
+   2. (Optional) add_rect_layer / add_circle_layer for decorative panels.
+   3. add_text_layer for every text block (headline, subhead, contact, CTA).
+   4. add_line_layer for dividers / accent rules.
+   5. critique_composition → ship or one fix → finalize.`}
+
+QUALITY BAR — agency-grade output:
+- Layered, intentional composition (10-20 layers for a rich design).
+- Headline ≥3× body. One display font + one body font. Left-aligned to a single guide.
+- ≤3 colors total + WCAG AA contrast.
+- Edge-to-edge fill. ≥4% safe-area margins.
+- Decorative chrome: gold dividers, accent rules under headlines, color panels, ribbon banners.
+- The user's photo (when provided) MUST appear via add_photo_layer with the cutout from remove_subject_background.
+
+You have 30 turns. Spend them on layers, not on chasing perfection. A design with 12 well-placed layers ships better than 6 endlessly re-critiqued.`;
+}
+
+function buildUserMessage(brief: EditableDesignBrief, refHandle: string | null, logoHandle: string | null, store: ImageStore): string {
   const lines: string[] = [];
   lines.push(`# Brief`);
   lines.push(`Category: ${brief.category}`);
   lines.push(`Topic: ${brief.topic}`);
-  lines.push(`Canvas: ${brief.width}×${brief.height}px (will become an editable Fabric canvas)`);
+  lines.push(`Canvas: ${brief.width}×${brief.height}px (every layer becomes an editable Fabric object in the Studio editor)`);
   if (brief.vibe) lines.push(`Vibe: ${brief.vibe}`);
   lines.push("");
-  lines.push(`## Literal copy that MUST appear`);
+  lines.push(`## Literal copy that MUST appear (each as its own add_text_layer call)`);
   lines.push(brief.designText);
   lines.push("");
   if (brief.brand) {
@@ -466,15 +664,19 @@ function buildEditableUserMessage(brief: EditableDesignBrief, refHandle: string 
     }
     lines.push("");
   }
+  lines.push(`## Pre-loaded image handles`);
   if (refHandle) {
-    lines.push(`## Pre-loaded image handles`);
-    lines.push(store.describe(refHandle));
-    lines.push("");
-    lines.push(`The reference photo is the user's actual subject. Strip its bg via remove_background, then composite the cutout thoughtfully. The cutout will be re-used in the editor as the photo layer.`);
-    lines.push("");
+    lines.push(`- ${store.describe(refHandle)} ← user's photo. Run remove_subject_background on this, then add_photo_layer with the cutout.`);
   }
+  if (logoHandle) {
+    lines.push(`- ${store.describe(logoHandle)} ← brand logo. add_photo_layer (typically top-left or footer).`);
+  }
+  if (!refHandle && !logoHandle) {
+    lines.push(`(none — design from scratch)`);
+  }
+  lines.push("");
   lines.push(`## Your turn`);
-  lines.push(`Build a polished composition + call finalize. The system extracts editable layers automatically once you finalize.`);
+  lines.push(`Build the design layer by layer. Aim for 10-20 layers. Critique once, fix one thing if needed, finalize.`);
   return lines.join("\n");
 }
 
@@ -488,6 +690,6 @@ function buildBriefSummary(brief: EditableDesignBrief): string {
     if (brief.brand.name) lines.push(`Brand: ${brief.brand.name}`);
     if (palette) lines.push(`Palette: ${palette}`);
   }
-  if (brief.referenceImageUrl) lines.push(`User reference photo MUST appear in the result.`);
+  if (brief.referenceImageUrl) lines.push(`User reference photo MUST appear via add_photo_layer with the cutout.`);
   return lines.join("\n");
 }
