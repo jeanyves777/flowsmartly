@@ -613,7 +613,16 @@ function TurnView({
                 : "bg-white dark:bg-gray-800 border border-border text-foreground",
             )}
           >
-            {turn.content}
+            {/* The chat doesn't render markdown — historical agent
+                turns saved with **bold** / *italic* / # heads show the
+                literal markers. Strip the most common ones inline so
+                old messages don't look broken. New agent turns are
+                already plain text per the system prompt. */}
+            {turn.content
+              .replace(/\*\*(.+?)\*\*/g, "$1")
+              .replace(/__(.+?)__/g, "$1")
+              .replace(/(^|\s)\*([^\s*][^*]*?[^\s*]|[^\s*])\*(?=\s|$|[.,!?;:])/g, "$1$2")
+              .replace(/^#{1,6}\s+/gm, "")}
           </div>
         ) : null}
         {/* Cards */}
