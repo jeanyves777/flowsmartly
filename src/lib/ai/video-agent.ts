@@ -215,7 +215,7 @@ export async function runVideoAgent(brief: VideoBrief): Promise<VideoResult> {
       systemPrompt,
       mcpServers: { video_engine: server },
       allowedTools,
-      permissionMode: "bypassPermissions",
+      canUseTool: async () => ({ behavior: "allow" as const, updatedInput: {} }),
       maxTurns: 10,
       pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
       stderr: (msg: string) => console.error(`[video-agent/cli] ${msg.trimEnd()}`),

@@ -251,7 +251,9 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
       systemPrompt,
       mcpServers: { editable_design_engine: server },
       allowedTools,
-      permissionMode: "bypassPermissions",
+      // See note in flat-image-agent.ts: canUseTool always-allow is safe
+      // because allowedTools restricts to our own MCP handlers.
+      canUseTool: async () => ({ behavior: "allow" as const, updatedInput: {} }),
       maxTurns: 12,
       pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
       stderr: (msg: string) => console.error(`[editable-agent/cli] ${msg.trimEnd()}`),
