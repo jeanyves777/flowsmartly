@@ -1,7 +1,41 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync } from "fs";
 import { join } from "path";
+import sharp from "sharp";
 import { OpenAIClient } from "./openai-client";
+
+/**
+ * Claude vision rejects images >5 MB. PNGs from gpt-image-1 routinely
+ * land at 5-7 MB. Recompress to JPEG q85 (almost always under 1 MB)
+ * and downscale the longest edge to 2048 px which is plenty for vision
+ * to read fine typography. Returns the original buffer untouched when
+ * already small enough — keeps PNG transparency intact in that case.
+ */
+async function shrinkForVision(
+  buf: Buffer,
+  mediaType: "image/jpeg" | "image/png" | "image/webp",
+): Promise<{ base64: string; mediaType: "image/jpeg" | "image/png" | "image/webp" }> {
+  const VISION_MAX_BYTES = 4_800_000; // small headroom under Claude's 5MB cap
+  if (buf.length <= VISION_MAX_BYTES) {
+    return { base64: buf.toString("base64"), mediaType };
+  }
+  try {
+    const meta = await sharp(buf).metadata();
+    const longest = Math.max(meta.width || 0, meta.height || 0);
+    const target = Math.min(2048, longest);
+    const resized = await sharp(buf)
+      .resize(longest > target ? target : undefined, longest > target ? target : undefined, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 85, mozjpeg: true })
+      .toBuffer();
+    console.log(`[TemplateReproduce] vision-shrink ${buf.length}→${resized.length} bytes (jpeg q85)`);
+    return { base64: resized.toString("base64"), mediaType: "image/jpeg" };
+  } catch (err) {
+    // Last-resort: aggressive downscale to keep the request alive.
+    console.warn("[TemplateReproduce] shrink failed, falling back to crude jpeg q70:", err);
+    const fallback = await sharp(buf).resize(1536, 1536, { fit: "inside" }).jpeg({ quality: 70 }).toBuffer();
+    return { base64: fallback.toString("base64"), mediaType: "image/jpeg" };
+  }
+}
 
 /**
  * Template Reproduce Agent — refined v3.
@@ -427,18 +461,21 @@ ${customText.trim().slice(0, 1500)}
 // ─── helpers ───────────────────────────────────────────────────────────
 
 async function loadImageBytes(imageUrl: string): Promise<{ base64: string; mediaType: "image/jpeg" | "image/png" | "image/webp" }> {
+  let buf: Buffer;
+  let mediaType: "image/jpeg" | "image/png" | "image/webp";
   if (imageUrl.startsWith("/")) {
     const p = join(process.cwd(), "public", imageUrl.replace(/^\//, ""));
-    const buf = readFileSync(p);
-    return { base64: buf.toString("base64"), mediaType: inferMediaType(imageUrl) };
+    buf = readFileSync(p);
+    mediaType = inferMediaType(imageUrl);
+  } else {
+    const res = await fetch(imageUrl);
+    if (!res.ok) throw new Error(`Failed to fetch source image (${res.status}): ${imageUrl}`);
+    buf = Buffer.from(await res.arrayBuffer());
+    mediaType = (res.headers.get("content-type") as "image/jpeg" | "image/png" | "image/webp") || inferMediaType(imageUrl);
   }
-  const res = await fetch(imageUrl);
-  if (!res.ok) throw new Error(`Failed to fetch source image (${res.status}): ${imageUrl}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  return {
-    base64: buf.toString("base64"),
-    mediaType: (res.headers.get("content-type") as "image/jpeg" | "image/png" | "image/webp") || inferMediaType(imageUrl),
-  };
+  // Always pass through the shrink helper so we never bust Claude's
+  // 5 MB image cap (gpt-image-1 PNGs routinely land at 5-7 MB).
+  return shrinkForVision(buf, mediaType);
 }
 
 function inferMediaType(url: string): "image/jpeg" | "image/png" | "image/webp" {

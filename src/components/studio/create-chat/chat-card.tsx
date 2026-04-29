@@ -170,12 +170,18 @@ function PalettePickerCard({
   options: PaletteOption[];
   onPick: (opt: PaletteOption) => void;
 }) {
+  // Custom palette state — three native color inputs the user can dial
+  // in for fully bespoke colors when none of the suggested palettes fit.
+  const [showCustom, setShowCustom] = useState(false);
+  const [customPrimary, setCustomPrimary] = useState("#1a5f3f");
+  const [customSecondary, setCustomSecondary] = useState("#fbbf24");
+  const [customAccent, setCustomAccent] = useState("#0f172a");
+
   if (options.length === 0) return null;
   return (
     <CardShell icon={<Palette className="h-3.5 w-3.5" />} title={question || "Pick a palette"}>
       <div className="grid gap-1.5">
         {options.map((opt, i) => {
-          // Render up to 3 swatches per option (primary / secondary / accent).
           const swatches = [opt.primary, opt.secondary, opt.accent].filter(
             (c): c is string => typeof c === "string" && c.trim().length > 0,
           );
@@ -206,6 +212,73 @@ function PalettePickerCard({
           );
         })}
       </div>
+
+      {/* Custom palette — three color inputs for fully bespoke colors. */}
+      {!showCustom ? (
+        <button
+          type="button"
+          onClick={() => setShowCustom(true)}
+          className="mt-2 w-full px-3 py-2 rounded-md border border-dashed border-border hover:border-brand-500 hover:bg-brand-500/5 text-xs font-medium text-muted-foreground transition-colors"
+        >
+          Custom colors (pick your own)
+        </button>
+      ) : (
+        <div className="mt-2 space-y-2 border border-border rounded-md p-2.5">
+          <div className="flex items-center gap-2">
+            <label className="flex flex-col items-center gap-1 flex-1">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Primary</span>
+              <div className="relative">
+                <input
+                  type="color"
+                  value={customPrimary}
+                  onChange={(e) => setCustomPrimary(e.target.value)}
+                  className="w-10 h-10 rounded-full border-2 border-white dark:border-gray-900 shadow-sm cursor-pointer appearance-none p-0"
+                  style={{ backgroundColor: customPrimary }}
+                />
+              </div>
+              <span className="text-[10px] font-mono text-muted-foreground">{customPrimary}</span>
+            </label>
+            <label className="flex flex-col items-center gap-1 flex-1">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Secondary</span>
+              <input
+                type="color"
+                value={customSecondary}
+                onChange={(e) => setCustomSecondary(e.target.value)}
+                className="w-10 h-10 rounded-full border-2 border-white dark:border-gray-900 shadow-sm cursor-pointer appearance-none p-0"
+                style={{ backgroundColor: customSecondary }}
+              />
+              <span className="text-[10px] font-mono text-muted-foreground">{customSecondary}</span>
+            </label>
+            <label className="flex flex-col items-center gap-1 flex-1">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Accent</span>
+              <input
+                type="color"
+                value={customAccent}
+                onChange={(e) => setCustomAccent(e.target.value)}
+                className="w-10 h-10 rounded-full border-2 border-white dark:border-gray-900 shadow-sm cursor-pointer appearance-none p-0"
+                style={{ backgroundColor: customAccent }}
+              />
+              <span className="text-[10px] font-mono text-muted-foreground">{customAccent}</span>
+            </label>
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              onPick({
+                name: "Custom colors",
+                description: `${customPrimary} · ${customSecondary} · ${customAccent}`,
+                primary: customPrimary,
+                secondary: customSecondary,
+                accent: customAccent,
+                value: `custom:${customPrimary},${customSecondary},${customAccent}`,
+              })
+            }
+            className="w-full h-8 rounded-md bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium transition-colors"
+          >
+            Use these custom colors
+          </button>
+        </div>
+      )}
     </CardShell>
   );
 }
