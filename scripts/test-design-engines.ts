@@ -23,6 +23,7 @@ import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { runFlatImageAgent, type FlatImageBrief } from "../src/lib/ai/flat-image-agent";
 import { runEditableDesignAgent, type EditableDesignBrief } from "../src/lib/ai/editable-design-agent";
+import { runVideoAgent, type VideoBrief } from "../src/lib/ai/video-agent";
 
 const TMP_DIR = path.join(process.cwd(), "tmp", "design-engine-test");
 
@@ -80,7 +81,9 @@ async function testFlatAgent() {
     console.log(`  iterations: ${result.iterations}`);
     console.log(`  tools used: ${result.toolsUsed.join(", ")}`);
     console.log(`  critique log: ${JSON.stringify(result.critiqueLog)}`);
-    console.log(`  tokens: in=${result.usage.inputTokens} out=${result.usage.outputTokens}`);
+    if (typeof result.totalCostUsd === "number") {
+      console.log(`  cost: $${result.totalCostUsd.toFixed(4)}`);
+    }
     console.log(`  size: ${result.width}×${result.height}`);
     console.log(`  artifact: ${outFile}`);
     return { ok: true, file: outFile };
@@ -114,7 +117,9 @@ async function testEditableAgent() {
     console.log(`  iterations: ${result.iterations}`);
     console.log(`  tools used: ${result.toolsUsed.join(", ")}`);
     console.log(`  critique log: ${JSON.stringify(result.critiqueLog)}`);
-    console.log(`  tokens: in=${result.usage.inputTokens} out=${result.usage.outputTokens}`);
+    if (typeof result.totalCostUsd === "number") {
+      console.log(`  cost: $${result.totalCostUsd.toFixed(4)}`);
+    }
     console.log(`  size: ${result.width}×${result.height}`);
     console.log(`  Fabric objects: ${result.canvas.objects.length}`);
     console.log(`  preview: ${outImg}`);
@@ -122,6 +127,44 @@ async function testEditableAgent() {
     return { ok: true, file: outImg, canvas: outCanvas };
   } catch (err) {
     console.error("✗ EDITABLE failed:", err);
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+async function testVideoAgent() {
+  console.log("\n══════════════════════════════════════════════════");
+  console.log("Test 3: Video Agent (Veo 3.1)");
+  console.log("══════════════════════════════════════════════════");
+
+  const brief: VideoBrief = {
+    topic: "Sunday Revelation Service announcement reel",
+    shotDescription: "Warm cinematic establishing shot of a small church congregation at golden hour, soft sun rays through stained glass, slow dolly-in on a smiling pastor at the pulpit. Reverent, joyful mood.",
+    aspectRatio: "9:16",
+    durationSeconds: 6,
+    brand: {
+      name: "Laikos International Church Albany",
+      voiceTone: "warm, inviting, reverent",
+      primary: "#1a5f3f",
+      secondary: "#88c057",
+      accent: "#fbbf24",
+    },
+    vibe: "warm, joyful, modern but reverent",
+  };
+  if (process.env.TEST_REFERENCE_URL) brief.referenceImageUrl = process.env.TEST_REFERENCE_URL;
+
+  const t0 = Date.now();
+  try {
+    const result = await runVideoAgent(brief);
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+    console.log(`✓ VIDEO done in ${elapsed}s`);
+    console.log(`  iterations: ${result.iterations}`);
+    console.log(`  tools used: ${result.toolsUsed.join(", ")}`);
+    console.log(`  videoUrl: ${result.videoUrl}`);
+    console.log(`  jobId: ${result.jobId}`);
+    console.log(`  model: ${result.model}`);
+    return { ok: true, ...result };
+  } catch (err) {
+    console.error("✗ VIDEO failed:", err);
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
@@ -134,10 +177,12 @@ async function main() {
   const which = (process.argv[2] || "all").toLowerCase();
   const flat = which === "all" || which === "flat";
   const editable = which === "all" || which === "editable";
+  const video = which === "all" || which === "video";
 
   const results: Record<string, unknown> = {};
   if (flat) results.flat = await testFlatAgent();
   if (editable) results.editable = await testEditableAgent();
+  if (video) results.video = await testVideoAgent();
 
   console.log("\n══════════════════════════════════════════════════");
   console.log("Summary");
