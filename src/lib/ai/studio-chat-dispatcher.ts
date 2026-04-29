@@ -73,17 +73,24 @@ async function dispatchDesign(
 ): Promise<void> {
   const { mode, prompt, width, height, category, style, ctaText, referenceImageUrl, useBrandColors, branchId } = env.args;
 
-  // The visual route accepts a rich body; we map our slim envelope to it.
-  const route = mode === "smart_layout" ? "/api/ai/design-layout" : "/api/ai/visual";
+  // Route both modes to /api/ai/visual for now — /api/ai/design-layout
+  // returns a layout JSON spec (no imageUrl), so smart_layout from chat
+  // always failed with "Worker returned no image URL". Until we wire a
+  // server-side fabric renderer to convert the layout spec to a Design
+  // row + thumbnail, "editable" mode generates the visual via the same
+  // worker and the user opens it in the editor to tweak text overlays.
+  // The mode flag still flows to the worker so we can branch on it
+  // later without changing the chat contract.
+  const route = "/api/ai/visual";
   const body: Record<string, unknown> = {
     prompt,
     category: category ?? "social_post",
     size: `${width}x${height}`,
     style: style ?? "polished",
     ctaText: ctaText ?? null,
-    // ai_image-specific
     provider: "openai",
     referenceImageUrl: referenceImageUrl ?? null,
+    chatOutputMode: mode, // forwarded so the worker can later branch
   };
 
   // BrandKit lookup — both endpoints accept brandColors directly.
