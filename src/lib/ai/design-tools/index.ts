@@ -23,3 +23,5 @@ export {
 
 export { critiqueDesign } from "./critique-tool";
 export type { CritiqueResult } from "./critique-tool";
+
+export { getClaudeCodeBinaryPath } from "./sdk-binary-path";

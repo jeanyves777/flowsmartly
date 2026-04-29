@@ -28,6 +28,7 @@ import {
   removeImageBackground,
   compositeImages,
   colorGrade,
+  getClaudeCodeBinaryPath,
 } from "./design-tools";
 import { generateVideoVeo } from "./design-tools/video-tools";
 
@@ -216,6 +217,7 @@ export async function runVideoAgent(brief: VideoBrief): Promise<VideoResult> {
       allowedTools,
       permissionMode: "bypassPermissions",
       maxTurns: 10,
+      pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
     },
   })) {
     if (message.type === "assistant") {

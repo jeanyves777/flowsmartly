@@ -32,6 +32,7 @@ import {
   colorGrade,
   addDropShadow,
   critiqueDesign,
+  getClaudeCodeBinaryPath,
 } from "./design-tools";
 
 export interface FlatImageBrief {
@@ -252,6 +253,7 @@ export async function runFlatImageAgent(brief: FlatImageBrief): Promise<FlatImag
       allowedTools,
       permissionMode: "bypassPermissions",
       maxTurns: 12,
+      pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
     },
   })) {
     if (message.type === "assistant") {

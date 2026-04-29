@@ -28,6 +28,7 @@ import {
   colorGrade,
   addDropShadow,
   critiqueDesign,
+  getClaudeCodeBinaryPath,
 } from "./design-tools";
 import { reproduceTemplate } from "./template-reproduce-agent";
 
@@ -252,6 +253,7 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
       allowedTools,
       permissionMode: "bypassPermissions",
       maxTurns: 12,
+      pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
     },
   })) {
     if (message.type === "assistant") {
