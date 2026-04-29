@@ -271,6 +271,11 @@ QUALITY BAR — agency-grade output:
 - Use the EXACT copy from the brief.
 - Edge-to-edge, ≥4% margins, no AI watermarks.
 
+CREATIVITY — DON'T BE CLICHÉ:
+- Don't reach for the obvious religious/topical icon every time. A church flyer doesn't NEED a cross; a wedding flyer doesn't NEED rings; a tech launch doesn't NEED a circuit board. Vary your visual vocabulary.
+- Alternate between: gradients, sun-rays / radial accents, abstract geometric shapes, color blocks with diagonal cuts, ribbon banners, ornamental dot patterns, asymmetric layouts (try text-right + photo-left for variety), bold color-on-color, photo-as-bg with text-overlay panel.
+- Only use a topical icon if the brief explicitly mentions it. Otherwise pick from a wider palette.
+
 Innovate. Be specific. The compose_design prompt is the whole game now — make it sing.`;
 }
 

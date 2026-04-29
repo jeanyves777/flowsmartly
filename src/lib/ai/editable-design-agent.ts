@@ -159,7 +159,7 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
     ),
     tool(
       "add_photo_layer",
-      "Place an image as a layer on the canvas. left/top/width/height in canvas pixels. role hints what the photo is (user_photo, logo, qr, decorative).",
+      "Place an image as a layer on the canvas. left/top/width/height in canvas pixels. left+top is the TOP-LEFT corner; the image extends right and DOWN from there. role hints what the photo is (user_photo, logo, qr, decorative).",
       {
         image_id: z.string(),
         left: z.number(),
@@ -171,6 +171,23 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
         role: z.string().optional(),
       },
       async (args) => {
+        // Validate coordinates against canvas bounds. Fail fast and tell
+        // the agent exactly what's wrong so it can correct on retry.
+        const issues: string[] = [];
+        if (args.left < 0 || args.top < 0) {
+          issues.push(`left=${args.left} top=${args.top} are NEGATIVE. Coordinates must be >= 0. Top-left of canvas is (0, 0).`);
+        }
+        if (args.left + args.width > brief.width + 4) {
+          issues.push(`Image extends past right edge: left(${args.left}) + width(${args.width}) = ${args.left + args.width} > canvas width ${brief.width}.`);
+        }
+        if (args.top + args.height > brief.height + 4) {
+          issues.push(`Image extends past bottom edge: top(${args.top}) + height(${args.height}) = ${args.top + args.height} > canvas height ${brief.height}.`);
+        }
+        if (issues.length > 0) {
+          throw new Error(
+            `add_photo_layer: out-of-bounds placement.\n${issues.join("\n")}\nCanvas is ${brief.width}x${brief.height}. Pick left/top/width/height so the image fits entirely inside (0,0) → (${brief.width},${brief.height}).`,
+          );
+        }
         graph.addLayer({
           kind: "image",
           src: dataUrl(args.image_id),
@@ -475,8 +492,8 @@ async function renderComposition(graph: CompositionGraph, _store: ImageStore): P
       const layerBuf = await layer.png().toBuffer();
       composites.push({
         input: layerBuf,
-        left: clamp(Math.round((o.left as number) || 0), 0, W),
-        top: clamp(Math.round((o.top as number) || 0), 0, H),
+        left: Math.round((o.left as number) || 0),
+        top: Math.round((o.top as number) || 0),
       });
     } else if (type === "rect") {
       const w = Math.max(1, Math.round((o.width as number) || 1));
@@ -491,8 +508,8 @@ async function renderComposition(graph: CompositionGraph, _store: ImageStore): P
       const layerBuf = await sharp(Buffer.from(svg)).png().toBuffer();
       composites.push({
         input: layerBuf,
-        left: clamp(Math.round((o.left as number) || 0), 0, W),
-        top: clamp(Math.round((o.top as number) || 0), 0, H),
+        left: Math.round((o.left as number) || 0),
+        top: Math.round((o.top as number) || 0),
       });
     } else if (type === "circle") {
       const r = Math.max(1, Math.round((o.radius as number) || 1));
@@ -505,8 +522,8 @@ async function renderComposition(graph: CompositionGraph, _store: ImageStore): P
       const layerBuf = await sharp(Buffer.from(svg)).png().toBuffer();
       composites.push({
         input: layerBuf,
-        left: clamp(Math.round((o.left as number) || 0), 0, W),
-        top: clamp(Math.round((o.top as number) || 0), 0, H),
+        left: Math.round((o.left as number) || 0),
+        top: Math.round((o.top as number) || 0),
       });
     } else if (type === "line") {
       const x1 = Math.round((o.x1 as number) || 0);
@@ -542,8 +559,8 @@ async function renderComposition(graph: CompositionGraph, _store: ImageStore): P
         const layerBuf = await sharp(Buffer.from(svg)).png().toBuffer();
         composites.push({
           input: layerBuf,
-          left: clamp(Math.round((o.left as number) || 0), 0, W),
-          top: clamp(Math.round((o.top as number) || 0), 0, H),
+          left: Math.round((o.left as number) || 0),
+          top: Math.round((o.top as number) || 0),
         });
       } catch {
         // sharp svg renderer has font limits; if it fails, skip — the
@@ -580,9 +597,9 @@ function hexToRgb(hex: string): { r: number; g: number; b: number; alpha: number
   return { r: 255, g: 255, b: 255, alpha: 1 };
 }
 
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
-}
+// (clamp helper removed — preview renderer now passes coordinates
+// through faithfully so the preview image matches what the editor
+// canvas will show. add_photo_layer validates bounds at the tool layer.)
 
 // ─── prompt builders ──────────────────────────────────────────────────
 
@@ -638,6 +655,18 @@ QUALITY BAR — agency-grade output:
 - Edge-to-edge fill. ≥4% safe-area margins.
 - Decorative chrome: gold dividers, accent rules under headlines, color panels, ribbon banners.
 - The user's photo (when provided) MUST appear via add_photo_layer with the cutout from remove_subject_background.
+
+COORDINATE GROUND TRUTH:
+- left=0, top=0 is the TOP-LEFT corner of the canvas.
+- left+width MUST be ≤ canvas width (${_brief.width}). top+height MUST be ≤ canvas height (${_brief.height}).
+- Negative coordinates ARE INVALID — they put the layer off-canvas. The tool will throw if you try.
+- A photo cutout is typically ~40-55% of canvas width, ~70-90% of canvas height, anchored to the bottom edge of its zone (top = canvas_height - photo_height).
+
+CREATIVITY — DON'T BE CLICHÉ:
+- Don't reach for the obvious religious/topical icon every time. A church flyer doesn't NEED a cross; a wedding flyer doesn't NEED rings; a tech launch doesn't NEED a circuit board.
+- For variety, alternate between: gradients, sun-rays / radial accents, abstract geometric shapes, color blocks with diagonal cuts, ribbon banners, ornamental dot patterns, asymmetric layouts (text right, photo left for a change), bold color-on-color, photo-as-bg with text overlay panel, etc.
+- The user's reference photo is the focal element — the design supports it, doesn't compete with religious / topical iconography.
+- If the user's brand / brief specifically calls for an icon (e.g. they mention "cross" in the copy), then yes use it. Otherwise: pick from a wider visual vocabulary.
 
 You have 30 turns. Spend them on layers, not on chasing perfection. A design with 12 well-placed layers ships better than 6 endlessly re-critiqued.`;
 }
