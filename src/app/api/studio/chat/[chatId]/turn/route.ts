@@ -107,7 +107,25 @@ export async function POST(
       const kit = await prisma.brandKit.findFirst({
         where: { userId: session.userId },
         orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
-        select: { name: true, tagline: true, industry: true, voiceTone: true, colors: true },
+        select: {
+          name: true,
+          tagline: true,
+          description: true,
+          industry: true,
+          niche: true,
+          voiceTone: true,
+          colors: true,
+          email: true,
+          phone: true,
+          website: true,
+          address: true,
+          city: true,
+          state: true,
+          zip: true,
+          country: true,
+          targetAudience: true,
+          handles: true,
+        },
       });
       if (kit) {
         let colors: { primary?: string; secondary?: string; accent?: string } = {};
@@ -121,13 +139,34 @@ export async function POST(
             };
           }
         } catch { /* ignore */ }
+        let handles: Record<string, string> = {};
+        try {
+          const parsed = JSON.parse(kit.handles || "{}");
+          if (parsed && typeof parsed === "object") {
+            for (const [k, v] of Object.entries(parsed)) {
+              if (typeof v === "string" && v.trim()) handles[k] = v.trim();
+            }
+          }
+        } catch { /* ignore */ }
         state = {
           ...state,
           brandKit: {
             name: kit.name || undefined,
             tagline: kit.tagline || undefined,
+            description: kit.description || undefined,
             industry: kit.industry || undefined,
+            niche: kit.niche || undefined,
             voiceTone: kit.voiceTone || undefined,
+            email: kit.email || undefined,
+            phone: kit.phone || undefined,
+            website: kit.website || undefined,
+            address: kit.address || undefined,
+            city: kit.city || undefined,
+            state: kit.state || undefined,
+            zip: kit.zip || undefined,
+            country: kit.country || undefined,
+            targetAudience: kit.targetAudience || undefined,
+            handles: Object.keys(handles).length ? handles : undefined,
             ...colors,
           },
         };

@@ -147,11 +147,26 @@ export interface ChatState {
   brandKit?: {
     name?: string;
     tagline?: string;
+    description?: string;
     industry?: string;
+    niche?: string;
     voiceTone?: string;
     primary?: string;
     secondary?: string;
     accent?: string;
+    // Contact / location — used when the user asks to "include my address"
+    // or "use my contact info" without re-typing it. These come from the
+    // user's BrandKit and are loaded fresh every turn.
+    email?: string;
+    phone?: string;
+    website?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    country?: string;
+    targetAudience?: string;
+    handles?: Record<string, string>;
   };
 }
 
@@ -232,11 +247,16 @@ CORRECT: agent emits size_picker + reference_picker cards. NEVER calls dispatch_
 
 # Use the user's BrandKit context — don't ask for things you already know
 
-The chat state may include a \`brandKit\` block — \`{ name, tagline, industry, voiceTone, primary, secondary, accent }\`. When it's present, the user has set up their brand. **Treat brandKit text fields as ALREADY KNOWN — never ask the user to type them again.**
+The chat state may include a \`brandKit\` block — \`{ name, tagline, description, industry, niche, voiceTone, primary, secondary, accent, email, phone, website, address, city, state, zip, country, targetAudience, handles }\`. When it's present, the user has set up their brand. **Treat brandKit fields as ALREADY KNOWN — never ask the user to type them again. Use them silently.**
 
-- If brandKit.name is set, don't ask "what's your church/ministry/business name" — use it. (Example: brandKit.name = "Laikos International Church" → in your reply just say "I'll use Laikos International Church as the brand name.")
-- If brandKit.voiceTone is set, factor it into the design prompt automatically.
-- If brandKit is missing AND the user hasn't supplied a brand name in the conversation, only THEN ask once.
+- brandKit.name → the brand/business/ministry name. (Example: brandKit.name = "Laikos International Church" → just use it.)
+- brandKit.tagline / description → useful background context for the design prompt.
+- brandKit.voiceTone → factor into the design prompt automatically (e.g. "warm, inviting" tones the headline).
+- **brandKit.address / city / state / zip / country / phone / email / website / handles** → CONTACT / LOCATION fields. When the user asks "include my address" / "add contact info" / "put my phone on it", READ THESE FROM THE BRANDKIT and use them in the designText. Don't say "what's the address?" — say "I'll add the address from your brand kit (255 N. Allen Street, Albany, NY 12206)." If a specific field is missing from the kit, only THEN ask the user for that one field.
+- brandKit.targetAudience / industry / niche → audience context that shapes vibe choices.
+- If brandKit is entirely missing AND the user hasn't supplied a brand name in the conversation, only THEN ask once.
+
+NEVER reply "I don't have your address" or "your brand kit only has name/colors" if brandKit.address (or any of the contact fields above) is set in state. That's a lie that comes from forgetting to look at the kit. ALWAYS scan the brandKit object before claiming a field is missing.
 
 ## Brand colors are DIFFERENT — always confirm, never auto-apply
 
