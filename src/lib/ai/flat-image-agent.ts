@@ -251,13 +251,13 @@ export async function runFlatImageAgent(brief: FlatImageBrief): Promise<FlatImag
       systemPrompt,
       mcpServers: { flat_image_engine: server },
       allowedTools,
-      // Haiku 4.5 for orchestration — 5x cheaper than Sonnet, plenty
-      // smart for tool routing. The expensive thinking happens inside
-      // gpt-image-1 (image gen) and the critique tool (which we also
-      // run on Haiku now). True heavyweight work — extracting Fabric
-      // layers from the final image — still uses Opus inside
-      // reproduceTemplate.
-      model: "claude-haiku-4-5",
+      // Sonnet 4.6 for orchestration. We tried Haiku 4.5 (5x cheaper)
+      // but it ignored "MUST use the pre-loaded reference photo"
+      // directives — generated stock people via gpt-image-1 instead of
+      // calling remove_background + composite_images on the user's
+      // actual photo. Sonnet follows multi-step instructions reliably
+      // enough for this work; the cost difference is worth it.
+      model: "claude-sonnet-4-6",
       // Programmatic auto-approval. We can't use permissionMode: "bypassPermissions"
       // because the Claude CLI refuses --dangerously-skip-permissions under
       // root (PM2 runs as root in prod). canUseTool always-allow is safe
@@ -318,21 +318,46 @@ Tool inventory (all reachable via the flat_image_engine MCP server):
 - critique_design — Claude-vision self-review with verdict, score, suggestions.
 - finalize — TERMINAL: commits the design and stops the loop.
 
-How to think about this:
-- The brief gives you the literal copy that MUST appear on the design (headline, dates, contact, CTA). Use those exact words. Do not invent your own.
-- ${hasReference ? "A reference photo is pre-loaded in the image store. The user's actual photo MUST appear in the result — do NOT regenerate the subject. Strip its background and composite it thoughtfully." : "No reference photo. You're producing a design from scratch."}
-- Brand context (colors, fonts, voice) is given. Honor it but don't be slavish.
-- Iterate WITH BUDGET DISCIPLINE. The system enforces a hard 20-turn cap; every tool call counts as one turn. Workflow: 1 draft → 1 critique → AT MOST 1 fix (edit_image OR regenerate) → 1 critique → finalize. When critique says "ship" you MUST call finalize immediately. Don't do 3+ refinement passes — you'll be cut off and the user gets nothing.
-- When confident, call finalize with the chosen image_id. After finalize, do not write more text or call more tools.
+REQUIRED WORKFLOW when a reference photo is pre-loaded:
+${hasReference ? `
+   1. FIRST tool call: remove_background on the pre-loaded reference handle.
+   2. SECOND tool call: generate_image for the BACKGROUND ONLY. The
+      prompt MUST describe a designed scene — color blocks, gradient
+      panels, decorative shapes — with one zone (typically right half)
+      kept visually quiet for the cutout. NEVER prompt for a person —
+      the user's photo is the person.
+   3. THIRD tool call: composite_images placing the cutout onto the
+      generated bg. Position, scale, optional rotation chosen for a
+      cinematic effect.
+   4. (Optional) edit_image or color_grade for polish.
+   5. critique_design ONCE. If "ship" → finalize. If "iterate" → ONE fix.
+   6. finalize.
+   You will be CUT OFF and the user will get NOTHING if you do not use
+   remove_background + composite_images for the reference photo. Do not
+   call generate_image with a person/subject prompt — that produces a
+   stock-photo-looking person which is exactly what we are trying to
+   avoid.` : `
+   1. Draft the full design via generate_image.
+   2. critique_design ONCE. If "ship" → finalize. If "iterate" → ONE fix.
+   3. finalize.`}
 
-Quality you are aiming for:
-- Magazine-grade typographic hierarchy. Composition that feels intentional.
-- Text and any composited subject MUST NOT collide.
-- Every word from the brief is visible and readable.
-- The design fills the canvas edge-to-edge — no nested-card-on-background.
-- No AI provider watermarks, no model branding, no placeholder boxes.
+QUALITY BAR — agency-grade flyers users are accustomed to:
+- Layered, intentional composition. Reference designs in this domain
+  use multiple photo instances at different crops/rotations (polaroid
+  stacks, angled tickets, hero + secondary shots), decorative chrome
+  (curved color blocks, gold dividers, ribbon banners), real brand
+  marks (logo, QR codes), and structured contact strips with icons.
+- Magazine-grade typographic hierarchy: headline ≥3× body, one display
+  font + one body font, never centre-align loose lines.
+- Text and the composited subject MUST NOT collide.
+- Every word from the brief is visible and readable. Use the EXACT copy.
+- Edge-to-edge fill, ≥4% safe-area margins, no nested card-on-bg, no AI
+  provider watermarks.
+- ≤3 colors total + WCAG AA text contrast.
 
-Latitude and innovation are encouraged — surprise the user. The brief is a brief, not a recipe.`;
+Iterate WITH BUDGET DISCIPLINE. Hard 20-turn cap. When critique says
+"ship" you MUST call finalize immediately. After finalize, do not write
+more text or call more tools.`;
 }
 
 function buildFlatUserMessage(brief: FlatImageBrief, refHandle: string | null, store: ImageStore): string {

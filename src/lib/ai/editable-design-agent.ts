@@ -251,10 +251,10 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
       systemPrompt,
       mcpServers: { editable_design_engine: server },
       allowedTools,
-      // Haiku 4.5 for orchestration. Layer extraction inside finalize
-      // still uses Opus 4.7 via reproduceTemplate where vision quality
-      // matters most.
-      model: "claude-haiku-4-5",
+      // Sonnet 4.6 for orchestration. Haiku skipped the reference-
+      // photo instruction in early prod runs. Layer extraction inside
+      // finalize still uses Opus 4.7 via reproduceTemplate.
+      model: "claude-sonnet-4-6",
       // See note in flat-image-agent.ts: canUseTool always-allow is safe
       // because allowedTools restricts to our own MCP handlers.
       canUseTool: async () => ({ behavior: "allow" as const, updatedInput: {} }),
@@ -312,19 +312,50 @@ Tool inventory (all reachable via the editable_design_engine MCP server):
 - critique_design — Claude-vision review with verdict/score/suggestions.
 - finalize — TERMINAL: extracts editable Fabric layers and commits.
 
-Design with EDITABILITY in mind:
-- Every text block in the final image will be reverse-engineered into a Fabric Textbox. Help the extractor by keeping text crisp, well-separated, and never overlapping graphics.
-- Photo placement should sit in a clear, defined zone — that zone becomes a photo placeholder in the editor (filled with the user's real cutout).
-- Avoid super-busy collages or heavily blended typography over photos — those reverse-engineer poorly.
-- Solid / gradient / minimal-photo backgrounds reverse-engineer cleanly. Plan for that.
+REQUIRED WORKFLOW when a reference photo is pre-loaded:
+${hasReference ? `
+   1. FIRST tool call: remove_background on the pre-loaded reference handle.
+      This both creates a clean cutout AND signals to the system to drop
+      the cutout into the editable canvas's photo placeholder.
+   2. SECOND tool call: generate_image for a STYLED BACKGROUND. Describe
+      designed elements — colour panels, soft gradients, geometric
+      accents, ribbon shapes — with one zone left quiet for the cutout.
+      DO NOT include a person/subject in this prompt — your subject is
+      the cutout from step 1.
+   3. THIRD tool call: composite_images placing the cutout onto the
+      generated bg in a deliberate position (typically right zone, anchored
+      to bottom).
+   4. (Optional) edit_image or color_grade if the composite needs polish.
+   5. critique_design ONCE. Ship if "ship", one fix if "iterate".
+   6. finalize.
+   YOU WILL BE CUT OFF if you skip remove_background. Calling generate_image
+   with a person prompt instead is the #1 failure we are trying to avoid —
+   it produces stock-photo-looking strangers in place of the user's actual
+   subject.` : `
+   1. Draft via generate_image.
+   2. critique_design ONCE.
+   3. (At most ONE fix.)
+   4. finalize.`}
 
-Process with BUDGET DISCIPLINE. The system enforces a hard 25-turn cap; every tool call is one turn. Workflow: 1 draft → 1 critique → AT MOST 1 fix (edit_image OR regenerate) → 1 critique → finalize. When critique says "ship" you MUST call finalize immediately — don't keep refining. If you do 3+ refinement passes you'll be cut off and the user gets nothing. A strong second draft beats a perfect third draft you never finished.
+DESIGN WITH EDITABILITY IN MIND:
+- Every text block in the final image will be reverse-engineered into a
+  Fabric Textbox by Claude vision. Help the extractor: keep text crisp,
+  well-separated, never overlapping graphics or the photo. Use clear,
+  high-contrast typography.
+- The photo placement zone becomes a photo placeholder in the editor and
+  is auto-filled with the user's real cutout. Make it a defined,
+  geometrically clear region (rect, rounded rect, polaroid frame).
+- Avoid super-busy collages or text on photos — they reverse-engineer
+  poorly. Solid / gradient / minimal-illustration backgrounds work best.
 
-Brief specifics:
-- Use the EXACT copy from the user — never invent your own headlines, names, scripture, contact info.
-- ${hasReference ? "Reference photo is pre-loaded in the store. The user's actual photo MUST appear — strip its background, composite it thoughtfully into the chosen photo zone." : "No reference photo. Design from scratch."}
-- Honor the brand palette and fonts but pick alternatives if the topic warrants.
-- Fill the canvas edge-to-edge. No nested-card-on-bg, no AI watermarks, no placeholder rectangles.
+QUALITY BAR — agency-grade output:
+- Layered composition with decorative chrome (gold dividers, accent
+  rules, color blocks, geometric shapes), not just text-on-bg.
+- Typographic hierarchy ≥3×, one display + one body font, left-aligned.
+- ≤3 colors + WCAG AA contrast.
+- Edge-to-edge fill, no AI watermarks, no nested cards.
+
+Process with BUDGET DISCIPLINE. Hard 25-turn cap. When critique says "ship" you MUST call finalize immediately. A strong second draft beats a perfect third draft you never finished.
 
 Innovate. The brief is a brief, not a template recipe.`;
 }
