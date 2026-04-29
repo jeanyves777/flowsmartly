@@ -27,6 +27,7 @@ export async function buildAssistantPrompt(userId: string): Promise<string> {
     `- DELIVER when you have what you need. If the user gave enough context (or already answered prior clarifications), produce the content directly with no preamble.`,
     `- MATCH brand voice when it's set in the context below. When it's not set, default to clear, conversational, plain English.`,
     `- NEVER hallucinate facts about the user's business. If you don't have it in BRAND CONTEXT, ask.`,
+    `- BEFORE asking the user for any contact / address / phone / email / website / social handle, scan BRAND CONTEXT first. If a field is listed there (e.g. "Address: 255 N. Allen Street, Albany, NY 12206"), USE IT silently — don't say "what's your address?". Only ask if the field is genuinely absent from BRAND CONTEXT.`,
     ``,
     `Examples of the rhythm:`,
     `User: "write me an Instagram caption"`,
@@ -46,6 +47,28 @@ export async function buildAssistantPrompt(userId: string): Promise<string> {
     if (brandKit.targetAudience) parts.push(`Target Audience: ${brandKit.targetAudience}`);
     if (brandKit.voiceTone) parts.push(`Voice/Tone: ${brandKit.voiceTone}`);
     if (brandKit.uniqueValue) parts.push(`Unique Value Proposition: ${brandKit.uniqueValue}`);
+
+    // Contact + location — used when the user asks "include our address"
+    // or "add our phone to this caption". Without these the assistant
+    // (correctly, since they're missing) says "I don't see an address in
+    // your brand context" — but the user sees the address right there in
+    // the brand-kit page, so it reads as the AI being blind.
+    if (brandKit.email) parts.push(`Email: ${brandKit.email}`);
+    if (brandKit.phone) parts.push(`Phone: ${brandKit.phone}`);
+    if (brandKit.website) parts.push(`Website: ${brandKit.website}`);
+    const addressParts = [brandKit.address, brandKit.city, brandKit.state, brandKit.zip, brandKit.country]
+      .filter((v): v is string => typeof v === "string" && v.trim().length > 0);
+    if (addressParts.length > 0) parts.push(`Address: ${addressParts.join(", ")}`);
+
+    try {
+      const handles = JSON.parse(brandKit.handles);
+      if (handles && typeof handles === "object" && !Array.isArray(handles)) {
+        const handleEntries = Object.entries(handles)
+          .filter(([, v]) => typeof v === "string" && v.trim())
+          .map(([k, v]) => `${k}: ${String(v).trim()}`);
+        if (handleEntries.length > 0) parts.push(`Social Handles: ${handleEntries.join(" | ")}`);
+      }
+    } catch { /* ignore */ }
 
     try {
       const personality = JSON.parse(brandKit.personality);
