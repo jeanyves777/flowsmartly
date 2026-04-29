@@ -4,15 +4,27 @@
  * Uses Google Veo 3.1 via @google/genai (vertexai mode). Auth via
  * Application Default Credentials — set GOOGLE_APPLICATION_CREDENTIALS
  * to a service account JSON or run with `gcloud auth application-default
- * login`. The user has confirmed credentials are configured in this
- * environment.
+ * login`.
  *
  * Veo is async — submit a long-running operation and poll until done.
  * This helper handles both submit + poll inside one call so the agent
  * sees a synchronous-looking result. Polling backs off from 5s → 30s.
+ *
+ * Veo's response shape (verified by manual diagnostic 2026-04-29):
+ *   op.response.generatedVideos[0].video.videoBytes  // inline base64 mp4
+ *   op.response.generatedVideos[0].video.gcsUri      // when outputGcsUri is set
+ *   op.response.generatedVideos[0].video.uri         // sometimes for image-to-video
+ *   op.response.raiMediaFilteredCount                // count of safety-filtered videos
+ *
+ * We support all three return paths and surface the safety-filter count
+ * so the caller knows when no video came back due to RAI filtering.
  */
 
 import { GoogleGenAI } from "@google/genai";
+import { writeFile, mkdir } from "fs/promises";
+import path from "path";
+import os from "os";
+import { randomUUID } from "crypto";
 
 export interface VeoGenerateInput {
   prompt: string;
@@ -129,17 +141,55 @@ export async function generateVideoVeo(input: VeoGenerateInput): Promise<VeoGene
     throw new Error(`Veo operation failed: ${msg.slice(0, 500)}`);
   }
 
-  const generated = operation.response?.generatedVideos;
-  const first = Array.isArray(generated) ? generated[0] : undefined;
-  const uri = first?.video?.uri;
-  if (!uri) {
-    throw new Error(`Veo operation completed without a video uri (jobId=${jobId})`);
+  const response = operation.response as {
+    generatedVideos?: Array<{
+      video?: { videoBytes?: string; gcsUri?: string; uri?: string; mimeType?: string };
+    }>;
+    raiMediaFilteredCount?: number;
+    raiMediaFilteredReasons?: string[];
+  } | undefined;
+
+  const first = response?.generatedVideos?.[0]?.video;
+  const filteredCount = response?.raiMediaFilteredCount ?? 0;
+
+  if (!first) {
+    if (filteredCount > 0) {
+      const reasons = response?.raiMediaFilteredReasons?.join("; ") || "no specific reason given";
+      throw new Error(
+        `Veo Responsible-AI filter blocked the video (jobId=${jobId}, filtered=${filteredCount}, reasons: ${reasons}). Try a less ambiguous prompt or set personGeneration explicitly.`,
+      );
+    }
+    throw new Error(`Veo operation completed but generatedVideos is empty (jobId=${jobId})`);
   }
 
-  console.log(`[Veo] done — uri=${uri.slice(0, 80)}...`);
+  // Resolve to a usable URL. Three paths:
+  //   1. videoBytes (inline base64) — write to a temp .mp4 and return file path.
+  //      Caller uploads to S3 if a public URL is needed.
+  //   2. gcsUri — return as-is, caller can fetch via GCS client or signed URL.
+  //   3. uri — already an https URL, return as-is.
+  let videoUrl: string;
+  if (first.videoBytes) {
+    const tmpDir = path.join(os.tmpdir(), "fs-veo");
+    await mkdir(tmpDir, { recursive: true });
+    const filename = `veo-${jobId.split("/").pop()}-${randomUUID().slice(0, 6)}.mp4`;
+    const filepath = path.join(tmpDir, filename);
+    await writeFile(filepath, Buffer.from(first.videoBytes, "base64"));
+    videoUrl = filepath;
+    console.log(`[Veo] done — wrote ${first.videoBytes.length} base64 chars to ${filepath}`);
+  } else if (first.gcsUri) {
+    videoUrl = first.gcsUri;
+    console.log(`[Veo] done — gcsUri=${first.gcsUri}`);
+  } else if (first.uri) {
+    videoUrl = first.uri;
+    console.log(`[Veo] done — uri=${first.uri.slice(0, 80)}...`);
+  } else {
+    throw new Error(
+      `Veo operation completed but video has no videoBytes / gcsUri / uri (jobId=${jobId}, fields: ${Object.keys(first).join(",")})`,
+    );
+  }
 
   return {
-    videoUrl: uri,
+    videoUrl,
     jobId,
     model: VEO_MODEL,
     durationSeconds: input.durationSeconds,

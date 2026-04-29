@@ -7,21 +7,31 @@ Test 3: Video Agent (Veo 3.1)
 Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
 The user provided project/location will take precedence over the API key from the environment variables.
 [Veo] submitting veo-3.1-generate-001 job aspect=9:16 dur=6s ref=true
-(node:22024) MetadataLookupWarning: received unexpected error = All promises were rejected code = UNKNOWN
-(Use `node --trace-warnings ...` to show where the warning was created)
-[Veo] submitting veo-3.1-generate-001 job aspect=9:16 dur=6s ref=true
-✗ VIDEO failed: Error: Video agent finished without calling finalize (iterations=10, tools=mcp__video_engine__generate_first_frame,mcp__video_engine__generate_video,mcp__video_engine__generate_video)
-    at runVideoAgent (C:\Users\koffi\Dev\flowsmartly\src\lib\ai\video-agent.ts:234:11)
-    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async testVideoAgent (C:\Users\koffi\Dev\flowsmartly\scripts\test-design-engines.ts:157:20)
-    at async main (C:\Users\koffi\Dev\flowsmartly\scripts\test-design-engines.ts:185:30)
+[Veo] operation submitted: projects/gen-lang-client-0438435525/locations/us-central1/publishers/google/models/veo-3.1-generate-001/operations/1d2b26f0-dba8-459d-8475-7ed2251bc714
+[Veo] done — wrote 2587668 base64 chars to C:\Users\koffi\AppData\Local\Temp\fs-veo\veo-1d2b26f0-dba8-459d-8475-7ed2251bc714-40b86c.mp4
+✓ VIDEO done in 220.8s
+  iterations: 4
+  tools used: mcp__video_engine__generate_first_frame, mcp__video_engine__generate_video, mcp__video_engine__finalize
+  videoUrl: C:\Users\koffi\AppData\Local\Temp\fs-veo\veo-1d2b26f0-dba8-459d-8475-7ed2251bc714-40b86c.mp4
+  jobId: projects/gen-lang-client-0438435525/locations/us-central1/publishers/google/models/veo-3.1-generate-001/operations/1d2b26f0-dba8-459d-8475-7ed2251bc714
+  model: veo-3.1-generate-001
 
 ══════════════════════════════════════════════════
 Summary
 ══════════════════════════════════════════════════
 {
   "video": {
-    "ok": false,
-    "error": "Video agent finished without calling finalize (iterations=10, tools=mcp__video_engine__generate_first_frame,mcp__video_engine__generate_video,mcp__video_engine__generate_video)"
+    "ok": true,
+    "videoUrl": "C:\\Users\\koffi\\AppData\\Local\\Temp\\fs-veo\\veo-1d2b26f0-dba8-459d-8475-7ed2251bc714-40b86c.mp4",
+    "jobId": "projects/gen-lang-client-0438435525/locations/us-central1/publishers/google/models/veo-3.1-generate-001/operations/1d2b26f0-dba8-459d-8475-7ed2251bc714",
+    "model": "veo-3.1-generate-001",
+    "durationSeconds": 6,
+    "iterations": 4,
+    "toolsUsed": [
+      "mcp__video_engine__generate_first_frame",
+      "mcp__video_engine__generate_video",
+      "mcp__video_engine__finalize"
+    ],
+    "totalCostUsd": 0.2042365
   }
 }
