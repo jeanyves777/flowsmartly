@@ -38,6 +38,10 @@ export interface ReproduceOptions {
   customText?: string;
   /** BrandKit colors — applied to text/accents/bg via the Claude prompt. */
   brandColors?: { primary?: string; secondary?: string; accent?: string } | null;
+  /** BrandKit fonts — auto-applied to display + body text after Claude
+   *  emits the spec, so the rendered design is always on-brand even if
+   *  Claude picks something else. */
+  brandFonts?: { heading?: string; body?: string } | null;
   /** User-uploaded photos as data URLs. When provided, they fill image
    *  placeholders by index instead of leaving them empty. */
   referenceImages?: string[];
@@ -103,9 +107,18 @@ interface ReproduceSpec {
   layers: SpecLayer[];
 }
 
-const SYSTEM_PROMPT = `You are a senior graphic designer reverse-engineering a flat marketing/event flyer image into an EDITABLE Fabric.js canvas.
+const SYSTEM_PROMPT = `You are a senior graphic designer reverse-engineering a flat marketing/event flyer image into an EDITABLE Fabric.js canvas. You produce print-quality, professionally typeset designs — not lazy reconstructions.
 
-Your job: emit a JSON spec that, when rendered, looks visually similar to the input — with EVERY text block as an editable Textbox, EVERY shape as a Fabric Rect/Circle, and PHOTO SLOTS (where people or products appear) as EMPTY DASHED-BORDER PLACEHOLDERS the user will fill themselves. NEVER attempt to recreate specific people via image generation — leave their slot empty so the user drops their own photo.
+Your job: emit a JSON spec that, when rendered, looks AS GOOD OR BETTER than the input — with EVERY text block as an editable Textbox, EVERY shape as a Fabric Rect/Circle, and PHOTO SLOTS (where people or products appear) as EMPTY DASHED-BORDER PLACEHOLDERS the user will fill themselves. NEVER attempt to recreate specific people via image generation — leave their slot empty so the user drops their own photo.
+
+# DESIGN QUALITY BAR — non-negotiable
+- TYPOGRAPHIC HIERARCHY: the headline must be at least 2× the size of supporting copy. The CTA / button text sits between the two. Body / contact lines are the smallest. If the source is uneven, FIX IT — you are improving the design, not photocopying it.
+- TYPE PAIRINGS: use one display font for the headline + one supporting font for body. Curated pairings: (Playfair Display + Lato), (Bebas Neue + Open Sans), (Cinzel + Cormorant Garamond), (Anton + Montserrat), (Great Vibes + Quicksand), (Merriweather + Inter). Never mix three display faces.
+- COLOR DISCIPLINE: max 3 colors total — one dominant, one accent, one neutral for body text. If the source is muddy or has 5+ colors, simplify. If brand colors are supplied, USE THEM as the dominant + accent.
+- ALIGNMENT GRID: every text block should align to either the canvas centerline or a consistent left/right margin (~5-8% inset from edges). Don't drift.
+- CONTRAST: every word must pass WCAG AA against its background. If text sits on a busy area, drop a soft-color rect behind it for legibility.
+- DECORATIVE ACCENT: if the source design has zero decoration, ADD ONE subtle accent — a 4-8px brand-color rule under the headline, or a thin horizontal divider above contact lines, or a small circle/badge behind a date. Tasteful, not loud.
+- WHITESPACE: text must NEVER touch canvas edges. Maintain ≥4% inset on all sides.
 
 OUTPUT FORMAT — your FINAL answer must be ONLY a JSON object, no prose, no markdown fences:
 {
@@ -166,7 +179,7 @@ export async function reproduceTemplate(
   imageUrl: string,
   options: ReproduceOptions = {},
 ): Promise<ReproduceResult> {
-  const { customText, brandColors, referenceImages = [] } = options;
+  const { customText, brandColors, brandFonts, referenceImages = [] } = options;
 
   console.log(`[TemplateReproduce] start url=${imageUrl} text=${!!customText} brand=${!!brandColors} refs=${referenceImages.length}`);
 
@@ -290,19 +303,40 @@ ${customText.trim().slice(0, 1500)}
     });
   }
 
+  // Compute the "display threshold" used to swap brand-heading vs body
+  // font. Anything sized in the top 40% of the textbox sizes counts as
+  // display. Falls back to a fixed cutoff when there are too few text
+  // layers to compute meaningfully.
+  const textboxSizes = spec.layers
+    .filter((l) => l.type === "textbox" && typeof l.fontSize === "number")
+    .map((l) => l.fontSize as number)
+    .sort((a, b) => b - a);
+  const displayThreshold = textboxSizes.length >= 3
+    ? textboxSizes[Math.floor(textboxSizes.length * 0.4)]
+    : 48;
+
   // Walk layers (back-to-front), counting placeholders so we can map
   // user-uploaded reference images by index.
   let placeholderIndex = 0;
   for (const l of spec.layers) {
     if (l.type === "textbox") {
+      // Brand fonts: swap heading font for display-sized text and body
+      // font for everything else. Falls back to Claude's pick when no
+      // brand fonts are supplied.
+      const sz = l.fontSize ?? 32;
+      const isDisplay = sz >= displayThreshold;
+      const fontFamily =
+        (isDisplay ? brandFonts?.heading : brandFonts?.body) ||
+        l.fontFamily ||
+        "Inter";
       objects.push({
         type: "textbox",
         text: l.text || "",
         left: l.left, top: l.top, width: l.width,
         originX: "left", originY: "top",
-        fontSize: l.fontSize ?? 32,
-        fontFamily: l.fontFamily || "Inter",
-        fontWeight: l.fontWeight || "normal",
+        fontSize: sz,
+        fontFamily,
+        fontWeight: l.fontWeight || (isDisplay ? "bold" : "normal"),
         fontStyle: l.fontStyle || "normal",
         textAlign: l.textAlign || "left",
         fill: l.fill || "#000000",

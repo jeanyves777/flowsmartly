@@ -139,11 +139,48 @@ async function dispatchDesign(
   if (mode === "smart_layout") {
     try {
       console.log("[ChatDispatcher] running Claude composite (reproduceTemplate) for editable mode...");
+
+      // Look up the user's BrandKit so the composite engine has brand
+      // colors + fonts to enforce post-hoc on the editable spec.
+      const chat = await prisma.designChat.findUnique({
+        where: { id: opts.chatId },
+        select: { userId: true },
+      });
+      let brandColors: { primary?: string; secondary?: string; accent?: string } | null = null;
+      let brandFonts: { heading?: string; body?: string } | null = null;
+      if (chat?.userId) {
+        const kit = await prisma.brandKit.findFirst({
+          where: { userId: chat.userId },
+          orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+          select: { colors: true, fonts: true },
+        });
+        if (kit) {
+          try {
+            const c = JSON.parse(kit.colors || "{}");
+            if (c && typeof c === "object") {
+              brandColors = {
+                primary: typeof c.primary === "string" ? c.primary : undefined,
+                secondary: typeof c.secondary === "string" ? c.secondary : undefined,
+                accent: typeof c.accent === "string" ? c.accent : undefined,
+              };
+            }
+          } catch { /* ignore */ }
+          try {
+            const f = JSON.parse(kit.fonts || "{}");
+            if (f && typeof f === "object") {
+              brandFonts = {
+                heading: typeof f.heading === "string" ? f.heading : undefined,
+                body: typeof f.body === "string" ? f.body : undefined,
+              };
+            }
+          } catch { /* ignore */ }
+        }
+      }
+
       const reproduce = await reproduceTemplate(imageUrl, {
-        // Pass the literal designText/prompt as customText so Claude
-        // knows what each text slot should say (rather than guessing
-        // from the rendered pixels alone).
         customText: prompt,
+        brandColors,
+        brandFonts,
       });
       const canvasData = JSON.stringify(reproduce.canvas);
       if (designId) {
