@@ -9,55 +9,75 @@
  *   throws "Claude Code native binary not found ...musl/claude" even
  *   though the file is there.
  *
- *   Fix: detect glibc vs musl at runtime, pass the correct path
- *   via `pathToClaudeCodeExecutable` to query() options.
+ *   Fix: detect glibc vs musl at runtime, return the correct binary
+ *   path. Caller passes via `pathToClaudeCodeExecutable` to query().
  *
- *   Detection: Linux without /lib/ld-musl-* present is glibc. We use
- *   the existence of /etc/alpine-release as a strong musl signal.
- *   When undecidable, prefer glibc since 95%+ of Linux servers are.
+ * Why we don't use require.resolve / createRequire:
+ *   1. Next.js bundles server code with webpack — `import.meta.url`
+ *      is undefined and `__filename` may be the bundle path, not the
+ *      source path.
+ *   2. The platform binary packages don't expose `package.json` via
+ *      their `exports` field, so `require.resolve(<pkg>/package.json)`
+ *      throws even when the package is installed.
+ *
+ *   Instead: walk known absolute locations relative to process.cwd().
+ *   PM2's exec cwd is the app root (/opt/flowsmartly in prod), and
+ *   `.next/standalone/...` is the fallback for standalone Next builds.
  */
 
 import { existsSync } from "fs";
 import path from "path";
-import { createRequire } from "module";
 
-const requireFromHere = createRequire(import.meta.url || `file://${__filename}`);
-
-let _cached: string | undefined | null = null;
+let _cached: string | null | undefined;
 
 export function getClaudeCodeBinaryPath(): string | undefined {
-  if (_cached !== null) return _cached ?? undefined;
+  if (_cached !== undefined) return _cached ?? undefined;
 
   const platform = process.platform;
   const arch = process.arch;
   const ext = platform === "win32" ? ".exe" : "";
 
-  let candidates: string[];
+  // Build platform-specific package-name candidates. On Linux we PREFER
+  // glibc unless we detect a musl system (Alpine etc.) — opposite of
+  // the SDK's default resolver which prefers musl.
+  let pkgNames: string[];
   if (platform === "linux") {
     const isMusl = existsSync("/etc/alpine-release") || existsSync("/lib/ld-musl-x86_64.so.1");
-    candidates = isMusl
-      ? [`@anthropic-ai/claude-agent-sdk-linux-${arch}-musl`, `@anthropic-ai/claude-agent-sdk-linux-${arch}`]
-      : [`@anthropic-ai/claude-agent-sdk-linux-${arch}`, `@anthropic-ai/claude-agent-sdk-linux-${arch}-musl`];
+    pkgNames = isMusl
+      ? [`claude-agent-sdk-linux-${arch}-musl`, `claude-agent-sdk-linux-${arch}`]
+      : [`claude-agent-sdk-linux-${arch}`, `claude-agent-sdk-linux-${arch}-musl`];
+  } else if (platform === "darwin") {
+    pkgNames = [`claude-agent-sdk-darwin-${arch}`];
+  } else if (platform === "win32") {
+    pkgNames = [`claude-agent-sdk-win32-${arch}`];
   } else {
-    candidates = [`@anthropic-ai/claude-agent-sdk-${platform}-${arch}`];
+    pkgNames = [`claude-agent-sdk-${platform}-${arch}`];
   }
 
-  for (const pkg of candidates) {
-    try {
-      // package.json is always present and resolvable; the binary lives next to it.
-      const pkgJsonPath = requireFromHere.resolve(`${pkg}/package.json`);
-      const binaryPath = path.join(path.dirname(pkgJsonPath), `claude${ext}`);
+  // Search likely node_modules locations:
+  //  - process.cwd()/node_modules (PM2 normal launch)
+  //  - process.cwd()/../node_modules (monorepo)
+  //  - .next/standalone/node_modules (Next standalone build)
+  const baseDirs = [
+    path.join(process.cwd(), "node_modules", "@anthropic-ai"),
+    path.join(process.cwd(), "..", "node_modules", "@anthropic-ai"),
+    path.join(process.cwd(), ".next", "standalone", "node_modules", "@anthropic-ai"),
+  ];
+
+  for (const base of baseDirs) {
+    for (const pkg of pkgNames) {
+      const binaryPath = path.join(base, pkg, `claude${ext}`);
       if (existsSync(binaryPath)) {
+        console.log(`[design-engine] Resolved Claude Code binary: ${binaryPath}`);
         _cached = binaryPath;
         return binaryPath;
       }
-    } catch {
-      // package not installed — try the next candidate
     }
   }
 
-  // Nothing found — let the SDK fall back to its own resolver (and surface
-  // the original error to the caller if that fails too).
-  _cached = undefined;
+  // Nothing found — let the SDK fall back to its own resolver (and
+  // surface its error to the caller if that fails too).
+  console.warn(`[design-engine] Could not resolve Claude Code binary in any of: ${baseDirs.join(", ")} (tried packages: ${pkgNames.join(", ")})`);
+  _cached = null;
   return undefined;
 }
