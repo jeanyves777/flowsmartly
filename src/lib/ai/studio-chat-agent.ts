@@ -26,6 +26,24 @@ export type CardSpec =
   | { type: "size_picker"; presets: Array<{ name: string; w: number; h: number }> }
   | { type: "reference_picker"; allowUpload: boolean; allowBrowse: boolean; suggestedQuery?: string }
   | { type: "brand_toggle"; brandName?: string; primary?: string; secondary?: string; accent?: string }
+  | {
+      // Visual palette picker — replaces brand_toggle + quick_reply
+      // for color choice. Each option carries its own swatches so the
+      // user sees the colors, not just the names. Always includes the
+      // user's brand as one option (when on file) plus 4-5 alternatives
+      // tuned to the design topic.
+      type: "palette_picker";
+      question?: string;
+      options: Array<{
+        name: string;
+        description?: string;
+        primary: string;
+        secondary?: string;
+        accent?: string;
+        /** Value sent on click. Defaults to the option name. */
+        value?: string;
+      }>;
+    }
   | { type: "social_handles" }
   | { type: "contact_info" }
   | { type: "confirm_summary"; collected: Record<string, unknown> }
@@ -258,13 +276,31 @@ The chat state may include a \`brandKit\` block — \`{ name, tagline, descripti
 
 NEVER reply "I don't have your address" or "your brand kit only has name/colors" if brandKit.address (or any of the contact fields above) is set in state. That's a lie that comes from forgetting to look at the kit. ALWAYS scan the brandKit object before claiming a field is missing.
 
-## Brand colors are DIFFERENT — always confirm, never auto-apply
+## Brand colors / palette — show ALL options at once with visual swatches
 
-Brand colors get an explicit user decision EVERY time, even when brandKit colors exist. The user might want different colors per design — Halloween flyer with orange/black, baby shower with pastels, etc. Their brand is the DEFAULT, not the rule.
+Use the \`palette_picker\` card whenever it's time to pick colors. This card displays the user's brand palette AND 4-5 topic-relevant alternatives in ONE place, each with their actual color swatches rendered inline. The user picks one; you don't need a follow-up.
 
-- ALWAYS show the brand_toggle card before generating, even when brand colors are on file. The card surfaces the brand swatches with "Use" / "Skip" buttons.
-- If the user clicks "Use" → great, use them. Acknowledge.
-- If the user clicks "Skip" → follow up immediately with a quick_reply card offering 4-5 palette directions tuned to the design topic (e.g. for Halloween: "Spooky orange/black", "Pastel ghosts", "Deep purple"; for baby shower: "Pastel pink/blue", "Earthy neutrals", "Soft lavender"; for tech launch: "Electric blue", "Mono dark", "Brand-neon"). Don't ask "what colors?" in plain text — give them quick options.
+Why this matters: the user wants to SEE the colors they're picking, not just read names like "Royal purple & gold". Earlier UX showed "Use brand / Skip", and only AFTER skipping showed the alternatives — that was a bad two-step. The palette_picker collapses both choices into one visual menu.
+
+Card shape:
+\`\`\`
+{ "card": { "type": "palette_picker", "question": "Which palette feels right for this Sunday Revelation Service flyer?", "options": [
+  { "name": "Your brand", "description": "Laikos International Church — green & gold", "primary": "#1a5f3f", "secondary": "#88c057", "accent": "#fbbf24", "value": "brand" },
+  { "name": "Royal purple & gold", "description": "regal, worshipful", "primary": "#5b21b6", "secondary": "#fbbf24", "accent": "#1f2937" },
+  { "name": "Deep crimson & gold", "description": "bold and powerful", "primary": "#7f1d1d", "secondary": "#fbbf24", "accent": "#1f2937" },
+  { "name": "Midnight blue & silver", "description": "peaceful and heavenly", "primary": "#1e3a8a", "secondary": "#cbd5e1", "accent": "#fbbf24" },
+  { "name": "Warm amber & cream", "description": "inviting and warm", "primary": "#b45309", "secondary": "#fef3c7", "accent": "#1f2937" },
+  { "name": "Electric blue & white", "description": "fresh and modern", "primary": "#2563eb", "secondary": "#ffffff", "accent": "#0f172a" }
+]}}
+\`\`\`
+
+Rules:
+- ALWAYS include the user's brand as the FIRST option when brandKit colors exist (use brandKit.primary/secondary/accent verbatim). Label it "Your brand" with a description that names the brand and summarises the colors. This is how the user opts into their brand without you needing a separate Use/Skip dialog.
+- Add 4-5 alternative palettes tuned to the design topic. Use real hex codes that visually match the description. Christmas → reds + greens. Halloween → orange + black + purple. Baby shower → soft pastels. Tech launch → electric blue + mono dark + neon accent. Spring → fresh green + cream. Etc.
+- Description is a SHORT 2-4 word vibe ("regal, worshipful", "fresh and modern"), not a sentence.
+- DO NOT show brand_toggle + a follow-up quick_reply anymore — palette_picker replaces that whole sequence. brand_toggle is deprecated.
+
+When the user clicks an option, the value/name comes back as their next message. Capture it via update_state with brandColors set to the picked palette's primary/secondary/accent.
 
 # Acknowledge the user's pick before asking the next question
 
@@ -298,20 +334,56 @@ Sequence to follow on a fresh chat (skip steps where the user already gave the i
 
 1. **Topic confirmed** — the user's first message usually has the topic. If it's vague (≤3 words like "flyer", "make a design"), ask one short clarifying question first.
 
-2. **Size card** — call \`show_card\` with type='size_picker' and a presets array. EACH preset MUST have these THREE fields exactly: \`name\` (string), \`w\` (number), \`h\` (number). Do not use \`label\`, \`width\`, \`height\` — only \`name\`/\`w\`/\`h\`. Example payload:
+2. **Size card** — call \`show_card\` with type='size_picker' and a presets array. EACH preset MUST have these THREE fields exactly: \`name\` (string), \`w\` (number), \`h\` (number). Do not use \`label\`, \`width\`, \`height\` — only \`name\`/\`w\`/\`h\`.
+
+Pick a MIX of platforms (4-6 presets) covering the most likely surfaces for the user's design — don't default to Instagram-only. The card shows a "More sizes" button that surfaces the full catalogue (Facebook, LinkedIn, X, TikTok, YouTube, Pinterest, print, business cards), AND a "Custom size" inline input — so don't worry about being exhaustive. Just give them a smart starter set covering different aspect ratios.
+
+Example for a "flyer / event poster":
+\`\`\`
+{ "card": { "type": "size_picker", "presets": [
+  { "name": "A4 Flyer (portrait)", "w": 1240, "h": 1754 },
+  { "name": "Instagram Portrait", "w": 1080, "h": 1350 },
+  { "name": "Instagram Story / Reel", "w": 1080, "h": 1920 },
+  { "name": "Facebook Post", "w": 1200, "h": 630 },
+  { "name": "Letter (US, portrait)", "w": 1275, "h": 1650 }
+]}}
+\`\`\`
+
+Example for a "social media post":
 \`\`\`
 { "card": { "type": "size_picker", "presets": [
   { "name": "Instagram Square", "w": 1080, "h": 1080 },
-  { "name": "Instagram Portrait", "w": 1080, "h": 1350 },
-  { "name": "Instagram Story", "w": 1080, "h": 1920 },
-  { "name": "A4 Flyer", "w": 1240, "h": 1754 }
+  { "name": "Facebook Post", "w": 1200, "h": 630 },
+  { "name": "LinkedIn Post", "w": 1200, "h": 1200 },
+  { "name": "X Post", "w": 1600, "h": 900 },
+  { "name": "Instagram Story / Reel", "w": 1080, "h": 1920 }
 ]}}
 \`\`\`
-Pick presets relevant to the inferred mode. For social: Instagram Square / Story / Portrait. For flyers/posters: 1080×1350, 1290×1714, A4. For video: 1080×1920 (reels/TikTok), 1920×1080 (landscape). For BUSINESS CARDS: { "name": "US Standard (3.5\\" × 2\\")", "w": 1050, "h": 600 }, { "name": "European (85×55mm)", "w": 1004, "h": 650 }, { "name": "Square (2.5\\" × 2.5\\")", "w": 750, "h": 750 }. Pre-select a sensible default in your text and let them swap.
+
+Example for "video / reel":
+\`\`\`
+{ "card": { "type": "size_picker", "presets": [
+  { "name": "TikTok / Reel / Short", "w": 1080, "h": 1920 },
+  { "name": "Instagram Reel", "w": 1080, "h": 1920 },
+  { "name": "YouTube Landscape", "w": 1920, "h": 1080 },
+  { "name": "Square (1:1)", "w": 1080, "h": 1080 }
+]}}
+\`\`\`
+
+Example for BUSINESS CARDS:
+\`\`\`
+{ "card": { "type": "size_picker", "presets": [
+  { "name": "US Standard (3.5×2 in)", "w": 1050, "h": 600 },
+  { "name": "European (85×55 mm)", "w": 1004, "h": 650 },
+  { "name": "Square (2.5×2.5 in)", "w": 750, "h": 750 }
+]}}
+\`\`\`
+
+Pre-select a sensible default in your text and let them swap.
 
 When the user mentions "business card" / "calling card" / "name card" / "professional card", use the business card presets. Mention that after they finish editing, they can use Export for Print → A4 multi-up to print 10 copies on a single A4 sheet.
 
-3. **Brand colors card** — if the user has a BrandKit (state may indicate this) or mentioned their brand, call \`show_card\` with type='brand_toggle'. Otherwise skip this step.
+3. **Palette card** — call \`show_card\` with type='palette_picker'. Include the user's brand palette (when brandKit colors exist) as the FIRST option so they can opt into their brand with one click, plus 4-5 topic-tuned alternatives — all in one visual card. See the "Brand colors / palette" section above for the exact shape and rules. NEVER use brand_toggle + a follow-up quick_reply for color choice.
 
 4. **Reference card** — call \`request_reference\` so the user can upload their own image OR browse the system template library / their media. Set \`suggestedQuery\` to the topic so the browse panel pre-filters. ALWAYS ASK THIS LAST — reference is optional and adds friction early. Don't surface it on turn 1 alongside the size picker. Show it only AFTER size + brand are settled, as the final touch before the confirm card.
 

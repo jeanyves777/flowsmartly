@@ -109,6 +109,14 @@ export function ChatCard({
           onPick={(opt) => send(opt.value || opt.label)}
         />
       );
+    case "palette_picker":
+      return (
+        <PalettePickerCard
+          question={card.question}
+          options={Array.isArray(card.options) ? card.options : []}
+          onPick={(opt) => send(opt.value || opt.name)}
+        />
+      );
     default:
       // Unknown card type — render nothing rather than crash. Keeps the
       // chat usable if Claude invents a card variant we haven't defined.
@@ -139,6 +147,64 @@ function QuickReplyCard({
             {opt.label}
           </button>
         ))}
+      </div>
+    </CardShell>
+  );
+}
+
+interface PaletteOption {
+  name: string;
+  description?: string;
+  primary: string;
+  secondary?: string;
+  accent?: string;
+  value?: string;
+}
+
+function PalettePickerCard({
+  question,
+  options,
+  onPick,
+}: {
+  question?: string;
+  options: PaletteOption[];
+  onPick: (opt: PaletteOption) => void;
+}) {
+  if (options.length === 0) return null;
+  return (
+    <CardShell icon={<Palette className="h-3.5 w-3.5" />} title={question || "Pick a palette"}>
+      <div className="grid gap-1.5">
+        {options.map((opt, i) => {
+          // Render up to 3 swatches per option (primary / secondary / accent).
+          const swatches = [opt.primary, opt.secondary, opt.accent].filter(
+            (c): c is string => typeof c === "string" && c.trim().length > 0,
+          );
+          return (
+            <button
+              key={`${opt.name}-${i}`}
+              type="button"
+              onClick={() => onPick(opt)}
+              className="flex items-center gap-3 px-3 py-2 rounded-md border border-border hover:border-brand-500 hover:bg-brand-500/5 transition-colors text-left"
+            >
+              <div className="flex -space-x-1.5 flex-shrink-0">
+                {swatches.map((c, j) => (
+                  <div
+                    key={j}
+                    className="w-5 h-5 rounded-full border-2 border-white dark:border-gray-900 shadow-sm"
+                    style={{ backgroundColor: c }}
+                    title={c}
+                  />
+                ))}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">{opt.name}</div>
+                {opt.description ? (
+                  <div className="text-[11px] text-muted-foreground truncate">{opt.description}</div>
+                ) : null}
+              </div>
+            </button>
+          );
+        })}
       </div>
     </CardShell>
   );
@@ -202,16 +268,90 @@ function ModePickerCard({
   );
 }
 
+// Curated catalogue of platform sizes the user can dig into when
+// Claude's default presets don't cover their need. Grouped by surface
+// so the "More sizes" expander stays scannable.
+const SIZE_CATALOGUE: Array<{ group: string; items: Array<{ name: string; w: number; h: number }> }> = [
+  {
+    group: "Instagram",
+    items: [
+      { name: "Instagram Square", w: 1080, h: 1080 },
+      { name: "Instagram Portrait", w: 1080, h: 1350 },
+      { name: "Instagram Story / Reel", w: 1080, h: 1920 },
+      { name: "Instagram Landscape", w: 1080, h: 566 },
+    ],
+  },
+  {
+    group: "Facebook",
+    items: [
+      { name: "Facebook Post", w: 1200, h: 630 },
+      { name: "Facebook Cover", w: 1640, h: 624 },
+      { name: "Facebook Story", w: 1080, h: 1920 },
+      { name: "Facebook Event", w: 1920, h: 1005 },
+    ],
+  },
+  {
+    group: "LinkedIn",
+    items: [
+      { name: "LinkedIn Post", w: 1200, h: 1200 },
+      { name: "LinkedIn Cover", w: 1584, h: 396 },
+      { name: "LinkedIn Article Header", w: 1280, h: 720 },
+    ],
+  },
+  {
+    group: "X / Twitter",
+    items: [
+      { name: "X Post", w: 1600, h: 900 },
+      { name: "X Header", w: 1500, h: 500 },
+    ],
+  },
+  {
+    group: "TikTok / YouTube",
+    items: [
+      { name: "TikTok / Short", w: 1080, h: 1920 },
+      { name: "YouTube Thumbnail", w: 1280, h: 720 },
+      { name: "YouTube Channel Banner", w: 2560, h: 1440 },
+    ],
+  },
+  {
+    group: "Pinterest",
+    items: [
+      { name: "Pinterest Pin", w: 1000, h: 1500 },
+      { name: "Pinterest Square", w: 1000, h: 1000 },
+    ],
+  },
+  {
+    group: "Print",
+    items: [
+      { name: "A4 Flyer (portrait)", w: 1240, h: 1754 },
+      { name: "A4 Flyer (landscape)", w: 1754, h: 1240 },
+      { name: "Letter (US, portrait)", w: 1275, h: 1650 },
+      { name: "Poster 18×24", w: 1800, h: 2400 },
+      { name: "Poster 24×36", w: 2400, h: 3600 },
+    ],
+  },
+  {
+    group: "Business Cards",
+    items: [
+      { name: "US Standard (3.5×2 in)", w: 1050, h: 600 },
+      { name: "European (85×55 mm)", w: 1004, h: 650 },
+      { name: "Square (2.5×2.5 in)", w: 750, h: 750 },
+    ],
+  },
+];
+
 function SizePickerCard({
   presets,
   onPick,
 }: {
-  // Accept several field-name variants Claude might emit. We normalize
-  // to {name, w, h} on render. Defensive — Claude is free-form text and
-  // sometimes ignores schema details.
   presets: Array<Record<string, unknown>>;
   onPick: (preset: { name: string; w: number; h: number }) => void;
 }) {
+  const [showAll, setShowAll] = useState(false);
+  const [showCustom, setShowCustom] = useState(false);
+  const [customW, setCustomW] = useState("");
+  const [customH, setCustomH] = useState("");
+
   const normalized = (presets || [])
     .map((raw) => {
       const name =
@@ -233,6 +373,13 @@ function SizePickerCard({
     );
   }
 
+  const submitCustom = () => {
+    const w = parseInt(customW.trim(), 10);
+    const h = parseInt(customH.trim(), 10);
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w < 100 || h < 100 || w > 6000 || h > 6000) return;
+    onPick({ name: `Custom ${w}×${h}`, w, h });
+  };
+
   return (
     <CardShell icon={<Layout className="h-3.5 w-3.5" />} title="Pick a size">
       <div className="grid gap-1.5">
@@ -248,6 +395,83 @@ function SizePickerCard({
           </button>
         ))}
       </div>
+
+      {/* More sizes expander — surfaces the full platform catalogue when
+          the agent's default presets don't fit the user's surface. */}
+      {!showAll ? (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="mt-2 w-full px-3 py-2 rounded-md border border-dashed border-border hover:border-brand-500 hover:bg-brand-500/5 text-xs font-medium text-muted-foreground transition-colors"
+        >
+          More sizes (Facebook, LinkedIn, TikTok, Pinterest, print…)
+        </button>
+      ) : (
+        <div className="mt-2 space-y-2 max-h-72 overflow-y-auto pr-1">
+          {SIZE_CATALOGUE.map((g) => (
+            <div key={g.group}>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-1 mb-1">
+                {g.group}
+              </div>
+              <div className="grid gap-1">
+                {g.items.map((p) => (
+                  <button
+                    key={p.name}
+                    type="button"
+                    onClick={() => onPick(p)}
+                    className="flex items-center justify-between px-3 py-1.5 rounded-md border border-border hover:border-brand-500 hover:bg-brand-500/5 transition-colors text-left"
+                  >
+                    <span className="text-xs font-medium">{p.name}</span>
+                    <span className="text-[10px] text-muted-foreground">{p.w}×{p.h}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Custom size — for anything the catalogue doesn't cover. */}
+      {!showCustom ? (
+        <button
+          type="button"
+          onClick={() => setShowCustom(true)}
+          className="mt-2 w-full px-3 py-2 rounded-md border border-dashed border-border hover:border-brand-500 hover:bg-brand-500/5 text-xs font-medium text-muted-foreground transition-colors"
+        >
+          Custom size (type your own dimensions)
+        </button>
+      ) : (
+        <div className="mt-2 flex items-center gap-1.5">
+          <input
+            type="number"
+            inputMode="numeric"
+            min={100}
+            max={6000}
+            value={customW}
+            onChange={(e) => setCustomW(e.target.value)}
+            placeholder="Width px"
+            className="flex-1 px-2 py-1.5 rounded-md border border-border bg-background text-xs"
+          />
+          <span className="text-muted-foreground text-xs">×</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={100}
+            max={6000}
+            value={customH}
+            onChange={(e) => setCustomH(e.target.value)}
+            placeholder="Height px"
+            className="flex-1 px-2 py-1.5 rounded-md border border-border bg-background text-xs"
+          />
+          <button
+            type="button"
+            onClick={submitCustom}
+            className="px-3 py-1.5 rounded-md bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium transition-colors"
+          >
+            Use
+          </button>
+        </div>
+      )}
     </CardShell>
   );
 }
