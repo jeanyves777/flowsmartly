@@ -25,6 +25,7 @@ export {
   generateQrCode,
   loadBrandLogo,
   addDecorativeShape,
+  composeDesign,
 } from "./image-tools";
 
 export { critiqueDesign } from "./critique-tool";
