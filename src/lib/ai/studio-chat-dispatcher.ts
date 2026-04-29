@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import type { DispatchEnvelope } from "@/lib/ai/studio-chat-agent";
+import { reproduceTemplate } from "@/lib/ai/template-reproduce-agent";
 
 /**
  * Studio Chat Dispatcher — fires worker endpoints after the agent loop.
@@ -73,16 +74,28 @@ async function dispatchDesign(
 ): Promise<void> {
   const { mode, prompt, width, height, category, style, ctaText, referenceImageUrl, useBrandColors, branchId } = env.args;
 
-  // Route both modes to /api/ai/visual for now — /api/ai/design-layout
-  // returns a layout JSON spec (no imageUrl), so smart_layout from chat
-  // always failed with "Worker returned no image URL". Until we wire a
-  // server-side fabric renderer to convert the layout spec to a Design
-  // row + thumbnail, "editable" mode generates the visual via the same
-  // worker and the user opens it in the editor to tweak text overlays.
-  // The mode flag still flows to the worker so we can branch on it
-  // later without changing the chat contract.
-  const route = "/api/ai/visual";
-  const body: Record<string, unknown> = {
+  // ─── ENGINE ROUTING ──────────────────────────────────────────────────
+  //
+  // FLAT (mode === "ai_image"):
+  //   Send everything (prompt + reference photo) to /api/ai/visual,
+  //   which calls gpt-image-1.edit when a reference is present. The
+  //   model itself bakes the subject into the design — we don't run
+  //   any sharp.composite on top.
+  //
+  // EDITABLE (mode === "smart_layout"):
+  //   Two-step Claude composite engine:
+  //   Step 1 — generate a polished source image via /api/ai/visual.
+  //   Step 2 — feed that image into reproduceTemplate() (Claude vision)
+  //   which returns a Fabric canvas spec with EVERY text/shape/photo
+  //   slot as an editable layer. We save Design.canvasData with the
+  //   spec so the Studio editor opens it with editable layers, and
+  //   keep the polished image as the imageUrl/thumbnail. The result
+  //   card in chat shows the image; clicking opens the editable canvas.
+  //
+  // Both engines need the visual call. We always run that first.
+  // ────────────────────────────────────────────────────────────────────
+
+  const visualBody: Record<string, unknown> = {
     prompt,
     category: category ?? "social_post",
     size: `${width}x${height}`,
@@ -90,42 +103,81 @@ async function dispatchDesign(
     ctaText: ctaText ?? null,
     provider: "openai",
     referenceImageUrl: referenceImageUrl ?? null,
-    chatOutputMode: mode, // forwarded so the worker can later branch
+    chatOutputMode: mode,
   };
+  if (useBrandColors) visualBody.brandColors = "auto";
 
-  // BrandKit lookup — both endpoints accept brandColors directly.
-  if (useBrandColors) {
-    // We don't have userId here, so we let the worker route fetch it
-    // from the session via cookie. The worker handles the BrandKit lookup.
-    body.brandColors = "auto";  // sentinel; worker resolves to user's kit
-  }
-
-  const res = await fetch(`${opts.origin}${route}`, {
+  const visualRes = await fetch(`${opts.origin}/api/ai/visual`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(opts.cookieHeader ? { cookie: opts.cookieHeader } : {}),
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(visualBody),
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
+  const visualData = await visualRes.json().catch(() => ({}));
+  if (!visualRes.ok) {
     env.status = "failed";
-    env.error = data?.error?.message || `worker ${route} returned ${res.status}`;
+    env.error = visualData?.error?.message || `visual worker returned ${visualRes.status}`;
     return;
   }
 
-  // /api/ai/visual returns { success, data: { design: { id, imageUrl, ... } } }
-  // /api/ai/design-layout returns a layout spec — for Phase 1.5 we treat
-  // smart_layout's "result" as the design row it creates.
-  const designId: string | undefined =
-    data?.data?.design?.id || data?.data?.designId || data?.designId;
+  let designId: string | undefined =
+    visualData?.data?.design?.id || visualData?.data?.designId || visualData?.designId;
   const imageUrl: string | undefined =
-    data?.data?.design?.imageUrl || data?.data?.imageUrl || data?.imageUrl;
+    visualData?.data?.design?.imageUrl || visualData?.data?.imageUrl || visualData?.imageUrl;
+
+  if (!imageUrl) {
+    env.status = "failed";
+    env.error = "Visual worker returned no image URL";
+    return;
+  }
+
+  // For FLAT mode we're done — attach chatId/branchId and exit.
+  // For EDITABLE mode, run Claude composite to extract editable layers
+  // and persist them on the same Design row.
+  if (mode === "smart_layout") {
+    try {
+      console.log("[ChatDispatcher] running Claude composite (reproduceTemplate) for editable mode...");
+      const reproduce = await reproduceTemplate(imageUrl, {
+        // Pass the literal designText/prompt as customText so Claude
+        // knows what each text slot should say (rather than guessing
+        // from the rendered pixels alone).
+        customText: prompt,
+      });
+      const canvasData = JSON.stringify(reproduce.canvas);
+      if (designId) {
+        await prisma.design.update({
+          where: { id: designId },
+          data: { canvasData },
+        });
+      } else {
+        // Visual route didn't create a Design row (rare path) — create
+        // one ourselves so the user can open the editable result.
+        const created = await prisma.design.create({
+          data: {
+            userId: (await prisma.designChat.findUnique({ where: { id: opts.chatId }, select: { userId: true } }))?.userId || "",
+            prompt: String(prompt).slice(0, 4000),
+            category: category ?? "social_post",
+            size: `${width}x${height}`,
+            style: style ?? "polished",
+            imageUrl,
+            canvasData,
+            status: "COMPLETED",
+          },
+        });
+        designId = created.id;
+      }
+      console.log(`[ChatDispatcher] editable layers saved on design ${designId} (${reproduce.canvas.objects.length} objects)`);
+    } catch (err) {
+      // Non-fatal: the user still has a valid flat image in the
+      // chat — they just don't get the editable layers. Surface the
+      // failure in logs so we can debug, but don't fail the dispatch.
+      console.error("[ChatDispatcher] reproduceTemplate failed (continuing with flat result):", err);
+    }
+  }
 
   if (designId) {
-    // Attach chatId + branchId to the Design row so the chat history
-    // stays linked.
     try {
       await prisma.design.update({
         where: { id: designId },
@@ -136,12 +188,11 @@ async function dispatchDesign(
     }
   }
 
-  env.status = imageUrl ? "complete" : "failed";
+  env.status = "complete";
   env.designId = designId;
   env.imageUrl = imageUrl;
   env.width = width;
   env.height = height;
-  if (!imageUrl) env.error = "Worker returned no image URL";
 }
 
 // ─── video ────────────────────────────────────────────────────────────
