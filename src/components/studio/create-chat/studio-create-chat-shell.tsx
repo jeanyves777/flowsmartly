@@ -426,16 +426,18 @@ export function StudioCreateChatShell({
               <EmptyState onSuggest={(q) => send(q)} />
             ) : (
               turns.map((turn, idx) => {
-                // The pending agent turn is "dispatching" only when the
-                // user's previous message was the literal "Generate now"
-                // — that's the trigger the confirm-summary card sends.
-                // Anything else is just the agent thinking, so we show a
-                // small bubble instead of the full glowing-logo loader.
+                // The pending agent turn is "dispatching" when the user's
+                // previous message indicates a generation/regeneration —
+                // confirm-summary's "Generate now", or one of the result
+                // card's regen / remix / branch buttons. In that case
+                // show the full glowing-logo loader (a real worker is
+                // burning seconds). Otherwise show the small thinking pill.
                 const prev = idx > 0 ? turns[idx - 1] : undefined;
+                const prevText = (prev?.content || "").trim();
                 const dispatching =
                   turn.pending === true &&
                   prev?.role === "user" &&
-                  /^generate now$/i.test(prev.content?.trim() || "");
+                  /^(generate now|regenerate this|remix this|try again|branch this|new variant)$/i.test(prevText);
                 return (
                   <TurnView
                     key={turn.id}
