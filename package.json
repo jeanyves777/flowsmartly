@@ -20,6 +20,7 @@
     "test:store-build:keep": "npx tsx scripts/test-store-build.ts --keep"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.123",
     "@anthropic-ai/sdk": "^0.32.1",
     "@aws-sdk/client-s3": "^3.984.0",
     "@aws-sdk/s3-request-presigner": "^3.985.0",
@@ -82,7 +83,7 @@
     "twilio": "^5.12.0",
     "undici": "^7.21.0",
     "world-atlas": "^2.0.2",
-    "zod": "^3.24.1",
+    "zod": "^3.25.76",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
