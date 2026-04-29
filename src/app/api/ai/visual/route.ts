@@ -495,25 +495,61 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
   const bgOnlyPrompt = useHybridComposite
     ? `${designPrompt}
 
-CRITICAL LAYOUT RULES — read carefully, this design will have a REAL PHOTOGRAPH composited onto it later:
+You are a SENIOR PRINT DESIGNER producing a polished, magazine-quality ${params.category}. A real photograph will be composited into the right zone afterwards — your job is everything else, and that everything else must look like premium agency work, not a default template.
 
-1. RESERVED PHOTO ZONE: The right 50% of the canvas (from horizontal centre to right edge), AND the bottom 50% of that zone, is RESERVED for a real person/product photograph that will be placed on top later. This zone MUST be visually quiet:
-   - NO text, NO words, NO letters anywhere in the right half.
-   - NO graphics, NO icons, NO logos in the right half.
-   - NO patterns, NO ornaments, NO decorative shapes in the right half.
-   - JUST a soft gradient, single solid colour, or one very subtle abstract shape that will read well behind a person.
+═══ LAYOUT ZONES (HARD RULES) ═══
 
-2. TEXT ZONE: ALL headline text, sub-text, dates, addresses, phone numbers, scripture, CTAs, and brand marks must live in the LEFT 45% of the canvas. Not 50% — 45%, leaving a 5% safety gap before the photo zone. NEVER let any letter cross the horizontal midpoint.
+RESERVED PHOTO ZONE — the right 50% of the canvas:
+- NO text, NO words, NO letters.
+- NO icons, NO logos, NO graphics.
+- NO patterns, NO ornaments, NO decorative shapes.
+- ONLY a soft gradient, single solid colour, or one very subtle abstract curve / colour block.
+- Lighting / colour temperature should be slightly cooler-neutral so a composited portrait blends naturally.
 
-3. COPY: use the EXACT words from the brief above. Do NOT invent your own headlines, scripture, names, or addresses.
+TEXT ZONE — the left 45%:
+- ALL text lives here. NEVER let a letter cross the horizontal midpoint.
+- Use the EXACT words from the brief — do NOT invent headlines, scripture, names, addresses.
 
-4. NO PLACEHOLDER OUTLINES: Do NOT draw a rectangular outline, dashed border, or "photo goes here" box. The right half should look like an intentional design choice (a colour block, a soft gradient, a single abstract curve).
+═══ DESIGN-QUALITY BAR (this is what separates good from default) ═══
 
-5. LIGHTING: The right half's colour temperature should be slightly cooler / neutral so a composited portrait blends in.
+1. TYPOGRAPHIC HIERARCHY — three clearly different sizes:
+   - Headline: huge, tight letter-spacing, dramatic. The visual anchor.
+   - Subhead / date / time: medium, sits below the headline with breathing room.
+   - Contact lines / brand line: small but crisp, never cramped.
+   The size jump from headline to body must be at least 3×.
 
-6. EDGE-TO-EDGE: The design fills all four edges, no margin, no nested card-on-background.
+2. CONTACT INFO IS A STYLED SECTION, NOT A LIST OF DUMPED LINES:
+   - Add a SUBTLE divider rule (1-2px, accent-coloured) above the contact block to separate it from the body.
+   - Render an ICON next to each piece of contact info: a thin location pin next to the address, a phone glyph next to the phone number, a globe next to the website, an envelope next to email. The icons should be hairline, brand-coloured, sized ~70% of the line height. They make the info scannable instead of dumped.
+   - If there are multiple contact lines, separate them with subtle vertical rules or generous spacing — never run them together as one wall of text.
 
-Output a polished, print-ready ${params.category} background. The photo will be added afterwards.`
+3. CALL TO ACTION (or featured line):
+   - Wrap the most important short phrase (date+time, "Join Us", scripture, etc.) in a styled treatment — a pill button, a left-border accent rule, an underline with a serif flourish, or a small colour block. It should pop relative to the body text without competing with the headline.
+
+4. DECORATIVE ACCENTS (mandatory unless space genuinely doesn't allow):
+   - Add at least ONE intentional accent: a thin gold/brand-colour rule under the headline, a tiny ornamental dot pattern in the corner, a soft geometric shape echoing the photo zone, a subtle texture overlay on the background. Tasteful, not loud. Print designers always add at least one.
+
+5. BRAND MARK PLACEMENT:
+   - The brand name / wordmark should sit either as a small confident header at the top of the text zone, or anchored to the bottom-left corner. NOT crammed inline with the contact info.
+
+6. NEGATIVE SPACE:
+   - Margins of at least 5% on all four edges. Nothing should crowd the canvas edges.
+   - Generous space between the headline block and the supporting copy. Resist filling every pixel.
+
+7. COLOUR DISCIPLINE:
+   - Use the user's brand palette (or the picked palette) — primary as the dominant hue, accent for the small details (icons, dividers, CTA), neutral for body text. Maximum 3 colours total + white/black for text contrast.
+   - Every word must pass WCAG AA contrast against its immediate background.
+
+8. ALIGNMENT:
+   - Left-align the text block to a consistent margin. Do NOT centre-align loose lines — they look amateur. Headline, subhead, contact info, and brand mark should all align to the same vertical guide.
+
+═══ FINISH ═══
+
+- NO PLACEHOLDER OUTLINES (rectangular dashed boxes saying "photo goes here").
+- EDGE-TO-EDGE — fills all four canvas edges, no nested card-on-background.
+- NO AI watermarks, no provider logos, no model branding.
+
+Output a polished, print-ready ${params.category} background. The photo will be added afterwards by the system.`
     : null;
 
   // ── Generate image via selected provider ──
@@ -626,6 +662,10 @@ Output a polished, print-ready ${params.category} background. The photo will be 
       const subjectW = Math.round(bgW * widthFraction);
       const subjectH = Math.round(bgH * heightFraction);
       let resizedSubject = await sharp(subjectSrc)
+        // Tiny saturation + contrast bump so the cutout pops against the
+        // generated background instead of looking flat. Same treatment a
+        // print designer would apply to a portrait before placing it.
+        .modulate({ saturation: 1.08, brightness: 1.02 })
         .resize(subjectW, subjectH, { fit: "inside", withoutEnlargement: false })
         .png()
         .toBuffer();
