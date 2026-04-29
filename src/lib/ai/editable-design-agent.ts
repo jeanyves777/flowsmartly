@@ -254,7 +254,7 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
       // See note in flat-image-agent.ts: canUseTool always-allow is safe
       // because allowedTools restricts to our own MCP handlers.
       canUseTool: async () => ({ behavior: "allow" as const, updatedInput: {} }),
-      maxTurns: 12,
+      maxTurns: 25,
       pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
       stderr: (msg: string) => console.error(`[editable-agent/cli] ${msg.trimEnd()}`),
     },
@@ -314,7 +314,7 @@ Design with EDITABILITY in mind:
 - Avoid super-busy collages or heavily blended typography over photos — those reverse-engineer poorly.
 - Solid / gradient / minimal-photo backgrounds reverse-engineer cleanly. Plan for that.
 
-Process latitude is yours. Draft → critique → refine 1-3 times → finalize.
+Process with BUDGET DISCIPLINE. The system enforces a hard 25-turn cap; every tool call is one turn. Workflow: 1 draft → 1 critique → AT MOST 1 fix (edit_image OR regenerate) → 1 critique → finalize. When critique says "ship" you MUST call finalize immediately — don't keep refining. If you do 3+ refinement passes you'll be cut off and the user gets nothing. A strong second draft beats a perfect third draft you never finished.
 
 Brief specifics:
 - Use the EXACT copy from the user — never invent your own headlines, names, scripture, contact info.

@@ -257,7 +257,7 @@ export async function runFlatImageAgent(brief: FlatImageBrief): Promise<FlatImag
       // here because allowedTools already restricts execution to our own
       // server-side MCP handlers — Claude can't call anything we didn't ship.
       canUseTool: async () => ({ behavior: "allow" as const, updatedInput: {} }),
-      maxTurns: 12,
+      maxTurns: 20,
       pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
       stderr: (msg: string) => console.error(`[flat-agent/cli] ${msg.trimEnd()}`),
     },
@@ -315,7 +315,7 @@ How to think about this:
 - The brief gives you the literal copy that MUST appear on the design (headline, dates, contact, CTA). Use those exact words. Do not invent your own.
 - ${hasReference ? "A reference photo is pre-loaded in the image store. The user's actual photo MUST appear in the result — do NOT regenerate the subject. Strip its background and composite it thoughtfully." : "No reference photo. You're producing a design from scratch."}
 - Brand context (colors, fonts, voice) is given. Honor it but don't be slavish.
-- Iterate. After your first draft, call critique_design and act on its suggestions. Repeat until critique returns "ship" OR you've done 2-3 refinement passes.
+- Iterate WITH BUDGET DISCIPLINE. The system enforces a hard 20-turn cap; every tool call counts as one turn. Workflow: 1 draft → 1 critique → AT MOST 1 fix (edit_image OR regenerate) → 1 critique → finalize. When critique says "ship" you MUST call finalize immediately. Don't do 3+ refinement passes — you'll be cut off and the user gets nothing.
 - When confident, call finalize with the chosen image_id. After finalize, do not write more text or call more tools.
 
 Quality you are aiming for:
