@@ -7,6 +7,16 @@ import path from "path";
 import os from "os";
 import { randomUUID } from "crypto";
 import sharp from "sharp";
+import { runFlatImageAgent } from "@/lib/ai/flat-image-agent";
+import { runEditableDesignAgent } from "@/lib/ai/editable-design-agent";
+import { processDesignThumbnail } from "@/lib/designs/thumbnail-processor";
+
+/** Env flag — when "true", routes design dispatches through the SDK
+ *  agent loops (flat-image-agent / editable-design-agent). When unset
+ *  or "false", uses the existing /api/ai/visual + reproduceTemplate
+ *  pipeline. Lets us roll out the new engines gradually + flip back
+ *  fast if anything regresses. */
+const USE_SDK_DESIGN_ENGINES = process.env.USE_SDK_DESIGN_ENGINES === "true";
 
 /**
  * Run rembg on a remote/local image URL and return the cutout as a
@@ -116,6 +126,181 @@ async function dispatchOne(env: DispatchEnvelope, opts: DispatchOpts): Promise<v
 
 // ─── design (image) ───────────────────────────────────────────────────
 async function dispatchDesign(
+  env: Extract<DispatchEnvelope, { kind: "design" }>,
+  opts: DispatchOpts,
+): Promise<void> {
+  if (USE_SDK_DESIGN_ENGINES) {
+    return dispatchDesignViaSdk(env, opts);
+  }
+  return dispatchDesignViaLegacy(env, opts);
+}
+
+// ─── SDK engine path ──────────────────────────────────────────────────
+// Routes design dispatches through the Claude Agent SDK engines:
+// flat → runFlatImageAgent, editable → runEditableDesignAgent. Both
+// agents use a tool-using loop with critique-and-iterate cycles, so
+// the result is a real polished design rather than a one-shot.
+async function dispatchDesignViaSdk(
+  env: Extract<DispatchEnvelope, { kind: "design" }>,
+  opts: DispatchOpts,
+): Promise<void> {
+  const { mode, prompt, width, height, category, referenceImageUrl, useBrandColors, branchId } = env.args;
+
+  // Look up the user + brand kit so the agent has the full brief.
+  const chat = await prisma.designChat.findUnique({
+    where: { id: opts.chatId },
+    select: { userId: true },
+  });
+  if (!chat?.userId) {
+    env.status = "failed";
+    env.error = "Chat not found or has no userId";
+    return;
+  }
+
+  const kit = await prisma.brandKit.findFirst({
+    where: { userId: chat.userId },
+    orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+    select: {
+      name: true, voiceTone: true, colors: true, fonts: true, logo: true,
+    },
+  });
+  let brand: {
+    name?: string;
+    voiceTone?: string;
+    primary?: string;
+    secondary?: string;
+    accent?: string;
+    logoUrl?: string;
+    fonts?: { heading?: string; body?: string };
+  } | undefined;
+  if (kit) {
+    let primary: string | undefined;
+    let secondary: string | undefined;
+    let accent: string | undefined;
+    try {
+      const c = JSON.parse(kit.colors || "{}");
+      primary = typeof c.primary === "string" ? c.primary : undefined;
+      secondary = typeof c.secondary === "string" ? c.secondary : undefined;
+      accent = typeof c.accent === "string" ? c.accent : undefined;
+    } catch { /* ignore */ }
+    let heading: string | undefined;
+    let body: string | undefined;
+    try {
+      const f = JSON.parse(kit.fonts || "{}");
+      heading = typeof f.heading === "string" ? f.heading : undefined;
+      body = typeof f.body === "string" ? f.body : undefined;
+    } catch { /* ignore */ }
+    brand = {
+      name: kit.name || undefined,
+      voiceTone: kit.voiceTone || undefined,
+      primary: useBrandColors ? primary : undefined,
+      secondary: useBrandColors ? secondary : undefined,
+      accent: useBrandColors ? accent : undefined,
+      logoUrl: kit.logo || undefined,
+      fonts: heading || body ? { heading, body } : undefined,
+    };
+  }
+
+  const sharedBrief = {
+    category: category ?? "social_post",
+    topic: prompt,
+    designText: prompt, // chat agent already concatenates literal copy into prompt
+    width,
+    height,
+    brand,
+    referenceImageUrl: referenceImageUrl ?? undefined,
+  };
+
+  let imageDataUrl: string;
+  let finalWidth = width;
+  let finalHeight = height;
+  let canvasDataJson: string | null = null;
+  let agentTelemetry: Record<string, unknown> = {};
+
+  try {
+    if (mode === "smart_layout") {
+      const result = await runEditableDesignAgent(sharedBrief);
+      imageDataUrl = result.imageDataUrl;
+      finalWidth = result.width;
+      finalHeight = result.height;
+      canvasDataJson = JSON.stringify(result.canvas);
+      agentTelemetry = {
+        engine: "editable-design-agent",
+        iterations: result.iterations,
+        toolsUsed: result.toolsUsed,
+        critiqueLog: result.critiqueLog,
+        costUsd: result.totalCostUsd,
+        layers: result.canvas.objects.length,
+      };
+    } else {
+      const result = await runFlatImageAgent(sharedBrief);
+      imageDataUrl = result.imageDataUrl;
+      finalWidth = result.width;
+      finalHeight = result.height;
+      agentTelemetry = {
+        engine: "flat-image-agent",
+        iterations: result.iterations,
+        toolsUsed: result.toolsUsed,
+        critiqueLog: result.critiqueLog,
+        costUsd: result.totalCostUsd,
+      };
+    }
+    console.log("[ChatDispatcher/SDK] agent finished:", agentTelemetry);
+  } catch (err) {
+    env.status = "failed";
+    env.error = err instanceof Error ? err.message : String(err);
+    console.error("[ChatDispatcher/SDK] agent failed:", err);
+    return;
+  }
+
+  // Upload the data URL → S3, get a permanent URL.
+  let imageUrl: string;
+  try {
+    const tempDesignId = `chat-sdk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    imageUrl = await processDesignThumbnail(imageDataUrl, chat.userId).catch(() => imageDataUrl);
+    if (!imageUrl || imageUrl.startsWith("data:")) {
+      // processDesignThumbnail can no-op if input doesn't match its
+      // exact contract; fall back to saving via the data URL directly.
+      imageUrl = imageDataUrl;
+    }
+    void tempDesignId;
+  } catch (err) {
+    console.error("[ChatDispatcher/SDK] thumbnail upload failed:", err);
+    imageUrl = imageDataUrl; // fall back to data URL — chat will still render it inline
+  }
+
+  // Create the Design row.
+  let designId: string | undefined;
+  try {
+    const created = await prisma.design.create({
+      data: {
+        userId: chat.userId,
+        prompt: String(prompt).slice(0, 4000),
+        category: category ?? "social_post",
+        size: `${finalWidth}x${finalHeight}`,
+        style: env.args.style ?? "polished",
+        imageUrl,
+        canvasData: canvasDataJson,
+        status: "COMPLETED",
+        chatId: opts.chatId,
+        branchId,
+        metadata: JSON.stringify(agentTelemetry),
+      },
+    });
+    designId = created.id;
+  } catch (err) {
+    console.error("[ChatDispatcher/SDK] failed to create Design row:", err);
+  }
+
+  env.status = "complete";
+  env.designId = designId;
+  env.imageUrl = imageUrl;
+  env.width = finalWidth;
+  env.height = finalHeight;
+}
+
+// ─── Legacy /api/ai/visual + reproduceTemplate path (pre-SDK) ─────────
+async function dispatchDesignViaLegacy(
   env: Extract<DispatchEnvelope, { kind: "design" }>,
   opts: DispatchOpts,
 ): Promise<void> {

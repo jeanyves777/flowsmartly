@@ -233,7 +233,8 @@ export async function runVideoAgent(brief: VideoBrief): Promise<VideoResult> {
   if (!finalVideo) {
     throw new Error(`Video agent finished without calling finalize (iterations=${iterations}, tools=${toolsUsed.join(",")})`);
   }
-  return { ...finalVideo, iterations, toolsUsed, totalCostUsd };
+  const v = finalVideo as VideoResult;
+  return { ...v, iterations, toolsUsed, totalCostUsd };
 }
 
 // ─── prompt builders ──────────────────────────────────────────────────

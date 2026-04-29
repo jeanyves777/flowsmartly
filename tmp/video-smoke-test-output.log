@@ -1,0 +1,27 @@
+Output dir: C:\Users\koffi\Dev\flowsmartly\tmp\design-engine-test
+Reference URL: (none — skipping reference photo path)
+
+══════════════════════════════════════════════════
+Test 3: Video Agent (Veo 3.1)
+══════════════════════════════════════════════════
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+The user provided project/location will take precedence over the API key from the environment variables.
+[Veo] submitting veo-3.1-generate-001 job aspect=9:16 dur=6s ref=true
+(node:22024) MetadataLookupWarning: received unexpected error = All promises were rejected code = UNKNOWN
+(Use `node --trace-warnings ...` to show where the warning was created)
+[Veo] submitting veo-3.1-generate-001 job aspect=9:16 dur=6s ref=true
+✗ VIDEO failed: Error: Video agent finished without calling finalize (iterations=10, tools=mcp__video_engine__generate_first_frame,mcp__video_engine__generate_video,mcp__video_engine__generate_video)
+    at runVideoAgent (C:\Users\koffi\Dev\flowsmartly\src\lib\ai\video-agent.ts:234:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async testVideoAgent (C:\Users\koffi\Dev\flowsmartly\scripts\test-design-engines.ts:157:20)
+    at async main (C:\Users\koffi\Dev\flowsmartly\scripts\test-design-engines.ts:185:30)
+
+══════════════════════════════════════════════════
+Summary
+══════════════════════════════════════════════════
+{
+  "video": {
+    "ok": false,
+    "error": "Video agent finished without calling finalize (iterations=10, tools=mcp__video_engine__generate_first_frame,mcp__video_engine__generate_video,mcp__video_engine__generate_video)"
+  }
+}
