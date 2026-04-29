@@ -218,6 +218,7 @@ export async function runVideoAgent(brief: VideoBrief): Promise<VideoResult> {
       permissionMode: "bypassPermissions",
       maxTurns: 10,
       pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
+      stderr: (msg: string) => console.error(`[video-agent/cli] ${msg.trimEnd()}`),
     },
   })) {
     if (message.type === "assistant") {

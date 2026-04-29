@@ -254,6 +254,7 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
       permissionMode: "bypassPermissions",
       maxTurns: 12,
       pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
+      stderr: (msg: string) => console.error(`[editable-agent/cli] ${msg.trimEnd()}`),
     },
   })) {
     if (message.type === "assistant") {

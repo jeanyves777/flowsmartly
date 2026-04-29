@@ -254,6 +254,7 @@ export async function runFlatImageAgent(brief: FlatImageBrief): Promise<FlatImag
       permissionMode: "bypassPermissions",
       maxTurns: 12,
       pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
+      stderr: (msg: string) => console.error(`[flat-agent/cli] ${msg.trimEnd()}`),
     },
   })) {
     if (message.type === "assistant") {
