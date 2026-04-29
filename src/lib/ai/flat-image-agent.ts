@@ -111,14 +111,26 @@ export async function runFlatImageAgent(brief: FlatImageBrief): Promise<FlatImag
   const tools = [
     tool(
       "generate_image",
-      "Draft a fresh image from a text prompt via gpt-image-1. Use this for the initial composition or to swap a background. The prompt is YOURS — describe what you want; there are no hidden layout rules. Returns image_id you can pass to other tools.",
+      "Draft a fresh image from a text prompt via gpt-image-1. Use this for the BACKGROUND of the design when a reference photo is provided, or for the full design when there is no reference. The prompt is YOURS. Returns image_id.",
       {
-        prompt: z.string().describe("What to draft. Be specific — composition, color treatment, typography, mood."),
+        prompt: z.string().describe("What to draft. Be specific — composition, color treatment, typography, mood. NEVER include people/subjects/persons in the prompt when a user reference photo is pre-loaded — use that instead via remove_background + composite_images."),
         width: z.number().optional(),
         height: z.number().optional(),
         quality: z.enum(["low", "medium", "high"]).optional(),
       },
       async (args) => {
+        // Hard guardrail: when a user reference is pre-loaded, the agent
+        // MUST call remove_background first, before any generate_image.
+        // The prompt asks for this; this enforces it. Otherwise agents
+        // shortcut by generating their own person via gpt-image-1 and
+        // ignore the user's actual photo.
+        const hasUserRef = store.inventory().some((h) => store.get(h.id).source === "user_reference");
+        const hasCutout = store.inventory().some((h) => store.get(h.id).source === "background_removed");
+        if (hasUserRef && !hasCutout) {
+          throw new Error(
+            "REFUSED: a user reference photo is pre-loaded but you have not called remove_background yet. Call remove_background on the user_reference handle FIRST to get a clean cutout. Only AFTER that may you call generate_image (and your prompt MUST be for a background only — describe color panels / gradients / decorative shapes, NEVER a person/subject; the user's actual photo is the subject).",
+          );
+        }
         const r = await genImage(store, {
           prompt: args.prompt,
           width: args.width ?? brief.width,

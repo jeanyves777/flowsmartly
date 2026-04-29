@@ -106,19 +106,32 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
   const tools = [
     tool(
       "generate_image",
-      "Draft a fresh image via gpt-image-1. Use for the BACKGROUND or initial composition. Returns image_id.",
+      "Draft a fresh image via gpt-image-1. Use for the BACKGROUND of the design (no person/subject in the prompt). Returns image_id.",
       {
-        prompt: z.string(),
+        prompt: z.string().describe("What to draft. Be specific. NEVER include people/subjects/persons in the prompt when a user reference is pre-loaded — use remove_background + composite_images on that instead."),
         width: z.number().optional(),
         height: z.number().optional(),
         quality: z.enum(["low", "medium", "high"]).optional(),
       },
-      async (args) => ok(await genImage(store, {
-        prompt: args.prompt,
-        width: args.width ?? brief.width,
-        height: args.height ?? brief.height,
-        quality: args.quality,
-      })),
+      async (args) => {
+        // Hard guardrail: when a user reference is pre-loaded, the agent
+        // MUST call remove_background first. Without this enforcement the
+        // agent often generates a fake person via gpt-image-1 and ignores
+        // the user's actual photo. The prompt requests this; this guarantees it.
+        const hasUserRef = store.inventory().some((h) => store.get(h.id).source === "user_reference");
+        const hasCutout = store.inventory().some((h) => store.get(h.id).source === "background_removed");
+        if (hasUserRef && !hasCutout) {
+          throw new Error(
+            "REFUSED: a user reference photo is pre-loaded but you have not called remove_background yet. Call remove_background on the user_reference handle FIRST. Then generate_image is allowed (only for a STYLED BACKGROUND — no people/subjects in the prompt; the user's actual photo IS the subject).",
+          );
+        }
+        return ok(await genImage(store, {
+          prompt: args.prompt,
+          width: args.width ?? brief.width,
+          height: args.height ?? brief.height,
+          quality: args.quality,
+        }));
+      },
     ),
     tool(
       "edit_image",

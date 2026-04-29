@@ -193,19 +193,21 @@ OUTPUT FORMAT — your FINAL answer must be ONLY a JSON object, no prose, no mar
   ]
 }
 
-ANALYSIS RULES:
-- Read EVERY text block — even small subtitles, dates, scripture refs, footer text. Each is its own textbox layer with the exact wording from the image.
+ANALYSIS RULES — be EXHAUSTIVE; the editor must look like the source:
+- Read EVERY text block — small subtitles, dates, scripture refs, footer, contact lines. Each is its own textbox layer with the exact wording from the image.
 - Sample text colors precisely (the actual rendered hex, not what you'd "expect").
 - Pick fonts from: Playfair Display, Lato, Bebas Neue, Open Sans, Montserrat, Merriweather, Great Vibes, Cinzel, Pacifico, Quicksand, Allura, Cormorant Garamond, Anton, Roboto, Inter.
 - Coordinates are in CANVAS pixels (your chosen width × height). Scale per source aspect.
-- For BACKGROUNDS:
-  * Flat color → use type "color" (preferred — cheaper, crisper)
+- COLOR PANELS / SPLIT BACKGROUNDS — many designs use a left/right or top/bottom split (e.g. green on the left half, cream on the right). When you see this, emit a "rect" layer for the secondary panel with the correct fill, position, size — DO NOT just pick "color" for the whole bg or you lose the split.
+- DECORATIVE ACCENTS — gold dividers, sun-rays, ribbon banners, accent rules under headlines, divider dots, small badges, frame borders. Emit each as its own rect/circle/line layer with the right fill, stroke, position. Don't drop them; they are what makes the design feel agency-grade vs. amateur.
+- BACKGROUND field:
+  * Flat color → use type "color" (only when the WHOLE canvas is one color; if there's a panel split, use "color" for the dominant zone and emit a rect for the other zone).
   * Smooth gradient → use type "gradient"
-  * Photographic background (cruise ship deck, sky, brick wall, abstract texture) → use "image_prompt" with NO people/products in the description
+  * Photographic background → use "image_prompt" with NO people/products in the description
   * If the source background is mostly cropped photos of people, treat the background as a soft solid color and emit those people as PLACEHOLDERS instead.
-- For PHOTO SLOTS: ALWAYS emit as image_placeholder. NEVER use image_prompt for people or products. The slot's frame styling (rounded corners, border) should match the source.
-- Layer ORDER: BACK to FRONT (background goes via the "background" field, then layers[] from bottom-most to top-most).
-- Don't invent decoration the source doesn't have.
+- PHOTO SLOTS — wherever a person/product photo appears, emit an image_placeholder with the exact position, size, and frame styling (rounded corners? border?). NEVER use image_prompt for people/products. If the source doesn't show a photo zone, do not invent one.
+- Layer ORDER: BACK to FRONT (background goes via the "background" field, then layers[] from bottom-most to top-most: panel rects → decorative shapes → text → photo placeholders on top).
+- A flyer with a panel split, decorative sun-rays, gold dividers, photo, headline, subhead, contact lines, brand mark, and footer should produce ~12-18 layers. If you're emitting fewer than 8 layers for a rich-looking design, you missed elements. Look again.
 
 Return ONLY the JSON object.`;
 
