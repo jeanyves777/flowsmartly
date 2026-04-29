@@ -27,6 +27,12 @@ import {
   compositeImages,
   colorGrade,
   addDropShadow,
+  rotateImage,
+  cropImage,
+  addPolaroidFrame,
+  generateQrCode,
+  loadBrandLogo,
+  addDecorativeShape,
   critiqueDesign,
   getClaudeCodeBinaryPath,
 } from "./design-tools";
@@ -140,7 +146,7 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
     ),
     tool(
       "composite_images",
-      "Layer images on top of a base. Each overlay positioned by percent.",
+      "Layer images on top of a base. Each overlay positioned by percent. Optional rotation_degrees for angled placements (polaroid stacks, tilted tickets).",
       {
         base_id: z.string(),
         overlays: z.array(z.object({
@@ -149,6 +155,7 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
           y_pct: z.number(),
           width_pct: z.number().optional(),
           opacity: z.number().optional(),
+          rotation_degrees: z.number().optional(),
         })),
       },
       async (args) => ok(await compositeImages(store, args)),
@@ -175,6 +182,64 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
         offset_y: z.number().optional(),
       },
       async (args) => ok(await addDropShadow(store, args)),
+    ),
+    tool(
+      "rotate_image",
+      "Rotate an image by N degrees (positive=clockwise). Transparent fill so the result composites cleanly. Useful for tilted polaroids, angled tickets.",
+      { image_id: z.string(), degrees: z.number() },
+      async (args) => ok(await rotateImage(store, args)),
+    ),
+    tool(
+      "crop_image",
+      "Crop to a percentage-defined box. Useful for extracting a face/focal region before placing as a polaroid or hero.",
+      {
+        image_id: z.string(),
+        x_pct: z.number(),
+        y_pct: z.number(),
+        width_pct: z.number(),
+        height_pct: z.number(),
+      },
+      async (args) => ok(await cropImage(store, args)),
+    ),
+    tool(
+      "add_polaroid_frame",
+      "Wrap an image in a Polaroid-style white border + optional rotation + drop shadow. Used in birthday flyers, throwback collages. Pair with composite_images to layer 2-3 polaroids of the same subject at different rotations.",
+      {
+        image_id: z.string(),
+        border_pct: z.number().optional(),
+        rotation_degrees: z.number().optional(),
+        add_shadow: z.boolean().optional(),
+      },
+      async (args) => ok(await addPolaroidFrame(store, args)),
+    ),
+    tool(
+      "generate_qr_code",
+      "Generate a QR code as a square PNG. Useful for event flyers (RSVP URL), business cards (vCard).",
+      {
+        text: z.string(),
+        size: z.number().optional(),
+        fg_color: z.string().optional(),
+        bg_color: z.string().optional(),
+      },
+      async (args) => ok(await generateQrCode(store, args)),
+    ),
+    tool(
+      "load_brand_logo",
+      "Load the user's brand logo (URL provided in brief.brand.logoUrl) into the image store as a handle. Then composite it onto the design — typically top-left or footer strip.",
+      { logo_url: z.string() },
+      async (args) => ok(await loadBrandLogo(store, args)),
+    ),
+    tool(
+      "add_decorative_shape",
+      "Render a simple decorative shape (rect, circle, ribbon) as a transparent PNG. Cheaper and more deterministic than gpt-image-1 for color blocks, accent bars, ribbon banners under headlines.",
+      {
+        shape: z.enum(["rect", "circle", "ribbon"]),
+        width: z.number(),
+        height: z.number(),
+        color: z.string(),
+        corner_radius: z.number().optional(),
+      },
+      async (args) => ok(await addDecorativeShape(store, args)),
     ),
     tool(
       "critique_design",
@@ -258,7 +323,7 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
       // See note in flat-image-agent.ts: canUseTool always-allow is safe
       // because allowedTools restricts to our own MCP handlers.
       canUseTool: async () => ({ behavior: "allow" as const, updatedInput: {} }),
-      maxTurns: 25,
+      maxTurns: 35,
       pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
       stderr: (msg: string) => console.error(`[editable-agent/cli] ${msg.trimEnd()}`),
     },
@@ -305,11 +370,17 @@ Your job: build a polished composition + call finalize. The system handles the e
 Tool inventory (all reachable via the editable_design_engine MCP server):
 - generate_image — draft a fresh image (gpt-image-1).
 - edit_image — revise an image with an instruction.
-- remove_background — strip a photo's background.
-- composite_images — layer images at percent positions.
-- color_grade — adjust saturation / brightness / hue.
+- remove_background — strip a photo's background (rembg).
+- composite_images — layer images at percent positions, with optional rotation_degrees per overlay.
+- rotate_image — rotate by N degrees.
+- crop_image — extract a region by percent box. Use to tight-crop a face from a wider photo.
+- add_polaroid_frame — white-bordered Polaroid look with shadow + tilt. Pair with composite to make polaroid stacks.
 - add_drop_shadow — soft shadow for cutouts.
-- critique_design — Claude-vision review with verdict/score/suggestions.
+- color_grade — saturation / brightness / hue tweak.
+- generate_qr_code — square QR PNG for an RSVP URL or vCard.
+- load_brand_logo — fetch the brand logo (URL in brief.brand.logoUrl) into the store as a handle.
+- add_decorative_shape — render rect/circle/ribbon as transparent PNG. Faster + more deterministic than gpt-image-1 for shapes.
+- critique_design — Claude-vision review (ship/iterate + suggestions).
 - finalize — TERMINAL: extracts editable Fabric layers and commits.
 
 REQUIRED WORKFLOW when a reference photo is pre-loaded:

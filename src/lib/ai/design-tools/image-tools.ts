@@ -14,6 +14,7 @@ import { readFile, writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
 import os from "os";
 import { randomUUID } from "crypto";
+import QRCode from "qrcode";
 import { openaiClient } from "@/lib/ai/openai-client";
 import { removeBackground, isRembgAvailable } from "@/lib/image-tools/background-remover";
 import { ImageStore } from "./image-store";
@@ -185,6 +186,9 @@ export async function compositeImages(
       width_pct?: number;
       /** Opacity 0-1. Default 1. */
       opacity?: number;
+      /** Rotation in degrees (clockwise). Useful for polaroid stacks /
+       *  angled tickets / tilted decorative cards. */
+      rotation_degrees?: number;
     }>;
   },
 ): Promise<{ image_id: string; summary: string }> {
@@ -197,10 +201,11 @@ export async function compositeImages(
   for (const ov of args.overlays) {
     const src = store.get(ov.image_id);
     const targetW = Math.round(((ov.width_pct ?? 30) / 100) * bw);
-    let layerBuf = await sharp(src.buffer)
-      .resize(targetW, undefined, { fit: "inside" })
-      .png()
-      .toBuffer();
+    let pipeline = sharp(src.buffer).resize(targetW, undefined, { fit: "inside" });
+    if (ov.rotation_degrees !== undefined && ov.rotation_degrees !== 0) {
+      pipeline = pipeline.rotate(ov.rotation_degrees, { background: { r: 0, g: 0, b: 0, alpha: 0 } });
+    }
+    let layerBuf = await pipeline.png().toBuffer();
     if (ov.opacity !== undefined && ov.opacity < 1) {
       // Multiply alpha by opacity
       const factor = Math.max(0, Math.min(1, ov.opacity));
@@ -332,6 +337,282 @@ export async function addDropShadow(
     height: outMeta.height,
     source: "drop_shadow_added",
     note: `shadow on ${args.image_id} (blur=${blur} opacity=${opacity})`,
+  });
+  return { image_id: id, summary: store.describe(id) };
+}
+
+/**
+ * Rotate a stored image by N degrees (positive = clockwise). Sharp
+ * fills the rotated bounding box with transparent pixels so the
+ * result composites cleanly onto any background.
+ */
+export async function rotateImage(
+  store: ImageStore,
+  args: { image_id: string; degrees: number },
+): Promise<{ image_id: string; summary: string }> {
+  const src = store.get(args.image_id);
+  const out = await sharp(src.buffer)
+    .rotate(args.degrees, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+  const meta = await bufferMeta(out);
+  const id = store.register({
+    buffer: out,
+    mimeType: "image/png",
+    width: meta.width,
+    height: meta.height,
+    source: "rotated",
+    note: `${args.image_id} rotated ${args.degrees}°`,
+  });
+  return { image_id: id, summary: store.describe(id) };
+}
+
+/**
+ * Crop a stored image to a percentage-defined box. All values 0-100.
+ * Useful for extracting a face or focal region from a wider photo
+ * (e.g. cropping a portrait to a tight square for a polaroid).
+ */
+export async function cropImage(
+  store: ImageStore,
+  args: {
+    image_id: string;
+    /** Top-left X as percent of source width (0-100). */
+    x_pct: number;
+    /** Top-left Y as percent of source height (0-100). */
+    y_pct: number;
+    /** Crop width as percent of source width (0-100). */
+    width_pct: number;
+    /** Crop height as percent of source height (0-100). */
+    height_pct: number;
+  },
+): Promise<{ image_id: string; summary: string }> {
+  const src = store.get(args.image_id);
+  const meta0 = await sharp(src.buffer).metadata();
+  const sw = meta0.width || 1024;
+  const sh = meta0.height || 1024;
+  const left = Math.max(0, Math.round((args.x_pct / 100) * sw));
+  const top = Math.max(0, Math.round((args.y_pct / 100) * sh));
+  const width = Math.max(1, Math.min(sw - left, Math.round((args.width_pct / 100) * sw)));
+  const height = Math.max(1, Math.min(sh - top, Math.round((args.height_pct / 100) * sh)));
+  const out = await sharp(src.buffer)
+    .extract({ left, top, width, height })
+    .png()
+    .toBuffer();
+  const meta = await bufferMeta(out);
+  const id = store.register({
+    buffer: out,
+    mimeType: "image/png",
+    width: meta.width,
+    height: meta.height,
+    source: "cropped",
+    note: `${args.image_id} crop ${args.x_pct},${args.y_pct} ${args.width_pct}x${args.height_pct}%`,
+  });
+  return { image_id: id, summary: store.describe(id) };
+}
+
+/**
+ * Wrap an image in a Polaroid-style white border with a soft drop
+ * shadow + optional slight rotation. Common in event flyers, birthday
+ * collages, throwback posts. The result has transparent corners around
+ * the rotated frame so it composites cleanly on any background.
+ */
+export async function addPolaroidFrame(
+  store: ImageStore,
+  args: {
+    image_id: string;
+    /** Border thickness as percent of image width. Default 5%. */
+    border_pct?: number;
+    /** Slight rotation in degrees. Default 0 (caller can rotate at composite time too). */
+    rotation_degrees?: number;
+    /** Whether to add a soft drop shadow under the polaroid. Default true. */
+    add_shadow?: boolean;
+  },
+): Promise<{ image_id: string; summary: string }> {
+  const src = store.get(args.image_id);
+  const meta0 = await sharp(src.buffer).metadata();
+  const sw = meta0.width || 600;
+  const sh = meta0.height || 600;
+  const borderPct = args.border_pct ?? 5;
+  const border = Math.max(8, Math.round((borderPct / 100) * Math.min(sw, sh)));
+  // Polaroids have a thicker bottom border than top/sides
+  const bottomBorder = border * 2.5;
+
+  // Build the framed image: white background + image inset
+  const frameW = sw + border * 2;
+  const frameH = sh + border + bottomBorder;
+  let framed = await sharp({
+    create: { width: frameW, height: frameH, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } },
+  })
+    .composite([{ input: src.buffer, left: border, top: border }])
+    .png()
+    .toBuffer();
+
+  // Optional rotation
+  if (args.rotation_degrees !== undefined && args.rotation_degrees !== 0) {
+    framed = await sharp(framed)
+      .rotate(args.rotation_degrees, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toBuffer();
+  }
+
+  // Optional drop shadow
+  if (args.add_shadow !== false) {
+    const fmeta = await sharp(framed).metadata();
+    const fw = fmeta.width || frameW;
+    const fh = fmeta.height || frameH;
+    // Build a black silhouette of the frame, blur, dim opacity
+    const alphaShadow = await sharp(framed)
+      .extractChannel("alpha")
+      .blur(15)
+      .toColourspace("b-w")
+      .toBuffer();
+    const shadowLayer = await sharp({
+      create: { width: fw, height: fh, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite([{ input: alphaShadow, blend: "dest-in" }])
+      .ensureAlpha()
+      .png()
+      .toBuffer();
+    const dimmedShadow = await sharp(shadowLayer)
+      .composite([{
+        input: Buffer.from([0, 0, 0, Math.round(255 * 0.35)]),
+        raw: { width: 1, height: 1, channels: 4 },
+        tile: true,
+        blend: "dest-in",
+      }])
+      .png()
+      .toBuffer();
+    framed = await sharp({
+      create: { width: fw + 30, height: fh + 30, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite([
+        { input: dimmedShadow, left: 12, top: 18 },
+        { input: framed, left: 0, top: 0 },
+      ])
+      .png()
+      .toBuffer();
+  }
+
+  const meta = await bufferMeta(framed);
+  const id = store.register({
+    buffer: framed,
+    mimeType: "image/png",
+    width: meta.width,
+    height: meta.height,
+    source: "polaroid_framed",
+    note: `polaroid of ${args.image_id} (border=${borderPct}% rot=${args.rotation_degrees ?? 0}°)`,
+  });
+  return { image_id: id, summary: store.describe(id) };
+}
+
+/**
+ * Generate a QR code as a PNG image and register it. Useful for event
+ * flyers (RSVP link), business cards (vCard), promo posters (campaign
+ * URL). foreground/background can be tuned to match brand palette.
+ */
+export async function generateQrCode(
+  store: ImageStore,
+  args: {
+    /** Text or URL to encode. */
+    text: string;
+    /** Output size in px (square). Default 600. */
+    size?: number;
+    /** Foreground hex (default "#000000"). */
+    fg_color?: string;
+    /** Background hex (default "#FFFFFF"). Use "#FFFFFF00" for transparent. */
+    bg_color?: string;
+    /** Quiet zone (margin) in modules. Default 2. */
+    margin?: number;
+  },
+): Promise<{ image_id: string; summary: string }> {
+  const size = args.size ?? 600;
+  const buf = await QRCode.toBuffer(args.text, {
+    type: "png",
+    width: size,
+    margin: args.margin ?? 2,
+    color: {
+      dark: args.fg_color ?? "#000000",
+      light: args.bg_color ?? "#FFFFFF",
+    },
+    errorCorrectionLevel: "M",
+  });
+  const meta = await bufferMeta(buf);
+  const id = store.register({
+    buffer: buf,
+    mimeType: "image/png",
+    width: meta.width,
+    height: meta.height,
+    source: "qr_code",
+    note: `QR for "${args.text.slice(0, 50)}"`,
+  });
+  return { image_id: id, summary: store.describe(id) };
+}
+
+/**
+ * Load the user's brand logo into the image store so it can be
+ * composited onto designs (top corner, footer strip, etc.). The agent
+ * passes the URL from the brief's brand.logoUrl field.
+ */
+export async function loadBrandLogo(
+  store: ImageStore,
+  args: { logo_url: string },
+): Promise<{ image_id: string; summary: string }> {
+  const buf = await resolveToBuffer(args.logo_url);
+  const meta = await bufferMeta(buf);
+  const id = store.register({
+    buffer: buf,
+    mimeType: meta.width ? "image/png" : "image/png", // assume PNG; sharp handles real format
+    width: meta.width,
+    height: meta.height,
+    source: "brand_logo",
+    note: `brand logo from ${args.logo_url.slice(0, 60)}`,
+  });
+  return { image_id: id, summary: store.describe(id) };
+}
+
+/**
+ * Render a simple decorative shape as a transparent PNG and register
+ * it. Cheap alternative to calling gpt-image-1 for a colored block /
+ * ribbon / curve. The agent picks shape, size, color.
+ */
+export async function addDecorativeShape(
+  store: ImageStore,
+  args: {
+    /** "rect" — solid rectangle. "circle" — solid circle. "ribbon" — wide horizontal bar with curved ends. */
+    shape: "rect" | "circle" | "ribbon";
+    /** Width in px. */
+    width: number;
+    /** Height in px. */
+    height: number;
+    /** Fill hex, e.g. "#1a5f3f". */
+    color: string;
+    /** Optional border-radius for rect (px). */
+    corner_radius?: number;
+  },
+): Promise<{ image_id: string; summary: string }> {
+  const w = Math.max(2, Math.round(args.width));
+  const h = Math.max(2, Math.round(args.height));
+  const color = args.color || "#000000";
+  let svg: string;
+  if (args.shape === "circle") {
+    const r = Math.min(w, h) / 2;
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><circle cx="${w / 2}" cy="${h / 2}" r="${r}" fill="${color}" /></svg>`;
+  } else if (args.shape === "ribbon") {
+    const r = Math.round(h * 0.5);
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect x="0" y="0" width="${w}" height="${h}" rx="${r}" ry="${r}" fill="${color}" /></svg>`;
+  } else {
+    const cr = args.corner_radius ?? 0;
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect x="0" y="0" width="${w}" height="${h}" rx="${cr}" ry="${cr}" fill="${color}" /></svg>`;
+  }
+  const buf = await sharp(Buffer.from(svg)).png().toBuffer();
+  const meta = await bufferMeta(buf);
+  const id = store.register({
+    buffer: buf,
+    mimeType: "image/png",
+    width: meta.width,
+    height: meta.height,
+    source: "decorative_shape",
+    note: `${args.shape} ${w}x${h} ${color}`,
   });
   return { image_id: id, summary: store.describe(id) };
 }

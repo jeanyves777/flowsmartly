@@ -35,7 +35,13 @@ export interface StoredImage {
     | "background_removed"
     | "composited"
     | "color_graded"
-    | "drop_shadow_added";
+    | "drop_shadow_added"
+    | "rotated"
+    | "cropped"
+    | "polaroid_framed"
+    | "qr_code"
+    | "brand_logo"
+    | "decorative_shape";
   /** Free-form note from the producing tool — e.g. "background only, right zone clean". */
   note?: string;
 }

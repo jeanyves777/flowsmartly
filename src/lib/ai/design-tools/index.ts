@@ -19,6 +19,12 @@ export {
   compositeImages,
   colorGrade,
   addDropShadow,
+  rotateImage,
+  cropImage,
+  addPolaroidFrame,
+  generateQrCode,
+  loadBrandLogo,
+  addDecorativeShape,
 } from "./image-tools";
 
 export { critiqueDesign } from "./critique-tool";

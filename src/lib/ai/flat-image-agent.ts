@@ -31,6 +31,12 @@ import {
   compositeImages,
   colorGrade,
   addDropShadow,
+  rotateImage,
+  cropImage,
+  addPolaroidFrame,
+  generateQrCode,
+  loadBrandLogo,
+  addDecorativeShape,
   critiqueDesign,
   getClaudeCodeBinaryPath,
 } from "./design-tools";
@@ -152,7 +158,7 @@ export async function runFlatImageAgent(brief: FlatImageBrief): Promise<FlatImag
     ),
     tool(
       "composite_images",
-      "Layer one or more images on top of a base. Each overlay is positioned by percent (x_pct, y_pct = top-left; width_pct sizes it). Returns a new image_id with the composite.",
+      "Layer one or more images on top of a base. Each overlay positioned by percent (x_pct, y_pct = top-left; width_pct sizes it). Optional rotation_degrees per overlay for angled placements (polaroid stacks, tilted tickets). Use 2-3 overlays of the same cutout at different positions/scales/rotations for a layered look. Returns new image_id.",
       {
         base_id: z.string(),
         overlays: z.array(z.object({
@@ -161,6 +167,7 @@ export async function runFlatImageAgent(brief: FlatImageBrief): Promise<FlatImag
           y_pct: z.number(),
           width_pct: z.number().optional(),
           opacity: z.number().optional(),
+          rotation_degrees: z.number().optional(),
         })),
       },
       async (args) => {
@@ -196,6 +203,64 @@ export async function runFlatImageAgent(brief: FlatImageBrief): Promise<FlatImag
         const r = await addDropShadow(store, args);
         return ok(r);
       },
+    ),
+    tool(
+      "rotate_image",
+      "Rotate an image by N degrees (positive=clockwise). Background fills with transparent so the result composites cleanly. Useful for tilted polaroids, angled tickets, slanted decorative cards.",
+      { image_id: z.string(), degrees: z.number() },
+      async (args) => ok(await rotateImage(store, args)),
+    ),
+    tool(
+      "crop_image",
+      "Crop an image to a percentage-defined box. Useful for extracting a face/focal region from a wider photo before placing as a polaroid or hero.",
+      {
+        image_id: z.string(),
+        x_pct: z.number(),
+        y_pct: z.number(),
+        width_pct: z.number(),
+        height_pct: z.number(),
+      },
+      async (args) => ok(await cropImage(store, args)),
+    ),
+    tool(
+      "add_polaroid_frame",
+      "Wrap an image in a Polaroid-style white border with optional rotation + drop shadow. Used in birthday flyers, throwback collages. Pair with composite_images to place 2-3 polaroids of the same subject at different rotations for a layered stack.",
+      {
+        image_id: z.string(),
+        border_pct: z.number().optional(),
+        rotation_degrees: z.number().optional(),
+        add_shadow: z.boolean().optional(),
+      },
+      async (args) => ok(await addPolaroidFrame(store, args)),
+    ),
+    tool(
+      "generate_qr_code",
+      "Generate a QR code as a square PNG. Useful for event flyers (RSVP URL), business cards (vCard), promo posters (campaign link). fg_color/bg_color let you match the brand palette.",
+      {
+        text: z.string(),
+        size: z.number().optional(),
+        fg_color: z.string().optional(),
+        bg_color: z.string().optional(),
+      },
+      async (args) => ok(await generateQrCode(store, args)),
+    ),
+    tool(
+      "load_brand_logo",
+      "Load the user's brand logo (URL provided in the brief's brand.logoUrl) into the image store as a handle. Then composite it onto the design — typically top-left or footer strip.",
+      { logo_url: z.string() },
+      async (args) => ok(await loadBrandLogo(store, args)),
+    ),
+    tool(
+      "add_decorative_shape",
+      "Render a simple decorative shape (rect, circle, ribbon) as a transparent PNG. Cheaper and more deterministic than asking gpt-image-1 for a colored block. Use for color panels, accent bars, ribbon banners under headlines, badge backgrounds.",
+      {
+        shape: z.enum(["rect", "circle", "ribbon"]),
+        width: z.number(),
+        height: z.number(),
+        color: z.string(),
+        corner_radius: z.number().optional(),
+      },
+      async (args) => ok(await addDecorativeShape(store, args)),
     ),
     tool(
       "critique_design",
@@ -264,7 +329,7 @@ export async function runFlatImageAgent(brief: FlatImageBrief): Promise<FlatImag
       // here because allowedTools already restricts execution to our own
       // server-side MCP handlers — Claude can't call anything we didn't ship.
       canUseTool: async () => ({ behavior: "allow" as const, updatedInput: {} }),
-      maxTurns: 20,
+      maxTurns: 30,
       pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
       stderr: (msg: string) => console.error(`[flat-agent/cli] ${msg.trimEnd()}`),
     },
@@ -311,35 +376,37 @@ Your job: read the brief in the next user message, decide your approach, and use
 Tool inventory (all reachable via the flat_image_engine MCP server):
 - generate_image — draft a fresh image from a text prompt (gpt-image-1).
 - edit_image — revise an image with a new instruction.
-- remove_background — strip the background from a photo.
-- composite_images — layer images at percent positions.
-- color_grade — adjust saturation / brightness / hue.
-- add_drop_shadow — soft shadow synthesised from alpha.
-- critique_design — Claude-vision self-review with verdict, score, suggestions.
+- remove_background — strip the background from a photo (rembg).
+- composite_images — layer images at percent positions, with optional rotation_degrees per overlay.
+- rotate_image — rotate by N degrees.
+- crop_image — extract a region by percent box. Use for tight-cropping a face from a wider photo.
+- add_polaroid_frame — white-bordered Polaroid look with shadow + optional tilt. Pair with composite to make polaroid stacks of the same subject.
+- add_drop_shadow — soft shadow from alpha (grounds a cutout).
+- color_grade — saturation / brightness / hue tweak.
+- generate_qr_code — square QR PNG for an RSVP URL, vCard, campaign link. Color-customisable.
+- load_brand_logo — fetch the user's brand logo (URL is in brief.brand.logoUrl) into the store so it can be composited.
+- add_decorative_shape — render a rect/circle/ribbon as a transparent PNG. Use for color panels, accent bars, ribbon banners. Faster + more deterministic than asking gpt-image-1 for shapes.
+- critique_design — Claude-vision self-review (ship/iterate + suggestions).
 - finalize — TERMINAL: commits the design and stops the loop.
 
 REQUIRED WORKFLOW when a reference photo is pre-loaded:
 ${hasReference ? `
-   1. FIRST tool call: remove_background on the pre-loaded reference handle.
-   2. SECOND tool call: generate_image for the BACKGROUND ONLY. The
-      prompt MUST describe a designed scene — color blocks, gradient
-      panels, decorative shapes — with one zone (typically right half)
-      kept visually quiet for the cutout. NEVER prompt for a person —
-      the user's photo is the person.
-   3. THIRD tool call: composite_images placing the cutout onto the
-      generated bg. Position, scale, optional rotation chosen for a
-      cinematic effect.
-   4. (Optional) edit_image or color_grade for polish.
-   5. critique_design ONCE. If "ship" → finalize. If "iterate" → ONE fix.
-   6. finalize.
-   You will be CUT OFF and the user will get NOTHING if you do not use
-   remove_background + composite_images for the reference photo. Do not
-   call generate_image with a person/subject prompt — that produces a
-   stock-photo-looking person which is exactly what we are trying to
-   avoid.` : `
-   1. Draft the full design via generate_image.
-   2. critique_design ONCE. If "ship" → finalize. If "iterate" → ONE fix.
-   3. finalize.`}
+   1. FIRST tool call: remove_background on the pre-loaded reference handle (gives a clean cutout).
+   2. (OPTIONAL) crop_image to tighten the cutout to a face/subject if it's too wide.
+   3. (OPTIONAL) For birthday / event / throwback flyers: add_polaroid_frame on the cutout (try slight rotation: -8 to +8 degrees), and consider creating 2-3 polaroids of the same subject at different rotations for a layered stack look.
+   4. NEXT tool call: generate_image for a STYLED BACKGROUND. Describe color panels, gradient zones, geometric accents, decorative chrome — leave one zone (usually right or center) quiet for the subject. NEVER prompt for a person.
+   5. (OPTIONAL) load_brand_logo to fetch the brand mark into the store. Compose it top-left or footer.
+   6. (OPTIONAL) add_decorative_shape for color blocks / ribbon banners / accent bars.
+   7. (OPTIONAL) generate_qr_code if the brief calls for an RSVP/campaign URL.
+   8. composite_images placing all the layers (bg + cutout + polaroids + logo + decorative shapes) in a confident composition. Use rotation_degrees on overlays for polaroid tilt.
+   9. (Optional) edit_image or color_grade for final polish.
+  10. critique_design ONCE. If "ship" → finalize. If "iterate" → ONE fix → critique → finalize.
+   YOU WILL BE CUT OFF if you do not use remove_background + composite_images for the reference. Do NOT call generate_image with a person/subject prompt — it produces stock-photo strangers, which is exactly what we are trying to avoid.` : `
+   1. generate_image for the full design.
+   2. (OPTIONAL) load_brand_logo + composite_images to add the brand mark.
+   3. (OPTIONAL) generate_qr_code + composite if needed.
+   4. critique_design ONCE. If "ship" → finalize. If "iterate" → ONE fix.
+   5. finalize.`}
 
 QUALITY BAR — agency-grade flyers users are accustomed to:
 - Layered, intentional composition. Reference designs in this domain
