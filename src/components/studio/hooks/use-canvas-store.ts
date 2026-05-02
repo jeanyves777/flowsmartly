@@ -98,6 +98,25 @@ interface CanvasState {
   smartGuidesEnabled: boolean;
   toggleSmartGuides: () => void;
 
+  // ChatGPT-style "pinpoint a region for the AI Improve" workflow.
+  // When `regionSelectMode` is true, a left-click-drag on the canvas draws
+  // a brand-blue rectangle and stores its bounds in `aiSelectedRegion`.
+  // Coordinates are in CANVAS pixels (not screen pixels), so the value
+  // can be sent straight to /api/ai/visual.
+  regionSelectMode: boolean;
+  setRegionSelectMode: (on: boolean) => void;
+  aiSelectedRegion: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    canvasW: number;
+    canvasH: number;
+  } | null;
+  setAiSelectedRegion: (
+    region: { x: number; y: number; w: number; h: number; canvasW: number; canvasH: number } | null,
+  ) => void;
+
   // Collaboration
   collaborationRole: "OWNER" | "EDITOR" | "VIEWER" | null;
   isReadOnly: boolean;
@@ -219,6 +238,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   isEditingText: false,
   setIsEditingText: (editing) => set({ isEditingText: editing }),
+
+  regionSelectMode: false,
+  setRegionSelectMode: (on) => set({ regionSelectMode: on }),
+  aiSelectedRegion: null,
+  setAiSelectedRegion: (region) => set({ aiSelectedRegion: region }),
 
   // Smart guides — read initial value from localStorage so the user's
   // preference persists across reloads. Default to ON.

@@ -106,7 +106,6 @@ export async function POST(request: NextRequest) {
       logoSizePercent,
       ctaText,
       editImageUrl,
-      editRegion,
       provider,
     } = body;
 
@@ -156,7 +155,6 @@ export async function POST(request: NextRequest) {
       logoSizePercent: logoSizePercent || null,
       ctaText: ctaText || null,
       editImageUrl: editImageUrl || null,
-      editRegion: editRegion || null,
       provider: selectedProvider,
     });
 
@@ -288,20 +286,6 @@ interface PipelineParams {
   logoSizePercent?: number | null;
   ctaText?: string | null;
   editImageUrl?: string | null;
-  /**
-   * Optional pinpoint region for edit mode. Coordinates are in CANVAS pixels
-   * (so the model gets unambiguous bounds even when the canvas isn't 1080×1080).
-   * canvasW / canvasH let us convert to percentages so the prompt is robust
-   * to provider rescaling.
-   */
-  editRegion?: {
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-    canvasW: number;
-    canvasH: number;
-  } | null;
   provider: ImageProvider;
 }
 
@@ -797,40 +781,17 @@ Output a polished, print-ready ${params.category} background. The photo will be 
 // ═══════════════════════════════════════════════════════════════
 
 async function runEditPipeline(params: PipelineParams) {
-  const { prompt, width, height, provider, editImageUrl, editRegion } = params;
+  const { prompt, width, height, provider, editImageUrl } = params;
 
   console.log(`[Visual/Edit] Provider: ${provider}, instruction: "${prompt.slice(0, 80)}"`);
 
-  // Optional pinpoint-region clause. Image-edit providers (xAI grok-imagine-image,
-  // Gemini, OpenAI gpt-image-1) accept a single edit instruction string, so we
-  // inject the bounds verbally as a percent-of-canvas rectangle. Percent is
-  // more robust than pixel coords because providers may rescale internally.
-  let regionClause = "";
-  if (editRegion && editRegion.canvasW > 0 && editRegion.canvasH > 0) {
-    const xPct = Math.max(0, Math.min(100, (editRegion.x / editRegion.canvasW) * 100));
-    const yPct = Math.max(0, Math.min(100, (editRegion.y / editRegion.canvasH) * 100));
-    const wPct = Math.max(0, Math.min(100, (editRegion.w / editRegion.canvasW) * 100));
-    const hPct = Math.max(0, Math.min(100, (editRegion.h / editRegion.canvasH) * 100));
-    const xRight = Math.min(100, xPct + wPct);
-    const yBottom = Math.min(100, yPct + hPct);
-    regionClause = `
-
-PINPOINT REGION — APPLY THE EDIT ONLY INSIDE THIS BOX:
-- Top-left corner: ${xPct.toFixed(1)}% from left, ${yPct.toFixed(1)}% from top
-- Bottom-right corner: ${xRight.toFixed(1)}% from left, ${yBottom.toFixed(1)}% from top
-- Box size: ${wPct.toFixed(1)}% wide × ${hPct.toFixed(1)}% tall (relative to the full canvas)
-- DO NOT modify pixels outside this box. Everything outside the box must stay byte-for-byte the same.
-- The edit must blend seamlessly with the surrounding pixels at the box border (no visible seam).`;
-    console.log(`[Visual/Edit] Region: (${xPct.toFixed(1)}%, ${yPct.toFixed(1)}%) ${wPct.toFixed(1)}%×${hPct.toFixed(1)}%`);
-  }
-
   const editPrompt = `You are editing an existing graphic design image. Apply ONLY the following change and keep everything else exactly the same — same layout, same colors, same style, same background, same composition.
 
-EDIT INSTRUCTION: ${prompt}${regionClause}
+EDIT INSTRUCTION: ${prompt}
 
 RULES:
 - Preserve the overall design exactly as-is
-- Only modify what the instruction asks for${editRegion ? " — and ONLY inside the pinpoint region above" : ""}
+- Only modify what the instruction asks for
 - Keep all other text, images, shapes, and colors unchanged
 - Maintain the same dimensions and aspect ratio
 - The result must look like a professional design, not a rough edit`;

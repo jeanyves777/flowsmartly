@@ -48,6 +48,10 @@ export function CanvasEditor({
     activeTool,
     activePageIndex,
     isReadOnly,
+    regionSelectMode,
+    setRegionSelectMode,
+    aiSelectedRegion,
+    setAiSelectedRegion,
   } = useCanvasStore();
 
   const { pushState } = useCanvasHistory();
@@ -466,6 +470,162 @@ export function CanvasEditor({
     if (!canvas) return;
     return attachSmartGuides(canvas);
   }, [canvas]);
+
+  // ChatGPT-style "pinpoint a region for AI Improve" overlay.
+  // Two responsibilities:
+  //   1. While `regionSelectMode` is on, capture a left-drag and store the
+  //      resulting rect in `aiSelectedRegion` (canvas-pixel coords).
+  //   2. While `aiSelectedRegion` exists, render it on the upper canvas as
+  //      a brand-blue dashed rectangle so the user can see what they picked.
+  // Implementation mirrors the smart-guides utility: we draw via the upper
+  // canvas context inside an `after:render` handler instead of mutating the
+  // object list, so the overlay never participates in selection or history.
+  useEffect(() => {
+    if (!canvas) return;
+
+    let isDrawing = false;
+    let startX = 0;
+    let startY = 0;
+    let liveRect: { x: number; y: number; w: number; h: number } | null = null;
+    const cw = canvas.getWidth();
+    const ch = canvas.getHeight();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const drawRect = (rect: { x: number; y: number; w: number; h: number } | null, opt: { dashed?: boolean } = {}) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ctx = (canvas as any).getTopContext?.() ?? (canvas as any).getSelectionContext?.();
+      if (!ctx || !rect) return;
+      ctx.save();
+      // Dim everything outside the region to make the selection pop
+      ctx.fillStyle = "rgba(15, 23, 42, 0.35)";
+      ctx.fillRect(0, 0, cw, ch);
+      // Cut a hole for the selected rect
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.globalCompositeOperation = "source-over";
+      // Border + corner dots
+      ctx.strokeStyle = "#3b82f6";
+      ctx.lineWidth = 2;
+      if (opt.dashed) ctx.setLineDash([6, 4]);
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.fillStyle = "#3b82f6";
+      const handle = 6;
+      [
+        [rect.x, rect.y],
+        [rect.x + rect.w, rect.y],
+        [rect.x, rect.y + rect.h],
+        [rect.x + rect.w, rect.y + rect.h],
+      ].forEach(([cx, cy]) => {
+        ctx.fillRect(cx - handle / 2, cy - handle / 2, handle, handle);
+      });
+      ctx.restore();
+    };
+
+    const handleAfterRender = () => {
+      // Show the persisted region whenever it exists (and we aren't actively
+      // drawing a new one — the in-progress drag draws itself).
+      if (liveRect) {
+        drawRect(liveRect, { dashed: true });
+      } else if (aiSelectedRegion) {
+        drawRect(
+          {
+            x: aiSelectedRegion.x,
+            y: aiSelectedRegion.y,
+            w: aiSelectedRegion.w,
+            h: aiSelectedRegion.h,
+          },
+          { dashed: true },
+        );
+      }
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const getCanvasPoint = (opt: any): { x: number; y: number } => {
+      const pointer = opt.pointer || (canvas.getPointer ? canvas.getPointer(opt.e) : null);
+      if (!pointer) return { x: 0, y: 0 };
+      return { x: pointer.x, y: pointer.y };
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onDown = (opt: any) => {
+      if (!regionSelectMode) return;
+      const e = opt.e as MouseEvent;
+      if (e.button !== 0) return; // only left-click starts a region
+      isDrawing = true;
+      const p = getCanvasPoint(opt);
+      startX = p.x;
+      startY = p.y;
+      liveRect = { x: startX, y: startY, w: 0, h: 0 };
+      canvas.requestRenderAll();
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onMove = (opt: any) => {
+      if (!regionSelectMode || !isDrawing) return;
+      const p = getCanvasPoint(opt);
+      const x = Math.min(startX, p.x);
+      const y = Math.min(startY, p.y);
+      const w = Math.abs(p.x - startX);
+      const h = Math.abs(p.y - startY);
+      liveRect = { x, y, w, h };
+      canvas.requestRenderAll();
+    };
+
+    const onUp = () => {
+      if (!regionSelectMode || !isDrawing) return;
+      isDrawing = false;
+      const r = liveRect;
+      liveRect = null;
+      // Ignore tiny rects (accidental click)
+      if (r && r.w > 8 && r.h > 8) {
+        setAiSelectedRegion({
+          x: Math.round(r.x),
+          y: Math.round(r.y),
+          w: Math.round(r.w),
+          h: Math.round(r.h),
+          canvasW: cw,
+          canvasH: ch,
+        });
+      }
+      // One-shot mode — exit region-select after a successful pick so the
+      // user's normal cursor / selection comes back without an extra click.
+      setRegionSelectMode(false);
+      canvas.requestRenderAll();
+    };
+
+    // While region-select mode is on, suppress Fabric's own selection so
+    // the user's drag draws a rect instead of marquee-selecting objects.
+    const prevSelection = canvas.selection;
+    const prevSkipTargetFind = canvas.skipTargetFind;
+    const prevDefaultCursor = canvas.defaultCursor;
+    const prevHoverCursor = canvas.hoverCursor;
+    if (regionSelectMode) {
+      canvas.selection = false;
+      canvas.skipTargetFind = true;
+      canvas.defaultCursor = "crosshair";
+      canvas.hoverCursor = "crosshair";
+      canvas.discardActiveObject?.();
+    }
+
+    canvas.on("mouse:down", onDown);
+    canvas.on("mouse:move", onMove);
+    canvas.on("mouse:up", onUp);
+    canvas.on("after:render", handleAfterRender);
+    canvas.requestRenderAll();
+
+    return () => {
+      canvas.off("mouse:down", onDown);
+      canvas.off("mouse:move", onMove);
+      canvas.off("mouse:up", onUp);
+      canvas.off("after:render", handleAfterRender);
+      // Restore canvas mode if we tweaked it
+      canvas.selection = prevSelection;
+      canvas.skipTargetFind = prevSkipTargetFind;
+      canvas.defaultCursor = prevDefaultCursor;
+      canvas.hoverCursor = prevHoverCursor;
+      canvas.requestRenderAll();
+    };
+  }, [canvas, regionSelectMode, aiSelectedRegion, setAiSelectedRegion, setRegionSelectMode]);
 
   // Expose CSS zoom so smart-guides can scale its snap threshold consistently
   useEffect(() => {

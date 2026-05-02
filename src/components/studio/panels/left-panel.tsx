@@ -31,12 +31,14 @@ const TABS: {
   label: string;
 }[] = [
   { id: "templates", icon: LayoutTemplate, label: "Templates" },
+  // AI moved here (right under Templates) per UX request — it's the
+  // primary creative entry-point alongside templates.
+  { id: "ai", icon: Sparkles, label: "AI" },
   { id: "elements", icon: Shapes, label: "Elements" },
   { id: "icons", icon: Smile, label: "Icons" },
   { id: "avatars", icon: Users, label: "Avatars" },
   { id: "text", icon: Type, label: "Text" },
   { id: "uploads", icon: Upload, label: "Uploads" },
-  { id: "ai", icon: Sparkles, label: "AI" },
   { id: "backgrounds", icon: ImageIcon, label: "Background" },
   { id: "eraser", icon: Eraser, label: "Eraser" },
 ];

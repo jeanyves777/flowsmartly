@@ -1,7 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Sparkles, Wand2, Eraser, ArrowUpRight } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import {
+  Sparkles,
+  Wand2,
+  Crop,
+  MousePointerSquareDashed,
+  Maximize2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -10,31 +17,29 @@ import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 import { addImageToCanvas } from "../utils/canvas-helpers";
 import { useCanvasExport } from "../hooks/use-canvas-export";
-import { AiGeneratorModal } from "../ai-generator-modal";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 
+// ChatGPT-style Improve panel. The user can pinpoint the area they want
+// changed (drag a rect on the canvas, or use whatever they've already
+// selected), and we send those bounds to the backend along with the prompt.
+// If they don't pinpoint anything, the backend edits the whole canvas
+// (the original behaviour).
 export function AiPanel() {
   const { toast } = useToast();
   const canvas = useCanvasStore((s) => s.canvas);
   const canvasWidth = useCanvasStore((s) => s.canvasWidth);
   const canvasHeight = useCanvasStore((s) => s.canvasHeight);
+  const selectedObjectIds = useCanvasStore((s) => s.selectedObjectIds);
+  const regionSelectMode = useCanvasStore((s) => s.regionSelectMode);
+  const setRegionSelectMode = useCanvasStore((s) => s.setRegionSelectMode);
+  const aiSelectedRegion = useCanvasStore((s) => s.aiSelectedRegion);
+  const setAiSelectedRegion = useCanvasStore((s) => s.setAiSelectedRegion);
   const { getCanvasDataUrl } = useCanvasExport();
 
-  // Modal state
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
-
-  // Loading states
   const [isImproving, setIsImproving] = useState(false);
-  const [removingBg, setRemovingBg] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState(0);
-
-  // Improve design
   const [improveInstruction, setImproveInstruction] = useState("");
 
-  // Active section
-  const [activeSection, setActiveSection] = useState<"generate" | "improve" | "bgremove">("generate");
-
-  // Fetch credits
   useEffect(() => {
     (async () => {
       try {
@@ -45,13 +50,46 @@ export function AiPanel() {
     })();
   }, []);
 
-  // AI Improve (export canvas → edit)
+  // Bounding box of the user's currently-selected objects on the canvas.
+  // Computed live so the "Use selected (NxM)" button always reflects what
+  // they have highlighted — including multi-select via shift-click.
+  const selectionRegion = useMemo(() => {
+    if (!canvas || selectedObjectIds.length === 0) return null;
+    const active = canvas.getActiveObject?.();
+    if (!active) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const b = (active as any).getBoundingRect?.();
+    if (!b) return null;
+    return {
+      x: Math.max(0, Math.round(b.left)),
+      y: Math.max(0, Math.round(b.top)),
+      w: Math.min(canvasWidth, Math.round(b.width)),
+      h: Math.min(canvasHeight, Math.round(b.height)),
+      canvasW: canvasWidth,
+      canvasH: canvasHeight,
+    };
+  }, [canvas, selectedObjectIds, canvasWidth, canvasHeight]);
+
+  // Resolved region we'll actually send. Priority:
+  //   1. Explicit drawn region (aiSelectedRegion)
+  //   2. Selection bounding box (selectionRegion)
+  //   3. null = whole canvas
+  const effectiveRegion = aiSelectedRegion ?? selectionRegion ?? null;
+
+  const regionLabel = effectiveRegion
+    ? `${effectiveRegion.w}×${effectiveRegion.h}px region`
+    : "Whole canvas";
+
   const handleImprove = async () => {
     if (!improveInstruction.trim()) {
-      toast({ title: "Please describe how to improve the design", variant: "destructive" });
+      toast({ title: "Describe what to change", variant: "destructive" });
       return;
     }
     if (!canvas) return;
+
+    // Region-select mode locks Fabric selection — bail out cleanly so the
+    // user isn't stuck waiting on AI while their canvas is unresponsive.
+    if (regionSelectMode) setRegionSelectMode(false);
 
     setIsImproving(true);
     try {
@@ -81,12 +119,13 @@ export function AiPanel() {
           heroType: "people",
           textMode: "exact",
           editImageUrl: imageUrl,
+          editRegion: effectiveRegion,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        if (handleCreditError(data.error || {}, "visual design")) return;
+        if (handleCreditError(data.error || {}, "AI design")) return;
         throw new Error(data.error?.message || "Improvement failed");
       }
 
@@ -101,208 +140,185 @@ export function AiPanel() {
       }
 
       setImproveInstruction("");
+      // Clear the pinpoint after a successful improve so the next prompt
+      // starts from a clean slate — keeping it would silently re-target the
+      // same area and surprise the user.
+      setAiSelectedRegion(null);
       toast({ title: "Design improved!" });
     } catch (e) {
-      toast({ title: "Improvement failed", description: e instanceof Error ? e.message : "Try again", variant: "destructive" });
+      toast({
+        title: "Improvement failed",
+        description: e instanceof Error ? e.message : "Try again",
+        variant: "destructive",
+      });
     } finally {
       setIsImproving(false);
     }
   };
 
-  // Remove BG from selected image
-  const handleRemoveBg = async () => {
-    if (!canvas) return;
-    const obj = canvas.getActiveObject();
-    if (!obj || obj.type !== "image") {
-      toast({ title: "Select an image first", variant: "destructive" });
-      return;
-    }
-    const src = obj.getSrc?.() || obj._element?.src;
-    if (!src) {
-      toast({ title: "Cannot read image source", variant: "destructive" });
-      return;
-    }
-
-    setRemovingBg(true);
-    try {
-      let imageUrl = src;
-
-      if (src.startsWith("data:") || src.startsWith("blob:")) {
-        const blob = await fetch(src).then((r) => r.blob());
-        const formData = new FormData();
-        formData.append("file", blob, "bg-remove-input.png");
-        formData.append("tags", JSON.stringify(["studio-bg-remove"]));
-        const uploadRes = await fetch("/api/media", { method: "POST", body: formData });
-        const uploadData = await uploadRes.json();
-        if (!uploadData.success) throw new Error("Upload failed");
-        imageUrl = uploadData.data.file.url;
-      }
-
-      const res = await fetch("/api/image-tools/remove-background", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error?.message || "Failed");
-
-      if (data.data?.imageUrl) {
-        const fabric = await import("fabric");
-        const newImg = await fabric.FabricImage.fromURL(data.data.imageUrl, { crossOrigin: "anonymous" });
-        if (newImg) {
-          newImg.set({
-            left: obj.left, top: obj.top,
-            scaleX: obj.scaleX, scaleY: obj.scaleY,
-            angle: obj.angle,
-          });
-          (newImg as any).id = (obj as any).id;
-          (newImg as any).customName = "Image (No BG)";
-          canvas.remove(obj);
-          canvas.add(newImg);
-          canvas.setActiveObject(newImg);
-          canvas.renderAll();
-        }
-        toast({ title: "Background removed!" });
-      }
-    } catch (e) {
-      toast({
-        title: "Background removal failed",
-        description: e instanceof Error ? e.message : "Try again",
-        variant: "destructive",
-      });
-    } finally {
-      setRemovingBg(false);
-    }
-  };
+  const presets = [
+    "Make it more professional",
+    "Improve colors",
+    "Fix the layout",
+    "Add visual flair",
+    "Make text more readable",
+    "Use a brighter palette",
+  ];
 
   return (
-    <>
-      <div className="p-3 space-y-4 text-sm">
+    <div className="p-3 space-y-4 text-sm flex flex-col h-full overflow-y-auto">
+      <div>
         <h3 className="text-sm font-semibold flex items-center gap-1.5">
           <Sparkles className="h-4 w-4 text-brand-500" />
-          AI Tools
+          AI Design
         </h3>
+        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+          Pinpoint an area on the canvas (or pick an object) and tell the AI what to change. Leave the area blank to edit the whole canvas.
+        </p>
+      </div>
 
-        {/* Section tabs */}
-        <div className="flex gap-1 bg-muted/50 rounded-lg p-0.5">
-          {[
-            { id: "generate" as const, label: "Generate", icon: Sparkles },
-            { id: "improve" as const, label: "Improve", icon: Wand2 },
-            { id: "bgremove" as const, label: "BG Remove", icon: Eraser },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveSection(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
-                activeSection === tab.id
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <tab.icon className="h-3 w-3" />
-              {tab.label}
-            </button>
-          ))}
+      {/* Region picker */}
+      <div className="space-y-2">
+        <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+          Edit area
         </div>
 
-        {/* SECTION A: AI Generate - Opens Modal */}
-        {activeSection === "generate" && (
-          <div className="space-y-4">
-            {/* CTA to open modal */}
-            <div className="flex flex-col items-center gap-3 py-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-400/20 to-brand-600/20 flex items-center justify-center">
-                <Sparkles className="h-7 w-7 text-brand-500" />
+        {/* Active region card */}
+        <div
+          className={`flex items-center gap-2 rounded-md border p-2 ${
+            effectiveRegion
+              ? "border-brand-500/50 bg-brand-500/5"
+              : "border-border bg-muted/30"
+          }`}
+        >
+          {effectiveRegion ? (
+            <Crop className="h-4 w-4 text-brand-500 shrink-0" />
+          ) : (
+            <Maximize2 className="h-4 w-4 text-muted-foreground shrink-0" />
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-medium truncate">{regionLabel}</div>
+            {effectiveRegion ? (
+              <div className="text-[10px] text-muted-foreground truncate">
+                at ({effectiveRegion.x}, {effectiveRegion.y}) on{" "}
+                {effectiveRegion.canvasW}×{effectiveRegion.canvasH}
               </div>
-              <div className="text-center">
-                <h4 className="text-sm font-semibold">AI Design Generator</h4>
-                <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                  Create designs with AI. Smart Layout generates editable elements, or use AI Image for a flat design.
-                </p>
+            ) : (
+              <div className="text-[10px] text-muted-foreground">
+                AI will edit the entire design
               </div>
-              <Button
-                onClick={() => setShowGenerateModal(true)}
-                className="w-full gap-2"
-                size="sm"
-              >
-                <Sparkles className="h-4 w-4" />
-                Open AI Generator
-                <ArrowUpRight className="h-3.5 w-3.5 ml-auto" />
-              </Button>
-              <p className="text-[10px] text-muted-foreground">
-                {creditsRemaining} credits remaining
-              </p>
-            </div>
+            )}
           </div>
-        )}
-
-        {/* SECTION B: AI Improve */}
-        {activeSection === "improve" && (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Export your canvas and let AI improve it. The result will be added as a new layer.
-            </p>
-
-            <div className="flex flex-wrap gap-1">
-              {["Make it more professional", "Improve colors", "Fix layout", "Add visual flair"].map((q) => (
-                <Badge
-                  key={q}
-                  variant="outline"
-                  className="cursor-pointer text-[10px] hover:bg-brand-500/10"
-                  onClick={() => setImproveInstruction(q)}
-                >
-                  {q}
-                </Badge>
-              ))}
-            </div>
-
-            <textarea
-              value={improveInstruction}
-              onChange={(e) => setImproveInstruction(e.target.value)}
-              placeholder="Describe how to improve your design..."
-              className="w-full min-h-[60px] p-2 text-xs border rounded-md resize-none focus:outline-none focus:ring-1 focus:ring-brand-500 bg-background"
-            />
-
-            <Button
-              onClick={handleImprove}
-              disabled={isImproving || !improveInstruction.trim()}
-              className="w-full gap-2"
-              size="sm"
+          {aiSelectedRegion && (
+            <button
+              type="button"
+              onClick={() => setAiSelectedRegion(null)}
+              className="p-1 -mr-1 rounded hover:bg-muted text-muted-foreground"
+              title="Clear pinpoint"
+              aria-label="Clear pinpoint region"
             >
-              {isImproving ? (
-                <AISpinner className="h-4 w-4 animate-spin" />
-              ) : (
-                <Wand2 className="h-4 w-4" />
-              )}
-              {isImproving ? "Improving..." : "Improve Design"}
-            </Button>
-          </div>
-        )}
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
 
-        {/* SECTION C: BG Remove */}
-        {activeSection === "bgremove" && (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Select an image on the canvas, then click the button to remove its background.
-            </p>
-            <Button
-              onClick={handleRemoveBg}
-              className="w-full gap-2"
-              size="sm"
-              variant="outline"
-              disabled={removingBg}
-            >
-              {removingBg ? <AISpinner className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
-              {removingBg ? "Removing..." : "Remove Background"}
-            </Button>
+        {/* Region action buttons */}
+        <div className="grid grid-cols-2 gap-1.5">
+          <Button
+            type="button"
+            size="sm"
+            variant={regionSelectMode ? "default" : "outline"}
+            className="h-8 text-[11px] gap-1.5"
+            onClick={() => {
+              setAiSelectedRegion(null);
+              setRegionSelectMode(!regionSelectMode);
+            }}
+            title="Drag a rectangle on the canvas to pinpoint the area to edit"
+          >
+            <Crop className="h-3.5 w-3.5" />
+            {regionSelectMode ? "Drawing… (click)" : "Pinpoint area"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-[11px] gap-1.5"
+            disabled={!selectionRegion}
+            onClick={() => {
+              // Promote the current selection bounding box into an explicit
+              // pinpoint so the chosen region survives even after the user
+              // clicks elsewhere.
+              if (selectionRegion) setAiSelectedRegion(selectionRegion);
+            }}
+            title={
+              selectionRegion
+                ? "Pin the bounds of your currently selected object(s)"
+                : "Select one or more objects on the canvas first"
+            }
+          >
+            <MousePointerSquareDashed className="h-3.5 w-3.5" />
+            Use selected
+          </Button>
+        </div>
+        {regionSelectMode && (
+          <div className="text-[10px] text-brand-600 bg-brand-500/10 rounded px-2 py-1.5 leading-relaxed">
+            Click and drag on the canvas to draw the area to edit. Press the button again or click outside to cancel.
           </div>
         )}
       </div>
 
-      {/* AI Generator Modal */}
-      <AiGeneratorModal
-        open={showGenerateModal}
-        onClose={() => setShowGenerateModal(false)}
-      />
-    </>
+      {/* Preset chips */}
+      <div className="space-y-2">
+        <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+          Quick prompts
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {presets.map((q) => (
+            <Badge
+              key={q}
+              variant="outline"
+              className="cursor-pointer text-[10px] hover:bg-brand-500/10"
+              onClick={() => setImproveInstruction(q)}
+            >
+              {q}
+            </Badge>
+          ))}
+        </div>
+      </div>
+
+      {/* Big prompt textarea — the focal point of this panel */}
+      <div className="flex-1 flex flex-col gap-2 min-h-0">
+        <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+          Your instruction
+        </div>
+        <textarea
+          value={improveInstruction}
+          onChange={(e) => setImproveInstruction(e.target.value)}
+          placeholder={
+            effectiveRegion
+              ? "Describe what to change in the pinpointed area…"
+              : "Describe how to improve your design…"
+          }
+          className="w-full flex-1 min-h-[140px] p-3 text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 bg-background leading-relaxed"
+        />
+
+        <Button
+          onClick={handleImprove}
+          disabled={isImproving || !improveInstruction.trim()}
+          className="w-full gap-2 h-10"
+          size="default"
+        >
+          {isImproving ? (
+            <AISpinner className="h-4 w-4 animate-spin" />
+          ) : (
+            <Wand2 className="h-4 w-4" />
+          )}
+          {isImproving ? "Improving…" : "Improve Design"}
+        </Button>
+        <p className="text-[10px] text-muted-foreground text-center">
+          {creditsRemaining} credits remaining
+        </p>
+      </div>
+    </div>
   );
 }
