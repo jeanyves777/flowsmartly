@@ -834,47 +834,34 @@ PINPOINT REGION — APPLY THE EDIT ONLY INSIDE THIS BOX:
     console.log(`[Visual/Edit] Region: (${xPct.toFixed(1)}%, ${yPct.toFixed(1)}%) ${wPct.toFixed(1)}%×${hPct.toFixed(1)}%`);
   }
 
-  // Reference-image clause. When the user picks a reference, the request
-  // contains TWO images: the first is the canvas being edited, the second
-  // is the reference. We tell the model exactly that so it knows which is
-  // which — otherwise it'll happily edit the reference instead.
-  const referenceClause = referenceImageUrl
-    ? `
-
-REFERENCE IMAGE PROVIDED — INTELLIGENT SWAP MODE:
-- You have been given TWO images. The FIRST image is the design canvas you must modify. The SECOND image is the user's reference.
-- Use the SECOND image as the SOURCE for what to swap into the design.${editRegion ? " Place it inside the pinpoint region above." : ""}
-- Match the design's lighting, color grade, perspective, and style — do NOT just paste pixels. The result should look like the reference subject naturally belongs in the design.
-- Preserve the design's text, layout, and other elements exactly as they are.`
-    : "";
-
+  // ORIGINAL Improve prompt — exactly as it was before the reference-image
+  // feature. The user explicitly asked to leave this alone: the existing
+  // prompt has been working dynamically for weeks, and the reference image
+  // is supposed to be supported via the request payload (image_urls[]),
+  // not via prompt engineering.
   const editPrompt = `You are editing an existing graphic design image. Apply ONLY the following change and keep everything else exactly the same — same layout, same colors, same style, same background, same composition.
 
-EDIT INSTRUCTION: ${prompt}${regionClause}${referenceClause}
+EDIT INSTRUCTION: ${prompt}${regionClause}
 
 RULES:
 - Preserve the overall design exactly as-is
 - Only modify what the instruction asks for${editRegion ? " — and ONLY inside the pinpoint region above" : ""}
 - Keep all other text, images, shapes, and colors unchanged
 - Maintain the same dimensions and aspect ratio
-- The result must look like a professional design, not a rough edit${referenceImageUrl ? "\n- When using the reference image, blend it seamlessly — match lighting, shadows, color grade, and grain" : ""}`;
+- The result must look like a professional design, not a rough edit`;
 
-  // Resolve the existing design image
+  // Resolve the existing design image (canvas) to a buffer for the
+  // providers that need raw bytes (Gemini, OpenAI). For xAI we'll pass
+  // the URL directly when a reference image is present (same pattern the
+  // normal single-image edit uses — xAI fetches the URL itself).
   const editBuffer = await resolveImageToBuffer(editImageUrl!);
 
-  // If a reference image is supplied, resolve it to base64 so the providers
-  // that support multi-image input can include it. Resolved upfront so any
-  // network failure surfaces with a clear error before we burn provider quota.
-  let referenceBase64: string | null = null;
+  // referenceImageUrl is already an HTTPS URL from /api/media (or the
+  // user's media library). For xAI multi-image we pass it through as-is
+  // — no base64 round-trip — so xAI handles it identically to the canvas
+  // URL in the single-image path. Just log for traceability.
   if (referenceImageUrl) {
-    try {
-      const refBuffer = await resolveImageToBuffer(referenceImageUrl);
-      referenceBase64 = refBuffer.toString("base64");
-      console.log(`[Visual/Edit] Reference image resolved (${refBuffer.byteLength} bytes)`);
-    } catch (err) {
-      console.error("[Visual/Edit] Failed to resolve reference image:", err);
-      throw new Error("Could not load the reference image you picked. Try a different one.");
-    }
+    console.log(`[Visual/Edit] Reference image URL: ${referenceImageUrl.slice(0, 80)}...`);
   }
 
   let base64: string | null;
@@ -894,33 +881,55 @@ RULES:
 
     case "xai": {
       const aspectRatio = sizeToAspectRatio(width, height);
-      console.log(
-        `[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}${
-          referenceBase64 ? " (with reference image via image_urls[])" : ""
-        }`,
-      );
       if (!xaiClient.isAvailable()) {
         throw new Error("xAI provider is not configured.");
       }
-      const canvasBase64 = editBuffer.toString("base64");
-      base64 = await xaiClient.editImage(editPrompt, canvasBase64, {
-        aspectRatio,
-        referenceImages: referenceBase64 ? [referenceBase64] : [],
-      });
+      if (referenceImageUrl) {
+        // Same pattern as the normal single-image edit, just with two
+        // URLs instead of one: pass both through as plain HTTPS URL
+        // strings and let xAI fetch them. No base64 round-trip.
+        console.log(
+          `[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio} (multi-image: canvas + reference URLs)`,
+        );
+        base64 = await xaiClient.editImageMulti(
+          editPrompt,
+          [editImageUrl!, referenceImageUrl],
+          { aspectRatio },
+        );
+      } else {
+        // Existing single-image path — exactly as it was. base64 data
+        // URI in image: { url, type }. Untouched.
+        console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}`);
+        const canvasBase64 = editBuffer.toString("base64");
+        base64 = await xaiClient.editImage(editPrompt, canvasBase64, { aspectRatio });
+      }
       model = "grok-imagine-image";
       break;
     }
 
     case "gemini": {
       console.log(
-        `[Visual/Edit] Gemini gemini-2.5-flash-image${referenceBase64 ? " (with reference image)" : ""}`,
+        `[Visual/Edit] Gemini gemini-2.5-flash-image${referenceImageUrl ? " (with reference image)" : ""}`,
       );
       if (!geminiImageClient.isAvailable()) {
         throw new Error("Gemini provider is not configured.");
       }
-      const refBase64 = editBuffer.toString("base64");
-      base64 = await geminiImageClient.editImage(editPrompt, refBase64, {
-        referenceImages: referenceBase64 ? [referenceBase64] : [],
+      const canvasBase64 = editBuffer.toString("base64");
+      // Gemini takes inline image bytes — resolve the reference to base64
+      // here only when the user actually picked one. xAI uses URLs directly
+      // (the canvas branch above) so we don't pay for this round-trip there.
+      let refBase64: string | null = null;
+      if (referenceImageUrl) {
+        try {
+          const refBuffer = await resolveImageToBuffer(referenceImageUrl);
+          refBase64 = refBuffer.toString("base64");
+        } catch (err) {
+          console.error("[Visual/Edit] Failed to resolve reference image for Gemini:", err);
+          throw new Error("Could not load the reference image you picked. Try a different one.");
+        }
+      }
+      base64 = await geminiImageClient.editImage(editPrompt, canvasBase64, {
+        referenceImages: refBase64 ? [refBase64] : [],
       });
       model = "gemini-2.5-flash";
       break;

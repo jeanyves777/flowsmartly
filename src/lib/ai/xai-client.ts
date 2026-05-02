@@ -125,24 +125,17 @@ class XAIClient {
 
   /**
    * Edit/transform an image using grok-imagine-image.
-   *
-   * Single-image: pass `imageBase64` only. Uses the legacy `image: {...}`
-   * field (exactly as before — safest format documented for one image).
-   *
-   * Multi-image (up to 5 total per xAI docs): pass extra base64 images via
-   * `options.referenceImages`. We then switch to xAI's `image_urls: [...]`
-   * array form. Order matters: PRIMARY image first (the canvas being
-   * edited), then each reference. The output aspect ratio defaults to the
-   * first image's ratio per xAI; we still pass `aspect_ratio` to override.
-   *
+   * Pass a reference image as base64 and a prompt describing the desired output.
    * Returns the result as a base64 string.
+   *
+   * Single image only — for multi-image edits use `editImageMulti`.
    */
   async editImage(
     prompt: string,
     imageBase64: string,
-    options: { aspectRatio?: AspectRatio; referenceImages?: string[] } = {}
+    options: { aspectRatio?: AspectRatio } = {}
   ): Promise<string | null> {
-    const { aspectRatio = "1:1", referenceImages = [] } = options;
+    const { aspectRatio = "1:1" } = options;
 
     if (!this.apiKey) {
       throw new Error("XAI_API_KEY is not configured");
@@ -150,45 +143,6 @@ class XAIClient {
 
     const maxRetries = 2;
     let lastError: unknown;
-
-    // xAI hard-caps multi-image edits at 5 inputs total. Trim and warn
-    // rather than letting the API reject the whole request.
-    const allRefs = referenceImages.slice(0, 4);
-    if (referenceImages.length > 4) {
-      console.warn(
-        `[XAI] referenceImages had ${referenceImages.length} entries, trimming to 4 (xAI cap is 5 total inc. primary)`,
-      );
-    }
-    const useMulti = allRefs.length > 0;
-
-    // Build the request body. We keep the proven single-image shape when
-    // there's only one image so we don't accidentally regress callers that
-    // were working fine before.
-    const buildBody = () => {
-      const base = {
-        model: "grok-imagine-image",
-        prompt,
-        n: 1,
-        aspect_ratio: aspectRatio,
-        response_format: "b64_json",
-      };
-      if (useMulti) {
-        return {
-          ...base,
-          image_urls: [
-            `data:image/png;base64,${imageBase64}`,
-            ...allRefs.map((b) => `data:image/png;base64,${b}`),
-          ],
-        };
-      }
-      return {
-        ...base,
-        image: {
-          url: `data:image/png;base64,${imageBase64}`,
-          type: "image_url",
-        },
-      };
-    };
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -198,7 +152,17 @@ class XAIClient {
             "Content-Type": "application/json",
             Authorization: `Bearer ${this.apiKey}`,
           },
-          body: JSON.stringify(buildBody()),
+          body: JSON.stringify({
+            model: "grok-imagine-image",
+            prompt,
+            image: {
+              url: `data:image/png;base64,${imageBase64}`,
+              type: "image_url",
+            },
+            n: 1,
+            aspect_ratio: aspectRatio,
+            response_format: "b64_json",
+          }),
         });
 
         if (!response.ok) {
@@ -237,6 +201,94 @@ class XAIClient {
 
     const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
     throw new Error(`xAI image edit failed: ${errMsg}`);
+  }
+
+  /**
+   * Multi-image edit (up to 5 input images per xAI docs). Same xAI edit
+   * endpoint as `editImage`, but uses the `image_urls` array field with
+   * plain URL strings — no base64 round-trip — exactly as xAI's docs and
+   * the fal.ai mirror schema document. Order matters: PRIMARY first
+   * (canvas being edited), then references.
+   *
+   * Use this when you need to give the model a reference image alongside
+   * the design (e.g. "swap the photo with this one"). The user-supplied
+   * prompt is what tells the model what to do — we don't add anything to
+   * it server-side.
+   */
+  async editImageMulti(
+    prompt: string,
+    imageUrls: string[],
+    options: { aspectRatio?: AspectRatio } = {}
+  ): Promise<string | null> {
+    const { aspectRatio = "1:1" } = options;
+
+    if (!this.apiKey) {
+      throw new Error("XAI_API_KEY is not configured");
+    }
+    if (imageUrls.length === 0) {
+      throw new Error("editImageMulti requires at least one image URL");
+    }
+
+    const trimmed = imageUrls.slice(0, 5);
+    if (imageUrls.length > 5) {
+      console.warn(
+        `[XAI] image_urls had ${imageUrls.length} entries, trimming to 5 (xAI cap)`,
+      );
+    }
+
+    const maxRetries = 2;
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(XAI_EDITS_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: "grok-imagine-image",
+            prompt,
+            image_urls: trimmed,
+            n: 1,
+            aspect_ratio: aspectRatio,
+            response_format: "b64_json",
+          }),
+        });
+
+        if (!response.ok) {
+          const errBody = await response.text();
+          throw new Error(`xAI edit API error (${response.status}): ${errBody}`);
+        }
+
+        const data = await response.json();
+        const imageData = data.data?.[0];
+
+        if (imageData?.b64_json) return imageData.b64_json;
+        if (imageData?.url) {
+          const res = await fetch(imageData.url);
+          const buffer = Buffer.from(await res.arrayBuffer());
+          return buffer.toString("base64");
+        }
+        return null;
+      } catch (error) {
+        lastError = error;
+        console.error(
+          `[XAI] Multi-image edit error (attempt ${attempt + 1}/${maxRetries + 1}):`,
+          error,
+        );
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const isTransient = /rate|limit|timeout|503|529|overloaded|capacity/i.test(errMsg);
+        if (!isTransient) break;
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        }
+      }
+    }
+
+    const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(`xAI multi-image edit failed: ${errMsg}`);
   }
 }
 
