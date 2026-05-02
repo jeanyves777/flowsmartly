@@ -125,15 +125,24 @@ class XAIClient {
 
   /**
    * Edit/transform an image using grok-imagine-image.
-   * Pass a reference image as base64 and a prompt describing the desired output.
+   *
+   * Single-image: pass `imageBase64` only. Uses the legacy `image: {...}`
+   * field (exactly as before — safest format documented for one image).
+   *
+   * Multi-image (up to 5 total per xAI docs): pass extra base64 images via
+   * `options.referenceImages`. We then switch to xAI's `image_urls: [...]`
+   * array form. Order matters: PRIMARY image first (the canvas being
+   * edited), then each reference. The output aspect ratio defaults to the
+   * first image's ratio per xAI; we still pass `aspect_ratio` to override.
+   *
    * Returns the result as a base64 string.
    */
   async editImage(
     prompt: string,
     imageBase64: string,
-    options: { aspectRatio?: AspectRatio } = {}
+    options: { aspectRatio?: AspectRatio; referenceImages?: string[] } = {}
   ): Promise<string | null> {
-    const { aspectRatio = "1:1" } = options;
+    const { aspectRatio = "1:1", referenceImages = [] } = options;
 
     if (!this.apiKey) {
       throw new Error("XAI_API_KEY is not configured");
@@ -141,6 +150,45 @@ class XAIClient {
 
     const maxRetries = 2;
     let lastError: unknown;
+
+    // xAI hard-caps multi-image edits at 5 inputs total. Trim and warn
+    // rather than letting the API reject the whole request.
+    const allRefs = referenceImages.slice(0, 4);
+    if (referenceImages.length > 4) {
+      console.warn(
+        `[XAI] referenceImages had ${referenceImages.length} entries, trimming to 4 (xAI cap is 5 total inc. primary)`,
+      );
+    }
+    const useMulti = allRefs.length > 0;
+
+    // Build the request body. We keep the proven single-image shape when
+    // there's only one image so we don't accidentally regress callers that
+    // were working fine before.
+    const buildBody = () => {
+      const base = {
+        model: "grok-imagine-image",
+        prompt,
+        n: 1,
+        aspect_ratio: aspectRatio,
+        response_format: "b64_json",
+      };
+      if (useMulti) {
+        return {
+          ...base,
+          image_urls: [
+            `data:image/png;base64,${imageBase64}`,
+            ...allRefs.map((b) => `data:image/png;base64,${b}`),
+          ],
+        };
+      }
+      return {
+        ...base,
+        image: {
+          url: `data:image/png;base64,${imageBase64}`,
+          type: "image_url",
+        },
+      };
+    };
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -150,17 +198,7 @@ class XAIClient {
             "Content-Type": "application/json",
             Authorization: `Bearer ${this.apiKey}`,
           },
-          body: JSON.stringify({
-            model: "grok-imagine-image",
-            prompt,
-            image: {
-              url: `data:image/png;base64,${imageBase64}`,
-              type: "image_url",
-            },
-            n: 1,
-            aspect_ratio: aspectRatio,
-            response_format: "b64_json",
-          }),
+          body: JSON.stringify(buildBody()),
         });
 
         if (!response.ok) {

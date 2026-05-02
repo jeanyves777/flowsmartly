@@ -802,20 +802,13 @@ Output a polished, print-ready ${params.category} background. The photo will be 
 // ═══════════════════════════════════════════════════════════════
 
 async function runEditPipeline(params: PipelineParams) {
-  const { prompt, width, height, editImageUrl, editRegion, referenceImageUrl } = params;
-  let { provider } = params;
+  const { prompt, width, height, provider, editImageUrl, editRegion, referenceImageUrl } = params;
 
-  // Reference-image swap requires a multi-image-capable provider. Gemini is
-  // the only one wired up that natively handles N images in a single call,
-  // so we auto-route to it whenever the user supplied a reference. We log
-  // the override so it's obvious in production traces.
-  if (referenceImageUrl && provider !== "gemini") {
-    console.log(
-      `[Visual/Edit] Reference image present — overriding provider ${provider} → gemini for multi-image support`,
-    );
-    provider = "gemini" as ImageProvider;
-  }
-
+  // Reference-image swap is supported natively by both xAI and Gemini —
+  // xAI accepts up to 5 images via the `image_urls` array on /v1/images/edits,
+  // Gemini accepts N inline parts via generateContent. We DO NOT override
+  // the user's chosen provider here; whichever provider the panel selected
+  // (xAI by default for Improve) will handle the reference image directly.
   console.log(`[Visual/Edit] Provider: ${provider}, instruction: "${prompt.slice(0, 80)}"`);
 
   // Optional pinpoint-region clause. Image-edit providers (xAI grok-imagine-image,
@@ -901,12 +894,19 @@ RULES:
 
     case "xai": {
       const aspectRatio = sizeToAspectRatio(width, height);
-      console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}`);
+      console.log(
+        `[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}${
+          referenceBase64 ? " (with reference image via image_urls[])" : ""
+        }`,
+      );
       if (!xaiClient.isAvailable()) {
         throw new Error("xAI provider is not configured.");
       }
-      const refBase64 = editBuffer.toString("base64");
-      base64 = await xaiClient.editImage(editPrompt, refBase64, { aspectRatio });
+      const canvasBase64 = editBuffer.toString("base64");
+      base64 = await xaiClient.editImage(editPrompt, canvasBase64, {
+        aspectRatio,
+        referenceImages: referenceBase64 ? [referenceBase64] : [],
+      });
       model = "grok-imagine-image";
       break;
     }
