@@ -8,6 +8,8 @@ import {
   MousePointerSquareDashed,
   Maximize2,
   X,
+  Replace,
+  ImagePlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,9 +17,10 @@ import { useToast } from "@/hooks/use-toast";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { useCanvasStore } from "../hooks/use-canvas-store";
-import { addImageToCanvas } from "../utils/canvas-helpers";
+import { addImageToCanvas, swapImageSource } from "../utils/canvas-helpers";
 import { useCanvasExport } from "../hooks/use-canvas-export";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 
 // ChatGPT-style Improve panel. The user can pinpoint the area they want
 // changed (drag a rect on the canvas, or use whatever they've already
@@ -39,6 +42,19 @@ export function AiPanel() {
   const [isImproving, setIsImproving] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState(0);
   const [improveInstruction, setImproveInstruction] = useState("");
+
+  // Image picker state. Two distinct modes share the same picker:
+  //   "swap" — single-select, replaces the active canvas image's source
+  //   "add"  — multi-select, inserts each picked image as a new layer
+  const [pickerMode, setPickerMode] = useState<"swap" | "add" | null>(null);
+  const [isInsertingImages, setIsInsertingImages] = useState(false);
+
+  // The user has an image-typed object selected → "Swap" applies.
+  const activeIsImage = useMemo(() => {
+    if (!canvas || selectedObjectIds.length !== 1) return false;
+    const active = canvas.getActiveObject?.();
+    return !!active && active.type === "image";
+  }, [canvas, selectedObjectIds]);
 
   useEffect(() => {
     (async () => {
@@ -156,6 +172,66 @@ export function AiPanel() {
     }
   };
 
+  // Replace the active canvas image's source with a single picked image.
+  // Free of charge — no AI call, just a Fabric source swap.
+  const handleSwapPick = async (url: string) => {
+    if (!canvas || !url) return;
+    const obj = canvas.getActiveObject?.();
+    if (!obj || obj.type !== "image") {
+      toast({ title: "Select an image on the canvas first", variant: "destructive" });
+      return;
+    }
+    setIsInsertingImages(true);
+    try {
+      const fabric = await import("fabric");
+      const swapped = await swapImageSource(canvas, obj, url, fabric);
+      if (!swapped) throw new Error("Couldn't load that image");
+      toast({ title: "Image swapped" });
+    } catch (e) {
+      toast({
+        title: "Swap failed",
+        description: e instanceof Error ? e.message : "Try a different image",
+        variant: "destructive",
+      });
+    } finally {
+      setIsInsertingImages(false);
+      setPickerMode(null);
+    }
+  };
+
+  // Insert each picked image as a new layer. We stagger their positions
+  // by a small offset so they don't all stack on the exact same pixel.
+  const handleAddPick = async (urls: string[]) => {
+    if (!canvas || urls.length === 0) return;
+    setIsInsertingImages(true);
+    try {
+      const fabric = await import("fabric");
+      let i = 0;
+      for (const url of urls) {
+        await addImageToCanvas(canvas, url, fabric, {
+          left: 60 + i * 30,
+          top: 60 + i * 30,
+        });
+        i += 1;
+      }
+      toast({
+        title:
+          urls.length === 1
+            ? "Image added"
+            : `${urls.length} images added`,
+      });
+    } catch (e) {
+      toast({
+        title: "Couldn't add images",
+        description: e instanceof Error ? e.message : "Try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsInsertingImages(false);
+      setPickerMode(null);
+    }
+  };
+
   const presets = [
     "Make it more professional",
     "Improve colors",
@@ -267,6 +343,47 @@ export function AiPanel() {
         )}
       </div>
 
+      {/* Image swap / add — free, no AI cost. Lives above the AI prompt
+          because users often reach for it BEFORE asking the AI to refine. */}
+      <div className="space-y-2">
+        <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between">
+          <span>Add or swap images</span>
+          <span className="text-[9px] font-normal text-muted-foreground/70 normal-case">
+            Free · no credits
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-[11px] gap-1.5"
+            disabled={!activeIsImage || isInsertingImages}
+            onClick={() => setPickerMode("swap")}
+            title={
+              activeIsImage
+                ? "Replace the selected canvas image with one from your library or a new upload"
+                : "Select an image on the canvas first to enable swap"
+            }
+          >
+            <Replace className="h-3.5 w-3.5" />
+            Swap selected
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-[11px] gap-1.5"
+            disabled={isInsertingImages}
+            onClick={() => setPickerMode("add")}
+            title="Pick one or many images from your library or upload new ones — added as new layers"
+          >
+            <ImagePlus className="h-3.5 w-3.5" />
+            Add image(s)
+          </Button>
+        </div>
+      </div>
+
       {/* Preset chips */}
       <div className="space-y-2">
         <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
@@ -319,6 +436,24 @@ export function AiPanel() {
           {creditsRemaining} credits remaining
         </p>
       </div>
+
+      {/* Shared media picker — Library tab + Upload tab built in. We render
+          ONE instance and switch its mode (single vs. multi) based on
+          which button opened it. */}
+      <MediaLibraryPicker
+        open={pickerMode !== null}
+        onClose={() => setPickerMode(null)}
+        filterTypes={["image"]}
+        title={pickerMode === "swap" ? "Pick replacement image" : "Pick image(s) to add"}
+        multiSelect={pickerMode === "add"}
+        onSelect={(url) => {
+          if (pickerMode === "swap") void handleSwapPick(url);
+          else if (pickerMode === "add") void handleAddPick([url]);
+        }}
+        onMultiSelect={(urls) => {
+          if (pickerMode === "add") void handleAddPick(urls);
+        }}
+      />
     </div>
   );
 }

@@ -493,6 +493,69 @@ export async function addImageToCanvas(
   }
 }
 
+/**
+ * Swap a Fabric image's underlying source with a new URL while preserving
+ * position, scale, rotation, opacity, blend mode, and the existing `id` /
+ * `customName`. Used by the AI panel's "Swap selected image" action so a
+ * picked replacement keeps the layer's place in the layer tree and any
+ * downstream references (collaboration ops, history) stay intact.
+ *
+ * The replacement is fit-scaled to match the source image's *visible* size
+ * so the user doesn't see the canvas suddenly grow or shrink — they get a
+ * 1-for-1 swap.
+ */
+export async function swapImageSource(
+  canvas: any,
+  oldImg: any,
+  newUrl: string,
+  fabric: any,
+): Promise<any | null> {
+  if (!canvas || !oldImg) return null;
+
+  // Proxy external URLs to dodge CORS the same way addImageToCanvas does.
+  let safeUrl = newUrl;
+  if (typeof window !== "undefined" && newUrl.startsWith("http") && !newUrl.startsWith(window.location.origin)) {
+    safeUrl = `/api/image-proxy?url=${encodeURIComponent(newUrl)}`;
+  }
+
+  const newImg = await fabric.FabricImage.fromURL(safeUrl, { crossOrigin: "anonymous" });
+  if (!newImg || !newImg.width || !newImg.height) return null;
+
+  // Visible size of the OLD image on the canvas (after its scale).
+  const oldVisibleW = (oldImg.width || 1) * (oldImg.scaleX || 1);
+  const oldVisibleH = (oldImg.height || 1) * (oldImg.scaleY || 1);
+  // Scale the new image to the SAME visible footprint (fit, not stretch).
+  const fit = Math.min(oldVisibleW / (newImg.width || 1), oldVisibleH / (newImg.height || 1));
+
+  newImg.set({
+    left: oldImg.left,
+    top: oldImg.top,
+    originX: oldImg.originX || "left",
+    originY: oldImg.originY || "top",
+    scaleX: fit,
+    scaleY: fit,
+    angle: oldImg.angle || 0,
+    opacity: oldImg.opacity ?? 1,
+    flipX: oldImg.flipX || false,
+    flipY: oldImg.flipY || false,
+    globalCompositeOperation: oldImg.globalCompositeOperation || "source-over",
+    selectable: oldImg.selectable !== false,
+    evented: oldImg.evented !== false,
+    visible: oldImg.visible !== false,
+  });
+
+  // Preserve the layer's identity so layers panel, collab ops and history
+  // don't see this as a delete + add.
+  (newImg as any).id = (oldImg as any).id || `img-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  (newImg as any).customName = (oldImg as any).customName || "Image";
+
+  canvas.remove(oldImg);
+  canvas.add(newImg);
+  canvas.setActiveObject(newImg);
+  canvas.renderAll();
+  return newImg;
+}
+
 // Center an object on the canvas (handles both 'left' and 'center' origin)
 export function centerObject(canvas: any, obj: any) {
   const w = obj.width * (obj.scaleX || 1);
