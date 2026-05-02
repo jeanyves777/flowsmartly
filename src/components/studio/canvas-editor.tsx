@@ -495,9 +495,16 @@ export function CanvasEditor({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ctx = (canvas as any).getTopContext?.() ?? (canvas as any).getSelectionContext?.();
       if (!ctx || !rect) return;
+      // Skip degenerate rects — without this, a click without drag shows a
+      // 0×0 hole inside the dim overlay, which looks like the canvas just
+      // turned black. Same defence for the persisted-region path so a
+      // bogus saved rect can't blank the canvas either.
+      if (rect.w < 2 || rect.h < 2) return;
       ctx.save();
-      // Dim everything outside the region to make the selection pop
-      ctx.fillStyle = "rgba(15, 23, 42, 0.35)";
+      // Dim everything outside the region to make the selection pop. Kept
+      // light (20% slate) so the design underneath stays clearly visible —
+      // earlier 35% looked too close to "canvas is broken".
+      ctx.fillStyle = "rgba(15, 23, 42, 0.2)";
       ctx.fillRect(0, 0, cw, ch);
       // Cut a hole for the selected rect
       ctx.globalCompositeOperation = "destination-out";

@@ -78,7 +78,11 @@ class GeminiImageClient {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const response = await this.client.models.generateContent({
-          model: "gemini-2.5-flash",
+          // gemini-2.5-flash is text-only — image generation/editing requires
+          // the image variant (`gemini-2.5-flash-image`, also known as Nano
+          // Banana). Earlier we hit a 400 INVALID_ARGUMENT "This model only
+          // supports text output" because we were calling the text model.
+          model: "gemini-2.5-flash-image",
           contents: [
             {
               role: "user",
