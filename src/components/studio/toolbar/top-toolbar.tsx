@@ -465,21 +465,39 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
  * Toggle the dashed alignment guides shown while dragging objects.
  * When OFF, the smart-guides utility short-circuits before drawing.
  * Persisted to localStorage so the user's choice survives reloads.
+ *
+ * Smart guides are only visible WHILE DRAGGING, so without explicit
+ * feedback users couldn't tell whether the toggle actually did anything.
+ * We pop a toast on every click that confirms the new state.
  */
 function SmartGuidesToggle() {
   const enabled = useCanvasStore((s) => s.smartGuidesEnabled);
   const toggle = useCanvasStore((s) => s.toggleSmartGuides);
+  const { toast } = useToast();
+  const handleClick = () => {
+    toggle();
+    const nextEnabled = !enabled;
+    toast({
+      title: nextEnabled ? "Alignment guides ON" : "Alignment guides OFF",
+      description: nextEnabled
+        ? "Pink dashed lines appear while you drag to help align with edges and other objects."
+        : "Drag-time alignment lines and snap-to-edge are disabled.",
+    });
+  };
   return (
     <Button
-      variant="ghost"
+      variant={enabled ? "secondary" : "ghost"}
       size="icon"
-      className="h-8 w-8"
-      onClick={toggle}
-      title={enabled ? "Hide alignment guides" : "Show alignment guides"}
-      aria-label={enabled ? "Hide alignment guides" : "Show alignment guides"}
+      className={`h-8 w-8 ${enabled ? "bg-brand-500/15 hover:bg-brand-500/25" : ""}`}
+      onClick={handleClick}
+      title={enabled ? "Alignment guides: ON (click to disable)" : "Alignment guides: OFF (click to enable)"}
+      aria-label={enabled ? "Disable alignment guides" : "Enable alignment guides"}
       aria-pressed={enabled}
     >
-      <Magnet className={`h-4 w-4 ${enabled ? "text-brand-500" : "text-muted-foreground"}`} />
+      <Magnet
+        className={`h-4 w-4 ${enabled ? "text-brand-600" : "text-muted-foreground/60"}`}
+        strokeWidth={enabled ? 2.5 : 1.75}
+      />
     </Button>
   );
 }

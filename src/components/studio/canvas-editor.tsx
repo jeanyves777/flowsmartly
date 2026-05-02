@@ -102,12 +102,14 @@ export function CanvasEditor({
 
       // Make selection handles + bounding-box border easier to grab. The
       // default 6px transparent corners are nearly invisible — users
-      // reported they couldn't find the resize handles. We bump to 12px
+      // reported they couldn't find the resize handles. We bump to 14px
       // solid white squares with a brand-blue border, plus thicken the
-      // selection box itself.
+      // selection box itself. cornerSize is later RESCALED with CSS zoom
+      // (see effect below) so handles stay grabbable when zoomed out.
       const ProtoObj = (fabric as unknown as { FabricObject: { prototype: Record<string, unknown> } }).FabricObject;
       if (ProtoObj?.prototype) {
-        ProtoObj.prototype.cornerSize = 12;
+        ProtoObj.prototype.cornerSize = 14;
+        ProtoObj.prototype.touchCornerSize = 28; // larger hit-area for touch
         ProtoObj.prototype.cornerStyle = "rect";
         ProtoObj.prototype.cornerColor = "#ffffff";
         ProtoObj.prototype.cornerStrokeColor = "#3b82f6"; // brand-500
@@ -471,6 +473,31 @@ export function CanvasEditor({
     (window as any).__studioZoom = zoom;
   }, [zoom]);
 
+  // Keep selection handles ~14 visual pixels regardless of CSS zoom. Without
+  // this, at 42% zoom the 14px corners shrink to ~6 visual px and become
+  // impossible to grab. We push compensated values onto every existing object
+  // AND onto the FabricObject prototype so future-added objects pick it up.
+  useEffect(() => {
+    if (!canvas || !fabricRef.current) return;
+    const fabric = fabricRef.current;
+    const targetVisual = 14;
+    const minTouch = 28;
+    const compensated = Math.max(targetVisual, Math.round(targetVisual / Math.max(zoom, 0.01)));
+    const compensatedTouch = Math.max(minTouch, Math.round(minTouch / Math.max(zoom, 0.01)));
+    const ProtoObj = (fabric as any).FabricObject;
+    if (ProtoObj?.prototype) {
+      ProtoObj.prototype.cornerSize = compensated;
+      ProtoObj.prototype.touchCornerSize = compensatedTouch;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    canvas.getObjects().forEach((obj: any) => {
+      obj.cornerSize = compensated;
+      obj.touchCornerSize = compensatedTouch;
+      obj.setCoords?.();
+    });
+    canvas.requestRenderAll?.();
+  }, [canvas, zoom]);
+
   // Touch pinch-zoom — two-finger gesture to zoom the canvas on mobile/touch devices
   useEffect(() => {
     const el = containerRef.current;
@@ -747,28 +774,52 @@ export function CanvasEditor({
       role="region"
       aria-label="Design canvas workspace"
     >
+      {/*
+        Two-layer wrapper. The OUTER div carries the visual (zoom-scaled) size
+        so the surrounding flex container can centre it correctly and the
+        scroll area matches what the user actually sees. The INNER div is
+        scaled with `transform-origin: top left` so the canvas pixels map
+        cleanly to the outer box. Without this split, the wrapper's DOM box
+        stayed at the unscaled canvas size (e.g. 1536×1024) even though the
+        visual was a fraction of that — which is what made the empty area
+        below the canvas balloon when the TextToolbar pushed things up.
+      */}
       <div
         ref={canvasWrapperRef}
         className="relative shadow-2xl ring-1 ring-gray-300 dark:ring-gray-600"
         style={{
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: "center center",
+          width: canvasWidth * zoom,
+          height: canvasHeight * zoom,
+          transform: `translate(${pan.x}px, ${pan.y}px)`,
           transition: "none",
+          flex: "0 0 auto",
         }}
       >
-        {/* Checkerboard for transparency */}
         <div
-          className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: `linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
-              linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
-              linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
-              linear-gradient(-45deg, transparent 75%, #e5e7eb 75%)`,
-            backgroundSize: "20px 20px",
-            backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
+            width: canvasWidth,
+            height: canvasHeight,
+            transform: `scale(${zoom})`,
+            transformOrigin: "top left",
+            position: "absolute",
+            top: 0,
+            left: 0,
           }}
-        />
-        <canvas ref={canvasElRef} />
+        >
+          {/* Checkerboard for transparency */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              backgroundImage: `linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+                linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+                linear-gradient(-45deg, transparent 75%, #e5e7eb 75%)`,
+              backgroundSize: "20px 20px",
+              backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
+            }}
+          />
+          <canvas ref={canvasElRef} />
+        </div>
       </div>
 
       {/* Remote cursors overlay */}

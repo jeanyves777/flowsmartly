@@ -80,34 +80,49 @@ export function LayersPanel() {
   const handleToggleVisibility = (layer: LayerInfo) => {
     if (!canvas) return;
     const obj = findObjectById(canvas, layer.id);
-    if (obj) {
-      obj.set("visible", !layer.visible);
-      canvas.renderAll();
-      refreshLayers();
+    if (!obj) return;
+    const nextVisible = !layer.visible;
+    obj.set("visible", nextVisible);
+    // Hiding the active object should also drop selection so the user
+    // doesn't see selection handles floating over an invisible layer.
+    if (!nextVisible && canvas.getActiveObject?.() === obj) {
+      canvas.discardActiveObject();
     }
+    canvas.requestRenderAll();
+    refreshLayers();
   };
 
   const handleToggleLock = (layer: LayerInfo) => {
     if (!canvas) return;
     const obj = findObjectById(canvas, layer.id);
-    if (obj) {
-      obj.set({
-        selectable: layer.locked,
-        evented: layer.locked,
-      });
-      canvas.renderAll();
-      refreshLayers();
+    if (!obj) return;
+    // layer.locked is the CURRENT state (derived from !obj.selectable).
+    // Toggling means: locked → unlock (selectable=true), unlocked → lock.
+    const willBeUnlocked = layer.locked;
+    obj.set({
+      selectable: willBeUnlocked,
+      evented: willBeUnlocked,
+      // Disable in-place editing for locked text so a stray double-click
+      // doesn't drop the user into the editor on a "locked" layer.
+      editable: willBeUnlocked,
+    });
+    if (!willBeUnlocked && canvas.getActiveObject?.() === obj) {
+      canvas.discardActiveObject();
     }
+    canvas.requestRenderAll();
+    refreshLayers();
   };
 
   const handleDelete = (layer: LayerInfo) => {
     if (!canvas) return;
     const obj = findObjectById(canvas, layer.id);
-    if (obj) {
-      canvas.remove(obj);
-      canvas.renderAll();
-      refreshLayers();
+    if (!obj) return;
+    if (canvas.getActiveObject?.() === obj) {
+      canvas.discardActiveObject();
     }
+    canvas.remove(obj);
+    canvas.requestRenderAll();
+    refreshLayers();
   };
 
   const renderLayer = (layer: LayerInfo, depth: number) => {
@@ -156,7 +171,9 @@ export function LayersPanel() {
               </span>
             )}
           </span>
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Action buttons: hover-only on desktop (clean look), always-on for
+              touch devices where there is no hover state. */}
+          <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
             <button
               onClick={(e) => {
                 e.stopPropagation();

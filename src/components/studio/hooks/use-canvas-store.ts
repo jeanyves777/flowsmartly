@@ -171,11 +171,22 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   refreshLayers: () => {
     const { canvas } = get();
     if (!canvas) return;
+    // Some entry paths (template apply, JSON load, drag-drop) put objects on
+    // the canvas without an `id`. The layers panel keys its actions on id, so
+    // a missing id meant the eye/lock/delete buttons silently did nothing.
+    // Backfill an id here so the panel and the actual object always agree.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ensureId = (obj: any, prefix: string, i: number): string => {
+      if (!obj.id) {
+        obj.id = `${prefix}-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`;
+      }
+      return obj.id as string;
+    };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const toLayer = (obj: any, i: number): LayerInfo => {
       const isGroup = obj.type === "group" || obj.type === "activeSelection";
       const layer: LayerInfo = {
-        id: obj.id || `layer-${i}`,
+        id: ensureId(obj, "layer", i),
         name: obj.customName || `${obj.type || "object"} ${i + 1}`,
         type: obj.type || "object",
         visible: obj.visible !== false,
