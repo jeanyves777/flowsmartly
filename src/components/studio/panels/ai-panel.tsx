@@ -8,16 +8,17 @@ import {
   MousePointerSquareDashed,
   Maximize2,
   X,
-  Replace,
-  ImagePlus,
+  Image as ImageIcon,
+  ChevronRight,
 } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { useCanvasStore } from "../hooks/use-canvas-store";
-import { addImageToCanvas, swapImageSource } from "../utils/canvas-helpers";
+import { addImageToCanvas } from "../utils/canvas-helpers";
 import { useCanvasExport } from "../hooks/use-canvas-export";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -43,18 +44,13 @@ export function AiPanel() {
   const [creditsRemaining, setCreditsRemaining] = useState(0);
   const [improveInstruction, setImproveInstruction] = useState("");
 
-  // Image picker state. Two distinct modes share the same picker:
-  //   "swap" — single-select, replaces the active canvas image's source
-  //   "add"  — multi-select, inserts each picked image as a new layer
-  const [pickerMode, setPickerMode] = useState<"swap" | "add" | null>(null);
-  const [isInsertingImages, setIsInsertingImages] = useState(false);
-
-  // The user has an image-typed object selected → "Swap" applies.
-  const activeIsImage = useMemo(() => {
-    if (!canvas || selectedObjectIds.length !== 1) return false;
-    const active = canvas.getActiveObject?.();
-    return !!active && active.type === "image";
-  }, [canvas, selectedObjectIds]);
+  // Optional reference image for AI-driven swap. The user picks (or uploads)
+  // an image they want the AI to incorporate into the design. We send the
+  // URL to the backend, which routes the call to a multi-image-capable
+  // provider (Gemini) so the AI can match lighting / perspective / style
+  // when blending the reference into the pinpointed region.
+  const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -136,6 +132,11 @@ export function AiPanel() {
           textMode: "exact",
           editImageUrl: imageUrl,
           editRegion: effectiveRegion,
+          // When the user picks a reference image, the backend routes the
+          // call to a multi-image-capable provider (Gemini) so the AI can
+          // intelligently swap it into the pinpointed area instead of us
+          // doing a mechanical paste.
+          referenceImageUrl: referenceImageUrl || undefined,
         }),
       });
 
@@ -156,10 +157,12 @@ export function AiPanel() {
       }
 
       setImproveInstruction("");
-      // Clear the pinpoint after a successful improve so the next prompt
-      // starts from a clean slate — keeping it would silently re-target the
-      // same area and surprise the user.
+      // Clear the pinpoint AND the reference image after a successful improve
+      // so the next prompt starts from a clean slate — keeping them would
+      // silently re-target the same area / re-use the same reference and
+      // surprise the user.
       setAiSelectedRegion(null);
+      setReferenceImageUrl(null);
       toast({ title: "Design improved!" });
     } catch (e) {
       toast({
@@ -169,66 +172,6 @@ export function AiPanel() {
       });
     } finally {
       setIsImproving(false);
-    }
-  };
-
-  // Replace the active canvas image's source with a single picked image.
-  // Free of charge — no AI call, just a Fabric source swap.
-  const handleSwapPick = async (url: string) => {
-    if (!canvas || !url) return;
-    const obj = canvas.getActiveObject?.();
-    if (!obj || obj.type !== "image") {
-      toast({ title: "Select an image on the canvas first", variant: "destructive" });
-      return;
-    }
-    setIsInsertingImages(true);
-    try {
-      const fabric = await import("fabric");
-      const swapped = await swapImageSource(canvas, obj, url, fabric);
-      if (!swapped) throw new Error("Couldn't load that image");
-      toast({ title: "Image swapped" });
-    } catch (e) {
-      toast({
-        title: "Swap failed",
-        description: e instanceof Error ? e.message : "Try a different image",
-        variant: "destructive",
-      });
-    } finally {
-      setIsInsertingImages(false);
-      setPickerMode(null);
-    }
-  };
-
-  // Insert each picked image as a new layer. We stagger their positions
-  // by a small offset so they don't all stack on the exact same pixel.
-  const handleAddPick = async (urls: string[]) => {
-    if (!canvas || urls.length === 0) return;
-    setIsInsertingImages(true);
-    try {
-      const fabric = await import("fabric");
-      let i = 0;
-      for (const url of urls) {
-        await addImageToCanvas(canvas, url, fabric, {
-          left: 60 + i * 30,
-          top: 60 + i * 30,
-        });
-        i += 1;
-      }
-      toast({
-        title:
-          urls.length === 1
-            ? "Image added"
-            : `${urls.length} images added`,
-      });
-    } catch (e) {
-      toast({
-        title: "Couldn't add images",
-        description: e instanceof Error ? e.message : "Try again",
-        variant: "destructive",
-      });
-    } finally {
-      setIsInsertingImages(false);
-      setPickerMode(null);
     }
   };
 
@@ -343,45 +286,66 @@ export function AiPanel() {
         )}
       </div>
 
-      {/* Image swap / add — free, no AI cost. Lives above the AI prompt
-          because users often reach for it BEFORE asking the AI to refine. */}
+      {/* Reference image — optional. The AI receives this alongside the
+          canvas and your prompt, then intelligently swaps/blends it into
+          the pinpointed area (matches lighting, perspective, style). When
+          provided, the call is routed to a multi-image-capable provider
+          (Gemini) on the backend. */}
       <div className="space-y-2">
         <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between">
-          <span>Add or swap images</span>
-          <span className="text-[9px] font-normal text-muted-foreground/70 normal-case">
-            Free · no credits
-          </span>
+          <span>Reference image (optional)</span>
+          {referenceImageUrl && (
+            <span className="text-[9px] font-normal text-brand-600 normal-case">
+              AI will swap with this
+            </span>
+          )}
         </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <Button
+        {referenceImageUrl ? (
+          <div className="flex items-center gap-2 rounded-md border border-brand-500/50 bg-brand-500/5 p-2">
+            <div className="relative w-12 h-12 rounded overflow-hidden border bg-muted shrink-0">
+              <Image
+                src={referenceImageUrl}
+                alt="Reference"
+                fill
+                sizes="48px"
+                className="object-cover"
+                unoptimized
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium truncate">Reference selected</div>
+              <div className="text-[10px] text-muted-foreground">
+                Tell the AI what to do with it in the prompt below.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReferenceImageUrl(null)}
+              className="p-1 rounded hover:bg-muted text-muted-foreground"
+              title="Remove reference image"
+              aria-label="Remove reference image"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
             type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 text-[11px] gap-1.5"
-            disabled={!activeIsImage || isInsertingImages}
-            onClick={() => setPickerMode("swap")}
-            title={
-              activeIsImage
-                ? "Replace the selected canvas image with one from your library or a new upload"
-                : "Select an image on the canvas first to enable swap"
-            }
+            onClick={() => setIsPickerOpen(true)}
+            className="w-full flex items-center gap-2 rounded-md border border-dashed border-border/80 hover:border-brand-500/50 hover:bg-muted/30 transition-colors p-3 text-left"
           >
-            <Replace className="h-3.5 w-3.5" />
-            Swap selected
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 text-[11px] gap-1.5"
-            disabled={isInsertingImages}
-            onClick={() => setPickerMode("add")}
-            title="Pick one or many images from your library or upload new ones — added as new layers"
-          >
-            <ImagePlus className="h-3.5 w-3.5" />
-            Add image(s)
-          </Button>
-        </div>
+            <div className="w-10 h-10 rounded bg-muted/60 flex items-center justify-center shrink-0">
+              <ImageIcon className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium">Pick a reference image</div>
+              <div className="text-[10px] text-muted-foreground">
+                Library or upload — AI will swap/blend it into the design
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          </button>
+        )}
       </div>
 
       {/* Preset chips */}
@@ -412,9 +376,13 @@ export function AiPanel() {
           value={improveInstruction}
           onChange={(e) => setImproveInstruction(e.target.value)}
           placeholder={
-            effectiveRegion
-              ? "Describe what to change in the pinpointed area…"
-              : "Describe how to improve your design…"
+            referenceImageUrl
+              ? effectiveRegion
+                ? "e.g. Replace the photo in the pinpointed area with the reference — keep lighting and angle natural"
+                : "e.g. Use the reference image to replace the main photo in this design"
+              : effectiveRegion
+                ? "Describe what to change in the pinpointed area…"
+                : "Describe how to improve your design…"
           }
           className="w-full flex-1 min-h-[140px] p-3 text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 bg-background leading-relaxed"
         />
@@ -437,21 +405,16 @@ export function AiPanel() {
         </p>
       </div>
 
-      {/* Shared media picker — Library tab + Upload tab built in. We render
-          ONE instance and switch its mode (single vs. multi) based on
-          which button opened it. */}
+      {/* Shared media picker — Library tab + Upload tab built in. Single
+          select: one reference image at a time gets sent to the AI. */}
       <MediaLibraryPicker
-        open={pickerMode !== null}
-        onClose={() => setPickerMode(null)}
+        open={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
         filterTypes={["image"]}
-        title={pickerMode === "swap" ? "Pick replacement image" : "Pick image(s) to add"}
-        multiSelect={pickerMode === "add"}
+        title="Pick a reference image"
         onSelect={(url) => {
-          if (pickerMode === "swap") void handleSwapPick(url);
-          else if (pickerMode === "add") void handleAddPick([url]);
-        }}
-        onMultiSelect={(urls) => {
-          if (pickerMode === "add") void handleAddPick(urls);
+          setReferenceImageUrl(url);
+          setIsPickerOpen(false);
         }}
       />
     </div>

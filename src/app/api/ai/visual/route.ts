@@ -302,6 +302,11 @@ interface PipelineParams {
     canvasW: number;
     canvasH: number;
   } | null;
+  // Note: referenceImageUrl is declared once above (it's already used by
+  // the GENERATE pipeline for hybrid template/reference compositing). When
+  // present in EDIT mode, the call is auto-routed to a multi-image-capable
+  // provider (Gemini) so the AI can blend the reference into the canvas —
+  // see runEditPipeline below.
   provider: ImageProvider;
 }
 
@@ -797,7 +802,19 @@ Output a polished, print-ready ${params.category} background. The photo will be 
 // ═══════════════════════════════════════════════════════════════
 
 async function runEditPipeline(params: PipelineParams) {
-  const { prompt, width, height, provider, editImageUrl, editRegion } = params;
+  const { prompt, width, height, editImageUrl, editRegion, referenceImageUrl } = params;
+  let { provider } = params;
+
+  // Reference-image swap requires a multi-image-capable provider. Gemini is
+  // the only one wired up that natively handles N images in a single call,
+  // so we auto-route to it whenever the user supplied a reference. We log
+  // the override so it's obvious in production traces.
+  if (referenceImageUrl && provider !== "gemini") {
+    console.log(
+      `[Visual/Edit] Reference image present — overriding provider ${provider} → gemini for multi-image support`,
+    );
+    provider = "gemini" as ImageProvider;
+  }
 
   console.log(`[Visual/Edit] Provider: ${provider}, instruction: "${prompt.slice(0, 80)}"`);
 
@@ -824,19 +841,48 @@ PINPOINT REGION — APPLY THE EDIT ONLY INSIDE THIS BOX:
     console.log(`[Visual/Edit] Region: (${xPct.toFixed(1)}%, ${yPct.toFixed(1)}%) ${wPct.toFixed(1)}%×${hPct.toFixed(1)}%`);
   }
 
+  // Reference-image clause. When the user picks a reference, the request
+  // contains TWO images: the first is the canvas being edited, the second
+  // is the reference. We tell the model exactly that so it knows which is
+  // which — otherwise it'll happily edit the reference instead.
+  const referenceClause = referenceImageUrl
+    ? `
+
+REFERENCE IMAGE PROVIDED — INTELLIGENT SWAP MODE:
+- You have been given TWO images. The FIRST image is the design canvas you must modify. The SECOND image is the user's reference.
+- Use the SECOND image as the SOURCE for what to swap into the design.${editRegion ? " Place it inside the pinpoint region above." : ""}
+- Match the design's lighting, color grade, perspective, and style — do NOT just paste pixels. The result should look like the reference subject naturally belongs in the design.
+- Preserve the design's text, layout, and other elements exactly as they are.`
+    : "";
+
   const editPrompt = `You are editing an existing graphic design image. Apply ONLY the following change and keep everything else exactly the same — same layout, same colors, same style, same background, same composition.
 
-EDIT INSTRUCTION: ${prompt}${regionClause}
+EDIT INSTRUCTION: ${prompt}${regionClause}${referenceClause}
 
 RULES:
 - Preserve the overall design exactly as-is
 - Only modify what the instruction asks for${editRegion ? " — and ONLY inside the pinpoint region above" : ""}
 - Keep all other text, images, shapes, and colors unchanged
 - Maintain the same dimensions and aspect ratio
-- The result must look like a professional design, not a rough edit`;
+- The result must look like a professional design, not a rough edit${referenceImageUrl ? "\n- When using the reference image, blend it seamlessly — match lighting, shadows, color grade, and grain" : ""}`;
 
   // Resolve the existing design image
   const editBuffer = await resolveImageToBuffer(editImageUrl!);
+
+  // If a reference image is supplied, resolve it to base64 so the providers
+  // that support multi-image input can include it. Resolved upfront so any
+  // network failure surfaces with a clear error before we burn provider quota.
+  let referenceBase64: string | null = null;
+  if (referenceImageUrl) {
+    try {
+      const refBuffer = await resolveImageToBuffer(referenceImageUrl);
+      referenceBase64 = refBuffer.toString("base64");
+      console.log(`[Visual/Edit] Reference image resolved (${refBuffer.byteLength} bytes)`);
+    } catch (err) {
+      console.error("[Visual/Edit] Failed to resolve reference image:", err);
+      throw new Error("Could not load the reference image you picked. Try a different one.");
+    }
+  }
 
   let base64: string | null;
   let model: string;
@@ -866,12 +912,16 @@ RULES:
     }
 
     case "gemini": {
-      console.log(`[Visual/Edit] Gemini gemini-2.5-flash-image`);
+      console.log(
+        `[Visual/Edit] Gemini gemini-2.5-flash-image${referenceBase64 ? " (with reference image)" : ""}`,
+      );
       if (!geminiImageClient.isAvailable()) {
         throw new Error("Gemini provider is not configured.");
       }
       const refBase64 = editBuffer.toString("base64");
-      base64 = await geminiImageClient.editImage(editPrompt, refBase64);
+      base64 = await geminiImageClient.editImage(editPrompt, refBase64, {
+        referenceImages: referenceBase64 ? [referenceBase64] : [],
+      });
       model = "gemini-2.5-flash";
       break;
     }
