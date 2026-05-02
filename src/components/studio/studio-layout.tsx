@@ -14,8 +14,18 @@ export function StudioLayout() {
   const designId = useCanvasStore((s) => s.designId);
   const collab = useCollaboration(designId);
 
+  // h-[calc(100vh-64px)] — NOT h-screen — because (dashboard)/layout.tsx
+  // wraps us in a <main> that has both `h-screen` and `pt-16` (the 64px
+  // navbar). Using h-screen here means our root takes 100vh INSIDE a
+  // parent whose content area is only 100vh-64px, so we overflow by
+  // exactly the navbar height. That overflow pushed the BottomToolbar /
+  // PagesPanel below the fold and made the whole page scrollable with a
+  // tall empty band — the symptom users hit when clicking text
+  // (TextToolbar appearing made the empty band easier to notice). The
+  // bg-remover page (the reference for full-height tools) uses the same
+  // calc, so we match it here.
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-background">
+    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-background">
       {/* Top Toolbar - fixed at top */}
       <TopToolbar
         activeUsers={collab.activeUsers}
