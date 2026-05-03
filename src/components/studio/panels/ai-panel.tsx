@@ -9,6 +9,9 @@ import {
   Maximize2,
   X,
   Replace,
+  Image,
+  UserRound,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +25,33 @@ import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
 
 type AiEditMode = "improve" | "replace";
+type ReplacementReferenceMode = "adapt" | "exact" | "keep_face";
+
+const replacementReferenceModes: Array<{
+  value: ReplacementReferenceMode;
+  label: string;
+  icon: LucideIcon;
+  hint: string;
+}> = [
+  {
+    value: "adapt",
+    label: "Adapt",
+    icon: Replace,
+    hint: "Use the image as a visual source and fit it naturally into the design.",
+  },
+  {
+    value: "exact",
+    label: "Exact",
+    icon: Image,
+    hint: "Preserve the provided photo or object as closely as the edit model allows.",
+  },
+  {
+    value: "keep_face",
+    label: "Keep face",
+    icon: UserRound,
+    hint: "Keep the reference face and identity unchanged while allowing outfit edits.",
+  },
+];
 
 // ChatGPT-style Improve panel. The user can pinpoint the area they want
 // changed (drag a rect on the canvas, or use whatever they've already
@@ -44,6 +74,8 @@ export function AiPanel() {
   const [creditsRemaining, setCreditsRemaining] = useState(0);
   const [improveInstruction, setImproveInstruction] = useState("");
   const [editMode, setEditMode] = useState<AiEditMode>("improve");
+  const [replacementReferenceMode, setReplacementReferenceMode] =
+    useState<ReplacementReferenceMode>("adapt");
   const [replacementReferenceUrls, setReplacementReferenceUrls] = useState<string[]>([]);
 
   useEffect(() => {
@@ -92,6 +124,14 @@ export function AiPanel() {
       return;
     }
     if (!canvas) return;
+    if (
+      editMode === "replace" &&
+      replacementReferenceMode !== "adapt" &&
+      replacementReferenceUrls.length === 0
+    ) {
+      toast({ title: "Add a reference image", variant: "destructive" });
+      return;
+    }
 
     // Region-select mode locks Fabric selection — bail out cleanly so the
     // user isn't stuck waiting on AI while their canvas is unresponsive.
@@ -127,6 +167,7 @@ export function AiPanel() {
           editImageUrl: imageUrl,
           editRegion: effectiveRegion,
           editIntent: editMode === "replace" ? "replace_subject" : "improve",
+          editReferenceMode: editMode === "replace" ? replacementReferenceMode : undefined,
           editReferenceImageUrls: editMode === "replace" ? replacementReferenceUrls : [],
         }),
       });
@@ -165,12 +206,24 @@ export function AiPanel() {
   };
 
   const presets = editMode === "replace"
-    ? [
-        "Replace the person with a man in a navy suit",
-        "Replace the person with a woman in a white dress",
-        "Replace the object with a premium product",
-        "Replace the subject with a church choir member",
-      ]
+    ? replacementReferenceMode === "exact"
+      ? [
+          "Use this exact reference photo as the replacement",
+          "Replace the selected subject with the exact product photo",
+          "Fit the exact person into the design without changing them",
+        ]
+      : replacementReferenceMode === "keep_face"
+        ? [
+            "Keep the face exactly the same, change the clothing to a navy suit",
+            "Keep the face and hair unchanged, use a white dress",
+            "Keep the identity unchanged and make the outfit more formal",
+          ]
+        : [
+            "Replace the person with a man in a navy suit",
+            "Replace the person with a woman in a white dress",
+            "Replace the object with a premium product",
+            "Replace the subject with a church choir member",
+          ]
     : [
         "Make it more professional",
         "Improve colors",
@@ -241,6 +294,34 @@ export function AiPanel() {
             libraryTitle="Pick replacement image"
             className="rounded-md border bg-muted/20 p-2"
           />
+          <div className="grid grid-cols-3 gap-1 rounded-md border bg-muted/30 p-1">
+            {replacementReferenceModes.map((mode) => {
+              const Icon = mode.icon;
+              const active = replacementReferenceMode === mode.value;
+              return (
+                <button
+                  key={mode.value}
+                  type="button"
+                  onClick={() => setReplacementReferenceMode(mode.value)}
+                  title={mode.hint}
+                  className={`h-8 rounded px-1 text-[10px] font-medium transition-colors flex items-center justify-center gap-1 ${
+                    active
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{mode.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            {
+              replacementReferenceModes.find((mode) => mode.value === replacementReferenceMode)
+                ?.hint
+            }
+          </p>
         </div>
       )}
 
@@ -363,9 +444,13 @@ export function AiPanel() {
           onChange={(e) => setImproveInstruction(e.target.value)}
           placeholder={
             editMode === "replace"
-              ? effectiveRegion
-                ? "Describe what should replace the selected person or object..."
-                : "Describe the person or object to replace, and what to replace it with..."
+              ? replacementReferenceMode === "exact"
+                ? "Tell AI where to place the exact reference image..."
+                : replacementReferenceMode === "keep_face"
+                  ? "Describe the clothing or body styling to change while keeping the face..."
+                  : effectiveRegion
+                    ? "Describe what should replace the selected person or object..."
+                    : "Describe the person or object to replace, and what to replace it with..."
               : effectiveRegion
                 ? "Describe what to change in the pinpointed area..."
                 : "Describe how to improve your design..."

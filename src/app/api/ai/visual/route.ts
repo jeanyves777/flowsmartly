@@ -35,6 +35,13 @@ function getGptImageSize(width: number, height: number): "1024x1024" | "1536x102
   return "1024x1024";
 }
 
+type EditReferenceMode = "adapt" | "exact" | "keep_face";
+
+function normalizeEditReferenceMode(value: unknown): EditReferenceMode {
+  if (value === "exact" || value === "keep_face") return value;
+  return "adapt";
+}
+
 /**
  * Run rembg on a reference buffer and return a transparent-background
  * cutout for clean compositing onto a generated background. Falls back
@@ -108,6 +115,7 @@ export async function POST(request: NextRequest) {
       editImageUrl,
       editRegion,
       editIntent,
+      editReferenceMode,
       editReferenceImageUrl,
       editReferenceImageUrls,
       provider,
@@ -161,6 +169,7 @@ export async function POST(request: NextRequest) {
       editImageUrl: editImageUrl || null,
       editRegion: editRegion || null,
       editIntent: editIntent === "replace_subject" ? "replace_subject" : "improve",
+      editReferenceMode: normalizeEditReferenceMode(editReferenceMode),
       editReferenceImageUrls: Array.isArray(editReferenceImageUrls)
         ? editReferenceImageUrls.filter((url: unknown): url is string => typeof url === "string" && url.trim().length > 0).slice(0, 4)
         : typeof editReferenceImageUrl === "string" && editReferenceImageUrl.trim()
@@ -298,6 +307,7 @@ interface PipelineParams {
   ctaText?: string | null;
   editImageUrl?: string | null;
   editIntent?: "improve" | "replace_subject";
+  editReferenceMode?: EditReferenceMode;
   editReferenceImageUrls?: string[];
   /**
    * Optional pinpoint region for edit mode. Coordinates are in CANVAS pixels
@@ -821,11 +831,12 @@ async function runEditPipeline(params: PipelineParams) {
     editImageUrl,
     editRegion,
     editIntent = "improve",
+    editReferenceMode = "adapt",
     editReferenceImageUrls = [],
   } = params;
   const hasReplacementRefs = editIntent === "replace_subject" && editReferenceImageUrls.length > 0;
 
-  console.log(`[Visual/Edit] Provider: ${provider}, intent: ${editIntent}, instruction: "${prompt.slice(0, 80)}"`);
+  console.log(`[Visual/Edit] Provider: ${provider}, intent: ${editIntent}, refMode: ${editReferenceMode}, instruction: "${prompt.slice(0, 80)}"`);
 
   // Optional pinpoint-region clause. Image-edit providers (xAI grok-imagine-image,
   // Gemini, OpenAI gpt-image-1) accept a single edit instruction string, so we
@@ -850,14 +861,37 @@ PINPOINT REGION — APPLY THE EDIT ONLY INSIDE THIS BOX:
     console.log(`[Visual/Edit] Region: (${xPct.toFixed(1)}%, ${yPct.toFixed(1)}%) ${wPct.toFixed(1)}%×${hPct.toFixed(1)}%`);
   }
 
+  const referenceLabel = editReferenceImageUrls.length > 1
+    ? `Images 2 through ${editReferenceImageUrls.length + 1} are the replacement reference images.`
+    : "Image 2 is the replacement reference image.";
+  const replacementReferenceModeRules =
+    editReferenceMode === "exact"
+      ? `REFERENCE LOCK MODE: EXACT SOURCE
+- Treat the replacement reference as the literal source photo/object, not inspiration.
+- Do not invent a similar person/object. Do not change the reference subject's face, identity, hairstyle, expression, body proportions, clothing, product shape, logos, markings, or distinctive details unless the user explicitly asks.
+- Only adapt scale, crop, perspective, lighting, shadows, edge blending, and color grade so the exact reference subject fits naturally into the current design.`
+      : editReferenceMode === "keep_face"
+        ? `REFERENCE LOCK MODE: KEEP FACE
+- Preserve the reference person's face, facial geometry, skin tone, age, expression, head angle, hair, and recognizable identity.
+- Clothing, outfit, accessories below the neck, and body styling may change to satisfy the instruction.
+- If the user's clothing instruction conflicts with preserving the face or identity, preserve the face and identity first.`
+        : `REFERENCE MODE: ADAPT
+- Use the replacement reference image as the visual source for the new person/object.
+- Preserve recognizable visual details where possible while adapting the subject to the design.`;
   const replacementReferenceClause = hasReplacementRefs
     ? `
 
 REFERENCE IMAGE INPUTS:
 - Image 1 is the current design canvas.
-- Image 2${editReferenceImageUrls.length > 1 ? ` through ${editReferenceImageUrls.length + 1} are` : " is"} the replacement reference image${editReferenceImageUrls.length > 1 ? "s" : ""}.
-- Use the replacement reference image${editReferenceImageUrls.length > 1 ? "s" : ""} as the visual source for the new person/object, preserving the reference subject's recognizable visual details where possible while adapting it to the design.`
+- ${referenceLabel}
+${replacementReferenceModeRules}`
     : "";
+  const replacementModeRuleClause =
+    hasReplacementRefs && editReferenceMode === "exact"
+      ? "\n- The reference subject must remain visually identical except for necessary integration adjustments."
+      : hasReplacementRefs && editReferenceMode === "keep_face"
+        ? "\n- The reference face and identity must remain unchanged while clothing/body styling can follow the prompt."
+        : "";
 
   const editPrompt = editIntent === "replace_subject"
     ? `You are editing an existing graphic design image. Replace a person or object while keeping the rest of the design exactly the same - same layout, same colors, same style, same background, same composition.
@@ -869,7 +903,7 @@ REPLACEMENT RULES:
 - Remove the original target cleanly and replace it with the requested new person/object${hasReplacementRefs ? " from the replacement reference image" : ""}.
 - Match the replacement to the existing design's perspective, lighting, shadows, scale, camera angle, color grade, and graphic style.
 - Preserve every text block, logo, icon, border, ornament, background element, and non-target subject exactly as-is.
-- Do not add duplicate people or duplicate objects. The replacement should occupy the target's place.
+- Do not add duplicate people or duplicate objects. The replacement should occupy the target's place.${replacementModeRuleClause}
 - Only modify the replacement target${editRegion ? " and ONLY inside the pinpoint region above" : ""}.
 - Maintain the same dimensions and aspect ratio.
 - The result must look like a professional design, not a rough edit`
