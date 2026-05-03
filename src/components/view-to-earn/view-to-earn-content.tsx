@@ -1,448 +1,362 @@
-"use client";
-
-import { motion } from "framer-motion";
+import Image from "next/image";
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
 import {
-  Eye,
-  DollarSign,
-  Megaphone,
   ArrowRight,
-  Sparkles,
-  TrendingUp,
-  Gift,
-  Target,
-  ShieldCheck,
-  Zap,
-  RefreshCw,
   BarChart3,
+  CheckCircle2,
+  Clock,
+  Eye,
+  Gift,
+  Megaphone,
+  PlayCircle,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Wallet,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { EarnCreditsPreview } from "@/components/illustrations/earn-credits-preview";
+import { illustrationImages } from "@/components/marketing/public-page-visuals";
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+type Feature = {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  color: string;
 };
 
-const stagger = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.2 },
-  },
-};
-
-const steps = [
+const earnSteps: Feature[] = [
   {
-    icon: Eye,
-    title: "View Content",
+    icon: PlayCircle,
+    title: "View approved content",
     description:
-      "Browse sponsored posts and watch video ads in your feed. Each interaction earns you credits automatically.",
-    color: "bg-brand-500",
-    credits: "+3 to +10 per view",
+      "Watch sponsored clips, product demos, and partner posts that match your account rules.",
+    color: "bg-sky-500",
   },
-  {
-    icon: DollarSign,
-    title: "Earn Credits",
-    description:
-      "Credits accumulate in your account as you engage with content. Track your daily progress and total balance in real time.",
-    color: "bg-emerald-500",
-    credits: "Up to 100/day",
-  },
-  {
-    icon: Megaphone,
-    title: "Boost Your Business",
-    description:
-      "Spend credits to promote your own posts, run ad campaigns, and generate AI content — all without spending real money.",
-    color: "bg-accent-purple",
-    credits: "25–100 credits per action",
-  },
-];
-
-const benefits = [
   {
     icon: Gift,
-    title: "Free Advertising",
+    title: "Earn credits instantly",
     description:
-      "Promote your business without a marketing budget. Earn credits daily and convert them into real ad impressions.",
+      "Qualified views add credits to your balance with clear limits, history, and daily progress.",
+    color: "bg-amber-500",
   },
   {
-    icon: Sparkles,
-    title: "AI Content at No Cost",
+    icon: Megaphone,
+    title: "Spend on growth",
     description:
-      "Use credits to generate AI-powered posts, captions, and ad copy. Professional content creation, funded by your engagement.",
-  },
-  {
-    icon: TrendingUp,
-    title: "Grow Your Reach",
-    description:
-      "Boost posts to reach new audiences. The more you engage, the more you can promote — creating a cycle of growth.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Fair & Transparent",
-    description:
-      "Clear earning rates, real-time tracking, and no hidden fees. You always know exactly what you're earning and spending.",
-  },
-  {
-    icon: Zap,
-    title: "Instant Rewards",
-    description:
-      "Credits are added to your account immediately after each qualifying interaction. No waiting, no minimum thresholds.",
-  },
-  {
-    icon: RefreshCw,
-    title: "Self-Sustaining Ecosystem",
-    description:
-      "Advertisers fund the credits pool. Viewers earn from engagement. Everyone benefits from a thriving community.",
+      "Use credits to boost posts, generate campaign creative, or test promotions without cash spend.",
+    color: "bg-emerald-500",
   },
 ];
 
-const spendOptions = [
-  {
-    icon: Megaphone,
-    title: "Boost a Post",
-    cost: "50 credits",
-    description: "Push your post to more feeds and increase visibility.",
-    color: "text-brand-500",
-    bg: "bg-brand-500/10",
-  },
+const spendOptions: Feature[] = [
   {
     icon: Sparkles,
-    title: "AI Content Generation",
-    cost: "25 credits",
-    description: "Generate professional posts, captions, and ad copy with AI.",
-    color: "text-accent-purple",
-    bg: "bg-accent-purple/10",
+    title: "AI content generation",
+    description:
+      "Turn earned credits into captions, ad concepts, email ideas, and ready-to-edit creative.",
+    color: "bg-violet-500",
   },
   {
     icon: Target,
-    title: "Promote Campaign",
-    cost: "100 credits",
-    description: "Run a targeted ad campaign to reach your ideal audience.",
-    color: "text-emerald-500",
-    bg: "bg-emerald-500/10",
+    title: "Campaign promotion",
+    description:
+      "Apply credits to targeted boosts when a product, offer, or local event needs more reach.",
+    color: "bg-rose-500",
   },
   {
     icon: BarChart3,
-    title: "Analytics Boost",
-    cost: "30 credits",
-    description: "Unlock detailed analytics and insights for your content.",
-    color: "text-accent-gold",
-    bg: "bg-accent-gold/10",
+    title: "Analytics unlocks",
+    description:
+      "Use credits for deeper reporting, trend checks, and recommendations before spending more.",
+    color: "bg-sky-500",
+  },
+  {
+    icon: RefreshCw,
+    title: "Reusable growth loop",
+    description:
+      "Earning and spending live in the same workflow, so small wins keep moving back into marketing.",
+    color: "bg-emerald-500",
   },
 ];
 
+const guardrails = [
+  "Daily earning caps keep the credit pool fair.",
+  "Only qualified views and interactions count toward rewards.",
+  "Clear activity history shows where credits came from and where they went.",
+  "Business owners can choose when to spend credits or save them for a launch.",
+];
+
+function SectionHeader({
+  eyebrow,
+  title,
+  description,
+  align = "center",
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  align?: "center" | "left";
+}) {
+  return (
+    <div className={align === "center" ? "mx-auto max-w-3xl text-center" : "max-w-3xl"}>
+      <p className="text-sm font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
+        {eyebrow}
+      </p>
+      <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+        {title}
+      </h2>
+      <p className="mt-4 text-lg leading-8 text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+function FeatureCard({ item }: { item: Feature }) {
+  return (
+    <div className="rounded-lg border bg-card p-6 shadow-sm">
+      <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${item.color}`}>
+        <item.icon className="h-6 w-6 text-white" />
+      </div>
+      <h3 className="mt-5 text-xl font-semibold tracking-tight">{item.title}</h3>
+      <p className="mt-3 leading-7 text-muted-foreground">{item.description}</p>
+    </div>
+  );
+}
+
+function CreditSignal({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-lg border bg-background/85 px-4 py-3 dark:bg-muted/30">
+      <div className="flex items-center gap-3">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-200">
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="font-medium">{label}</span>
+      </div>
+      <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-300">{value}</span>
+    </div>
+  );
+}
+
 export function ViewToEarnContent() {
   return (
-    <div className="min-h-screen">
-      {/* Hero — Dark gradient variant */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-gray-900 via-amber-950 to-gray-900 pt-24 pb-16 px-4 sm:px-6 lg:px-8">
-        {/* Animated background grid */}
-        <div className="absolute inset-0 opacity-10">
-          <svg width="100%" height="100%">
-            <defs>
-              <pattern id="vte-grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#vte-grid)" />
-          </svg>
-        </div>
-        {/* Floating orbs */}
-        <div className="absolute top-20 left-[15%] w-32 h-32 bg-amber-500/20 rounded-full blur-3xl animate-[float_6s_ease-in-out_infinite]" />
-        <div className="absolute bottom-20 right-[20%] w-40 h-40 bg-yellow-500/20 rounded-full blur-3xl animate-[float_8s_ease-in-out_infinite_2s]" />
-        <div className="absolute top-40 right-[10%] w-24 h-24 bg-emerald-500/20 rounded-full blur-3xl animate-[float_5s_ease-in-out_infinite_1s]" />
-
-        <style jsx global>{`
-          @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-          }
-        `}</style>
-
-        <div className="relative z-10 max-w-4xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/20 text-amber-300 text-sm font-medium mb-8 border border-amber-500/30">
-              <Gift className="w-4 h-4" />
-              <span>View-to-Earn Credits</span>
+    <div className="min-h-screen bg-background text-foreground">
+      <section className="relative overflow-hidden border-b bg-[linear-gradient(180deg,rgba(255,251,235,0.92),rgba(255,255,255,1))] px-4 pt-24 pb-20 sm:px-6 sm:pt-32 sm:pb-24 lg:px-8 dark:bg-[linear-gradient(180deg,rgba(32,22,8,0.72),rgba(9,9,11,1))]">
+        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+          <div>
+            <div className="mb-6 inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-semibold shadow-sm">
+              <Gift className="h-4 w-4 text-amber-600 dark:text-amber-300" />
+              View-to-Earn Credits
             </div>
-
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-white text-balance">
-              Earn Credits by Viewing,{" "}
-              <span className="bg-gradient-to-r from-amber-400 to-yellow-300 bg-clip-text text-transparent">
-                Grow Your Business
-              </span>{" "}
-              for Free
+            <h1 className="max-w-4xl text-balance text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
+              Earn credits from attention and spend them on growth
             </h1>
-
-            <p className="text-lg sm:text-xl text-gray-300 max-w-2xl mx-auto mb-10 leading-relaxed">
-              Watch content, earn credits, and use them to promote your business
-              with ads, AI-generated content, and boosted campaigns — all
-              without spending a dime.
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
+              FlowSmartly turns qualified content views into credits small
+              businesses can use for AI creative, post boosts, and campaign tests
+              before spending more cash.
             </p>
-
-            {/* Trust indicators */}
-            <div className="flex flex-wrap justify-center gap-6 sm:gap-10 mb-10">
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Button size="lg" className="bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-600" asChild>
+                <Link href="/register">
+                  Start earning credits
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" className="font-semibold" asChild>
+                <Link href="#how-it-works">See how it works</Link>
+              </Button>
+            </div>
+            <div className="mt-10 hidden gap-3 sm:grid sm:grid-cols-3">
               {[
-                { icon: Gift, label: "Free to Start" },
-                { icon: TrendingUp, label: "Daily Earnings" },
-                { icon: ShieldCheck, label: "Verified System" },
-                { icon: Zap, label: "Instant Credits" },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center gap-2 text-gray-400">
-                  <item.icon className="w-5 h-5 text-amber-400" />
-                  <span className="text-sm font-medium">{item.label}</span>
+                ["100", "daily earning target"],
+                ["25+", "AI actions"],
+                ["0", "card needed to start"],
+              ].map(([value, label]) => (
+                <div key={label} className="rounded-lg border bg-card p-4 shadow-sm">
+                  <div className="text-2xl font-bold">{value}</div>
+                  <div className="mt-1 text-sm text-muted-foreground">{label}</div>
                 </div>
               ))}
             </div>
+          </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button size="lg" className="bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold" asChild>
-                <Link href="/register">
-                  Start Earning Credits
-                  <ArrowRight className="ml-2 w-5 h-5" />
-                </Link>
-              </Button>
-              <Button size="lg" variant="ghost" className="border-2 border-white/30 text-white hover:bg-white/10 hover:text-white" asChild>
-                <Link href="#how-it-works">See How It Works</Link>
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Interactive Preview */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <EarnCreditsPreview />
-          </motion.div>
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section
-        id="how-it-works"
-        className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/50"
-      >
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="text-center mb-16"
-          >
-            <motion.h2
-              variants={fadeUp}
-              className="text-3xl sm:text-4xl font-bold mb-4"
-            >
-              How It Works
-            </motion.h2>
-            <motion.p
-              variants={fadeUp}
-              className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            >
-              Three simple steps to turn your engagement into real business
-              growth.
-            </motion.p>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="grid md:grid-cols-3 gap-8"
-          >
-            {steps.map((step, index) => (
-              <motion.div
-                key={step.title}
-                variants={fadeUp}
-                className="relative text-center"
-              >
-                {/* Step number */}
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-card border-2 border-brand-500 flex items-center justify-center text-xs font-bold text-brand-500">
-                  {index + 1}
-                </div>
-
-                <div className="pt-6 p-6 rounded-xl bg-card border hover:shadow-lg transition-shadow">
+          <div className="relative">
+            <div className="relative min-h-[430px] overflow-visible sm:min-h-[560px]">
+              <div className="absolute left-4 top-4 z-10 rounded-lg border bg-card/90 px-4 py-3 text-sm font-semibold shadow-sm">
+                Credits ready to use
+              </div>
+              <Image
+                src={illustrationImages.viewToEarnPageCreator}
+                alt="Creator earning credits from content views and turning them into campaign boosts"
+                fill
+                priority
+                sizes="(min-width: 1024px) 55vw, 100vw"
+                unoptimized
+                className="object-contain object-center drop-shadow-[0_30px_70px_rgba(146,64,14,0.2)] dark:drop-shadow-[0_30px_70px_rgba(0,0,0,0.45)]"
+              />
+              <div className="absolute bottom-4 left-4 right-4 z-10 grid gap-3 sm:grid-cols-3">
+                {[
+                  ["View", "approved content"],
+                  ["Earn", "instant credits"],
+                  ["Boost", "growth actions"],
+                ].map(([value, label]) => (
                   <div
-                    className={`w-14 h-14 rounded-xl ${step.color} flex items-center justify-center mx-auto mb-4`}
+                    key={label}
+                    className="rounded-lg border bg-card/90 px-4 py-3 shadow-sm"
                   >
-                    <step.icon className="w-7 h-7 text-white" />
+                    <div className="text-xl font-bold">{value}</div>
+                    <div className="text-xs text-muted-foreground">{label}</div>
                   </div>
-                  <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
-                  <p className="text-muted-foreground mb-4 text-sm">
-                    {step.description}
-                  </p>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-xs font-medium">
-                    <DollarSign className="w-3 h-3 text-emerald-500" />
-                    {step.credits}
-                  </div>
-                </div>
-
-                {/* Arrow connector */}
-                {index < 2 && (
-                  <div className="hidden md:block absolute top-1/2 -right-4 translate-x-0">
-                    <ArrowRight className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                )}
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* How to Spend Credits */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="text-center mb-16"
-          >
-            <motion.h2
-              variants={fadeUp}
-              className="text-3xl sm:text-4xl font-bold mb-4"
-            >
-              Spend Credits, Grow Your Business
-            </motion.h2>
-            <motion.p
-              variants={fadeUp}
-              className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            >
-              Use your earned credits across the platform to promote your
-              content, generate AI-powered ads, and reach new audiences.
-            </motion.p>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="grid sm:grid-cols-2 gap-6"
-          >
-            {spendOptions.map((option) => (
-              <motion.div
-                key={option.title}
-                variants={fadeUp}
-                className="group flex items-start gap-4 p-6 rounded-xl bg-card border hover:shadow-lg transition-all"
-              >
-                <div
-                  className={`w-12 h-12 rounded-xl ${option.bg} flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform`}
-                >
-                  <option.icon className={`w-6 h-6 ${option.color}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <h3 className="font-semibold">{option.title}</h3>
-                    <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-muted whitespace-nowrap">
-                      {option.cost}
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {option.description}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Benefits */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/50">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="text-center mb-16"
-          >
-            <motion.h2
-              variants={fadeUp}
-              className="text-3xl sm:text-4xl font-bold mb-4"
-            >
-              Why View-to-Earn Works
-            </motion.h2>
-            <motion.p
-              variants={fadeUp}
-              className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            >
-              A win-win ecosystem where engagement fuels business growth for
-              everyone.
-            </motion.p>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
-            {benefits.map((benefit) => (
-              <motion.div
-                key={benefit.title}
-                variants={fadeUp}
-                className="p-6 rounded-xl bg-card border hover:shadow-lg transition-shadow"
-              >
-                <benefit.icon className="w-8 h-8 text-brand-500 mb-4" />
-                <h3 className="text-lg font-semibold mb-2">{benefit.title}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {benefit.description}
-                </p>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="p-8 sm:p-12 rounded-2xl bg-gradient-to-br from-accent-gold/10 via-brand-500/10 to-accent-purple/10 border">
-              <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-                Start Earning Credits Today
-              </h2>
-              <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
-                Join FlowSmartly and turn your daily browsing into free
-                advertising for your business. No credit card required.
-              </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Button size="lg" asChild>
-                  <Link href="/register">
-                    Create Free Account
-                    <ArrowRight className="ml-2 w-5 h-5" />
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" asChild>
-                  <Link href="/pricing">View Plans</Link>
-                </Button>
+                ))}
               </div>
             </div>
-          </motion.div>
+          </div>
+        </div>
+      </section>
+
+      <section id="how-it-works" className="px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <SectionHeader
+            eyebrow="How the loop works"
+            title="A simple reward loop for businesses that need more reach"
+            description="The story is easy to understand: view approved content, earn a usable balance, and convert that balance into growth actions."
+          />
+          <div className="mt-12 grid gap-5 lg:grid-cols-3">
+            {earnSteps.map((step) => (
+              <FeatureCard key={step.title} item={step} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y bg-muted/35 px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+          <div className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-500 text-zinc-950">
+                <Wallet className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
+                  Credit command center
+                </p>
+                <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                  Keep the earning math visible
+                </h2>
+              </div>
+            </div>
+            <p className="mt-5 text-lg leading-8 text-muted-foreground">
+              Credits should feel useful, not mysterious. The page now explains
+              where credits come from, how they are capped, and which actions
+              they can fund.
+            </p>
+            <div className="mt-8 grid gap-3">
+              <CreditSignal icon={Eye} label="Qualified views today" value="24" />
+              <CreditSignal icon={Clock} label="Daily cap resets" value="8h" />
+              <CreditSignal icon={CheckCircle2} label="Available balance" value="340 credits" />
+              <CreditSignal icon={TrendingUp} label="Suggested next action" value="boost post" />
+            </div>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            {spendOptions.map((option) => (
+              <FeatureCard key={option.title} item={option} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+          <SectionHeader
+            align="left"
+            eyebrow="Trust and guardrails"
+            title="Rewards need rules people can understand"
+            description="The system should look valuable without feeling vague or risky. These guardrails make the credit economy easier to trust."
+          />
+          <div className="grid gap-4">
+            {guardrails.map((item) => (
+              <div key={item} className="flex gap-4 rounded-lg border bg-card p-5 shadow-sm">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-200">
+                  <CheckCircle2 className="h-4 w-4" />
+                </span>
+                <p className="leading-7 text-muted-foreground">{item}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y bg-muted/35 px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <SectionHeader
+            eyebrow="Why businesses care"
+            title="Credits turn attention into action, not just points"
+            description="Each benefit is tied back to a practical marketing outcome, so the feature feels like a growth tool instead of a gimmick."
+          />
+          <div className="mt-12 grid gap-5 md:grid-cols-3">
+            {[
+              {
+                icon: Megaphone,
+                title: "Test offers earlier",
+                description:
+                  "Earned credits let businesses put light promotion behind ideas before investing a larger budget.",
+              },
+              {
+                icon: Sparkles,
+                title: "Create more often",
+                description:
+                  "Credits can fund AI creative work so a thin content calendar does not stop momentum.",
+              },
+              {
+                icon: ShieldCheck,
+                title: "Stay in control",
+                description:
+                  "Owners can save, spend, and track credits from one workspace with clear status and usage history.",
+              },
+            ].map((item) => (
+              <div key={item.title} className="rounded-lg border bg-card p-6 shadow-sm">
+                <item.icon className="h-8 w-8 text-amber-600 dark:text-amber-300" />
+                <h3 className="mt-5 text-xl font-semibold">{item.title}</h3>
+                <p className="mt-3 leading-7 text-muted-foreground">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl rounded-lg border bg-[linear-gradient(135deg,rgba(245,158,11,0.14),rgba(14,165,233,0.12),rgba(16,185,129,0.10))] p-8 text-center shadow-sm sm:p-12 dark:bg-card">
+          <Zap className="mx-auto h-10 w-10 text-amber-600 dark:text-amber-300" />
+          <h2 className="mx-auto mt-5 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">
+            Start earning credits before your next campaign needs a budget
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-muted-foreground">
+            Create a free FlowSmartly account, earn from qualified engagement,
+            and turn that balance into content, boosts, and campaign tests.
+          </p>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <Button size="lg" className="bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-600" asChild>
+              <Link href="/register">
+                Create free account
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Link>
+            </Button>
+            <Button size="lg" variant="outline" className="font-semibold" asChild>
+              <Link href="/pricing">View plans</Link>
+            </Button>
+          </div>
         </div>
       </section>
     </div>

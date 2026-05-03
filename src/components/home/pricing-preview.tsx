@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import Link from "next/link";
-import { Check, Sparkles, Zap, Building2 } from "lucide-react";
+import { ArrowRight, Building2, Check, ShieldCheck, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Plan {
@@ -22,11 +21,18 @@ const planIcons: Record<string, React.ElementType> = {
   BUSINESS: Building2,
 };
 
-const planGradients: Record<string, string> = {
-  STARTER: "from-gray-500 to-gray-600",
-  PRO: "from-brand-500 to-accent-purple",
-  BUSINESS: "from-blue-500 to-indigo-600",
+const planAccents: Record<string, string> = {
+  STARTER: "bg-sky-500",
+  PRO: "bg-brand-500",
+  BUSINESS: "bg-violet-500",
 };
+
+const included = [
+  "AI content workspace",
+  "Campaign publishing flow",
+  "Email and SMS-ready tools",
+  "Reporting dashboard",
+];
 
 export function PricingPreview() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -34,7 +40,7 @@ export function PricingPreview() {
 
   useEffect(() => {
     fetch("/api/payments/packages")
-      .then((r) => r.json())
+      .then((response) => response.json())
       .then((data) => {
         if (data.success && data.data?.plans) {
           setPlans(data.data.plans.slice(0, 3));
@@ -45,98 +51,118 @@ export function PricingPreview() {
   }, []);
 
   return (
-    <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/50">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-            Simple, Transparent Pricing
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Start free and scale as you grow. No hidden fees.
-          </p>
+    <section id="pricing" className="bg-muted/35 px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
+          <div>
+            <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">
+              Pricing
+            </p>
+            <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+              Start lean, then scale the whole growth workspace
+            </h2>
+          </div>
+          <div className="rounded-lg border bg-card p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-semibold">Free plan available</p>
+                <p className="text-sm text-muted-foreground">
+                  Upgrade only when volume, channels, or team workflow needs more room.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {included.map((item) => (
+                <div key={item} className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Check className="h-4 w-4 text-brand-500" />
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <div className="mt-10 grid gap-5 lg:grid-cols-3">
           {loading
-            ? Array.from({ length: 3 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="rounded-xl border bg-card p-6 animate-pulse"
-                >
-                  <div className="h-10 w-10 rounded-lg bg-muted mb-4" />
-                  <div className="h-5 w-24 bg-muted rounded mb-2" />
-                  <div className="h-8 w-20 bg-muted rounded mb-6" />
-                  <div className="space-y-2">
-                    {Array.from({ length: 4 }).map((_, j) => (
-                      <div key={j} className="h-4 bg-muted rounded w-full" />
+            ? Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="min-h-[430px] rounded-lg border bg-card p-6 shadow-sm">
+                  <div className="mb-6 h-12 w-12 animate-pulse rounded-lg bg-muted" />
+                  <div className="mb-3 h-5 w-28 animate-pulse rounded bg-muted" />
+                  <div className="mb-8 h-10 w-24 animate-pulse rounded bg-muted" />
+                  <div className="space-y-3">
+                    {Array.from({ length: 5 }).map((__, itemIndex) => (
+                      <div key={itemIndex} className="h-4 animate-pulse rounded bg-muted" />
                     ))}
                   </div>
                 </div>
               ))
-            : plans.map((plan, index) => {
+            : plans.map((plan) => {
                 const Icon = planIcons[plan.slug] || Sparkles;
-                const gradient = planGradients[plan.slug] || "from-gray-500 to-gray-600";
+                const accent = planAccents[plan.slug] || "bg-brand-500";
 
                 return (
-                  <motion.div
+                  <article
                     key={plan.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: index * 0.1 }}
-                    className={`relative rounded-xl border bg-card p-6 ${
-                      plan.isPopular ? "ring-2 ring-brand-500 shadow-lg shadow-brand-500/10" : ""
+                    className={`relative flex min-h-[430px] flex-col rounded-lg border bg-card p-6 shadow-sm ${
+                      plan.isPopular ? "border-brand-500 shadow-brand-500/10" : ""
                     }`}
                   >
                     {plan.isPopular && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-brand-500 text-white text-xs font-medium">
+                      <div className="absolute right-5 top-5 rounded-full bg-brand-500 px-3 py-1 text-xs font-bold text-white">
                         Popular
                       </div>
                     )}
-                    <div
-                      className={`w-10 h-10 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center mb-4`}
-                    >
-                      <Icon className="w-5 h-5 text-white" />
+                    <div className={`mb-5 flex h-12 w-12 items-center justify-center rounded-lg ${accent} text-white`}>
+                      <Icon className="h-5 w-5" />
                     </div>
-                    <h3 className="text-lg font-semibold mb-1">{plan.name}</h3>
-                    <div className="flex items-baseline gap-1 mb-6">
-                      <span className="text-3xl font-bold">
+                    <h3 className="text-xl font-bold">{plan.name}</h3>
+                    <div className="mt-3 flex items-end gap-1">
+                      <span className="text-4xl font-black tracking-tight">
                         {plan.priceCentsMonthly === 0
                           ? "Free"
                           : `$${(plan.priceCentsMonthly / 100).toFixed(0)}`}
                       </span>
                       {plan.priceCentsMonthly > 0 && (
-                        <span className="text-sm text-muted-foreground">/mo</span>
+                        <span className="pb-1 text-sm text-muted-foreground">/mo</span>
                       )}
                     </div>
-                    <ul className="space-y-2 mb-6">
-                      {(plan.features as string[]).slice(0, 5).map((feature) => (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {plan.monthlyCredits.toLocaleString()} credits monthly
+                    </p>
+
+                    <ul className="mt-6 flex-1 space-y-3">
+                      {plan.features.slice(0, 5).map((feature) => (
                         <li key={feature} className="flex items-start gap-2 text-sm">
-                          <Check className="w-4 h-4 text-brand-500 mt-0.5 flex-shrink-0" />
+                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
                           <span className="text-muted-foreground">{feature}</span>
                         </li>
                       ))}
                     </ul>
+
                     <Button
                       asChild
                       variant={plan.isPopular ? "default" : "outline"}
-                      className="w-full"
+                      className="mt-7 min-h-12 w-full font-bold"
                     >
                       <Link href="/register">
-                        {plan.priceCentsMonthly === 0 ? "Start Free" : "Get Started"}
+                        {plan.priceCentsMonthly === 0 ? "Start free" : "Get started"}
                       </Link>
                     </Button>
-                  </motion.div>
+                  </article>
                 );
               })}
         </div>
 
-        <div className="text-center mt-8">
+        <div className="mt-8 text-center">
           <Link
             href="/pricing"
-            className="text-sm text-brand-500 hover:text-brand-600 font-medium transition-colors"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-300"
           >
-            View all plans and features →
+            View all plans and features
+            <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </div>

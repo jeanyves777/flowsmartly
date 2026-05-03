@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "FlowSmartly View-to-Earn - Earn Credits, Grow Your Business Free",
     description:
-      "Watch content, earn credits, and use them to promote your business with ads and AI content — all without spending a dime.",
+      "Watch content, earn credits, and use them to promote your business with ads and AI content - all without spending a dime.",
   },
 };
 

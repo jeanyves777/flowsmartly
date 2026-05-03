@@ -1,535 +1,421 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import {
+  ArrowRight,
+  BarChart3,
+  CheckCircle2,
+  Clock,
+  Globe,
   MapPin,
+  MessageSquare,
+  RefreshCw,
+  Search,
+  ShieldCheck,
   Sparkles,
   Star,
-  BarChart3,
-  ArrowRight,
-  Check,
   X,
   Zap,
-  Shield,
-  Eye,
-  Users,
-  RefreshCw,
-  MessageSquare,
-  TrendingUp,
-  Globe,
-  Search,
-  Clock,
 } from "lucide-react";
+import { illustrationImages } from "@/components/marketing/public-page-visuals";
 
 export const metadata: Metadata = {
-  title: "ListSmartly — AI-Powered Local Presence Management | FlowSmartly",
+  title: "ListSmartly - AI-Powered Local Presence Management | FlowSmartly",
   description:
-    "Sync your business listings across 150+ directories, manage reviews with AI, and dominate local search.",
+    "Sync business listings across directories, monitor reviews, and keep local search information accurate with AI support.",
 };
 
+const heroStats = [
+  { value: "161", label: "directories covered" },
+  { value: "AI", label: "auto-fix support" },
+  { value: "$7", label: "starter plan" },
+];
+
 const problems = [
-  "Inconsistent listings across 50+ directories",
-  "No time to manually update each one",
-  "Duplicate listings hurt local SEO",
-  "Bad reviews go unanswered",
+  "Wrong hours and phone numbers spread across directories",
+  "Duplicate listings weaken local search trust",
+  "Reviews sit unanswered across different platforms",
+  "Owners lose time checking every profile manually",
 ];
 
 const solutions = [
-  "One dashboard syncs all 150+ directories",
-  "AI autopilot monitors and fixes automatically",
-  "Review command center with AI-drafted responses",
-  "Citation score with actionable recommendations",
+  "Sync accurate business info from one dashboard",
+  "Monitor listing drift and duplicate issues",
+  "Draft review responses with brand-safe AI help",
+  "Track presence score and local visibility over time",
 ];
 
-const coreFeatures = [
+const featureCards = [
   {
     icon: RefreshCw,
-    title: "Listing Sync Engine",
-    description:
-      "Push your accurate business info to 150+ directories in one click. Live status dashboard shows sync progress, errors, and confirmations in real time.",
-    gradient: "from-teal-500 to-cyan-500",
+    title: "Listing Sync",
+    description: "Push accurate name, address, phone, hours, links, and categories across high-value directories.",
+    accent: "from-teal-500 to-cyan-500",
   },
   {
     icon: Sparkles,
     title: "AI Autopilot",
-    description:
-      "Our AI monitors every listing for drift — wrong hours, outdated phone numbers, duplicate entries. It auto-corrects issues and suggests new directory submissions.",
-    gradient: "from-cyan-500 to-blue-500",
+    description: "Watch for outdated fields, duplicate listings, missing profiles, and suggested corrections.",
+    accent: "from-cyan-500 to-sky-500",
   },
   {
     icon: MessageSquare,
-    title: "Review Command Center",
-    description:
-      "Aggregates reviews from Google, Yelp, Facebook, and more. AI drafts on-brand responses, flags negative sentiment, and tracks your reputation score over time.",
-    gradient: "from-blue-500 to-indigo-500",
+    title: "Review Command",
+    description: "Bring review monitoring, sentiment, response drafts, and reputation health into one view.",
+    accent: "from-blue-500 to-indigo-500",
   },
   {
     icon: BarChart3,
     title: "Presence Analytics",
-    description:
-      "Your citation score, local keyword tracking, and monthly AI-generated reports show exactly where you stand and what to improve next.",
-    gradient: "from-indigo-500 to-violet-500",
+    description: "See citation score, review movement, directory status, and monthly local visibility signals.",
+    accent: "from-indigo-500 to-violet-500",
   },
   {
-    icon: Eye,
-    title: "Competitor Tracking",
-    description:
-      "See how your local presence stacks up against competitors. Track their review counts, ratings, directory coverage, and find gaps to exploit.",
-    gradient: "from-violet-500 to-purple-500",
+    icon: Search,
+    title: "Local Search Signals",
+    description: "Understand which profiles, categories, and review patterns are helping customers find you.",
+    accent: "from-violet-500 to-purple-500",
   },
   {
-    icon: Shield,
-    title: "Manual Override",
-    description:
-      "Full control when you need it. Bulk update fields across all directories, view change history, and approve or reject AI suggestions before they go live.",
-    gradient: "from-purple-500 to-pink-500",
+    icon: ShieldCheck,
+    title: "Owner Controls",
+    description: "Approve important changes, view sync history, and keep the final say over public business data.",
+    accent: "from-emerald-500 to-teal-500",
   },
 ];
 
-const tier1 = ["Google Business", "Yelp", "Apple Maps", "Bing Places", "BBB", "Facebook", "Foursquare", "TripAdvisor"];
-const tier2 = ["YellowPages", "Manta", "Hotfrog", "Superpages", "CitySearch", "DexKnows", "MapQuest", "Waze"];
-const tierRest = ["Angi", "Nextdoor", "Thumbtack", "Alignable", "Brownbook", "EZLocal", "USCity", "Judy\u2019s Book", "Local.com", "ShowMeLocal", "iBegin", "Tupalo", "Cylex", "n49", "Opendi", "Hub.biz"];
+const directories = [
+  "Google Business",
+  "Apple Maps",
+  "Bing Places",
+  "Yelp",
+  "Facebook",
+  "Tripadvisor",
+  "Foursquare",
+  "Waze",
+  "YellowPages",
+  "MapQuest",
+  "Nextdoor",
+  "BBB",
+  "Manta",
+  "Superpages",
+  "Local.com",
+  "Angi",
+];
 
-const steps = [
+const workflow = [
   {
-    number: "01",
-    title: "Enter Your Business Info",
-    description: "Add your name, address, phone, hours, and categories once. We handle the rest.",
-    icon: Globe,
+    title: "Add the source of truth",
+    description: "Enter business details once: address, phone, hours, service areas, categories, and website.",
   },
   {
-    number: "02",
-    title: "We Scan & Sync 150+ Directories",
-    description: "ListSmartly scans for existing listings, fixes errors, and submits to new directories automatically.",
-    icon: Search,
+    title: "Scan and sync profiles",
+    description: "ListSmartly checks for gaps, duplicates, and mismatches, then queues updates for directories.",
   },
   {
-    number: "03",
-    title: "AI Keeps Everything Perfect",
-    description: "Our AI autopilot monitors your listings 24/7, fixes drift, responds to reviews, and reports back to you.",
-    icon: Sparkles,
+    title: "Monitor reviews and drift",
+    description: "The dashboard keeps review health, profile accuracy, and AI-suggested next steps visible.",
   },
 ];
 
 const basicFeatures = [
   "Sync to 150+ directories",
-  "AI autopilot monitoring",
   "Citation score dashboard",
-  "Monthly AI reports",
-  "Duplicate suppression",
+  "AI drift monitoring",
+  "Duplicate issue tracking",
   "Basic review monitoring",
-  "Email support",
 ];
 
 const proFeatures = [
-  "Everything in Basic, plus:",
-  "Review Command Center",
-  "AI-drafted review responses",
-  "Competitor tracking (5 competitors)",
+  "Everything in Basic",
+  "Review response drafts",
+  "Competitor tracking",
   "Weekly AI reports",
-  "Local keyword tracking",
   "Bulk update tools",
-  "Priority support",
-  "Change history & audit log",
 ];
 
 export default function ListSmartlyDetailsPage() {
   return (
-    <div className="overflow-x-hidden">
-      {/* Hero Section */}
-      <section className="relative py-24 sm:py-32 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        {/* Background orbs */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div
-            className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-teal-500/10 blur-3xl"
-            style={{ animation: "float-orb 8s ease-in-out infinite" }}
-          />
-          <div
-            className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-cyan-500/10 blur-3xl"
-            style={{ animation: "float-orb 10s ease-in-out infinite reverse" }}
-          />
-          <div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-teal-500/5 blur-3xl"
-            style={{ animation: "float-orb 6s ease-in-out infinite 1s" }}
-          />
-        </div>
+    <div className="overflow-x-hidden bg-background">
+      <section className="relative overflow-hidden bg-gradient-to-b from-teal-50/75 via-background to-background px-4 pb-14 pt-12 sm:px-6 sm:pb-20 sm:pt-16 lg:px-8 dark:from-zinc-950 dark:via-background">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.9fr_1.1fr]">
+          <div>
+            <div className="mb-5 inline-flex items-center gap-2 rounded-lg border bg-card/85 px-3 py-2 text-sm font-semibold shadow-sm backdrop-blur">
+              <MapPin className="h-4 w-4 text-teal-600 dark:text-teal-300" />
+              ListSmartly local presence
+            </div>
+            <h1 className="max-w-3xl text-balance text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+              Keep every local profile accurate and review-ready
+            </h1>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">
+              ListSmartly helps business owners sync listings, monitor reviews,
+              catch profile drift, and understand local visibility from one
+              AI-assisted command center.
+            </p>
 
-        <div className="relative max-w-5xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-teal-500/10 to-cyan-500/10 border border-teal-500/20 text-teal-600 dark:text-teal-400 text-sm font-medium mb-6">
-            <MapPin className="w-4 h-4" />
-            ListSmartly
+            <div className="mt-8 flex max-w-2xl flex-col gap-3 sm:flex-row">
+              <Link
+                href="/register"
+                className="inline-flex min-h-14 items-center justify-center gap-2 rounded-lg bg-teal-600 px-7 text-base font-bold text-white shadow-lg shadow-teal-600/20 transition-colors hover:bg-teal-700"
+              >
+                Get started free
+                <ArrowRight className="h-5 w-5" />
+              </Link>
+              <Link
+                href="/pricing"
+                className="inline-flex min-h-14 items-center justify-center gap-2 rounded-lg border bg-card px-7 text-base font-bold shadow-sm transition-colors hover:bg-muted"
+              >
+                View pricing
+              </Link>
+            </div>
+
+            <div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
+              {heroStats.map((stat) => (
+                <div key={stat.label} className="rounded-lg border bg-card p-4 shadow-sm">
+                  <div className="text-3xl font-black tracking-tight">{stat.value}</div>
+                  <div className="mt-1 text-sm text-muted-foreground">{stat.label}</div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-            Your{" "}
-            <span className="bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-600 bg-clip-text text-transparent">
-              AI-Powered
-            </span>{" "}
-            Local Presence Command Center
-          </h1>
-
-          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-            Sync your business listings across 150+ directories, manage reviews with AI, and
-            dominate local search — all from one dashboard.
-          </p>
-
-          <div className="flex flex-wrap items-center justify-center gap-4 mb-10">
-            <Link
-              href="/register"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 text-white font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-teal-500/25"
-            >
-              Get Started Free
-              <ArrowRight className="w-5 h-5" />
-            </Link>
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl border border-border bg-card text-foreground font-semibold hover:bg-accent transition-colors"
-            >
-              Sign In
-            </Link>
-          </div>
-
-          {/* Trust metrics */}
-          <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Globe className="w-4 h-4 text-teal-500" />
-              <span className="font-semibold text-foreground">150+ Directories</span>
+          <div className="relative min-h-[520px] overflow-visible sm:min-h-[620px]">
+            <div className="absolute left-5 top-5 z-10 rounded-lg border bg-card/90 px-4 py-3 shadow-sm dark:border-white/10">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <span className="h-2.5 w-2.5 rounded-full bg-teal-500" />
+                Local profiles live
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-cyan-500" />
-              <span className="font-semibold text-foreground">AI-Powered</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-blue-500" />
-              <span className="font-semibold text-foreground">$7/mo</span>
-            </div>
+            <Image
+              src={illustrationImages.listSmartlyPageOwner}
+              alt="A local business owner using ListSmartly to manage listings and reviews"
+              fill
+              priority
+              sizes="(min-width: 1024px) 720px, 96vw"
+              unoptimized
+              className="object-contain object-bottom pt-14 drop-shadow-[0_30px_70px_rgba(15,118,110,0.2)]"
+            />
           </div>
         </div>
       </section>
 
-      {/* The Problem Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/50">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Small Businesses Are{" "}
-              <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
-                Invisible Online
-              </span>
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              If your listings are inconsistent, outdated, or missing, customers can&apos;t find you.
-            </p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
-            {problems.map((problem) => (
-              <div
-                key={problem}
-                className="flex items-start gap-3 p-4 rounded-xl bg-card border border-red-200 dark:border-red-900/30"
-              >
-                <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0 mt-0.5">
-                  <X className="w-3.5 h-3.5 text-red-500" />
-                </div>
-                <span className="text-sm text-foreground">{problem}</span>
+      <section className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-5 lg:grid-cols-2">
+            <article className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
+              <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-lg bg-red-500/10 text-red-600 dark:text-red-300">
+                <X className="h-6 w-6" />
               </div>
+              <h2 className="text-3xl font-black tracking-tight">The local search problem is messy</h2>
+              <div className="mt-6 grid gap-3">
+                {problems.map((problem) => (
+                  <div key={problem} className="flex gap-3 rounded-lg border bg-background p-4">
+                    <X className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
+                    <span className="text-muted-foreground">{problem}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
+              <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-lg bg-teal-600 text-white">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+              <h2 className="text-3xl font-black tracking-tight">ListSmartly gives owners one control point</h2>
+              <div className="mt-6 grid gap-3">
+                {solutions.map((solution) => (
+                  <div key={solution} className="flex gap-3 rounded-lg border bg-background p-4">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-teal-500" />
+                    <span className="text-muted-foreground">{solution}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-muted/35 px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-10 max-w-3xl">
+            <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-300">
+              Local presence toolkit
+            </p>
+            <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+              Everything needed to keep local trust consistent
+            </h2>
+          </div>
+          <div className="grid auto-rows-fr gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {featureCards.map((feature) => (
+              <article key={feature.title} className="flex min-h-[300px] flex-col overflow-hidden rounded-lg border bg-card shadow-sm">
+                <div className={`h-24 bg-gradient-to-br ${feature.accent} p-5 text-white`}>
+                  <feature.icon className="h-7 w-7" />
+                </div>
+                <div className="flex flex-1 flex-col p-6">
+                  <h3 className="text-xl font-bold">{feature.title}</h3>
+                  <p className="mt-3 leading-7 text-muted-foreground">{feature.description}</p>
+                </div>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
-      {/* The Solution Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              ListSmartly{" "}
-              <span className="bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
-                Fixes Everything
-              </span>
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              One platform to manage your entire local presence — powered by AI.
-            </p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
-            {solutions.map((solution) => (
-              <div
-                key={solution}
-                className="flex items-start gap-3 p-4 rounded-xl bg-card border border-teal-200 dark:border-teal-900/30"
-              >
-                <div className="w-6 h-6 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center shrink-0 mt-0.5">
-                  <Check className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+      <section className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+            <div>
+              <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-300">
+                Directory coverage
+              </p>
+              <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+                Your business data should match wherever customers search
+              </h2>
+              <p className="mt-5 text-lg leading-8 text-muted-foreground">
+                ListSmartly keeps core profile details consistent across the
+                directories, maps, and local discovery surfaces that matter.
+              </p>
+              <div className="mt-8 rounded-lg border bg-card p-5 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <Globe className="h-6 w-6 text-teal-600 dark:text-teal-300" />
+                  <div>
+                    <p className="text-3xl font-black tracking-tight">161</p>
+                    <p className="text-sm text-muted-foreground">directory targets and local profiles</p>
+                  </div>
                 </div>
-                <span className="text-sm text-foreground">{solution}</span>
               </div>
-            ))}
+            </div>
+            <div className="rounded-lg border bg-card p-5 shadow-sm">
+              <div className="flex flex-wrap gap-2">
+                {directories.map((directory) => (
+                  <span key={directory} className="rounded-full border bg-background px-3 py-2 text-sm font-semibold text-muted-foreground">
+                    {directory}
+                  </span>
+                ))}
+                <span className="rounded-full bg-teal-600 px-3 py-2 text-sm font-bold text-white">
+                  + more
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Core Features (6 blocks) */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/50">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Everything You Need to{" "}
-              <span className="bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
-                Own Local Search
-              </span>
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Six powerful tools working together to make your business impossible to miss.
-            </p>
+      <section className="bg-muted/35 px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
+            <div>
+              <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-300">
+                How it works
+              </p>
+              <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+                From scattered profiles to a clean local command center
+              </h2>
+              <p className="mt-5 text-lg leading-8 text-muted-foreground">
+                Keep the owner workflow simple: set the source of truth, sync
+                the profiles, then monitor reviews and accuracy over time.
+              </p>
+            </div>
+            <div className="grid gap-4">
+              {workflow.map((step, index) => (
+                <article key={step.title} className="rounded-lg border bg-card p-5 shadow-sm">
+                  <div className="flex gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-teal-600 text-sm font-black text-white">
+                      {index + 1}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold">{step.title}</h3>
+                      <p className="mt-1 leading-7 text-muted-foreground">{step.description}</p>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
+        </div>
+      </section>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {coreFeatures.map((feature) => (
-              <div
-                key={feature.title}
-                className="group p-6 rounded-xl bg-card border hover:shadow-lg hover:shadow-teal-500/5 transition-all duration-300"
-              >
-                <div
-                  className={`w-12 h-12 rounded-lg bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}
+      <section className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-10 text-center">
+            <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-300">
+              ListSmartly plans
+            </p>
+            <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+              Start with clean listings, scale into review control
+            </h2>
+          </div>
+          <div className="grid gap-5 md:grid-cols-2">
+            {[
+              ["ListSmartly Basic", "$7", "For cleaning and monitoring your local profiles", basicFeatures],
+              ["ListSmartly Pro", "$15", "For review response, competitors, and deeper reporting", proFeatures],
+            ].map(([name, price, description, features]) => (
+              <article key={name as string} className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
+                <h3 className="text-xl font-bold">{name as string}</h3>
+                <div className="mt-4 flex items-end gap-1">
+                  <span className="text-5xl font-black tracking-tight">{price as string}</span>
+                  <span className="pb-2 text-sm text-muted-foreground">/month</span>
+                </div>
+                <p className="mt-3 text-muted-foreground">{description as string}</p>
+                <ul className="mt-6 space-y-3">
+                  {(features as string[]).map((feature) => (
+                    <li key={feature} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                      <span className="text-muted-foreground">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/register"
+                  className="mt-8 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-6 font-bold text-white transition-colors hover:bg-teal-700"
                 >
-                  <feature.icon className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground leading-relaxed">
-                  {feature.description}
-                </p>
-              </div>
+                  Start free trial
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Directory Coverage */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              We Cover{" "}
-              <span className="bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
-                Every Directory
-              </span>{" "}
-              That Matters
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              From the big players to niche industry directories, we have them all covered.
-            </p>
-          </div>
-
-          {/* Tier 1 */}
-          <div className="mb-8">
-            <p className="text-xs font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 mb-3">Tier 1 — Essential</p>
-            <div className="flex flex-wrap gap-2">
-              {tier1.map((d) => (
-                <span key={d} className="px-3 py-1.5 rounded-full text-sm font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
-                  {d}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Tier 2 */}
-          <div className="mb-8">
-            <p className="text-xs font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400 mb-3">Tier 2 — Important</p>
-            <div className="flex flex-wrap gap-2">
-              {tier2.map((d) => (
-                <span key={d} className="px-3 py-1.5 rounded-full text-sm font-medium bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">
-                  {d}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Tier 3-7 */}
-          <div className="mb-10">
-            <p className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-3">Tier 3-7 — Extended Coverage</p>
-            <div className="flex flex-wrap gap-2">
-              {tierRest.map((d) => (
-                <span key={d} className="px-3 py-1.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                  {d}
-                </span>
-              ))}
-              <span className="px-3 py-1.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                +125 more...
-              </span>
-            </div>
-          </div>
-
-          {/* Counter */}
-          <div className="text-center">
-            <div className="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500/10 to-cyan-500/10 border border-teal-500/20">
-              <Globe className="w-5 h-5 text-teal-600 dark:text-teal-400" />
-              <span className="text-2xl font-bold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
-                161
-              </span>
-              <span className="text-sm font-medium text-muted-foreground">Directories Covered</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/50">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Simple, Transparent Pricing
-            </h2>
-            <p className="text-lg text-muted-foreground">
-              Two plans to fit your needs. No hidden fees.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Basic Plan */}
-            <div className="rounded-2xl border-2 border-teal-500/20 bg-card p-8 relative overflow-hidden">
-              <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white text-xs font-bold">
-                14-DAY FREE TRIAL
-              </div>
-
-              <p className="text-muted-foreground mb-2 font-medium">ListSmartly Basic</p>
-              <div className="flex items-baseline gap-1 mb-4">
-                <span className="text-5xl font-bold">$7</span>
-                <span className="text-muted-foreground">/month</span>
-              </div>
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-6">No credit card required</p>
-
-              <ul className="space-y-3 mb-8">
-                {basicFeatures.map((feature) => (
-                  <li key={feature} className="flex items-center gap-3">
-                    <div className="w-5 h-5 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center shrink-0">
-                      <Check className="w-3 h-3 text-teal-600 dark:text-teal-400" />
-                    </div>
-                    <span className="text-sm text-foreground">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-
+      <section className="bg-background px-4 pb-16 sm:px-6 sm:pb-20 lg:px-8">
+        <div className="mx-auto max-w-7xl overflow-hidden rounded-lg border bg-card shadow-sm">
+          <div className="grid gap-0 lg:grid-cols-[1fr_0.9fr]">
+            <div className="bg-gradient-to-br from-teal-50 to-sky-50 p-8 sm:p-10 lg:p-12 dark:from-zinc-950 dark:to-slate-950">
+              <h2 className="max-w-3xl text-balance text-3xl font-black tracking-tight sm:text-5xl">
+                Ready to make every local profile reliable?
+              </h2>
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">
+                Start with the source of truth, then let ListSmartly help you
+                keep listings, reviews, and reports moving in one place.
+              </p>
               <Link
                 href="/register"
-                className="block w-full text-center px-6 py-3.5 rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 text-white font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-teal-500/20"
+                className="mt-8 inline-flex min-h-14 items-center justify-center gap-2 rounded-lg bg-teal-600 px-7 text-base font-bold text-white shadow-lg shadow-teal-600/20 transition-colors hover:bg-teal-700"
               >
-                Start Free Trial
+                Get started free
+                <ArrowRight className="h-5 w-5" />
               </Link>
-              <p className="text-center text-xs text-muted-foreground mt-3">
-                No card required. Cancel anytime.
-              </p>
             </div>
-
-            {/* Pro Plan */}
-            <div className="rounded-2xl border-2 border-teal-500 bg-card p-8 relative overflow-hidden shadow-lg shadow-teal-500/10 ring-1 ring-teal-500/20">
-              <div className="absolute inset-0 bg-gradient-to-br from-teal-500/5 via-transparent to-cyan-500/5 pointer-events-none" />
-
-              <div className="absolute top-4 left-4 px-3 py-1 rounded-full bg-teal-600 text-white text-xs font-bold">
-                BEST VALUE
-              </div>
-              <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white text-xs font-bold">
-                14-DAY FREE TRIAL
-              </div>
-
-              <p className="text-muted-foreground mb-2 font-medium mt-4">ListSmartly Pro</p>
-              <div className="flex items-baseline gap-1 mb-6">
-                <span className="text-5xl font-bold">$15</span>
-                <span className="text-muted-foreground">/month</span>
-              </div>
-
-              <ul className="space-y-3 mb-8">
-                {proFeatures.map((feature, i) => (
-                  <li key={feature} className="flex items-center gap-3">
-                    <div className="w-5 h-5 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center shrink-0">
-                      <Check className="w-3 h-3 text-teal-600 dark:text-teal-400" />
-                    </div>
-                    <span className={`text-sm text-foreground ${i === 0 ? "font-semibold" : ""}`}>{feature}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <Link
-                href="/register"
-                className="block w-full text-center px-6 py-3.5 rounded-xl bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-600 text-white font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-teal-500/25"
-              >
-                Start Free Trial
-              </Link>
-              <p className="text-center text-xs text-muted-foreground mt-3">
-                No charge during trial. Cancel anytime.
-              </p>
+            <div className="grid gap-4 border-t bg-muted/35 p-8 sm:p-10 lg:border-l lg:border-t-0 lg:p-12">
+              {[
+                ["Profile accuracy", Clock],
+                ["Review visibility", Star],
+                ["Directory coverage", Globe],
+                ["AI recommendations", Zap],
+              ].map(([item, Icon]) => {
+                const ItemIcon = Icon as typeof Clock;
+                return (
+                  <div key={item as string} className="flex items-center gap-3 rounded-lg border bg-card p-4 font-semibold">
+                    <ItemIcon className="h-5 w-5 text-teal-600 dark:text-teal-300" />
+                    {item as string}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
       </section>
-
-      {/* How It Works */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Up and Running in{" "}
-              <span className="bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
-                3 Simple Steps
-              </span>
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              From invisible to everywhere in minutes. No technical skills required.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 relative">
-            {/* Connecting line */}
-            <div className="hidden md:block absolute top-16 left-[20%] right-[20%] h-0.5 bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 opacity-20" />
-
-            {steps.map((step) => (
-              <div key={step.number} className="relative text-center">
-                <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center mb-6 shadow-lg shadow-teal-500/20">
-                  <step.icon className="w-7 h-7 text-white" />
-                </div>
-                <span className="text-sm font-bold text-teal-500 mb-2 block">
-                  STEP {step.number}
-                </span>
-                <h3 className="text-xl font-semibold mb-3">{step.title}</h3>
-                <p className="text-muted-foreground leading-relaxed">
-                  {step.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Bottom CTA */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-teal-600 to-cyan-600">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Ready to Be Found Everywhere?
-          </h2>
-          <p className="text-lg text-white/80 mb-8 leading-relaxed">
-            Join thousands of businesses dominating local search with ListSmartly. Set up in
-            minutes and let AI handle the rest.
-          </p>
-          <Link
-            href="/register"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-teal-600 font-bold hover:bg-white/90 transition-colors shadow-lg"
-          >
-            Get Started Free
-            <ArrowRight className="w-5 h-5" />
-          </Link>
-        </div>
-      </section>
-
-      {/* CSS Animations */}
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-            @keyframes float-orb {
-              0%, 100% { transform: translateY(0) scale(1); }
-              50% { transform: translateY(-30px) scale(1.05); }
-            }
-          `,
-        }}
-      />
     </div>
   );
 }

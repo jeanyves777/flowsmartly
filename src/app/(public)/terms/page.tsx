@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { illustrationImages, PolicyVisualHeader } from "@/components/marketing/public-page-visuals";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
@@ -54,25 +55,13 @@ export default function TermsOfServicePage() {
           {/* Main Content */}
           <div className="max-w-4xl">
             {/* Header */}
-            <div className="mb-10">
-              <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-3">
-                Terms of Service
-              </h1>
-              <p className="text-muted-foreground">
-                Last updated: February 12, 2026
-              </p>
-              <p className="mt-4 text-base text-muted-foreground leading-relaxed">
-                Welcome to FlowSmartly. These Terms of Service
-                (&quot;Terms&quot;) govern your access to and use of the
-                FlowSmartly platform, including our website, applications, APIs,
-                and all related services (collectively, the
-                &quot;Services&quot;). By creating an account or using our
-                Services, you agree to be bound by these Terms. If you are using
-                FlowSmartly on behalf of a business or organization, you
-                represent that you have the authority to bind that entity to
-                these Terms.
-              </p>
-            </div>
+            <PolicyVisualHeader
+              label="Platform agreement"
+              title="Terms of Service"
+              updated="Last updated: February 12, 2026"
+              description="These terms govern access to FlowSmartly's website, applications, APIs, and related services for individuals, teams, businesses, and organizations."
+              image={illustrationImages.policyTerms}
+            />
 
             {/* Sections */}
             <div className="space-y-12">

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { illustrationImages, PolicyVisualHeader } from "@/components/marketing/public-page-visuals";
 
 export const metadata: Metadata = {
   title: "E-Commerce Terms & Conditions",
@@ -51,28 +52,13 @@ export default function EcommerceTermsPage() {
           {/* Main Content */}
           <div className="max-w-4xl">
             {/* Header */}
-            <div className="mb-10">
-              <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-3">
-                E-Commerce Terms & Conditions
-              </h1>
-              <p className="text-muted-foreground">
-                Last updated: February 23, 2026
-              </p>
-              <p className="mt-4 text-base text-muted-foreground leading-relaxed">
-                These E-Commerce Terms & Conditions (&ldquo;E-Commerce Terms&rdquo;) govern
-                your use of FlowShop, the e-commerce platform provided by FlowSmartly.
-                By activating a FlowShop store, you agree to be bound by these terms in
-                addition to our general{" "}
-                <Link href="/terms" className="text-brand-600 hover:underline">
-                  Terms of Service
-                </Link>{" "}
-                and{" "}
-                <Link href="/privacy" className="text-brand-600 hover:underline">
-                  Privacy Policy
-                </Link>
-                . Please read these terms carefully before creating your online store.
-              </p>
-            </div>
+            <PolicyVisualHeader
+              label="FlowShop merchant agreement"
+              title="E-Commerce Terms & Conditions"
+              updated="Last updated: February 23, 2026"
+              description="These terms govern use of FlowShop, including merchant responsibilities, customer data privacy, payment processing, product listings, fulfillment, refunds, and store security."
+              image={illustrationImages.policyEcommerce}
+            />
 
             {/* Sections */}
             <div className="space-y-12">

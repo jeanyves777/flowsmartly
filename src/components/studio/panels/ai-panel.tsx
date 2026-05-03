@@ -8,6 +8,7 @@ import {
   MousePointerSquareDashed,
   Maximize2,
   X,
+  Replace,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,9 @@ import { useCanvasStore } from "../hooks/use-canvas-store";
 import { addImageToCanvas } from "../utils/canvas-helpers";
 import { useCanvasExport } from "../hooks/use-canvas-export";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { MediaUploader } from "@/components/shared/media-uploader";
+
+type AiEditMode = "improve" | "replace";
 
 // ChatGPT-style Improve panel. The user can pinpoint the area they want
 // changed (drag a rect on the canvas, or use whatever they've already
@@ -39,6 +43,8 @@ export function AiPanel() {
   const [isImproving, setIsImproving] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState(0);
   const [improveInstruction, setImproveInstruction] = useState("");
+  const [editMode, setEditMode] = useState<AiEditMode>("improve");
+  const [replacementReferenceUrls, setReplacementReferenceUrls] = useState<string[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -120,6 +126,8 @@ export function AiPanel() {
           textMode: "exact",
           editImageUrl: imageUrl,
           editRegion: effectiveRegion,
+          editIntent: editMode === "replace" ? "replace_subject" : "improve",
+          editReferenceImageUrls: editMode === "replace" ? replacementReferenceUrls : [],
         }),
       });
 
@@ -144,10 +152,10 @@ export function AiPanel() {
       // starts from a clean slate — keeping it would silently re-target the
       // same area and surprise the user.
       setAiSelectedRegion(null);
-      toast({ title: "Design improved!" });
+      toast({ title: editMode === "replace" ? "Subject replaced!" : "Design improved!" });
     } catch (e) {
       toast({
-        title: "Improvement failed",
+        title: editMode === "replace" ? "Replacement failed" : "Improvement failed",
         description: e instanceof Error ? e.message : "Try again",
         variant: "destructive",
       });
@@ -156,14 +164,21 @@ export function AiPanel() {
     }
   };
 
-  const presets = [
-    "Make it more professional",
-    "Improve colors",
-    "Fix the layout",
-    "Add visual flair",
-    "Make text more readable",
-    "Use a brighter palette",
-  ];
+  const presets = editMode === "replace"
+    ? [
+        "Replace the person with a man in a navy suit",
+        "Replace the person with a woman in a white dress",
+        "Replace the object with a premium product",
+        "Replace the subject with a church choir member",
+      ]
+    : [
+        "Make it more professional",
+        "Improve colors",
+        "Fix the layout",
+        "Add visual flair",
+        "Make text more readable",
+        "Use a brighter palette",
+      ];
 
   return (
     <div className="p-3 space-y-4 text-sm flex flex-col h-full overflow-y-auto">
@@ -176,6 +191,58 @@ export function AiPanel() {
           Pinpoint an area on the canvas (or pick an object) and tell the AI what to change. Leave the area blank to edit the whole canvas.
         </p>
       </div>
+
+      {/* Edit mode */}
+      <div className="space-y-2">
+        <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+          Edit mode
+        </div>
+        <div className="grid grid-cols-2 gap-1 rounded-md border bg-muted/30 p-1">
+          <button
+            type="button"
+            onClick={() => setEditMode("improve")}
+            className={`h-8 rounded text-[11px] font-medium transition-colors flex items-center justify-center gap-1.5 ${
+              editMode === "improve"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Wand2 className="h-3.5 w-3.5" />
+            Improve
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditMode("replace")}
+            className={`h-8 rounded text-[11px] font-medium transition-colors flex items-center justify-center gap-1.5 ${
+              editMode === "replace"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Replace className="h-3.5 w-3.5" />
+            Replace
+          </button>
+        </div>
+      </div>
+
+      {editMode === "replace" && (
+        <div className="space-y-2">
+          <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+            Replacement image
+          </div>
+          <MediaUploader
+            value={replacementReferenceUrls}
+            onChange={setReplacementReferenceUrls}
+            maxFiles={1}
+            accept="image/png,image/jpeg,image/jpg,image/webp"
+            filterTypes={["image"]}
+            variant="small"
+            placeholder="Reference"
+            libraryTitle="Pick replacement image"
+            className="rounded-md border bg-muted/20 p-2"
+          />
+        </div>
+      )}
 
       {/* Region picker */}
       <div className="space-y-2">
@@ -295,9 +362,13 @@ export function AiPanel() {
           value={improveInstruction}
           onChange={(e) => setImproveInstruction(e.target.value)}
           placeholder={
-            effectiveRegion
-              ? "Describe what to change in the pinpointed area…"
-              : "Describe how to improve your design…"
+            editMode === "replace"
+              ? effectiveRegion
+                ? "Describe what should replace the selected person or object..."
+                : "Describe the person or object to replace, and what to replace it with..."
+              : effectiveRegion
+                ? "Describe what to change in the pinpointed area..."
+                : "Describe how to improve your design..."
           }
           className="w-full flex-1 min-h-[140px] p-3 text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 bg-background leading-relaxed"
         />
@@ -313,7 +384,9 @@ export function AiPanel() {
           ) : (
             <Wand2 className="h-4 w-4" />
           )}
-          {isImproving ? "Improving…" : "Improve Design"}
+          {isImproving
+            ? editMode === "replace" ? "Replacing..." : "Improving..."
+            : editMode === "replace" ? "Replace Subject" : "Improve Design"}
         </Button>
         <p className="text-[10px] text-muted-foreground text-center">
           {creditsRemaining} credits remaining

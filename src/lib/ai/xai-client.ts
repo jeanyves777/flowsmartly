@@ -23,6 +23,29 @@ type AspectRatio =
   | "2:1"
   | "1:2";
 
+function toImageDataUri(imageBase64OrDataUri: string): string {
+  if (imageBase64OrDataUri.startsWith("data:image/")) {
+    return imageBase64OrDataUri;
+  }
+  return `data:image/png;base64,${imageBase64OrDataUri}`;
+}
+
+async function readImageResponse(data: {
+  data?: Array<{ b64_json?: string; url?: string }>;
+}): Promise<string | null> {
+  const imageData = data.data?.[0];
+
+  if (imageData?.b64_json) {
+    return imageData.b64_json;
+  }
+  if (imageData?.url) {
+    const res = await fetch(imageData.url);
+    const buffer = Buffer.from(await res.arrayBuffer());
+    return buffer.toString("base64");
+  }
+  return null;
+}
+
 class XAIClient {
   private static instance: XAIClient;
   private apiKey: string;
@@ -91,17 +114,7 @@ class XAIClient {
         }
 
         const data = await response.json();
-        const imageData = data.data?.[0];
-
-        if (imageData?.b64_json) {
-          return imageData.b64_json;
-        }
-        if (imageData?.url) {
-          const res = await fetch(imageData.url);
-          const buffer = Buffer.from(await res.arrayBuffer());
-          return buffer.toString("base64");
-        }
-        return null;
+        return readImageResponse(data);
       } catch (error) {
         lastError = error;
         console.error(
@@ -128,7 +141,7 @@ class XAIClient {
    * Pass a reference image as base64 and a prompt describing the desired output.
    * Returns the result as a base64 string.
    *
-   * Single image only — for multi-image edits use `editImageMulti`.
+   * Single image only. For multi-image edits use `editImages`.
    */
   async editImage(
     prompt: string,
@@ -156,7 +169,7 @@ class XAIClient {
             model: "grok-imagine-image",
             prompt,
             image: {
-              url: `data:image/png;base64,${imageBase64}`,
+              url: toImageDataUri(imageBase64),
               type: "image_url",
             },
             n: 1,
@@ -171,17 +184,7 @@ class XAIClient {
         }
 
         const data = await response.json();
-        const imageData = data.data?.[0];
-
-        if (imageData?.b64_json) {
-          return imageData.b64_json;
-        }
-        if (imageData?.url) {
-          const res = await fetch(imageData.url);
-          const buffer = Buffer.from(await res.arrayBuffer());
-          return buffer.toString("base64");
-        }
-        return null;
+        return readImageResponse(data);
       } catch (error) {
         lastError = error;
         console.error(
@@ -201,6 +204,79 @@ class XAIClient {
 
     const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
     throw new Error(`xAI image edit failed: ${errMsg}`);
+  }
+
+  /**
+   * Edit an image with up to 4 additional reference images.
+   * Image 1 should be the source canvas; later images are auxiliary
+   * references named in the prompt.
+   */
+  async editImages(
+    prompt: string,
+    imageBase64sOrDataUris: string[],
+    options: { aspectRatio?: AspectRatio } = {}
+  ): Promise<string | null> {
+    const { aspectRatio = "1:1" } = options;
+
+    if (!this.apiKey) {
+      throw new Error("XAI_API_KEY is not configured");
+    }
+
+    const images = imageBase64sOrDataUris.filter(Boolean).slice(0, 5).map(toImageDataUri);
+    if (images.length === 0) {
+      throw new Error("At least one image is required for xAI image edit");
+    }
+    if (images.length === 1) {
+      return this.editImage(prompt, images[0], { aspectRatio });
+    }
+
+    const maxRetries = 2;
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(XAI_EDITS_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: "grok-imagine-image",
+            prompt,
+            image: images,
+            n: 1,
+            aspect_ratio: aspectRatio,
+            response_format: "b64_json",
+          }),
+        });
+
+        if (!response.ok) {
+          const errBody = await response.text();
+          throw new Error(`xAI multi-image edit API error (${response.status}): ${errBody}`);
+        }
+
+        const data = await response.json();
+        return readImageResponse(data);
+      } catch (error) {
+        lastError = error;
+        console.error(
+          `[XAI] Multi-image edit error (attempt ${attempt + 1}/${maxRetries + 1}):`,
+          error
+        );
+
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const isTransient = /rate|limit|timeout|503|529|overloaded|capacity/i.test(errMsg);
+        if (!isTransient) break;
+
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        }
+      }
+    }
+
+    const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(`xAI multi-image edit failed: ${errMsg}`);
   }
 
 }

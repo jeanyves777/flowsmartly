@@ -107,6 +107,9 @@ export async function POST(request: NextRequest) {
       ctaText,
       editImageUrl,
       editRegion,
+      editIntent,
+      editReferenceImageUrl,
+      editReferenceImageUrls,
       provider,
     } = body;
 
@@ -157,6 +160,12 @@ export async function POST(request: NextRequest) {
       ctaText: ctaText || null,
       editImageUrl: editImageUrl || null,
       editRegion: editRegion || null,
+      editIntent: editIntent === "replace_subject" ? "replace_subject" : "improve",
+      editReferenceImageUrls: Array.isArray(editReferenceImageUrls)
+        ? editReferenceImageUrls.filter((url: unknown): url is string => typeof url === "string" && url.trim().length > 0).slice(0, 4)
+        : typeof editReferenceImageUrl === "string" && editReferenceImageUrl.trim()
+          ? [editReferenceImageUrl]
+          : [],
       provider: selectedProvider,
     });
 
@@ -288,6 +297,8 @@ interface PipelineParams {
   logoSizePercent?: number | null;
   ctaText?: string | null;
   editImageUrl?: string | null;
+  editIntent?: "improve" | "replace_subject";
+  editReferenceImageUrls?: string[];
   /**
    * Optional pinpoint region for edit mode. Coordinates are in CANVAS pixels
    * (so the model gets unambiguous bounds even when the canvas isn't 1080×1080).
@@ -802,9 +813,19 @@ Output a polished, print-ready ${params.category} background. The photo will be 
 // ═══════════════════════════════════════════════════════════════
 
 async function runEditPipeline(params: PipelineParams) {
-  const { prompt, width, height, provider, editImageUrl, editRegion } = params;
+  const {
+    prompt,
+    width,
+    height,
+    provider,
+    editImageUrl,
+    editRegion,
+    editIntent = "improve",
+    editReferenceImageUrls = [],
+  } = params;
+  const hasReplacementRefs = editIntent === "replace_subject" && editReferenceImageUrls.length > 0;
 
-  console.log(`[Visual/Edit] Provider: ${provider}, instruction: "${prompt.slice(0, 80)}"`);
+  console.log(`[Visual/Edit] Provider: ${provider}, intent: ${editIntent}, instruction: "${prompt.slice(0, 80)}"`);
 
   // Optional pinpoint-region clause. Image-edit providers (xAI grok-imagine-image,
   // Gemini, OpenAI gpt-image-1) accept a single edit instruction string, so we
@@ -829,12 +850,30 @@ PINPOINT REGION — APPLY THE EDIT ONLY INSIDE THIS BOX:
     console.log(`[Visual/Edit] Region: (${xPct.toFixed(1)}%, ${yPct.toFixed(1)}%) ${wPct.toFixed(1)}%×${hPct.toFixed(1)}%`);
   }
 
-  // ORIGINAL Improve prompt — exactly as it was before the reference-image
-  // feature. The user explicitly asked to leave this alone: the existing
-  // prompt has been working dynamically for weeks, and the reference image
-  // is supposed to be supported via the request payload (image_urls[]),
-  // not via prompt engineering.
-  const editPrompt = `You are editing an existing graphic design image. Apply ONLY the following change and keep everything else exactly the same — same layout, same colors, same style, same background, same composition.
+  const replacementReferenceClause = hasReplacementRefs
+    ? `
+
+REFERENCE IMAGE INPUTS:
+- Image 1 is the current design canvas.
+- Image 2${editReferenceImageUrls.length > 1 ? ` through ${editReferenceImageUrls.length + 1} are` : " is"} the replacement reference image${editReferenceImageUrls.length > 1 ? "s" : ""}.
+- Use the replacement reference image${editReferenceImageUrls.length > 1 ? "s" : ""} as the visual source for the new person/object, preserving the reference subject's recognizable visual details where possible while adapting it to the design.`
+    : "";
+
+  const editPrompt = editIntent === "replace_subject"
+    ? `You are editing an existing graphic design image. Replace a person or object while keeping the rest of the design exactly the same - same layout, same colors, same style, same background, same composition.
+
+REPLACEMENT INSTRUCTION: ${prompt}${replacementReferenceClause}${regionClause}
+
+REPLACEMENT RULES:
+- Identify the target person/object from the instruction. If the target is not named, use the main visible person/object in the pinpoint region, or the main visible person/object on the canvas when no region is provided.
+- Remove the original target cleanly and replace it with the requested new person/object${hasReplacementRefs ? " from the replacement reference image" : ""}.
+- Match the replacement to the existing design's perspective, lighting, shadows, scale, camera angle, color grade, and graphic style.
+- Preserve every text block, logo, icon, border, ornament, background element, and non-target subject exactly as-is.
+- Do not add duplicate people or duplicate objects. The replacement should occupy the target's place.
+- Only modify the replacement target${editRegion ? " and ONLY inside the pinpoint region above" : ""}.
+- Maintain the same dimensions and aspect ratio.
+- The result must look like a professional design, not a rough edit`
+    : `You are editing an existing graphic design image. Apply ONLY the following change and keep everything else exactly the same — same layout, same colors, same style, same background, same composition.
 
 EDIT INSTRUCTION: ${prompt}${regionClause}
 
@@ -847,6 +886,9 @@ RULES:
 
   // Resolve the existing design image (canvas) to a buffer.
   const editBuffer = await resolveImageToBuffer(editImageUrl!);
+  const editReferenceBuffers = hasReplacementRefs
+    ? await Promise.all(editReferenceImageUrls.slice(0, 4).map((url) => resolveImageToBuffer(url)))
+    : [];
 
   let base64: string | null;
   let model: string;
@@ -854,23 +896,49 @@ RULES:
   switch (provider) {
     case "openai": {
       const gptSize = getGptImageSize(width, height);
-      console.log(`[Visual/Edit] OpenAI gpt-image-1 @ ${gptSize}`);
-      base64 = await openaiClient.editImage(editPrompt, editBuffer, {
-        size: gptSize,
-        quality: "high",
-      });
+      console.log(`[Visual/Edit] OpenAI gpt-image-1 @ ${gptSize}${editReferenceBuffers.length ? ` (${editReferenceBuffers.length + 1} images)` : ""}`);
+      if (editReferenceBuffers.length > 0) {
+        base64 = await openaiClient.editMultiImage(
+          editPrompt,
+          [
+            { buffer: editBuffer, filename: "canvas.png", type: "image/png" },
+            ...editReferenceBuffers.map((buffer, index) => ({
+              buffer,
+              filename: `replacement-reference-${index + 1}.png`,
+              type: "image/png",
+            })),
+          ],
+          { size: gptSize, quality: "high" },
+        );
+      } else {
+        base64 = await openaiClient.editImage(editPrompt, editBuffer, {
+          size: gptSize,
+          quality: "high",
+        });
+      }
       model = "gpt-image-1";
       break;
     }
 
     case "xai": {
       const aspectRatio = sizeToAspectRatio(width, height);
-      console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}`);
+      console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}${editReferenceBuffers.length ? ` (${editReferenceBuffers.length + 1} images)` : ""}`);
       if (!xaiClient.isAvailable()) {
         throw new Error("xAI provider is not configured.");
       }
       const canvasBase64 = editBuffer.toString("base64");
-      base64 = await xaiClient.editImage(editPrompt, canvasBase64, { aspectRatio });
+      if (editReferenceBuffers.length > 0) {
+        base64 = await xaiClient.editImages(
+          editPrompt,
+          [
+            canvasBase64,
+            ...editReferenceBuffers.map((buffer) => buffer.toString("base64")),
+          ],
+          { aspectRatio },
+        );
+      } else {
+        base64 = await xaiClient.editImage(editPrompt, canvasBase64, { aspectRatio });
+      }
       model = "grok-imagine-image";
       break;
     }

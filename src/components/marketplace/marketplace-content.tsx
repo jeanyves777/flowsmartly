@@ -1,999 +1,486 @@
-"use client";
-
-import { motion } from "framer-motion";
+import Image from "next/image";
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
 import {
-  Briefcase,
-  Search,
-  BarChart3,
-  Handshake,
-  TrendingUp,
-  ShieldCheck,
-  Palette,
-  Users,
-  DollarSign,
-  Sparkles,
-  Rocket,
-  Layout,
-  Wallet,
-  Gift,
-  Target,
-  RefreshCw,
-  Zap,
   ArrowRight,
+  BarChart3,
+  Briefcase,
+  CalendarDays,
+  CheckCircle2,
+  CircleDollarSign,
+  ClipboardCheck,
+  Gift,
+  Handshake,
+  LayoutDashboard,
+  MessageSquare,
+  Search,
+  ShieldCheck,
+  Sparkles,
   Star,
-  CheckCircle,
-  AlertTriangle,
-  XCircle,
-  Quote,
-  MapPin,
+  Target,
+  Users,
+  Wallet,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { MarketplacePreview } from "@/components/illustrations/marketplace-preview";
-import { AgentProfilePreview } from "@/components/illustrations/agent-profile-preview";
-import { RevenueSplitPreview } from "@/components/illustrations/revenue-split-preview";
+import { illustrationImages } from "@/components/marketing/public-page-visuals";
 
-// ── Animation Variants ──────────────────────────────────────────
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+type IconCard = {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  color: string;
 };
 
-const stagger = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.2 },
-  },
-};
-
-// ── Data Arrays ─────────────────────────────────────────────────
-
-const clientSteps = [
+const clientSteps: IconCard[] = [
   {
     icon: Search,
-    title: "Browse Agents",
-    description: "Filter by specialty, industry, budget, and performance rating to find your perfect match.",
-    color: "bg-brand-500",
+    title: "Search by specialty",
+    description:
+      "Filter agents by channel, industry, budget, language, and the type of growth work you need done.",
+    color: "bg-sky-500",
   },
   {
-    icon: BarChart3,
-    title: "Review & Compare",
-    description: "See real performance scores, client reviews, and portfolio work before you decide.",
-    color: "bg-accent-purple",
+    icon: ShieldCheck,
+    title: "Review proof",
+    description:
+      "Compare verified profiles, ratings, sample work, and performance signals before you invite anyone in.",
+    color: "bg-violet-500",
   },
   {
     icon: Handshake,
-    title: "Hire & Onboard",
-    description: "Seamlessly hire an agent. Your subscription fee is waived while they manage your account.",
+    title: "Hire with control",
+    description:
+      "Bring an agent into your FlowSmartly workspace with clear permissions, milestones, and approvals.",
     color: "bg-emerald-500",
   },
   {
-    icon: TrendingUp,
-    title: "Track Results",
-    description: "Monitor your agent\u2019s performance with AI-powered strategy scoring in real time.",
-    color: "bg-accent-gold",
+    icon: BarChart3,
+    title: "Measure the work",
+    description:
+      "Track delivery, response time, content quality, and campaign impact from the same command center.",
+    color: "bg-amber-500",
   },
 ];
 
-const agentSteps = [
+const agentSteps: IconCard[] = [
   {
-    icon: ShieldCheck,
-    title: "Apply & Get Verified",
-    description: "Complete the onboarding process and get approved by our quality review team.",
-    color: "bg-brand-500",
+    icon: ClipboardCheck,
+    title: "Apply and verify",
+    description:
+      "Create your agent profile, submit proof of work, and pass FlowSmartly quality review.",
+    color: "bg-sky-500",
   },
   {
-    icon: Palette,
-    title: "Set Your Services",
-    description: "Define your specialties, pricing tiers, and build your professional agent landing page.",
-    color: "bg-accent-purple",
+    icon: LayoutDashboard,
+    title: "Package your services",
+    description:
+      "Define your offers, preferred clients, delivery cadence, and the platform workflows you manage.",
+    color: "bg-violet-500",
   },
   {
     icon: Users,
-    title: "Manage Clients",
-    description: "Use FlowSmartly\u2019s full AI platform to execute marketing strategies for your clients.",
+    title: "Run client accounts",
+    description:
+      "Use FlowSmartly tools for planning, publishing, messaging, local listings, and reporting.",
     color: "bg-emerald-500",
   },
   {
-    icon: DollarSign,
-    title: "Earn & Grow",
-    description: "Earn recurring revenue, collect reviews, and boost your marketplace ranking over time.",
-    color: "bg-accent-gold",
+    icon: CircleDollarSign,
+    title: "Earn recurring revenue",
+    description:
+      "Keep a clear share of client revenue while your reputation grows with reviews and delivery scores.",
+    color: "bg-rose-500",
   },
 ];
 
-const agentBenefits = [
-  {
-    icon: DollarSign,
-    title: "Recurring Revenue",
-    description: "Earn monthly income from each client. Set your own prices with a $100/month minimum floor.",
-    color: "text-emerald-500",
-  },
-  {
-    icon: Sparkles,
-    title: "AI-Powered Tools",
-    description: "Access FlowSmartly\u2019s full AI suite to deliver exceptional results for every client.",
-    color: "text-brand-500",
-  },
-  {
-    icon: BarChart3,
-    title: "Performance Dashboard",
-    description: "Track strategy scores, completion rates, and client satisfaction in real-time.",
-    color: "text-accent-purple",
-  },
-  {
-    icon: Rocket,
-    title: "Marketing Boosts",
-    description: "Promote your profile with paid boosts to appear in premium search results.",
-    color: "text-accent-gold",
-  },
-  {
-    icon: Layout,
-    title: "Landing Page Builder",
-    description: "Get your own customizable agent landing page to showcase your work and attract clients.",
-    color: "text-pink-500",
-  },
-  {
-    icon: Wallet,
-    title: "Transparent Payouts",
-    description: "80% revenue share. Clear fee structure with reliable monthly payouts via Stripe.",
-    color: "text-accent-teal",
-  },
+const proofStats = [
+  { value: "80%", label: "agent revenue share" },
+  { value: "$100+", label: "minimum monthly offer" },
+  { value: "AI", label: "delivery scoring" },
 ];
 
-const clientBenefits = [
+const featuredProfiles = [
   {
-    icon: Gift,
-    title: "Subscription Waived",
-    description: "Your FlowSmartly subscription is waived while an agent manages your account.",
-    color: "text-emerald-500",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Vetted Professionals",
-    description: "Every agent is reviewed and approved by our team before they can accept clients.",
-    color: "text-brand-500",
-  },
-  {
-    icon: Target,
-    title: "AI-Backed Accountability",
-    description: "Agents are scored monthly on execution quality. Underperformers get warnings.",
-    color: "text-accent-purple",
-  },
-  {
-    icon: BarChart3,
-    title: "Real Performance Data",
-    description: "No guesswork. See completion scores, on-time rates, and consistency metrics.",
-    color: "text-accent-gold",
-  },
-  {
-    icon: RefreshCw,
-    title: "Easy Switching",
-    description: "If your agent underperforms after two warnings, seamlessly switch to another.",
-    color: "text-pink-500",
-  },
-  {
-    icon: Zap,
-    title: "Full Platform Access",
-    description: "Keep access to all FlowSmartly features. Your agent works within the same platform.",
-    color: "text-accent-teal",
-  },
-];
-
-const featuredAgents = [
-  {
-    name: "Sarah Mitchell",
-    specialty: "Social Media Strategy",
-    rating: 4.9,
-    reviews: 127,
-    price: 250,
-    industries: ["E-Commerce", "Beauty"],
-    gradient: "from-accent-purple to-pink-500",
     initials: "SM",
+    name: "Sarah Mitchell",
+    specialty: "Social media and content systems",
+    price: "$250/mo",
+    rating: "4.9",
+    fit: "Ecommerce, beauty, creator brands",
+    accent: "from-violet-500 to-sky-500",
   },
   {
-    name: "James Chen",
-    specialty: "Content & SEO",
-    rating: 4.8,
-    reviews: 89,
-    price: 350,
-    industries: ["SaaS", "Tech"],
-    gradient: "from-brand-500 to-accent-teal",
     initials: "JC",
+    name: "James Chen",
+    specialty: "Local growth and review operations",
+    price: "$350/mo",
+    rating: "4.8",
+    fit: "Restaurants, clinics, service businesses",
+    accent: "from-emerald-500 to-cyan-500",
   },
   {
-    name: "Maria Gonzalez",
-    specialty: "Paid Ads & Growth",
-    rating: 5.0,
-    reviews: 203,
-    price: 500,
-    industries: ["Finance", "Real Estate"],
-    gradient: "from-emerald-500 to-brand-500",
     initials: "MG",
+    name: "Maria Gonzalez",
+    specialty: "Paid ads and launch campaigns",
+    price: "$500/mo",
+    rating: "5.0",
+    fit: "Real estate, finance, coaching",
+    accent: "from-amber-500 to-rose-500",
   },
 ];
 
-const timelineSteps = [
+const accountability = [
   {
-    icon: CheckCircle,
-    title: "Performance Monitored",
-    description: "Your agent\u2019s work is continuously scored against your marketing plan goals — completion rate, on-time delivery, consistency, and content quality.",
-    color: "text-emerald-500",
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/20",
-    line: "bg-emerald-500",
+    title: "Weekly delivery signal",
+    description:
+      "The workspace shows what shipped, what is waiting on approval, and where a client needs attention.",
   },
   {
-    icon: AlertTriangle,
-    title: "First Warning (Month 1)",
-    description: "If performance drops below threshold, the agent gets an official warning with specific improvement areas. You\u2019re notified that FlowSmartly is monitoring the situation.",
-    color: "text-amber-500",
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/20",
-    line: "bg-amber-500",
+    title: "Quality review trail",
+    description:
+      "Campaign work is scored against the brief, brand voice, deadlines, and channel requirements.",
   },
   {
-    icon: XCircle,
-    title: "Final Warning (Month 2)",
-    description: "If still underperforming, you receive a detailed report and get to choose: switch to a new agent or continue with the current one. You\u2019re always in control.",
-    color: "text-red-500",
-    bg: "bg-red-500/10",
-    border: "border-red-500/20",
-    line: "bg-red-500",
+    title: "Easy agent changes",
+    description:
+      "If the relationship is not working, clients can compare alternatives and move without rebuilding the account.",
   },
 ];
 
-const testimonials = [
-  {
-    quote: "Hiring an agent through FlowSmartly was the best decision for my business. My engagement tripled in two months and I didn\u2019t have to lift a finger.",
-    name: "Alex Rivera",
-    role: "Founder, StyleBox",
-    initials: "AR",
-    gradient: "from-accent-purple to-pink-500",
-  },
-  {
-    quote: "As an agent, FlowSmartly gives me everything I need — the tools, the clients, and the accountability system that builds trust with my customers.",
-    name: "Priya Sharma",
-    role: "Marketing Agency Owner",
-    initials: "PS",
-    gradient: "from-brand-500 to-accent-teal",
-  },
-  {
-    quote: "The performance scoring system is brilliant. I can see exactly how my agent is doing against my goals. Total transparency.",
-    name: "David Kim",
-    role: "E-Commerce Manager",
-    initials: "DK",
-    gradient: "from-emerald-500 to-brand-500",
-  },
-];
+function SectionHeader({
+  eyebrow,
+  title,
+  description,
+  align = "center",
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  align?: "center" | "left";
+}) {
+  return (
+    <div className={align === "center" ? "mx-auto max-w-3xl text-center" : "max-w-3xl"}>
+      <p className="text-sm font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
+        {eyebrow}
+      </p>
+      <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+        {title}
+      </h2>
+      <p className="mt-4 text-lg leading-8 text-muted-foreground">{description}</p>
+    </div>
+  );
+}
 
-// ── Main Component ──────────────────────────────────────────────
+function StepCard({ item, index }: { item: IconCard; index: number }) {
+  return (
+    <div className="relative rounded-lg border bg-card p-6 shadow-sm">
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${item.color}`}>
+          <item.icon className="h-6 w-6 text-white" />
+        </div>
+        <span className="rounded-full border bg-background px-3 py-1 text-sm font-semibold text-muted-foreground">
+          {String(index + 1).padStart(2, "0")}
+        </span>
+      </div>
+      <h3 className="text-xl font-semibold tracking-tight">{item.title}</h3>
+      <p className="mt-3 leading-7 text-muted-foreground">{item.description}</p>
+    </div>
+  );
+}
+
+function SignalRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-lg border bg-background/80 px-4 py-3 dark:bg-muted/30">
+      <div className="flex items-center gap-3">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-400/15 dark:text-sky-200">
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="font-medium">{label}</span>
+      </div>
+      <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-300">{value}</span>
+    </div>
+  );
+}
 
 export function MarketplaceContent() {
   return (
-    <div className="min-h-screen">
-      {/* ═══ A. Hero Section — Dark gradient variant ═══ */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-gray-900 via-purple-950 to-gray-900 pt-24 pb-16 px-4 sm:px-6 lg:px-8">
-        {/* Animated background grid */}
-        <div className="absolute inset-0 opacity-10">
-          <svg width="100%" height="100%">
-            <defs>
-              <pattern id="mp-grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#mp-grid)" />
-          </svg>
-        </div>
-        {/* Floating orbs */}
-        <div className="absolute top-20 left-[15%] w-32 h-32 bg-purple-500/20 rounded-full blur-3xl animate-[float_6s_ease-in-out_infinite]" />
-        <div className="absolute bottom-20 right-[20%] w-40 h-40 bg-brand-500/20 rounded-full blur-3xl animate-[float_8s_ease-in-out_infinite_2s]" />
-        <div className="absolute top-40 right-[10%] w-24 h-24 bg-teal-500/20 rounded-full blur-3xl animate-[float_5s_ease-in-out_infinite_1s]" />
-
-        <style jsx global>{`
-          @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-          }
-        `}</style>
-
-        <div className="relative z-10 max-w-4xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 text-purple-300 text-sm font-medium mb-8 border border-purple-500/30">
-              <Briefcase className="w-4 h-4" />
-              <span>Agent Marketplace</span>
+    <div className="min-h-screen bg-background text-foreground">
+      <section className="relative overflow-hidden border-b bg-[linear-gradient(180deg,rgba(240,249,255,0.88),rgba(255,255,255,1))] px-4 pt-24 pb-20 sm:px-6 sm:pt-32 sm:pb-24 lg:px-8 dark:bg-[linear-gradient(180deg,rgba(12,18,32,1),rgba(9,9,11,1))]">
+        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <div>
+            <div className="mb-6 inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-semibold shadow-sm">
+              <Briefcase className="h-4 w-4 text-sky-600 dark:text-sky-300" />
+              Agent Marketplace
             </div>
-
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-white text-balance">
-              Expert Marketing Agents,{" "}
-              <span className="bg-gradient-to-r from-purple-400 to-brand-400 bg-clip-text text-transparent">
-                On Demand
-              </span>
+            <h1 className="max-w-4xl text-balance text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
+              Hire vetted agents and keep the work visible
             </h1>
-
-            <p className="text-lg sm:text-xl text-gray-300 max-w-2xl mx-auto mb-10 leading-relaxed">
-              Hire vetted marketing professionals to manage your strategy, or
-              become an agent and earn recurring revenue — all powered by
-              FlowSmartly&apos;s AI platform.
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
+              FlowSmartly connects businesses with verified marketers who can run
+              content, social, ads, local listings, and reporting directly inside
+              the same workspace.
             </p>
-
-            {/* Trust indicators */}
-            <div className="flex flex-wrap justify-center gap-6 sm:gap-10 mb-10">
-              {[
-                { icon: ShieldCheck, label: "Vetted Agents" },
-                { icon: BarChart3, label: "Performance Tracked" },
-                { icon: Users, label: "Managed Accounts" },
-                { icon: Sparkles, label: "AI-Powered" },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center gap-2 text-gray-400">
-                  <item.icon className="w-5 h-5 text-purple-400" />
-                  <span className="text-sm font-medium">{item.label}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button size="lg" className="bg-purple-600 hover:bg-purple-700 text-white font-semibold" asChild>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Button size="lg" className="bg-sky-600 font-semibold text-white hover:bg-sky-700" asChild>
                 <Link href="/register">
-                  Find an Agent
-                  <ArrowRight className="ml-2 w-5 h-5" />
+                  Find an agent
+                  <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
-              <Button size="lg" variant="ghost" className="border-2 border-white/30 text-white hover:bg-white/10 hover:text-white" asChild>
-                <Link href="#for-agents">Become an Agent</Link>
+              <Button size="lg" variant="outline" className="font-semibold" asChild>
+                <Link href="/register?redirect=/agent/apply">Become an agent</Link>
               </Button>
             </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Hero Illustration */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <MarketplacePreview />
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ═══ C. How It Works — For Clients ═══ */}
-      <section
-        id="how-it-works"
-        className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/50"
-      >
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="text-center mb-16"
-          >
-            <motion.h2
-              variants={fadeUp}
-              className="text-3xl sm:text-4xl font-bold mb-4"
-            >
-              How It Works for Businesses
-            </motion.h2>
-            <motion.p
-              variants={fadeUp}
-              className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            >
-              Four simple steps to get expert marketing management for your
-              business.
-            </motion.p>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6"
-          >
-            {clientSteps.map((step, index) => (
-              <motion.div
-                key={step.title}
-                variants={fadeUp}
-                className="relative text-center"
-              >
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-card border-2 border-brand-500 flex items-center justify-center text-xs font-bold text-brand-500 z-10">
-                  {index + 1}
+            <div className="mt-10 hidden gap-3 sm:grid sm:grid-cols-3">
+              {proofStats.map((stat) => (
+                <div key={stat.label} className="rounded-lg border bg-card p-4 shadow-sm">
+                  <div className="text-2xl font-bold">{stat.value}</div>
+                  <div className="mt-1 text-sm text-muted-foreground">{stat.label}</div>
                 </div>
-
-                <div className="pt-6 p-6 rounded-xl bg-card border hover:shadow-lg transition-shadow h-full">
-                  <div
-                    className={`w-14 h-14 rounded-xl ${step.color} flex items-center justify-center mx-auto mb-4`}
-                  >
-                    <step.icon className="w-7 h-7 text-white" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">{step.title}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {step.description}
-                  </p>
-                </div>
-
-                {index < 3 && (
-                  <div className="hidden lg:block absolute top-1/2 -right-3 translate-x-0">
-                    <ArrowRight className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                )}
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ═══ D. How It Works — For Agents ═══ */}
-      <section id="for-agents" className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="text-center mb-16"
-          >
-            <motion.h2
-              variants={fadeUp}
-              className="text-3xl sm:text-4xl font-bold mb-4"
-            >
-              How It Works for Agents
-            </motion.h2>
-            <motion.p
-              variants={fadeUp}
-              className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            >
-              Join the marketplace, build your client base, and earn recurring
-              revenue.
-            </motion.p>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6"
-          >
-            {agentSteps.map((step, index) => (
-              <motion.div
-                key={step.title}
-                variants={fadeUp}
-                className="relative text-center"
-              >
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-card border-2 border-accent-purple flex items-center justify-center text-xs font-bold text-accent-purple z-10">
-                  {index + 1}
-                </div>
-
-                <div className="pt-6 p-6 rounded-xl bg-card border hover:shadow-lg transition-shadow h-full">
-                  <div
-                    className={`w-14 h-14 rounded-xl ${step.color} flex items-center justify-center mx-auto mb-4`}
-                  >
-                    <step.icon className="w-7 h-7 text-white" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">{step.title}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {step.description}
-                  </p>
-                </div>
-
-                {index < 3 && (
-                  <div className="hidden lg:block absolute top-1/2 -right-3 translate-x-0">
-                    <ArrowRight className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                )}
-              </motion.div>
-            ))}
-          </motion.div>
-
-          {/* Agent profile illustration */}
-          <div className="mt-16 max-w-2xl mx-auto">
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-            >
-              <AgentProfilePreview />
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══ E. Agent Benefits ═══ */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/50">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="text-center mb-16"
-          >
-            <motion.h2
-              variants={fadeUp}
-              className="text-3xl sm:text-4xl font-bold mb-4"
-            >
-              Why Agents Love FlowSmartly
-            </motion.h2>
-            <motion.p
-              variants={fadeUp}
-              className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            >
-              Everything you need to build a thriving marketing business, all in
-              one platform.
-            </motion.p>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
-            {agentBenefits.map((benefit) => (
-              <motion.div
-                key={benefit.title}
-                variants={fadeUp}
-                className="group p-6 rounded-xl bg-card border hover:shadow-lg transition-shadow"
-              >
-                <benefit.icon
-                  className={`w-8 h-8 ${benefit.color} mb-4 group-hover:scale-110 transition-transform`}
-                />
-                <h3 className="text-lg font-semibold mb-2">{benefit.title}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {benefit.description}
-                </p>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ═══ F. Client Benefits ═══ */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="text-center mb-16"
-          >
-            <motion.h2
-              variants={fadeUp}
-              className="text-3xl sm:text-4xl font-bold mb-4"
-            >
-              Why Businesses Hire on FlowSmartly
-            </motion.h2>
-            <motion.p
-              variants={fadeUp}
-              className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            >
-              Get professional marketing management with built-in quality
-              guarantees and full transparency.
-            </motion.p>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
-            {clientBenefits.map((benefit) => (
-              <motion.div
-                key={benefit.title}
-                variants={fadeUp}
-                className="group p-6 rounded-xl bg-card border hover:shadow-lg transition-shadow"
-              >
-                <benefit.icon
-                  className={`w-8 h-8 ${benefit.color} mb-4 group-hover:scale-110 transition-transform`}
-                />
-                <h3 className="text-lg font-semibold mb-2">{benefit.title}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {benefit.description}
-                </p>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ═══ G. Revenue Model ═══ */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/50">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="text-center mb-16"
-          >
-            <motion.h2
-              variants={fadeUp}
-              className="text-3xl sm:text-4xl font-bold mb-4"
-            >
-              Transparent Pricing
-            </motion.h2>
-            <motion.p
-              variants={fadeUp}
-              className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            >
-              Simple, fair pricing for everyone. No hidden fees, no surprises.
-            </motion.p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-2 gap-8 items-start">
-            {/* Revenue split illustration */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-            >
-              <RevenueSplitPreview />
-            </motion.div>
-
-            {/* Pricing details */}
-            <motion.div
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-              variants={stagger}
-              className="space-y-6"
-            >
-              <motion.div
-                variants={fadeUp}
-                className="p-6 rounded-xl border bg-card"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-accent-purple/10 flex items-center justify-center">
-                    <Wallet className="w-5 h-5 text-accent-purple" />
-                  </div>
-                  <h3 className="font-semibold">For Agents</h3>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Keep <span className="font-semibold text-foreground">80%</span> of
-                  every dollar. FlowSmartly takes a 20% platform fee that covers
-                  payment processing, tools, hosting, and marketplace access.
-                  Minimum client pricing: $100/month.
-                </p>
-              </motion.div>
-
-              <motion.div
-                variants={fadeUp}
-                className="p-6 rounded-xl border bg-card"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                    <Gift className="w-5 h-5 text-emerald-500" />
-                  </div>
-                  <h3 className="font-semibold">For Clients</h3>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Pay your agent directly.{" "}
-                  <span className="font-semibold text-foreground">
-                    Your FlowSmartly subscription is waived
-                  </span>{" "}
-                  while you have an active agent relationship. One bill, zero
-                  overlap.
-                </p>
-              </motion.div>
-
-              <motion.div variants={fadeUp}>
-                <p className="text-xs text-muted-foreground text-center">
-                  No hidden fees. No long-term contracts. Cancel anytime.
-                </p>
-              </motion.div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══ H. Featured Agents ═══ */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="text-center mb-16"
-          >
-            <motion.h2
-              variants={fadeUp}
-              className="text-3xl sm:text-4xl font-bold mb-4"
-            >
-              Featured Agents
-            </motion.h2>
-            <motion.p
-              variants={fadeUp}
-              className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            >
-              Top-performing professionals ready to grow your business.
-            </motion.p>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
-            {featuredAgents.map((agent) => (
-              <motion.div
-                key={agent.name}
-                variants={fadeUp}
-                whileHover={{ y: -4 }}
-                className="p-6 rounded-xl bg-card border hover:shadow-xl transition-shadow"
-              >
-                {/* Avatar + badge */}
-                <div className="flex items-center gap-4 mb-4">
-                  <div
-                    className={`w-14 h-14 rounded-full bg-gradient-to-br ${agent.gradient} flex items-center justify-center`}
-                  >
-                    <span className="text-white text-lg font-bold">
-                      {agent.initials}
-                    </span>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <h3 className="font-semibold">{agent.name}</h3>
-                      <ShieldCheck className="w-4 h-4 text-brand-500" />
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {agent.specialty}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Rating */}
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="flex gap-0.5">
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <Star
-                        key={s}
-                        className={`w-4 h-4 ${
-                          s <= Math.floor(agent.rating)
-                            ? "text-amber-400 fill-amber-400"
-                            : "text-muted-foreground"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-sm font-medium">{agent.rating}</span>
-                  <span className="text-xs text-muted-foreground">
-                    ({agent.reviews} reviews)
-                  </span>
-                </div>
-
-                {/* Industries */}
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {agent.industries.map((ind) => (
-                    <span
-                      key={ind}
-                      className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground"
-                    >
-                      <MapPin className="w-3 h-3" />
-                      {ind}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Price + CTA */}
-                <div className="flex items-center justify-between pt-4 border-t">
-                  <div>
-                    <span className="text-xs text-muted-foreground">
-                      Starting at
-                    </span>
-                    <div className="text-xl font-bold text-accent-purple">
-                      ${agent.price}
-                      <span className="text-sm font-normal text-muted-foreground">
-                        /mo
-                      </span>
-                    </div>
-                  </div>
-                  <Button size="sm" variant="outline" asChild>
-                    <Link href="/register">View Profile</Link>
-                  </Button>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-
-          <motion.p
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.5 }}
-            className="text-center text-sm text-muted-foreground mt-8"
-          >
-            More agents joining every day.{" "}
-            <Link
-              href="/register?redirect=/agent/apply"
-              className="text-accent-purple hover:underline font-medium"
-            >
-              Apply to become an agent
-            </Link>
-          </motion.p>
-        </div>
-      </section>
-
-      {/* ═══ I. Accountability System ═══ */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/50">
-        <div className="max-w-3xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="text-center mb-16"
-          >
-            <motion.h2
-              variants={fadeUp}
-              className="text-3xl sm:text-4xl font-bold mb-4"
-            >
-              Built-In Accountability
-            </motion.h2>
-            <motion.p
-              variants={fadeUp}
-              className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            >
-              Every agent is monitored with real performance data. No excuses,
-              no guesswork — just results.
-            </motion.p>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="relative"
-          >
-            {/* Vertical line */}
-            <div className="absolute left-6 top-0 bottom-0 w-px bg-border hidden sm:block" />
-
-            <div className="space-y-8">
-              {timelineSteps.map((step, index) => (
-                <motion.div
-                  key={step.title}
-                  variants={fadeUp}
-                  className="relative flex gap-4 sm:gap-6"
-                >
-                  {/* Icon circle */}
-                  <div
-                    className={`relative z-10 w-12 h-12 rounded-full ${step.bg} border-2 ${step.border} flex items-center justify-center flex-shrink-0`}
-                  >
-                    <step.icon className={`w-5 h-5 ${step.color}`} />
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 pb-2">
-                    <h3 className="font-semibold text-lg mb-1">{step.title}</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {step.description}
-                    </p>
-                  </div>
-                </motion.div>
               ))}
             </div>
-          </motion.div>
+          </div>
+
+          <div className="relative">
+            <div className="relative min-h-[440px] overflow-visible sm:min-h-[560px]">
+              <div className="absolute left-4 top-4 z-10 rounded-lg border bg-card/90 px-4 py-3 text-sm font-semibold shadow-sm">
+                Vetted agent match
+              </div>
+              <Image
+                src={illustrationImages.marketplacePageAgent}
+                alt="Marketing consultant with agent matching and campaign analytics cards"
+                fill
+                priority
+                sizes="(min-width: 1024px) 55vw, 100vw"
+                unoptimized
+                className="object-contain object-center drop-shadow-[0_30px_70px_rgba(15,23,42,0.2)] dark:drop-shadow-[0_30px_70px_rgba(0,0,0,0.45)]"
+              />
+              <div className="absolute bottom-4 left-4 right-4 z-10 grid gap-3 sm:grid-cols-3">
+                {[
+                  ["97%", "profile fit"],
+                  ["12h", "avg response"],
+                  ["4.9", "client rating"],
+                ].map(([value, label]) => (
+                  <div
+                    key={label}
+                    className="rounded-lg border bg-card/90 px-4 py-3 shadow-sm"
+                  >
+                    <div className="text-xl font-bold">{value}</div>
+                    <div className="text-xs text-muted-foreground">{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ═══ J. Testimonials ═══ */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="text-center mb-16"
-          >
-            <motion.h2
-              variants={fadeUp}
-              className="text-3xl sm:text-4xl font-bold mb-4"
-            >
-              What Our Users Say
-            </motion.h2>
-            <motion.p
-              variants={fadeUp}
-              className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            >
-              Hear from agents and clients who are growing together on
-              FlowSmartly.
-            </motion.p>
-          </motion.div>
+      <section className="px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <SectionHeader
+            eyebrow="For businesses"
+            title="Find an expert without turning marketing into a guessing game"
+            description="The marketplace is designed around trust: proof of work, permissioned collaboration, and real delivery signals after the hire."
+          />
+          <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+            {clientSteps.map((step, index) => (
+              <StepCard key={step.title} item={step} index={index} />
+            ))}
+          </div>
+        </div>
+      </section>
 
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
-            {testimonials.map((t) => (
-              <motion.div
-                key={t.name}
-                variants={fadeUp}
-                className="p-6 rounded-xl bg-card border hover:shadow-lg transition-shadow"
-              >
-                <Quote className="w-8 h-8 text-accent-purple/20 mb-4" />
-                <p className="text-sm text-muted-foreground leading-relaxed mb-6">
-                  &ldquo;{t.quote}&rdquo;
+      <section id="for-agents" className="border-y bg-muted/35 px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+          <SectionHeader
+            align="left"
+            eyebrow="For agents"
+            title="Build a recurring service business on top of FlowSmartly"
+            description="Agents get the marketplace profile, client workspace, AI-assisted campaign tools, and quality signals needed to sell professional marketing work with confidence."
+          />
+          <div className="grid gap-5 md:grid-cols-2">
+            {agentSteps.map((step, index) => (
+              <StepCard key={step.title} item={step} index={index} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_0.88fr] lg:items-center">
+          <div className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-violet-500 text-white">
+                <CalendarDays className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">
+                  Shared workflow
                 </p>
-                <div className="flex items-center gap-3 pt-4 border-t">
-                  <div
-                    className={`w-10 h-10 rounded-full bg-gradient-to-br ${t.gradient} flex items-center justify-center`}
-                  >
-                    <span className="text-white text-xs font-bold">
-                      {t.initials}
-                    </span>
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold">{t.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {t.role}
+                <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                  One workspace for agent, client, and approvals
+                </h2>
+              </div>
+            </div>
+            <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
+              Businesses keep visibility while agents get the tools to plan,
+              create, publish, and report. The relationship feels managed, not
+              outsourced into a black box.
+            </p>
+            <div className="mt-8 grid gap-3 md:grid-cols-2">
+              <SignalRow icon={MessageSquare} label="Client brief" value="ready" />
+              <SignalRow icon={Sparkles} label="Campaign draft" value="AI assisted" />
+              <SignalRow icon={CheckCircle2} label="Approval queue" value="3 pending" />
+              <SignalRow icon={Zap} label="Launch readiness" value="94%" />
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
+                  Revenue model
+                </p>
+                <h3 className="mt-2 text-2xl font-bold tracking-tight">
+                  Simple economics for both sides
+                </h3>
+              </div>
+              <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-emerald-500 text-white">
+                <Wallet className="h-7 w-7" />
+              </div>
+            </div>
+            <div className="mt-8 space-y-4">
+              <div className="rounded-lg border bg-background p-5 dark:bg-muted/30">
+                <div className="flex items-center gap-3 text-lg font-semibold">
+                  <Gift className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
+                  For clients
+                </div>
+                <p className="mt-2 leading-7 text-muted-foreground">
+                  FlowSmartly subscription fees can be waived while an approved
+                  agent manages the account, so the budget goes toward active work.
+                </p>
+              </div>
+              <div className="rounded-lg border bg-background p-5 dark:bg-muted/30">
+                <div className="flex items-center gap-3 text-lg font-semibold">
+                  <CircleDollarSign className="h-5 w-5 text-sky-600 dark:text-sky-300" />
+                  For agents
+                </div>
+                <p className="mt-2 leading-7 text-muted-foreground">
+                  Agents define offers, manage delivery, and earn recurring
+                  revenue with transparent platform fees and payout reporting.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y bg-muted/35 px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <SectionHeader
+            eyebrow="Marketplace profiles"
+            title="Profiles are built for comparison, not guesswork"
+            description="Featured profile cards show the information buyers actually need before starting a managed marketing relationship."
+          />
+          <div className="mt-12 grid gap-5 lg:grid-cols-3">
+            {featuredProfiles.map((profile) => (
+              <div key={profile.name} className="overflow-hidden rounded-lg border bg-card shadow-sm">
+                <div className={`h-2 bg-gradient-to-r ${profile.accent}`} />
+                <div className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className={`flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br ${profile.accent} text-lg font-bold text-white`}>
+                      {profile.initials}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">{profile.name}</h3>
+                        <ShieldCheck className="h-4 w-4 text-sky-600 dark:text-sky-300" />
+                      </div>
+                      <p className="text-sm text-muted-foreground">{profile.specialty}</p>
                     </div>
                   </div>
+                  <div className="mt-5 flex items-center gap-2">
+                    {[1, 2, 3, 4, 5].map((item) => (
+                      <Star key={item} className="h-4 w-4 fill-amber-400 text-amber-400" />
+                    ))}
+                    <span className="text-sm font-semibold">{profile.rating}</span>
+                  </div>
+                  <div className="mt-5 rounded-lg border bg-background p-4 dark:bg-muted/30">
+                    <p className="text-sm font-semibold text-muted-foreground">Best fit</p>
+                    <p className="mt-1 leading-7">{profile.fit}</p>
+                  </div>
+                  <div className="mt-5 flex items-center justify-between border-t pt-5">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Starting at</p>
+                      <p className="text-xl font-bold">{profile.price}</p>
+                    </div>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/register">View profile</Link>
+                    </Button>
+                  </div>
                 </div>
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
         </div>
       </section>
 
-      {/* ═══ K. Final CTA ═══ */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="p-8 sm:p-12 rounded-2xl bg-gradient-to-br from-accent-purple/10 via-brand-500/10 to-accent-teal/10 border">
-              <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-                Ready to Get Started?
-              </h2>
-              <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
-                Whether you&apos;re looking for expert help or ready to offer your
-                skills — FlowSmartly&apos;s Agent Marketplace has you covered.
-              </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Button size="lg" asChild>
-                  <Link href="/register">
-                    Find an Agent
-                    <ArrowRight className="ml-2 w-5 h-5" />
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" asChild>
-                  <Link href="/register?redirect=/agent/apply">Become an Agent</Link>
-                </Button>
+      <section className="px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+          <SectionHeader
+            align="left"
+            eyebrow="Accountability"
+            title="Built-in signals keep every relationship honest"
+            description="The page needs to sell trust. These checks make it clear that FlowSmartly is not just a directory, it is the system where work gets measured."
+          />
+          <div className="space-y-4">
+            {accountability.map((item, index) => (
+              <div key={item.title} className="rounded-lg border bg-card p-6 shadow-sm">
+                <div className="flex gap-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 font-bold text-sky-700 dark:bg-sky-400/15 dark:text-sky-200">
+                    {index + 1}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold">{item.title}</h3>
+                    <p className="mt-2 leading-7 text-muted-foreground">{item.description}</p>
+                  </div>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-6">
-                No credit card required to get started.
-              </p>
-            </div>
-          </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="px-4 pb-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl rounded-lg border bg-[linear-gradient(135deg,rgba(14,165,233,0.12),rgba(16,185,129,0.12),rgba(139,92,246,0.10))] p-8 text-center shadow-sm sm:p-12 dark:bg-card">
+          <Target className="mx-auto h-10 w-10 text-sky-600 dark:text-sky-300" />
+          <h2 className="mx-auto mt-5 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">
+            Start with the right expert, then keep all the work visible
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-muted-foreground">
+            Businesses can hire help. Agents can build recurring packages. Both
+            sides work from one FlowSmartly growth workspace.
+          </p>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <Button size="lg" className="bg-sky-600 font-semibold text-white hover:bg-sky-700" asChild>
+              <Link href="/register">
+                Browse agents
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Link>
+            </Button>
+            <Button size="lg" variant="outline" className="font-semibold" asChild>
+              <Link href="/register?redirect=/agent/apply">Apply as agent</Link>
+            </Button>
+          </div>
         </div>
       </section>
     </div>

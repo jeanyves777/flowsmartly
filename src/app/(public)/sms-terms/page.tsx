@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { illustrationImages, PolicyVisualHeader } from "@/components/marketing/public-page-visuals";
 
 export const metadata: Metadata = {
   title: "SMS Terms & Conditions",
@@ -49,21 +50,13 @@ export default function SmsTermsPage() {
           {/* Main Content */}
           <div className="max-w-4xl">
             {/* Header */}
-            <div className="mb-10">
-              <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-3">
-                SMS Terms &amp; Conditions
-              </h1>
-              <p className="text-muted-foreground">
-                Last updated: February 10, 2026
-              </p>
-              <p className="mt-4 text-base text-muted-foreground leading-relaxed">
-                These SMS Terms and Conditions (&quot;SMS Terms&quot;) govern the
-                use of SMS messaging services provided through the FlowSmartly
-                platform. By using our SMS marketing features as a FlowSmartly
-                user, or by opting in to receive SMS messages from a FlowSmartly
-                user, you agree to these terms.
-              </p>
-            </div>
+            <PolicyVisualHeader
+              label="Messaging compliance"
+              title="SMS Terms & Conditions"
+              updated="Last updated: February 10, 2026"
+              description="These SMS terms govern FlowSmartly messaging services, including consent, frequency, opt-out instructions, carrier requirements, and sender responsibilities."
+              image={illustrationImages.policySms}
+            />
 
             {/* Sections */}
             <div className="space-y-12">

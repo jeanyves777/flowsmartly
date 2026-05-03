@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { illustrationImages, PolicyVisualHeader } from "@/components/marketing/public-page-visuals";
 
 export const metadata: Metadata = {
   title: "GDPR Compliance",
@@ -48,21 +49,13 @@ export default function GDPRPage() {
           {/* Main Content */}
           <div className="max-w-4xl">
             {/* Header */}
-            <div className="mb-10">
-              <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-3">
-                GDPR Compliance
-              </h1>
-              <p className="text-muted-foreground">
-                Last updated: February 25, 2026
-              </p>
-              <p className="mt-4 text-base text-muted-foreground leading-relaxed">
-                FlowSmartly is committed to protecting your personal data and
-                respecting your privacy rights under the General Data Protection
-                Regulation (GDPR). This page explains how we comply with GDPR
-                requirements, your rights as a data subject, and how to exercise
-                those rights.
-              </p>
-            </div>
+            <PolicyVisualHeader
+              label="Data protection"
+              title="GDPR Compliance"
+              updated="Last updated: February 25, 2026"
+              description="FlowSmartly is committed to protecting personal data and respecting privacy rights under GDPR, including access, correction, portability, restriction, and deletion requests."
+              image={illustrationImages.policyGdpr}
+            />
 
             {/* Sections */}
             <div className="space-y-12">

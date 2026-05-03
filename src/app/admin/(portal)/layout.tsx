@@ -113,6 +113,7 @@ const serviceItems: NavItem[] = [
 
 // Marketing section
 const marketingItems: NavItem[] = [
+  { href: "/admin/demo-requests", icon: Calendar, label: "Demo Requests", permission: "VIEW_CONTENT" },
   { href: "/admin/campaigns", icon: Megaphone, label: "Campaigns", permission: "VIEW_CONTENT" },
   { href: "/admin/ads", icon: Megaphone, label: "Ad Review", permission: "MODERATE_CONTENT" },
   { href: "/admin/email-marketing", icon: Mail, label: "Email Marketing", permission: "VIEW_CONTENT" },

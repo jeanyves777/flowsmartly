@@ -7,6 +7,7 @@ const productLinks = [
   { href: "/marketplace", label: "Agent Marketplace" },
   { href: "/view-to-earn", label: "Earn Credits" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/book-demo", label: "Book a Demo" },
   { href: "/dashboard", label: "Dashboard" },
 ];
 

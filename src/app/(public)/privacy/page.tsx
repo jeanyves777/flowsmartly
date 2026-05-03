@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { illustrationImages, PolicyVisualHeader } from "@/components/marketing/public-page-visuals";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -49,22 +50,13 @@ export default function PrivacyPolicyPage() {
           {/* Main Content */}
           <div className="max-w-4xl">
             {/* Header */}
-            <div className="mb-10">
-              <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-3">
-                Privacy Policy
-              </h1>
-              <p className="text-muted-foreground">
-                Last updated: February 10, 2026
-              </p>
-              <p className="mt-4 text-base text-muted-foreground leading-relaxed">
-                At FlowSmartly, we take your privacy seriously. This Privacy
-                Policy explains how we collect, use, disclose, and safeguard
-                your information when you use our platform, including our
-                website, applications, and SMS marketing services. Please read
-                this policy carefully. By using FlowSmartly, you consent to the
-                practices described in this policy.
-              </p>
-            </div>
+            <PolicyVisualHeader
+              label="Privacy and data handling"
+              title="Privacy Policy"
+              updated="Last updated: February 10, 2026"
+              description="At FlowSmartly, we take your privacy seriously. This policy explains how we collect, use, disclose, and safeguard your information across the platform, applications, and SMS marketing services."
+              image={illustrationImages.policyPrivacy}
+            />
 
             {/* Sections */}
             <div className="space-y-12">
