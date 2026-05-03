@@ -43,20 +43,16 @@ class GeminiImageClient {
    */
   /**
    * Edit/transform an image using Gemini Flash image model.
-   * Pass a primary image (the canvas to edit) as base64 and a prompt
-   * describing the desired output. Optionally pass `referenceImages` —
-   * additional base64 images that the model can use as reference for
-   * intelligent swap/blend operations (e.g. "use this photo to replace
-   * the person in the design").
-   * Uses gemini-2.5-flash with image generation capabilities.
+   * Pass a reference image as base64 and a prompt describing the desired output.
+   * Uses gemini-2.5-flash-image (Nano Banana) with image generation capabilities.
    */
   async editImage(
     prompt: string,
     imageBase64: string,
-    options: { aspectRatio?: GeminiAspectRatio; referenceImages?: string[] } = {}
+    options: { aspectRatio?: GeminiAspectRatio } = {}
   ): Promise<string | null> {
-    const { aspectRatio = "1:1", referenceImages = [] } = options;
-    void aspectRatio; // Gemini gemini-2.5-flash doesn't take aspect ratio for edit
+    const { aspectRatio = "1:1" } = options;
+    void aspectRatio; // Gemini doesn't take aspect ratio for edit
 
     if (!this.client) {
       throw new Error("GEMINI_API_KEY is not configured");
@@ -65,28 +61,19 @@ class GeminiImageClient {
     const maxRetries = 2;
     let lastError: unknown;
 
-    // Order matters: PRIMARY image first (the canvas being edited), then
-    // each reference. The prompt refers to them by position so the model
-    // knows which is which.
-    const imageParts = [
-      { inlineData: { mimeType: "image/png", data: imageBase64 } },
-      ...referenceImages.map((ref) => ({
-        inlineData: { mimeType: "image/png", data: ref },
-      })),
-    ];
-
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const response = await this.client.models.generateContent({
-          // gemini-2.5-flash is text-only — image generation/editing requires
-          // the image variant (`gemini-2.5-flash-image`, also known as Nano
-          // Banana). Earlier we hit a 400 INVALID_ARGUMENT "This model only
-          // supports text output" because we were calling the text model.
+          // gemini-2.5-flash is text-only — image editing requires the
+          // image variant (`gemini-2.5-flash-image`, aka Nano Banana).
           model: "gemini-2.5-flash-image",
           contents: [
             {
               role: "user",
-              parts: [{ text: prompt }, ...imageParts],
+              parts: [
+                { text: prompt },
+                { inlineData: { mimeType: "image/png", data: imageBase64 } },
+              ],
             },
           ],
           config: {

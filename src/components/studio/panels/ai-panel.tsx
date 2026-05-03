@@ -8,10 +8,7 @@ import {
   MousePointerSquareDashed,
   Maximize2,
   X,
-  Image as ImageIcon,
-  ChevronRight,
 } from "lucide-react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -21,7 +18,6 @@ import { useCanvasStore } from "../hooks/use-canvas-store";
 import { addImageToCanvas } from "../utils/canvas-helpers";
 import { useCanvasExport } from "../hooks/use-canvas-export";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
-import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 
 // ChatGPT-style Improve panel. The user can pinpoint the area they want
 // changed (drag a rect on the canvas, or use whatever they've already
@@ -43,14 +39,6 @@ export function AiPanel() {
   const [isImproving, setIsImproving] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState(0);
   const [improveInstruction, setImproveInstruction] = useState("");
-
-  // Optional reference image for AI-driven swap. The user picks (or uploads)
-  // an image they want the AI to incorporate into the design. We send the
-  // URL to the backend, which routes the call to a multi-image-capable
-  // provider (Gemini) so the AI can match lighting / perspective / style
-  // when blending the reference into the pinpointed region.
-  const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -132,11 +120,6 @@ export function AiPanel() {
           textMode: "exact",
           editImageUrl: imageUrl,
           editRegion: effectiveRegion,
-          // When the user picks a reference image, the backend routes the
-          // call to a multi-image-capable provider (Gemini) so the AI can
-          // intelligently swap it into the pinpointed area instead of us
-          // doing a mechanical paste.
-          referenceImageUrl: referenceImageUrl || undefined,
         }),
       });
 
@@ -157,12 +140,10 @@ export function AiPanel() {
       }
 
       setImproveInstruction("");
-      // Clear the pinpoint AND the reference image after a successful improve
-      // so the next prompt starts from a clean slate — keeping them would
-      // silently re-target the same area / re-use the same reference and
-      // surprise the user.
+      // Clear the pinpoint after a successful improve so the next prompt
+      // starts from a clean slate — keeping it would silently re-target the
+      // same area and surprise the user.
       setAiSelectedRegion(null);
-      setReferenceImageUrl(null);
       toast({ title: "Design improved!" });
     } catch (e) {
       toast({
@@ -286,68 +267,6 @@ export function AiPanel() {
         )}
       </div>
 
-      {/* Reference image — optional. The AI receives this alongside the
-          canvas and your prompt, then intelligently swaps/blends it into
-          the pinpointed area (matches lighting, perspective, style). When
-          provided, the call is routed to a multi-image-capable provider
-          (Gemini) on the backend. */}
-      <div className="space-y-2">
-        <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between">
-          <span>Reference image (optional)</span>
-          {referenceImageUrl && (
-            <span className="text-[9px] font-normal text-brand-600 normal-case">
-              AI will swap with this
-            </span>
-          )}
-        </div>
-        {referenceImageUrl ? (
-          <div className="flex items-center gap-2 rounded-md border border-brand-500/50 bg-brand-500/5 p-2">
-            <div className="relative w-12 h-12 rounded overflow-hidden border bg-muted shrink-0">
-              <Image
-                src={referenceImageUrl}
-                alt="Reference"
-                fill
-                sizes="48px"
-                className="object-cover"
-                unoptimized
-              />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium truncate">Reference selected</div>
-              <div className="text-[10px] text-muted-foreground">
-                Tell the AI what to do with it in the prompt below.
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setReferenceImageUrl(null)}
-              className="p-1 rounded hover:bg-muted text-muted-foreground"
-              title="Remove reference image"
-              aria-label="Remove reference image"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setIsPickerOpen(true)}
-            className="w-full flex items-center gap-2 rounded-md border border-dashed border-border/80 hover:border-brand-500/50 hover:bg-muted/30 transition-colors p-3 text-left"
-          >
-            <div className="w-10 h-10 rounded bg-muted/60 flex items-center justify-center shrink-0">
-              <ImageIcon className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium">Pick a reference image</div>
-              <div className="text-[10px] text-muted-foreground">
-                Library or upload — AI will swap/blend it into the design
-              </div>
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-          </button>
-        )}
-      </div>
-
       {/* Preset chips */}
       <div className="space-y-2">
         <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
@@ -376,13 +295,9 @@ export function AiPanel() {
           value={improveInstruction}
           onChange={(e) => setImproveInstruction(e.target.value)}
           placeholder={
-            referenceImageUrl
-              ? effectiveRegion
-                ? "e.g. Replace the photo in the pinpointed area with the reference — keep lighting and angle natural"
-                : "e.g. Use the reference image to replace the main photo in this design"
-              : effectiveRegion
-                ? "Describe what to change in the pinpointed area…"
-                : "Describe how to improve your design…"
+            effectiveRegion
+              ? "Describe what to change in the pinpointed area…"
+              : "Describe how to improve your design…"
           }
           className="w-full flex-1 min-h-[140px] p-3 text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 bg-background leading-relaxed"
         />
@@ -405,18 +320,6 @@ export function AiPanel() {
         </p>
       </div>
 
-      {/* Shared media picker — Library tab + Upload tab built in. Single
-          select: one reference image at a time gets sent to the AI. */}
-      <MediaLibraryPicker
-        open={isPickerOpen}
-        onClose={() => setIsPickerOpen(false)}
-        filterTypes={["image"]}
-        title="Pick a reference image"
-        onSelect={(url) => {
-          setReferenceImageUrl(url);
-          setIsPickerOpen(false);
-        }}
-      />
     </div>
   );
 }
