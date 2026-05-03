@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkExpiringDomains, processAutoRenewals, retryFailedRegistrations } from "@/lib/domains/renewal";
+import { syncRegistrantVerificationStatuses } from "@/lib/domains/registrant-verification";
 
 /**
  * GET /api/cron/domain-renewals
@@ -30,11 +31,18 @@ export async function GET(request: NextRequest) {
     const retries = await retryFailedRegistrations();
     console.log(`[Cron] Retries: ${retries.retried}/${retries.total} succeeded`);
 
+    // 4. Sync OpenSRS registrant email verification states
+    const registrantVerification = await syncRegistrantVerificationStatuses();
+    console.log(
+      `[Cron] Registrant verification: ${registrantVerification.checked}/${registrantVerification.total} checked, ${registrantVerification.actionRequired} need action, ${registrantVerification.failed} failed`
+    );
+
     return NextResponse.json({
       success: true,
       reminders,
       renewals,
       retries,
+      registrantVerification,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

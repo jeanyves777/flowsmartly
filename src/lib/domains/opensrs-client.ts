@@ -73,6 +73,23 @@ export interface DomainInfo {
   attributes: Record<string, unknown>;
 }
 
+export interface RegistrantVerificationStatus {
+  domain: string;
+  status: string;
+  verificationDeadline: string | null;
+  daysToSuspend: number | null;
+  emailBounced: boolean | null;
+  notesCount: number | null;
+  responseText: string;
+  attributes: Record<string, unknown>;
+}
+
+export interface SendRegistrantVerificationEmailResult {
+  domain: string;
+  success: boolean;
+  responseText: string;
+}
+
 export interface RenewDomainResult {
   orderId: string;
   domain: string;
@@ -531,6 +548,75 @@ export async function getDomainInfo(domain: string): Promise<DomainInfo> {
       attrs.whois_privacy_state === "enable" ||
       attrs.whois_privacy_state === "enabled",
     attributes: attrs,
+  };
+}
+
+/**
+ * Get OpenSRS registrant email verification status for a domain.
+ *
+ * This is the ICANN/Tucows verification that can place a registered domain on
+ * ClientHold if the registrant does not click the emailed confirmation link.
+ */
+export async function getRegistrantVerificationStatus(
+  domain: string
+): Promise<RegistrantVerificationStatus> {
+  const result = await sendRequest("get_registrant_verification_status", "domain", {
+    domain,
+  });
+
+  if (result.responseCode !== 200 && result.responseCode !== 1) {
+    throw new Error(
+      `Failed to get registrant verification status: ${result.responseText} (code: ${result.responseCode})`
+    );
+  }
+
+  const attrs = result.attributes;
+  const rawDays = attrs.days_to_suspend;
+  const rawNotes = attrs.notes_count;
+
+  return {
+    domain,
+    status: String(attrs.registrant_verification_status ?? "unknown"),
+    verificationDeadline: attrs.verification_deadline
+      ? String(attrs.verification_deadline)
+      : null,
+    daysToSuspend:
+      rawDays === undefined || rawDays === null || rawDays === ""
+        ? null
+        : Number(rawDays),
+    emailBounced:
+      attrs.email_bounced === undefined || attrs.email_bounced === null
+        ? null
+        : attrs.email_bounced === "1" || attrs.email_bounced === 1 || attrs.email_bounced === true,
+    notesCount:
+      rawNotes === undefined || rawNotes === null || rawNotes === ""
+        ? null
+        : Number(rawNotes),
+    responseText: result.responseText,
+    attributes: attrs,
+  };
+}
+
+/**
+ * Ask OpenSRS to send/resend the registrant verification email.
+ */
+export async function sendRegistrantVerificationEmail(
+  domain: string
+): Promise<SendRegistrantVerificationEmailResult> {
+  const result = await sendRequest("send_registrant_verification_email", "domain", {
+    domain,
+  });
+
+  if (result.responseCode !== 200 && result.responseCode !== 1) {
+    throw new Error(
+      `Failed to resend registrant verification email: ${result.responseText} (code: ${result.responseCode})`
+    );
+  }
+
+  return {
+    domain,
+    success: true,
+    responseText: result.responseText,
   };
 }
 

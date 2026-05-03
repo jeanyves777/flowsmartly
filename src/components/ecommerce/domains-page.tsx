@@ -22,6 +22,13 @@ interface StoreDomain {
   domainName: string;
   tld: string;
   registrarStatus: string;
+  registrarVerificationStatus?: string | null;
+  registrarVerificationDeadline?: string | null;
+  registrarVerificationDaysToSuspend?: number | null;
+  registrarVerificationEmailBounced?: boolean | null;
+  registrarVerificationLastCheckedAt?: string | null;
+  registrarVerificationLastSentAt?: string | null;
+  registrarVerificationError?: string | null;
   sslStatus: string;
   isPrimary: boolean;
   isConnected: boolean;
@@ -29,6 +36,9 @@ interface StoreDomain {
   autoRenew: boolean;
   whoisPrivacy: boolean;
   nameservers: string;
+  verificationStatus?: "pending" | "verified" | "failed";
+  verifiedAt?: string | null;
+  verificationError?: string | null;
   purchasePriceCents: number;
   renewalPriceCents: number;
   expiresAt: string | null;
@@ -45,6 +55,14 @@ interface DomainStatus {
   isPrimary: boolean;
   isConnected: boolean;
   expiresAt: string | null;
+  verification: {
+    status: "pending" | "verified" | "failed";
+    token: string | null;
+    record: { type: "TXT"; name: string; value: string } | null;
+    verifiedAt: string | null;
+    lastCheckedAt: string | null;
+    error: string | null;
+  } | null;
 }
 
 export function DomainsPageContent() {
@@ -60,8 +78,13 @@ export function DomainsPageContent() {
   const [purchasing, setPurchasing] = useState(false);
   const [busyDomain, setBusyDomain] = useState<string | null>(null);
   const [connectionResult, setConnectionResult] = useState<{
+    domainId: string;
     domainName: string;
     nameservers: string[];
+    verification: {
+      status: "pending" | "verified" | "failed";
+      record: { type: "TXT"; name: string; value: string };
+    };
   } | null>(null);
   const [paymentPending, setPaymentPending] = useState<{
     clientSecret: string;
@@ -75,6 +98,7 @@ export function DomainsPageContent() {
   const [togglingAutoRenew, setTogglingAutoRenew] = useState<string | null>(null);
   const [togglingWhois, setTogglingWhois] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
+  const [verifyingDomain, setVerifyingDomain] = useState<string | null>(null);
   const [domainInvoices, setDomainInvoices] = useState<any[]>([]);
 
   const loadDomains = useCallback(async () => {
@@ -252,10 +276,16 @@ export function DomainsPageContent() {
       });
       const data = await res.json();
       if (data.success) {
+        const verification = data.data?.verification || {
+          status: "pending",
+          record: { type: "TXT", name: `_flowsmartly.${domain}`, value: "" },
+        };
         setConnectDomain("");
         setConnectionResult({
+          domainId: data.data?.domainId || "",
           domainName: domain,
           nameservers: data.data?.nameservers || [],
+          verification,
         });
         loadDomains();
       } else {
@@ -265,6 +295,37 @@ export function DomainsPageContent() {
       toast({ title: "Failed to connect domain", variant: "destructive" });
     } finally {
       setConnecting(false);
+    }
+  };
+
+  const handleVerifyDomain = async (domainId: string) => {
+    setVerifyingDomain(domainId);
+    try {
+      const res = await fetch(`/api/domains/${domainId}/verify`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast({ title: "Domain ownership verified" });
+        if (connectionResult?.domainId === domainId) {
+          setConnectionResult({
+            ...connectionResult,
+            verification: {
+              ...connectionResult.verification,
+              status: "verified",
+            },
+          });
+        }
+        loadDomains();
+      } else {
+        toast({
+          title: data.error?.message || "Verification failed",
+          description: "Add the TXT record first, then try again after DNS updates.",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({ title: "Failed to verify domain", variant: "destructive" });
+    } finally {
+      setVerifyingDomain(null);
     }
   };
 
@@ -382,10 +443,17 @@ export function DomainsPageContent() {
     switch (status) {
       case "active":
       case "active_certificate":
+      case "verified":
         return "text-emerald-700 bg-emerald-100 dark:text-emerald-400 dark:bg-emerald-900/30";
       case "pending":
       case "pending_validation":
+      case "pending_verification":
+      case "verifying":
+      case "admin_reviewing":
         return "text-amber-700 bg-amber-100 dark:text-amber-400 dark:bg-amber-900/30";
+      case "failed":
+      case "suspended":
+        return "text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900/30";
       case "external":
         return "text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30";
       default:
@@ -397,9 +465,13 @@ export function DomainsPageContent() {
     switch (status) {
       case "active":
       case "active_certificate":
+      case "verified":
         return <CheckCircle2 className="h-3.5 w-3.5" />;
       case "pending":
       case "pending_validation":
+      case "pending_verification":
+      case "verifying":
+      case "admin_reviewing":
         return <Clock className="h-3.5 w-3.5" />;
       default:
         return <AlertCircle className="h-3.5 w-3.5" />;
@@ -534,7 +606,7 @@ export function DomainsPageContent() {
               <div>
                 <h2 className="text-lg font-semibold mb-1">Connect Your Domain</h2>
                 <p className="text-sm text-muted-foreground">
-                  Already own a domain? Connect it to your FlowSmartly store in 3 simple steps.
+                  Already own a domain? Verify ownership first, then connect it to your FlowSmartly store or website.
                 </p>
               </div>
 
@@ -546,25 +618,25 @@ export function DomainsPageContent() {
                     <h3 className="text-sm font-semibold">Enter Domain</h3>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Type the domain you own below (e.g. mybrand.com). We will set up DNS records automatically.
+                    Type the domain you own below (e.g. mybrand.com). We will prepare DNS and a verification record.
                   </p>
                 </div>
                 <div className="rounded-lg border bg-muted/30 p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="flex items-center justify-center h-6 w-6 rounded-full bg-brand-100 dark:bg-brand-950/30 text-brand-700 dark:text-brand-400 text-xs font-bold">2</span>
-                    <h3 className="text-sm font-semibold">Update Nameservers</h3>
+                    <h3 className="text-sm font-semibold">Add TXT Record</h3>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Log in to your registrar (GoDaddy, Namecheap, Google Domains, etc.) and replace nameservers with the ones we provide.
+                    Add the unique FlowSmartly TXT record at your current DNS provider to prove you own the domain.
                   </p>
                 </div>
                 <div className="rounded-lg border bg-muted/30 p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="flex items-center justify-center h-6 w-6 rounded-full bg-brand-100 dark:bg-brand-950/30 text-brand-700 dark:text-brand-400 text-xs font-bold">3</span>
-                    <h3 className="text-sm font-semibold">Wait for SSL</h3>
+                    <h3 className="text-sm font-semibold">Verify & Route</h3>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    DNS propagation takes up to 24-48 hours. SSL is provisioned automatically once nameservers are active.
+                    Click Verify after DNS updates. Then nameservers and SSL can finish without exposing the wrong account.
                   </p>
                 </div>
               </div>
@@ -584,40 +656,97 @@ export function DomainsPageContent() {
                   </Button>
                 </div>
               ) : (
-                /* Post-connection: Nameserver instructions */
+                /* Post-connection: Verification and nameserver instructions */
                 <div className="space-y-4">
-                  <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20 p-4">
+                  <div className={cn(
+                    "rounded-lg border p-4",
+                    connectionResult.verification.status === "verified"
+                      ? "border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20"
+                      : "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20"
+                  )}>
                     <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                      <h3 className="font-semibold text-emerald-800 dark:text-emerald-300">
-                        {connectionResult.domainName} connected!
+                      {connectionResult.verification.status === "verified" ? (
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                      ) : (
+                        <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                      )}
+                      <h3 className={cn(
+                        "font-semibold",
+                        connectionResult.verification.status === "verified"
+                          ? "text-emerald-800 dark:text-emerald-300"
+                          : "text-amber-800 dark:text-amber-300"
+                      )}>
+                        {connectionResult.domainName} {connectionResult.verification.status === "verified" ? "verified" : "needs verification"}
                       </h3>
                     </div>
-                    <p className="text-sm text-emerald-700 dark:text-emerald-400 mb-3">
-                      Now update your nameservers at your domain registrar to complete the setup.
+                    <p className={cn(
+                      "text-sm mb-3",
+                      connectionResult.verification.status === "verified"
+                        ? "text-emerald-700 dark:text-emerald-400"
+                        : "text-amber-800 dark:text-amber-300"
+                    )}>
+                      Add this TXT record at the DNS provider that currently manages your domain, then click Verify.
                     </p>
 
-                    {/* Nameserver list */}
                     <div className="rounded-md bg-white dark:bg-zinc-900 border p-3 space-y-2">
                       <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                        Set your nameservers to:
+                        Required ownership TXT record:
                       </p>
-                      {connectionResult.nameservers.map((ns, i) => (
-                        <div key={i} className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-2">
-                          <div className="flex items-center gap-2">
-                            <Server className="h-3.5 w-3.5 text-muted-foreground" />
-                            <code className="text-sm font-mono font-medium">{ns}</code>
-                          </div>
-                          <button
-                            onClick={() => copyToClipboard(ns)}
-                            className="text-muted-foreground hover:text-foreground transition-colors"
-                          >
+                      {[
+                        ["Type", connectionResult.verification.record.type],
+                        ["Name", connectionResult.verification.record.name],
+                        ["Value", connectionResult.verification.record.value],
+                      ].map(([label, value]) => (
+                        <div key={label} className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-2 gap-3">
+                          <span className="text-xs text-muted-foreground w-12 shrink-0">{label}</span>
+                          <code className="text-xs sm:text-sm font-mono font-medium truncate">{value}</code>
+                          <button onClick={() => copyToClipboard(value)} className="text-muted-foreground hover:text-foreground transition-colors">
                             <Copy className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       ))}
                     </div>
+
+                    <div className="mt-3">
+                      <Button
+                        size="sm"
+                        onClick={() => handleVerifyDomain(connectionResult.domainId)}
+                        disabled={verifyingDomain === connectionResult.domainId || connectionResult.verification.status === "verified"}
+                      >
+                        {verifyingDomain === connectionResult.domainId ? (
+                          <AISpinner className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <ShieldCheck className="h-4 w-4" />
+                        )}
+                        Verify domain
+                      </Button>
+                    </div>
                   </div>
+
+                  {connectionResult.nameservers.length > 0 && (
+                    <div className="rounded-lg border bg-card p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Server className="h-4 w-4 text-muted-foreground" />
+                        <h3 className="text-sm font-semibold">FlowSmartly nameservers</h3>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Use these if you want FlowSmartly to manage DNS and SSL for the domain automatically.
+                      </p>
+                      <div className="rounded-md bg-muted/30 border p-3 space-y-2">
+                        {connectionResult.nameservers.map((ns, i) => (
+                          <div key={i} className="flex items-center justify-between bg-background rounded-md px-3 py-2">
+                            <code className="text-sm font-mono font-medium">{ns}</code>
+                            <button
+                              onClick={() => copyToClipboard(ns)}
+                              className="text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Registrar-specific help */}
                   <div className="rounded-lg border bg-muted/30 p-4">
@@ -754,6 +883,18 @@ export function DomainsPageContent() {
                           )}
                           SSL: {domain.sslStatus}
                         </span>
+                        {domain.isConnected && (
+                          <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded", getStatusColor(domain.verificationStatus || "pending"))}>
+                            {getStatusIcon(domain.verificationStatus || "pending")}
+                            Verify: {domain.verificationStatus || "pending"}
+                          </span>
+                        )}
+                        {!domain.isConnected && domain.registrarVerificationStatus && domain.registrarVerificationStatus !== "verified" && (
+                          <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded", getStatusColor(domain.registrarVerificationStatus))}>
+                            {getStatusIcon(domain.registrarVerificationStatus)}
+                            Registrant: {domain.registrarVerificationStatus}
+                          </span>
+                        )}
                         {!domain.isConnected && domain.purchasePriceCents > 0 && (
                           <span className="inline-flex items-center gap-1">
                             <DollarSign className="h-3 w-3" />

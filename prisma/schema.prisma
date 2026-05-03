@@ -3963,6 +3963,13 @@ model StoreDomain {
   // OpenSRS
   registrarOrderId  String?            // OpenSRS order ID
   registrarStatus   String    @default("pending") // pending, active, expired, transferred
+  registrarVerificationStatus String?   // OpenSRS registrant email verification status
+  registrarVerificationDeadline DateTime?
+  registrarVerificationDaysToSuspend Int?
+  registrarVerificationEmailBounced Boolean?
+  registrarVerificationLastCheckedAt DateTime?
+  registrarVerificationLastSentAt DateTime?
+  registrarVerificationError String?
 
   // Cloudflare
   cloudflareZoneId  String?            // Cloudflare zone ID
@@ -3979,6 +3986,11 @@ model StoreDomain {
   autoRenew         Boolean   @default(true)
   nameservers       String    @default("[]")   // JSON array
   dnsRecords        String    @default("[]")   // JSON of configured records
+  verificationToken String?             // BYOD ownership token for _flowsmartly.<domain> TXT verification
+  verificationStatus String?            // pending, verified, failed
+  verifiedAt        DateTime?
+  lastVerificationCheckAt DateTime?
+  verificationError String?
 
   // Status
   isPrimary         Boolean   @default(false)  // Primary domain for this store

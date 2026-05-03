@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { purgeZoneCache } from "@/lib/domains/cloudflare-client";
+import { isDomainVerified } from "@/lib/domains/verification";
 
 /**
  * PATCH /api/domains/[id]/settings
@@ -32,6 +33,9 @@ export async function PATCH(
         domainName: true,
         cloudflareZoneId: true,
         registrarStatus: true,
+        isConnected: true,
+        verificationStatus: true,
+        verifiedAt: true,
       },
     });
 
@@ -54,6 +58,11 @@ export async function PATCH(
     let needsCachePurge = false;
     let actionMessage = "Settings updated";
     let storeToRebuild: string | null = null;
+    const verifiedForRouting = isDomainVerified({
+      isConnected: domain.isConnected,
+      verificationStatus: domain.verificationStatus,
+      verifiedAt: domain.verifiedAt,
+    });
 
     if (typeof body.autoRenew === "boolean") {
       updateData.autoRenew = body.autoRenew;
@@ -65,8 +74,21 @@ export async function PATCH(
 
     // Link to store
     if (body.linkToStore === true) {
+      if (!verifiedForRouting) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: "DOMAIN_NOT_VERIFIED",
+              message: "Verify domain ownership with the FlowSmartly TXT record before linking this domain.",
+            },
+          },
+          { status: 400 }
+        );
+      }
+
       // Verify the domain is actually registered (not still in pending/failed state)
-      if (domain.registrarStatus && !["active", "registered", "ok"].includes(domain.registrarStatus.toLowerCase())) {
+      if (domain.registrarStatus && !["active", "registered", "ok", "external"].includes(domain.registrarStatus.toLowerCase())) {
         return NextResponse.json(
           {
             success: false,
@@ -146,6 +168,19 @@ export async function PATCH(
     // Link to website
     let websiteToRebuild: string | null = null;
     if (typeof body.linkToWebsite === "string" && body.linkToWebsite) {
+      if (!verifiedForRouting) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: "DOMAIN_NOT_VERIFIED",
+              message: "Verify domain ownership with the FlowSmartly TXT record before linking this domain.",
+            },
+          },
+          { status: 400 }
+        );
+      }
+
       const website = await prisma.website.findFirst({
         where: { id: body.linkToWebsite, userId: session.userId, deletedAt: null },
         select: { id: true, slug: true, customDomain: true },

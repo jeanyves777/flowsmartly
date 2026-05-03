@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { getEffectiveVerificationStatus } from "@/lib/domains/verification";
 
 /**
  * GET /api/domains
@@ -35,6 +36,13 @@ export async function GET(_request: NextRequest) {
         tld: true,
         storeId: true,
         registrarStatus: true,
+        registrarVerificationStatus: true,
+        registrarVerificationDeadline: true,
+        registrarVerificationDaysToSuspend: true,
+        registrarVerificationEmailBounced: true,
+        registrarVerificationLastCheckedAt: true,
+        registrarVerificationLastSentAt: true,
+        registrarVerificationError: true,
         sslStatus: true,
         isFree: true,
         isPrimary: true,
@@ -42,6 +50,10 @@ export async function GET(_request: NextRequest) {
         autoRenew: true,
         whoisPrivacy: true,
         nameservers: true,
+        verificationStatus: true,
+        verifiedAt: true,
+        lastVerificationCheckAt: true,
+        verificationError: true,
         purchasePriceCents: true,
         renewalPriceCents: true,
         expiresAt: true,
@@ -52,7 +64,14 @@ export async function GET(_request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        domains,
+        domains: domains.map((domain) => ({
+          ...domain,
+          verificationStatus: getEffectiveVerificationStatus({
+            isConnected: domain.isConnected,
+            verificationStatus: domain.verificationStatus,
+            verifiedAt: domain.verifiedAt,
+          }),
+        })),
         isPro: store?.ecomPlan === "pro",
         freeDomainClaimed: store?.freeDomainClaimed ?? false,
       },

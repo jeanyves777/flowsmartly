@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Globe, ArrowLeft, Shield, ShieldCheck, Server, Plus, Trash2, RefreshCw, Copy, CheckCircle2, AlertCircle, Clock, Settings, Layers, Link as LinkIcon, Unlink, ToggleLeft, ToggleRight, ExternalLink, ShoppingBag, CreditCard, DollarSign, Calendar, Receipt, FileText } from "lucide-react";
+import { Globe, ArrowLeft, Shield, ShieldCheck, Server, Plus, Trash2, RefreshCw, Copy, CheckCircle2, AlertCircle, Clock, Settings, Layers, Link as LinkIcon, Unlink, ToggleLeft, ToggleRight, ExternalLink, ShoppingBag, CreditCard, DollarSign, Calendar, Receipt, FileText, Mail, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +24,24 @@ interface DomainDetail {
   isPrimary: boolean;
   isConnected: boolean;
   expiresAt: string | null;
+  verification: {
+    status: "pending" | "verified" | "failed";
+    token: string | null;
+    record: { type: "TXT"; name: string; value: string } | null;
+    verifiedAt: string | null;
+    lastCheckedAt: string | null;
+    error: string | null;
+  } | null;
+  registrantVerification: {
+    status: string | null;
+    deadline: string | null;
+    daysToSuspend: number | null;
+    emailBounced: boolean | null;
+    lastCheckedAt: string | null;
+    lastSentAt: string | null;
+    error: string | null;
+    actionRequired: boolean;
+  };
 }
 
 interface DomainSettings {
@@ -78,6 +96,9 @@ export default function DomainDetailPage() {
   const [invoices, setInvoices] = useState<DomainInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [checkingRegistrantVerification, setCheckingRegistrantVerification] = useState(false);
+  const [resendingRegistrantVerification, setResendingRegistrantVerification] = useState(false);
 
   const loadDomain = useCallback(async () => {
     try {
@@ -183,6 +204,64 @@ export default function DomainDetailPage() {
     setRefreshing(false);
   };
 
+  const handleVerifyDomain = async () => {
+    setVerifying(true);
+    try {
+      const res = await fetch(`/api/domains/${id}/verify`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast({ title: "Domain ownership verified" });
+        await loadDomain();
+      } else {
+        toast({
+          title: data.error?.message || "Verification failed",
+          description: "Add the TXT record first, then try again after DNS updates.",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({ title: "Failed to verify domain", variant: "destructive" });
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleCheckRegistrantVerification = async () => {
+    setCheckingRegistrantVerification(true);
+    try {
+      const res = await fetch(`/api/domains/${id}/registrant-verification`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast({ title: "Registrant verification status updated" });
+        await loadDomain();
+      } else {
+        toast({ title: data.error?.message || "Status check failed", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to check registrant verification", variant: "destructive" });
+    } finally {
+      setCheckingRegistrantVerification(false);
+    }
+  };
+
+  const handleResendRegistrantVerification = async () => {
+    setResendingRegistrantVerification(true);
+    try {
+      const res = await fetch(`/api/domains/${id}/registrant-verification`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast({ title: "Registrant verification email resent" });
+        await loadDomain();
+      } else {
+        toast({ title: data.error?.message || "Resend failed", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to resend registrant verification email", variant: "destructive" });
+    } finally {
+      setResendingRegistrantVerification(false);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: "Copied to clipboard" });
@@ -259,6 +338,12 @@ export default function DomainDetailPage() {
         <OverviewTab
           domain={domain}
           copyToClipboard={copyToClipboard}
+          onVerify={handleVerifyDomain}
+          verifying={verifying}
+          onCheckRegistrantVerification={handleCheckRegistrantVerification}
+          onResendRegistrantVerification={handleResendRegistrantVerification}
+          checkingRegistrantVerification={checkingRegistrantVerification}
+          resendingRegistrantVerification={resendingRegistrantVerification}
         />
       )}
       {tab === "dns" && (
@@ -295,13 +380,25 @@ export default function DomainDetailPage() {
 function OverviewTab({
   domain,
   copyToClipboard,
+  onVerify,
+  verifying,
+  onCheckRegistrantVerification,
+  onResendRegistrantVerification,
+  checkingRegistrantVerification,
+  resendingRegistrantVerification,
 }: {
   domain: DomainDetail;
   copyToClipboard: (text: string) => void;
+  onVerify: () => void;
+  verifying: boolean;
+  onCheckRegistrantVerification: () => void;
+  onResendRegistrantVerification: () => void;
+  checkingRegistrantVerification: boolean;
+  resendingRegistrantVerification: boolean;
 }) {
   const getStatusBadge = (status: string) => {
-    const isActive = status === "active" || status === "active_certificate";
-    const isPending = status === "pending" || status === "pending_validation" || status === "pending_registration";
+    const isActive = status === "active" || status === "active_certificate" || status === "verified";
+    const isPending = status === "pending" || status === "pending_validation" || status === "pending_registration" || status === "verifying" || status === "admin_reviewing";
     return (
       <span
         className={cn(
@@ -316,6 +413,12 @@ function OverviewTab({
       </span>
     );
   };
+
+  const registrantStatus = domain.registrantVerification?.status || "unknown";
+  const showRegistrantVerification =
+    !domain.isConnected &&
+    domain.registrarStatus !== "external" &&
+    registrantStatus !== "verified";
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
@@ -379,6 +482,121 @@ function OverviewTab({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {domain.verification && (
+        <div className="rounded-xl border bg-card p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold">Ownership Verification</h3>
+                {getStatusBadge(domain.verification.status)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                External domains must prove ownership before FlowSmartly routes live traffic.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={onVerify}
+              disabled={verifying || domain.verification.status === "verified"}
+            >
+              {verifying ? <AISpinner className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Verify
+            </Button>
+          </div>
+
+          {domain.verification.record && (
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                Required TXT record
+              </p>
+              {[
+                ["Type", domain.verification.record.type],
+                ["Name", domain.verification.record.name],
+                ["Value", domain.verification.record.value],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between gap-3 bg-background rounded-md px-3 py-2">
+                  <span className="text-xs text-muted-foreground w-12 shrink-0">{label}</span>
+                  <code className="text-xs sm:text-sm font-mono truncate">{value}</code>
+                  <button onClick={() => copyToClipboard(value)} className="text-muted-foreground hover:text-foreground transition-colors">
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {domain.verification.status !== "verified" && (
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3 text-sm text-amber-800 dark:text-amber-300">
+              Add the TXT record above wherever this domain's DNS is currently hosted, then click Verify. Linking and primary-domain routing stay locked until this passes.
+            </div>
+          )}
+        </div>
+      )}
+
+      {showRegistrantVerification && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/20 p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-amber-600" />
+                <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                  Registrant Email Verification
+                </h3>
+                {getStatusBadge(registrantStatus)}
+              </div>
+              <p className="text-sm text-amber-800 dark:text-amber-300 mt-2">
+                OpenSRS requires the registered name holder to click the verification email. If this is not completed, the domain can be suspended and DNS may stop resolving.
+              </p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onCheckRegistrantVerification}
+                disabled={checkingRegistrantVerification || resendingRegistrantVerification}
+              >
+                {checkingRegistrantVerification ? <AISpinner className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Check
+              </Button>
+              <Button
+                size="sm"
+                onClick={onResendRegistrantVerification}
+                disabled={checkingRegistrantVerification || resendingRegistrantVerification}
+              >
+                {resendingRegistrantVerification ? <AISpinner className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Resend
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            {domain.registrantVerification?.deadline && (
+              <div className="rounded-lg bg-background/80 border px-3 py-2">
+                <p className="text-muted-foreground">Deadline</p>
+                <p className="font-medium">{new Date(domain.registrantVerification.deadline).toLocaleDateString()}</p>
+              </div>
+            )}
+            {domain.registrantVerification?.daysToSuspend !== null && domain.registrantVerification?.daysToSuspend !== undefined && (
+              <div className="rounded-lg bg-background/80 border px-3 py-2">
+                <p className="text-muted-foreground">Days to suspend</p>
+                <p className="font-medium">{domain.registrantVerification.daysToSuspend}</p>
+              </div>
+            )}
+            {domain.registrantVerification?.emailBounced !== null && domain.registrantVerification?.emailBounced !== undefined && (
+              <div className="rounded-lg bg-background/80 border px-3 py-2">
+                <p className="text-muted-foreground">Email bounced</p>
+                <p className="font-medium">{domain.registrantVerification.emailBounced ? "Yes" : "No"}</p>
+              </div>
+            )}
+          </div>
+
+          <p className="text-xs text-amber-800 dark:text-amber-300">
+            After resending, the registrant must open the OpenSRS/Tucows email and confirm the contact details. The FlowSmartly button only resends and checks status.
+          </p>
         </div>
       )}
 

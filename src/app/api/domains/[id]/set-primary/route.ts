@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { setPrimaryDomain } from "@/lib/domains/manager";
+import { isDomainVerified } from "@/lib/domains/verification";
 
 /**
  * POST /api/domains/[id]/set-primary
@@ -25,7 +26,15 @@ export async function POST(
     // Verify ownership
     const domain = await prisma.storeDomain.findUnique({
       where: { id },
-      select: { id: true, userId: true, domainName: true, isPrimary: true },
+      select: {
+        id: true,
+        userId: true,
+        domainName: true,
+        isPrimary: true,
+        isConnected: true,
+        verificationStatus: true,
+        verifiedAt: true,
+      },
     });
 
     if (!domain) {
@@ -47,6 +56,23 @@ export async function POST(
         success: true,
         data: { message: `${domain.domainName} is already the primary domain` },
       });
+    }
+
+    if (!isDomainVerified({
+      isConnected: domain.isConnected,
+      verificationStatus: domain.verificationStatus,
+      verifiedAt: domain.verifiedAt,
+    })) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "DOMAIN_NOT_VERIFIED",
+            message: "Verify domain ownership with the FlowSmartly TXT record before setting it as primary.",
+          },
+        },
+        { status: 400 }
+      );
     }
 
     await setPrimaryDomain(id);

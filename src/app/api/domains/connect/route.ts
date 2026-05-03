@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
       data: {
         domainId: result.domainId,
         nameservers: result.nameservers,
+        verification: result.verification,
         instructions: result.instructions,
       },
     });

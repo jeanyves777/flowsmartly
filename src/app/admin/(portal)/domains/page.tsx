@@ -9,8 +9,10 @@ import {
   ChevronRight,
   CheckCircle2,
   Clock,
+  AlertCircle,
   Link2,
   Store,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +27,13 @@ interface DomainItem {
   type: string;
   registrarStatus?: string;
   registrarOrderId?: string;
+  registrarVerificationStatus?: string | null;
+  registrarVerificationDeadline?: string | null;
+  registrarVerificationDaysToSuspend?: number | null;
+  registrarVerificationEmailBounced?: boolean | null;
+  registrarVerificationLastCheckedAt?: string | null;
+  registrarVerificationLastSentAt?: string | null;
+  registrarVerificationError?: string | null;
   sslStatus?: string;
   isPrimary?: boolean;
   isConnected?: boolean;
@@ -44,6 +53,7 @@ export default function AdminDomainsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [domainAction, setDomainAction] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -72,6 +82,39 @@ export default function AdminDomainsPage() {
     if (s === "active") return <Badge className="bg-green-500/10 text-green-500 border-green-500/20"><CheckCircle2 className="w-3 h-3 mr-1" />Active</Badge>;
     if (s === "pending") return <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
     return <Badge variant="secondary">{s}</Badge>;
+  };
+
+  const getVerificationBadge = (domain: DomainItem) => {
+    const s = domain.registrarVerificationStatus || (domain.isConnected ? "external" : "unknown");
+    if (s === "verified" || s === "external") {
+      return <Badge className="bg-green-500/10 text-green-500 border-green-500/20"><CheckCircle2 className="w-3 h-3 mr-1" />{s}</Badge>;
+    }
+    if (s === "pending" || s === "verifying" || s === "admin_reviewing") {
+      return <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20"><Clock className="w-3 h-3 mr-1" />{s}</Badge>;
+    }
+    if (s === "suspended") {
+      return <Badge className="bg-red-500/10 text-red-500 border-red-500/20"><AlertCircle className="w-3 h-3 mr-1" />Suspended</Badge>;
+    }
+    return <Badge variant="secondary">{s}</Badge>;
+  };
+
+  const runRegistrantVerificationAction = async (domainId: string, action: "check" | "resend") => {
+    try {
+      setDomainAction(`${action}:${domainId}`);
+      const res = await fetch(`/api/admin/domains/${domainId}/registrant-verification`, {
+        method: action === "resend" ? "POST" : "GET",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Registrant verification action failed");
+      }
+      await fetchData();
+    } catch (error) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : "Registrant verification action failed");
+    } finally {
+      setDomainAction(null);
+    }
   };
 
   return (
@@ -122,6 +165,7 @@ export default function AdminDomainsPage() {
                     <th className="text-left p-3 font-medium">Owner</th>
                     <th className="text-left p-3 font-medium">Linked To</th>
                     <th className="text-left p-3 font-medium">Status</th>
+                    <th className="text-left p-3 font-medium">Verification</th>
                     <th className="text-left p-3 font-medium">Created</th>
                   </tr>
                 </thead>
@@ -138,6 +182,36 @@ export default function AdminDomainsPage() {
                         {d.store && <p className="text-xs"><Store className="w-3 h-3 inline mr-1" />{d.store.name}</p>}
                       </td>
                       <td className="p-3">{getStatusBadge(d)}</td>
+                      <td className="p-3">
+                        <div className="space-y-2">
+                          {getVerificationBadge(d)}
+                          {tab === "store" && !d.isConnected && d.registrarVerificationStatus !== "verified" && (
+                            <div className="flex gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                disabled={domainAction !== null}
+                                onClick={() => runRegistrantVerificationAction(d.id, "check")}
+                              >
+                                {domainAction === `check:${d.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                disabled={domainAction !== null}
+                                onClick={() => runRegistrantVerificationAction(d.id, "resend")}
+                              >
+                                {domainAction === `resend:${d.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                              </Button>
+                            </div>
+                          )}
+                          {d.registrarVerificationDaysToSuspend !== null && d.registrarVerificationDaysToSuspend !== undefined && (
+                            <p className="text-[11px] text-muted-foreground">{d.registrarVerificationDaysToSuspend} days to suspend</p>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-3 text-xs text-muted-foreground">{new Date(d.createdAt).toLocaleDateString()}</td>
                     </tr>
                   ))}

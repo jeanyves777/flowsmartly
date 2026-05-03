@@ -6,6 +6,12 @@ import { searchDomain, registerDomain, getDomainInfo, setNameservers, isAvailabl
 import { searchDomainsRdap } from "./rdap-client";
 import { createZone, configureStoreDns, configureZoneSecurity, getZone, getSslStatus, deleteZone } from "./cloudflare-client";
 import { DOMAIN_PRICING, SUPPORTED_TLDS, FREE_DOMAIN_TLDS, isFreeDomainEligible } from "./pricing";
+import {
+  createDomainVerificationToken,
+  getDomainVerificationRecord,
+  getEffectiveVerificationStatus,
+  isDomainVerified,
+} from "./verification";
 
 // ── Types ──
 
@@ -49,6 +55,14 @@ export interface ConnectDomainParams {
 export interface ConnectDomainResult {
   domainId: string;
   nameservers: string[];
+  verification: {
+    status: "pending" | "verified" | "failed";
+    record: {
+      type: "TXT";
+      name: string;
+      value: string;
+    };
+  };
   instructions: string;
 }
 
@@ -62,6 +76,28 @@ export interface DomainStatusResult {
   isPrimary: boolean;
   isConnected: boolean;
   expiresAt: Date | null;
+  verification: {
+    status: "pending" | "verified" | "failed";
+    token: string | null;
+    record: {
+      type: "TXT";
+      name: string;
+      value: string;
+    } | null;
+    verifiedAt: Date | null;
+    lastCheckedAt: Date | null;
+    error: string | null;
+  } | null;
+  registrantVerification: {
+    status: string | null;
+    deadline: Date | null;
+    daysToSuspend: number | null;
+    emailBounced: boolean | null;
+    lastCheckedAt: Date | null;
+    lastSentAt: Date | null;
+    error: string | null;
+    actionRequired: boolean;
+  };
 }
 
 // ── Helpers ──
@@ -309,6 +345,8 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
       autoRenew: true,
       nameservers: JSON.stringify(cfNameservers),
       dnsRecords: JSON.stringify(dnsRecordIds),
+      verificationStatus: "verified",
+      verifiedAt: new Date(),
       isPrimary: isFirstDomain,
       isConnected: false,
       expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
@@ -351,6 +389,8 @@ export async function connectExistingDomain(
   params: ConnectDomainParams
 ): Promise<ConnectDomainResult> {
   const { storeId, userId, domain } = params;
+  const verificationToken = createDomainVerificationToken();
+  const verificationRecord = getDomainVerificationRecord(domain, verificationToken);
 
   // Extract TLD from domain
   const parts = domain.split(".");
@@ -359,6 +399,7 @@ export async function connectExistingDomain(
   // Step 1: Create Cloudflare zone
   let cloudflareZoneId: string | null = null;
   let nameservers: string[] = [];
+  let dnsRecordIds: string[] = [];
 
   try {
     const zone = await createZone(domain);
@@ -368,7 +409,10 @@ export async function connectExistingDomain(
 
       // Step 2: Configure DNS records
       try {
-        await configureStoreDns(zone.zoneId, domain);
+        const recordIds = await configureStoreDns(zone.zoneId, domain);
+        if (recordIds) {
+          dnsRecordIds = recordIds;
+        }
       } catch (dnsError) {
         console.error("DNS configuration failed for BYOD domain:", dnsError);
       }
@@ -407,7 +451,12 @@ export async function connectExistingDomain(
       whoisPrivacy: false,
       autoRenew: false,
       nameservers: JSON.stringify(nameservers),
-      dnsRecords: "[]",
+      dnsRecords: JSON.stringify(dnsRecordIds),
+      verificationToken,
+      verificationStatus: "pending",
+      verifiedAt: null,
+      lastVerificationCheckAt: null,
+      verificationError: null,
       isPrimary: false,
       isConnected: true,
       expiresAt: null,
@@ -416,22 +465,32 @@ export async function connectExistingDomain(
 
   // Step 4: Build instructions
   const instructions = [
-    `To connect ${domain} to your FlowSmartly store, update your domain's nameservers at your current registrar:`,
+    `To connect ${domain} to FlowSmartly, prove ownership by adding this TXT record at your current DNS provider:`,
+    "",
+    `  Type: ${verificationRecord.type}`,
+    `  Name: ${verificationRecord.name}`,
+    `  Value: ${verificationRecord.value}`,
+    "",
+    "Then update your domain's nameservers at your current registrar if you want FlowSmartly to manage DNS automatically:",
     "",
     ...nameservers.map((ns, i) => `  Nameserver ${i + 1}: ${ns}`),
     "",
     "Steps:",
-    "1. Log in to the registrar where you purchased this domain (e.g., GoDaddy, Namecheap, Google Domains)",
-    "2. Find the DNS or Nameserver settings for this domain",
-    "3. Replace the existing nameservers with the ones listed above",
-    "4. Save your changes",
+    "1. Log in to the DNS provider that currently manages this domain",
+    "2. Add the TXT record shown above",
+    "3. Click Verify in FlowSmartly",
+    "4. If you want FlowSmartly-managed DNS, replace the existing nameservers with the ones listed above",
     "",
-    "Note: DNS propagation can take up to 24-48 hours. SSL will be automatically provisioned once nameservers are active.",
+    "Note: DNS propagation can take a few minutes, and nameserver changes can take up to 24-48 hours. FlowSmartly will not route traffic for this domain until ownership is verified.",
   ].join("\n");
 
   return {
     domainId: storeDomain.id,
     nameservers,
+    verification: {
+      status: "pending",
+      record: verificationRecord,
+    },
     instructions,
   };
 }
@@ -453,11 +512,34 @@ export async function getDomainStatus(
   let cloudflareStatus: string | null = null;
   let sslStatus = storeDomain.sslStatus;
   let nameservers: string[] = [];
+  let verificationToken = storeDomain.verificationToken;
+  let verificationStatus = getEffectiveVerificationStatus({
+    isConnected: storeDomain.isConnected,
+    verificationStatus: storeDomain.verificationStatus,
+    verifiedAt: storeDomain.verifiedAt,
+  });
 
   try {
     nameservers = JSON.parse(storeDomain.nameservers);
   } catch {
     nameservers = [];
+  }
+
+  if (storeDomain.isConnected && !verificationToken) {
+    verificationToken = createDomainVerificationToken();
+    verificationStatus = "pending";
+    try {
+      await prisma.storeDomain.update({
+        where: { id: domainId },
+        data: {
+          verificationToken,
+          verificationStatus: "pending",
+          verificationError: null,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to create domain verification token:", error);
+    }
   }
 
   // Check Cloudflare zone status if we have a zone ID
@@ -510,6 +592,30 @@ export async function getDomainStatus(
     isPrimary: storeDomain.isPrimary,
     isConnected: storeDomain.isConnected,
     expiresAt: storeDomain.expiresAt,
+    verification: storeDomain.isConnected
+      ? {
+          status: verificationStatus,
+          token: verificationToken,
+          record: verificationToken
+            ? getDomainVerificationRecord(storeDomain.domainName, verificationToken)
+            : null,
+          verifiedAt: storeDomain.verifiedAt,
+          lastCheckedAt: storeDomain.lastVerificationCheckAt,
+          error: storeDomain.verificationError,
+        }
+      : null,
+    registrantVerification: {
+      status: storeDomain.registrarVerificationStatus,
+      deadline: storeDomain.registrarVerificationDeadline,
+      daysToSuspend: storeDomain.registrarVerificationDaysToSuspend,
+      emailBounced: storeDomain.registrarVerificationEmailBounced,
+      lastCheckedAt: storeDomain.registrarVerificationLastCheckedAt,
+      lastSentAt: storeDomain.registrarVerificationLastSentAt,
+      error: storeDomain.registrarVerificationError,
+      actionRequired: ["pending", "verifying", "suspended", "admin_reviewing"].includes(
+        storeDomain.registrarVerificationStatus || ""
+      ),
+    },
   };
 }
 
@@ -603,6 +709,14 @@ export async function setPrimaryDomain(domainId: string): Promise<void> {
 
   if (storeDomain.isPrimary) {
     return; // Already primary, nothing to do
+  }
+
+  if (!isDomainVerified({
+    isConnected: storeDomain.isConnected,
+    verificationStatus: storeDomain.verificationStatus,
+    verifiedAt: storeDomain.verifiedAt,
+  })) {
+    throw new Error(`Verify ${storeDomain.domainName} before setting it as primary`);
   }
 
   try {

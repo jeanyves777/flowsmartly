@@ -200,7 +200,12 @@ export async function regenerateAndReload(): Promise<void> {
     prisma.storeDomain.findMany({
       where: {
         storeId: { not: null },
-        registrarStatus: { in: ["active", "registered", "ok"] },
+        registrarStatus: { in: ["active", "registered", "ok", "external"] },
+        OR: [
+          { isConnected: false },
+          { verificationStatus: "verified" },
+          { verifiedAt: { not: null } },
+        ],
       },
       select: { domainName: true, storeId: true },
     }),

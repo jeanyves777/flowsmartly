@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { isDomainVerified } from "@/lib/domains/verification";
 
 /**
  * GET /api/domains/resolve?domain=mybrand.com[&forceStore=1]
@@ -30,6 +31,9 @@ export async function GET(request: NextRequest) {
       storeId: true,
       isPrimary: true,
       registrarStatus: true,
+      isConnected: true,
+      verificationStatus: true,
+      verifiedAt: true,
       userId: true,
       store: {
         select: {
@@ -41,6 +45,14 @@ export async function GET(request: NextRequest) {
       },
     },
   });
+
+  if (storeDomain && !isDomainVerified({
+    isConnected: storeDomain.isConnected,
+    verificationStatus: storeDomain.verificationStatus,
+    verifiedAt: storeDomain.verifiedAt,
+  })) {
+    return NextResponse.json({ error: "Domain ownership is not verified" }, { status: 404 });
+  }
 
   // If forceStore (shop.domain.com), look for a store linked to this domain's owner
   if (forceStore) {
