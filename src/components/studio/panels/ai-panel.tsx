@@ -75,7 +75,7 @@ export function AiPanel() {
   const [improveInstruction, setImproveInstruction] = useState("");
   const [editMode, setEditMode] = useState<AiEditMode>("improve");
   const [replacementReferenceMode, setReplacementReferenceMode] =
-    useState<ReplacementReferenceMode>("adapt");
+    useState<ReplacementReferenceMode>("exact");
   const [replacementReferenceUrls, setReplacementReferenceUrls] = useState<string[]>([]);
 
   useEffect(() => {
@@ -285,7 +285,12 @@ export function AiPanel() {
           </div>
           <MediaUploader
             value={replacementReferenceUrls}
-            onChange={setReplacementReferenceUrls}
+            onChange={(urls) => {
+              if (urls.length > 0 && replacementReferenceUrls.length === 0 && replacementReferenceMode === "adapt") {
+                setReplacementReferenceMode("exact");
+              }
+              setReplacementReferenceUrls(urls);
+            }}
             maxFiles={1}
             accept="image/png,image/jpeg,image/jpg,image/webp"
             filterTypes={["image"]}

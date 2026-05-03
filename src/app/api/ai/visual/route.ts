@@ -36,6 +36,14 @@ function getGptImageSize(width: number, height: number): "1024x1024" | "1536x102
 }
 
 type EditReferenceMode = "adapt" | "exact" | "keep_face";
+type EditRegion = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  canvasW: number;
+  canvasH: number;
+};
 
 function normalizeEditReferenceMode(value: unknown): EditReferenceMode {
   if (value === "exact" || value === "keep_face") return value;
@@ -86,6 +94,172 @@ async function resolveImageToBuffer(urlOrPath: string): Promise<Buffer> {
     ? path.join(process.cwd(), "public", urlOrPath)
     : path.join(process.cwd(), "public", urlOrPath);
   return readFile(localPath);
+}
+
+function getExactReferencePlacement(
+  canvasW: number,
+  canvasH: number,
+  editRegion?: EditRegion | null,
+): { left: number; top: number; width: number; height: number; usedFallback: boolean } {
+  if (editRegion && editRegion.canvasW > 0 && editRegion.canvasH > 0 && editRegion.w > 0 && editRegion.h > 0) {
+    const coversMostCanvas =
+      editRegion.w / editRegion.canvasW > 0.85 &&
+      editRegion.h / editRegion.canvasH > 0.85;
+
+    if (!coversMostCanvas) {
+      const scaleX = canvasW / editRegion.canvasW;
+      const scaleY = canvasH / editRegion.canvasH;
+      const left = Math.max(0, Math.min(canvasW - 1, Math.round(editRegion.x * scaleX)));
+      const top = Math.max(0, Math.min(canvasH - 1, Math.round(editRegion.y * scaleY)));
+      const width = Math.max(1, Math.min(canvasW - left, Math.round(editRegion.w * scaleX)));
+      const height = Math.max(1, Math.min(canvasH - top, Math.round(editRegion.h * scaleY)));
+      return { left, top, width, height, usedFallback: false };
+    }
+  }
+
+  if (canvasH >= canvasW) {
+    const width = Math.round(canvasW * 0.62);
+    const height = Math.round(canvasH * 0.62);
+    return {
+      left: Math.round((canvasW - width) / 2),
+      top: Math.round(canvasH * 0.06),
+      width,
+      height,
+      usedFallback: true,
+    };
+  }
+
+  const width = Math.round(canvasW * 0.42);
+  const height = Math.round(canvasH * 0.78);
+  return {
+    left: Math.round(canvasW * 0.54),
+    top: Math.round(canvasH * 0.11),
+    width: Math.min(width, canvasW - Math.round(canvasW * 0.54)),
+    height,
+    usedFallback: true,
+  };
+}
+
+async function addSoftShadow(subjectBuffer: Buffer): Promise<Buffer> {
+  const meta = await sharp(subjectBuffer).metadata();
+  const width = meta.width || 1;
+  const height = meta.height || 1;
+  const alphaShadow = await sharp(subjectBuffer)
+    .extractChannel("alpha")
+    .blur(18)
+    .toColourspace("b-w")
+    .toBuffer();
+  const shadowLayer = await sharp({
+    create: {
+      width,
+      height,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite([{ input: alphaShadow, blend: "dest-in" }])
+    .ensureAlpha()
+    .png()
+    .toBuffer();
+  const dimmedShadow = await sharp(shadowLayer)
+    .composite([{
+      input: Buffer.from([0, 0, 0, Math.round(255 * 0.28)]),
+      raw: { width: 1, height: 1, channels: 4 },
+      tile: true,
+      blend: "dest-in",
+    }])
+    .png()
+    .toBuffer();
+
+  return sharp({
+    create: {
+      width: width + 28,
+      height: height + 28,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite([
+      { input: dimmedShadow, left: 14, top: 20 },
+      { input: subjectBuffer, left: 0, top: 0 },
+    ])
+    .png()
+    .toBuffer();
+}
+
+async function compositeExactReferenceIntoCanvas(
+  canvasBuffer: Buffer,
+  referenceBuffer: Buffer,
+  editRegion: EditRegion | null | undefined,
+  targetWidth: number,
+  targetHeight: number,
+): Promise<Buffer> {
+  const canvasMeta = await sharp(canvasBuffer).metadata();
+  const canvasW = canvasMeta.width || targetWidth;
+  const canvasH = canvasMeta.height || targetHeight;
+  const placement = getExactReferencePlacement(canvasW, canvasH, editRegion);
+
+  const cutoutBuffer = placement.usedFallback ? await stripReferenceBg(referenceBuffer) : null;
+  const subjectSrc = cutoutBuffer ?? referenceBuffer;
+  const useCutout = !!cutoutBuffer;
+  let subject = await sharp(subjectSrc)
+    .rotate()
+    .resize(placement.width, placement.height, {
+      fit: useCutout || placement.usedFallback ? "inside" : "cover",
+      position: "center",
+      withoutEnlargement: false,
+    })
+    .png()
+    .toBuffer();
+
+  if (useCutout) {
+    try {
+      subject = await addSoftShadow(subject);
+    } catch (err) {
+      console.warn("[Visual/Edit] Exact reference shadow failed:", err);
+    }
+  }
+
+  const subjectMeta = await sharp(subject).metadata();
+  const subjectW = subjectMeta.width || placement.width;
+  const subjectH = subjectMeta.height || placement.height;
+  const left = Math.max(0, Math.min(canvasW - subjectW, placement.left + Math.round((placement.width - subjectW) / 2)));
+  const top = Math.max(
+    0,
+    Math.min(
+      canvasH - subjectH,
+      useCutout || placement.usedFallback
+        ? placement.top + Math.max(0, placement.height - subjectH)
+        : placement.top + Math.round((placement.height - subjectH) / 2),
+    ),
+  );
+
+  const composites: sharp.OverlayOptions[] = [];
+  if (useCutout || placement.usedFallback) {
+    const cleanupPatch = await sharp(canvasBuffer)
+      .extract({
+        left: placement.left,
+        top: placement.top,
+        width: Math.min(placement.width, canvasW - placement.left),
+        height: Math.min(placement.height, canvasH - placement.top),
+      })
+      .blur(22)
+      .modulate({ brightness: 0.92, saturation: 0.85 })
+      .png()
+      .toBuffer();
+    composites.push({ input: cleanupPatch, left: placement.left, top: placement.top });
+  }
+  composites.push({ input: subject, left, top });
+
+  console.log(
+    `[Visual/Edit] Exact reference composited directly at (${left}, ${top}) ${subjectW}x${subjectH} ` +
+      `within ${placement.width}x${placement.height}${placement.usedFallback ? " fallback subject zone" : " pinpoint region"}`,
+  );
+
+  return sharp(canvasBuffer)
+    .composite(composites)
+    .png()
+    .toBuffer();
 }
 
 // POST /api/ai/visual
@@ -315,14 +489,7 @@ interface PipelineParams {
    * canvasW / canvasH let us convert to percentages so the prompt is robust
    * to provider rescaling.
    */
-  editRegion?: {
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-    canvasW: number;
-    canvasH: number;
-  } | null;
+  editRegion?: EditRegion | null;
   // Note: referenceImageUrl is declared once above (it's already used by
   // the GENERATE pipeline for hybrid template/reference compositing). When
   // present in EDIT mode, the call is auto-routed to a multi-image-capable
@@ -923,6 +1090,23 @@ RULES:
   const editReferenceBuffers = hasReplacementRefs
     ? await Promise.all(editReferenceImageUrls.slice(0, 4).map((url) => resolveImageToBuffer(url)))
     : [];
+
+  if (hasReplacementRefs && editReferenceMode === "exact") {
+    const exactCompositeBuffer = await compositeExactReferenceIntoCanvas(
+      editBuffer,
+      editReferenceBuffers[0],
+      editRegion,
+      width,
+      height,
+    );
+
+    return {
+      imageUrl: `data:image/png;base64,${exactCompositeBuffer.toString("base64")}`,
+      pipeline: "edit" as const,
+      model: "sharp-exact-reference-composite",
+      promptUsed: editPrompt,
+    };
+  }
 
   let base64: string | null;
   let model: string;
