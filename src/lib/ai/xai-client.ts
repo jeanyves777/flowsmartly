@@ -204,16 +204,24 @@ class XAIClient {
   }
 
   /**
-   * Multi-image edit (up to 5 input images per xAI docs). Same xAI edit
-   * endpoint as `editImage`, but uses the `image_urls` array field with
-   * plain URL strings — no base64 round-trip — exactly as xAI's docs and
-   * the fal.ai mirror schema document. Order matters: PRIMARY first
-   * (canvas being edited), then references.
+   * Multi-image generation with reference images (xAI's "image merging" /
+   * "subject swap" mode). Hits the GENERATIONS endpoint (NOT the edits
+   * endpoint), exactly mirroring xAI's official Python SDK example:
    *
-   * Use this when you need to give the model a reference image alongside
-   * the design (e.g. "swap the photo with this one"). The user-supplied
-   * prompt is what tells the model what to do — we don't add anything to
-   * it server-side.
+   *   client.image.sample(
+   *     prompt="...",
+   *     model="grok-imagine-image",
+   *     image_urls=["https://canvas.png", "https://reference.png"],
+   *     aspect_ratio="3:2",
+   *   )
+   *
+   * The first URL is the primary (the design canvas being edited), the
+   * rest are references the model uses for subjects, style, etc. Up to
+   * 5 URLs total per xAI docs. URLs can be HTTPS or data URIs.
+   *
+   * The /v1/images/edits endpoint with multiple inputs is the WRONG path
+   * for this use case — it produced junk in prod testing. The generations
+   * endpoint with image_urls is the documented multi-image pattern.
    */
   async editImageMulti(
     prompt: string,
@@ -241,7 +249,7 @@ class XAIClient {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const response = await fetch(XAI_EDITS_URL, {
+        const response = await fetch(XAI_GENERATIONS_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -259,7 +267,7 @@ class XAIClient {
 
         if (!response.ok) {
           const errBody = await response.text();
-          throw new Error(`xAI edit API error (${response.status}): ${errBody}`);
+          throw new Error(`xAI generations API error (${response.status}): ${errBody}`);
         }
 
         const data = await response.json();
@@ -275,7 +283,7 @@ class XAIClient {
       } catch (error) {
         lastError = error;
         console.error(
-          `[XAI] Multi-image edit error (attempt ${attempt + 1}/${maxRetries + 1}):`,
+          `[XAI] Multi-image generation error (attempt ${attempt + 1}/${maxRetries + 1}):`,
           error,
         );
         const errMsg = error instanceof Error ? error.message : String(error);
@@ -288,7 +296,7 @@ class XAIClient {
     }
 
     const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
-    throw new Error(`xAI multi-image edit failed: ${errMsg}`);
+    throw new Error(`xAI multi-image generation failed: ${errMsg}`);
   }
 }
 

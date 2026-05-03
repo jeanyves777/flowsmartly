@@ -804,11 +804,12 @@ Output a polished, print-ready ${params.category} background. The photo will be 
 async function runEditPipeline(params: PipelineParams) {
   const { prompt, width, height, provider, editImageUrl, editRegion, referenceImageUrl } = params;
 
-  // Reference-image swap is supported natively by both xAI and Gemini —
-  // xAI accepts up to 5 images via the `image_urls` array on /v1/images/edits,
-  // Gemini accepts N inline parts via generateContent. We DO NOT override
-  // the user's chosen provider here; whichever provider the panel selected
-  // (xAI by default for Improve) will handle the reference image directly.
+  // No provider override. xAI handles the reference-image flow natively
+  // by hitting the GENERATIONS endpoint with `image_urls: [...]` — the
+  // same pattern shown in xAI's official SDK example (image.sample()
+  // with image_urls). The previous attempt hit /v1/images/edits with the
+  // wrong field shape and produced junk; that's fixed in the xai branch
+  // below.
   console.log(`[Visual/Edit] Provider: ${provider}, instruction: "${prompt.slice(0, 80)}"`);
 
   // Optional pinpoint-region clause. Image-edit providers (xAI grok-imagine-image,
@@ -885,11 +886,12 @@ RULES:
         throw new Error("xAI provider is not configured.");
       }
       if (referenceImageUrl) {
-        // Same pattern as the normal single-image edit, just with two
-        // URLs instead of one: pass both through as plain HTTPS URL
-        // strings and let xAI fetch them. No base64 round-trip.
+        // Multi-image flow uses the GENERATIONS endpoint with image_urls,
+        // matching xAI's official Python SDK example for image merging /
+        // subject swap. The /v1/images/edits endpoint with two images
+        // produces junk for this use case (verified in prod testing).
         console.log(
-          `[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio} (multi-image: canvas + reference URLs)`,
+          `[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio} (multi-image generations: canvas + reference URLs)`,
         );
         base64 = await xaiClient.editImageMulti(
           editPrompt,
