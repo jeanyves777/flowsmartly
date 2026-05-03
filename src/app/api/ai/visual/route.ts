@@ -193,13 +193,14 @@ async function compositeExactReferenceIntoCanvas(
   editRegion: EditRegion | null | undefined,
   targetWidth: number,
   targetHeight: number,
+  referenceMode: EditReferenceMode,
 ): Promise<Buffer> {
   const canvasMeta = await sharp(canvasBuffer).metadata();
   const canvasW = canvasMeta.width || targetWidth;
   const canvasH = canvasMeta.height || targetHeight;
   const placement = getExactReferencePlacement(canvasW, canvasH, editRegion);
 
-  const cutoutBuffer = placement.usedFallback ? await stripReferenceBg(referenceBuffer) : null;
+  const cutoutBuffer = await stripReferenceBg(referenceBuffer);
   const subjectSrc = cutoutBuffer ?? referenceBuffer;
   const useCutout = !!cutoutBuffer;
   let subject = await sharp(subjectSrc)
@@ -252,7 +253,7 @@ async function compositeExactReferenceIntoCanvas(
   composites.push({ input: subject, left, top });
 
   console.log(
-    `[Visual/Edit] Exact reference composited directly at (${left}, ${top}) ${subjectW}x${subjectH} ` +
+    `[Visual/Edit] Reference anchored for ${referenceMode} mode at (${left}, ${top}) ${subjectW}x${subjectH} ` +
       `within ${placement.width}x${placement.height}${placement.usedFallback ? " fallback subject zone" : " pinpoint region"}`,
   );
 
@@ -260,6 +261,38 @@ async function compositeExactReferenceIntoCanvas(
     .composite(composites)
     .png()
     .toBuffer();
+}
+
+function buildAnchoredReferenceEditPrompt(
+  userPrompt: string,
+  editReferenceMode: EditReferenceMode,
+  editRegion?: EditRegion | null,
+): string {
+  const modeRules =
+    editReferenceMode === "exact"
+      ? `- Preserve the inserted uploaded subject's face, identity, pose, body, clothing, product shape, logos, markings, and distinctive details as much as possible.
+- Do not turn it into a different person/object. Only retouch what is necessary to make it look naturally printed into the design.`
+      : editReferenceMode === "keep_face"
+        ? `- Preserve the inserted uploaded person's face, head, hair, skin tone, expression, and recognizable identity.
+- You may redesign clothing/outfit/body styling to match the user's instruction, but the face and identity must remain from the uploaded image.`
+        : `- Use the inserted uploaded subject as the replacement source, not the old canvas subject.
+- You may redraw styling, lighting, clothing, edges, and color grade so it becomes part of the design, but it must clearly remain based on the uploaded image.`;
+
+  return `You are editing a graphic design canvas. The user's uploaded replacement image has ALREADY been anchored into the target area on Image 1.
+
+USER REPLACEMENT INSTRUCTION: ${userPrompt}
+
+CRITICAL ANCHORED-REFERENCE RULES:
+- The uploaded replacement subject is already visible in the target area. Use that inserted subject as the source for the replacement.
+- Do NOT restore, keep, or redraw the old person/object that was originally on the canvas.
+- Remove/paint over any remaining old subject pixels in the target area.
+- Make the inserted uploaded subject feel like part of the original design: blend edges, remove hard photo borders, remove pasted/sticker look, match lighting, shadows, contrast, scale, perspective, color grade, and background interaction.
+${modeRules}
+- Preserve all text, logos, ornaments, background, layout, and non-target design elements.
+- Do not add duplicate people or duplicate objects.
+- Maintain the same dimensions and aspect ratio.
+${editRegion ? "- Keep changes focused around the target area; avoid changing the rest of the flyer." : "- Keep the rest of the flyer unchanged except the replaced subject area."}
+- The result must look like a polished professional design, not a pasted photo.`;
 }
 
 // POST /api/ai/visual
@@ -1091,21 +1124,24 @@ RULES:
     ? await Promise.all(editReferenceImageUrls.slice(0, 4).map((url) => resolveImageToBuffer(url)))
     : [];
 
-  if (hasReplacementRefs && editReferenceMode === "exact") {
-    const exactCompositeBuffer = await compositeExactReferenceIntoCanvas(
+  let editBufferForProvider = editBuffer;
+  let editPromptForProvider = editPrompt;
+  let editReferenceBuffersForProvider = editReferenceBuffers;
+
+  if (hasReplacementRefs) {
+    editBufferForProvider = await compositeExactReferenceIntoCanvas(
       editBuffer,
       editReferenceBuffers[0],
       editRegion,
       width,
       height,
+      editReferenceMode,
     );
-
-    return {
-      imageUrl: `data:image/png;base64,${exactCompositeBuffer.toString("base64")}`,
-      pipeline: "edit" as const,
-      model: "sharp-exact-reference-composite",
-      promptUsed: editPrompt,
-    };
+    editPromptForProvider = buildAnchoredReferenceEditPrompt(prompt, editReferenceMode, editRegion);
+    // The reference is now visible in Image 1. Sending only the anchored canvas
+    // keeps the edit model focused on blending it instead of choosing between
+    // the old canvas subject and a separate second image.
+    editReferenceBuffersForProvider = [];
   }
 
   let base64: string | null;
@@ -1114,13 +1150,13 @@ RULES:
   switch (provider) {
     case "openai": {
       const gptSize = getGptImageSize(width, height);
-      console.log(`[Visual/Edit] OpenAI gpt-image-1 @ ${gptSize}${editReferenceBuffers.length ? ` (${editReferenceBuffers.length + 1} images)` : ""}`);
-      if (editReferenceBuffers.length > 0) {
+      console.log(`[Visual/Edit] OpenAI gpt-image-1 @ ${gptSize}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : hasReplacementRefs ? " (anchored reference blend)" : ""}`);
+      if (editReferenceBuffersForProvider.length > 0) {
         base64 = await openaiClient.editMultiImage(
-          editPrompt,
+          editPromptForProvider,
           [
-            { buffer: editBuffer, filename: "canvas.png", type: "image/png" },
-            ...editReferenceBuffers.map((buffer, index) => ({
+            { buffer: editBufferForProvider, filename: "canvas.png", type: "image/png" },
+            ...editReferenceBuffersForProvider.map((buffer, index) => ({
               buffer,
               filename: `replacement-reference-${index + 1}.png`,
               type: "image/png",
@@ -1129,7 +1165,7 @@ RULES:
           { size: gptSize, quality: "high" },
         );
       } else {
-        base64 = await openaiClient.editImage(editPrompt, editBuffer, {
+        base64 = await openaiClient.editImage(editPromptForProvider, editBufferForProvider, {
           size: gptSize,
           quality: "high",
         });
@@ -1140,22 +1176,22 @@ RULES:
 
     case "xai": {
       const aspectRatio = sizeToAspectRatio(width, height);
-      console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}${editReferenceBuffers.length ? ` (${editReferenceBuffers.length + 1} images)` : ""}`);
+      console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : hasReplacementRefs ? " (anchored reference blend)" : ""}`);
       if (!xaiClient.isAvailable()) {
         throw new Error("xAI provider is not configured.");
       }
-      const canvasBase64 = editBuffer.toString("base64");
-      if (editReferenceBuffers.length > 0) {
+      const canvasBase64 = editBufferForProvider.toString("base64");
+      if (editReferenceBuffersForProvider.length > 0) {
         base64 = await xaiClient.editImages(
-          editPrompt,
+          editPromptForProvider,
           [
             canvasBase64,
-            ...editReferenceBuffers.map((buffer) => buffer.toString("base64")),
+            ...editReferenceBuffersForProvider.map((buffer) => buffer.toString("base64")),
           ],
           { aspectRatio },
         );
       } else {
-        base64 = await xaiClient.editImage(editPrompt, canvasBase64, { aspectRatio });
+        base64 = await xaiClient.editImage(editPromptForProvider, canvasBase64, { aspectRatio });
       }
       model = "grok-imagine-image";
       break;
@@ -1166,8 +1202,8 @@ RULES:
       if (!geminiImageClient.isAvailable()) {
         throw new Error("Gemini provider is not configured.");
       }
-      const canvasBase64 = editBuffer.toString("base64");
-      base64 = await geminiImageClient.editImage(editPrompt, canvasBase64);
+      const canvasBase64 = editBufferForProvider.toString("base64");
+      base64 = await geminiImageClient.editImage(editPromptForProvider, canvasBase64);
       model = "gemini-2.5-flash";
       break;
     }
@@ -1187,7 +1223,7 @@ RULES:
     imageUrl: `data:image/png;base64,${finalBase64}`,
     pipeline: "edit" as const,
     model,
-    promptUsed: editPrompt,
+    promptUsed: editPromptForProvider,
   };
 }
 
