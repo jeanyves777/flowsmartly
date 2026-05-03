@@ -851,18 +851,71 @@ RULES:
 - Maintain the same dimensions and aspect ratio
 - The result must look like a professional design, not a rough edit`;
 
-  // Resolve the existing design image (canvas) to a buffer for the
-  // providers that need raw bytes (Gemini, OpenAI). For xAI we'll pass
-  // the URL directly when a reference image is present (same pattern the
-  // normal single-image edit uses — xAI fetches the URL itself).
-  const editBuffer = await resolveImageToBuffer(editImageUrl!);
+  // Resolve the existing design image (canvas) to a buffer.
+  let editBuffer = await resolveImageToBuffer(editImageUrl!);
 
-  // referenceImageUrl is already an HTTPS URL from /api/media (or the
-  // user's media library). For xAI multi-image we pass it through as-is
-  // — no base64 round-trip — so xAI handles it identically to the canvas
-  // URL in the single-image path. Just log for traceability.
+  // === REFERENCE-IMAGE COMPOSITE ===
+  // When the user picks a reference image, we composite it INTO the canvas
+  // buffer at the pinpoint region BEFORE handing off to any provider. The
+  // provider then sees a single image (the canvas with the new photo
+  // already pasted in roughly the right spot) and the existing single-image
+  // edit prompt does its job: smooth seams, blend lighting, keep all text
+  // and layout. No multi-image API gymnastics, no new prompt engineering —
+  // exactly what the user asked for ("image replacement on the actual
+  // design", same pattern as the working "change name to KOFFI" edit).
   if (referenceImageUrl) {
-    console.log(`[Visual/Edit] Reference image URL: ${referenceImageUrl.slice(0, 80)}...`);
+    try {
+      const refBuffer = await resolveImageToBuffer(referenceImageUrl);
+      const canvasMeta = await sharp(editBuffer).metadata();
+      const cw = canvasMeta.width || width;
+      const ch = canvasMeta.height || height;
+
+      // Pinpoint region in canvas pixels (clamped). If the user didn't
+      // pinpoint anything, we drop the reference into the centre at ~60%
+      // of the canvas so the AI has something visible to blend.
+      let rx: number;
+      let ry: number;
+      let rw: number;
+      let rh: number;
+      if (editRegion && editRegion.canvasW > 0 && editRegion.canvasH > 0) {
+        // Region was captured at canvasW × canvasH — rescale into the
+        // actual editBuffer dimensions in case the AI flow upscaled.
+        const sx = cw / editRegion.canvasW;
+        const sy = ch / editRegion.canvasH;
+        rx = Math.max(0, Math.round(editRegion.x * sx));
+        ry = Math.max(0, Math.round(editRegion.y * sy));
+        rw = Math.min(cw - rx, Math.round(editRegion.w * sx));
+        rh = Math.min(ch - ry, Math.round(editRegion.h * sy));
+      } else {
+        rw = Math.round(cw * 0.6);
+        rh = Math.round(ch * 0.6);
+        rx = Math.round((cw - rw) / 2);
+        ry = Math.round((ch - rh) / 2);
+      }
+
+      // Resize the reference to fit the region while preserving its aspect
+      // ratio (cover — fill the box, may crop). PNG so any transparency on
+      // the reference is preserved.
+      const refResized = await sharp(refBuffer)
+        .resize(rw, rh, { fit: "cover", position: "center" })
+        .png()
+        .toBuffer();
+
+      // Composite onto the canvas buffer. The result IS the new canvas
+      // buffer that gets sent to the provider — single image, same edit
+      // pipeline as before.
+      editBuffer = await sharp(editBuffer)
+        .composite([{ input: refResized, top: ry, left: rx }])
+        .png()
+        .toBuffer();
+
+      console.log(
+        `[Visual/Edit] Reference composited into canvas at (${rx}, ${ry}) ${rw}×${rh} — single-image edit will smooth/blend`,
+      );
+    } catch (err) {
+      console.error("[Visual/Edit] Reference image composite failed:", err);
+      throw new Error("Could not place the reference image into the design. Try a different image.");
+    }
   }
 
   let base64: string | null;
@@ -881,58 +934,35 @@ RULES:
     }
 
     case "xai": {
+      // Single-image edit path — works identically whether or not the user
+      // supplied a reference image, because the reference (if any) is
+      // already composited into editBuffer above. Same proven endpoint and
+      // payload shape as "change name to KOFFI".
       const aspectRatio = sizeToAspectRatio(width, height);
       if (!xaiClient.isAvailable()) {
         throw new Error("xAI provider is not configured.");
       }
-      if (referenceImageUrl) {
-        // Multi-image flow uses the GENERATIONS endpoint with image_urls,
-        // matching xAI's official Python SDK example for image merging /
-        // subject swap. The /v1/images/edits endpoint with two images
-        // produces junk for this use case (verified in prod testing).
-        console.log(
-          `[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio} (multi-image generations: canvas + reference URLs)`,
-        );
-        base64 = await xaiClient.editImageMulti(
-          editPrompt,
-          [editImageUrl!, referenceImageUrl],
-          { aspectRatio },
-        );
-      } else {
-        // Existing single-image path — exactly as it was. base64 data
-        // URI in image: { url, type }. Untouched.
-        console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}`);
-        const canvasBase64 = editBuffer.toString("base64");
-        base64 = await xaiClient.editImage(editPrompt, canvasBase64, { aspectRatio });
-      }
+      console.log(
+        `[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}${referenceImageUrl ? " (reference pre-composited)" : ""}`,
+      );
+      const canvasBase64 = editBuffer.toString("base64");
+      base64 = await xaiClient.editImage(editPrompt, canvasBase64, { aspectRatio });
       model = "grok-imagine-image";
       break;
     }
 
     case "gemini": {
+      // Reference image (if any) is already composited into editBuffer above,
+      // so Gemini gets a single-image edit just like xAI. No separate
+      // referenceImages needed.
       console.log(
-        `[Visual/Edit] Gemini gemini-2.5-flash-image${referenceImageUrl ? " (with reference image)" : ""}`,
+        `[Visual/Edit] Gemini gemini-2.5-flash-image${referenceImageUrl ? " (reference pre-composited)" : ""}`,
       );
       if (!geminiImageClient.isAvailable()) {
         throw new Error("Gemini provider is not configured.");
       }
       const canvasBase64 = editBuffer.toString("base64");
-      // Gemini takes inline image bytes — resolve the reference to base64
-      // here only when the user actually picked one. xAI uses URLs directly
-      // (the canvas branch above) so we don't pay for this round-trip there.
-      let refBase64: string | null = null;
-      if (referenceImageUrl) {
-        try {
-          const refBuffer = await resolveImageToBuffer(referenceImageUrl);
-          refBase64 = refBuffer.toString("base64");
-        } catch (err) {
-          console.error("[Visual/Edit] Failed to resolve reference image for Gemini:", err);
-          throw new Error("Could not load the reference image you picked. Try a different one.");
-        }
-      }
-      base64 = await geminiImageClient.editImage(editPrompt, canvasBase64, {
-        referenceImages: refBase64 ? [refBase64] : [],
-      });
+      base64 = await geminiImageClient.editImage(editPrompt, canvasBase64);
       model = "gemini-2.5-flash";
       break;
     }
