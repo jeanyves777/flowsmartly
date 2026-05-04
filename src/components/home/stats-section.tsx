@@ -53,7 +53,7 @@ function AnimatedStat({
   return (
     <div ref={ref} className="text-center">
       <motion.div
-        className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white"
+        className="text-2xl font-bold text-white sm:text-3xl lg:text-4xl"
         initial={{ opacity: 0, y: 10 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
@@ -77,9 +77,9 @@ function AnimatedStat({
 
 export function StatsSection() {
   return (
-    <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-brand-600 via-brand-500 to-accent-purple">
+    <section className="px-4 py-10 sm:px-6 sm:py-12 lg:px-8 bg-gradient-to-r from-brand-600 via-brand-500 to-accent-purple">
       <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
           {stats.map((stat) => (
             <AnimatedStat
               key={stat.label}

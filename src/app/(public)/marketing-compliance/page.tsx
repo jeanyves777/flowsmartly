@@ -149,17 +149,17 @@ function FeatureCard({ item }: { item: Feature }) {
 export default function MarketingCompliancePage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <section className="relative overflow-hidden border-b bg-[linear-gradient(180deg,rgba(236,253,245,0.9),rgba(255,255,255,1))] px-4 pt-24 pb-20 sm:px-6 sm:pt-32 sm:pb-24 lg:px-8 dark:bg-[linear-gradient(180deg,rgba(10,28,21,0.8),rgba(9,9,11,1))]">
-        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+      <section className="relative overflow-hidden border-b bg-[linear-gradient(180deg,rgba(236,253,245,0.9),rgba(255,255,255,1))] px-4 pb-14 pt-20 sm:px-6 sm:pb-16 sm:pt-24 lg:px-8 dark:bg-[linear-gradient(180deg,rgba(10,28,21,0.8),rgba(9,9,11,1))]">
+        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <div>
-            <div className="mb-6 inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-semibold shadow-sm">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-semibold shadow-sm">
               <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
               TCPA and CAN-SPAM ready
             </div>
-            <h1 className="max-w-4xl text-balance text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
+            <h1 className="max-w-4xl text-balance text-4xl font-bold tracking-tight sm:text-5xl lg:text-5xl">
               Consent-first marketing built into every campaign
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
+            <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
               FlowSmartly helps teams collect permission, respect opt-outs, and
               keep the audit trail visible across SMS and email marketing.
             </p>
@@ -174,7 +174,7 @@ export default function MarketingCompliancePage() {
                 <Link href="/privacy">Read privacy policy</Link>
               </Button>
             </div>
-            <div className="mt-10 hidden gap-3 sm:grid sm:grid-cols-3">
+            <div className="mt-8 hidden gap-3 sm:grid sm:grid-cols-3">
               {[
                 ["STOP", "instant SMS opt-out"],
                 ["Audit", "consent records"],
@@ -189,7 +189,7 @@ export default function MarketingCompliancePage() {
           </div>
 
           <div className="relative">
-            <div className="relative min-h-[430px] overflow-visible sm:min-h-[560px]">
+            <div className="relative min-h-[390px] overflow-visible sm:min-h-[500px]">
               <div className="absolute left-4 top-4 z-10 rounded-lg border bg-card/90 px-4 py-3 text-sm font-semibold shadow-sm">
                 Consent workflow approved
               </div>
@@ -222,7 +222,7 @@ export default function MarketingCompliancePage() {
         </div>
       </section>
 
-      <section className="px-4 py-20 sm:px-6 lg:px-8">
+      <section className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <SectionHeader
             eyebrow="Consent flows"
@@ -255,7 +255,7 @@ export default function MarketingCompliancePage() {
         </div>
       </section>
 
-      <section className="border-y bg-muted/35 px-4 py-20 sm:px-6 lg:px-8">
+      <section className="border-y bg-muted/35 px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <SectionHeader
             eyebrow="Lifecycle"
@@ -286,7 +286,7 @@ export default function MarketingCompliancePage() {
         </div>
       </section>
 
-      <section className="px-4 py-20 sm:px-6 lg:px-8">
+      <section className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <SectionHeader
             eyebrow="Safeguards"
@@ -301,7 +301,7 @@ export default function MarketingCompliancePage() {
         </div>
       </section>
 
-      <section className="border-y bg-muted/35 px-4 py-20 sm:px-6 lg:px-8">
+      <section className="border-y bg-muted/35 px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <SectionHeader
             eyebrow="Regulations"
@@ -321,7 +321,7 @@ export default function MarketingCompliancePage() {
         </div>
       </section>
 
-      <section className="px-4 py-20 sm:px-6 lg:px-8">
+      <section className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl rounded-lg border bg-[linear-gradient(135deg,rgba(16,185,129,0.14),rgba(14,165,233,0.12),rgba(255,255,255,0.7))] p-8 text-center shadow-sm sm:p-12 dark:bg-card">
           <ShieldCheck className="mx-auto h-10 w-10 text-emerald-600 dark:text-emerald-300" />
           <h2 className="mx-auto mt-5 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">

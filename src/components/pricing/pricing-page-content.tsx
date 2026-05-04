@@ -257,17 +257,17 @@ export function PricingPageContent() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <section className="relative overflow-hidden border-b bg-[linear-gradient(180deg,rgba(239,246,255,0.92),rgba(255,255,255,1))] px-4 pt-24 pb-20 sm:px-6 sm:pt-32 sm:pb-24 lg:px-8 dark:bg-[linear-gradient(180deg,rgba(11,18,32,1),rgba(9,9,11,1))]">
-        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+      <section className="relative overflow-hidden border-b bg-[linear-gradient(180deg,rgba(239,246,255,0.92),rgba(255,255,255,1))] px-4 pb-14 pt-20 sm:px-6 sm:pb-16 sm:pt-24 lg:px-8 dark:bg-[linear-gradient(180deg,rgba(11,18,32,1),rgba(9,9,11,1))]">
+        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <div>
-            <div className="mb-6 inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-semibold shadow-sm">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-semibold shadow-sm">
               <CreditCard className="h-4 w-4 text-sky-600 dark:text-sky-300" />
               Transparent pricing
             </div>
-            <h1 className="max-w-4xl text-balance text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
+            <h1 className="max-w-4xl text-balance text-4xl font-bold tracking-tight sm:text-5xl lg:text-5xl">
               Pick the plan that matches your next stage
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
+            <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
               Start free, grow into more credits and channels, and add extra
               usage only when campaigns need it. The pricing story stays simple
               even as your workspace gets stronger.
@@ -283,7 +283,7 @@ export function PricingPageContent() {
                 <Link href="#plans">Compare plans</Link>
               </Button>
             </div>
-            <div className="mt-10 hidden gap-3 sm:grid sm:grid-cols-3">
+            <div className="mt-8 hidden gap-3 sm:grid sm:grid-cols-3">
               {[
                 ["Free", "starter access"],
                 ["20%", "yearly savings"],
@@ -298,7 +298,7 @@ export function PricingPageContent() {
           </div>
 
           <div className="relative">
-            <div className="relative min-h-[430px] overflow-visible sm:min-h-[560px]">
+            <div className="relative min-h-[390px] overflow-visible sm:min-h-[500px]">
               <div className="absolute left-4 top-4 z-10 rounded-lg border bg-card/90 px-4 py-3 text-sm font-semibold shadow-sm">
                 Plan fit review
               </div>
@@ -331,7 +331,7 @@ export function PricingPageContent() {
         </div>
       </section>
 
-      <section id="plans" className="scroll-mt-28 px-4 py-20 sm:px-6 lg:px-8">
+      <section id="plans" className="scroll-mt-28 px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <SectionHeader
             eyebrow="Plans"
@@ -459,7 +459,7 @@ export function PricingPageContent() {
         </div>
       </section>
 
-      <section className="border-y bg-muted/35 px-4 py-20 sm:px-6 lg:px-8">
+      <section className="border-y bg-muted/35 px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <SectionHeader
             eyebrow="Comparison"
@@ -499,7 +499,7 @@ export function PricingPageContent() {
         </div>
       </section>
 
-      <section className="px-4 py-20 sm:px-6 lg:px-8">
+      <section className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <div className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
             <div className="flex items-center gap-3">
@@ -566,7 +566,7 @@ export function PricingPageContent() {
         </div>
       </section>
 
-      <section className="border-y bg-muted/35 px-4 py-20 sm:px-6 lg:px-8">
+      <section className="border-y bg-muted/35 px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-3xl">
           <SectionHeader
             eyebrow="Questions"
@@ -588,7 +588,7 @@ export function PricingPageContent() {
         </div>
       </section>
 
-      <section className="px-4 py-20 sm:px-6 lg:px-8">
+      <section className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl rounded-lg border bg-[linear-gradient(135deg,rgba(14,165,233,0.12),rgba(16,185,129,0.12),rgba(139,92,246,0.10))] p-8 text-center shadow-sm sm:p-12 dark:bg-card">
           <CreditCard className="mx-auto h-10 w-10 text-sky-600 dark:text-sky-300" />
           <h2 className="mx-auto mt-5 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">

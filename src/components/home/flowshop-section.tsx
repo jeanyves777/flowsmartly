@@ -22,11 +22,12 @@ const features = [
 
 export function FlowShopSection() {
   return (
-    <section className="relative overflow-hidden bg-background px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
-      <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-violet-50/70 to-transparent dark:from-violet-950/20" />
+    <section className="relative overflow-hidden bg-background px-4 pb-8 pt-10 sm:px-6 sm:pb-10 sm:pt-12 lg:px-8 lg:pb-0 lg:pt-12">
+      <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-violet-50/70 to-transparent dark:from-violet-950/20" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-violet-400/45 to-transparent" />
 
       <div className="relative mx-auto max-w-7xl">
-        <div className="grid items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="grid items-center gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:gap-8">
           <motion.div
             initial={{ opacity: 0, x: -24 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -37,16 +38,16 @@ export function FlowShopSection() {
               <ShoppingBag className="h-4 w-4" />
               FlowShop
             </span>
-            <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+            <h2 className="text-balance text-2xl font-black sm:text-3xl lg:text-4xl">
               Launch a store that looks ready for real customers
             </h2>
-            <p className="mt-5 text-lg leading-8 text-muted-foreground">
+            <p className="mt-3 text-base leading-7 text-muted-foreground">
               Build an AI-powered storefront, create product copy, accept
               payments, and manage orders without stitching together another
               stack of tools.
             </p>
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-2">
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
               {features.map((feature) => (
                 <div key={feature.label} className="rounded-lg border bg-card p-4">
                   <feature.icon className="mb-3 h-5 w-5 text-violet-600 dark:text-violet-300" />
@@ -58,7 +59,7 @@ export function FlowShopSection() {
 
             <Link
               href="/flowshop"
-              className="mt-8 inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-3 font-semibold text-white shadow-lg shadow-violet-500/20 transition-opacity hover:opacity-90"
+              className="mt-6 inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-3 font-semibold text-white shadow-lg shadow-violet-500/20 transition-opacity hover:opacity-90"
             >
               Explore FlowShop
               <ArrowRight className="h-4 w-4" />
@@ -66,25 +67,39 @@ export function FlowShopSection() {
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, x: 24 }}
-            whileInView={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.55, delay: 0.1 }}
-            className="relative min-h-[470px] overflow-visible"
+            className="lg:self-end"
           >
-            <div className="absolute left-5 top-5 z-10 rounded-lg border bg-card/90 p-4 shadow-sm">
-              <div className="text-sm font-semibold">Today&apos;s orders</div>
-              <div className="mt-2 text-3xl font-black">128</div>
-              <div className="mt-1 text-xs text-emerald-600 dark:text-emerald-300">+22% from last week</div>
+            <div className="relative mx-auto h-[340px] w-full max-w-[620px] overflow-visible sm:h-[460px] lg:h-[560px] lg:max-w-[680px]">
+              <Link
+                href="/flowshop"
+                className="absolute left-2 right-2 top-0 z-20 inline-flex items-center justify-between gap-4 rounded-lg border bg-white/90 px-4 py-3 text-sm font-bold text-zinc-950 shadow-sm backdrop-blur dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 sm:left-auto sm:right-4 sm:min-w-[320px]"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-600 text-white">
+                    <ShoppingBag className="h-4 w-4" />
+                  </span>
+                  <span>
+                    <span className="block text-xs font-black uppercase tracking-wide text-violet-600 dark:text-violet-300">
+                      Store preview
+                    </span>
+                    <span className="block">Build checkout-ready shop</span>
+                  </span>
+                </span>
+                <ArrowRight className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" />
+              </Link>
+              <Image
+                src={illustrationImages.flowShopCommerceCutout}
+                alt="Ecommerce storefront, checkout, product, shipping, and analytics assets for FlowShop"
+                fill
+                sizes="(min-width: 1024px) 680px, 92vw"
+                unoptimized
+                className="object-contain object-bottom drop-shadow-[0_30px_60px_rgba(76,29,149,0.16)] dark:drop-shadow-[0_30px_60px_rgba(0,0,0,0.42)]"
+              />
             </div>
-            <Image
-              src={illustrationImages.homeFlowShopSeller}
-              alt="A store owner preparing an online order with FlowShop"
-              fill
-              sizes="(min-width: 1024px) 640px, 92vw"
-              unoptimized
-              className="object-contain object-bottom drop-shadow-[0_28px_55px_rgba(0,0,0,0.24)]"
-            />
           </motion.div>
         </div>
       </div>

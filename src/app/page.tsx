@@ -1,6 +1,7 @@
 import { PublicHeader } from "@/components/layout/public-header";
 import { PublicFooter } from "@/components/layout/public-footer";
 import { HeroSection } from "@/components/home/hero-section";
+import { ProofStripSection } from "@/components/home/proof-strip-section";
 import { FeaturesSection } from "@/components/home/features-section";
 import { FlowShopSection } from "@/components/home/flowshop-section";
 import { ListSmartlySection } from "@/components/home/listsmartly-section";
@@ -15,6 +16,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-background overflow-x-hidden">
       <PublicHeader />
       <HeroSection />
+      <ProofStripSection />
       <FeaturesSection />
       <FlowShopSection />
       <ListSmartlySection />

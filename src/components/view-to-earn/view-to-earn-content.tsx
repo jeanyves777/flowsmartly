@@ -151,17 +151,17 @@ function CreditSignal({
 export function ViewToEarnContent() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <section className="relative overflow-hidden border-b bg-[linear-gradient(180deg,rgba(255,251,235,0.92),rgba(255,255,255,1))] px-4 pt-24 pb-20 sm:px-6 sm:pt-32 sm:pb-24 lg:px-8 dark:bg-[linear-gradient(180deg,rgba(32,22,8,0.72),rgba(9,9,11,1))]">
-        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+      <section className="relative overflow-hidden border-b bg-[linear-gradient(180deg,rgba(255,251,235,0.92),rgba(255,255,255,1))] px-4 pb-14 pt-20 sm:px-6 sm:pb-16 sm:pt-24 lg:px-8 dark:bg-[linear-gradient(180deg,rgba(32,22,8,0.72),rgba(9,9,11,1))]">
+        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
           <div>
-            <div className="mb-6 inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-semibold shadow-sm">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-semibold shadow-sm">
               <Gift className="h-4 w-4 text-amber-600 dark:text-amber-300" />
               View-to-Earn Credits
             </div>
-            <h1 className="max-w-4xl text-balance text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
+            <h1 className="max-w-4xl text-balance text-4xl font-bold tracking-tight sm:text-5xl lg:text-5xl">
               Earn credits from attention and spend them on growth
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
+            <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
               FlowSmartly turns qualified content views into credits small
               businesses can use for AI creative, post boosts, and campaign tests
               before spending more cash.
@@ -177,7 +177,7 @@ export function ViewToEarnContent() {
                 <Link href="#how-it-works">See how it works</Link>
               </Button>
             </div>
-            <div className="mt-10 hidden gap-3 sm:grid sm:grid-cols-3">
+            <div className="mt-8 hidden gap-3 sm:grid sm:grid-cols-3">
               {[
                 ["100", "daily earning target"],
                 ["25+", "AI actions"],
@@ -192,7 +192,7 @@ export function ViewToEarnContent() {
           </div>
 
           <div className="relative">
-            <div className="relative min-h-[430px] overflow-visible sm:min-h-[560px]">
+            <div className="relative min-h-[390px] overflow-visible sm:min-h-[500px]">
               <div className="absolute left-4 top-4 z-10 rounded-lg border bg-card/90 px-4 py-3 text-sm font-semibold shadow-sm">
                 Credits ready to use
               </div>
@@ -225,7 +225,7 @@ export function ViewToEarnContent() {
         </div>
       </section>
 
-      <section id="how-it-works" className="px-4 py-20 sm:px-6 lg:px-8">
+      <section id="how-it-works" className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <SectionHeader
             eyebrow="How the loop works"
@@ -240,7 +240,7 @@ export function ViewToEarnContent() {
         </div>
       </section>
 
-      <section className="border-y bg-muted/35 px-4 py-20 sm:px-6 lg:px-8">
+      <section className="border-y bg-muted/35 px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
           <div className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
             <div className="flex items-center gap-3">
@@ -277,7 +277,7 @@ export function ViewToEarnContent() {
         </div>
       </section>
 
-      <section className="px-4 py-20 sm:px-6 lg:px-8">
+      <section className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <SectionHeader
             align="left"
@@ -298,7 +298,7 @@ export function ViewToEarnContent() {
         </div>
       </section>
 
-      <section className="border-y bg-muted/35 px-4 py-20 sm:px-6 lg:px-8">
+      <section className="border-y bg-muted/35 px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <SectionHeader
             eyebrow="Why businesses care"
@@ -336,7 +336,7 @@ export function ViewToEarnContent() {
         </div>
       </section>
 
-      <section className="px-4 py-20 sm:px-6 lg:px-8">
+      <section className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl rounded-lg border bg-[linear-gradient(135deg,rgba(245,158,11,0.14),rgba(14,165,233,0.12),rgba(16,185,129,0.10))] p-8 text-center shadow-sm sm:p-12 dark:bg-card">
           <Zap className="mx-auto h-10 w-10 text-amber-600 dark:text-amber-300" />
           <h2 className="mx-auto mt-5 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">

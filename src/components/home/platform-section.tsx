@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -13,7 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { illustrationImages } from "@/components/marketing/public-page-visuals";
+import { PlatformWorkspaceVisual } from "@/components/home/home-ui-previews";
 
 const platformTabs = [
   {
@@ -74,28 +73,28 @@ export function PlatformSection() {
   return (
     <section
       id="platform"
-      className="relative overflow-hidden bg-background px-4 py-16 sm:px-6 sm:py-20 lg:px-8"
+      className="relative overflow-hidden bg-background px-4 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-14"
     >
       <div className="absolute inset-x-0 top-0 h-56 bg-[radial-gradient(circle_at_50%_0%,rgba(20,184,166,0.11),transparent_62%)]" />
 
       <div className="relative mx-auto max-w-7xl">
-        <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-end">
+        <div className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr] lg:items-end">
           <div>
             <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">
               Platform
             </p>
-            <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+            <h2 className="text-balance text-2xl font-black sm:text-3xl lg:text-4xl">
               One workspace from first draft to measured growth
             </h2>
           </div>
-          <p className="max-w-2xl text-lg leading-8 text-muted-foreground lg:justify-self-end">
+          <p className="max-w-2xl text-base leading-7 text-muted-foreground lg:justify-self-end">
             FlowSmartly keeps the operator, the AI assistant, the campaign
             channels, and the reporting loop together so public work does not
             get scattered across disconnected tools.
           </p>
         </div>
 
-        <div className="mt-10 flex flex-wrap gap-2 rounded-lg border bg-card p-2 shadow-sm">
+        <div className="mt-6 flex flex-wrap gap-2 rounded-lg border bg-card p-2 shadow-sm">
           {platformTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = tab.id === activeTab;
@@ -118,17 +117,17 @@ export function PlatformSection() {
           })}
         </div>
 
-        <div className="mt-6 grid gap-5 lg:grid-cols-[0.92fr_1.08fr]">
-          <article className="rounded-lg border bg-card p-6 shadow-sm lg:p-8">
-            <div className={`mb-6 inline-flex h-14 w-14 items-center justify-center rounded-lg bg-gradient-to-br ${active.accent} text-white shadow-lg shadow-brand-500/10`}>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
+          <article className="rounded-lg border bg-card p-5 shadow-sm lg:p-6">
+            <div className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br ${active.accent} text-white shadow-lg shadow-brand-500/10`}>
               <ActiveIcon className="h-7 w-7" />
             </div>
-            <h3 className="text-3xl font-bold tracking-tight">{active.title}</h3>
-            <p className="mt-4 text-base leading-7 text-muted-foreground">
+            <h3 className="text-2xl font-bold">{active.title}</h3>
+            <p className="mt-3 text-base leading-7 text-muted-foreground">
               {active.description}
             </p>
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
               {active.items.map((item) => (
                 <div key={item} className="rounded-lg border bg-background p-4">
                   <CheckCircle2 className="mb-3 h-5 w-5 text-emerald-500" />
@@ -137,10 +136,10 @@ export function PlatformSection() {
               ))}
             </div>
 
-            <div className="mt-8 rounded-lg border bg-muted/40 p-5">
+            <div className="mt-5 rounded-lg border bg-muted/40 p-4">
               <div className="flex items-end justify-between gap-4">
                 <div>
-                  <div className="text-4xl font-black tracking-tight">{active.stat}</div>
+                  <div className="text-3xl font-black">{active.stat}</div>
                   <p className="mt-1 text-sm text-muted-foreground">{active.statLabel}</p>
                 </div>
                 <div className="h-16 w-36 rounded-lg bg-background p-3">
@@ -157,7 +156,7 @@ export function PlatformSection() {
               </div>
             </div>
 
-            <Button asChild className="mt-8 min-h-12 px-6 font-bold">
+            <Button asChild className="mt-5 min-h-12 px-6 font-bold">
               <Link href="/register">
                 Build your first campaign
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -165,20 +164,14 @@ export function PlatformSection() {
             </Button>
           </article>
 
-          <article className="relative min-h-[560px] overflow-visible">
-            <div className="absolute left-6 top-6 z-10 rounded-lg border bg-card/90 px-4 py-3 shadow-sm dark:border-white/10">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <span className={`h-2.5 w-2.5 rounded-full bg-gradient-to-r ${active.accent}`} />
-                Live workspace
-              </div>
-            </div>
-            <Image
-              src={illustrationImages.homePlatformOperator}
-              alt="A product operator presenting FlowSmartly platform dashboards"
-              fill
-              sizes="(min-width: 1024px) 680px, 92vw"
-              unoptimized
-              className="object-contain object-bottom pt-16 drop-shadow-[0_30px_70px_rgba(15,23,42,0.22)]"
+          <article>
+            <PlatformWorkspaceVisual
+              label={active.label}
+              title={active.title}
+              stat={active.stat}
+              statLabel={active.statLabel}
+              accent={active.accent}
+              items={active.items}
             />
           </article>
         </div>

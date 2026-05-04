@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Building2, Check, ShieldCheck, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,31 +33,64 @@ const included = [
   "Reporting dashboard",
 ];
 
+const previewPlans: Plan[] = [
+  {
+    id: "STARTER",
+    name: "Starter",
+    slug: "STARTER",
+    priceCentsMonthly: 0,
+    monthlyCredits: 500,
+    features: [
+      "500 credits/month",
+      "Email marketing",
+      "Basic design tools",
+      "FlowSocial feed access",
+      "AI content workspace",
+    ],
+    isPopular: false,
+  },
+  {
+    id: "PRO",
+    name: "Pro",
+    slug: "PRO",
+    priceCentsMonthly: 1999,
+    monthlyCredits: 1500,
+    features: [
+      "1,500 credits/month",
+      "AI content generation",
+      "Brand Identity & Logo Generator",
+      "SMS & MMS marketing",
+      "Ad campaigns",
+    ],
+    isPopular: true,
+  },
+  {
+    id: "BUSINESS",
+    name: "Business",
+    slug: "BUSINESS",
+    priceCentsMonthly: 4999,
+    monthlyCredits: 4000,
+    features: [
+      "4,000 credits/month",
+      "Everything in Pro",
+      "Campaign management",
+      "Analytics dashboard",
+      "Priority support",
+    ],
+    isPopular: false,
+  },
+];
+
 export function PricingPreview() {
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/payments/packages")
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.success && data.data?.plans) {
-          setPlans(data.data.plans.slice(0, 3));
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
   return (
-    <section id="pricing" className="bg-muted/35 px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+    <section id="pricing" className="bg-muted/35 px-4 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
       <div className="mx-auto max-w-7xl">
-        <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
+        <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
           <div>
             <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">
               Pricing
             </p>
-            <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+            <h2 className="text-balance text-2xl font-black sm:text-3xl lg:text-4xl">
               Start lean, then scale the whole growth workspace
             </h2>
           </div>
@@ -85,78 +117,65 @@ export function PricingPreview() {
           </div>
         </div>
 
-        <div className="mt-10 grid gap-5 lg:grid-cols-3">
-          {loading
-            ? Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="min-h-[430px] rounded-lg border bg-card p-6 shadow-sm">
-                  <div className="mb-6 h-12 w-12 animate-pulse rounded-lg bg-muted" />
-                  <div className="mb-3 h-5 w-28 animate-pulse rounded bg-muted" />
-                  <div className="mb-8 h-10 w-24 animate-pulse rounded bg-muted" />
-                  <div className="space-y-3">
-                    {Array.from({ length: 5 }).map((__, itemIndex) => (
-                      <div key={itemIndex} className="h-4 animate-pulse rounded bg-muted" />
-                    ))}
+        <div className="mt-7 grid gap-4 lg:grid-cols-3">
+          {previewPlans.map((plan) => {
+            const Icon = planIcons[plan.slug] || Sparkles;
+            const accent = planAccents[plan.slug] || "bg-brand-500";
+
+            return (
+              <article
+                key={plan.id}
+                className={`relative flex min-h-[360px] flex-col rounded-lg border bg-card p-5 shadow-sm ${
+                  plan.isPopular ? "border-brand-500 shadow-brand-500/10" : ""
+                }`}
+              >
+                {plan.isPopular && (
+                  <div className="absolute right-5 top-5 rounded-full bg-brand-500 px-3 py-1 text-xs font-bold text-white">
+                    Popular
                   </div>
+                )}
+                <div className={`mb-5 flex h-12 w-12 items-center justify-center rounded-lg ${accent} text-white`}>
+                  <Icon className="h-5 w-5" />
                 </div>
-              ))
-            : plans.map((plan) => {
-                const Icon = planIcons[plan.slug] || Sparkles;
-                const accent = planAccents[plan.slug] || "bg-brand-500";
+                <h3 className="text-xl font-bold">{plan.name}</h3>
+                <div className="mt-3 flex items-end gap-1">
+                  <span className="text-3xl font-black">
+                    {plan.priceCentsMonthly === 0
+                      ? "Free"
+                      : `$${(plan.priceCentsMonthly / 100).toFixed(0)}`}
+                  </span>
+                  {plan.priceCentsMonthly > 0 && (
+                    <span className="pb-1 text-sm text-muted-foreground">/mo</span>
+                  )}
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {plan.monthlyCredits.toLocaleString()} credits monthly
+                </p>
 
-                return (
-                  <article
-                    key={plan.id}
-                    className={`relative flex min-h-[430px] flex-col rounded-lg border bg-card p-6 shadow-sm ${
-                      plan.isPopular ? "border-brand-500 shadow-brand-500/10" : ""
-                    }`}
-                  >
-                    {plan.isPopular && (
-                      <div className="absolute right-5 top-5 rounded-full bg-brand-500 px-3 py-1 text-xs font-bold text-white">
-                        Popular
-                      </div>
-                    )}
-                    <div className={`mb-5 flex h-12 w-12 items-center justify-center rounded-lg ${accent} text-white`}>
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <h3 className="text-xl font-bold">{plan.name}</h3>
-                    <div className="mt-3 flex items-end gap-1">
-                      <span className="text-4xl font-black tracking-tight">
-                        {plan.priceCentsMonthly === 0
-                          ? "Free"
-                          : `$${(plan.priceCentsMonthly / 100).toFixed(0)}`}
-                      </span>
-                      {plan.priceCentsMonthly > 0 && (
-                        <span className="pb-1 text-sm text-muted-foreground">/mo</span>
-                      )}
-                    </div>
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      {plan.monthlyCredits.toLocaleString()} credits monthly
-                    </p>
+                <ul className="mt-5 flex-1 space-y-2.5">
+                  {plan.features.slice(0, 5).map((feature) => (
+                    <li key={feature} className="flex items-start gap-2 text-sm">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
+                      <span className="text-muted-foreground">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
 
-                    <ul className="mt-6 flex-1 space-y-3">
-                      {plan.features.slice(0, 5).map((feature) => (
-                        <li key={feature} className="flex items-start gap-2 text-sm">
-                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
-                          <span className="text-muted-foreground">{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <Button
-                      asChild
-                      variant={plan.isPopular ? "default" : "outline"}
-                      className="mt-7 min-h-12 w-full font-bold"
-                    >
-                      <Link href="/register">
-                        {plan.priceCentsMonthly === 0 ? "Start free" : "Get started"}
-                      </Link>
-                    </Button>
-                  </article>
-                );
-              })}
+                <Button
+                  asChild
+                  variant={plan.isPopular ? "default" : "outline"}
+                  className="mt-5 min-h-12 w-full font-bold"
+                >
+                  <Link href="/register">
+                    {plan.priceCentsMonthly === 0 ? "Start free" : "Get started"}
+                  </Link>
+                </Button>
+              </article>
+            );
+          })}
         </div>
 
-        <div className="mt-8 text-center">
+        <div className="mt-6 text-center">
           <Link
             href="/pricing"
             className="inline-flex items-center gap-2 text-sm font-semibold text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-300"

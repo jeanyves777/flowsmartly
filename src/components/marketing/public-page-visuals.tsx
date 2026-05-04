@@ -21,9 +21,12 @@ export const illustrationImages = {
   launchApproval: "/marketing/transparent/flowsmartly-approval-cutout.png",
   humanMarketer: "/marketing/transparent/flowsmartly-human-marketer-cutout.png",
   humanCreator: "/marketing/transparent/flowsmartly-human-creator-cutout.png",
+  humanCreatorClean: "/marketing/transparent/flowsmartly-human-creator-clean-cutout.png",
   humanCreatorLady: "/marketing/transparent/flowsmartly-human-creator-lady-cutout.png",
   homeCampaignManager: "/marketing/transparent/flowsmartly-home-campaign-manager.png",
+  flowShopCommerceCutout: "/marketing/transparent/flowsmartly-flowshop-commerce-cutout.png",
   homeFlowShopSeller: "/marketing/transparent/flowsmartly-home-flowshop-seller.png",
+  listSmartlyLocalListingsCutout: "/marketing/transparent/flowsmartly-listsmartly-local-listings-cutout.png",
   homeLocalOwner: "/marketing/transparent/flowsmartly-home-local-owner.png",
   homeMessagingManager: "/marketing/transparent/flowsmartly-home-messaging-manager.png",
   homeAgentConsultant: "/marketing/transparent/flowsmartly-home-agent-consultant.png",
@@ -92,7 +95,7 @@ export function PublicImageHero({
   return (
     <section
       className={cn(
-        "relative isolate overflow-hidden bg-background px-4 pt-28 pb-16 text-foreground sm:px-6 sm:pt-32 sm:pb-20 lg:px-8 dark:bg-slate-950 dark:text-white",
+        "relative isolate overflow-hidden bg-background px-4 pb-12 pt-24 text-foreground sm:px-6 sm:pb-16 sm:pt-28 lg:px-8 dark:bg-slate-950 dark:text-white",
         className
       )}
     >
@@ -110,21 +113,21 @@ export function PublicImageHero({
 
       <div className="relative mx-auto max-w-7xl">
         <div className="max-w-3xl">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-lg border border-border bg-card/80 px-3 py-2 text-sm font-medium shadow-sm backdrop-blur-md dark:border-white/20 dark:bg-white/10 dark:text-white">
+          <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-border bg-card/80 px-3 py-2 text-sm font-medium shadow-sm backdrop-blur-md dark:border-white/20 dark:bg-white/10 dark:text-white">
             <Icon className="h-4 w-4 text-brand-600 dark:text-brand-300" />
             <span>{eyebrow}</span>
           </div>
-          <h1 className="text-balance text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
+          <h1 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
             {title}
           </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl dark:text-slate-200">
+          <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg dark:text-slate-200">
             {description}
           </p>
-          {children && <div className="mt-8">{children}</div>}
+          {children && <div className="mt-6">{children}</div>}
         </div>
 
         {stats && stats.length > 0 && (
-          <div className="mt-12 grid gap-3 sm:grid-cols-3 lg:max-w-3xl">
+          <div className="mt-8 grid gap-3 sm:grid-cols-3 lg:max-w-3xl">
             {stats.map((stat) => (
               <div
                 key={stat.label}

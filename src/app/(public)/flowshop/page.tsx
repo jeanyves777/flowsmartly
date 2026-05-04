@@ -111,22 +111,22 @@ const proFeatures = [
 export default function FlowShopPage() {
   return (
     <div className="overflow-x-hidden bg-background">
-      <section className="relative overflow-hidden bg-gradient-to-b from-violet-50/70 via-background to-background px-4 pb-14 pt-12 sm:px-6 sm:pb-20 sm:pt-16 lg:px-8 dark:from-zinc-950 dark:via-background">
-        <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.9fr_1.1fr]">
+      <section className="relative overflow-hidden bg-gradient-to-b from-violet-50/70 via-background to-background px-4 pb-12 pt-12 sm:px-6 sm:pb-16 sm:pt-14 lg:px-8 dark:from-zinc-950 dark:via-background">
+        <div className="mx-auto grid max-w-7xl items-center gap-8 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-lg border bg-card/85 px-3 py-2 text-sm font-semibold shadow-sm backdrop-blur">
               <ShoppingBag className="h-4 w-4 text-violet-600 dark:text-violet-300" />
               FlowShop e-commerce
             </div>
-            <h1 className="max-w-3xl text-balance text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+            <h1 className="max-w-3xl text-balance text-4xl font-black tracking-tight sm:text-5xl lg:text-5xl">
               Launch a store that looks ready for real customers
             </h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">
+            <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
               FlowShop brings storefront design, product copy, secure checkout,
               order tracking, and campaign intelligence into one commerce workspace.
             </p>
 
-            <div className="mt-8 flex max-w-2xl flex-col gap-3 sm:flex-row">
+            <div className="mt-6 flex max-w-2xl flex-col gap-3 sm:flex-row">
               <Link
                 href="/login?redirect=/ecommerce"
                 className="inline-flex min-h-14 items-center justify-center gap-2 rounded-lg bg-violet-600 px-7 text-base font-bold text-white shadow-lg shadow-violet-600/20 transition-colors hover:bg-violet-700"
@@ -142,17 +142,17 @@ export default function FlowShopPage() {
               </Link>
             </div>
 
-            <div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
+            <div className="mt-6 grid max-w-2xl gap-3 sm:grid-cols-3">
               {heroStats.map((stat) => (
                 <div key={stat.label} className="rounded-lg border bg-card p-4 shadow-sm">
-                  <div className="text-3xl font-black tracking-tight">{stat.value}</div>
+                  <div className="text-2xl font-black tracking-tight">{stat.value}</div>
                   <div className="mt-1 text-sm text-muted-foreground">{stat.label}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="relative min-h-[520px] overflow-visible sm:min-h-[620px]">
+          <div className="relative min-h-[440px] overflow-visible sm:min-h-[560px]">
             <div className="absolute left-5 top-5 z-10 rounded-lg border bg-card/90 px-4 py-3 shadow-sm dark:border-white/10">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
@@ -172,7 +172,7 @@ export default function FlowShopPage() {
         </div>
       </section>
 
-      <section className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+      <section className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-5 lg:grid-cols-[1.02fr_0.98fr]">
             <article className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
@@ -225,13 +225,13 @@ export default function FlowShopPage() {
         </div>
       </section>
 
-      <section className="bg-muted/35 px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+      <section className="bg-muted/35 px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <div className="mb-10 max-w-3xl">
             <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">
               FlowShop toolkit
             </p>
-            <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+            <h2 className="text-balance text-2xl font-black tracking-tight sm:text-4xl">
               Everything a small store needs to feel established
             </h2>
           </div>
@@ -251,14 +251,14 @@ export default function FlowShopPage() {
         </div>
       </section>
 
-      <section className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+      <section className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
             <div>
               <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">
                 Launch workflow
               </p>
-              <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+              <h2 className="text-balance text-2xl font-black tracking-tight sm:text-4xl">
                 From first product to first order without tool sprawl
               </h2>
               <p className="mt-5 text-lg leading-8 text-muted-foreground">
@@ -285,14 +285,14 @@ export default function FlowShopPage() {
         </div>
       </section>
 
-      <section className="bg-muted/35 px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+      <section className="bg-muted/35 px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
             <div>
               <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">
                 AI commerce intelligence
               </p>
-              <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+              <h2 className="text-balance text-2xl font-black tracking-tight sm:text-4xl">
                 Smart suggestions around the products you already sell
               </h2>
               <p className="mt-5 text-lg leading-8 text-muted-foreground">
@@ -314,13 +314,13 @@ export default function FlowShopPage() {
         </div>
       </section>
 
-      <section className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+      <section className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-5xl">
           <div className="mb-10 text-center">
             <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">
               FlowShop plans
             </p>
-            <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+            <h2 className="text-balance text-2xl font-black tracking-tight sm:text-4xl">
               Start small, keep the store professional
             </h2>
           </div>
@@ -361,7 +361,7 @@ export default function FlowShopPage() {
         <div className="mx-auto max-w-7xl overflow-hidden rounded-lg border bg-card shadow-sm">
           <div className="grid gap-0 lg:grid-cols-[1fr_0.9fr]">
             <div className="bg-gradient-to-br from-violet-50 to-cyan-50 p-8 sm:p-10 lg:p-12 dark:from-zinc-950 dark:to-slate-950">
-              <h2 className="max-w-3xl text-balance text-3xl font-black tracking-tight sm:text-5xl">
+              <h2 className="max-w-3xl text-balance text-2xl font-black tracking-tight sm:text-4xl">
                 Ready to launch your store with FlowShop?
               </h2>
               <p className="mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">

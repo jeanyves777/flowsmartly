@@ -137,23 +137,23 @@ const proFeatures = [
 export default function ListSmartlyDetailsPage() {
   return (
     <div className="overflow-x-hidden bg-background">
-      <section className="relative overflow-hidden bg-gradient-to-b from-teal-50/75 via-background to-background px-4 pb-14 pt-12 sm:px-6 sm:pb-20 sm:pt-16 lg:px-8 dark:from-zinc-950 dark:via-background">
-        <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.9fr_1.1fr]">
+      <section className="relative overflow-hidden bg-gradient-to-b from-teal-50/75 via-background to-background px-4 pb-12 pt-12 sm:px-6 sm:pb-16 sm:pt-14 lg:px-8 dark:from-zinc-950 dark:via-background">
+        <div className="mx-auto grid max-w-7xl items-center gap-8 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-lg border bg-card/85 px-3 py-2 text-sm font-semibold shadow-sm backdrop-blur">
               <MapPin className="h-4 w-4 text-teal-600 dark:text-teal-300" />
               ListSmartly local presence
             </div>
-            <h1 className="max-w-3xl text-balance text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+            <h1 className="max-w-3xl text-balance text-4xl font-black tracking-tight sm:text-5xl lg:text-5xl">
               Keep every local profile accurate and review-ready
             </h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">
+            <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
               ListSmartly helps business owners sync listings, monitor reviews,
               catch profile drift, and understand local visibility from one
               AI-assisted command center.
             </p>
 
-            <div className="mt-8 flex max-w-2xl flex-col gap-3 sm:flex-row">
+            <div className="mt-6 flex max-w-2xl flex-col gap-3 sm:flex-row">
               <Link
                 href="/register"
                 className="inline-flex min-h-14 items-center justify-center gap-2 rounded-lg bg-teal-600 px-7 text-base font-bold text-white shadow-lg shadow-teal-600/20 transition-colors hover:bg-teal-700"
@@ -169,17 +169,17 @@ export default function ListSmartlyDetailsPage() {
               </Link>
             </div>
 
-            <div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
+            <div className="mt-6 grid max-w-2xl gap-3 sm:grid-cols-3">
               {heroStats.map((stat) => (
                 <div key={stat.label} className="rounded-lg border bg-card p-4 shadow-sm">
-                  <div className="text-3xl font-black tracking-tight">{stat.value}</div>
+                  <div className="text-2xl font-black tracking-tight">{stat.value}</div>
                   <div className="mt-1 text-sm text-muted-foreground">{stat.label}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="relative min-h-[520px] overflow-visible sm:min-h-[620px]">
+          <div className="relative min-h-[440px] overflow-visible sm:min-h-[560px]">
             <div className="absolute left-5 top-5 z-10 rounded-lg border bg-card/90 px-4 py-3 shadow-sm dark:border-white/10">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <span className="h-2.5 w-2.5 rounded-full bg-teal-500" />
@@ -199,7 +199,7 @@ export default function ListSmartlyDetailsPage() {
         </div>
       </section>
 
-      <section className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+      <section className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-5 lg:grid-cols-2">
             <article className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
@@ -235,13 +235,13 @@ export default function ListSmartlyDetailsPage() {
         </div>
       </section>
 
-      <section className="bg-muted/35 px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+      <section className="bg-muted/35 px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <div className="mb-10 max-w-3xl">
             <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-300">
               Local presence toolkit
             </p>
-            <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+            <h2 className="text-balance text-2xl font-black tracking-tight sm:text-4xl">
               Everything needed to keep local trust consistent
             </h2>
           </div>
@@ -261,14 +261,14 @@ export default function ListSmartlyDetailsPage() {
         </div>
       </section>
 
-      <section className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+      <section className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
             <div>
               <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-300">
                 Directory coverage
               </p>
-              <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+              <h2 className="text-balance text-2xl font-black tracking-tight sm:text-4xl">
                 Your business data should match wherever customers search
               </h2>
               <p className="mt-5 text-lg leading-8 text-muted-foreground">
@@ -301,14 +301,14 @@ export default function ListSmartlyDetailsPage() {
         </div>
       </section>
 
-      <section className="bg-muted/35 px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+      <section className="bg-muted/35 px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
             <div>
               <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-300">
                 How it works
               </p>
-              <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+              <h2 className="text-balance text-2xl font-black tracking-tight sm:text-4xl">
                 From scattered profiles to a clean local command center
               </h2>
               <p className="mt-5 text-lg leading-8 text-muted-foreground">
@@ -335,13 +335,13 @@ export default function ListSmartlyDetailsPage() {
         </div>
       </section>
 
-      <section className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+      <section className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto max-w-5xl">
           <div className="mb-10 text-center">
             <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-300">
               ListSmartly plans
             </p>
-            <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">
+            <h2 className="text-balance text-2xl font-black tracking-tight sm:text-4xl">
               Start with clean listings, scale into review control
             </h2>
           </div>
@@ -382,7 +382,7 @@ export default function ListSmartlyDetailsPage() {
         <div className="mx-auto max-w-7xl overflow-hidden rounded-lg border bg-card shadow-sm">
           <div className="grid gap-0 lg:grid-cols-[1fr_0.9fr]">
             <div className="bg-gradient-to-br from-teal-50 to-sky-50 p-8 sm:p-10 lg:p-12 dark:from-zinc-950 dark:to-slate-950">
-              <h2 className="max-w-3xl text-balance text-3xl font-black tracking-tight sm:text-5xl">
+              <h2 className="max-w-3xl text-balance text-2xl font-black tracking-tight sm:text-4xl">
                 Ready to make every local profile reliable?
               </h2>
               <p className="mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">
