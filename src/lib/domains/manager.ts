@@ -141,6 +141,72 @@ function generateRegCredentials(storeId: string, userId: string) {
   };
 }
 
+function contactFromBrandKit(
+  brandKit: {
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    zip: string | null;
+    country: string | null;
+  } | null,
+  user: { name: string | null; email: string }
+): DomainContact {
+  const displayName = (brandKit?.name || user.name || "Domain Owner").trim();
+  const nameParts = displayName.split(/\s+/).filter(Boolean);
+  const phoneDigits = (brandKit?.phone || "").replace(/\D/g, "");
+
+  return {
+    first_name: nameParts[0] || "Domain",
+    last_name: nameParts.slice(1).join(" ") || "Owner",
+    org_name: displayName,
+    address1: brandKit?.address || "123 Main Street",
+    city: brandKit?.city || "New York",
+    state: brandKit?.state || "NY",
+    postal_code: brandKit?.zip || "10001",
+    country: brandKit?.country?.length === 2 ? brandKit.country : "US",
+    phone: brandKit?.phone?.startsWith("+")
+      ? brandKit.phone
+      : `+1.${phoneDigits || "2125551234"}`,
+    email: brandKit?.email || user.email,
+  };
+}
+
+async function getRegistrantContactForUser(
+  userId: string,
+  providedContact?: DomainContact
+) {
+  if (providedContact?.email) return providedContact;
+
+  const [brandKit, user] = await Promise.all([
+    prisma.brandKit.findFirst({
+      where: { userId },
+      select: {
+        name: true,
+        email: true,
+        phone: true,
+        address: true,
+        city: true,
+        state: true,
+        zip: true,
+        country: true,
+      },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, email: true },
+    }),
+  ]);
+
+  if (!user) {
+    throw new Error("User not found for domain registration contact");
+  }
+
+  return contactFromBrandKit(brandKit, user);
+}
+
 // ── Public API ──
 
 /**
@@ -249,6 +315,7 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
   const { regUsername, regPassword } = generateRegCredentials(storeId || "standalone", userId);
   let orderId: string | null = null;
   let registrarStatus = "pending";
+  const registrantContact = await getRegistrantContactForUser(userId, contact);
 
   if (isOpenSrsAvailable()) {
     try {
@@ -258,7 +325,7 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
         regUsername,
         regPassword,
         nameservers: ["ns1.cloudflare.com", "ns2.cloudflare.com"],
-        contact: contact || undefined,
+        contact: registrantContact,
         whoisPrivacy: true,
       });
       orderId = regResult.orderId;

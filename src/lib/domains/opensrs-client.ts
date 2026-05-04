@@ -56,6 +56,8 @@ export interface RegisterDomainParams {
   whoisPrivacy?: boolean;
 }
 
+export type DomainContactInfo = Partial<typeof DEFAULT_CONTACT>;
+
 export interface RegisterDomainResult {
   orderId: string;
   domain: string;
@@ -88,6 +90,13 @@ export interface SendRegistrantVerificationEmailResult {
   domain: string;
   success: boolean;
   responseText: string;
+}
+
+export interface UpdateDomainContactsResult {
+  domain: string;
+  success: boolean;
+  responseText: string;
+  attributes: Record<string, unknown>;
 }
 
 export interface RenewDomainResult {
@@ -617,6 +626,50 @@ export async function sendRegistrantVerificationEmail(
     domain,
     success: true,
     responseText: result.responseText,
+  };
+}
+
+/**
+ * Update domain contact information at OpenSRS.
+ *
+ * Each selected contact object is submitted as a complete contact object, so
+ * callers should send the best full contact data available.
+ */
+export async function updateDomainContacts(
+  domain: string,
+  contact: DomainContactInfo,
+  types: Array<"owner" | "admin" | "billing" | "tech"> = [
+    "owner",
+    "admin",
+    "billing",
+    "tech",
+  ]
+): Promise<UpdateDomainContactsResult> {
+  const mergedContact = { ...DEFAULT_CONTACT, ...contact };
+  const contactSet: Record<string, unknown> = {};
+
+  for (const type of types) {
+    contactSet[type] = mergedContact;
+  }
+
+  const result = await sendRequest("UPDATE_CONTACTS", "DOMAIN", {
+    domain,
+    types,
+    affect_domains: 0,
+    contact_set: contactSet,
+  });
+
+  if (result.responseCode !== 200 && result.responseCode !== 1) {
+    throw new Error(
+      `Domain contact update failed: ${result.responseText} (code: ${result.responseCode})`
+    );
+  }
+
+  return {
+    domain,
+    success: true,
+    responseText: result.responseText,
+    attributes: result.attributes,
   };
 }
 
