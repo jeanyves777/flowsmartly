@@ -1006,47 +1006,43 @@ export default function ContentPostsPage() {
                             isDisabled
                               ? "cursor-not-allowed bg-muted/30 opacity-50"
                               : isActive
-                                ? "text-foreground shadow-sm"
-                                : "hover:-translate-y-0.5 hover:bg-muted/30"
+                                ? "border-border bg-muted/45 text-foreground shadow-sm"
+                                : "border-border hover:-translate-y-0.5 hover:bg-muted/30"
                           }`}
-                          style={
-                            isDisabled
-                              ? undefined
-                              : isActive
-                                ? {
-                                    borderColor: platformStyle.color,
-                                    background: `linear-gradient(135deg, ${platformStyle.soft}, ${platformStyle.softer})`,
-                                    boxShadow: `0 10px 28px ${platformStyle.glow}`,
-                                  }
-                                : {
-                                    borderColor: "hsl(var(--border))",
-                                  }
-                          }
                         >
                           <span
                             className="flex h-5 w-5 items-center justify-center rounded-md border transition-colors"
                             style={
                               isActive
                                 ? {
-                                    borderColor: platformStyle.color,
-                                    background: platformStyle.color,
+                                    borderColor: "#0EA5E9",
+                                    background: "#0EA5E9",
                                     color: "#fff",
                                   }
                                 : {
-                                    borderColor: platformStyle.soft,
-                                    background: platformStyle.softer,
-                                    color: platformStyle.color,
+                                    borderColor: "hsl(var(--border))",
+                                    background: "transparent",
+                                    color: "hsl(var(--muted-foreground))",
                                   }
                             }
                           >
                             {isActive && <CheckCircle2 className="h-3.5 w-3.5" />}
                           </span>
                           <span
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-sm transition-transform group-hover:scale-105"
-                            style={{
-                              background: platformStyle.iconBackground || platformStyle.color,
-                              boxShadow: `0 8px 20px ${platformStyle.glow}`,
-                            }}
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-transform group-hover:scale-105"
+                            style={
+                              isDisabled
+                                ? {
+                                    background: "hsl(var(--muted))",
+                                    borderColor: "hsl(var(--border))",
+                                    color: "hsl(var(--muted-foreground))",
+                                  }
+                                : {
+                                    background: platformStyle.softer,
+                                    borderColor: platformStyle.soft,
+                                    color: platformStyle.color,
+                                  }
+                            }
                           >
                             <Icon className="h-5 w-5" />
                           </span>
