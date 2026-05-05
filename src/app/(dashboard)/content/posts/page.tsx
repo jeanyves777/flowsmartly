@@ -62,6 +62,78 @@ type AIPilotTone = "professional" | "casual" | "humorous" | "inspirational" | "e
 type AIPilotLength = "short" | "medium" | "long";
 type AIPlatform = (typeof AI_SUPPORTED_PLATFORMS)[number];
 
+const ACCOUNT_PLATFORM_STYLES: Record<
+  string,
+  { color: string; soft: string; softer: string; glow: string; iconBackground?: string }
+> = {
+  feed: {
+    color: "#0EA5E9",
+    soft: "rgba(14, 165, 233, 0.14)",
+    softer: "rgba(14, 165, 233, 0.06)",
+    glow: "rgba(14, 165, 233, 0.2)",
+    iconBackground: "linear-gradient(135deg, #0EA5E9, #38BDF8)",
+  },
+  instagram: {
+    color: "#E4405F",
+    soft: "rgba(228, 64, 95, 0.13)",
+    softer: "rgba(252, 175, 69, 0.08)",
+    glow: "rgba(228, 64, 95, 0.2)",
+    iconBackground: "linear-gradient(135deg, #833AB4, #E1306C 48%, #FCAF45)",
+  },
+  twitter: {
+    color: "#111827",
+    soft: "rgba(17, 24, 39, 0.1)",
+    softer: "rgba(17, 24, 39, 0.04)",
+    glow: "rgba(17, 24, 39, 0.16)",
+    iconBackground: "linear-gradient(135deg, #111827, #475569)",
+  },
+  linkedin: {
+    color: "#0A66C2",
+    soft: "rgba(10, 102, 194, 0.12)",
+    softer: "rgba(10, 102, 194, 0.05)",
+    glow: "rgba(10, 102, 194, 0.18)",
+    iconBackground: "linear-gradient(135deg, #0A66C2, #2563EB)",
+  },
+  facebook: {
+    color: "#1877F2",
+    soft: "rgba(24, 119, 242, 0.12)",
+    softer: "rgba(24, 119, 242, 0.05)",
+    glow: "rgba(24, 119, 242, 0.2)",
+    iconBackground: "linear-gradient(135deg, #1877F2, #60A5FA)",
+  },
+  tiktok: {
+    color: "#FE2C55",
+    soft: "rgba(254, 44, 85, 0.12)",
+    softer: "rgba(37, 244, 238, 0.07)",
+    glow: "rgba(254, 44, 85, 0.18)",
+    iconBackground: "linear-gradient(135deg, #111827 0%, #FE2C55 52%, #25F4EE 100%)",
+  },
+  youtube: {
+    color: "#FF0000",
+    soft: "rgba(255, 0, 0, 0.12)",
+    softer: "rgba(255, 0, 0, 0.05)",
+    glow: "rgba(255, 0, 0, 0.18)",
+    iconBackground: "linear-gradient(135deg, #FF0000, #EF4444)",
+  },
+  pinterest: {
+    color: "#E60023",
+    soft: "rgba(230, 0, 35, 0.12)",
+    softer: "rgba(230, 0, 35, 0.05)",
+    glow: "rgba(230, 0, 35, 0.18)",
+    iconBackground: "linear-gradient(135deg, #E60023, #F43F5E)",
+  },
+  threads: {
+    color: "#374151",
+    soft: "rgba(55, 65, 81, 0.11)",
+    softer: "rgba(55, 65, 81, 0.04)",
+    glow: "rgba(55, 65, 81, 0.16)",
+    iconBackground: "linear-gradient(135deg, #111827, #6B7280)",
+  },
+};
+
+const getAccountPlatformStyle = (platformId: string) =>
+  ACCOUNT_PLATFORM_STYLES[platformId] || ACCOUNT_PLATFORM_STYLES.feed;
+
 const AI_PILOT_MODES: Array<{ id: AIPilotMode; label: string; icon: ElementType; hint: string }> = [
   { id: "generate", label: "Generate", icon: Sparkles, hint: "New caption from an idea" },
   { id: "rewrite", label: "Rewrite", icon: WandSparkles, hint: "Improve the current draft" },
@@ -657,6 +729,7 @@ export default function ContentPostsPage() {
                   const isActive = selectedPlatforms.includes(platform.id);
                   const incompatibleReason = getIncompatibleReason(platform.id);
                   const isDisabled = !platform.enabled || !!incompatibleReason;
+                  const platformStyle = getAccountPlatformStyle(platform.id);
 
                   return (
                     <Tooltip key={platform.id}>
@@ -672,20 +745,54 @@ export default function ContentPostsPage() {
                                 : [...prev, platform.id]
                             );
                           }}
-                          className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
+                          className={`group flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
                             isDisabled
                               ? "cursor-not-allowed bg-muted/30 opacity-50"
                               : isActive
-                                ? "border-brand-500 bg-brand-500/10 text-brand-500"
-                                : "hover:border-muted-foreground/40 hover:bg-muted/30"
+                                ? "text-foreground shadow-sm"
+                                : "hover:-translate-y-0.5 hover:bg-muted/30"
                           }`}
+                          style={
+                            isDisabled
+                              ? undefined
+                              : isActive
+                                ? {
+                                    borderColor: platformStyle.color,
+                                    background: `linear-gradient(135deg, ${platformStyle.soft}, ${platformStyle.softer})`,
+                                    boxShadow: `0 10px 28px ${platformStyle.glow}`,
+                                  }
+                                : {
+                                    borderColor: "hsl(var(--border))",
+                                  }
+                          }
                         >
-                          <span className={`flex h-5 w-5 items-center justify-center rounded-md border ${
-                            isActive ? "border-brand-500 bg-brand-500 text-white" : "bg-background"
-                          }`}>
+                          <span
+                            className="flex h-5 w-5 items-center justify-center rounded-md border transition-colors"
+                            style={
+                              isActive
+                                ? {
+                                    borderColor: platformStyle.color,
+                                    background: platformStyle.color,
+                                    color: "#fff",
+                                  }
+                                : {
+                                    borderColor: platformStyle.soft,
+                                    background: platformStyle.softer,
+                                    color: platformStyle.color,
+                                  }
+                            }
+                          >
                             {isActive && <CheckCircle2 className="h-3.5 w-3.5" />}
                           </span>
-                          <Icon className="h-5 w-5 shrink-0" />
+                          <span
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-sm transition-transform group-hover:scale-105"
+                            style={{
+                              background: platformStyle.iconBackground || platformStyle.color,
+                              boxShadow: `0 8px 20px ${platformStyle.glow}`,
+                            }}
+                          >
+                            <Icon className="h-5 w-5" />
+                          </span>
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm font-semibold">{platform.label}</span>
                             <span className="block truncate text-xs text-muted-foreground">
