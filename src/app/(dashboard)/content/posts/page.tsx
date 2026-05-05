@@ -16,7 +16,6 @@ import {
   XCircle,
   RefreshCw,
   Image as ImageIcon,
-  Link2,
   MessageSquareText,
   ShieldCheck,
 } from "lucide-react";
@@ -38,7 +37,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useCreditCosts } from "@/hooks/use-credit-costs";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
@@ -56,7 +54,6 @@ const MAX_CHARS = 2000;
 
 export default function ContentPostsPage() {
   const { toast } = useToast();
-  const { costs } = useCreditCosts("AI_POST");
   const { isConnected } = useSocialPlatforms();
   const searchParams = useSearchParams();
 
@@ -83,6 +80,9 @@ export default function ContentPostsPage() {
   const [publishAction, setPublishAction] = useState<"publish" | "draft" | "schedule" | null>(null);
   const [isGeneratingIdea, setIsGeneratingIdea] = useState(false);
   const [channelSearch, setChannelSearch] = useState("");
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showAIPilotModal, setShowAIPilotModal] = useState(false);
+  const [showReadinessModal, setShowReadinessModal] = useState(false);
 
   // ── Publish Results Modal State ───────────────────────────────────────
   const [showResultsModal, setShowResultsModal] = useState(false);
@@ -302,7 +302,6 @@ export default function ContentPostsPage() {
   };
 
   const hasContent = caption.trim().length > 0 || mediaUrls.length > 0;
-  const connectedChannelCount = SOCIAL_PLATFORMS.filter((platform) => platform.id !== "feed" && platform.enabled).length;
   const selectedExternalCount = selectedPlatforms.filter((platform) => platform !== "feed").length;
   const captionPreview = caption.trim() || "Preview updates while you type.";
   const selectablePlatforms = SOCIAL_PLATFORMS.filter(
@@ -364,37 +363,50 @@ export default function ContentPostsPage() {
                 <Save className="mr-2 h-4 w-4" />
                 Save draft
               </Button>
-              <span className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground">
-                <Link2 className="h-4 w-4 text-brand-500" />
-                {connectedChannelCount} connected
-              </span>
-              <span className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground">
-                <Send className="h-4 w-4 text-brand-500" />
-                {selectedPlatforms.length} selected
-              </span>
-              <span className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground">
-                <ImageIcon className="h-4 w-4 text-brand-500" />
-                {mediaUrls.length} media
-              </span>
-              <span className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground">
-                <Sparkles className="h-4 w-4 text-brand-500" />
-                {costs.AI_POST ? `${costs.AI_POST} credits` : "AI"}
-              </span>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setShowSchedulePicker((value) => !value)}
-              disabled={isPublishing}
-              className="h-9"
-            >
-              <CalendarDays className="mr-2 h-4 w-4" />
-              {showSchedulePicker ? "Hide schedule" : "Schedule options"}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPreviewModal(true)}
+                className="h-9"
+              >
+                <MessageSquareText className="mr-2 h-4 w-4" />
+                Preview
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAIPilotModal(true)}
+                className="h-9"
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                AI Pilot
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowReadinessModal(true)}
+                className="h-9"
+              >
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Readiness
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowSchedulePicker((value) => !value)}
+                disabled={isPublishing}
+                className="h-9"
+              >
+                <CalendarDays className="mr-2 h-4 w-4" />
+                {showSchedulePicker ? "Hide schedule" : "Schedule options"}
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* ─── POST COMPOSER ────────────────────────────────────────── */}
-        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_360px]">
+        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
           <Card className="border-border/60 shadow-sm">
             <CardContent className="space-y-3 p-4">
               <div className="flex items-center justify-between gap-3">
@@ -664,107 +676,132 @@ export default function ContentPostsPage() {
           </CardContent>
         </Card>
 
-          <aside className="space-y-4">
-            <div className="rounded-2xl border bg-background p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Live preview</p>
-                  <h2 className="mt-1 text-lg font-semibold">Platform-ready draft</h2>
-                </div>
-                <MessageSquareText className="h-5 w-5 text-brand-500" />
-              </div>
-              <div className="mt-4 rounded-2xl border bg-muted/20 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white">
-                    F
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">FlowSmartly</p>
-                    <p className="text-xs text-muted-foreground">
-                      {selectedExternalCount > 0 ? `${selectedExternalCount} external channel${selectedExternalCount === 1 ? "" : "s"}` : "Internal feed"}
-                    </p>
-                  </div>
-                </div>
-                <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-foreground">
-                  {captionPreview}
-                </p>
-                {mediaUrls.length > 0 && (
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    {mediaUrls.slice(0, 4).map((url, index) => (
-                      <div key={`${url}-${index}`} className="aspect-square overflow-hidden rounded-xl border bg-muted">
-                        {isVideoUrl(url) ? (
-                          <div className="flex h-full items-center justify-center bg-foreground/10">
-                            <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                          </div>
-                        ) : (
-                          <img src={url} alt="" className="h-full w-full object-cover" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+        </div>
 
-            <div className="rounded-2xl border bg-background p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="font-semibold">AI Pilot</h2>
-                <Sparkles className="h-4 w-4 text-purple-500" />
+        <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
+          <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <MessageSquareText className="h-5 w-5 text-brand-500" />
+                Post preview
+              </DialogTitle>
+              <DialogDescription>
+                Check how the draft reads before you publish or schedule it.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="rounded-2xl border bg-muted/20 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white">
+                  F
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">FlowSmartly</p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedExternalCount > 0 ? `${selectedExternalCount} external channel${selectedExternalCount === 1 ? "" : "s"}` : "Internal feed"}
+                  </p>
+                </div>
               </div>
-              <div className="space-y-3">
-                <textarea
-                  value={caption}
-                  onChange={(e) => setCaption(e.target.value.slice(0, MAX_CHARS))}
-                  placeholder="Share your idea, audience, and goal..."
-                  className="min-h-[92px] w-full resize-none rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <p className="mt-4 max-h-64 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-foreground">
+                {captionPreview}
+              </p>
+              {mediaUrls.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {mediaUrls.slice(0, 4).map((url, index) => (
+                    <div key={`${url}-${index}`} className="aspect-square overflow-hidden rounded-xl border bg-muted">
+                      {isVideoUrl(url) ? (
+                        <div className="flex h-full items-center justify-center bg-foreground/10">
+                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      ) : (
+                        <img src={url} alt="" className="h-full w-full object-cover" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showAIPilotModal} onOpenChange={setShowAIPilotModal}>
+          <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-500" />
+                AI Pilot
+              </DialogTitle>
+              <DialogDescription>
+                Generate or refine the caption without crowding the composer.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <textarea
+                value={caption}
+                onChange={(e) => setCaption(e.target.value.slice(0, MAX_CHARS))}
+                placeholder="Share your idea, audience, and goal..."
+                className="min-h-[140px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleGenerateIdea}
+                  disabled={isGeneratingIdea}
+                >
+                  {isGeneratingIdea ? (
+                    <AISpinner className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
+                  Generate
+                </Button>
+                <AIIdeasHistory
+                  contentType="post_ideas"
+                  mode="single"
+                  onSelect={(idea) => setCaption(idea)}
                 />
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleGenerateIdea}
-                    disabled={isGeneratingIdea}
-                  >
-                    {isGeneratingIdea ? (
-                      <AISpinner className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="mr-2 h-4 w-4" />
-                    )}
-                    Generate
-                  </Button>
-                  <AIIdeasHistory
-                    contentType="post_ideas"
-                    mode="single"
-                    onSelect={(idea) => setCaption(idea)}
+              </div>
+              {isGeneratingIdea && (
+                <div className="rounded-lg border border-brand-500/20 bg-brand-500/5 p-4">
+                  <AIGenerationLoader
+                    compact
+                    currentStep="Generating post idea..."
+                    subtitle="Using your brand identity"
                   />
                 </div>
-              </div>
+              )}
             </div>
+          </DialogContent>
+        </Dialog>
 
-            <div className="rounded-2xl border bg-background p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="font-semibold">Publishing readiness</h2>
-                <ShieldCheck className="h-4 w-4 text-emerald-500" />
-              </div>
-              <div className="space-y-3">
-                {readinessItems.map((item) => (
-                  <div key={item.label} className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 px-3 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium">{item.label}</p>
-                      <p className="text-xs text-muted-foreground">{item.detail}</p>
-                    </div>
-                    {item.ready ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-muted-foreground" />
-                    )}
+        <Dialog open={showReadinessModal} onOpenChange={setShowReadinessModal}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-emerald-500" />
+                Post readiness
+              </DialogTitle>
+              <DialogDescription>
+                Quick publishing checks for message, media, channel, and timing.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              {readinessItems.map((item) => (
+                <div key={item.label} className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">{item.detail}</p>
                   </div>
-                ))}
-              </div>
+                  {item.ready ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
+              ))}
             </div>
-
-          </aside>
-        </div>
+          </DialogContent>
+        </Dialog>
 
         {/* ─── PUBLISHING OVERLAY ───────────────────────────────────── */}
         <AnimatePresence>
