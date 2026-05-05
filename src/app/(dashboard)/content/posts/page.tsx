@@ -16,6 +16,9 @@ import {
   XCircle,
   RefreshCw,
   Image as ImageIcon,
+  ImagePlus,
+  Film,
+  Lightbulb,
   MessageSquareText,
   ShieldCheck,
   ArrowRight,
@@ -28,6 +31,8 @@ import {
   MoreHorizontal,
   Share2,
   ThumbsUp,
+  TrendingUp,
+  Video,
   WandSparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -61,6 +66,25 @@ type AIPilotMode = "generate" | "rewrite" | "shorten" | "expand" | "hashtags";
 type AIPilotTone = "professional" | "casual" | "humorous" | "inspirational" | "educational";
 type AIPilotLength = "short" | "medium" | "long";
 type AIPlatform = (typeof AI_SUPPORTED_PLATFORMS)[number];
+type FlowMediaMode = "image" | "video";
+type FlowMediaAspect = "1:1" | "9:16" | "16:9";
+
+type OrganicPostIdea = {
+  title: string;
+  angle: string;
+  format: string;
+  platforms: string[];
+  caption: string;
+};
+
+type FlowMediaTemplate = {
+  id: string;
+  title: string;
+  mode: FlowMediaMode;
+  aspect: FlowMediaAspect;
+  prompt: string;
+  badge: string;
+};
 
 const ACCOUNT_PLATFORM_STYLES: Record<
   string,
@@ -133,6 +157,59 @@ const ACCOUNT_PLATFORM_STYLES: Record<
 
 const getAccountPlatformStyle = (platformId: string) =>
   ACCOUNT_PLATFORM_STYLES[platformId] || ACCOUNT_PLATFORM_STYLES.feed;
+
+const FLOW_MEDIA_ASPECTS: Array<{ id: FlowMediaAspect; label: string; imageSize: string }> = [
+  { id: "1:1", label: "Square", imageSize: "1024x1024" },
+  { id: "9:16", label: "Reel", imageSize: "1024x1536" },
+  { id: "16:9", label: "Wide", imageSize: "1536x1024" },
+];
+
+const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
+  {
+    id: "promo-card",
+    title: "Clean offer card",
+    mode: "image",
+    aspect: "1:1",
+    badge: "xAI image",
+    prompt:
+      "Create a polished social media promotion image for a growth and marketing workspace. Modern SaaS style, bold headline space, clear CTA area, subtle social media UI elements, premium lighting, no fake app logos.",
+  },
+  {
+    id: "proof-carousel",
+    title: "Proof post visual",
+    mode: "image",
+    aspect: "1:1",
+    badge: "xAI image",
+    prompt:
+      "Create a trust-building social post image showing campaign results, customer activity, and simple analytics in a clean branded dashboard collage. Friendly, modern, high contrast, ready for Facebook and LinkedIn.",
+  },
+  {
+    id: "quick-reel",
+    title: "Quick promo video",
+    mode: "video",
+    aspect: "9:16",
+    badge: "Veo video",
+    prompt:
+      "Short vertical promo video for a business growth platform. Show campaign cards, social posts, scheduling calendar, and analytics moving smoothly into place. Energetic but professional, clear motion, bright UI moments, no text overlays.",
+  },
+  {
+    id: "product-walkthrough",
+    title: "Feature walkthrough",
+    mode: "video",
+    aspect: "16:9",
+    badge: "Veo video",
+    prompt:
+      "Horizontal product walkthrough video showing a social media campaign moving from idea, to media, to scheduled post, to performance graph. Smooth camera push, clean interface-inspired visuals, polished SaaS marketing style.",
+  },
+];
+
+const FLOW_MEDIA_STYLES = ["modern", "premium", "bold", "clean", "cinematic"];
+
+const getFlowMediaAspect = (aspect: FlowMediaAspect) =>
+  FLOW_MEDIA_ASPECTS.find((item) => item.id === aspect) || FLOW_MEDIA_ASPECTS[0];
+
+const normalizeGeneratedMediaUrl = (url: unknown) =>
+  typeof url === "string" && url.trim().length > 0 ? url.trim() : "";
 
 const AI_PILOT_MODES: Array<{ id: AIPilotMode; label: string; icon: ElementType; hint: string }> = [
   { id: "generate", label: "Generate", icon: Sparkles, hint: "New caption from an idea" },
@@ -208,6 +285,14 @@ export default function ContentPostsPage() {
   const [aiResult, setAiResult] = useState("");
   const [aiHashtags, setAiHashtags] = useState<string[]>([]);
   const [copiedAiResult, setCopiedAiResult] = useState(false);
+  const [showFlowAIMediaModal, setShowFlowAIMediaModal] = useState(false);
+  const [flowMediaMode, setFlowMediaMode] = useState<FlowMediaMode>("image");
+  const [flowMediaPrompt, setFlowMediaPrompt] = useState(FLOW_MEDIA_TEMPLATES[0].prompt);
+  const [flowMediaAspect, setFlowMediaAspect] = useState<FlowMediaAspect>("1:1");
+  const [flowMediaStyle, setFlowMediaStyle] = useState("modern");
+  const [isGeneratingFlowMedia, setIsGeneratingFlowMedia] = useState(false);
+  const [flowMediaStatus, setFlowMediaStatus] = useState("");
+  const [generatedFlowMedia, setGeneratedFlowMedia] = useState<{ type: FlowMediaMode; url: string } | null>(null);
 
   // ── Publish Results Modal State ───────────────────────────────────────
   const [showResultsModal, setShowResultsModal] = useState(false);
@@ -430,6 +515,141 @@ export default function ContentPostsPage() {
     window.setTimeout(() => setCopiedAiResult(false), 1600);
   };
 
+  const applyOrganicIdea = (idea: OrganicPostIdea) => {
+    setCaption(idea.caption.slice(0, MAX_CHARS));
+    toast({ title: "Post idea added", description: `${idea.title} is ready to edit.` });
+  };
+
+  const applyFlowMediaTemplate = (template: FlowMediaTemplate) => {
+    setFlowMediaMode(template.mode);
+    setFlowMediaAspect(template.aspect);
+    setFlowMediaPrompt(template.prompt);
+    setGeneratedFlowMedia(null);
+    setFlowMediaStatus("");
+  };
+
+  const addGeneratedMediaToPost = (type: FlowMediaMode, url: string) => {
+    setMediaUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
+    setGeneratedFlowMedia({ type, url });
+  };
+
+  const handleGenerateFlowMedia = async () => {
+    const prompt = flowMediaPrompt.trim();
+    if (prompt.length < 12) {
+      toast({
+        title: "Add a stronger prompt",
+        description: "Tell FlowAI what to create and where it will be used.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const aspect = getFlowMediaAspect(flowMediaAspect);
+    setIsGeneratingFlowMedia(true);
+    setGeneratedFlowMedia(null);
+    setFlowMediaStatus(flowMediaMode === "image" ? "Sending prompt to xAI..." : "Sending prompt to Google Veo...");
+
+    try {
+      if (flowMediaMode === "image") {
+        const res = await fetch("/api/ai/visual", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            category: "social_post",
+            size: aspect.imageSize,
+            style: flowMediaStyle,
+            provider: "xai",
+            heroType: "product",
+            textMode: "creative",
+            showBrandName: false,
+            showSocialIcons: true,
+            ctaText: null,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error?.message || "Image generation failed");
+        }
+        const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
+        if (!imageUrl) throw new Error("Image generated but no media URL was returned");
+        addGeneratedMediaToPost("image", imageUrl);
+        setFlowMediaStatus("Image added to the post.");
+        toast({ title: "Image generated", description: "The xAI asset was added to your post media." });
+        return;
+      }
+
+      const res = await fetch("/api/ai/video-studio/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          category: "promo",
+          aspectRatio: flowMediaAspect,
+          duration: 8,
+          style: flowMediaStyle,
+          resolution: "720p",
+          provider: "veo3",
+          voiceOver: false,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || err.error || "Video generation failed");
+      }
+
+      let videoUrl = "";
+      if (res.headers.get("content-type")?.includes("text/event-stream") && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const chunks = buffer.split("\n\n");
+          buffer = chunks.pop() || "";
+
+          for (const chunk of chunks) {
+            const line = chunk.split("\n").find((item) => item.startsWith("data: "));
+            if (!line) continue;
+            const event = JSON.parse(line.slice(6));
+            if (event.type === "status") {
+              setFlowMediaStatus(event.message || "Generating video...");
+            }
+            if (event.type === "error") {
+              throw new Error(event.message || "Video generation failed");
+            }
+            if (event.type === "media") {
+              videoUrl = normalizeGeneratedMediaUrl(event.mediaUrl);
+              setFlowMediaStatus("Video ready. Adding it to the post...");
+            }
+          }
+        }
+      } else {
+        const data = await res.json();
+        videoUrl = normalizeGeneratedMediaUrl(data.mediaUrl || data.url || data.data?.url);
+      }
+
+      if (!videoUrl) throw new Error("Video generated but no media URL was returned");
+      addGeneratedMediaToPost("video", videoUrl);
+      setFlowMediaStatus("Video added to the post.");
+      toast({ title: "Video generated", description: "The Veo video was added to your post media." });
+    } catch (err) {
+      setFlowMediaStatus("");
+      toast({
+        title: "FlowAI media failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingFlowMedia(false);
+    }
+  };
+
   // ── Publish / Schedule / Draft ────────────────────────────────────────
   const handleSubmit = async (action: "publish" | "draft" | "schedule") => {
     if (!caption.trim() && mediaUrls.length === 0) {
@@ -574,6 +794,43 @@ export default function ContentPostsPage() {
     "Write a helpful educational post that positions us as the trusted expert.",
     "Create a local community post that invites comments and shares.",
   ];
+  const selectedPlatformLabels = selectedPlatforms
+    .map((platformId) => PLATFORM_META[platformId]?.label)
+    .filter(Boolean)
+    .join(", ");
+  const organicPostIdeas = useMemo<OrganicPostIdea[]>(() => {
+    const channelFocus = selectedPlatformLabels || "Feed";
+    const captionTopic = caption.trim().split(/\s+/).slice(0, 14).join(" ");
+    const topic = captionTopic || "the next customer win";
+
+    return [
+      {
+        title: "Proof-led post",
+        angle: "Trust builder",
+        format: "Short story + CTA",
+        platforms: ["facebook", "linkedin", "twitter"],
+        caption: `Hook: The strongest growth posts do not start with features. They start with proof.\n\nPost: Show the moment a customer went from stuck to moving. Share the before, the turning point, and the result in plain language. Use ${topic} as the story anchor, then connect it back to what your team helps people achieve.\n\nCTA: What is one result your customers ask for most right now?`,
+      },
+      {
+        title: "Behind-the-work",
+        angle: "Organic engagement",
+        format: "Process breakdown",
+        platforms: ["instagram", "tiktok", "facebook"],
+        caption: `Hook: Here is what people usually do not see before a campaign goes live.\n\nPost: Walk through the idea, the creative choice, the channel decision, and the final CTA. Keep it simple and useful so the audience learns while they watch your process.\n\nCTA: Want the checklist we use before publishing? Comment "checklist".`,
+      },
+      {
+        title: "Opinion post",
+        angle: "Conversation starter",
+        format: "Strong POV",
+        platforms: ["linkedin", "twitter", "threads"],
+        caption: `Hook: Most brands are posting more, but learning less.\n\nPost: The better move is to turn every post into a tiny market test. Watch what people save, share, question, and ignore. Then use that signal to shape the next campaign instead of guessing.\n\nCTA: Are you posting to fill the calendar, or posting to learn?`,
+      },
+    ].map((idea) => ({
+      ...idea,
+      platforms: idea.platforms.filter((platform) => selectedPlatforms.includes(platform)),
+      format: `${idea.format} for ${channelFocus}`,
+    }));
+  }, [caption, selectedPlatformLabels, selectedPlatforms]);
   const selectablePlatforms = SOCIAL_PLATFORMS.filter(
     (platform) => platform.enabled && !getIncompatibleReason(platform.id)
   );
@@ -820,7 +1077,19 @@ export default function ContentPostsPage() {
         <Card className="border-border/60 shadow-sm">
           <CardContent className="space-y-4 p-4">
             <div className="space-y-2">
-              <Label className="font-semibold">Media</Label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label className="font-semibold">Media</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowFlowAIMediaModal(true)}
+                  className="h-8 gap-1.5 border-cyan-500/30 bg-cyan-500/5 text-xs font-semibold text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300"
+                >
+                  <ImagePlus className="h-3.5 w-3.5" />
+                  FlowAI media
+                </Button>
+              </div>
               <MediaUploader
                 value={mediaUrls}
                 onChange={setMediaUrls}
@@ -1037,6 +1306,51 @@ export default function ContentPostsPage() {
                 Schedule
               </Button>
             </div>
+
+            <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 via-background to-cyan-500/5 p-3 dark:from-emerald-400/10 dark:to-cyan-400/10">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/12 text-emerald-600 dark:text-emerald-300">
+                    <TrendingUp className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold">AI trend ideas</p>
+                    <p className="text-xs text-muted-foreground">Organic post angles you can click to prefill.</p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => handleGenerateIdea(true)}
+                  disabled={isGeneratingIdea}
+                >
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                  Fresh AI idea
+                </Button>
+              </div>
+              <div className="grid gap-2 lg:grid-cols-3">
+                {organicPostIdeas.map((idea) => (
+                  <button
+                    key={idea.title}
+                    type="button"
+                    onClick={() => applyOrganicIdea(idea)}
+                    className="group rounded-xl border bg-background/80 p-3 text-left transition hover:-translate-y-0.5 hover:border-emerald-500/40 hover:shadow-sm dark:bg-white/[0.03]"
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                        {idea.angle}
+                      </span>
+                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-emerald-600" />
+                    </div>
+                    <p className="text-sm font-bold">{idea.title}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{idea.caption.replace(/\n+/g, " ")}</p>
+                    <p className="mt-2 text-[11px] font-semibold text-cyan-700 dark:text-cyan-300">{idea.format}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -1118,9 +1432,14 @@ export default function ContentPostsPage() {
                         className={`${mediaUrls.length === 1 ? "aspect-video" : "aspect-square"} relative overflow-hidden bg-muted`}
                       >
                         {isVideoUrl(url) ? (
-                          <div className="flex h-full items-center justify-center bg-foreground/10">
-                            <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                          </div>
+                          <video
+                            src={url}
+                            controls
+                            muted
+                            playsInline
+                            preload="metadata"
+                            className="h-full w-full bg-black object-contain"
+                          />
                         ) : (
                           <img src={url} alt="" className="h-full w-full object-cover" />
                         )}
@@ -1163,6 +1482,201 @@ export default function ContentPostsPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </FloatingPanel>
+
+        <FloatingPanel
+          open={showFlowAIMediaModal}
+          onOpenChange={setShowFlowAIMediaModal}
+          title="FlowAI media"
+          description="Generate an image with xAI or a short promo video with Veo."
+          icon={<ImagePlus className="h-4 w-4" />}
+          defaultSize={{ width: 640, height: 720 }}
+          defaultPosition={{ y: 118 }}
+        >
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-violet-500/10 p-4 dark:from-cyan-400/10 dark:to-violet-400/10">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-400 via-brand-500 to-violet-500 text-white shadow-sm">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Create media without leaving the post</p>
+                  <p className="text-sm text-muted-foreground">
+                    Pick a template, tune the prompt, generate, and the asset is attached to this post.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-muted/50 p-1">
+              {[
+                { id: "image" as const, label: "Image", icon: ImageIcon, helper: "xAI Grok" },
+                { id: "video" as const, label: "Video", icon: Film, helper: "Google Veo" },
+              ].map((mode) => {
+                const Icon = mode.icon;
+                const isActive = flowMediaMode === mode.id;
+                return (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => {
+                      setFlowMediaMode(mode.id);
+                      setGeneratedFlowMedia(null);
+                    }}
+                    className={`rounded-xl px-3 py-2 text-left transition ${
+                      isActive ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-bold">
+                      <Icon className="h-4 w-4" />
+                      {mode.label}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">{mode.helper}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-bold">
+                <Lightbulb className="h-4 w-4 text-amber-500" />
+                Templates
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {FLOW_MEDIA_TEMPLATES.map((template) => {
+                  const isActive = flowMediaPrompt === template.prompt && flowMediaMode === template.mode;
+                  return (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => applyFlowMediaTemplate(template)}
+                      className={`rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                        isActive
+                          ? "border-brand-500 bg-brand-500/10"
+                          : "bg-background hover:border-brand-500/40"
+                      }`}
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className="text-sm font-bold">{template.title}</span>
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+                          {template.badge}
+                        </span>
+                      </div>
+                      <p className="line-clamp-2 text-xs text-muted-foreground">{template.prompt}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Prompt</Label>
+              <textarea
+                value={flowMediaPrompt}
+                onChange={(event) => setFlowMediaPrompt(event.target.value)}
+                className="min-h-[120px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                placeholder="Describe the media you want FlowAI to create..."
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Format</Label>
+                <div className="grid grid-cols-3 gap-1 rounded-full bg-muted/50 p-1">
+                  {FLOW_MEDIA_ASPECTS.map((aspect) => (
+                    <button
+                      key={aspect.id}
+                      type="button"
+                      onClick={() => setFlowMediaAspect(aspect.id)}
+                      className={`rounded-full px-2 py-1 text-[11px] font-semibold transition ${
+                        flowMediaAspect === aspect.id ? "bg-background shadow-sm" : "text-muted-foreground"
+                      }`}
+                    >
+                      {aspect.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Style</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {FLOW_MEDIA_STYLES.map((style) => (
+                    <button
+                      key={style}
+                      type="button"
+                      onClick={() => setFlowMediaStyle(style)}
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize transition ${
+                        flowMediaStyle === style
+                          ? "bg-foreground text-background"
+                          : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }`}
+                    >
+                      {style}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {(isGeneratingFlowMedia || flowMediaStatus) && (
+              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+                {isGeneratingFlowMedia ? (
+                  <AIGenerationLoader
+                    compact
+                    currentStep={flowMediaStatus || "Generating media..."}
+                    subtitle={flowMediaMode === "image" ? "xAI is creating a fast campaign image" : "Veo video generation can take a few minutes"}
+                  />
+                ) : (
+                  <p className="text-sm font-semibold text-cyan-700 dark:text-cyan-300">{flowMediaStatus}</p>
+                )}
+              </div>
+            )}
+
+            {generatedFlowMedia && (
+              <div className="rounded-2xl border bg-muted/25 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-sm font-bold">Attached media</p>
+                  <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                    Added to post
+                  </span>
+                </div>
+                <div className="overflow-hidden rounded-xl border bg-background">
+                  {generatedFlowMedia.type === "video" ? (
+                    <video
+                      src={generatedFlowMedia.url}
+                      controls
+                      muted
+                      playsInline
+                      className="aspect-video w-full bg-black object-contain"
+                    />
+                  ) : (
+                    <img src={generatedFlowMedia.url} alt="Generated media" className="max-h-72 w-full object-contain" />
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+              <Button
+                type="button"
+                onClick={handleGenerateFlowMedia}
+                disabled={isGeneratingFlowMedia}
+                className="bg-gradient-to-r from-cyan-500 to-violet-500 text-white hover:from-cyan-600 hover:to-violet-600"
+              >
+                {isGeneratingFlowMedia ? (
+                  <AISpinner className="mr-2 h-4 w-4 animate-spin" />
+                ) : flowMediaMode === "image" ? (
+                  <ImagePlus className="mr-2 h-4 w-4" />
+                ) : (
+                  <Video className="mr-2 h-4 w-4" />
+                )}
+                Generate {flowMediaMode}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setShowFlowAIMediaModal(false)}>
+                Close
+              </Button>
             </div>
           </div>
         </FloatingPanel>
