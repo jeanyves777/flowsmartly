@@ -29,13 +29,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 import { useToast } from "@/hooks/use-toast";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
@@ -51,6 +45,19 @@ interface PlatformPublishResult {
 }
 
 const MAX_CHARS = 2000;
+
+const toDateInputValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const toTimeInputValue = (date: Date) => {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+};
 
 export default function ContentPostsPage() {
   const { toast } = useToast();
@@ -338,6 +345,27 @@ export default function ContentPostsPage() {
       detail: showSchedulePicker && scheduleDate && scheduleTime ? `${scheduleDate} at ${scheduleTime}` : "Publish now or schedule",
     },
   ];
+  const aiScheduleOptions = useMemo(() => {
+    const buildOption = (dayOffset: number, hour: number, minute: number, note: string) => {
+      const date = new Date();
+      date.setDate(date.getDate() + dayOffset);
+      date.setHours(hour, minute, 0, 0);
+      return {
+        date: toDateInputValue(date),
+        time: toTimeInputValue(date),
+        label: date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }),
+        note,
+      };
+    };
+
+    return [
+      buildOption(1, 9, 0, "Morning reach"),
+      buildOption(1, 15, 0, "Afternoon scroll"),
+      buildOption(2, 11, 30, "Midday window"),
+      buildOption(3, 18, 0, "Evening engagement"),
+    ];
+  }, []);
+
   return (
     <TooltipProvider>
       <motion.div
@@ -580,29 +608,67 @@ export default function ContentPostsPage() {
                   exit={{ opacity: 0, height: 0 }}
                   className="overflow-hidden"
                 >
-                  <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-500/20 bg-blue-500/5">
-                    <CalendarDays className="w-4 h-4 text-blue-500 shrink-0" />
-                    <div className="flex gap-3 flex-wrap flex-1">
-                      <div className="space-y-1">
-                        <Label htmlFor="schedule-date" className="text-xs text-muted-foreground">Date</Label>
-                        <Input
-                          id="schedule-date"
-                          type="date"
-                          value={scheduleDate}
-                          onChange={(e) => setScheduleDate(e.target.value)}
-                          min={new Date().toISOString().split("T")[0]}
-                          className="w-44 h-9"
-                        />
+                  <div className="space-y-3 rounded-xl border border-blue-500/20 bg-blue-500/5 p-3">
+                    <div className="rounded-2xl border border-cyan-500/25 bg-background/80 p-3 shadow-sm dark:bg-white/[0.03]">
+                      <div className="mb-3 inline-flex h-8 items-center gap-2 rounded-full bg-gradient-to-r from-amber-400 via-brand-500 to-cyan-400 px-3 text-xs font-bold text-white">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        AI suggested time
                       </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="schedule-time" className="text-xs text-muted-foreground">Time</Label>
-                        <Input
-                          id="schedule-time"
-                          type="time"
-                          value={scheduleTime}
-                          onChange={(e) => setScheduleTime(e.target.value)}
-                          className="w-36 h-9"
-                        />
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {aiScheduleOptions.map((option) => {
+                          const isSelected = scheduleDate === option.date && scheduleTime === option.time;
+                          return (
+                            <button
+                              key={`${option.date}-${option.time}`}
+                              type="button"
+                              onClick={() => {
+                                setScheduleDate(option.date);
+                                setScheduleTime(option.time);
+                              }}
+                              className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-xs transition ${
+                                isSelected
+                                  ? "border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-300"
+                                  : "bg-background hover:border-brand-500/40 hover:bg-brand-500/5"
+                              }`}
+                            >
+                              <span>
+                                <span className="block font-semibold">{option.label}</span>
+                                <span className="text-muted-foreground">{option.time} - {option.note}</span>
+                              </span>
+                              {isSelected ? (
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                              ) : (
+                                <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <CalendarDays className="w-4 h-4 text-blue-500 shrink-0" />
+                      <div className="flex flex-1 flex-wrap gap-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="schedule-date" className="text-xs text-muted-foreground">Date</Label>
+                          <Input
+                            id="schedule-date"
+                            type="date"
+                            value={scheduleDate}
+                            onChange={(e) => setScheduleDate(e.target.value)}
+                            min={new Date().toISOString().split("T")[0]}
+                            className="w-44 h-9"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="schedule-time" className="text-xs text-muted-foreground">Time</Label>
+                          <Input
+                            id="schedule-time"
+                            type="time"
+                            value={scheduleTime}
+                            onChange={(e) => setScheduleTime(e.target.value)}
+                            className="w-36 h-9"
+                          />
+                        </div>
                       </div>
                     </div>
                     <Button
@@ -678,17 +744,15 @@ export default function ContentPostsPage() {
 
         </div>
 
-        <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
-          <DialogContent className="sm:max-w-xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <MessageSquareText className="h-5 w-5 text-brand-500" />
-                Post preview
-              </DialogTitle>
-              <DialogDescription>
-                Check how the draft reads before you publish or schedule it.
-              </DialogDescription>
-            </DialogHeader>
+        <FloatingPanel
+          open={showPreviewModal}
+          onOpenChange={setShowPreviewModal}
+          title="Post preview"
+          description="Check the draft before publishing."
+          icon={<MessageSquareText className="h-4 w-4" />}
+          defaultSize={{ width: 520, height: 620 }}
+          defaultPosition={{ y: 96 }}
+        >
             <div className="rounded-2xl border bg-muted/20 p-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white">
@@ -720,20 +784,17 @@ export default function ContentPostsPage() {
                 </div>
               )}
             </div>
-          </DialogContent>
-        </Dialog>
+        </FloatingPanel>
 
-        <Dialog open={showAIPilotModal} onOpenChange={setShowAIPilotModal}>
-          <DialogContent className="sm:max-w-xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-purple-500" />
-                AI Pilot
-              </DialogTitle>
-              <DialogDescription>
-                Generate or refine the caption without crowding the composer.
-              </DialogDescription>
-            </DialogHeader>
+        <FloatingPanel
+          open={showAIPilotModal}
+          onOpenChange={setShowAIPilotModal}
+          title="AI Pilot"
+          description="Generate or refine the caption."
+          icon={<Sparkles className="h-4 w-4" />}
+          defaultSize={{ width: 540, height: 560 }}
+          defaultPosition={{ y: 132 }}
+        >
             <div className="space-y-3">
               <textarea
                 value={caption}
@@ -771,20 +832,17 @@ export default function ContentPostsPage() {
                 </div>
               )}
             </div>
-          </DialogContent>
-        </Dialog>
+        </FloatingPanel>
 
-        <Dialog open={showReadinessModal} onOpenChange={setShowReadinessModal}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-emerald-500" />
-                Post readiness
-              </DialogTitle>
-              <DialogDescription>
-                Quick publishing checks for message, media, channel, and timing.
-              </DialogDescription>
-            </DialogHeader>
+        <FloatingPanel
+          open={showReadinessModal}
+          onOpenChange={setShowReadinessModal}
+          title="Readiness"
+          description="Quick publishing checks."
+          icon={<ShieldCheck className="h-4 w-4" />}
+          defaultSize={{ width: 420, height: 430 }}
+          defaultPosition={{ y: 168 }}
+        >
             <div className="space-y-3">
               {readinessItems.map((item) => (
                 <div key={item.label} className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 px-3 py-2.5">
@@ -800,8 +858,7 @@ export default function ContentPostsPage() {
                 </div>
               ))}
             </div>
-          </DialogContent>
-        </Dialog>
+        </FloatingPanel>
 
         {/* ─── PUBLISHING OVERLAY ───────────────────────────────────── */}
         <AnimatePresence>
@@ -842,30 +899,30 @@ export default function ContentPostsPage() {
         </AnimatePresence>
 
         {/* ─── PUBLISH RESULTS MODAL ──────────────────────────────────── */}
-        <Dialog open={showResultsModal} onOpenChange={setShowResultsModal}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                {Object.values(publishResults).every((r) => r.success) ? (
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                ) : Object.values(publishResults).some((r) => r.success) ? (
-                  <RefreshCw className="w-5 h-5 text-yellow-500" />
-                ) : (
-                  <XCircle className="w-5 h-5 text-red-500" />
-                )}
-                Publish Results
-              </DialogTitle>
-              <DialogDescription>
-                {(() => {
-                  const total = Object.keys(publishResults).length;
-                  const succeeded = Object.values(publishResults).filter((r) => r.success).length;
-                  const failed = total - succeeded;
-                  if (failed === 0) return "Successfully published to all platforms!";
-                  if (succeeded === 0) return "Publishing failed on all platforms.";
-                  return `Published to ${succeeded} of ${total} platforms. ${failed} failed.`;
-                })()}
-              </DialogDescription>
-            </DialogHeader>
+        <FloatingPanel
+          open={showResultsModal}
+          onOpenChange={setShowResultsModal}
+          title="Publish results"
+          description={(() => {
+            const total = Object.keys(publishResults).length;
+            const succeeded = Object.values(publishResults).filter((r) => r.success).length;
+            const failed = total - succeeded;
+            if (failed === 0) return "Successfully published to all platforms.";
+            if (succeeded === 0) return "Publishing failed on all platforms.";
+            return `Published to ${succeeded} of ${total}. ${failed} failed.`;
+          })()}
+          icon={
+            Object.values(publishResults).every((r) => r.success) ? (
+              <CheckCircle2 className="h-4 w-4" />
+            ) : Object.values(publishResults).some((r) => r.success) ? (
+              <RefreshCw className="h-4 w-4" />
+            ) : (
+              <XCircle className="h-4 w-4" />
+            )
+          }
+          defaultSize={{ width: 430, height: 520 }}
+          defaultPosition={{ y: 204 }}
+        >
 
             <div className="space-y-2 mt-2">
               {Object.entries(publishResults).map(([platformId, result]) => {
@@ -932,8 +989,7 @@ export default function ContentPostsPage() {
                 Done
               </Button>
             </div>
-          </DialogContent>
-        </Dialog>
+        </FloatingPanel>
 
       </motion.div>
     </TooltipProvider>

@@ -15,6 +15,9 @@ import {
   Image as ImageIcon,
   Search,
   Send,
+  Loader2,
+  Sparkles,
+  StickyNote,
 } from "lucide-react";
 import {
   startOfMonth,
@@ -34,6 +37,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -41,12 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 import {
   Tooltip,
   TooltipContent,
@@ -111,9 +110,17 @@ export default function ContentSchedulePage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
 
-  // ── Detail Dialog ─────────────────────────────────────────────────────
+  // ── Floating panels ───────────────────────────────────────────────────
   const [selectedPost, setSelectedPost] = useState<ScheduledPost | null>(null);
   const [showPostDetail, setShowPostDetail] = useState(false);
+  const [showNotePanel, setShowNotePanel] = useState(false);
+  const [noteDate, setNoteDate] = useState("");
+  const [noteTime, setNoteTime] = useState("09:00");
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteDescription, setNoteDescription] = useState("");
+  const [notePriority, setNotePriority] = useState("MEDIUM");
+  const [noteCategory, setNoteCategory] = useState("Calendar note");
+  const [isSavingNote, setIsSavingNote] = useState(false);
 
   // ── Calendar Grid Computation ─────────────────────────────────────────
   const calendarDays = useMemo(() => {
@@ -199,10 +206,97 @@ export default function ContentSchedulePage() {
   const goToNextMonth = () => setCurrentMonth((prev) => addMonths(prev, 1));
   const goToToday = () => setCurrentMonth(new Date());
 
-  // ── Click on empty day → go to post creation ──────────────────────────
+  const noteTemplates = useMemo(
+    () => [
+      {
+        title: "Campaign kickoff",
+        description: "Define the offer, audience, creative angle, channels, and approval owner before posts are drafted.",
+        category: "Campaign planning",
+        priority: "HIGH",
+      },
+      {
+        title: "Content prompt",
+        description: "Write the main message, proof points, CTA, and platform-specific post angles for the team.",
+        category: "Content prompt",
+        priority: "MEDIUM",
+      },
+      {
+        title: "Review health check",
+        description: "Check Google, Yelp, and local listings. Reply to pending reviews and flag anything that needs owner approval.",
+        category: "Local listings",
+        priority: "MEDIUM",
+      },
+    ],
+    []
+  );
+
+  const openNotePanel = (day: Date = new Date()) => {
+    setNoteDate(format(day, "yyyy-MM-dd"));
+    setNoteTime("09:00");
+    setNoteTitle("");
+    setNoteDescription("");
+    setNotePriority("MEDIUM");
+    setNoteCategory("Calendar note");
+    setShowNotePanel(true);
+  };
+
+  const applyNoteTemplate = (template: typeof noteTemplates[number]) => {
+    setNoteTitle(template.title);
+    setNoteDescription(template.description);
+    setNoteCategory(template.category);
+    setNotePriority(template.priority);
+  };
+
+  const handleSaveNote = async () => {
+    if (!noteDate || !noteTitle.trim()) {
+      toast({
+        title: "Note needs a title",
+        description: "Add the strategy prompt or task name before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsSavingNote(true);
+      const dueDate = new Date(`${noteDate}T${noteTime || "09:00"}`);
+      const res = await fetch("/api/content/schedule/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: noteTitle.trim(),
+          description: noteDescription.trim(),
+          dueDate: dueDate.toISOString(),
+          priority: notePriority,
+          category: noteCategory.trim() || "Calendar note",
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Failed to save note");
+      }
+
+      setShowNotePanel(false);
+      await fetchSchedule();
+      toast({
+        title: "Note added",
+        description: "The strategy note is now on your calendar.",
+      });
+    } catch (error) {
+      toast({
+        title: "Could not save note",
+        description: error instanceof Error ? error.message : "Try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
+  // ── Click on empty day -> create a calendar note ──────────────────────
   const handleEmptyDayClick = (day: Date) => {
-    const dateStr = format(day, "yyyy-MM-dd");
-    router.push(`/content/posts?scheduleDate=${dateStr}`);
+    openNotePanel(day);
   };
 
   const handlePostClick = (post: ScheduledPost) => {
@@ -322,6 +416,15 @@ export default function ContentSchedulePage() {
               <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                 <Button variant="outline" size="sm" onClick={goToToday} className="flex-1 sm:flex-none">
                   Today
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 sm:flex-none"
+                  onClick={() => openNotePanel(new Date())}
+                >
+                  <StickyNote className="w-3.5 h-3.5 mr-1" />
+                  New note
                 </Button>
                 <Button
                   size="sm"
@@ -477,8 +580,9 @@ export default function ContentSchedulePage() {
                         {/* Empty day + icon on hover (future days only) */}
                         {isEmpty && inCurrentMonth && !pastDay && (
                           <div className="absolute inset-x-2 bottom-2 top-9 flex items-center justify-center rounded-xl border border-dashed border-border/60 opacity-60 transition-opacity pointer-events-none group-hover:opacity-100">
-                            <div className="w-8 h-8 rounded-full bg-brand-500/10 flex items-center justify-center">
+                            <div className="flex h-8 items-center gap-1.5 rounded-full bg-brand-500/10 px-2 text-brand-500">
                               <Plus className="w-3.5 h-3.5 text-brand-500" />
+                              <span className="hidden text-[10px] font-semibold sm:inline">Note</span>
                             </div>
                           </div>
                         )}
@@ -502,11 +606,16 @@ export default function ContentSchedulePage() {
           </CardContent>
         </Card>
 
-        <Dialog open={showPostDetail} onOpenChange={setShowPostDetail}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                {selectedPost?.itemType === "strategy" ? "Strategy note" : "Post details"}
+        <FloatingPanel
+          open={showPostDetail}
+          onOpenChange={setShowPostDetail}
+          title={selectedPost?.itemType === "strategy" ? "Strategy note" : "Post details"}
+          description={selectedPost ? format(new Date(getCalendarItemDate(selectedPost)), "MMM d, yyyy h:mm a") : undefined}
+          icon={selectedPost?.itemType === "strategy" ? <StickyNote className="h-4 w-4" /> : <CalendarDays className="h-4 w-4" />}
+          defaultSize={{ width: 520, height: 640 }}
+          defaultPosition={{ y: 104 }}
+        >
+            <div className="mb-4 flex items-center gap-2">
                 {selectedPost && (
                   <Badge
                     variant="outline"
@@ -515,8 +624,7 @@ export default function ContentSchedulePage() {
                     {statusConfig[selectedPost.status]?.label}
                   </Badge>
                 )}
-              </DialogTitle>
-            </DialogHeader>
+            </div>
             {selectedPost && (
               <div className="space-y-4">
                 {/* Media gallery */}
@@ -671,8 +779,128 @@ export default function ContentSchedulePage() {
                 </div>
               </div>
             )}
-          </DialogContent>
-        </Dialog>
+        </FloatingPanel>
+
+        <FloatingPanel
+          open={showNotePanel}
+          onOpenChange={setShowNotePanel}
+          title="Calendar note"
+          description={noteDate ? `${noteDate} ${noteTime || ""}` : "Add strategy work to the calendar."}
+          icon={<StickyNote className="h-4 w-4" />}
+          defaultSize={{ width: 500, height: 610 }}
+          defaultPosition={{ y: 136 }}
+        >
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-amber-500/10 p-3 dark:from-cyan-400/10 dark:to-amber-400/10">
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                <Sparkles className="h-4 w-4 text-brand-500" />
+                AI prompt starters
+              </div>
+              <div className="grid gap-2">
+                {noteTemplates.map((template) => (
+                  <button
+                    key={template.title}
+                    type="button"
+                    onClick={() => applyNoteTemplate(template)}
+                    className="rounded-xl border bg-background/80 px-3 py-2 text-left transition hover:border-brand-500/40 hover:bg-brand-500/5 dark:bg-neutral-950/70"
+                  >
+                    <span className="block text-sm font-semibold text-foreground">{template.title}</span>
+                    <span className="line-clamp-2 text-xs text-muted-foreground">{template.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="note-date">Date</Label>
+                <Input
+                  id="note-date"
+                  type="date"
+                  value={noteDate}
+                  onChange={(event) => setNoteDate(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="note-time">Time</Label>
+                <Input
+                  id="note-time"
+                  type="time"
+                  value={noteTime}
+                  onChange={(event) => setNoteTime(event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="note-title">Note</Label>
+              <Input
+                id="note-title"
+                value={noteTitle}
+                onChange={(event) => setNoteTitle(event.target.value)}
+                placeholder="Campaign idea, prompt, task, or reminder"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="note-description">Prompt for the team</Label>
+              <Textarea
+                id="note-description"
+                value={noteDescription}
+                onChange={(event) => setNoteDescription(event.target.value)}
+                placeholder="Map the idea, approvals, creative direction, and execution notes."
+                className="min-h-[120px] resize-y"
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Priority</Label>
+                <Select value={notePriority} onValueChange={setNotePriority}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LOW">Low</SelectItem>
+                    <SelectItem value="MEDIUM">Medium</SelectItem>
+                    <SelectItem value="HIGH">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="note-category">Category</Label>
+                <Input
+                  id="note-category"
+                  value={noteCategory}
+                  onChange={(event) => setNoteCategory(event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 border-t pt-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowNotePanel(false)}
+                disabled={isSavingNote}
+              >
+                Close
+              </Button>
+              <Button
+                className="flex-1 bg-brand-500 text-white hover:bg-brand-600"
+                onClick={handleSaveNote}
+                disabled={isSavingNote}
+              >
+                {isSavingNote ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <StickyNote className="mr-2 h-4 w-4" />
+                )}
+                Save note
+              </Button>
+            </div>
+          </div>
+        </FloatingPanel>
       </motion.div>
     </TooltipProvider>
   );
