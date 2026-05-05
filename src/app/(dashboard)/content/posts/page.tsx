@@ -1,8 +1,25 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Send, CalendarDays, PenSquare, Save, Clock, X, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
+import {
+  Sparkles,
+  Send,
+  CalendarDays,
+  PenSquare,
+  Save,
+  Clock,
+  X,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+  Image as ImageIcon,
+  Link2,
+  MessageSquareText,
+  ShieldCheck,
+  WandSparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -41,6 +58,7 @@ export default function ContentPostsPage() {
   const { toast } = useToast();
   const { costs } = useCreditCosts("AI_POST");
   const { isConnected } = useSocialPlatforms();
+  const searchParams = useSearchParams();
 
   // Build dynamic platform list from DB connections
   const SOCIAL_PLATFORMS = useMemo(() => {
@@ -70,6 +88,14 @@ export default function ContentPostsPage() {
   const [publishResults, setPublishResults] = useState<Record<string, PlatformPublishResult>>({});
   const [lastPostId, setLastPostId] = useState<string | null>(null);
   const [retryingPlatforms, setRetryingPlatforms] = useState<string[]>([]);
+
+  useEffect(() => {
+    const dateFromCalendar = searchParams.get("scheduleDate");
+    if (dateFromCalendar) {
+      setScheduleDate(dateFromCalendar);
+      setShowSchedulePicker(true);
+    }
+  }, [searchParams]);
 
   // ── Content Type Detection & Platform Compatibility ─────────────────────
   const VIDEO_EXTS = [".mp4", ".webm", ".mov", ".avi"];
@@ -275,6 +301,37 @@ export default function ContentPostsPage() {
   };
 
   const hasContent = caption.trim().length > 0 || mediaUrls.length > 0;
+  const connectedChannelCount = SOCIAL_PLATFORMS.filter((platform) => platform.id !== "feed" && platform.enabled).length;
+  const selectedExternalCount = selectedPlatforms.filter((platform) => platform !== "feed").length;
+  const captionPreview = caption.trim() || "Your polished post preview will appear here as you write.";
+  const readinessItems = [
+    {
+      label: "Message",
+      ready: caption.trim().length > 0,
+      detail: caption.trim().length > 0 ? `${caption.length} characters` : "Add caption copy",
+    },
+    {
+      label: "Media",
+      ready: mediaUrls.length > 0,
+      detail: mediaUrls.length > 0 ? `${mediaUrls.length} asset${mediaUrls.length === 1 ? "" : "s"}` : "Optional",
+    },
+    {
+      label: "Channels",
+      ready: selectedPlatforms.length > 0,
+      detail: `${selectedPlatforms.length} selected`,
+    },
+    {
+      label: "Timing",
+      ready: !showSchedulePicker || (!!scheduleDate && !!scheduleTime),
+      detail: showSchedulePicker && scheduleDate && scheduleTime ? `${scheduleDate} at ${scheduleTime}` : "Publish now or schedule",
+    },
+  ];
+  const workflowStats = [
+    { label: "Connected channels", value: connectedChannelCount.toString(), icon: Link2 },
+    { label: "Selected outputs", value: selectedPlatforms.length.toString(), icon: Send },
+    { label: "Media assets", value: mediaUrls.length.toString(), icon: ImageIcon },
+    { label: "AI cost", value: costs.AI_POST ? `${costs.AI_POST}` : "-", icon: Sparkles },
+  ];
 
   return (
     <TooltipProvider>
@@ -284,16 +341,43 @@ export default function ContentPostsPage() {
         className="space-y-6"
       >
         {/* ─── PAGE HEADER ──────────────────────────────────────────── */}
-        <div>
-          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center">
-              <PenSquare className="w-4 h-4 text-white" />
+        <section className="overflow-hidden rounded-2xl border bg-[linear-gradient(135deg,hsl(var(--background))_0%,hsl(var(--muted))_58%,rgba(14,165,233,0.13)_100%)]">
+          <div className="grid gap-5 p-5 lg:grid-cols-[1.15fr_0.85fr] lg:p-6">
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 rounded-full border bg-background/80 px-3 py-1 text-xs font-semibold text-muted-foreground shadow-sm">
+                <PenSquare className="h-3.5 w-3.5 text-brand-500" />
+                Content studio
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                  Create one post, then send it to every ready channel.
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Draft, enrich with media, validate channel requirements, and either publish now or schedule from the same workspace.
+                </p>
+              </div>
             </div>
-            Create Post
-          </h1>
-        </div>
+            <div className="grid grid-cols-2 gap-3">
+              {workflowStats.map((stat) => {
+                const Icon = stat.icon;
+                return (
+                  <div key={stat.label} className="rounded-xl border bg-background/85 p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <Icon className="h-4 w-4 text-brand-500" />
+                      <span className="text-right text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {stat.label}
+                      </span>
+                    </div>
+                    <p className="mt-4 text-2xl font-bold">{stat.value}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
 
         {/* ─── POST COMPOSER ────────────────────────────────────────── */}
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="border-border/60 shadow-sm">
           <CardContent className="pt-6 space-y-4">
             {/* AI Idea + History above textarea */}
@@ -387,9 +471,10 @@ export default function ContentPostsPage() {
                         <TooltipTrigger asChild>
                           <button
                             disabled
-                            className="w-10 h-10 rounded-lg border border-border flex items-center justify-center opacity-50 cursor-not-allowed bg-muted/30"
+                            className="flex h-12 min-w-[132px] cursor-not-allowed items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 text-left opacity-50"
                           >
-                            <Icon className="w-5 h-5 text-muted-foreground" />
+                            <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+                            <span className="text-xs font-medium text-muted-foreground">{platform.label}</span>
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>
@@ -413,13 +498,14 @@ export default function ContentPostsPage() {
                                 : [...prev, platform.id]
                             );
                           }}
-                          className={`w-10 h-10 rounded-lg border-2 flex items-center justify-center transition-all ${
+                          className={`flex h-12 min-w-[132px] items-center gap-2 rounded-xl border-2 px-3 text-left transition-all ${
                             isActive
                               ? "border-brand-500 bg-brand-500/10 ring-2 ring-brand-500/20 text-brand-500"
                               : "border-border hover:border-muted-foreground/40 text-muted-foreground hover:text-foreground"
                           }`}
                         >
-                          <Icon className="w-5 h-5" />
+                          <Icon className="h-5 w-5 shrink-0" />
+                          <span className="text-xs font-semibold">{platform.label}</span>
                         </button>
                       </TooltipTrigger>
                       <TooltipContent>{platform.label}</TooltipContent>
@@ -533,6 +619,86 @@ export default function ContentPostsPage() {
             </div>
           </CardContent>
         </Card>
+
+          <aside className="space-y-4">
+            <div className="rounded-2xl border bg-background p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Live preview</p>
+                  <h2 className="mt-1 text-lg font-semibold">Platform-ready draft</h2>
+                </div>
+                <MessageSquareText className="h-5 w-5 text-brand-500" />
+              </div>
+              <div className="mt-4 rounded-2xl border bg-muted/20 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white">
+                    F
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">FlowSmartly</p>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedExternalCount > 0 ? `${selectedExternalCount} external channel${selectedExternalCount === 1 ? "" : "s"}` : "Internal feed"}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-foreground">
+                  {captionPreview}
+                </p>
+                {mediaUrls.length > 0 && (
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {mediaUrls.slice(0, 4).map((url, index) => (
+                      <div key={`${url}-${index}`} className="aspect-square overflow-hidden rounded-xl border bg-muted">
+                        {isVideoUrl(url) ? (
+                          <div className="flex h-full items-center justify-center bg-foreground/10">
+                            <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                        ) : (
+                          <img src={url} alt="" className="h-full w-full object-cover" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border bg-background p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-semibold">Publishing readiness</h2>
+                <ShieldCheck className="h-4 w-4 text-emerald-500" />
+              </div>
+              <div className="space-y-3">
+                {readinessItems.map((item) => (
+                  <div key={item.label} className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium">{item.label}</p>
+                      <p className="text-xs text-muted-foreground">{item.detail}</p>
+                    </div>
+                    {item.ready ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border bg-[linear-gradient(135deg,rgba(14,165,233,0.12),rgba(139,92,246,0.10))] p-4 shadow-sm">
+              <div className="flex gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background">
+                  <WandSparkles className="h-5 w-5 text-brand-500" />
+                </div>
+                <div>
+                  <p className="font-semibold">Best next move</p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    Generate an AI idea, attach visual proof, then schedule into the calendar when the audience is most active.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
 
         {/* ─── PUBLISHING OVERLAY ───────────────────────────────────── */}
         <AnimatePresence>

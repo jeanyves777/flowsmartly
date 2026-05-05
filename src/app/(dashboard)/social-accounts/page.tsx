@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -13,13 +14,21 @@ import {
   ExternalLink,
   X,
   Info,
+  ArrowUpRight,
+  Gauge,
+  Layers,
+  Lock,
+  ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { PLATFORM_META } from "@/components/shared/social-platform-icons";
+import { formatSocialAccountLimit, getSocialAccountLimit } from "@/lib/social/account-limits";
 
 // Platform colors
 const PLATFORM_COLORS: Record<string, string> = {
@@ -52,6 +61,13 @@ interface ErrorInfo {
   actionLabel?: string;
   actionUrl?: string;
   icon?: "error" | "warning" | "info";
+}
+
+interface AccountMeta {
+  plan: string;
+  connectedCount: number;
+  accountLimit: number | null;
+  remainingSlots: number | null;
 }
 
 const ERROR_MAP: Record<string, ErrorInfo> = {
@@ -176,6 +192,13 @@ const ERROR_MAP: Record<string, ErrorInfo> = {
     description: "Something went wrong while connecting your Pinterest account. Please try again.",
     icon: "error",
   },
+  social_account_limit_reached: {
+    title: "Account Limit Reached",
+    description: "Your current plan has no open social profile slots. Upgrade your plan or disconnect an inactive profile before adding another page.",
+    actionLabel: "Upgrade Plan",
+    actionUrl: "/settings/upgrade",
+    icon: "info",
+  },
   // Generic
   missing_params: {
     title: "Connection Error",
@@ -210,6 +233,12 @@ export default function SocialAccountsPage() {
   const [errorModal, setErrorModal] = useState<ErrorInfo | null>(null);
   const [disconnectTarget, setDisconnectTarget] = useState<{ id: string; platform: string; name: string } | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [accountMeta, setAccountMeta] = useState<AccountMeta>({
+    plan: "STARTER",
+    connectedCount: 0,
+    accountLimit: getSocialAccountLimit("STARTER"),
+    remainingSlots: getSocialAccountLimit("STARTER"),
+  });
 
   function getTokenStatus(account: SocialAccount): { label: string; color: string } {
     if (!account.tokenExpiresAt) {
@@ -241,10 +270,14 @@ export default function SocialAccountsPage() {
       const successInfo = SUCCESS_MAP[success];
       if (successInfo) {
         let desc = successInfo.description;
+        const skipped = Number(searchParams.get("skipped") || "0");
         if (success === "facebook_connected" && pages) {
           desc = `Successfully connected ${pages} Facebook Page(s)`;
         } else if (success === "instagram_connected" && accountsCount) {
           desc = `Successfully connected ${accountsCount} Instagram account(s)`;
+        }
+        if (skipped > 0) {
+          desc += `. ${skipped} additional profile${skipped === 1 ? "" : "s"} stayed unconnected because of your plan limit.`;
         }
         toast({ title: successInfo.title, description: desc });
       }
@@ -274,6 +307,22 @@ export default function SocialAccountsPage() {
     try {
       setIsLoading(true);
       const allAccounts: SocialAccount[] = [];
+      const overviewResponse = await fetch("/api/social-accounts");
+      const overviewData = await overviewResponse.json();
+      if (overviewData.success && overviewData.data) {
+        setAccountMeta({
+          plan: overviewData.data.plan || "STARTER",
+          connectedCount: overviewData.data.connectedCount || 0,
+          accountLimit:
+            overviewData.data.accountLimit === undefined
+              ? getSocialAccountLimit(overviewData.data.plan)
+              : overviewData.data.accountLimit,
+          remainingSlots:
+            overviewData.data.remainingSlots === undefined
+              ? null
+              : overviewData.data.remainingSlots,
+        });
+      }
 
       // Fetch accounts for each platform
       const platforms = ["facebook", "instagram", "youtube", "whatsapp", "twitter", "linkedin", "tiktok", "pinterest", "threads"];
@@ -292,6 +341,14 @@ export default function SocialAccountsPage() {
       }
 
       setAccounts(allAccounts);
+      setAccountMeta((prev) => ({
+        ...prev,
+        connectedCount: allAccounts.length,
+        remainingSlots:
+          prev.accountLimit === null
+            ? null
+            : Math.max(0, prev.accountLimit - allAccounts.length),
+      }));
     } catch (error) {
       console.error("Error fetching accounts:", error);
       toast({
@@ -355,6 +412,48 @@ export default function SocialAccountsPage() {
     return acc;
   }, {} as Record<string, SocialAccount[]>);
 
+  const accountLimit = accountMeta.accountLimit;
+  const connectedCount = accounts.length;
+  const remainingSlots =
+    accountLimit === null ? null : Math.max(0, accountLimit - connectedCount);
+  const usagePercent =
+    accountLimit === null || accountLimit === 0
+      ? 100
+      : Math.min(100, Math.round((connectedCount / accountLimit) * 100));
+  const isAtLimit = accountLimit !== null && connectedCount >= accountLimit;
+  const connectedPlatformCount = Object.keys(groupedAccounts).length;
+  const healthIssues = accounts.filter((account) => getTokenStatus(account).label === "Expired").length;
+
+  const accountStats = useMemo(
+    () => [
+      {
+        label: "Connected profiles",
+        value: connectedCount.toString(),
+        detail: `${connectedPlatformCount} platform${connectedPlatformCount === 1 ? "" : "s"}`,
+        icon: Layers,
+      },
+      {
+        label: "Plan allowance",
+        value: formatSocialAccountLimit(accountLimit),
+        detail: `${accountMeta.plan.replace("_", " ")} plan`,
+        icon: Gauge,
+      },
+      {
+        label: "Open slots",
+        value: remainingSlots === null ? "Unlimited" : remainingSlots.toString(),
+        detail: isAtLimit ? "Upgrade to add more" : "Ready to connect",
+        icon: Sparkles,
+      },
+      {
+        label: "Connection health",
+        value: healthIssues === 0 ? "Good" : `${healthIssues} issue${healthIssues === 1 ? "" : "s"}`,
+        detail: healthIssues === 0 ? "Tokens look active" : "Reconnect required",
+        icon: ShieldCheck,
+      },
+    ],
+    [accountLimit, accountMeta.plan, connectedCount, connectedPlatformCount, healthIssues, isAtLimit, remainingSlots]
+  );
+
   // Only show platforms with credentials configured
   const availablePlatforms = [
     { id: "facebook", name: "Facebook Pages", connectUrl: "/api/social/facebook/connect" },
@@ -368,96 +467,161 @@ export default function SocialAccountsPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-              <Link2 className="w-4 h-4 text-white" />
+    <div className="space-y-5">
+      <section className="overflow-hidden rounded-2xl border bg-[linear-gradient(135deg,hsl(var(--background))_0%,hsl(var(--muted))_62%,rgba(14,165,233,0.12)_100%)]">
+        <div className="grid gap-5 p-5 lg:grid-cols-[1.3fr_0.7fr] lg:p-6">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 rounded-full border bg-background/80 px-3 py-1 text-xs font-semibold text-muted-foreground shadow-sm">
+              <Link2 className="h-3.5 w-3.5 text-brand-500" />
+              Channel workspace
             </div>
-            Social Accounts
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage your connected social media accounts
-          </p>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                Connect every brand profile with a clean publishing limit.
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                Facebook Pages and Instagram Business profiles count as separate channels, so the page now shows exactly how many profiles your plan can connect before you start another OAuth flow.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => window.location.href = "/api/social/facebook/connect"} disabled={isAtLimit}>
+                {isAtLimit ? <Lock className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+                Connect Facebook Pages
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/settings/upgrade">
+                  Upgrade limits
+                  <ArrowUpRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button variant="ghost" onClick={handleRefresh} disabled={isRefreshing}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border bg-background/85 p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Plan usage</p>
+                <p className="mt-1 text-2xl font-bold">
+                  {connectedCount}
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {accountLimit === null ? " / unlimited" : ` / ${accountLimit}`}
+                  </span>
+                </p>
+              </div>
+              <Badge variant={isAtLimit ? "destructive" : "secondary"}>
+                {isAtLimit ? "Limit reached" : "Slots available"}
+              </Badge>
+            </div>
+            <Progress value={usagePercent} className="mt-4 h-2" />
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">
+              {isAtLimit
+                ? "Disconnect an inactive profile or upgrade before connecting more pages."
+                : remainingSlots === null
+                  ? "Enterprise profiles can keep adding channels without a fixed cap."
+                  : `${remainingSlots} profile slot${remainingSlots === 1 ? "" : "s"} still available on this plan.`}
+            </p>
+          </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+      </section>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {accountStats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.label} className="rounded-xl border bg-background p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <Icon className="h-4 w-4 text-brand-500" />
+                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {stat.label}
+                </span>
+              </div>
+              <p className="mt-4 text-2xl font-bold">{stat.value}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{stat.detail}</p>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Connected Accounts */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Connected Accounts</CardTitle>
-          <CardDescription>
-            Accounts you've connected to FlowSmartly
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle>Connected Profiles</CardTitle>
+            <CardDescription>
+              Pages, channels, and profiles that FlowSmartly can publish to.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
           {isLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-20" />
+                <Skeleton key={i} className="h-24 rounded-xl" />
               ))}
             </div>
           ) : accounts.length === 0 ? (
-            <div className="text-center py-12 border-2 border-dashed rounded-lg">
-              <Link2 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-              <p className="font-medium mb-1">No accounts connected</p>
-              <p className="text-sm text-muted-foreground mb-4">
-                Connect your social media accounts to start posting
+            <div className="rounded-2xl border border-dashed bg-muted/20 p-10 text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/10">
+                <Link2 className="h-6 w-6 text-brand-500" />
+              </div>
+              <p className="font-semibold">No profiles connected yet</p>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
+                Connect your first page to unlock multi-platform publishing and scheduling.
               </p>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-5">
               {Object.entries(groupedAccounts).map(([platform, platformAccounts]) => {
                 const meta = PLATFORM_META[platform as keyof typeof PLATFORM_META];
                 const Icon = meta?.icon || Link2;
 
                 return (
-                  <div key={platform}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${PLATFORM_COLORS[platform] || "from-gray-500 to-gray-700"} flex items-center justify-center`}>
-                        <Icon className="w-4 h-4 text-white" />
+                  <div key={platform} className="rounded-2xl border bg-muted/20 p-3">
+                    <div className="mb-3 flex items-center gap-3">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${PLATFORM_COLORS[platform] || "from-gray-500 to-gray-700"}`}>
+                        <Icon className="h-5 w-5 text-white" />
                       </div>
-                      <h3 className="font-semibold capitalize">{meta?.label || platform}</h3>
+                      <div>
+                        <h3 className="font-semibold capitalize">{meta?.label || platform}</h3>
+                        <p className="text-xs text-muted-foreground">
+                          {platformAccounts.length} connected profile{platformAccounts.length === 1 ? "" : "s"}
+                        </p>
+                      </div>
                       <Badge variant="secondary" className="ml-auto">
-                        {platformAccounts.length} connected
+                        Active
                       </Badge>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="grid gap-2">
                       {platformAccounts.map((account) => {
                         const tokenStatus = getTokenStatus(account);
                         return (
                           <div
                             key={account.id}
-                            className="flex items-center justify-between p-4 rounded-lg border bg-muted/30"
+                            className="flex items-center justify-between gap-3 rounded-xl border bg-background p-3"
                           >
                             <div className="flex items-center gap-3">
-                              {account.platformAvatarUrl && (
+                              {account.platformAvatarUrl ? (
                                 <img
                                   src={account.platformAvatarUrl}
                                   alt={account.platformDisplayName}
-                                  className="w-10 h-10 rounded-full"
+                                  className="h-11 w-11 rounded-full border object-cover"
                                 />
+                              ) : (
+                                <div className="flex h-11 w-11 items-center justify-center rounded-full border bg-muted">
+                                  <Icon className="h-4 w-4 text-muted-foreground" />
+                                </div>
                               )}
-                              <div>
-                                <p className="font-medium text-sm">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold">
                                   {account.platformDisplayName}
                                 </p>
-                                <p className="text-xs text-muted-foreground">
+                                <p className="truncate text-xs text-muted-foreground">
                                   {account.platformUsername}
                                 </p>
-                                <p className={`text-xs mt-0.5 ${tokenStatus.color}`}>
+                                <p className={`mt-0.5 text-xs ${tokenStatus.color}`}>
                                   {tokenStatus.label}
                                 </p>
                               </div>
@@ -476,11 +640,11 @@ export default function SocialAccountsPage() {
                               )}
                               <Button
                                 variant="ghost"
-                                size="sm"
-                                className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                                size="icon"
+                                className="h-8 w-8 text-red-500 hover:bg-red-500/10 hover:text-red-600"
                                 onClick={() => setDisconnectTarget({ id: account.id, platform, name: account.platformDisplayName })}
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
                           </div>
@@ -492,50 +656,77 @@ export default function SocialAccountsPage() {
               })}
             </div>
           )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Available Platforms */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Connect More Accounts</CardTitle>
-          <CardDescription>
-            Add more social media accounts to expand your reach
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle>Connect More Channels</CardTitle>
+            <CardDescription>
+              Add pages one platform at a time. Multi-page providers use one slot per page.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+          <div className="grid gap-3">
             {availablePlatforms.map((platform) => {
               const meta = PLATFORM_META[platform.id as keyof typeof PLATFORM_META];
               const Icon = meta?.icon || Link2;
               const isConnected = !!groupedAccounts[platform.id];
+              const disableConnect = isAtLimit && !isConnected;
 
               return (
                 <button
                   key={platform.id}
-                  onClick={() => window.location.href = platform.connectUrl}
-                  className="flex items-center justify-between p-4 rounded-xl border hover:border-brand-500/50 transition-all text-left hover:shadow-md"
+                  onClick={() => {
+                    if (!disableConnect) window.location.href = platform.connectUrl;
+                  }}
+                  disabled={disableConnect}
+                  className={`flex items-center justify-between rounded-xl border p-4 text-left transition-all ${
+                    disableConnect
+                      ? "cursor-not-allowed bg-muted/30 opacity-60"
+                      : "hover:border-brand-500/50 hover:bg-brand-500/5 hover:shadow-sm"
+                  }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${PLATFORM_COLORS[platform.id] || "from-gray-500 to-gray-700"} flex items-center justify-center`}>
-                      <Icon className="w-5 h-5 text-white" />
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${PLATFORM_COLORS[platform.id] || "from-gray-500 to-gray-700"}`}>
+                      <Icon className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <p className="font-medium text-sm">{platform.name}</p>
-                      {isConnected && (
-                        <p className="text-xs text-green-500">
-                          {groupedAccounts[platform.id].length} connected
-                        </p>
-                      )}
+                      <p className="text-sm font-semibold">{platform.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {disableConnect
+                          ? "Upgrade required"
+                          : isConnected
+                            ? `${groupedAccounts[platform.id].length} connected`
+                            : "Available to connect"}
+                      </p>
                     </div>
                   </div>
-                  <Plus className="w-5 h-5 text-muted-foreground" />
+                  {disableConnect ? (
+                    <Lock className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Plus className="h-5 w-5 text-muted-foreground" />
+                  )}
                 </button>
               );
             })}
           </div>
-        </CardContent>
-      </Card>
+          {isAtLimit && (
+            <div className="mt-4 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm">
+              <div className="flex gap-3">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div>
+                  <p className="font-semibold">Your current channel limit is full.</p>
+                  <p className="mt-1 text-muted-foreground">
+                    Upgrade to add more pages, or disconnect a channel that no longer needs publishing access.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Error Modal */}
       {errorModal && (

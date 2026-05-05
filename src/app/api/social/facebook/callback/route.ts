@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { getSocialAccountLimit } from "@/lib/social/account-limits";
 
 /**
  * Facebook Pages OAuth - Step 2: Handle callback
@@ -188,8 +189,35 @@ export async function GET(request: NextRequest) {
         (permissionsData.data?.map((p: any) => `${p.permission}:${p.status}`).join(", ") || "none"));
     }
 
-    // Store each page as a separate social account
-    for (const page of pages) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { plan: true },
+    });
+    const accountLimit = getSocialAccountLimit(user?.plan);
+    const activeAccounts = await prisma.socialAccount.findMany({
+      where: { userId, isActive: true },
+      select: { platform: true },
+    });
+    const activePlatformKeys = new Set(activeAccounts.map((account) => account.platform));
+    let newSlotsUsed = 0;
+    const pagesToStore = pages.filter((page) => {
+      const platformKey = `facebook_${page.id}`;
+      if (activePlatformKeys.has(platformKey)) return true;
+      if (accountLimit === null || activeAccounts.length + newSlotsUsed < accountLimit) {
+        newSlotsUsed++;
+        return true;
+      }
+      return false;
+    });
+
+    if (pagesToStore.length === 0) {
+      return NextResponse.redirect(
+        `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=social_account_limit_reached`
+      );
+    }
+
+    // Store each allowed page as a separate social account
+    for (const page of pagesToStore) {
       await prisma.socialAccount.upsert({
         where: {
           userId_platform: {
@@ -222,7 +250,7 @@ export async function GET(request: NextRequest) {
 
     // Redirect to social accounts page with success
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=facebook_connected&pages=${pages.length}`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=facebook_connected&pages=${pagesToStore.length}&skipped=${pages.length - pagesToStore.length}`
     );
   } catch (error: any) {
     console.error("Facebook OAuth callback error:", error);

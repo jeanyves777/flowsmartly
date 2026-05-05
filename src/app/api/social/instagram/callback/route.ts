@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { getSocialAccountLimit } from "@/lib/social/account-limits";
 
 /**
  * Instagram Business OAuth - Step 2: Handle callback
@@ -145,7 +146,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { plan: true },
+    });
+    const accountLimit = getSocialAccountLimit(user?.plan);
+    const activeAccounts = await prisma.socialAccount.findMany({
+      where: { userId, isActive: true },
+      select: { platform: true },
+    });
+    const activePlatformKeys = new Set(activeAccounts.map((account) => account.platform));
+    let newSlotsUsed = 0;
     let instagramAccountsFound = 0;
+    let instagramAccountsSkipped = 0;
 
     // For each page, check if it has an Instagram Business account
     for (const page of pages) {
@@ -158,18 +171,29 @@ export async function GET(request: NextRequest) {
 
         if (igData.instagram_business_account) {
           const ig = igData.instagram_business_account;
+          const platformKey = `instagram_${ig.id}`;
+          const alreadyConnected = activePlatformKeys.has(platformKey);
+
+          if (!alreadyConnected && accountLimit !== null && activeAccounts.length + newSlotsUsed >= accountLimit) {
+            instagramAccountsSkipped++;
+            continue;
+          }
+
+          if (!alreadyConnected) {
+            newSlotsUsed++;
+          }
 
           // Store Instagram account
           await prisma.socialAccount.upsert({
             where: {
               userId_platform: {
                 userId,
-                platform: `instagram_${ig.id}`,
+                platform: platformKey,
               },
             },
             create: {
               userId,
-              platform: `instagram_${ig.id}`,
+              platform: platformKey,
               platformUserId: ig.id,
               platformUsername: `@${ig.username}`,
               platformDisplayName: ig.name || ig.username,
@@ -198,13 +222,18 @@ export async function GET(request: NextRequest) {
     }
 
     if (instagramAccountsFound === 0) {
+      if (instagramAccountsSkipped > 0) {
+        return NextResponse.redirect(
+          `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=social_account_limit_reached`
+        );
+      }
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=no_instagram_accounts`
       );
     }
 
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=instagram_connected&accounts=${instagramAccountsFound}`
+      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=instagram_connected&accounts=${instagramAccountsFound}&skipped=${instagramAccountsSkipped}`
     );
   } catch (error) {
     console.error("Instagram OAuth callback error:", error);

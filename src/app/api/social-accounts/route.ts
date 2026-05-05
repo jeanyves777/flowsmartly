@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { getSocialAccountLimit } from "@/lib/social/account-limits";
 
 // Supported platforms with display metadata
 const SUPPORTED_PLATFORMS = [
@@ -27,6 +28,10 @@ export async function GET(request: NextRequest) {
     }
 
     const platformFilter = request.nextUrl.searchParams.get("platform");
+    const connectedCount = await prisma.socialAccount.count({
+      where: { userId: session.userId, isActive: true },
+    });
+    const accountLimit = getSocialAccountLimit(session.user.plan);
 
     // If platform filter is specified, return only accounts for that platform
     if (platformFilter) {
@@ -61,6 +66,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         accounts,
+        meta: {
+          plan: session.user.plan,
+          connectedCount,
+          accountLimit,
+          remainingSlots:
+            accountLimit === null
+              ? null
+              : Math.max(0, accountLimit - connectedCount),
+        },
       });
     }
 
@@ -107,7 +121,16 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: { platforms },
+      data: {
+        platforms,
+        plan: session.user.plan,
+        connectedCount,
+        accountLimit,
+        remainingSlots:
+          accountLimit === null
+            ? null
+            : Math.max(0, accountLimit - connectedCount),
+      },
     });
   } catch (error) {
     console.error("Social accounts error:", error);

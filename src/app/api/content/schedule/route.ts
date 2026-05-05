@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
         ? (() => { try { return JSON.parse(post.mediaMeta); } catch { return post.mediaUrl ? [post.mediaUrl] : []; } })()
         : post.mediaUrl ? [post.mediaUrl] : [],
       mediaType: post.mediaType,
+      status: "scheduled",
       platforms: (() => {
         try {
           return JSON.parse(post.platforms || "[]");

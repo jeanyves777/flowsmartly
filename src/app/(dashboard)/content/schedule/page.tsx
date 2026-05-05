@@ -15,6 +15,9 @@ import {
   Image as ImageIcon,
   Play,
   Send,
+  ListChecks,
+  Target,
+  Zap,
 } from "lucide-react";
 import {
   startOfMonth,
@@ -198,6 +201,16 @@ export default function ContentSchedulePage() {
   const scheduledCount = posts.filter((p) => p.status === "scheduled").length;
   const publishedCount = posts.filter((p) => p.status === "published").length;
   const draftCount = posts.filter((p) => p.status === "draft").length;
+  const activeDaysCount = Object.keys(postsByDate).length;
+  const nextScheduledPost = posts
+    .filter((p) => p.status === "scheduled")
+    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())[0];
+  const scheduleStats = [
+    { label: "Scheduled", value: scheduledCount.toString(), icon: Clock, tone: "text-blue-600" },
+    { label: "Published", value: publishedCount.toString(), icon: CheckCircle2, tone: "text-emerald-600" },
+    { label: "Drafts", value: draftCount.toString(), icon: FileEdit, tone: "text-muted-foreground" },
+    { label: "Active days", value: activeDaysCount.toString(), icon: CalendarDays, tone: "text-brand-500" },
+  ];
 
   return (
     <TooltipProvider>
@@ -207,64 +220,74 @@ export default function ContentSchedulePage() {
         className="space-y-6"
       >
         {/* ─── HEADER ───────────────────────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center">
-                <CalendarDays className="w-4 h-4 text-white" />
+        <section className="overflow-hidden rounded-2xl border bg-[linear-gradient(135deg,hsl(var(--background))_0%,hsl(var(--muted))_62%,rgba(59,130,246,0.12)_100%)]">
+          <div className="grid gap-5 p-5 lg:grid-cols-[1.1fr_0.9fr] lg:p-6">
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 rounded-full border bg-background/80 px-3 py-1 text-xs font-semibold text-muted-foreground shadow-sm">
+                <CalendarDays className="h-3.5 w-3.5 text-blue-500" />
+                Publishing calendar
               </div>
-              Schedule
-            </h1>
-          </div>
-
-          {/* Stats pills */}
-          {!isLoading && (
-            <div className="flex items-center gap-2">
-              {scheduledCount > 0 && (
-                <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
-                  <Clock className="w-3 h-3 mr-1" />
-                  {scheduledCount} scheduled
-                </Badge>
-              )}
-              {publishedCount > 0 && (
-                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
-                  <CheckCircle2 className="w-3 h-3 mr-1" />
-                  {publishedCount} published
-                </Badge>
-              )}
-              {draftCount > 0 && (
-                <Badge variant="outline" className="bg-gray-500/10 text-gray-500 border-gray-500/20">
-                  <FileEdit className="w-3 h-3 mr-1" />
-                  {draftCount} drafts
-                </Badge>
-              )}
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                  Plan the month, spot gaps, and keep every channel moving.
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Review scheduled posts by day, jump into empty future slots, and keep your next publishing move visible.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => router.push("/content/posts")}>
+                  <Plus className="h-4 w-4" />
+                  Create post
+                </Button>
+                <Button variant="outline" onClick={goToToday}>
+                  Today
+                </Button>
+              </div>
             </div>
-          )}
-        </div>
+            <div className="grid grid-cols-2 gap-3">
+              {scheduleStats.map((stat) => {
+                const Icon = stat.icon;
+                return (
+                  <div key={stat.label} className="rounded-xl border bg-background/85 p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <Icon className={`h-4 w-4 ${stat.tone}`} />
+                      <span className="text-right text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {stat.label}
+                      </span>
+                    </div>
+                    <p className="mt-4 text-2xl font-bold">{stat.value}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
 
         {/* ─── CALENDAR CARD ────────────────────────────────────────── */}
-        <Card className="border-border/60 shadow-sm">
+        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <Card className="min-w-0 border-border/60 shadow-sm">
           {/* Month Navigation Bar */}
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex w-full min-w-0 items-center justify-between gap-2 sm:w-auto sm:justify-start">
                 <Button variant="outline" size="icon" onClick={goToPrevMonth} className="h-9 w-9">
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <h2 className="text-lg font-semibold text-foreground min-w-[180px] text-center">
+                <h2 className="min-w-0 flex-1 text-center text-lg font-semibold text-foreground sm:min-w-[180px]">
                   {format(currentMonth, "MMMM yyyy")}
                 </h2>
                 <Button variant="outline" size="icon" onClick={goToNextMonth} className="h-9 w-9">
                   <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={goToToday}>
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+                <Button variant="outline" size="sm" onClick={goToToday} className="flex-1 sm:flex-none">
                   Today
                 </Button>
                 <Button
                   size="sm"
-                  className="bg-brand-500 hover:bg-brand-600 text-white"
+                  className="flex-1 bg-brand-500 text-white hover:bg-brand-600 sm:flex-none"
                   onClick={() => router.push("/content/posts")}
                 >
                   <Plus className="w-3.5 h-3.5 mr-1" />
@@ -397,6 +420,72 @@ export default function ContentSchedulePage() {
             )}
           </CardContent>
         </Card>
+
+          <aside className="space-y-4">
+            <div className="rounded-2xl border bg-background p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Next scheduled</p>
+                  <h2 className="mt-1 text-lg font-semibold">Queue focus</h2>
+                </div>
+                <ListChecks className="h-5 w-5 text-blue-500" />
+              </div>
+              {nextScheduledPost ? (
+                <button
+                  className="mt-4 w-full rounded-2xl border bg-muted/20 p-4 text-left transition-colors hover:border-blue-500/40 hover:bg-blue-500/5"
+                  onClick={() => handlePostClick(nextScheduledPost)}
+                >
+                  <p className="text-xs font-semibold text-blue-600">
+                    {format(new Date(nextScheduledPost.scheduledAt), "EEE, MMM d 'at' h:mm a")}
+                  </p>
+                  <p className="mt-2 text-sm font-medium leading-6">
+                    {truncate(nextScheduledPost.caption || "No caption", 110)}
+                  </p>
+                  <div className="mt-3 flex items-center gap-2 text-muted-foreground">
+                    {getPlatformIcons(nextScheduledPost.platforms || [])}
+                  </div>
+                </button>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-dashed bg-muted/20 p-5 text-sm text-muted-foreground">
+                  No scheduled posts in this month yet. Pick an open day on the calendar to create one.
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border bg-background p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-semibold">Schedule playbook</h2>
+                <Target className="h-4 w-4 text-brand-500" />
+              </div>
+              <div className="space-y-3">
+                {[
+                  { label: "Best posting windows", value: "9 AM, 12 PM, 5 PM" },
+                  { label: "Recommended cadence", value: "3-5 posts per week" },
+                  { label: "Current coverage", value: `${activeDaysCount} active day${activeDaysCount === 1 ? "" : "s"}` },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-xl border bg-muted/20 p-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                    <p className="mt-1 text-sm font-semibold">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border bg-[linear-gradient(135deg,rgba(14,165,233,0.12),rgba(16,185,129,0.10))] p-4 shadow-sm">
+              <div className="flex gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background">
+                  <Zap className="h-5 w-5 text-blue-500" />
+                </div>
+                <div>
+                  <p className="font-semibold">Fast scheduling</p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    Click any empty future day to open the post composer with that date already selected.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
 
         {/* ─── UPCOMING POSTS ─────────────────────────────────────── */}
         {scheduledCount > 0 && (
