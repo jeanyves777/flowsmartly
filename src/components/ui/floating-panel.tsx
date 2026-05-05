@@ -63,6 +63,10 @@ const getInitialPosition = (
   return getViewportSafePosition(preferred, size);
 };
 
+const isPanelControl = (target: EventTarget | null) =>
+  target instanceof HTMLElement &&
+  !!target.closest("button,input,textarea,select,a,[data-panel-control='true']");
+
 export function FloatingPanel({
   open,
   onOpenChange,
@@ -143,6 +147,7 @@ export function FloatingPanel({
         className="flex cursor-move touch-none select-none items-center justify-between gap-3 border-b border-border/60 bg-muted/30 px-4 py-3 dark:bg-white/[0.03]"
         onPointerDown={(event) => {
           if (event.button !== 0) return;
+          if (isPanelControl(event.target)) return;
           bringToFront();
           event.currentTarget.setPointerCapture(event.pointerId);
           dragRef.current = {
@@ -183,6 +188,8 @@ export function FloatingPanel({
         </div>
         <button
           type="button"
+          data-panel-control="true"
+          onPointerDown={(event) => event.stopPropagation()}
           onClick={() => onOpenChange(false)}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-background text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >

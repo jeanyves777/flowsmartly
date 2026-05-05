@@ -38,6 +38,21 @@ function formatRelativeDate(dateStr: string): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function cleanIdeaText(value: string): string {
+  return value
+    .replace(/^["'\s]+|["'\s]+$/g, "")
+    .replace(/\\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function formatIdeaPreview(value: string, maxLength = 96): string {
+  const cleaned = cleanIdeaText(value)
+    .replace(/\*\*/g, "")
+    .replace(/\s+/g, " ");
+  return cleaned.length > maxLength ? `${cleaned.slice(0, maxLength).trim()}...` : cleaned;
+}
+
 export function AIIdeasHistory({ contentType, onSelect, mode = "list", className }: AIIdeasHistoryProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<GeneratedContentItem[]>([]);
@@ -75,7 +90,7 @@ export function AIIdeasHistory({ contentType, onSelect, mode = "list", className
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    const dropdownWidth = 320; // w-80 = 20rem = 320px
+    const dropdownWidth = window.innerWidth >= 640 ? 384 : 320;
     // Right-align: dropdown right edge aligns with trigger right edge
     let left = rect.right - dropdownWidth;
     // If it would go off-screen left, push it right
@@ -132,16 +147,19 @@ export function AIIdeasHistory({ contentType, onSelect, mode = "list", className
     try {
       const parsed = JSON.parse(content);
       if (Array.isArray(parsed)) {
-        return parsed.map((item) => {
-          if (typeof item === "string") return item;
-          if (item?.label) return item.label;
-          if (item?.title) return `${item.title}: ${item.description || ""}`;
-          return JSON.stringify(item);
-        });
+        return parsed
+          .map((item) => {
+            if (typeof item === "string") return cleanIdeaText(item);
+            if (item?.label) return cleanIdeaText(item.label);
+            if (item?.title) return cleanIdeaText(`${item.title}${item.description ? `\n${item.description}` : ""}`);
+            return cleanIdeaText(JSON.stringify(item));
+          })
+          .filter(Boolean);
       }
-      return [content];
+      if (typeof parsed === "string") return [cleanIdeaText(parsed)].filter(Boolean);
+      return [cleanIdeaText(content)].filter(Boolean);
     } catch {
-      return [content];
+      return [cleanIdeaText(content)].filter(Boolean);
     }
   }
 
@@ -153,7 +171,7 @@ export function AIIdeasHistory({ contentType, onSelect, mode = "list", className
   const dropdownContent = isOpen && dropdownPos ? (
     <div
       ref={panelRef}
-      className="fixed z-[200] w-80 max-h-96 overflow-hidden rounded-xl border border-border/60 bg-background shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-150"
+      className="fixed z-[200] w-80 max-h-96 overflow-hidden rounded-xl border border-border/60 bg-background shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-150 sm:w-96"
       style={{ top: dropdownPos.top, left: dropdownPos.left }}
     >
       {/* Header */}
@@ -189,9 +207,12 @@ export function AIIdeasHistory({ contentType, onSelect, mode = "list", className
         ) : (
           <div className="space-y-1">
             {items.map((item) => {
-              const ideas = mode === "list" ? parseIdeas(item.content) : [item.content];
+              const ideas = parseIdeas(item.content);
               const isExpanded = expandedId === item.id;
               const dateLabel = formatRelativeDate(item.createdAt);
+              const title = item.prompt && item.prompt !== "post idea"
+                ? formatIdeaPreview(item.prompt, 72)
+                : formatIdeaPreview(ideas[0] || "Past suggestion", 72);
 
               return (
                 <div
@@ -212,7 +233,7 @@ export function AIIdeasHistory({ contentType, onSelect, mode = "list", className
                       )
                     ) : null}
                     <span className="flex-1 text-xs font-medium text-foreground truncate">
-                      {item.prompt || dateLabel}
+                      {title}
                     </span>
                     <span className="text-[10px] text-muted-foreground shrink-0">
                       {dateLabel}
@@ -227,9 +248,9 @@ export function AIIdeasHistory({ contentType, onSelect, mode = "list", className
                           key={i}
                           type="button"
                           onClick={() => handleSelect(idea)}
-                          className="w-full text-left px-2.5 py-1.5 text-xs rounded-md hover:bg-brand-50 dark:hover:bg-brand-500/10 hover:text-brand-700 dark:hover:text-brand-400 text-muted-foreground transition-colors line-clamp-2"
+                          className="w-full text-left px-2.5 py-2 text-xs rounded-md hover:bg-brand-50 dark:hover:bg-brand-500/10 hover:text-brand-700 dark:hover:text-brand-400 text-muted-foreground transition-colors"
                         >
-                          {idea}
+                          <span className="line-clamp-4 whitespace-pre-line">{idea}</span>
                         </button>
                       ))}
                     </div>

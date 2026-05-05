@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, type ElementType } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -18,6 +18,17 @@ import {
   Image as ImageIcon,
   MessageSquareText,
   ShieldCheck,
+  ArrowRight,
+  BadgeCheck,
+  Check,
+  Copy,
+  Globe2,
+  Hash,
+  MessageCircle,
+  MoreHorizontal,
+  Share2,
+  ThumbsUp,
+  WandSparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,6 +56,33 @@ interface PlatformPublishResult {
 }
 
 const MAX_CHARS = 2000;
+const AI_SUPPORTED_PLATFORMS = ["instagram", "twitter", "linkedin", "facebook", "youtube"] as const;
+type AIPilotMode = "generate" | "rewrite" | "shorten" | "expand" | "hashtags";
+type AIPilotTone = "professional" | "casual" | "humorous" | "inspirational" | "educational";
+type AIPilotLength = "short" | "medium" | "long";
+type AIPlatform = (typeof AI_SUPPORTED_PLATFORMS)[number];
+
+const AI_PILOT_MODES: Array<{ id: AIPilotMode; label: string; icon: ElementType; hint: string }> = [
+  { id: "generate", label: "Generate", icon: Sparkles, hint: "New caption from an idea" },
+  { id: "rewrite", label: "Rewrite", icon: WandSparkles, hint: "Improve the current draft" },
+  { id: "shorten", label: "Shorten", icon: MessageSquareText, hint: "Make it tighter" },
+  { id: "expand", label: "Expand", icon: ArrowRight, hint: "Add detail and CTA" },
+  { id: "hashtags", label: "Hashtags", icon: Hash, hint: "Create hashtag set" },
+];
+
+const AI_PILOT_TONES: Array<{ id: AIPilotTone; label: string }> = [
+  { id: "professional", label: "Professional" },
+  { id: "casual", label: "Casual" },
+  { id: "humorous", label: "Humorous" },
+  { id: "inspirational", label: "Inspirational" },
+  { id: "educational", label: "Educational" },
+];
+
+const AI_PILOT_LENGTHS: Array<{ id: AIPilotLength; label: string }> = [
+  { id: "short", label: "Short" },
+  { id: "medium", label: "Medium" },
+  { id: "long", label: "Long" },
+];
 
 const toDateInputValue = (date: Date) => {
   const year = date.getFullYear();
@@ -90,6 +128,14 @@ export default function ContentPostsPage() {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showAIPilotModal, setShowAIPilotModal] = useState(false);
   const [showReadinessModal, setShowReadinessModal] = useState(false);
+  const [previewPlatform, setPreviewPlatform] = useState("feed");
+  const [aiMode, setAiMode] = useState<AIPilotMode>("generate");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiTone, setAiTone] = useState<AIPilotTone>("professional");
+  const [aiLength, setAiLength] = useState<AIPilotLength>("medium");
+  const [aiResult, setAiResult] = useState("");
+  const [aiHashtags, setAiHashtags] = useState<string[]>([]);
+  const [copiedAiResult, setCopiedAiResult] = useState(false);
 
   // ── Publish Results Modal State ───────────────────────────────────────
   const [showResultsModal, setShowResultsModal] = useState(false);
@@ -160,15 +206,35 @@ export default function ContentPostsPage() {
     );
   }, [contentState, getIncompatibleReason]);
 
+  useEffect(() => {
+    if (selectedPlatforms.includes(previewPlatform)) return;
+    const externalPlatform = selectedPlatforms.find((platform) => platform !== "feed");
+    setPreviewPlatform(externalPlatform || selectedPlatforms[0] || "feed");
+  }, [previewPlatform, selectedPlatforms]);
+
+  const aiPlatformSelection = useMemo<AIPlatform[]>(() => {
+    const supported = selectedPlatforms.filter((platform): platform is AIPlatform =>
+      AI_SUPPORTED_PLATFORMS.includes(platform as AIPlatform)
+    );
+    return supported.length > 0 ? supported : ["facebook"];
+  }, [selectedPlatforms]);
+
   // ── AI Idea Generation ──────────────────────────────────────────────────
-  const handleGenerateIdea = async () => {
+  const handleGenerateIdea = async (insertIntoCaption = true) => {
     try {
       setIsGeneratingIdea(true);
       const res = await fetch("/api/content/posts/generate-idea", { method: "POST" });
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || "Failed to generate idea");
-      setCaption(data.data.idea);
-      toast({ title: "Post idea generated!" });
+      const idea = data.data.idea || "";
+      if (insertIntoCaption) {
+        setCaption(idea.slice(0, MAX_CHARS));
+      } else {
+        setAiMode("generate");
+        setAiResult(idea);
+        setAiHashtags([]);
+      }
+      toast({ title: "Post idea generated" });
     } catch (err) {
       toast({
         title: err instanceof Error ? err.message : "Failed to generate idea",
@@ -177,6 +243,119 @@ export default function ContentPostsPage() {
     } finally {
       setIsGeneratingIdea(false);
     }
+  };
+
+  const buildAIPilotPrompt = () => {
+    const platformLabels = aiPlatformSelection
+      .map((platform) => PLATFORM_META[platform]?.label || platform)
+      .join(", ");
+    const idea = aiPrompt.trim();
+    const currentDraft = caption.trim();
+
+    if (aiMode === "generate") {
+      return idea || currentDraft || "Create a useful social media post for our audience.";
+    }
+
+    if (!currentDraft && !idea) {
+      return "";
+    }
+
+    const source = currentDraft || idea;
+    const modeInstructions: Record<AIPilotMode, string> = {
+      generate: "",
+      rewrite: `Rewrite this post for ${platformLabels}. Keep the message, improve the hook, and make it feel native to the selected channels.`,
+      shorten: `Shorten this post for ${platformLabels}. Keep the strongest hook, CTA, and only the most important details.`,
+      expand: `Expand this post for ${platformLabels}. Add useful context, stronger benefits, and a clear CTA without sounding padded.`,
+      hashtags: `Create strategic hashtags for this topic across ${platformLabels}.`,
+    };
+
+    return `${modeInstructions[aiMode]}\n\n${source}`;
+  };
+
+  const handleAIPilotGenerate = async () => {
+    const prompt = buildAIPilotPrompt();
+    if (prompt.trim().length < 10) {
+      toast({
+        title: "Give AI a little more context",
+        description: "Add an idea or start a caption before running AI Pilot.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsGeneratingIdea(true);
+      setAiResult("");
+      setAiHashtags([]);
+
+      if (aiMode === "hashtags") {
+        const res = await fetch("/api/ai/generate/hashtags", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            platforms: aiPlatformSelection,
+            topic: prompt.slice(0, 500),
+            count: aiPlatformSelection.includes("twitter") ? 5 : 12,
+            categories: ["trending", "niche", "branded"],
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error?.message || "Generation failed");
+        setAiHashtags(data.data.hashtags || []);
+        toast({ title: "Hashtags generated" });
+        return;
+      }
+
+      const res = await fetch("/api/ai/generate/post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platforms: aiPlatformSelection,
+          topic: prompt.slice(0, 500),
+          tone: aiTone,
+          length: aiLength,
+          includeHashtags: aiMode === "generate",
+          includeEmojis: true,
+          includeCTA: aiMode !== "shorten",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error?.message || "Generation failed");
+      setAiResult(data.data.content || "");
+      toast({ title: "AI draft ready" });
+    } catch (err) {
+      toast({
+        title: "AI Pilot failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingIdea(false);
+    }
+  };
+
+  const handleApplyAIResult = (mode: "replace" | "append") => {
+    const content = aiMode === "hashtags" ? aiHashtags.join(" ") : aiResult;
+    if (!content.trim()) return;
+
+    if (mode === "replace") {
+      setCaption(content.slice(0, MAX_CHARS));
+      toast({ title: "Caption replaced" });
+      return;
+    }
+
+    const separator = caption.trim() ? "\n\n" : "";
+    setCaption(`${caption}${separator}${content}`.slice(0, MAX_CHARS));
+    toast({ title: "Added to caption" });
+  };
+
+  const handleCopyAIResult = async () => {
+    const content = aiMode === "hashtags" ? aiHashtags.join(" ") : aiResult;
+    if (!content.trim()) return;
+    await navigator.clipboard.writeText(content);
+    setCopiedAiResult(true);
+    toast({ title: "Copied" });
+    window.setTimeout(() => setCopiedAiResult(false), 1600);
   };
 
   // ── Publish / Schedule / Draft ────────────────────────────────────────
@@ -311,6 +490,18 @@ export default function ContentPostsPage() {
   const hasContent = caption.trim().length > 0 || mediaUrls.length > 0;
   const selectedExternalCount = selectedPlatforms.filter((platform) => platform !== "feed").length;
   const captionPreview = caption.trim() || "Preview updates while you type.";
+  const previewPlatformOptions = selectedPlatforms.length > 0 ? selectedPlatforms : ["feed"];
+  const activePreviewPlatform = previewPlatformOptions.includes(previewPlatform)
+    ? previewPlatform
+    : previewPlatformOptions[0] || "feed";
+  const activePreviewMeta = PLATFORM_META[activePreviewPlatform] || PLATFORM_META.feed;
+  const ActivePreviewIcon = activePreviewMeta.icon;
+  const aiOutput = aiMode === "hashtags" ? aiHashtags.join(" ") : aiResult;
+  const aiPromptStarters = [
+    "Announce a limited-time offer and explain why customers should act today.",
+    "Write a helpful educational post that positions us as the trusted expert.",
+    "Create a local community post that invites comments and shares.",
+  ];
   const selectablePlatforms = SOCIAL_PLATFORMS.filter(
     (platform) => platform.enabled && !getIncompatibleReason(platform.id)
   );
@@ -553,7 +744,7 @@ export default function ContentPostsPage() {
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-500/10"
-                  onClick={handleGenerateIdea}
+                  onClick={() => handleGenerateIdea(true)}
                   disabled={isGeneratingIdea}
                 >
                   {isGeneratingIdea ? (
@@ -748,89 +939,348 @@ export default function ContentPostsPage() {
           open={showPreviewModal}
           onOpenChange={setShowPreviewModal}
           title="Post preview"
-          description="Check the draft before publishing."
+          description="Switch between selected social previews."
           icon={<MessageSquareText className="h-4 w-4" />}
-          defaultSize={{ width: 520, height: 620 }}
+          defaultSize={{ width: 560, height: 700 }}
           defaultPosition={{ y: 96 }}
         >
-            <div className="rounded-2xl border bg-muted/20 p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white">
-                  F
+          <div className="space-y-4">
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {previewPlatformOptions.map((platformId) => {
+                const meta = PLATFORM_META[platformId] || PLATFORM_META.feed;
+                const Icon = meta.icon;
+                const isActive = platformId === activePreviewPlatform;
+                return (
+                  <button
+                    key={platformId}
+                    type="button"
+                    onClick={() => setPreviewPlatform(platformId)}
+                    className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition ${
+                      isActive
+                        ? "border-brand-500 bg-brand-500 text-white shadow-sm"
+                        : "bg-background text-muted-foreground hover:border-brand-500/40 hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {meta.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="rounded-[22px] border bg-[#f0f2f5] p-3 dark:bg-neutral-900">
+              <div className="rounded-2xl border bg-white shadow-sm dark:bg-neutral-950">
+                <div className="flex items-start gap-3 p-4">
+                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white ${
+                    activePreviewPlatform === "facebook" ? "bg-[#1877F2]" : "bg-brand-500"
+                  }`}>
+                    <ActivePreviewIcon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1">
+                      <p className="truncate text-sm font-bold text-neutral-950 dark:text-white">FlowSmartly</p>
+                      <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-[#1877F2]" />
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400">
+                      <span>{activePreviewMeta.label}</span>
+                      <span>·</span>
+                      <span>Now</span>
+                      <span>·</span>
+                      <Globe2 className="h-3 w-3" />
+                    </div>
+                  </div>
+                  <button className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100 dark:hover:bg-white/10">
+                    <MoreHorizontal className="h-4 w-4" />
+                    <span className="sr-only">More</span>
+                  </button>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold">FlowSmartly</p>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedExternalCount > 0 ? `${selectedExternalCount} external channel${selectedExternalCount === 1 ? "" : "s"}` : "Internal feed"}
+
+                <div className="px-4 pb-3">
+                  <p className="max-h-44 overflow-y-auto whitespace-pre-wrap text-[15px] leading-6 text-neutral-950 dark:text-neutral-50">
+                    {captionPreview}
                   </p>
                 </div>
-              </div>
-              <p className="mt-4 max-h-64 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-foreground">
-                {captionPreview}
-              </p>
-              {mediaUrls.length > 0 && (
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  {mediaUrls.slice(0, 4).map((url, index) => (
-                    <div key={`${url}-${index}`} className="aspect-square overflow-hidden rounded-xl border bg-muted">
-                      {isVideoUrl(url) ? (
-                        <div className="flex h-full items-center justify-center bg-foreground/10">
-                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                      ) : (
-                        <img src={url} alt="" className="h-full w-full object-cover" />
-                      )}
-                    </div>
-                  ))}
+
+                {mediaUrls.length > 0 ? (
+                  <div className={`grid gap-1 border-y bg-neutral-100 dark:bg-neutral-900 ${
+                    mediaUrls.length === 1 ? "grid-cols-1" : "grid-cols-2"
+                  }`}>
+                    {mediaUrls.slice(0, 4).map((url, index) => (
+                      <div
+                        key={`${url}-${index}`}
+                        className={`${mediaUrls.length === 1 ? "aspect-video" : "aspect-square"} relative overflow-hidden bg-muted`}
+                      >
+                        {isVideoUrl(url) ? (
+                          <div className="flex h-full items-center justify-center bg-foreground/10">
+                            <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                          </div>
+                        ) : (
+                          <img src={url} alt="" className="h-full w-full object-cover" />
+                        )}
+                        {index === 3 && mediaUrls.length > 4 && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/55 text-xl font-bold text-white">
+                            +{mediaUrls.length - 4}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mx-4 mb-4 flex aspect-video items-center justify-center rounded-2xl border border-dashed bg-muted/30 text-sm text-muted-foreground">
+                    Add media to preview the final social card
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between px-4 py-2 text-xs text-neutral-500 dark:text-neutral-400">
+                  <div className="flex items-center gap-1.5">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1877F2] text-white">
+                      <ThumbsUp className="h-3 w-3" />
+                    </span>
+                    <span>Ready for audience reaction</span>
+                  </div>
+                  <span>{selectedExternalCount > 0 ? `${selectedExternalCount} channel${selectedExternalCount === 1 ? "" : "s"}` : "Internal feed"}</span>
                 </div>
-              )}
+
+                <div className="grid grid-cols-3 border-t px-2 py-1 text-sm font-semibold text-neutral-600 dark:text-neutral-300">
+                  <button className="flex h-9 items-center justify-center gap-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10">
+                    <ThumbsUp className="h-4 w-4" />
+                    Like
+                  </button>
+                  <button className="flex h-9 items-center justify-center gap-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10">
+                    <MessageCircle className="h-4 w-4" />
+                    Comment
+                  </button>
+                  <button className="flex h-9 items-center justify-center gap-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10">
+                    <Share2 className="h-4 w-4" />
+                    Share
+                  </button>
+                </div>
+              </div>
             </div>
+          </div>
         </FloatingPanel>
 
         <FloatingPanel
           open={showAIPilotModal}
           onOpenChange={setShowAIPilotModal}
           title="AI Pilot"
-          description="Generate or refine the caption."
+          description="Generate, rewrite, tune, and insert."
           icon={<Sparkles className="h-4 w-4" />}
-          defaultSize={{ width: 540, height: 560 }}
+          defaultSize={{ width: 600, height: 720 }}
           defaultPosition={{ y: 132 }}
         >
-            <div className="space-y-3">
-              <textarea
-                value={caption}
-                onChange={(e) => setCaption(e.target.value.slice(0, MAX_CHARS))}
-                placeholder="Share your idea, audience, and goal..."
-                className="min-h-[140px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleGenerateIdea}
-                  disabled={isGeneratingIdea}
-                >
-                  {isGeneratingIdea ? (
-                    <AISpinner className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="mr-2 h-4 w-4" />
-                  )}
-                  Generate
-                </Button>
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-amber-500/10 p-4 dark:from-cyan-400/10 dark:to-amber-400/10">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-amber-400 via-brand-500 to-cyan-400 text-white shadow-sm">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">AI Pilot</p>
+                  <p className="text-sm text-muted-foreground">
+                    Tell me the goal, choose a workflow, then insert the best version into the composer.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {AI_PILOT_MODES.map((mode) => {
+                const Icon = mode.icon;
+                const isActive = aiMode === mode.id;
+                return (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => {
+                      setAiMode(mode.id);
+                      setAiResult("");
+                      setAiHashtags([]);
+                    }}
+                    className={`rounded-xl border px-3 py-2 text-left transition ${
+                      isActive
+                        ? "border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-300"
+                        : "bg-background hover:border-brand-500/40 hover:bg-brand-500/5"
+                    }`}
+                  >
+                    <Icon className="mb-1 h-4 w-4" />
+                    <span className="block text-xs font-bold">{mode.label}</span>
+                    <span className="hidden text-[10px] text-muted-foreground sm:block">{mode.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <Label className="text-xs text-muted-foreground">Selected social context</Label>
                 <AIIdeasHistory
                   contentType="post_ideas"
                   mode="single"
-                  onSelect={(idea) => setCaption(idea)}
+                  onSelect={(idea) => {
+                    setAiResult(idea);
+                    setAiHashtags([]);
+                  }}
                 />
               </div>
-              {isGeneratingIdea && (
-                <div className="rounded-lg border border-brand-500/20 bg-brand-500/5 p-4">
-                  <AIGenerationLoader
-                    compact
-                    currentStep="Generating post idea..."
-                    subtitle="Using your brand identity"
-                  />
+              <div className="flex flex-wrap gap-1.5">
+                {aiPlatformSelection.map((platformId) => {
+                  const meta = PLATFORM_META[platformId];
+                  const Icon = meta.icon;
+                  return (
+                    <span key={platformId} className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-1 text-xs font-semibold">
+                      <Icon className="h-3.5 w-3.5" />
+                      {meta.label}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Tone</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {AI_PILOT_TONES.map((tone) => (
+                    <button
+                      key={tone.id}
+                      type="button"
+                      onClick={() => setAiTone(tone.id)}
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                        aiTone === tone.id
+                          ? "bg-foreground text-background"
+                          : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }`}
+                    >
+                      {tone.label}
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Length</Label>
+                <div className="grid grid-cols-3 gap-1 rounded-full bg-muted/50 p-1">
+                  {AI_PILOT_LENGTHS.map((length) => (
+                    <button
+                      key={length.id}
+                      type="button"
+                      onClick={() => setAiLength(length.id)}
+                      className={`rounded-full px-2 py-1 text-[11px] font-semibold transition ${
+                        aiLength === length.id ? "bg-background shadow-sm" : "text-muted-foreground"
+                      }`}
+                    >
+                      {length.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <textarea
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder={
+                  aiMode === "hashtags"
+                    ? "Topic, campaign, product, location, or audience..."
+                    : caption.trim()
+                      ? "Optional instruction for AI, like audience, offer, or rewrite angle..."
+                      : "Share your idea, audience, offer, and goal..."
+                }
+                className="min-h-[110px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {aiPromptStarters.map((starter) => (
+                  <button
+                    key={starter}
+                    type="button"
+                    onClick={() => setAiPrompt(starter)}
+                    className="rounded-full border bg-background px-2.5 py-1 text-xs text-muted-foreground transition hover:border-brand-500/40 hover:text-foreground"
+                  >
+                    {starter}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                onClick={handleAIPilotGenerate}
+                disabled={isGeneratingIdea}
+                className="bg-gradient-to-r from-brand-500 to-cyan-500 text-white hover:from-brand-600 hover:to-cyan-600"
+              >
+                {isGeneratingIdea ? (
+                  <AISpinner className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-2 h-4 w-4" />
+                )}
+                Run {AI_PILOT_MODES.find((mode) => mode.id === aiMode)?.label}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleGenerateIdea(false)}
+                disabled={isGeneratingIdea}
+              >
+                Brand idea
+              </Button>
+            </div>
+
+            {isGeneratingIdea && (
+              <div className="rounded-xl border border-brand-500/20 bg-brand-500/5 p-4">
+                <AIGenerationLoader
+                  compact
+                  currentStep="AI Pilot is drafting..."
+                  subtitle="Using your selected channels and tone"
+                />
+              </div>
+            )}
+
+            {aiOutput && (
+              <div className="space-y-3 rounded-2xl border bg-muted/25 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-bold">Generated result</p>
+                  <button
+                    type="button"
+                    onClick={handleCopyAIResult}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full border bg-background px-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                  >
+                    {copiedAiResult ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    Copy
+                  </button>
+                </div>
+
+                {aiMode === "hashtags" ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {aiHashtags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => setCaption(`${caption}${caption.trim() ? " " : ""}${tag}`.slice(0, MAX_CHARS))}
+                        className="rounded-full bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-600 dark:text-brand-300"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="max-h-52 overflow-y-auto whitespace-pre-wrap rounded-xl bg-background p-3 text-sm leading-6">
+                    {aiResult}
+                  </p>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => handleApplyAIResult("replace")}>
+                    <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
+                    Replace caption
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleApplyAIResult("append")}>
+                    Append
+                  </Button>
+                </div>
+              </div>
+            )}
             </div>
         </FloatingPanel>
 

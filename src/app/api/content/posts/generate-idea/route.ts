@@ -60,12 +60,12 @@ export async function POST() {
       .filter(Boolean)
       .join("\n");
 
-    const prompt = `Based on this brand identity:\n\n${brandContext}\n\nWrite a ready-to-publish social media post. The post should be:\n- Engaging and authentic\n- Relevant to the brand's niche and audience\n- Include a call to action\n- Use appropriate emojis sparingly\n- Be between 50-200 words\n\nRespond with ONLY the post text, no explanations or labels.`;
+    const prompt = `Based on this brand identity:\n\n${brandContext}\n\nWrite one concise, ready-to-use social post idea. Keep it direct and easy to scan.\n\nFormat exactly like this:\nHook: one short opening line\nPost: 1-2 short sentences with the main value\nCTA: one clear action\nHashtags: 3-5 relevant hashtags\n\nRules:\n- Total length under 90 words\n- No long paragraphs\n- Use emojis only if they add clarity\n- Make it specific to the brand and audience\n\nRespond with only the formatted post idea.`;
 
     const idea = await ai.generate(prompt, {
       maxTokens: 300,
       systemPrompt:
-        "You are a social media content creator. Write engaging, authentic social media posts. Respond with only the post text, nothing else.",
+        "You are a social media content creator. Write concise, formatted post ideas that are ready to reuse. Keep output short, structured, and practical.",
     });
 
     const cleanIdea = idea?.trim() || "Share something amazing with your audience today!";
