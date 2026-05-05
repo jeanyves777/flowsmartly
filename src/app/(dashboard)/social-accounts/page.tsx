@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -15,14 +15,11 @@ import {
   X,
   Info,
   ArrowUpRight,
-  Gauge,
-  Layers,
   Lock,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -326,19 +323,21 @@ export default function SocialAccountsPage() {
 
       // Fetch accounts for each platform
       const platforms = ["facebook", "instagram", "youtube", "whatsapp", "twitter", "linkedin", "tiktok", "pinterest", "threads"];
-
-      for (const platform of platforms) {
+      const platformResults = await Promise.all(platforms.map(async (platform) => {
         try {
           const response = await fetch(`/api/social-accounts?platform=${platform}`);
           const data = await response.json();
 
           if (data.success && data.accounts) {
-            allAccounts.push(...data.accounts);
+            return data.accounts as SocialAccount[];
           }
         } catch (err) {
           console.error(`Error fetching ${platform} accounts:`, err);
         }
-      }
+        return [];
+      }));
+
+      allAccounts.push(...platformResults.flat());
 
       setAccounts(allAccounts);
       setAccountMeta((prev) => ({
@@ -424,36 +423,6 @@ export default function SocialAccountsPage() {
   const connectedPlatformCount = Object.keys(groupedAccounts).length;
   const healthIssues = accounts.filter((account) => getTokenStatus(account).label === "Expired").length;
 
-  const accountStats = useMemo(
-    () => [
-      {
-        label: "Connected profiles",
-        value: connectedCount.toString(),
-        detail: `${connectedPlatformCount} platform${connectedPlatformCount === 1 ? "" : "s"}`,
-        icon: Layers,
-      },
-      {
-        label: "Plan allowance",
-        value: formatSocialAccountLimit(accountLimit),
-        detail: `${accountMeta.plan.replace("_", " ")} plan`,
-        icon: Gauge,
-      },
-      {
-        label: "Open slots",
-        value: remainingSlots === null ? "Unlimited" : remainingSlots.toString(),
-        detail: isAtLimit ? "Upgrade to add more" : "Ready to connect",
-        icon: Sparkles,
-      },
-      {
-        label: "Connection health",
-        value: healthIssues === 0 ? "Good" : `${healthIssues} issue${healthIssues === 1 ? "" : "s"}`,
-        detail: healthIssues === 0 ? "Tokens look active" : "Reconnect required",
-        icon: ShieldCheck,
-      },
-    ],
-    [accountLimit, accountMeta.plan, connectedCount, connectedPlatformCount, healthIssues, isAtLimit, remainingSlots]
-  );
-
   // Only show platforms with credentials configured
   const availablePlatforms = [
     { id: "facebook", name: "Facebook Pages", connectUrl: "/api/social/facebook/connect" },
@@ -467,92 +436,59 @@ export default function SocialAccountsPage() {
   ];
 
   return (
-    <div className="space-y-5">
-      <section className="overflow-hidden rounded-2xl border bg-[linear-gradient(135deg,hsl(var(--background))_0%,hsl(var(--muted))_62%,rgba(14,165,233,0.12)_100%)]">
-        <div className="grid gap-5 p-5 lg:grid-cols-[1.3fr_0.7fr] lg:p-6">
-          <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border bg-background/80 px-3 py-1 text-xs font-semibold text-muted-foreground shadow-sm">
-              <Link2 className="h-3.5 w-3.5 text-brand-500" />
-              Channel workspace
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                Connect every brand profile with a clean publishing limit.
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Facebook Pages and Instagram Business profiles count as separate channels, so the page now shows exactly how many profiles your plan can connect before you start another OAuth flow.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={() => window.location.href = "/api/social/facebook/connect"} disabled={isAtLimit}>
-                {isAtLimit ? <Lock className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
-                Connect Facebook Pages
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/settings/upgrade">
-                  Upgrade limits
-                  <ArrowUpRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-              <Button variant="ghost" onClick={handleRefresh} disabled={isRefreshing}>
-                <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-                Refresh
-              </Button>
-            </div>
+    <div className="space-y-4">
+      <div className="rounded-xl border bg-background p-3 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex h-9 items-center gap-2 rounded-lg border bg-muted/30 px-3 text-sm font-semibold">
+              <Link2 className="h-4 w-4 text-brand-500" />
+              Channels
+            </span>
+            <span className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground">
+              <strong className="text-foreground">{connectedCount}</strong>
+              / {formatSocialAccountLimit(accountLimit)}
+            </span>
+            <span className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground">
+              <strong className="text-foreground">{connectedPlatformCount}</strong>
+              platform{connectedPlatformCount === 1 ? "" : "s"}
+            </span>
+            <span className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground">
+              <ShieldCheck className={`h-4 w-4 ${healthIssues === 0 ? "text-emerald-500" : "text-amber-500"}`} />
+              {healthIssues === 0 ? "Healthy" : `${healthIssues} expired`}
+            </span>
+            <Badge variant={isAtLimit ? "destructive" : "secondary"} className="h-9 rounded-lg px-3">
+              {isAtLimit ? "Limit reached" : remainingSlots === null ? "Unlimited" : `${remainingSlots} open`}
+            </Badge>
           </div>
-
-          <div className="rounded-2xl border bg-background/85 p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Plan usage</p>
-                <p className="mt-1 text-2xl font-bold">
-                  {connectedCount}
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {accountLimit === null ? " / unlimited" : ` / ${accountLimit}`}
-                  </span>
-                </p>
-              </div>
-              <Badge variant={isAtLimit ? "destructive" : "secondary"}>
-                {isAtLimit ? "Limit reached" : "Slots available"}
-              </Badge>
-            </div>
-            <Progress value={usagePercent} className="mt-4 h-2" />
-            <p className="mt-3 text-xs leading-5 text-muted-foreground">
-              {isAtLimit
-                ? "Disconnect an inactive profile or upgrade before connecting more pages."
-                : remainingSlots === null
-                  ? "Enterprise profiles can keep adding channels without a fixed cap."
-                  : `${remainingSlots} profile slot${remainingSlots === 1 ? "" : "s"} still available on this plan.`}
-            </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={() => window.location.href = "/api/social/facebook/connect"} disabled={isAtLimit} className="h-9">
+              {isAtLimit ? <Lock className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+              Facebook Pages
+            </Button>
+            <Button variant="outline" asChild className="h-9">
+              <Link href="/settings/upgrade">
+                Upgrade
+                <ArrowUpRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+            <Button variant="ghost" onClick={handleRefresh} disabled={isRefreshing} className="h-9">
+              <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
           </div>
         </div>
-      </section>
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {accountStats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div key={stat.label} className="rounded-xl border bg-background p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <Icon className="h-4 w-4 text-brand-500" />
-                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {stat.label}
-                </span>
-              </div>
-              <p className="mt-4 text-2xl font-bold">{stat.value}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{stat.detail}</p>
-            </div>
-          );
-        })}
+        {accountLimit !== null && (
+          <Progress value={usagePercent} className="mt-3 h-1.5" />
+        )}
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
-        <Card className="border-border/70 shadow-sm">
+        <Card className="self-start border-border/70 shadow-sm">
           <CardHeader className="pb-4">
-            <CardTitle>Connected Profiles</CardTitle>
-            <CardDescription>
-              Pages, channels, and profiles that FlowSmartly can publish to.
-            </CardDescription>
+            <CardTitle className="flex items-center justify-between gap-3 text-base">
+              Connected profiles
+              <Badge variant="secondary">{connectedCount}</Badge>
+            </CardTitle>
           </CardHeader>
           <CardContent>
           {isLoading ? (
@@ -659,12 +595,14 @@ export default function SocialAccountsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/70 shadow-sm">
+        <Card className="self-start border-border/70 shadow-sm">
           <CardHeader className="pb-4">
-            <CardTitle>Connect More Channels</CardTitle>
-            <CardDescription>
-              Add pages one platform at a time. Multi-page providers use one slot per page.
-            </CardDescription>
+            <CardTitle className="flex items-center justify-between gap-3 text-base">
+              Connect channels
+              <Badge variant={isAtLimit ? "destructive" : "secondary"}>
+                {isAtLimit ? "Full" : "Open"}
+              </Badge>
+            </CardTitle>
           </CardHeader>
           <CardContent>
           <div className="grid gap-3">

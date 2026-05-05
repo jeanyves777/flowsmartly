@@ -13,11 +13,8 @@ import {
   Trash2,
   Plus,
   Image as ImageIcon,
-  Play,
+  Search,
   Send,
-  ListChecks,
-  Target,
-  Zap,
 } from "lucide-react";
 import {
   startOfMonth,
@@ -35,7 +32,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -55,15 +60,25 @@ import { PLATFORM_META } from "@/components/shared/social-platform-icons";
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface ScheduledPost {
   id: string;
+  itemType?: "post" | "strategy";
   caption: string;
+  title?: string;
+  description?: string | null;
   mediaUrls: string[];
   mediaThumbnails: string[];
-  status: "published" | "scheduled" | "draft";
+  status: "published" | "scheduled" | "draft" | "todo" | "in_progress" | "done";
   platforms: string[];
-  scheduledAt: string;
+  scheduledAt: string | null;
   publishedAt: string | null;
   createdAt: string;
   aiGenerated: boolean;
+  strategyName?: string;
+  strategyId?: string;
+  priority?: string;
+  category?: string | null;
+  startDate?: string | null;
+  dueDate?: string | null;
+  progress?: number;
   engagement?: {
     likes: number;
     comments: number;
@@ -77,6 +92,9 @@ const statusConfig: Record<string, { label: string; dotColor: string; bgColor: s
   published: { label: "Published", dotColor: "bg-green-500", bgColor: "bg-green-500/10", textColor: "text-green-600", icon: CheckCircle2 },
   scheduled: { label: "Scheduled", dotColor: "bg-blue-500", bgColor: "bg-blue-500/10", textColor: "text-blue-600", icon: Clock },
   draft: { label: "Draft", dotColor: "bg-gray-400", bgColor: "bg-gray-500/10", textColor: "text-gray-500", icon: FileEdit },
+  todo: { label: "To do", dotColor: "bg-amber-500", bgColor: "bg-amber-500/15", textColor: "text-amber-700 dark:text-amber-300", icon: FileEdit },
+  in_progress: { label: "In progress", dotColor: "bg-violet-500", bgColor: "bg-violet-500/15", textColor: "text-violet-700 dark:text-violet-300", icon: FileEdit },
+  done: { label: "Done", dotColor: "bg-emerald-500", bgColor: "bg-emerald-500/15", textColor: "text-emerald-700 dark:text-emerald-300", icon: CheckCircle2 },
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -89,6 +107,9 @@ export default function ContentSchedulePage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [posts, setPosts] = useState<ScheduledPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [platformFilter, setPlatformFilter] = useState("all");
 
   // ── Detail Dialog ─────────────────────────────────────────────────────
   const [selectedPost, setSelectedPost] = useState<ScheduledPost | null>(null);
@@ -103,20 +124,50 @@ export default function ContentSchedulePage() {
     return eachDayOfInterval({ start: calStart, end: calEnd });
   }, [currentMonth]);
 
+  const platformOptions = useMemo(() => {
+    const platformIds = Array.from(
+      new Set(posts.filter((post) => post.itemType !== "strategy").flatMap((post) => post.platforms || []))
+    );
+    return platformIds
+      .map((id) => ({ id, label: PLATFORM_META[id]?.label || id }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [posts]);
+
+  const filteredPosts = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return posts.filter((post) => {
+      const searchableText = [
+        post.caption,
+        post.title,
+        post.description,
+        post.strategyName,
+        post.category,
+      ].filter(Boolean).join(" ").toLowerCase();
+      const matchesSearch = !query || searchableText.includes(query);
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "posts" && post.itemType !== "strategy") ||
+        (statusFilter === "strategy" && post.itemType === "strategy") ||
+        post.status === statusFilter;
+      const matchesPlatform =
+        platformFilter === "all" ||
+        (post.itemType === "strategy" && platformFilter === "strategy") ||
+        (post.platforms || []).includes(platformFilter);
+      return matchesSearch && matchesStatus && matchesPlatform;
+    });
+  }, [platformFilter, posts, searchQuery, statusFilter]);
+
   // Group posts by date string for efficient lookup
   const postsByDate = useMemo(() => {
     const map: Record<string, ScheduledPost[]> = {};
-    for (const post of posts) {
-      const dateKey = post.scheduledAt
-        ? format(new Date(post.scheduledAt), "yyyy-MM-dd")
-        : post.publishedAt
-          ? format(new Date(post.publishedAt), "yyyy-MM-dd")
-          : format(new Date(post.createdAt), "yyyy-MM-dd");
+    for (const post of filteredPosts) {
+      const itemDate = post.scheduledAt || post.dueDate || post.startDate || post.publishedAt || post.createdAt;
+      const dateKey = format(new Date(itemDate), "yyyy-MM-dd");
       if (!map[dateKey]) map[dateKey] = [];
       map[dateKey].push(post);
     }
     return map;
-  }, [posts]);
+  }, [filteredPosts]);
 
   // ── Fetch Schedule ────────────────────────────────────────────────────
   const fetchSchedule = useCallback(async () => {
@@ -126,7 +177,7 @@ export default function ContentSchedulePage() {
       const res = await fetch(`/api/content/schedule?month=${monthStr}`);
       const data = await res.json();
       if (data.success) {
-        setPosts(data.data?.posts || []);
+        setPosts(data.data?.items || data.data?.posts || []);
       }
     } catch {
       toast({
@@ -175,8 +226,6 @@ export default function ContentSchedulePage() {
   };
 
   // ── Helpers ───────────────────────────────────────────────────────────
-  const formatTime = (dateStr: string) => format(new Date(dateStr), "h:mm a");
-
   const truncate = (text: string, maxLen: number) =>
     text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
 
@@ -197,18 +246,31 @@ export default function ContentSchedulePage() {
 
   const isVideoUrl = (url: string) => /\.(mp4|webm|mov)(\?|#|$)/i.test(url);
 
+  const getCalendarItemStyle = (item: ScheduledPost) => {
+    if (item.itemType === "strategy") {
+      const priority = item.priority?.toUpperCase();
+      if (priority === "HIGH") {
+        return "border-rose-500/35 bg-rose-500/15 text-rose-700 dark:text-rose-200";
+      }
+      if (priority === "LOW") {
+        return "border-emerald-500/35 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200";
+      }
+      return "border-amber-500/35 bg-amber-500/20 text-amber-800 dark:text-amber-200";
+    }
+    const config = statusConfig[item.status] || statusConfig.draft;
+    return `${config.bgColor} ${config.textColor}`;
+  };
+
+  const getCalendarItemDate = (item: ScheduledPost) =>
+    item.scheduledAt || item.dueDate || item.startDate || item.publishedAt || item.createdAt;
+
   // Stats
-  const scheduledCount = posts.filter((p) => p.status === "scheduled").length;
-  const publishedCount = posts.filter((p) => p.status === "published").length;
-  const draftCount = posts.filter((p) => p.status === "draft").length;
+  const scheduledCount = filteredPosts.filter((p) => p.itemType !== "strategy").length;
+  const strategyCount = filteredPosts.filter((p) => p.itemType === "strategy").length;
   const activeDaysCount = Object.keys(postsByDate).length;
-  const nextScheduledPost = posts
-    .filter((p) => p.status === "scheduled")
-    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())[0];
   const scheduleStats = [
-    { label: "Scheduled", value: scheduledCount.toString(), icon: Clock, tone: "text-blue-600" },
-    { label: "Published", value: publishedCount.toString(), icon: CheckCircle2, tone: "text-emerald-600" },
-    { label: "Drafts", value: draftCount.toString(), icon: FileEdit, tone: "text-muted-foreground" },
+    { label: "Posts", value: scheduledCount.toString(), icon: Clock, tone: "text-blue-600" },
+    { label: "Strategy notes", value: strategyCount.toString(), icon: FileEdit, tone: "text-amber-600" },
     { label: "Active days", value: activeDaysCount.toString(), icon: CalendarDays, tone: "text-brand-500" },
   ];
 
@@ -217,55 +279,31 @@ export default function ContentSchedulePage() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="space-y-6"
+        className="space-y-4"
       >
         {/* ─── HEADER ───────────────────────────────────────────────── */}
-        <section className="overflow-hidden rounded-2xl border bg-[linear-gradient(135deg,hsl(var(--background))_0%,hsl(var(--muted))_62%,rgba(59,130,246,0.12)_100%)]">
-          <div className="grid gap-5 p-5 lg:grid-cols-[1.1fr_0.9fr] lg:p-6">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border bg-background/80 px-3 py-1 text-xs font-semibold text-muted-foreground shadow-sm">
-                <CalendarDays className="h-3.5 w-3.5 text-blue-500" />
-                Publishing calendar
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                  Plan the month, spot gaps, and keep every channel moving.
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  Review scheduled posts by day, jump into empty future slots, and keep your next publishing move visible.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={() => router.push("/content/posts")}>
-                  <Plus className="h-4 w-4" />
-                  Create post
-                </Button>
-                <Button variant="outline" onClick={goToToday}>
-                  Today
-                </Button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl border bg-background p-3 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex h-9 items-center gap-2 rounded-lg border bg-muted/30 px-3 text-sm font-semibold">
+                <CalendarDays className="h-4 w-4 text-blue-500" />
+                Calendar
+              </span>
               {scheduleStats.map((stat) => {
                 const Icon = stat.icon;
                 return (
-                  <div key={stat.label} className="rounded-xl border bg-background/85 p-4 shadow-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <Icon className={`h-4 w-4 ${stat.tone}`} />
-                      <span className="text-right text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                        {stat.label}
-                      </span>
-                    </div>
-                    <p className="mt-4 text-2xl font-bold">{stat.value}</p>
-                  </div>
+                  <span key={stat.label} className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground">
+                    <Icon className={`h-4 w-4 ${stat.tone}`} />
+                    <strong className="text-foreground">{stat.value}</strong>
+                    {stat.label}
+                  </span>
                 );
               })}
             </div>
           </div>
-        </section>
+        </div>
 
         {/* ─── CALENDAR CARD ────────────────────────────────────────── */}
-        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
         <Card className="min-w-0 border-border/60 shadow-sm">
           {/* Month Navigation Bar */}
           <CardHeader className="pb-3">
@@ -294,6 +332,43 @@ export default function ContentSchedulePage() {
                   New Post
                 </Button>
               </div>
+            </div>
+            <div className="grid gap-2 border-t pt-3 md:grid-cols-[minmax(0,1fr)_160px_180px]">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search posts or strategy notes"
+                  className="h-9 pl-9"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All items</SelectItem>
+                  <SelectItem value="posts">Scheduled posts</SelectItem>
+                  <SelectItem value="strategy">Strategy notes</SelectItem>
+                  <SelectItem value="todo">To do</SelectItem>
+                  <SelectItem value="in_progress">In progress</SelectItem>
+                  <SelectItem value="done">Done</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={platformFilter} onValueChange={setPlatformFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Channel" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All channels</SelectItem>
+                  {platformOptions.map((platform) => (
+                    <SelectItem key={platform.id} value={platform.id}>
+                      {platform.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </CardHeader>
 
@@ -333,7 +408,7 @@ export default function ContentSchedulePage() {
                     return (
                       <div
                         key={dateKey}
-                        className={`relative min-h-[90px] sm:min-h-[110px] border-r border-b border-border/40 p-1 sm:p-1.5 transition-colors group ${
+                        className={`relative min-h-[110px] border-r border-b border-border/40 p-1.5 transition-colors group sm:min-h-[140px] lg:min-h-[155px] ${
                           !inCurrentMonth
                             ? "bg-muted/20"
                             : today
@@ -370,8 +445,10 @@ export default function ContentSchedulePage() {
 
                         {/* Post Indicators */}
                         <div className="space-y-0.5">
-                          {dayPosts.slice(0, 2).map((post) => {
+                          {dayPosts.slice(0, 3).map((post) => {
                             const config = statusConfig[post.status] || statusConfig.draft;
+                            const firstPlatform = (post.platforms || []).find((platform) => PLATFORM_META[platform]);
+                            const PlatformIcon = firstPlatform ? PLATFORM_META[firstPlatform].icon : FileEdit;
                             return (
                               <button
                                 key={post.id}
@@ -379,15 +456,19 @@ export default function ContentSchedulePage() {
                                   e.stopPropagation();
                                   handlePostClick(post);
                                 }}
-                                className={`w-full text-left rounded px-1 py-0.5 text-[10px] sm:text-[11px] leading-tight truncate transition-all cursor-pointer ${config.bgColor} ${config.textColor} hover:ring-1 hover:ring-current/20`}
+                                className={`flex w-full items-center gap-1.5 rounded border px-1.5 py-1 text-left text-[10px] leading-tight transition-all cursor-pointer sm:text-[11px] ${getCalendarItemStyle(post)} hover:ring-1 hover:ring-current/20`}
                               >
-                                <span className={`inline-block w-1.5 h-1.5 rounded-full ${config.dotColor} mr-0.5 align-middle`} />
-                                <span className="hidden sm:inline">
-                                  {truncate(post.caption || "No caption", 18)}
+                                {post.itemType === "strategy" ? (
+                                  <FileEdit className="h-3.5 w-3.5 shrink-0" />
+                                ) : (
+                                  <PlatformIcon className="h-3.5 w-3.5 shrink-0" />
+                                )}
+                                <span className="min-w-0 flex-1 truncate">
+                                  {post.itemType === "strategy"
+                                    ? truncate(post.title || post.caption || "Strategy note", 22)
+                                    : truncate(post.caption || "No caption", 22)}
                                 </span>
-                                <span className="sm:hidden">
-                                  {formatTime(post.scheduledAt || post.createdAt)}
-                                </span>
+                                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${config.dotColor}`} />
                               </button>
                             );
                           })}
@@ -395,8 +476,8 @@ export default function ContentSchedulePage() {
 
                         {/* Empty day + icon on hover (future days only) */}
                         {isEmpty && inCurrentMonth && !pastDay && (
-                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                            <div className="w-7 h-7 rounded-full bg-brand-500/10 flex items-center justify-center">
+                          <div className="absolute inset-x-2 bottom-2 top-9 flex items-center justify-center rounded-xl border border-dashed border-border/60 opacity-60 transition-opacity pointer-events-none group-hover:opacity-100">
+                            <div className="w-8 h-8 rounded-full bg-brand-500/10 flex items-center justify-center">
                               <Plus className="w-3.5 h-3.5 text-brand-500" />
                             </div>
                           </div>
@@ -421,147 +502,11 @@ export default function ContentSchedulePage() {
           </CardContent>
         </Card>
 
-          <aside className="space-y-4">
-            <div className="rounded-2xl border bg-background p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Next scheduled</p>
-                  <h2 className="mt-1 text-lg font-semibold">Queue focus</h2>
-                </div>
-                <ListChecks className="h-5 w-5 text-blue-500" />
-              </div>
-              {nextScheduledPost ? (
-                <button
-                  className="mt-4 w-full rounded-2xl border bg-muted/20 p-4 text-left transition-colors hover:border-blue-500/40 hover:bg-blue-500/5"
-                  onClick={() => handlePostClick(nextScheduledPost)}
-                >
-                  <p className="text-xs font-semibold text-blue-600">
-                    {format(new Date(nextScheduledPost.scheduledAt), "EEE, MMM d 'at' h:mm a")}
-                  </p>
-                  <p className="mt-2 text-sm font-medium leading-6">
-                    {truncate(nextScheduledPost.caption || "No caption", 110)}
-                  </p>
-                  <div className="mt-3 flex items-center gap-2 text-muted-foreground">
-                    {getPlatformIcons(nextScheduledPost.platforms || [])}
-                  </div>
-                </button>
-              ) : (
-                <div className="mt-4 rounded-2xl border border-dashed bg-muted/20 p-5 text-sm text-muted-foreground">
-                  No scheduled posts in this month yet. Pick an open day on the calendar to create one.
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-2xl border bg-background p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="font-semibold">Schedule playbook</h2>
-                <Target className="h-4 w-4 text-brand-500" />
-              </div>
-              <div className="space-y-3">
-                {[
-                  { label: "Best posting windows", value: "9 AM, 12 PM, 5 PM" },
-                  { label: "Recommended cadence", value: "3-5 posts per week" },
-                  { label: "Current coverage", value: `${activeDaysCount} active day${activeDaysCount === 1 ? "" : "s"}` },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-xl border bg-muted/20 p-3">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
-                    <p className="mt-1 text-sm font-semibold">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border bg-[linear-gradient(135deg,rgba(14,165,233,0.12),rgba(16,185,129,0.10))] p-4 shadow-sm">
-              <div className="flex gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background">
-                  <Zap className="h-5 w-5 text-blue-500" />
-                </div>
-                <div>
-                  <p className="font-semibold">Fast scheduling</p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    Click any empty future day to open the post composer with that date already selected.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </aside>
-        </div>
-
-        {/* ─── UPCOMING POSTS ─────────────────────────────────────── */}
-        {scheduledCount > 0 && (
-          <Card className="border-border/60 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center">
-                  <Clock className="w-4 h-4 text-blue-500" />
-                </div>
-                Upcoming
-                <Badge variant="secondary" className="ml-1 text-xs">
-                  {scheduledCount}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {posts
-                  .filter((p) => p.status === "scheduled")
-                  .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-                  .slice(0, 5)
-                  .map((post) => (
-                    <motion.div
-                      key={post.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="flex items-center gap-3 p-3 rounded-xl border border-border/50 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all cursor-pointer"
-                      onClick={() => handlePostClick(post)}
-                    >
-                      {/* Thumbnail */}
-                      {post.mediaUrls && post.mediaUrls.length > 0 ? (
-                        <div className="w-12 h-12 rounded-lg overflow-hidden border border-border/50 shrink-0 bg-muted relative">
-                          <img
-                            src={post.mediaThumbnails?.[0] || post.mediaUrls[0]}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                          {isVideoUrl(post.mediaUrls[0]) && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                              <Play className="w-4 h-4 text-white fill-white" />
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="w-12 h-12 rounded-lg border border-border/50 shrink-0 bg-muted/30 flex items-center justify-center">
-                          <FileEdit className="w-4 h-4 text-muted-foreground/40" />
-                        </div>
-                      )}
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-foreground truncate">
-                          {truncate(post.caption || "No caption", 80)}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[11px] text-blue-600 font-medium">
-                            {format(new Date(post.scheduledAt), "MMM d, h:mm a")}
-                          </span>
-                          <div className="flex items-center gap-1 text-muted-foreground/70">
-                            {getPlatformIcons(post.platforms || [])}
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ─── POST DETAIL DIALOG ───────────────────────────────────── */}
         <Dialog open={showPostDetail} onOpenChange={setShowPostDetail}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                Post Details
+                {selectedPost?.itemType === "strategy" ? "Strategy note" : "Post details"}
                 {selectedPost && (
                   <Badge
                     variant="outline"
@@ -612,38 +557,59 @@ export default function ContentSchedulePage() {
 
                 {/* Caption */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground font-medium">Caption</Label>
+                  <Label className="text-xs text-muted-foreground font-medium">
+                    {selectedPost.itemType === "strategy" ? "Planned work" : "Caption"}
+                  </Label>
                   <div className="rounded-lg bg-muted/30 border border-border/40 p-3">
-                    <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-                      {selectedPost.caption || "No caption"}
+                    <p className="text-sm font-semibold text-foreground whitespace-pre-wrap leading-relaxed">
+                      {selectedPost.title || selectedPost.caption || "No caption"}
                     </p>
+                    {selectedPost.description && (
+                      <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                        {selectedPost.description}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 {/* Meta info */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-lg bg-muted/30 border border-border/40 p-3">
-                    <Label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Platforms</Label>
+                    <Label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                      {selectedPost.itemType === "strategy" ? "Strategy" : "Platforms"}
+                    </Label>
                     <div className="flex items-center gap-2 mt-1.5 text-foreground">
-                      {getPlatformIcons(selectedPost.platforms || [])}
-                      {selectedPost.platforms?.map((p) => (
-                        <span key={p} className="text-xs text-muted-foreground">{PLATFORM_META[p]?.label}</span>
-                      ))}
+                      {selectedPost.itemType === "strategy" ? (
+                        <span className="text-xs text-muted-foreground">
+                          {selectedPost.strategyName || selectedPost.category || "Strategy"}
+                        </span>
+                      ) : (
+                        <>
+                          {getPlatformIcons(selectedPost.platforms || [])}
+                          {selectedPost.platforms?.map((p) => (
+                            <span key={p} className="text-xs text-muted-foreground">{PLATFORM_META[p]?.label}</span>
+                          ))}
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="rounded-lg bg-muted/30 border border-border/40 p-3">
                     <Label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                      {selectedPost.status === "scheduled" ? "Scheduled for" : "Date"}
+                      {selectedPost.itemType === "strategy"
+                        ? "Due date"
+                        : selectedPost.status === "scheduled"
+                          ? "Scheduled for"
+                          : "Date"}
                     </Label>
                     <p className="text-sm text-foreground mt-1.5 font-medium">
                       {format(
-                        new Date(selectedPost.scheduledAt || selectedPost.publishedAt || selectedPost.createdAt),
+                        new Date(getCalendarItemDate(selectedPost)),
                         "MMM d, yyyy"
                       )}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {format(
-                        new Date(selectedPost.scheduledAt || selectedPost.publishedAt || selectedPost.createdAt),
+                        new Date(getCalendarItemDate(selectedPost)),
                         "h:mm a"
                       )}
                     </p>
@@ -677,7 +643,7 @@ export default function ContentSchedulePage() {
 
                 {/* Actions */}
                 <div className="flex gap-2 pt-2 border-t border-border">
-                  {selectedPost.status === "scheduled" && (
+                  {selectedPost.itemType !== "strategy" && selectedPost.status === "scheduled" && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -692,14 +658,16 @@ export default function ContentSchedulePage() {
                       Publish Now
                     </Button>
                   )}
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDeletePost(selectedPost.id)}
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-1" />
-                    Delete
-                  </Button>
+                  {selectedPost.itemType !== "strategy" && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeletePost(selectedPost.id)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1" />
+                      Delete
+                    </Button>
+                  )}
                 </div>
               </div>
             )}

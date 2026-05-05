@@ -11,6 +11,7 @@ import {
   Save,
   Clock,
   X,
+  Search,
   CheckCircle2,
   XCircle,
   RefreshCw,
@@ -18,7 +19,6 @@ import {
   Link2,
   MessageSquareText,
   ShieldCheck,
-  WandSparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -82,6 +82,7 @@ export default function ContentPostsPage() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishAction, setPublishAction] = useState<"publish" | "draft" | "schedule" | null>(null);
   const [isGeneratingIdea, setIsGeneratingIdea] = useState(false);
+  const [channelSearch, setChannelSearch] = useState("");
 
   // ── Publish Results Modal State ───────────────────────────────────────
   const [showResultsModal, setShowResultsModal] = useState(false);
@@ -303,7 +304,19 @@ export default function ContentPostsPage() {
   const hasContent = caption.trim().length > 0 || mediaUrls.length > 0;
   const connectedChannelCount = SOCIAL_PLATFORMS.filter((platform) => platform.id !== "feed" && platform.enabled).length;
   const selectedExternalCount = selectedPlatforms.filter((platform) => platform !== "feed").length;
-  const captionPreview = caption.trim() || "Your polished post preview will appear here as you write.";
+  const captionPreview = caption.trim() || "Preview updates while you type.";
+  const selectablePlatforms = SOCIAL_PLATFORMS.filter(
+    (platform) => platform.enabled && !getIncompatibleReason(platform.id)
+  );
+  const filteredPlatforms = SOCIAL_PLATFORMS.filter((platform) =>
+    platform.label.toLowerCase().includes(channelSearch.trim().toLowerCase())
+  );
+  const selectAllPlatforms = () => {
+    setSelectedPlatforms(selectablePlatforms.map((platform) => platform.id));
+  };
+  const clearExternalPlatforms = () => {
+    setSelectedPlatforms(["feed"]);
+  };
   const readinessItems = [
     {
       label: "Message",
@@ -326,63 +339,169 @@ export default function ContentPostsPage() {
       detail: showSchedulePicker && scheduleDate && scheduleTime ? `${scheduleDate} at ${scheduleTime}` : "Publish now or schedule",
     },
   ];
-  const workflowStats = [
-    { label: "Connected channels", value: connectedChannelCount.toString(), icon: Link2 },
-    { label: "Selected outputs", value: selectedPlatforms.length.toString(), icon: Send },
-    { label: "Media assets", value: mediaUrls.length.toString(), icon: ImageIcon },
-    { label: "AI cost", value: costs.AI_POST ? `${costs.AI_POST}` : "-", icon: Sparkles },
-  ];
-
   return (
     <TooltipProvider>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="space-y-6"
+        className="space-y-4"
       >
         {/* ─── PAGE HEADER ──────────────────────────────────────────── */}
-        <section className="overflow-hidden rounded-2xl border bg-[linear-gradient(135deg,hsl(var(--background))_0%,hsl(var(--muted))_58%,rgba(14,165,233,0.13)_100%)]">
-          <div className="grid gap-5 p-5 lg:grid-cols-[1.15fr_0.85fr] lg:p-6">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border bg-background/80 px-3 py-1 text-xs font-semibold text-muted-foreground shadow-sm">
-                <PenSquare className="h-3.5 w-3.5 text-brand-500" />
-                Content studio
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                  Create one post, then send it to every ready channel.
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  Draft, enrich with media, validate channel requirements, and either publish now or schedule from the same workspace.
-                </p>
-              </div>
+        <div className="rounded-xl border bg-background p-3 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex h-9 items-center gap-2 rounded-lg border bg-muted/30 px-3 text-sm font-semibold">
+                <PenSquare className="h-4 w-4 text-brand-500" />
+                Create Post
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleSubmit("draft")}
+                disabled={isPublishing || !hasContent}
+                className="h-9 text-muted-foreground"
+              >
+                <Save className="mr-2 h-4 w-4" />
+                Save draft
+              </Button>
+              <span className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground">
+                <Link2 className="h-4 w-4 text-brand-500" />
+                {connectedChannelCount} connected
+              </span>
+              <span className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground">
+                <Send className="h-4 w-4 text-brand-500" />
+                {selectedPlatforms.length} selected
+              </span>
+              <span className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground">
+                <ImageIcon className="h-4 w-4 text-brand-500" />
+                {mediaUrls.length} media
+              </span>
+              <span className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground">
+                <Sparkles className="h-4 w-4 text-brand-500" />
+                {costs.AI_POST ? `${costs.AI_POST} credits` : "AI"}
+              </span>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              {workflowStats.map((stat) => {
-                const Icon = stat.icon;
-                return (
-                  <div key={stat.label} className="rounded-xl border bg-background/85 p-4 shadow-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <Icon className="h-4 w-4 text-brand-500" />
-                      <span className="text-right text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                        {stat.label}
-                      </span>
-                    </div>
-                    <p className="mt-4 text-2xl font-bold">{stat.value}</p>
-                  </div>
-                );
-              })}
-            </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowSchedulePicker((value) => !value)}
+              disabled={isPublishing}
+              className="h-9"
+            >
+              <CalendarDays className="mr-2 h-4 w-4" />
+              {showSchedulePicker ? "Hide schedule" : "Schedule options"}
+            </Button>
           </div>
-        </section>
+        </div>
 
         {/* ─── POST COMPOSER ────────────────────────────────────────── */}
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_360px]">
+          <Card className="border-border/60 shadow-sm">
+            <CardContent className="space-y-3 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <Label className="font-semibold">Accounts</Label>
+                <span className="text-xs text-muted-foreground">
+                  {selectedPlatforms.length} selected
+                </span>
+              </div>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={channelSearch}
+                  onChange={(event) => setChannelSearch(event.target.value)}
+                  placeholder="Search channels"
+                  className="h-9 pl-9"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" className="h-8 flex-1" onClick={selectAllPlatforms}>
+                  Select all
+                </Button>
+                <Button type="button" variant="ghost" size="sm" className="h-8 flex-1" onClick={clearExternalPlatforms}>
+                  Clear
+                </Button>
+              </div>
+              <div className="max-h-[560px] space-y-2 overflow-y-auto pr-1">
+                {filteredPlatforms.map((platform) => {
+                  const Icon = platform.icon;
+                  const isActive = selectedPlatforms.includes(platform.id);
+                  const incompatibleReason = getIncompatibleReason(platform.id);
+                  const isDisabled = !platform.enabled || !!incompatibleReason;
+
+                  return (
+                    <Tooltip key={platform.id}>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          disabled={isDisabled}
+                          onClick={() => {
+                            if (platform.id === "feed") return;
+                            setSelectedPlatforms((prev) =>
+                              prev.includes(platform.id)
+                                ? prev.filter((p) => p !== platform.id)
+                                : [...prev, platform.id]
+                            );
+                          }}
+                          className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
+                            isDisabled
+                              ? "cursor-not-allowed bg-muted/30 opacity-50"
+                              : isActive
+                                ? "border-brand-500 bg-brand-500/10 text-brand-500"
+                                : "hover:border-muted-foreground/40 hover:bg-muted/30"
+                          }`}
+                        >
+                          <span className={`flex h-5 w-5 items-center justify-center rounded-md border ${
+                            isActive ? "border-brand-500 bg-brand-500 text-white" : "bg-background"
+                          }`}>
+                            {isActive && <CheckCircle2 className="h-3.5 w-3.5" />}
+                          </span>
+                          <Icon className="h-5 w-5 shrink-0" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold">{platform.label}</span>
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {platform.id === "feed"
+                                ? "Internal feed"
+                                : incompatibleReason || (platform.enabled ? "Ready" : "Connect in settings")}
+                            </span>
+                          </span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {incompatibleReason
+                          ? `${platform.label}: ${incompatibleReason}`
+                          : platform.enabled
+                            ? platform.label
+                            : `Connect ${platform.label} in Settings`}
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
         <Card className="border-border/60 shadow-sm">
-          <CardContent className="pt-6 space-y-4">
+          <CardContent className="space-y-4 p-4">
+            <div className="space-y-2">
+              <Label className="font-semibold">Media</Label>
+              <MediaUploader
+                value={mediaUrls}
+                onChange={setMediaUrls}
+                multiple
+                maxFiles={50}
+                accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm"
+                maxSize={100 * 1024 * 1024}
+                filterTypes={["image", "video"]}
+                uploadEndpoint="/api/media"
+                disabled={isPublishing}
+                variant="small"
+                placeholder="Add media"
+                libraryTitle="Select Media for Post"
+              />
+            </div>
+
             {/* AI Idea + History above textarea */}
             <div className="flex items-center justify-between">
-              <Label className="font-semibold">What&apos;s on your mind?</Label>
+              <Label className="font-semibold">Caption</Label>
               <div className="flex items-center gap-1">
                 <AIIdeasHistory
                   contentType="post_ideas"
@@ -438,81 +557,6 @@ export default function ContentPostsPage() {
               <span className="absolute bottom-3 right-3 text-xs text-muted-foreground select-none">
                 {caption.length}/{MAX_CHARS}
               </span>
-            </div>
-
-            {/* Media Upload */}
-            <MediaUploader
-              value={mediaUrls}
-              onChange={setMediaUrls}
-              multiple
-              maxFiles={50}
-              accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm"
-              maxSize={100 * 1024 * 1024}
-              filterTypes={["image", "video"]}
-              uploadEndpoint="/api/media"
-              disabled={isPublishing}
-              variant="small"
-              placeholder="Add media"
-              libraryTitle="Select Media for Post"
-            />
-
-            {/* Publish to Platforms */}
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground font-medium">Publish to</Label>
-              <div className="flex items-center gap-2 flex-wrap">
-                {SOCIAL_PLATFORMS.map((platform) => {
-                  const Icon = platform.icon;
-                  const isActive = selectedPlatforms.includes(platform.id);
-                  const incompatibleReason = getIncompatibleReason(platform.id);
-
-                  if (!platform.enabled || incompatibleReason) {
-                    return (
-                      <Tooltip key={platform.id}>
-                        <TooltipTrigger asChild>
-                          <button
-                            disabled
-                            className="flex h-12 min-w-[132px] cursor-not-allowed items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 text-left opacity-50"
-                          >
-                            <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
-                            <span className="text-xs font-medium text-muted-foreground">{platform.label}</span>
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {incompatibleReason
-                            ? `${platform.label}: ${incompatibleReason}`
-                            : `Connect ${platform.label} in Settings`}
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  }
-
-                  return (
-                    <Tooltip key={platform.id}>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => {
-                            if (platform.id === "feed") return;
-                            setSelectedPlatforms((prev) =>
-                              prev.includes(platform.id)
-                                ? prev.filter((p) => p !== platform.id)
-                                : [...prev, platform.id]
-                            );
-                          }}
-                          className={`flex h-12 min-w-[132px] items-center gap-2 rounded-xl border-2 px-3 text-left transition-all ${
-                            isActive
-                              ? "border-brand-500 bg-brand-500/10 ring-2 ring-brand-500/20 text-brand-500"
-                              : "border-border hover:border-muted-foreground/40 text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          <Icon className="h-5 w-5 shrink-0" />
-                          <span className="text-xs font-semibold">{platform.label}</span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>{platform.label}</TooltipContent>
-                    </Tooltip>
-                  );
-                })}
-              </div>
             </div>
 
             {/* Schedule Date/Time Picker (shown when Schedule is clicked) */}
@@ -663,6 +707,41 @@ export default function ContentPostsPage() {
             </div>
 
             <div className="rounded-2xl border bg-background p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="font-semibold">AI Pilot</h2>
+                <Sparkles className="h-4 w-4 text-purple-500" />
+              </div>
+              <div className="space-y-3">
+                <textarea
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value.slice(0, MAX_CHARS))}
+                  placeholder="Share your idea, audience, and goal..."
+                  className="min-h-[92px] w-full resize-none rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleGenerateIdea}
+                    disabled={isGeneratingIdea}
+                  >
+                    {isGeneratingIdea ? (
+                      <AISpinner className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    Generate
+                  </Button>
+                  <AIIdeasHistory
+                    contentType="post_ideas"
+                    mode="single"
+                    onSelect={(idea) => setCaption(idea)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border bg-background p-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="font-semibold">Publishing readiness</h2>
                 <ShieldCheck className="h-4 w-4 text-emerald-500" />
@@ -684,19 +763,6 @@ export default function ContentPostsPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border bg-[linear-gradient(135deg,rgba(14,165,233,0.12),rgba(139,92,246,0.10))] p-4 shadow-sm">
-              <div className="flex gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background">
-                  <WandSparkles className="h-5 w-5 text-brand-500" />
-                </div>
-                <div>
-                  <p className="font-semibold">Best next move</p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    Generate an AI idea, attach visual proof, then schedule into the calendar when the audience is most active.
-                  </p>
-                </div>
-              </div>
-            </div>
           </aside>
         </div>
 

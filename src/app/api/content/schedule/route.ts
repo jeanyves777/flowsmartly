@@ -34,31 +34,65 @@ export async function GET(request: NextRequest) {
     const startOfMonth = new Date(year, monthNum - 1, 1);
     const endOfMonth = new Date(year, monthNum, 0, 23, 59, 59, 999);
 
-    const posts = await prisma.post.findMany({
-      where: {
-        userId: session.userId,
-        status: "SCHEDULED",
-        scheduledAt: {
-          gte: startOfMonth,
-          lte: endOfMonth,
+    const [posts, strategyTasks] = await Promise.all([
+      prisma.post.findMany({
+        where: {
+          userId: session.userId,
+          status: "SCHEDULED",
+          scheduledAt: {
+            gte: startOfMonth,
+            lte: endOfMonth,
+          },
+          deletedAt: null,
         },
-        deletedAt: null,
-      },
-      orderBy: { scheduledAt: "asc" },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-            avatarUrl: true,
+        orderBy: { scheduledAt: "asc" },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              avatarUrl: true,
+            },
           },
         },
-      },
-    });
+      }),
+      prisma.strategyTask.findMany({
+        where: {
+          OR: [
+            {
+              dueDate: {
+                gte: startOfMonth,
+                lte: endOfMonth,
+              },
+            },
+            {
+              startDate: {
+                gte: startOfMonth,
+                lte: endOfMonth,
+              },
+            },
+          ],
+          strategy: {
+            userId: session.userId,
+            status: "ACTIVE",
+          },
+        },
+        orderBy: [{ dueDate: "asc" }, { sortOrder: "asc" }],
+        include: {
+          strategy: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      }),
+    ]);
 
     const formattedPosts = posts.map((post) => ({
       id: post.id,
+      itemType: "post",
       caption: post.caption,
       mediaUrl: post.mediaUrl,
       mediaUrls: post.mediaMeta
@@ -83,12 +117,42 @@ export async function GET(request: NextRequest) {
       createdAt: post.createdAt.toISOString(),
     }));
 
+    const formattedStrategyItems = strategyTasks.map((task) => ({
+      id: task.id,
+      itemType: "strategy",
+      caption: task.title,
+      title: task.title,
+      description: task.description || null,
+      mediaUrl: null,
+      mediaUrls: [],
+      mediaType: null,
+      status: task.status.toLowerCase(),
+      platforms: ["strategy"],
+      scheduledAt: task.dueDate?.toISOString() || task.startDate?.toISOString() || null,
+      publishedAt: null,
+      createdAt: task.createdAt.toISOString(),
+      startDate: task.startDate?.toISOString() || null,
+      dueDate: task.dueDate?.toISOString() || null,
+      priority: task.priority,
+      category: task.category,
+      strategyName: task.strategy.name,
+      strategyId: task.strategy.id,
+      progress: task.progress,
+    }));
+
     return NextResponse.json({
       success: true,
       data: await presignAllUrls({
         posts: formattedPosts,
+        strategyItems: formattedStrategyItems,
+        items: [...formattedPosts, ...formattedStrategyItems].sort((a, b) => {
+          const aTime = new Date(a.scheduledAt || a.createdAt).getTime();
+          const bTime = new Date(b.scheduledAt || b.createdAt).getTime();
+          return aTime - bTime;
+        }),
         month,
         totalScheduled: formattedPosts.length,
+        totalStrategyItems: formattedStrategyItems.length,
       }),
     });
   } catch (error) {
