@@ -135,7 +135,7 @@ export function AiPanel() {
           editImageUrl: uploadData.data.file.url,
           editRegion: effectiveRegion,
           editIntent: "auto",
-          editReferenceMode: "adapt",
+          editReferenceMode: referenceUrls.length > 0 ? "keep_face" : "adapt",
           editReferenceImageUrls: referenceUrls,
           qualityCheckEnabled,
         }),

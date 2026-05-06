@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
-import { openaiClient } from "@/lib/ai/openai-client";
+import { OPENAI_IMAGE_EDIT_MODEL, openaiClient } from "@/lib/ai/openai-client";
 import { xaiClient, sizeToAspectRatio } from "@/lib/ai/xai-client";
 import { geminiImageClient, sizeToAspectRatioGemini } from "@/lib/ai/gemini-image-client";
 import Anthropic from "@anthropic-ai/sdk";
@@ -95,7 +95,15 @@ function shouldUseEveryReplacementReference(prompt: string, referenceCount: numb
 
 function isBackgroundReplacementIntent(prompt: string): boolean {
   const normalized = prompt.toLowerCase();
-  return /\b(background|backdrop|bg)\b/.test(normalized) && /\b(replace|swap|change|use|make)\b/.test(normalized);
+  return (
+    /\b(background|backgroung|backgroud|backgrond|backdrop|bg)\b/.test(normalized) &&
+    /\b(replace|swap|change|use|make)\b/.test(normalized)
+  );
+}
+
+function shouldLockFaceButAllowStyling(prompt: string): boolean {
+  const normalized = prompt.toLowerCase();
+  return /\b(cloth|clothes|clothing|outfit|attire|dress|shirt|suit|uniform|wear|wearing|robe|jacket)\b/.test(normalized);
 }
 
 function uniqueProviderOrder(...providers: Array<ImageProvider | false | null | undefined>): ImageProvider[] {
@@ -724,6 +732,17 @@ async function evaluateGeneratedImageQuality(
     }
 
     const editReferenceCount = params.editReferenceImageUrls?.length || 0;
+    if (params.editImageUrl && editReferenceCount > 0) {
+      content.push({
+        type: "text",
+        text: [
+          "Human identity preservation requirement:",
+          "If any user reference image contains a human face, fail the result if the generated image uses a similar-looking or invented person instead of the real reference identity.",
+          "Changing clothes, pose, lighting, background, or design placement is allowed only if the face/head identity remains recognizably the same person from the uploaded reference.",
+        ].join("\n"),
+      });
+    }
+
     if (params.editImageUrl && editReferenceCount > 1 && shouldUseEveryReplacementReference(params.prompt, editReferenceCount)) {
       content.push({
         type: "text",
@@ -1148,7 +1167,7 @@ Output a polished, print-ready ${params.category} background. The photo will be 
           quality: "high",
         });
       }
-      model = "gpt-image-1";
+      model = hasRef ? OPENAI_IMAGE_EDIT_MODEL : "gpt-image-1";
       break;
     }
 
@@ -1371,7 +1390,7 @@ async function runEditPipeline(params: PipelineParams) {
   const hasReplacementRefs = resolvedEditIntent === "replace_subject" && hasReferenceImages && !isBackgroundReplacement;
   const mustUseEveryReplacementRef = hasReplacementRefs && shouldUseEveryReplacementReference(prompt, referenceUrls.length);
   const effectiveEditReferenceMode = hasReplacementRefs
-    ? editReferenceMode === "keep_face" ? "keep_face" : "exact"
+    ? editReferenceMode === "keep_face" || shouldLockFaceButAllowStyling(prompt) ? "keep_face" : "exact"
     : editReferenceMode;
 
   console.log(`[Visual/Edit] Provider: ${provider}, intent: ${resolvedEditIntent}, refMode: ${effectiveEditReferenceMode}, refs: ${referenceUrls.length}, useAllRefs=${mustUseEveryReplacementRef}, instruction: "${prompt.slice(0, 80)}"`);
@@ -1402,6 +1421,15 @@ PINPOINT REGION — APPLY THE EDIT ONLY INSIDE THIS BOX:
   const referenceLabel = referenceUrls.length > 1
     ? `Images 2 through ${referenceUrls.length + 1} are ${referenceUrls.length} separate replacement reference images.`
     : "Image 2 is the replacement reference image.";
+  const faceIdentityLockClause = hasReferenceImages
+    ? `
+FACE IDENTITY LOCK FOR ANY HUMAN REFERENCE:
+- If any reference image contains a human face, that real person's facial identity is non-negotiable.
+- Preserve the actual face from the uploaded reference: facial geometry, eyes, nose, mouth, jawline, cheeks, skin tone, age, hairline/hair shape, expression, and recognizable identity.
+- Do NOT synthesize a lookalike, similar person, younger/older version, alternate face, stock person, or AI-generated replacement.
+- If the user asks to change clothes, outfit, pose, background, lighting, or place the person into a new design, change only those requested non-face elements. The face/head identity must still read as the same real person from the reference.
+- Treat the reference photo as identity evidence, not visual inspiration.`
+    : "";
   const multiReplacementReferenceRules = mustUseEveryReplacementRef
     ? `
 MULTI-PHOTO REPLACEMENT REQUIREMENT:
@@ -1416,13 +1444,14 @@ MULTI-PHOTO REPLACEMENT REQUIREMENT:
     effectiveEditReferenceMode === "exact"
       ? `REFERENCE LOCK MODE: EXACT SOURCE
 - Treat the replacement reference as the literal source photo/object, not inspiration.
-- Do not invent a similar person/object. Do not change the reference subject's face, identity, hairstyle, expression, body proportions, clothing, product shape, logos, markings, or distinctive details unless the user explicitly asks.
+- Do not invent a similar person/object. For people, the face and identity must remain the real uploaded person, not a generated lookalike. Do not change facial geometry, skin tone, hairline, expression, or recognizable identity.
+- Do not change the reference subject's body proportions, clothing, product shape, logos, markings, or distinctive details unless the user explicitly asks.
 - Only adapt scale, crop, perspective, lighting, shadows, edge blending, and color grade so the exact reference subject fits naturally into the current design.`
       : effectiveEditReferenceMode === "keep_face"
         ? `REFERENCE LOCK MODE: KEEP FACE
-- Preserve the reference person's face, facial geometry, skin tone, age, expression, head angle, hair, and recognizable identity.
+- Preserve the reference person's real face, facial geometry, eyes, nose, mouth, jawline, skin tone, age, expression, head angle, hair, and recognizable identity.
 - Clothing, outfit, accessories below the neck, and body styling may change to satisfy the instruction.
-- If the user's clothing instruction conflicts with preserving the face or identity, preserve the face and identity first.`
+- If the user's clothing or styling instruction conflicts with preserving the face or identity, preserve the face and identity first.`
         : `REFERENCE MODE: ADAPT
 - Use the replacement reference image as the visual source for the new person/object.
 - Preserve recognizable visual details where possible while adapting the subject to the design.`;
@@ -1432,6 +1461,7 @@ MULTI-PHOTO REPLACEMENT REQUIREMENT:
 REFERENCE IMAGE INPUTS:
 - Image 1 is the current design canvas.
 - ${referenceLabel}
+${faceIdentityLockClause}
 ${replacementReferenceModeRules}${multiReplacementReferenceRules}`
     : "";
   const editReferenceClause = hasReferenceImages && !hasReplacementRefs
@@ -1441,7 +1471,8 @@ REFERENCE IMAGE INPUTS:
 - Image 1 is the current design canvas.
 - Images 2 through ${referenceUrls.length + 1} are user reference media.
 - Interpret the references from the user's prompt. They may be style examples, product/person assets, visual direction, brand examples, or before/after targets.
-- Do not simply paste a reference on top of the canvas. If the prompt asks to insert, replace, or use a referenced asset, remove or repaint the conflicting old element first, then integrate the reference naturally with matching lighting, perspective, scale, shadows, and color.`
+- Do not simply paste a reference on top of the canvas. If the prompt asks to insert, replace, or use a referenced asset, remove or repaint the conflicting old element first, then integrate the reference naturally with matching lighting, perspective, scale, shadows, and color.
+${faceIdentityLockClause}`
     : "";
   const replacementModeRuleClause =
     hasReplacementRefs && effectiveEditReferenceMode === "exact"
@@ -1502,7 +1533,7 @@ RULES:
     switch (candidate) {
       case "openai": {
         const gptSize = getGptImageSize(width, height);
-        console.log(`[Visual/Edit] OpenAI gpt-image-1 @ ${gptSize}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : ""}`);
+        console.log(`[Visual/Edit] OpenAI ${OPENAI_IMAGE_EDIT_MODEL} @ ${gptSize}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : ""}`);
         if (editReferenceBuffersForProvider.length > 0) {
           return {
             base64: await openaiClient.editMultiImage(
@@ -1517,7 +1548,7 @@ RULES:
               ],
               { size: gptSize, quality: "high" },
             ),
-            model: "gpt-image-1",
+            model: OPENAI_IMAGE_EDIT_MODEL,
           };
         }
         return {
@@ -1525,7 +1556,7 @@ RULES:
             size: gptSize,
             quality: "high",
           }),
-          model: "gpt-image-1",
+          model: OPENAI_IMAGE_EDIT_MODEL,
         };
       }
 

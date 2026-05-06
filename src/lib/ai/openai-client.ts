@@ -5,6 +5,11 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+export const OPENAI_IMAGE_EDIT_MODEL =
+  process.env.OPENAI_IMAGE_EDIT_MODEL ||
+  process.env.OPENAI_IMAGE_MODEL ||
+  "gpt-image-1.5";
+
 /**
  * OpenAI Client for FlowSmartly
  * Used for image generation (gpt-image-1) to create photorealistic
@@ -54,7 +59,7 @@ class OpenAIClient {
         });
 
         // gpt-image-1 returns base64 by default
-        const imageData = response.data?.[0];
+        const imageData = (response as { data?: Array<{ b64_json?: string; url?: string }> }).data?.[0];
         if (imageData && imageData.b64_json) {
           return imageData.b64_json;
         }
@@ -162,9 +167,10 @@ class OpenAIClient {
     options: {
       size?: "1024x1024" | "1536x1024" | "1024x1536" | "auto";
       quality?: "low" | "medium" | "high";
+      inputFidelity?: "low" | "high";
     } = {}
   ): Promise<string | null> {
-    const { size = "auto", quality = "high" } = options;
+    const { size = "auto", quality = "high", inputFidelity = "high" } = options;
 
     const maxRetries = 2;
     let lastError: unknown;
@@ -176,15 +182,16 @@ class OpenAIClient {
         });
 
         const response = await this.client.images.edit({
-          model: "gpt-image-1",
+          model: OPENAI_IMAGE_EDIT_MODEL,
           image: imageFile,
           prompt,
           n: 1,
           size,
           quality,
-        });
+          input_fidelity: inputFidelity,
+        } as Parameters<typeof this.client.images.edit>[0]);
 
-        const imageData = response.data?.[0];
+        const imageData = (response as { data?: Array<{ b64_json?: string; url?: string }> }).data?.[0];
         if (imageData && imageData.b64_json) {
           return imageData.b64_json;
         }
@@ -227,9 +234,10 @@ class OpenAIClient {
     options: {
       size?: "1024x1024" | "1536x1024" | "1024x1536" | "auto";
       quality?: "low" | "medium" | "high";
+      inputFidelity?: "low" | "high";
     } = {},
   ): Promise<string | null> {
-    const { size = "auto", quality = "high" } = options;
+    const { size = "auto", quality = "high", inputFidelity = "high" } = options;
 
     const maxRetries = 2;
     let lastError: unknown;
@@ -241,7 +249,7 @@ class OpenAIClient {
         );
 
         const response = await this.client.images.edit({
-          model: "gpt-image-1",
+          model: OPENAI_IMAGE_EDIT_MODEL,
           // SDK accepts Uploadable | Uploadable[] — multi-image supported
           // by gpt-image-1 since 2025-04 release. First image is treated
           // as the primary reference (composition); rest are auxiliary.
@@ -250,9 +258,10 @@ class OpenAIClient {
           n: 1,
           size,
           quality,
-        });
+          input_fidelity: inputFidelity,
+        } as Parameters<typeof this.client.images.edit>[0]);
 
-        const imageData = response.data?.[0];
+        const imageData = (response as { data?: Array<{ b64_json?: string; url?: string }> }).data?.[0];
         if (imageData?.b64_json) return imageData.b64_json;
         if (imageData?.url) {
           const res = await fetch(imageData.url);
