@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
       ? body.category.trim()
       : "Calendar note";
     const priority = VALID_PRIORITIES.has(body.priority) ? body.priority : "MEDIUM";
-    const dueDate = body.dueDate ? new Date(body.dueDate) : null;
+    const startDate = (body.startDate || body.dueDate) ? new Date(body.startDate || body.dueDate) : null;
+    const dueDate = (body.dueDate || body.startDate) ? new Date(body.dueDate || body.startDate) : null;
 
     if (!title) {
       return NextResponse.json(
@@ -31,9 +32,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!dueDate || Number.isNaN(dueDate.getTime())) {
+    if (!startDate || Number.isNaN(startDate.getTime()) || !dueDate || Number.isNaN(dueDate.getTime())) {
       return NextResponse.json(
-        { success: false, error: { message: "dueDate must be a valid date" } },
+        { success: false, error: { message: "startDate and dueDate must be valid dates" } },
+        { status: 400 }
+      );
+    }
+
+    if (dueDate < startDate) {
+      return NextResponse.json(
+        { success: false, error: { message: "dueDate must be on or after startDate" } },
         { status: 400 }
       );
     }
@@ -73,7 +81,7 @@ export async function POST(request: NextRequest) {
           status: "TODO",
           priority,
           category,
-          startDate: dueDate,
+          startDate,
           dueDate,
           sortOrder,
           aiSuggested: false,
@@ -104,6 +112,7 @@ export async function POST(request: NextRequest) {
           status: note.status,
           priority: note.priority,
           category: note.category,
+          startDate: note.startDate?.toISOString() || null,
           dueDate: note.dueDate?.toISOString() || null,
           strategyId: note.strategy.id,
           strategyName: note.strategy.name,

@@ -16,8 +16,10 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const month = searchParams.get("month"); // YYYY-MM format
+    const startParam = searchParams.get("start");
+    const endParam = searchParams.get("end");
 
-    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    if ((!startParam || !endParam) && (!month || !/^\d{4}-\d{2}$/.test(month))) {
       return NextResponse.json(
         {
           success: false,
@@ -30,9 +32,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const [year, monthNum] = month.split("-").map(Number);
-    const startOfMonth = new Date(year, monthNum - 1, 1);
-    const endOfMonth = new Date(year, monthNum, 0, 23, 59, 59, 999);
+    const [year, monthNum] = (month || new Date().toISOString().slice(0, 7)).split("-").map(Number);
+    const rangeStart = startParam ? new Date(`${startParam}T00:00:00.000`) : new Date(year, monthNum - 1, 1);
+    const rangeEnd = endParam ? new Date(`${endParam}T23:59:59.999`) : new Date(year, monthNum, 0, 23, 59, 59, 999);
+
+    if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime()) || rangeEnd < rangeStart) {
+      return NextResponse.json(
+        { success: false, error: { message: "start and end must be valid date range values" } },
+        { status: 400 }
+      );
+    }
 
     const [posts, strategyTasks] = await Promise.all([
       prisma.post.findMany({
@@ -40,8 +49,8 @@ export async function GET(request: NextRequest) {
           userId: session.userId,
           status: "SCHEDULED",
           scheduledAt: {
-            gte: startOfMonth,
-            lte: endOfMonth,
+            gte: rangeStart,
+            lte: rangeEnd,
           },
           deletedAt: null,
         },
@@ -62,15 +71,21 @@ export async function GET(request: NextRequest) {
           OR: [
             {
               dueDate: {
-                gte: startOfMonth,
-                lte: endOfMonth,
+                gte: rangeStart,
+                lte: rangeEnd,
               },
             },
             {
               startDate: {
-                gte: startOfMonth,
-                lte: endOfMonth,
+                gte: rangeStart,
+                lte: rangeEnd,
               },
+            },
+            {
+              AND: [
+                { startDate: { lte: rangeStart } },
+                { dueDate: { gte: rangeEnd } },
+              ],
             },
           ],
           strategy: {
@@ -152,7 +167,11 @@ export async function GET(request: NextRequest) {
           const bTime = new Date(b.scheduledAt || b.createdAt).getTime();
           return aTime - bTime;
         }),
-        month,
+        month: month || `${year}-${String(monthNum).padStart(2, "0")}`,
+        range: {
+          start: rangeStart.toISOString(),
+          end: rangeEnd.toISOString(),
+        },
         totalScheduled: formattedPosts.length,
         totalStrategyItems: formattedStrategyItems.length,
       }),

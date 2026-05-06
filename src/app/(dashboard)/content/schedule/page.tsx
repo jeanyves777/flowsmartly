@@ -18,6 +18,7 @@ import {
   Loader2,
   Sparkles,
   StickyNote,
+  X,
 } from "lucide-react";
 import {
   startOfMonth,
@@ -29,8 +30,14 @@ import {
   isSameMonth,
   addMonths,
   subMonths,
+  addWeeks,
+  subWeeks,
+  addDays,
+  subDays,
   isToday,
   isPast,
+  startOfDay,
+  differenceInCalendarDays,
 } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -98,6 +105,13 @@ const statusConfig: Record<string, { label: string; dotColor: string; bgColor: s
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+type CalendarView = "month" | "week" | "day";
+
+const VIEW_LABELS: Array<{ id: CalendarView; label: string }> = [
+  { id: "month", label: "Month" },
+  { id: "week", label: "Week" },
+  { id: "day", label: "Day" },
+];
 
 export default function ContentSchedulePage() {
   const { toast } = useToast();
@@ -110,12 +124,15 @@ export default function ContentSchedulePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
+  const [calendarView, setCalendarView] = useState<CalendarView>("month");
+  const [showUpcomingPanel, setShowUpcomingPanel] = useState(false);
 
   // ── Floating panels ───────────────────────────────────────────────────
   const [selectedPost, setSelectedPost] = useState<ScheduledPost | null>(null);
   const [showPostDetail, setShowPostDetail] = useState(false);
   const [showNotePanel, setShowNotePanel] = useState(false);
   const [noteDate, setNoteDate] = useState("");
+  const [noteEndDate, setNoteEndDate] = useState("");
   const [noteTime, setNoteTime] = useState("09:00");
   const [noteTitle, setNoteTitle] = useState("");
   const [noteDescription, setNoteDescription] = useState("");
@@ -124,6 +141,7 @@ export default function ContentSchedulePage() {
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [draggingItem, setDraggingItem] = useState<ScheduledPost | null>(null);
+  const [resizingNote, setResizingNote] = useState<ScheduledPost | null>(null);
   const [hoveredItem, setHoveredItem] = useState<{ item: ScheduledPost; x: number; y: number } | null>(null);
 
   // ── Calendar Grid Computation ─────────────────────────────────────────
@@ -134,6 +152,25 @@ export default function ContentSchedulePage() {
     const calEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
     return eachDayOfInterval({ start: calStart, end: calEnd });
   }, [currentMonth]);
+
+  const visibleDays = useMemo(() => {
+    if (calendarView === "week") {
+      return eachDayOfInterval({
+        start: startOfWeek(currentMonth, { weekStartsOn: 0 }),
+        end: endOfWeek(currentMonth, { weekStartsOn: 0 }),
+      });
+    }
+    if (calendarView === "day") {
+      return [currentMonth];
+    }
+    return calendarDays;
+  }, [calendarDays, calendarView, currentMonth]);
+
+  const visibleRange = useMemo(() => {
+    const firstDay = visibleDays[0] || currentMonth;
+    const lastDay = visibleDays[visibleDays.length - 1] || currentMonth;
+    return { start: startOfDay(firstDay), end: startOfDay(lastDay) };
+  }, [currentMonth, visibleDays]);
 
   const platformOptions = useMemo(() => {
     const platformIds = Array.from(
@@ -168,14 +205,39 @@ export default function ContentSchedulePage() {
     });
   }, [platformFilter, posts, searchQuery, statusFilter]);
 
+  const getValidDate = (value?: string | null) => {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const getItemStartDate = (item: ScheduledPost) =>
+    getValidDate(item.itemType === "strategy" ? item.startDate || item.dueDate || item.scheduledAt : item.scheduledAt) ||
+    getValidDate(item.publishedAt) ||
+    getValidDate(item.createdAt) ||
+    new Date();
+
+  const getItemEndDate = (item: ScheduledPost) =>
+    getValidDate(item.itemType === "strategy" ? item.dueDate || item.startDate || item.scheduledAt : item.scheduledAt) ||
+    getItemStartDate(item);
+
   // Group posts by date string for efficient lookup
   const postsByDate = useMemo(() => {
     const map: Record<string, ScheduledPost[]> = {};
     for (const post of filteredPosts) {
-      const itemDate = post.scheduledAt || post.dueDate || post.startDate || post.publishedAt || post.createdAt;
-      const dateKey = format(new Date(itemDate), "yyyy-MM-dd");
-      if (!map[dateKey]) map[dateKey] = [];
-      map[dateKey].push(post);
+      const start = startOfDay(getItemStartDate(post));
+      const end = startOfDay(getItemEndDate(post));
+      const spanStart = end < start ? end : start;
+      const spanEnd = end < start ? start : end;
+      const activeDays = post.itemType === "strategy"
+        ? eachDayOfInterval({ start: spanStart, end: spanEnd })
+        : [spanStart];
+
+      for (const activeDay of activeDays) {
+        const dateKey = format(activeDay, "yyyy-MM-dd");
+        if (!map[dateKey]) map[dateKey] = [];
+        map[dateKey].push(post);
+      }
     }
     return map;
   }, [filteredPosts]);
@@ -185,7 +247,9 @@ export default function ContentSchedulePage() {
     try {
       setIsLoading(true);
       const monthStr = format(currentMonth, "yyyy-MM");
-      const res = await fetch(`/api/content/schedule?month=${monthStr}`);
+      const start = format(visibleRange.start, "yyyy-MM-dd");
+      const end = format(visibleRange.end, "yyyy-MM-dd");
+      const res = await fetch(`/api/content/schedule?month=${monthStr}&start=${start}&end=${end}`);
       const data = await res.json();
       if (data.success) {
         setPosts(data.data?.items || data.data?.posts || []);
@@ -199,16 +263,29 @@ export default function ContentSchedulePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentMonth, toast]);
+  }, [currentMonth, toast, visibleRange.end, visibleRange.start]);
 
   useEffect(() => {
     fetchSchedule();
   }, [fetchSchedule]);
 
   // ── Navigation ────────────────────────────────────────────────────────
-  const goToPrevMonth = () => setCurrentMonth((prev) => subMonths(prev, 1));
-  const goToNextMonth = () => setCurrentMonth((prev) => addMonths(prev, 1));
+  const goToPrevMonth = () =>
+    setCurrentMonth((prev) =>
+      calendarView === "month" ? subMonths(prev, 1) : calendarView === "week" ? subWeeks(prev, 1) : subDays(prev, 1)
+    );
+  const goToNextMonth = () =>
+    setCurrentMonth((prev) =>
+      calendarView === "month" ? addMonths(prev, 1) : calendarView === "week" ? addWeeks(prev, 1) : addDays(prev, 1)
+    );
   const goToToday = () => setCurrentMonth(new Date());
+
+  const calendarTitle =
+    calendarView === "day"
+      ? format(currentMonth, "EEEE, MMM d")
+      : calendarView === "week"
+        ? `${format(visibleRange.start, "MMM d")} - ${format(visibleRange.end, "MMM d, yyyy")}`
+        : format(currentMonth, "MMMM yyyy");
 
   const noteTemplates = useMemo(
     () => [
@@ -237,6 +314,7 @@ export default function ContentSchedulePage() {
   const openNotePanel = (day: Date = new Date()) => {
     setEditingNoteId(null);
     setNoteDate(format(day, "yyyy-MM-dd"));
+    setNoteEndDate(format(day, "yyyy-MM-dd"));
     setNoteTime("09:00");
     setNoteTitle("");
     setNoteDescription("");
@@ -246,10 +324,12 @@ export default function ContentSchedulePage() {
   };
 
   const openEditNotePanel = (note: ScheduledPost) => {
-    const itemDate = new Date(note.dueDate || note.scheduledAt || note.startDate || note.createdAt);
+    const itemStart = getItemStartDate(note);
+    const itemEnd = getItemEndDate(note);
     setEditingNoteId(note.id);
-    setNoteDate(format(itemDate, "yyyy-MM-dd"));
-    setNoteTime(format(itemDate, "HH:mm"));
+    setNoteDate(format(itemStart, "yyyy-MM-dd"));
+    setNoteEndDate(format(itemEnd, "yyyy-MM-dd"));
+    setNoteTime(format(itemStart, "HH:mm"));
     setNoteTitle(note.title || note.caption || "");
     setNoteDescription(note.description || "");
     setNotePriority(note.priority || "MEDIUM");
@@ -278,13 +358,23 @@ export default function ContentSchedulePage() {
 
     try {
       setIsSavingNote(true);
-      const dueDate = new Date(`${noteDate}T${noteTime || "09:00"}`);
+      const startDate = new Date(`${noteDate}T${noteTime || "09:00"}`);
+      const dueDate = new Date(`${noteEndDate || noteDate}T${noteTime || "09:00"}`);
+      if (dueDate < startDate) {
+        toast({
+          title: "End date is before start",
+          description: "Choose an end date on or after the note start date.",
+          variant: "destructive",
+        });
+        return;
+      }
       const res = await fetch(editingNoteId ? `/api/content/schedule/notes/${editingNoteId}` : "/api/content/schedule/notes", {
         method: editingNoteId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: noteTitle.trim(),
           description: noteDescription.trim(),
+          startDate: startDate.toISOString(),
           dueDate: dueDate.toISOString(),
           priority: notePriority,
           category: noteCategory.trim() || "Calendar note",
@@ -357,6 +447,12 @@ export default function ContentSchedulePage() {
 
   const moveCalendarItem = async (item: ScheduledPost, day: Date) => {
     const movedDate = buildMovedDate(item, day);
+    const originalStart = getItemStartDate(item);
+    const originalEnd = getItemEndDate(item);
+    const noteSpanDays = item.itemType === "strategy"
+      ? Math.max(0, differenceInCalendarDays(startOfDay(originalEnd), startOfDay(originalStart)))
+      : 0;
+    const movedEndDate = item.itemType === "strategy" ? addDays(movedDate, noteSpanDays) : movedDate;
 
     if (item.itemType !== "strategy" && movedDate <= new Date()) {
       toast({
@@ -372,8 +468,8 @@ export default function ContentSchedulePage() {
         post.id === item.id
           ? {
               ...post,
-              scheduledAt: item.itemType === "strategy" ? movedDate.toISOString() : movedDate.toISOString(),
-              dueDate: item.itemType === "strategy" ? movedDate.toISOString() : post.dueDate,
+              scheduledAt: item.itemType === "strategy" ? movedEndDate.toISOString() : movedDate.toISOString(),
+              dueDate: item.itemType === "strategy" ? movedEndDate.toISOString() : post.dueDate,
               startDate: item.itemType === "strategy" ? movedDate.toISOString() : post.startDate,
             }
           : post
@@ -385,7 +481,7 @@ export default function ContentSchedulePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
         item.itemType === "strategy"
-          ? { dueDate: movedDate.toISOString(), startDate: movedDate.toISOString() }
+          ? { dueDate: movedEndDate.toISOString(), startDate: movedDate.toISOString() }
           : { postId: item.id, scheduledAt: movedDate.toISOString() }
       ),
     });
@@ -405,19 +501,82 @@ export default function ContentSchedulePage() {
   const handleDragStart = (event: DragEvent<HTMLButtonElement>, item: ScheduledPost) => {
     event.stopPropagation();
     setDraggingItem(item);
+    setResizingNote(null);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", item.id);
+  };
+
+  const handleResizeStart = (event: DragEvent<HTMLSpanElement>, item: ScheduledPost) => {
+    event.stopPropagation();
+    setDraggingItem(null);
+    setResizingNote(item);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", `resize:${item.id}`);
+  };
+
+  const resizeNoteToDay = async (item: ScheduledPost, day: Date) => {
+    if (item.itemType !== "strategy") return;
+
+    const start = getItemStartDate(item);
+    const resizedEnd = buildMovedDate(item, day);
+    if (startOfDay(resizedEnd) < startOfDay(start)) {
+      toast({
+        title: "Cannot shorten before start",
+        description: "Drag the edge to a day on or after the note starts.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.id === item.id
+          ? {
+              ...post,
+              scheduledAt: resizedEnd.toISOString(),
+              startDate: start.toISOString(),
+              dueDate: resizedEnd.toISOString(),
+            }
+          : post
+      )
+    );
+
+    const res = await fetch(`/api/content/schedule/notes/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        startDate: start.toISOString(),
+        dueDate: resizedEnd.toISOString(),
+      }),
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      await fetchSchedule();
+      throw new Error(data.error?.message || "Could not resize note");
+    }
+
+    toast({
+      title: "Note extended",
+      description: `${format(start, "MMM d")} to ${format(resizedEnd, "MMM d")}`,
+    });
   };
 
   const handleDropOnDay = async (event: DragEvent<HTMLDivElement>, day: Date) => {
     event.preventDefault();
     event.stopPropagation();
     const itemId = event.dataTransfer.getData("text/plain");
-    const item = draggingItem || posts.find((post) => post.id === itemId);
+    const isResize = itemId.startsWith("resize:");
+    const resolvedId = isResize ? itemId.replace("resize:", "") : itemId;
+    const item = (isResize ? resizingNote : draggingItem) || posts.find((post) => post.id === resolvedId);
     if (!item) return;
 
     try {
-      await moveCalendarItem(item, day);
+      if (isResize || resizingNote) {
+        await resizeNoteToDay(item, day);
+      } else {
+        await moveCalendarItem(item, day);
+      }
     } catch (error) {
       toast({
         title: "Move failed",
@@ -426,6 +585,7 @@ export default function ContentSchedulePage() {
       });
     } finally {
       setDraggingItem(null);
+      setResizingNote(null);
       setHoveredItem(null);
     }
   };
@@ -487,13 +647,28 @@ export default function ContentSchedulePage() {
     return `${config.bgColor} ${config.textColor}`;
   };
 
-  const getCalendarItemDate = (item: ScheduledPost) =>
-    item.scheduledAt || item.dueDate || item.startDate || item.publishedAt || item.createdAt;
+  const getCalendarItemDate = (item: ScheduledPost) => getItemStartDate(item).toISOString();
+
+  const getCalendarItemDateLabel = (item: ScheduledPost) => {
+    const start = getItemStartDate(item);
+    const end = getItemEndDate(item);
+    if (item.itemType === "strategy" && differenceInCalendarDays(startOfDay(end), startOfDay(start)) > 0) {
+      return `${format(start, "MMM d")} - ${format(end, "MMM d, yyyy")}`;
+    }
+    return format(start, "MMM d, yyyy h:mm a");
+  };
 
   // Stats
   const scheduledCount = filteredPosts.filter((p) => p.itemType !== "strategy").length;
   const strategyCount = filteredPosts.filter((p) => p.itemType === "strategy").length;
   const activeDaysCount = Object.keys(postsByDate).length;
+  const upcomingItems = useMemo(() => {
+    const today = startOfDay(new Date());
+    return filteredPosts
+      .filter((item) => startOfDay(getItemEndDate(item)) >= today)
+      .sort((a, b) => getItemStartDate(a).getTime() - getItemStartDate(b).getTime())
+      .slice(0, 12);
+  }, [filteredPosts]);
   const scheduleStats = [
     { label: "Posts", value: scheduledCount.toString(), icon: Clock, tone: "text-blue-600" },
     { label: "Strategy notes", value: strategyCount.toString(), icon: FileEdit, tone: "text-amber-600" },
@@ -530,6 +705,7 @@ export default function ContentSchedulePage() {
         </div>
 
         {/* ─── CALENDAR CARD ────────────────────────────────────────── */}
+        <div className={`grid gap-4 ${showUpcomingPanel ? "xl:grid-cols-[minmax(0,1fr)_380px]" : ""}`}>
         <Card className="min-w-0 border-border/60 shadow-sm">
           {/* Month Navigation Bar */}
           <CardHeader className="pb-3">
@@ -539,7 +715,7 @@ export default function ContentSchedulePage() {
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
                 <h2 className="min-w-0 flex-1 text-center text-lg font-semibold text-foreground sm:min-w-[180px]">
-                  {format(currentMonth, "MMMM yyyy")}
+                  {calendarTitle}
                 </h2>
                 <Button variant="outline" size="icon" onClick={goToNextMonth} className="h-9 w-9">
                   <ChevronRight className="w-4 h-4" />
@@ -548,6 +724,34 @@ export default function ContentSchedulePage() {
               <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                 <Button variant="outline" size="sm" onClick={goToToday} className="flex-1 sm:flex-none">
                   Today
+                </Button>
+                <div className="inline-flex h-9 rounded-lg border bg-muted/30 p-1">
+                  {VIEW_LABELS.map((view) => (
+                    <button
+                      key={view.id}
+                      type="button"
+                      onClick={() => setCalendarView(view.id)}
+                      className={`rounded-md px-3 text-xs font-semibold transition ${
+                        calendarView === view.id
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {view.label}
+                    </button>
+                  ))}
+                </div>
+                <Button
+                  variant={showUpcomingPanel ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setShowUpcomingPanel((open) => !open);
+                    if (!selectedPost && upcomingItems[0]) setSelectedPost(upcomingItems[0]);
+                  }}
+                  className={showUpcomingPanel ? "flex-1 bg-brand-500 text-white hover:bg-brand-600 sm:flex-none" : "flex-1 sm:flex-none"}
+                >
+                  <Clock className="mr-1 h-3.5 w-3.5" />
+                  Upcoming
                 </Button>
                 <Button
                   variant="outline"
@@ -619,8 +823,8 @@ export default function ContentSchedulePage() {
             ) : (
               <>
                 {/* Weekday Headers */}
-                <div className="grid grid-cols-7 mb-1">
-                  {WEEKDAYS.map((day) => (
+                <div className={`${calendarView === "day" ? "grid grid-cols-1" : "grid grid-cols-7"} mb-1`}>
+                  {(calendarView === "day" ? [format(currentMonth, "EEEE")] : WEEKDAYS).map((day) => (
                     <div
                       key={day}
                       className="text-center text-xs font-medium text-muted-foreground py-2"
@@ -631,19 +835,26 @@ export default function ContentSchedulePage() {
                 </div>
 
                 {/* Calendar Grid */}
-                <div className="grid grid-cols-7 border-t border-l border-border/40 rounded-lg overflow-hidden">
-                  {calendarDays.map((day) => {
+                <div className={`${calendarView === "day" ? "grid-cols-1" : "grid-cols-7"} grid border-t border-l border-border/40 rounded-lg overflow-hidden`}>
+                  {visibleDays.map((day) => {
                     const dateKey = format(day, "yyyy-MM-dd");
                     const dayPosts = postsByDate[dateKey] || [];
-                    const inCurrentMonth = isSameMonth(day, currentMonth);
+                    const inCurrentMonth = calendarView === "month" ? isSameMonth(day, currentMonth) : true;
                     const today = isToday(day);
                     const pastDay = isPast(day) && !today;
                     const isEmpty = dayPosts.length === 0;
+                    const maxVisibleItems = calendarView === "month" ? 3 : calendarView === "week" ? 8 : 18;
 
                     return (
                       <div
                         key={dateKey}
-                        className={`relative min-h-[110px] border-r border-b border-border/40 p-1.5 transition-colors group sm:min-h-[140px] lg:min-h-[155px] ${
+                        className={`relative border-r border-b border-border/40 p-1.5 transition-colors group ${
+                          calendarView === "day"
+                            ? "min-h-[520px]"
+                            : calendarView === "week"
+                              ? "min-h-[420px]"
+                              : "min-h-[110px] sm:min-h-[140px] lg:min-h-[155px]"
+                        } ${
                           !inCurrentMonth
                             ? "bg-muted/20"
                             : today
@@ -651,9 +862,9 @@ export default function ContentSchedulePage() {
                               : isEmpty && !pastDay
                                 ? "hover:bg-brand-500/5 cursor-pointer"
                                 : "hover:bg-muted/10"
-                        } ${draggingItem && inCurrentMonth ? "outline outline-1 outline-brand-500/20 outline-offset-[-3px]" : ""}`}
+                        } ${(draggingItem || resizingNote) && inCurrentMonth ? "outline outline-1 outline-brand-500/20 outline-offset-[-3px]" : ""}`}
                         onDragOver={(event) => {
-                          if (!draggingItem || !inCurrentMonth) return;
+                          if ((!draggingItem && !resizingNote) || !inCurrentMonth) return;
                           event.preventDefault();
                           event.dataTransfer.dropEffect = "move";
                         }}
@@ -679,19 +890,22 @@ export default function ContentSchedulePage() {
                           >
                             {format(day, "d")}
                           </span>
-                          {dayPosts.length > 2 && (
+                          {dayPosts.length > maxVisibleItems && (
                             <span className="text-[9px] text-muted-foreground bg-muted/50 px-1 rounded">
-                              +{dayPosts.length - 2}
+                              +{dayPosts.length - maxVisibleItems}
                             </span>
                           )}
                         </div>
 
                         {/* Post Indicators */}
                         <div className="space-y-0.5">
-                          {dayPosts.slice(0, 3).map((post) => {
+                          {dayPosts.slice(0, maxVisibleItems).map((post) => {
                             const config = statusConfig[post.status] || statusConfig.draft;
                             const firstPlatform = (post.platforms || []).find((platform) => PLATFORM_META[platform]);
                             const PlatformIcon = firstPlatform ? PLATFORM_META[firstPlatform].icon : FileEdit;
+                            const spanDays = post.itemType === "strategy"
+                              ? Math.max(0, differenceInCalendarDays(startOfDay(getItemEndDate(post)), startOfDay(getItemStartDate(post))))
+                              : 0;
                             return (
                               <button
                                 key={post.id}
@@ -699,6 +913,7 @@ export default function ContentSchedulePage() {
                                 onDragStart={(event) => handleDragStart(event, post)}
                                 onDragEnd={() => {
                                   setDraggingItem(null);
+                                  setResizingNote(null);
                                   setHoveredItem(null);
                                 }}
                                 onMouseEnter={(event) => handlePreviewHover(event, post)}
@@ -725,7 +940,21 @@ export default function ContentSchedulePage() {
                                     {getPlatformStack(post.platforms || [])}
                                   </span>
                                 )}
+                                {post.itemType === "strategy" && spanDays > 0 && (
+                                  <span className="hidden rounded-full bg-background/60 px-1 text-[9px] font-bold sm:inline">
+                                    {spanDays + 1}d
+                                  </span>
+                                )}
                                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${config.dotColor}`} />
+                                {post.itemType === "strategy" && (
+                                  <span
+                                    draggable
+                                    onDragStart={(event) => handleResizeStart(event, post)}
+                                    onClick={(event) => event.stopPropagation()}
+                                    className="-mr-1 ml-0.5 h-5 w-2 shrink-0 cursor-ew-resize rounded-full bg-current/25 transition hover:bg-current/45"
+                                    title="Drag to extend note"
+                                  />
+                                )}
                               </button>
                             );
                           })}
@@ -759,6 +988,136 @@ export default function ContentSchedulePage() {
             )}
           </CardContent>
         </Card>
+
+        <AnimatePresence>
+          {showUpcomingPanel && (
+            <motion.aside
+              initial={{ opacity: 0, x: 18 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 18 }}
+              className="min-w-0 rounded-xl border bg-background p-3 shadow-sm"
+            >
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-bold">Upcoming</p>
+                  <p className="text-xs text-muted-foreground">{upcomingItems.length} planned item{upcomingItems.length === 1 ? "" : "s"}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setShowUpcomingPanel(false)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                {upcomingItems.length === 0 ? (
+                  <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                    No upcoming posts or notes in this range.
+                  </div>
+                ) : (
+                  upcomingItems.map((item) => {
+                    const itemActive = selectedPost?.id === item.id;
+                    const firstPlatform = (item.platforms || []).find((platform) => PLATFORM_META[platform]);
+                    const PlatformIcon = firstPlatform ? PLATFORM_META[firstPlatform].icon : StickyNote;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedPost(item);
+                          setShowPostDetail(false);
+                        }}
+                        className={`w-full rounded-xl border p-3 text-left transition hover:border-brand-500/40 hover:bg-brand-500/5 ${
+                          itemActive ? "border-brand-500/50 bg-brand-500/10" : "bg-background"
+                        }`}
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <span className="inline-flex min-w-0 items-center gap-2">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
+                              <PlatformIcon className="h-4 w-4" />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-semibold">
+                                {item.itemType === "strategy" ? item.title || "Strategy note" : item.caption || "Scheduled post"}
+                              </span>
+                              <span className="block text-xs text-muted-foreground">{getCalendarItemDateLabel(item)}</span>
+                            </span>
+                          </span>
+                          <span className="flex shrink-0 items-center">{getPlatformStack(item.platforms || [])}</span>
+                        </div>
+                        <p className="line-clamp-2 text-xs text-muted-foreground">
+                          {item.description || item.caption || item.title || "No content yet"}
+                        </p>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              {selectedPost && (
+                <div className="mt-3 rounded-xl border bg-muted/20 p-3">
+                  <div className="mb-3 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold">
+                        {selectedPost.itemType === "strategy" ? selectedPost.title || "Strategy note" : "Scheduled post"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{getCalendarItemDateLabel(selectedPost)}</p>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedPost(null)}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+
+                  <p className="max-h-36 overflow-auto whitespace-pre-wrap text-sm leading-5">
+                    {selectedPost.description || selectedPost.caption || selectedPost.title || "No content yet"}
+                  </p>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    {selectedPost.itemType === "strategy" ? (
+                      <>
+                        <Badge variant="outline">{selectedPost.priority || "MEDIUM"}</Badge>
+                        <span>{selectedPost.category || "Calendar note"}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex items-center">{getPlatformStack(selectedPost.platforms || [])}</span>
+                        <span>{selectedPost.platforms?.length || 0} channel{selectedPost.platforms?.length === 1 ? "" : "s"}</span>
+                      </>
+                    )}
+                  </div>
+
+                  {selectedPost.itemType !== "strategy" && selectedPost.mediaUrls?.filter(Boolean).length > 0 && (
+                    <div className="mt-3 overflow-hidden rounded-xl border bg-background">
+                      {isVideoUrl(selectedPost.mediaUrls[0]) ? (
+                        <video src={selectedPost.mediaUrls[0]} controls preload="metadata" className="h-40 w-full object-cover" />
+                      ) : (
+                        <img src={selectedPost.mediaUrls[0]} alt="" className="h-40 w-full object-cover" />
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-3 flex gap-2 border-t pt-3">
+                    {selectedPost.itemType === "strategy" ? (
+                      <Button size="sm" className="flex-1 bg-brand-500 text-white hover:bg-brand-600" onClick={() => openEditNotePanel(selectedPost)}>
+                        <FileEdit className="mr-1 h-3.5 w-3.5" />
+                        Edit note
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => setShowPostDetail(true)}>
+                        <CalendarDays className="mr-1 h-3.5 w-3.5" />
+                        Details
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </motion.aside>
+          )}
+        </AnimatePresence>
+        </div>
 
         {hoveredItem && (
           <div
@@ -794,7 +1153,7 @@ export default function ContentSchedulePage() {
                     {hoveredItem.item.itemType === "strategy" ? hoveredItem.item.title || "Strategy note" : "Scheduled post"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {format(new Date(getCalendarItemDate(hoveredItem.item)), "MMM d, h:mm a")}
+                    {getCalendarItemDateLabel(hoveredItem.item)}
                   </p>
                 </div>
               </div>
@@ -828,7 +1187,7 @@ export default function ContentSchedulePage() {
           open={showPostDetail}
           onOpenChange={setShowPostDetail}
           title={selectedPost?.itemType === "strategy" ? "Strategy note" : "Post details"}
-          description={selectedPost ? format(new Date(getCalendarItemDate(selectedPost)), "MMM d, yyyy h:mm a") : undefined}
+          description={selectedPost ? getCalendarItemDateLabel(selectedPost) : undefined}
           icon={selectedPost?.itemType === "strategy" ? <StickyNote className="h-4 w-4" /> : <CalendarDays className="h-4 w-4" />}
           defaultSize={{ width: 520, height: 640 }}
           defaultPosition={{ y: 104 }}
@@ -1006,7 +1365,7 @@ export default function ContentSchedulePage() {
             if (!open) setEditingNoteId(null);
           }}
           title={editingNoteId ? "Edit note" : "Calendar note"}
-          description={noteDate ? `${noteDate} ${noteTime || ""}` : "Add strategy work to the calendar."}
+          description={noteDate ? `${noteDate}${noteEndDate && noteEndDate !== noteDate ? ` to ${noteEndDate}` : ""} ${noteTime || ""}` : "Add strategy work to the calendar."}
           icon={<StickyNote className="h-4 w-4" />}
           defaultSize={{ width: 500, height: 610 }}
           defaultPosition={{ y: 136 }}
@@ -1032,14 +1391,27 @@ export default function ContentSchedulePage() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <Label htmlFor="note-date">Date</Label>
+                <Label htmlFor="note-date">Start</Label>
                 <Input
                   id="note-date"
                   type="date"
                   value={noteDate}
-                  onChange={(event) => setNoteDate(event.target.value)}
+                  onChange={(event) => {
+                    setNoteDate(event.target.value);
+                    if (!noteEndDate || noteEndDate < event.target.value) setNoteEndDate(event.target.value);
+                  }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="note-end-date">End</Label>
+                <Input
+                  id="note-end-date"
+                  type="date"
+                  value={noteEndDate}
+                  min={noteDate}
+                  onChange={(event) => setNoteEndDate(event.target.value)}
                 />
               </div>
               <div className="space-y-1.5">

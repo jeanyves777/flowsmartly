@@ -76,17 +76,38 @@ export async function PATCH(
       updateData.completedAt = body.status === "DONE" ? new Date() : null;
     }
 
-    const dueDateInput = body.dueDate ?? body.startDate;
-    if (dueDateInput !== undefined) {
-      const dueDate = dueDateInput ? new Date(dueDateInput) : null;
-      if (dueDateInput && (!dueDate || Number.isNaN(dueDate.getTime()))) {
+    let nextStartDate = existing.startDate;
+    let nextDueDate = existing.dueDate;
+
+    if (body.startDate !== undefined) {
+      const startDate = body.startDate ? new Date(body.startDate) : null;
+      if (body.startDate && (!startDate || Number.isNaN(startDate.getTime()))) {
+        return NextResponse.json(
+          { success: false, error: { message: "startDate must be a valid date" } },
+          { status: 400 }
+        );
+      }
+      updateData.startDate = startDate;
+      nextStartDate = startDate;
+    }
+
+    if (body.dueDate !== undefined) {
+      const dueDate = body.dueDate ? new Date(body.dueDate) : null;
+      if (body.dueDate && (!dueDate || Number.isNaN(dueDate.getTime()))) {
         return NextResponse.json(
           { success: false, error: { message: "dueDate must be a valid date" } },
           { status: 400 }
         );
       }
-      updateData.startDate = dueDate;
       updateData.dueDate = dueDate;
+      nextDueDate = dueDate;
+    }
+
+    if (nextStartDate && nextDueDate && nextDueDate < nextStartDate) {
+      return NextResponse.json(
+        { success: false, error: { message: "dueDate must be on or after startDate" } },
+        { status: 400 }
+      );
     }
 
     const updated = await prisma.strategyTask.update({

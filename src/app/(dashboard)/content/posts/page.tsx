@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback, type ElementType } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef, type ElementType } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -84,6 +84,11 @@ type FlowMediaTemplate = {
   aspect: FlowMediaAspect;
   prompt: string;
   badge: string;
+};
+
+type GeneratedContentHistoryItem = {
+  content?: string;
+  prompt?: string | null;
 };
 
 type BrandKit = {
@@ -368,6 +373,59 @@ const normalizeOrganicIdea = (idea: unknown, fallbackPlatforms: string[]): Organ
   };
 };
 
+const buildTrendIdeasCacheKey = (brandName: string, platforms: string[]) => {
+  const brandKey = brandName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-") || "brand";
+  const platformKey = platforms.slice().sort().join("-") || "feed";
+  return `flowsmartly:post-trend-ideas:v2:${brandKey}:${platformKey}`;
+};
+
+const parseStoredOrganicIdeas = (value: string | null, fallbackPlatforms: string[]) => {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    const items = Array.isArray(parsed) ? parsed : parsed?.ideas;
+    if (!Array.isArray(items)) return [];
+    return items
+      .map((item: unknown) => normalizeOrganicIdea(item, fallbackPlatforms))
+      .filter((item: OrganicPostIdea | null): item is OrganicPostIdea => Boolean(item));
+  } catch {
+    return [];
+  }
+};
+
+const parseHistoryOrganicIdeas = (
+  items: GeneratedContentHistoryItem[],
+  fallbackPlatforms: string[],
+  brandName: string
+) => {
+  const captions: string[] = [];
+
+  for (const item of items) {
+    const content = item.content || "";
+    try {
+      const parsed = JSON.parse(content);
+      const values = Array.isArray(parsed) ? parsed : parsed?.ideas ? parsed.ideas : [parsed];
+      for (const value of values) {
+        if (typeof value === "string") captions.push(extractGeneratedCaption(value));
+        else captions.push(extractGeneratedCaption((value as Record<string, unknown>)?.caption));
+      }
+    } catch {
+      captions.push(extractGeneratedCaption(content));
+    }
+  }
+
+  return captions
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((caption, index) => ({
+      title: index === 0 ? `${brandName} ready post` : `${brandName} idea ${index + 1}`,
+      angle: "Saved idea",
+      format: fallbackPlatforms.join(", ") || "Selected channels",
+      platforms: fallbackPlatforms,
+      caption,
+    }));
+};
+
 const AI_PILOT_MODES: Array<{ id: AIPilotMode; label: string; icon: ElementType; hint: string }> = [
   { id: "generate", label: "Generate", icon: Sparkles, hint: "New caption from an idea" },
   { id: "rewrite", label: "Rewrite", icon: WandSparkles, hint: "Improve the current draft" },
@@ -454,6 +512,7 @@ export default function ContentPostsPage() {
   const [flowMediaStatus, setFlowMediaStatus] = useState("");
   const [generatedFlowMedia, setGeneratedFlowMedia] = useState<{ type: FlowMediaMode; url: string } | null>(null);
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
+  const autoTrendIdeaKeysRef = useRef<Set<string>>(new Set());
 
   // ── Publish Results Modal State ───────────────────────────────────────
   const [showResultsModal, setShowResultsModal] = useState(false);
@@ -619,10 +678,14 @@ export default function ContentPostsPage() {
     }
   };
 
-  const handleGenerateTrendIdeas = async () => {
+  const handleGenerateTrendIdeas = async (options: { forceRefresh?: boolean; silent?: boolean } = {}) => {
     try {
       setIsGeneratingTrendIdeas(true);
       setTrendIdeasError("");
+      const cacheKey = buildTrendIdeasCacheKey(brandName, aiPlatformSelection);
+      if (options.forceRefresh && typeof window !== "undefined") {
+        window.localStorage.removeItem(cacheKey);
+      }
       const res = await fetch("/api/content/posts/generate-idea", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -663,15 +726,22 @@ export default function ContentPostsPage() {
       }
 
       setOrganicPostIdeas(ideas);
-      toast({ title: "Branded ideas ready", description: "Click any idea to load the finished post." });
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(cacheKey, JSON.stringify(ideas));
+      }
+      if (!options.silent) {
+        toast({ title: "Branded ideas ready", description: "Click any idea to load the finished post." });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to generate branded ideas";
       setTrendIdeasError(message);
-      toast({
-        title: "Could not generate branded ideas",
-        description: message,
-        variant: "destructive",
-      });
+      if (!options.silent) {
+        toast({
+          title: "Could not generate branded ideas",
+          description: message,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsGeneratingTrendIdeas(false);
     }
@@ -1141,6 +1211,10 @@ export default function ContentPostsPage() {
     () => buildFlowMediaTemplates(brandKit, selectedPlatformLabels || "the selected social channels"),
     [brandKit, selectedPlatformLabels]
   );
+  const trendIdeasCacheKey = useMemo(
+    () => buildTrendIdeasCacheKey(brandName, aiPlatformSelection),
+    [aiPlatformSelection, brandName]
+  );
   const aiPromptStarters = useMemo(
     () => [
       `Announce a timely offer from ${brandName} for ${brandKit?.targetAudience || "our audience"} and explain why they should act now.`,
@@ -1157,9 +1231,61 @@ export default function ContentPostsPage() {
     );
   }, [flowMediaTemplates]);
   useEffect(() => {
+    let cancelled = false;
+
+    const loadIdeasFromMemory = async () => {
+      const storedIdeas =
+        typeof window !== "undefined"
+          ? parseStoredOrganicIdeas(window.localStorage.getItem(trendIdeasCacheKey), aiPlatformSelection)
+          : [];
+
+      if (storedIdeas.length > 0) {
+        if (!cancelled) {
+          setOrganicPostIdeas(storedIdeas);
+          setTrendIdeasError("");
+        }
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/content-library?type=post_ideas&limit=1");
+        const data = await res.json().catch(() => ({}));
+        const historyIdeas = data.success
+          ? parseHistoryOrganicIdeas(data.data?.items || [], aiPlatformSelection, brandName)
+          : [];
+
+        if (historyIdeas.length >= 3) {
+          if (!cancelled) {
+            setOrganicPostIdeas(historyIdeas);
+            setTrendIdeasError("");
+          }
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(trendIdeasCacheKey, JSON.stringify(historyIdeas));
+          }
+          return;
+        }
+        if (historyIdeas.length > 0 && !cancelled) {
+          setOrganicPostIdeas(historyIdeas);
+          setTrendIdeasError("");
+        }
+      } catch {
+        // Generate once below if saved history cannot be read.
+      }
+
+      if (!autoTrendIdeaKeysRef.current.has(trendIdeasCacheKey)) {
+        autoTrendIdeaKeysRef.current.add(trendIdeasCacheKey);
+        await handleGenerateTrendIdeas({ silent: true });
+      }
+    };
+
     setOrganicPostIdeas([]);
     setTrendIdeasError("");
-  }, [brandName, selectedPlatformLabels]);
+    void loadIdeasFromMemory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [aiPlatformSelection, brandName, trendIdeasCacheKey]);
   const selectablePlatforms = SOCIAL_PLATFORMS.filter(
     (platform) => platform.enabled && !getIncompatibleReason(platform.id)
   );
@@ -1617,7 +1743,7 @@ export default function ContentPostsPage() {
                   variant="ghost"
                   size="sm"
                   className="h-8 text-xs"
-                  onClick={handleGenerateTrendIdeas}
+                  onClick={() => handleGenerateTrendIdeas({ forceRefresh: true })}
                   disabled={isGeneratingTrendIdeas}
                 >
                   {isGeneratingTrendIdeas ? (
@@ -1662,7 +1788,7 @@ export default function ContentPostsPage() {
                   {trendIdeasError ? (
                     <span>{trendIdeasError}</span>
                   ) : (
-                    <span>Generate ready-to-use posts from the brand kit instead of showing template instructions.</span>
+                    <span>Preparing branded ideas...</span>
                   )}
                 </div>
               )}
