@@ -20,7 +20,6 @@ import {
   Film,
   Lightbulb,
   MessageSquareText,
-  ShieldCheck,
   ArrowRight,
   BadgeCheck,
   Check,
@@ -84,6 +83,102 @@ type FlowMediaTemplate = {
   aspect: FlowMediaAspect;
   prompt: string;
   badge: string;
+};
+
+type BrandKit = {
+  name?: string | null;
+  tagline?: string | null;
+  description?: string | null;
+  industry?: string | null;
+  niche?: string | null;
+  targetAudience?: string | null;
+  voiceTone?: string | null;
+  uniqueValue?: string | null;
+  keywords?: string[] | null;
+  hashtags?: string[] | null;
+  products?: string[] | null;
+  colors?: { primary?: string; secondary?: string; accent?: string } | null;
+  handles?: Record<string, string | undefined> | null;
+  logo?: string | null;
+  iconLogo?: string | null;
+  website?: string | null;
+};
+
+const joinBrandList = (items?: string[] | null, fallback = "") =>
+  Array.isArray(items) && items.length > 0 ? items.filter(Boolean).slice(0, 5).join(", ") : fallback;
+
+const getBrandName = (brandKit?: BrandKit | null) => brandKit?.name?.trim() || "your brand";
+
+const buildBrandBrief = (brandKit?: BrandKit | null) => {
+  if (!brandKit) {
+    return "Brand identity: use a clear, professional growth-brand voice until the user's brand kit is configured.";
+  }
+
+  const colorParts = [
+    brandKit.colors?.primary ? `primary ${brandKit.colors.primary}` : null,
+    brandKit.colors?.secondary ? `secondary ${brandKit.colors.secondary}` : null,
+    brandKit.colors?.accent ? `accent ${brandKit.colors.accent}` : null,
+  ].filter(Boolean);
+
+  return [
+    `Brand: ${getBrandName(brandKit)}`,
+    brandKit.tagline ? `Tagline: ${brandKit.tagline}` : null,
+    brandKit.description ? `Description: ${brandKit.description}` : null,
+    brandKit.industry ? `Industry: ${brandKit.industry}` : null,
+    brandKit.niche ? `Niche: ${brandKit.niche}` : null,
+    brandKit.targetAudience ? `Audience: ${brandKit.targetAudience}` : null,
+    brandKit.voiceTone ? `Voice: ${brandKit.voiceTone}` : null,
+    brandKit.uniqueValue ? `Value: ${brandKit.uniqueValue}` : null,
+    joinBrandList(brandKit.products) ? `Products/services: ${joinBrandList(brandKit.products)}` : null,
+    joinBrandList(brandKit.keywords) ? `Keywords: ${joinBrandList(brandKit.keywords)}` : null,
+    joinBrandList(brandKit.hashtags) ? `Preferred hashtags: ${joinBrandList(brandKit.hashtags)}` : null,
+    colorParts.length ? `Brand colors: ${colorParts.join(", ")}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+};
+
+const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): FlowMediaTemplate[] => {
+  const brandName = getBrandName(brandKit);
+  const audience = brandKit?.targetAudience || "the brand's ideal customers";
+  const value = brandKit?.uniqueValue || brandKit?.tagline || "the main offer";
+  const productFocus = joinBrandList(brandKit?.products, "the featured offer");
+  const voice = brandKit?.voiceTone || "professional";
+
+  return [
+    {
+      id: "brand-offer-card",
+      title: "Brand offer card",
+      mode: "image",
+      aspect: "1:1",
+      badge: "xAI image",
+      prompt: `Create a polished social media offer image for ${brandName}. It should promote ${productFocus} to ${audience}, use a ${voice} tone, make ${value} visually obvious, reserve clean space for a short headline and CTA, and use the brand palette. No fake third-party logos.`,
+    },
+    {
+      id: "brand-proof-post",
+      title: "Proof post visual",
+      mode: "image",
+      aspect: "1:1",
+      badge: "xAI image",
+      prompt: `Create a trust-building proof image for ${brandName} on ${channels}. Show realistic customer momentum, review/social proof, and a simple result card tied to ${value}. Keep it premium, readable, and grounded in the brand colors. No generic dashboard mockup.`,
+    },
+    {
+      id: "brand-product-reel",
+      title: "Promo video idea",
+      mode: "video",
+      aspect: "9:16",
+      badge: "Veo video",
+      prompt: `Short vertical promo video for ${brandName}. Show ${productFocus} solving a clear problem for ${audience}, with brand-colored transitions, tasteful product/service scenes, and a confident CTA moment. No text-heavy overlays or third-party logos.`,
+    },
+    {
+      id: "brand-story-walkthrough",
+      title: "Story walkthrough",
+      mode: "video",
+      aspect: "16:9",
+      badge: "Veo video",
+      prompt: `Horizontal brand story video for ${brandName}: start with the customer problem, show the branded solution around ${productFocus}, then end with the outcome and CTA. Use ${voice} pacing, brand colors, and visuals suited for ${channels}.`,
+    },
+  ];
 };
 
 const ACCOUNT_PLATFORM_STYLES: Record<
@@ -276,7 +371,6 @@ export default function ContentPostsPage() {
   const [channelSearch, setChannelSearch] = useState("");
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showAIPilotModal, setShowAIPilotModal] = useState(false);
-  const [showReadinessModal, setShowReadinessModal] = useState(false);
   const [previewPlatform, setPreviewPlatform] = useState("feed");
   const [aiMode, setAiMode] = useState<AIPilotMode>("generate");
   const [aiPrompt, setAiPrompt] = useState("");
@@ -293,6 +387,7 @@ export default function ContentPostsPage() {
   const [isGeneratingFlowMedia, setIsGeneratingFlowMedia] = useState(false);
   const [flowMediaStatus, setFlowMediaStatus] = useState("");
   const [generatedFlowMedia, setGeneratedFlowMedia] = useState<{ type: FlowMediaMode; url: string } | null>(null);
+  const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
 
   // ── Publish Results Modal State ───────────────────────────────────────
   const [showResultsModal, setShowResultsModal] = useState(false);
@@ -307,6 +402,22 @@ export default function ContentPostsPage() {
       setShowSchedulePicker(true);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch("/api/brand")
+      .then((res) => res.json())
+      .then((data) => {
+        if (isMounted && data.success) {
+          setBrandKit(data.data?.brandKit || null);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // ── Content Type Detection & Platform Compatibility ─────────────────────
   const VIDEO_EXTS = [".mp4", ".webm", ".mov", ".avi"];
@@ -380,7 +491,15 @@ export default function ContentPostsPage() {
   const handleGenerateIdea = async (insertIntoCaption = true) => {
     try {
       setIsGeneratingIdea(true);
-      const res = await fetch("/api/content/posts/generate-idea", { method: "POST" });
+      const res = await fetch("/api/content/posts/generate-idea", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platforms: aiPlatformSelection,
+          currentDraft: caption.trim().slice(0, 700),
+          brandBrief,
+        }),
+      });
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || "Failed to generate idea");
       const idea = data.data.idea || "";
@@ -408,9 +527,10 @@ export default function ContentPostsPage() {
       .join(", ");
     const idea = aiPrompt.trim();
     const currentDraft = caption.trim();
+    const brandContext = `${brandBrief}\nSelected channels: ${platformLabels}\nRule: make the output specific to this brand identity, audience, voice, offer, and channel mix.`;
 
     if (aiMode === "generate") {
-      return idea || currentDraft || "Create a useful social media post for our audience.";
+      return `${brandContext}\n\nPost goal: ${idea || currentDraft || "Create a useful social media post for our audience."}`;
     }
 
     if (!currentDraft && !idea) {
@@ -426,7 +546,7 @@ export default function ContentPostsPage() {
       hashtags: `Create strategic hashtags for this topic across ${platformLabels}.`,
     };
 
-    return `${modeInstructions[aiMode]}\n\n${source}`;
+    return `${brandContext}\n\n${modeInstructions[aiMode]}\n\nSource:\n${source}`;
   };
 
   const handleAIPilotGenerate = async () => {
@@ -545,6 +665,12 @@ export default function ContentPostsPage() {
     }
 
     const aspect = getFlowMediaAspect(flowMediaAspect);
+    const brandedPrompt = [
+      brandBrief,
+      `Selected channels: ${selectedPlatformLabels || "the selected social channels"}`,
+      `Creative request: ${prompt}`,
+      "Use the brand identity, audience, colors, offer, and voice as the main creative direction. Keep it polished, readable, and platform-ready.",
+    ].join("\n\n");
     setIsGeneratingFlowMedia(true);
     setGeneratedFlowMedia(null);
     setFlowMediaStatus(flowMediaMode === "image" ? "Sending prompt to xAI..." : "Sending prompt to Google Veo...");
@@ -555,15 +681,19 @@ export default function ContentPostsPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            prompt,
+            prompt: brandedPrompt,
             category: "social_post",
             size: aspect.imageSize,
             style: flowMediaStyle,
             provider: "xai",
             heroType: "product",
             textMode: "creative",
-            showBrandName: false,
+            brandColors: brandKit?.colors || null,
+            brandLogo: brandKit?.logo || brandKit?.iconLogo || null,
+            brandName: brandKit?.name || null,
+            showBrandName: !!brandKit?.name,
             showSocialIcons: true,
+            socialHandles: brandKit?.handles || null,
             ctaText: null,
           }),
         });
@@ -583,7 +713,7 @@ export default function ContentPostsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt,
+          prompt: brandedPrompt,
           category: "promo",
           aspectRatio: flowMediaAspect,
           duration: 8,
@@ -789,48 +919,68 @@ export default function ContentPostsPage() {
   const activePreviewMeta = PLATFORM_META[activePreviewPlatform] || PLATFORM_META.feed;
   const ActivePreviewIcon = activePreviewMeta.icon;
   const aiOutput = aiMode === "hashtags" ? aiHashtags.join(" ") : aiResult;
-  const aiPromptStarters = [
-    "Announce a limited-time offer and explain why customers should act today.",
-    "Write a helpful educational post that positions us as the trusted expert.",
-    "Create a local community post that invites comments and shares.",
-  ];
   const selectedPlatformLabels = selectedPlatforms
     .map((platformId) => PLATFORM_META[platformId]?.label)
     .filter(Boolean)
     .join(", ");
+  const brandName = getBrandName(brandKit);
+  const brandBrief = useMemo(() => buildBrandBrief(brandKit), [brandKit]);
+  const flowMediaTemplates = useMemo(
+    () => buildFlowMediaTemplates(brandKit, selectedPlatformLabels || "the selected social channels"),
+    [brandKit, selectedPlatformLabels]
+  );
+  const aiPromptStarters = useMemo(
+    () => [
+      `Announce a timely offer from ${brandName} for ${brandKit?.targetAudience || "our audience"} and explain why they should act now.`,
+      `Write a helpful educational post that makes ${brandName} feel like the trusted expert.`,
+      `Create a brand-fit community post for ${selectedPlatformLabels || "our social channels"} that invites comments and saves.`,
+    ],
+    [brandKit?.targetAudience, brandName, selectedPlatformLabels]
+  );
+  useEffect(() => {
+    setFlowMediaPrompt((current) =>
+      !current.trim() || current === FLOW_MEDIA_TEMPLATES[0].prompt
+        ? flowMediaTemplates[0]?.prompt || current
+        : current
+    );
+  }, [flowMediaTemplates]);
   const organicPostIdeas = useMemo<OrganicPostIdea[]>(() => {
     const channelFocus = selectedPlatformLabels || "Feed";
     const captionTopic = caption.trim().split(/\s+/).slice(0, 14).join(" ");
-    const topic = captionTopic || "the next customer win";
+    const audience = brandKit?.targetAudience || "the audience";
+    const value = brandKit?.uniqueValue || brandKit?.tagline || "the strongest customer outcome";
+    const products = joinBrandList(brandKit?.products, "your core offer");
+    const keywords = joinBrandList(brandKit?.keywords, "what your audience already cares about");
+    const topic = captionTopic || products;
 
     return [
       {
-        title: "Proof-led post",
+        title: `${brandName} proof post`,
         angle: "Trust builder",
         format: "Short story + CTA",
         platforms: ["facebook", "linkedin", "twitter"],
-        caption: `Hook: The strongest growth posts do not start with features. They start with proof.\n\nPost: Show the moment a customer went from stuck to moving. Share the before, the turning point, and the result in plain language. Use ${topic} as the story anchor, then connect it back to what your team helps people achieve.\n\nCTA: What is one result your customers ask for most right now?`,
+        caption: `Hook: Proof beats another generic promise.\n\nPost: Show how ${brandName} helps ${audience} move from the problem to ${value}. Use ${topic} as the story anchor, then add one specific detail that makes the result feel real.\n\nCTA: What result would you want to see next?`,
       },
       {
-        title: "Behind-the-work",
+        title: "Behind the result",
         angle: "Organic engagement",
         format: "Process breakdown",
         platforms: ["instagram", "tiktok", "facebook"],
-        caption: `Hook: Here is what people usually do not see before a campaign goes live.\n\nPost: Walk through the idea, the creative choice, the channel decision, and the final CTA. Keep it simple and useful so the audience learns while they watch your process.\n\nCTA: Want the checklist we use before publishing? Comment "checklist".`,
+        caption: `Hook: Here is what happens before ${brandName} gets the polished result.\n\nPost: Break down the idea, the decision, and the small step that makes ${products} easier for ${audience}. Keep it practical and show the thinking behind the work.\n\nCTA: Want the checklist we use? Comment "checklist".`,
       },
       {
-        title: "Opinion post",
+        title: "Brand POV",
         angle: "Conversation starter",
         format: "Strong POV",
         platforms: ["linkedin", "twitter", "threads"],
-        caption: `Hook: Most brands are posting more, but learning less.\n\nPost: The better move is to turn every post into a tiny market test. Watch what people save, share, question, and ignore. Then use that signal to shape the next campaign instead of guessing.\n\nCTA: Are you posting to fill the calendar, or posting to learn?`,
+        caption: `Hook: Most brands talk about ${keywords}, but the audience needs a clearer next step.\n\nPost: ${brandName} should take a direct point of view: useful content is not just more posting. It should help ${audience} understand the problem, trust the solution, and know what to do next.\n\nCTA: What is one question your audience keeps asking?`,
       },
     ].map((idea) => ({
       ...idea,
       platforms: idea.platforms.filter((platform) => selectedPlatforms.includes(platform)),
       format: `${idea.format} for ${channelFocus}`,
     }));
-  }, [caption, selectedPlatformLabels, selectedPlatforms]);
+  }, [brandKit, brandName, caption, selectedPlatformLabels, selectedPlatforms]);
   const selectablePlatforms = SOCIAL_PLATFORMS.filter(
     (platform) => platform.enabled && !getIncompatibleReason(platform.id)
   );
@@ -843,28 +993,6 @@ export default function ContentPostsPage() {
   const clearExternalPlatforms = () => {
     setSelectedPlatforms(["feed"]);
   };
-  const readinessItems = [
-    {
-      label: "Message",
-      ready: caption.trim().length > 0,
-      detail: caption.trim().length > 0 ? `${caption.length} characters` : "Add caption copy",
-    },
-    {
-      label: "Media",
-      ready: mediaUrls.length > 0,
-      detail: mediaUrls.length > 0 ? `${mediaUrls.length} asset${mediaUrls.length === 1 ? "" : "s"}` : "Optional",
-    },
-    {
-      label: "Channels",
-      ready: selectedPlatforms.length > 0,
-      detail: `${selectedPlatforms.length} selected`,
-    },
-    {
-      label: "Timing",
-      ready: !showSchedulePicker || (!!scheduleDate && !!scheduleTime),
-      detail: showSchedulePicker && scheduleDate && scheduleTime ? `${scheduleDate} at ${scheduleTime}` : "Publish now or schedule",
-    },
-  ];
   const aiScheduleOptions = useMemo(() => {
     const buildOption = (dayOffset: number, hour: number, minute: number, note: string) => {
       const date = new Date();
@@ -930,15 +1058,6 @@ export default function ContentPostsPage() {
               >
                 <Sparkles className="mr-2 h-4 w-4" />
                 AI Pilot
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowReadinessModal(true)}
-                className="h-9"
-              >
-                <ShieldCheck className="mr-2 h-4 w-4" />
-                Readiness
               </Button>
               <Button
                 variant="outline"
@@ -1486,7 +1605,7 @@ export default function ContentPostsPage() {
           open={showFlowAIMediaModal}
           onOpenChange={setShowFlowAIMediaModal}
           title="FlowAI media"
-          description="Generate an image with xAI or a short promo video with Veo."
+          description={`Generate media from ${brandName}'s brand identity.`}
           icon={<ImagePlus className="h-4 w-4" />}
           defaultSize={{ width: 640, height: 720 }}
           defaultPosition={{ y: 118 }}
@@ -1500,7 +1619,7 @@ export default function ContentPostsPage() {
                 <div>
                   <p className="text-sm font-bold">Create media without leaving the post</p>
                   <p className="text-sm text-muted-foreground">
-                    Pick a template, tune the prompt, generate, and the asset is attached to this post.
+                    Pick a brand-aware template, tune the prompt, generate, and the asset is attached to this post.
                   </p>
                 </div>
               </div>
@@ -1541,7 +1660,7 @@ export default function ContentPostsPage() {
                 Templates
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
-                {FLOW_MEDIA_TEMPLATES.map((template) => {
+                {flowMediaTemplates.map((template) => {
                   const isActive = flowMediaPrompt === template.prompt && flowMediaMode === template.mode;
                   return (
                     <button
@@ -1898,32 +2017,6 @@ export default function ContentPostsPage() {
                 </div>
               </div>
             )}
-            </div>
-        </FloatingPanel>
-
-        <FloatingPanel
-          open={showReadinessModal}
-          onOpenChange={setShowReadinessModal}
-          title="Readiness"
-          description="Quick publishing checks."
-          icon={<ShieldCheck className="h-4 w-4" />}
-          defaultSize={{ width: 420, height: 430 }}
-          defaultPosition={{ y: 168 }}
-        >
-            <div className="space-y-3">
-              {readinessItems.map((item) => (
-                <div key={item.label} className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 px-3 py-2.5">
-                  <div>
-                    <p className="text-sm font-medium">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">{item.detail}</p>
-                  </div>
-                  {item.ready ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                  ) : (
-                    <XCircle className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </div>
-              ))}
             </div>
         </FloatingPanel>
 

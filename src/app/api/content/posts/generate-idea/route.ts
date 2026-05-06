@@ -1,11 +1,20 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { ai } from "@/lib/ai/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 
+const safeJsonArray = (value: string | null | undefined) => {
+  try {
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+};
+
 // POST /api/content/posts/generate-idea — AI-suggest a post idea from brand identity
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
@@ -46,6 +55,14 @@ export async function POST() {
       );
     }
 
+    const body = await request.json().catch(() => ({}));
+    const requestedPlatforms = Array.isArray(body.platforms)
+      ? body.platforms
+          .filter((platform: unknown): platform is string => typeof platform === "string")
+          .slice(0, 6)
+      : [];
+    const currentDraft = typeof body.currentDraft === "string" ? body.currentDraft.trim().slice(0, 700) : "";
+
     // Build context from brand
     const brandContext = [
       `Brand: ${brandKit.name}`,
@@ -54,8 +71,12 @@ export async function POST() {
       brandKit.industry ? `Industry: ${brandKit.industry}` : null,
       brandKit.targetAudience ? `Target audience: ${brandKit.targetAudience}` : null,
       brandKit.uniqueValue ? `Value proposition: ${brandKit.uniqueValue}` : null,
-      (() => { try { const kw = JSON.parse(brandKit!.keywords); return kw.length > 0 ? `Keywords: ${kw.join(", ")}` : null; } catch { return null; } })(),
-      (() => { try { const pr = JSON.parse(brandKit!.products); return pr.length > 0 ? `Products/services: ${pr.join(", ")}` : null; } catch { return null; } })(),
+      safeJsonArray(brandKit.keywords).length > 0 ? `Keywords: ${safeJsonArray(brandKit.keywords).join(", ")}` : null,
+      safeJsonArray(brandKit.products).length > 0 ? `Products/services: ${safeJsonArray(brandKit.products).join(", ")}` : null,
+      safeJsonArray(brandKit.hashtags).length > 0 ? `Preferred hashtags: ${safeJsonArray(brandKit.hashtags).join(", ")}` : null,
+      brandKit.voiceTone ? `Voice/tone: ${brandKit.voiceTone}` : null,
+      requestedPlatforms.length > 0 ? `Selected platforms: ${requestedPlatforms.join(", ")}` : null,
+      currentDraft ? `Current draft/context: ${currentDraft}` : null,
     ]
       .filter(Boolean)
       .join("\n");

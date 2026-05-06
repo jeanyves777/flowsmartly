@@ -98,6 +98,7 @@ export async function GET(request: NextRequest) {
       mediaUrls: post.mediaMeta
         ? (() => { try { return JSON.parse(post.mediaMeta); } catch { return post.mediaUrl ? [post.mediaUrl] : []; } })()
         : post.mediaUrl ? [post.mediaUrl] : [],
+      mediaThumbnails: post.thumbnailUrl ? [post.thumbnailUrl] : [],
       mediaType: post.mediaType,
       status: "scheduled",
       platforms: (() => {
@@ -125,6 +126,7 @@ export async function GET(request: NextRequest) {
       description: task.description || null,
       mediaUrl: null,
       mediaUrls: [],
+      mediaThumbnails: [],
       mediaType: null,
       status: task.status.toLowerCase(),
       platforms: ["strategy"],

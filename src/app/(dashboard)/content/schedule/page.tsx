@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, type DragEvent, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -65,6 +65,7 @@ interface ScheduledPost {
   description?: string | null;
   mediaUrls: string[];
   mediaThumbnails: string[];
+  mediaType?: string | null;
   status: "published" | "scheduled" | "draft" | "todo" | "in_progress" | "done";
   platforms: string[];
   scheduledAt: string | null;
@@ -121,6 +122,9 @@ export default function ContentSchedulePage() {
   const [notePriority, setNotePriority] = useState("MEDIUM");
   const [noteCategory, setNoteCategory] = useState("Calendar note");
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [draggingItem, setDraggingItem] = useState<ScheduledPost | null>(null);
+  const [hoveredItem, setHoveredItem] = useState<{ item: ScheduledPost; x: number; y: number } | null>(null);
 
   // ── Calendar Grid Computation ─────────────────────────────────────────
   const calendarDays = useMemo(() => {
@@ -231,12 +235,27 @@ export default function ContentSchedulePage() {
   );
 
   const openNotePanel = (day: Date = new Date()) => {
+    setEditingNoteId(null);
     setNoteDate(format(day, "yyyy-MM-dd"));
     setNoteTime("09:00");
     setNoteTitle("");
     setNoteDescription("");
     setNotePriority("MEDIUM");
     setNoteCategory("Calendar note");
+    setShowNotePanel(true);
+  };
+
+  const openEditNotePanel = (note: ScheduledPost) => {
+    const itemDate = new Date(note.dueDate || note.scheduledAt || note.startDate || note.createdAt);
+    setEditingNoteId(note.id);
+    setNoteDate(format(itemDate, "yyyy-MM-dd"));
+    setNoteTime(format(itemDate, "HH:mm"));
+    setNoteTitle(note.title || note.caption || "");
+    setNoteDescription(note.description || "");
+    setNotePriority(note.priority || "MEDIUM");
+    setNoteCategory(note.category || "Calendar note");
+    setSelectedPost(note);
+    setShowPostDetail(false);
     setShowNotePanel(true);
   };
 
@@ -260,8 +279,8 @@ export default function ContentSchedulePage() {
     try {
       setIsSavingNote(true);
       const dueDate = new Date(`${noteDate}T${noteTime || "09:00"}`);
-      const res = await fetch("/api/content/schedule/notes", {
-        method: "POST",
+      const res = await fetch(editingNoteId ? `/api/content/schedule/notes/${editingNoteId}` : "/api/content/schedule/notes", {
+        method: editingNoteId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: noteTitle.trim(),
@@ -278,10 +297,11 @@ export default function ContentSchedulePage() {
       }
 
       setShowNotePanel(false);
+      setEditingNoteId(null);
       await fetchSchedule();
       toast({
-        title: "Note added",
-        description: "The strategy note is now on your calendar.",
+        title: editingNoteId ? "Note updated" : "Note added",
+        description: editingNoteId ? "The calendar note was updated." : "The strategy note is now on your calendar.",
       });
     } catch (error) {
       toast({
@@ -300,6 +320,10 @@ export default function ContentSchedulePage() {
   };
 
   const handlePostClick = (post: ScheduledPost) => {
+    if (post.itemType === "strategy") {
+      openEditNotePanel(post);
+      return;
+    }
     setSelectedPost(post);
     setShowPostDetail(true);
   };
@@ -316,6 +340,93 @@ export default function ContentSchedulePage() {
       }
     } catch {
       toast({ title: "Error", description: "Failed to delete post.", variant: "destructive" });
+    }
+  };
+
+  const buildMovedDate = (item: ScheduledPost, day: Date) => {
+    const existing = new Date(getCalendarItemDate(item));
+    const moved = new Date(day);
+    moved.setHours(
+      Number.isNaN(existing.getTime()) ? 9 : existing.getHours(),
+      Number.isNaN(existing.getTime()) ? 0 : existing.getMinutes(),
+      0,
+      0
+    );
+    return moved;
+  };
+
+  const moveCalendarItem = async (item: ScheduledPost, day: Date) => {
+    const movedDate = buildMovedDate(item, day);
+
+    if (item.itemType !== "strategy" && movedDate <= new Date()) {
+      toast({
+        title: "Choose a future time",
+        description: "Scheduled posts can only be moved to a future date and time.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.id === item.id
+          ? {
+              ...post,
+              scheduledAt: item.itemType === "strategy" ? movedDate.toISOString() : movedDate.toISOString(),
+              dueDate: item.itemType === "strategy" ? movedDate.toISOString() : post.dueDate,
+              startDate: item.itemType === "strategy" ? movedDate.toISOString() : post.startDate,
+            }
+          : post
+      )
+    );
+
+    const res = await fetch(item.itemType === "strategy" ? `/api/content/schedule/notes/${item.id}` : "/api/content/schedule", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        item.itemType === "strategy"
+          ? { dueDate: movedDate.toISOString(), startDate: movedDate.toISOString() }
+          : { postId: item.id, scheduledAt: movedDate.toISOString() }
+      ),
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      await fetchSchedule();
+      throw new Error(data.error?.message || "Could not move calendar item");
+    }
+
+    toast({
+      title: item.itemType === "strategy" ? "Note moved" : "Post rescheduled",
+      description: `${format(movedDate, "MMM d")} at ${format(movedDate, "h:mm a")}`,
+    });
+  };
+
+  const handleDragStart = (event: DragEvent<HTMLButtonElement>, item: ScheduledPost) => {
+    event.stopPropagation();
+    setDraggingItem(item);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", item.id);
+  };
+
+  const handleDropOnDay = async (event: DragEvent<HTMLDivElement>, day: Date) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const itemId = event.dataTransfer.getData("text/plain");
+    const item = draggingItem || posts.find((post) => post.id === itemId);
+    if (!item) return;
+
+    try {
+      await moveCalendarItem(item, day);
+    } catch (error) {
+      toast({
+        title: "Move failed",
+        description: error instanceof Error ? error.message : "Try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setDraggingItem(null);
+      setHoveredItem(null);
     }
   };
 
@@ -337,6 +448,27 @@ export default function ContentSchedulePage() {
         </Tooltip>
       );
     });
+
+  const getPlatformStack = (platforms: string[] = []) =>
+    platforms
+      .filter((platform) => platform !== "strategy" && PLATFORM_META[platform])
+      .slice(0, 4)
+      .map((platform) => {
+        const Icon = PLATFORM_META[platform].icon;
+        return (
+          <span
+            key={platform}
+            className="-ml-1 first:ml-0 inline-flex h-4 w-4 items-center justify-center rounded-full border bg-background text-foreground shadow-sm"
+            title={PLATFORM_META[platform].label}
+          >
+            <Icon className="h-2.5 w-2.5" />
+          </span>
+        );
+      });
+
+  const handlePreviewHover = (event: MouseEvent<HTMLButtonElement>, item: ScheduledPost) => {
+    setHoveredItem({ item, x: event.clientX, y: event.clientY });
+  };
 
   const isVideoUrl = (url: string) => /\.(mp4|webm|mov)(\?|#|$)/i.test(url);
 
@@ -519,7 +651,15 @@ export default function ContentSchedulePage() {
                               : isEmpty && !pastDay
                                 ? "hover:bg-brand-500/5 cursor-pointer"
                                 : "hover:bg-muted/10"
-                        }`}
+                        } ${draggingItem && inCurrentMonth ? "outline outline-1 outline-brand-500/20 outline-offset-[-3px]" : ""}`}
+                        onDragOver={(event) => {
+                          if (!draggingItem || !inCurrentMonth) return;
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                        }}
+                        onDrop={(event) => {
+                          if (inCurrentMonth) void handleDropOnDay(event, day);
+                        }}
                         onClick={() => {
                           if (isEmpty && inCurrentMonth && !pastDay) {
                             handleEmptyDayClick(day);
@@ -555,11 +695,20 @@ export default function ContentSchedulePage() {
                             return (
                               <button
                                 key={post.id}
+                                draggable
+                                onDragStart={(event) => handleDragStart(event, post)}
+                                onDragEnd={() => {
+                                  setDraggingItem(null);
+                                  setHoveredItem(null);
+                                }}
+                                onMouseEnter={(event) => handlePreviewHover(event, post)}
+                                onMouseMove={(event) => handlePreviewHover(event, post)}
+                                onMouseLeave={() => setHoveredItem(null)}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handlePostClick(post);
                                 }}
-                                className={`flex w-full items-center gap-1.5 rounded border px-1.5 py-1 text-left text-[10px] leading-tight transition-all cursor-pointer sm:text-[11px] ${getCalendarItemStyle(post)} hover:ring-1 hover:ring-current/20`}
+                                className={`flex w-full items-center gap-1.5 rounded border px-1.5 py-1 text-left text-[10px] leading-tight transition-all cursor-grab active:cursor-grabbing sm:text-[11px] ${getCalendarItemStyle(post)} hover:ring-1 hover:ring-current/20`}
                               >
                                 {post.itemType === "strategy" ? (
                                   <FileEdit className="h-3.5 w-3.5 shrink-0" />
@@ -571,6 +720,11 @@ export default function ContentSchedulePage() {
                                     ? truncate(post.title || post.caption || "Strategy note", 22)
                                     : truncate(post.caption || "No caption", 22)}
                                 </span>
+                                {post.itemType !== "strategy" && (
+                                  <span className="hidden shrink-0 items-center sm:inline-flex">
+                                    {getPlatformStack(post.platforms || [])}
+                                  </span>
+                                )}
                                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${config.dotColor}`} />
                               </button>
                             );
@@ -605,6 +759,70 @@ export default function ContentSchedulePage() {
             )}
           </CardContent>
         </Card>
+
+        {hoveredItem && (
+          <div
+            className="pointer-events-none fixed z-[70] w-[320px] rounded-2xl border bg-background/96 p-3 text-foreground shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-neutral-950/96"
+            style={{
+              left: Math.max(
+                8,
+                Math.min(
+                  hoveredItem.x + 16,
+                  typeof window === "undefined" ? hoveredItem.x + 16 : window.innerWidth - 340
+                )
+              ),
+              top: Math.max(
+                8,
+                Math.min(
+                  hoveredItem.y + 16,
+                  typeof window === "undefined" ? hoveredItem.y + 16 : window.innerHeight - 260
+                )
+              ),
+            }}
+          >
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
+                  {hoveredItem.item.itemType === "strategy" ? (
+                    <StickyNote className="h-4 w-4" />
+                  ) : (
+                    <CalendarDays className="h-4 w-4" />
+                  )}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold">
+                    {hoveredItem.item.itemType === "strategy" ? hoveredItem.item.title || "Strategy note" : "Scheduled post"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {format(new Date(getCalendarItemDate(hoveredItem.item)), "MMM d, h:mm a")}
+                  </p>
+                </div>
+              </div>
+              <span className="flex shrink-0 items-center">{getPlatformStack(hoveredItem.item.platforms || [])}</span>
+            </div>
+            <p className="line-clamp-4 whitespace-pre-wrap text-sm leading-5">
+              {hoveredItem.item.description || hoveredItem.item.caption || hoveredItem.item.title || "No content yet"}
+            </p>
+            {hoveredItem.item.itemType === "strategy" && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 font-semibold text-amber-700 dark:text-amber-300">
+                  {hoveredItem.item.priority || "MEDIUM"}
+                </span>
+                <span className="truncate">{hoveredItem.item.category || "Calendar note"}</span>
+              </div>
+            )}
+            {hoveredItem.item.itemType !== "strategy" && hoveredItem.item.mediaUrls?.filter(Boolean).length > 0 && (
+              <div className="mt-3 overflow-hidden rounded-xl border bg-muted">
+                {isVideoUrl(hoveredItem.item.mediaUrls[0]) ? (
+                  <video src={hoveredItem.item.mediaUrls[0]} muted playsInline preload="metadata" className="h-28 w-full object-cover" />
+                ) : (
+                  <img src={hoveredItem.item.mediaUrls[0]} alt="" className="h-28 w-full object-cover" />
+                )}
+              </div>
+            )}
+            <p className="mt-2 text-[11px] font-medium text-muted-foreground">Drag to move. Click notes to edit.</p>
+          </div>
+        )}
 
         <FloatingPanel
           open={showPostDetail}
@@ -783,8 +1001,11 @@ export default function ContentSchedulePage() {
 
         <FloatingPanel
           open={showNotePanel}
-          onOpenChange={setShowNotePanel}
-          title="Calendar note"
+          onOpenChange={(open) => {
+            setShowNotePanel(open);
+            if (!open) setEditingNoteId(null);
+          }}
+          title={editingNoteId ? "Edit note" : "Calendar note"}
           description={noteDate ? `${noteDate} ${noteTime || ""}` : "Add strategy work to the calendar."}
           icon={<StickyNote className="h-4 w-4" />}
           defaultSize={{ width: 500, height: 610 }}
@@ -860,7 +1081,7 @@ export default function ContentSchedulePage() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[220]">
                     <SelectItem value="LOW">Low</SelectItem>
                     <SelectItem value="MEDIUM">Medium</SelectItem>
                     <SelectItem value="HIGH">High</SelectItem>
@@ -896,7 +1117,7 @@ export default function ContentSchedulePage() {
                 ) : (
                   <StickyNote className="mr-2 h-4 w-4" />
                 )}
-                Save note
+                {editingNoteId ? "Update note" : "Save note"}
               </Button>
             </div>
           </div>
