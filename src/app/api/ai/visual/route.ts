@@ -326,6 +326,9 @@ export async function POST(request: NextRequest) {
       editReferenceImageUrl,
       editReferenceImageUrls,
       provider,
+      promptMode,
+      brandIdentity,
+      channels,
     } = body;
 
     if (!prompt || !category || !size) {
@@ -363,8 +366,7 @@ export async function POST(request: NextRequest) {
     const selectedProvider: ImageProvider = provider || "openai";
     console.log(`[Visual] Provider: ${selectedProvider} for ${width}x${height} (ratio ${(width / height).toFixed(2)})`);
 
-    // Generate the design
-    const result = await runDirectPipeline({
+    const pipelineParams = {
       prompt, category, width, height, style,
       brandColors, heroType, textMode,
       brandLogo, brandName, contactInfo,
@@ -383,7 +385,15 @@ export async function POST(request: NextRequest) {
           ? [editReferenceImageUrl]
           : [],
       provider: selectedProvider,
-    });
+      promptMode: promptMode === "raw_brand" ? "raw_brand" : "direct",
+      brandIdentity: brandIdentity && typeof brandIdentity === "object" ? brandIdentity : null,
+      channels: typeof channels === "string" ? channels : null,
+    } satisfies PipelineParams;
+
+    // Generate the design
+    const result = pipelineParams.promptMode === "raw_brand"
+      ? await runRawBrandPipeline(pipelineParams)
+      : await runDirectPipeline(pipelineParams);
 
     // Save image to disk
     const imageFileUrl = await saveDesignImage(result.imageUrl, design.id, "png");
@@ -482,8 +492,12 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Visual generation error:", error);
+    const rawMessage = error instanceof Error ? error.message : "";
+    const safeMessage = /api[_\s-]?key|authorization|bearer|token/i.test(rawMessage)
+      ? "The selected image provider is not configured correctly."
+      : rawMessage || "Failed to generate visual design";
     return NextResponse.json(
-      { success: false, error: { message: "Failed to generate visual design" } },
+      { success: false, error: { message: safeMessage } },
       { status: 500 }
     );
   }
@@ -529,6 +543,113 @@ interface PipelineParams {
   // provider (Gemini) so the AI can blend the reference into the canvas —
   // see runEditPipeline below.
   provider: ImageProvider;
+  promptMode?: "direct" | "raw_brand";
+  brandIdentity?: Record<string, unknown> | null;
+  channels?: string | null;
+}
+
+function compactPromptValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value
+      .filter(Boolean)
+      .slice(0, 8)
+      .map((item) => (typeof item === "string" ? item.trim() : item));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, item]) => item !== null && item !== undefined && item !== "" && !(Array.isArray(item) && item.length === 0))
+        .slice(0, 18)
+    );
+  }
+  return value;
+}
+
+function buildRawBrandPrompt(params: PipelineParams): string {
+  const brandIdentity = compactPromptValue(params.brandIdentity || {});
+  const fallbackBrand = compactPromptValue({
+    name: params.brandName || undefined,
+    colors: params.brandColors || undefined,
+    handles: params.socialHandles || undefined,
+    contact: params.contactInfo || undefined,
+  });
+
+  return [
+    "Marketing image context",
+    `Canvas: ${params.width}x${params.height}`,
+    `Category: ${params.category}`,
+    params.channels ? `Channels: ${params.channels}` : null,
+    params.style ? `Style preference: ${params.style}` : null,
+    "",
+    "Brand identity:",
+    JSON.stringify(Object.keys(brandIdentity as Record<string, unknown>).length > 0 ? brandIdentity : fallbackBrand, null, 2),
+    "",
+    "User prompt:",
+    params.prompt,
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
+}
+
+async function generateImageWithProvider(
+  provider: ImageProvider,
+  prompt: string,
+  width: number,
+  height: number
+): Promise<{ base64: string | null; model: string }> {
+  switch (provider) {
+    case "openai": {
+      const size = getGptImageSize(width, height);
+      return {
+        base64: await openaiClient.generateImage(prompt, { size, quality: "high" }),
+        model: "gpt-image-1",
+      };
+    }
+    case "xai": {
+      if (!xaiClient.isAvailable()) {
+        throw new Error("xAI provider is not configured. Please set XAI_API_KEY.");
+      }
+      const aspectRatio = sizeToAspectRatio(width, height);
+      return {
+        base64: await xaiClient.generateImage(prompt, { aspectRatio }),
+        model: "grok-imagine-image",
+      };
+    }
+    case "gemini": {
+      if (!geminiImageClient.isAvailable()) {
+        throw new Error("Gemini provider is not configured. Please set GEMINI_API_KEY.");
+      }
+      const aspectRatio = sizeToAspectRatioGemini(width, height);
+      return {
+        base64: await geminiImageClient.generateImage(prompt, { aspectRatio }),
+        model: "imagen-4.0-generate-001",
+      };
+    }
+    default:
+      throw new Error(`Unknown provider: ${provider}`);
+  }
+}
+
+async function runRawBrandPipeline(params: PipelineParams) {
+  const promptUsed = buildRawBrandPrompt(params);
+  console.log(`[Visual] Raw brand pipeline via ${params.provider}`);
+  const { base64, model } = await generateImageWithProvider(
+    params.provider,
+    promptUsed,
+    params.width,
+    params.height
+  );
+
+  if (!base64) {
+    throw new Error("The image provider returned no image.");
+  }
+
+  return {
+    imageUrl: `data:image/png;base64,${base64}`,
+    pipeline: "direct" as const,
+    model,
+    promptUsed,
+  };
 }
 
 async function runDirectPipeline(params: PipelineParams) {

@@ -28,6 +28,30 @@ const stripJsonFence = (value: string) =>
     .replace(/\s*```$/i, "")
     .trim();
 
+const parseJsonPayload = (raw: string) => {
+  const cleaned = stripJsonFence(raw);
+  const candidates = [cleaned];
+  const objectStart = cleaned.indexOf("{");
+  const objectEnd = cleaned.lastIndexOf("}");
+  if (objectStart >= 0 && objectEnd > objectStart) {
+    candidates.push(cleaned.slice(objectStart, objectEnd + 1));
+  }
+  const arrayStart = cleaned.indexOf("[");
+  const arrayEnd = cleaned.lastIndexOf("]");
+  if (arrayStart >= 0 && arrayEnd > arrayStart) {
+    candidates.push(cleaned.slice(arrayStart, arrayEnd + 1));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Try the next likely JSON slice.
+    }
+  }
+  return null;
+};
+
 const normalizeIdea = (idea: unknown, fallbackPlatforms: string[]): GeneratedPostIdea | null => {
   if (!idea || typeof idea !== "object") return null;
   const item = idea as Record<string, unknown>;
@@ -46,15 +70,42 @@ const normalizeIdea = (idea: unknown, fallbackPlatforms: string[]): GeneratedPos
 };
 
 const parseGeneratedIdeas = (raw: string, fallbackPlatforms: string[]): GeneratedPostIdea[] => {
-  try {
-    const parsed = JSON.parse(stripJsonFence(raw));
-    const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.ideas) ? parsed.ideas : [];
-    return items
-      .map((item: unknown) => normalizeIdea(item, fallbackPlatforms))
-      .filter((item: GeneratedPostIdea | null): item is GeneratedPostIdea => Boolean(item));
-  } catch {
-    return [];
-  }
+  const parsed = parseJsonPayload(raw);
+  if (!parsed) return [];
+  const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.ideas) ? parsed.ideas : [];
+  return items
+    .map((item: unknown) => normalizeIdea(item, fallbackPlatforms))
+    .filter((item: GeneratedPostIdea | null): item is GeneratedPostIdea => Boolean(item));
+};
+
+const buildSinglePostPrompt = (brandContext: string, requestedPlatforms: string[], usedAngles: string[] = []) =>
+  `Based on this brand identity:\n\n${brandContext}\n\nWrite one concise, ready-to-use social post. Keep it direct and easy to scan.${
+    requestedPlatforms.length > 0 ? `\nSelected platforms: ${requestedPlatforms.join(", ")}` : ""
+  }${usedAngles.length > 0 ? `\nAvoid repeating these angles: ${usedAngles.join(", ")}` : ""}\n\nFormat exactly like this:\nHook: one short opening line\nPost: 1-2 short finished sentences with the main value\nCTA: one clear customer-facing action\nHashtags: 3-5 relevant hashtags\n\nRules:\n- Total length under 90 words\n- No long paragraphs\n- Use emojis only if they add clarity\n- Make it specific to the brand and audience\n- Do NOT write instructions, templates, JSON, markdown, or placeholders\n\nRespond with only the formatted post.`;
+
+const generateSingleIdea = async (
+  brandContext: string,
+  requestedPlatforms: string[],
+  usedAngles: string[] = []
+): Promise<GeneratedPostIdea | null> => {
+  const response = await ai.generate(buildSinglePostPrompt(brandContext, requestedPlatforms, usedAngles), {
+    maxTokens: 420,
+    systemPrompt:
+      "You are a social media content creator. Return only a finished caption that is ready to paste. Do not return JSON.",
+  });
+  const clean = response.trim();
+  if (!clean) return null;
+
+  const parsed = parseGeneratedIdeas(clean, requestedPlatforms);
+  if (parsed[0]) return parsed[0];
+
+  return {
+    title: "Brand-ready post",
+    angle: "AI idea",
+    format: requestedPlatforms.length > 0 ? requestedPlatforms.join(", ") : "Selected channels",
+    platforms: requestedPlatforms,
+    caption: clean.slice(0, 2000),
+  };
 };
 
 // POST /api/content/posts/generate-idea — AI-suggest a post idea from brand identity
@@ -127,17 +178,31 @@ export async function POST(request: NextRequest) {
       .join("\n");
 
     const prompt = count > 1
-      ? `Based on this brand identity:\n\n${brandContext}\n\nGenerate ${count} ready-to-use social post ideas. These must be finished captions, not instructions, not templates, and not placeholders.\n\nReturn ONLY valid JSON in this exact shape:\n{\n  "ideas": [\n    {\n      "title": "short descriptive title",\n      "angle": "short marketing angle",\n      "format": "where/how this works best",\n      "platforms": ["facebook", "linkedin"],\n      "caption": "Hook: ready-to-post hook\\n\\nPost: finished branded post copy with concrete brand/customer details\\n\\nCTA: clear action\\n\\nHashtags: #BrandSpecific #Relevant"\n    }\n  ]\n}\n\nRules:\n- Every caption must be ready to paste and publish.\n- Use the brand name, audience, offer, voice, products/services, keywords, and preferred hashtags when available.\n- Do NOT say \"show\", \"share\", \"use\", \"insert\", \"add\", or any instruction telling the user what to do, unless it is a customer-facing CTA.\n- No placeholders like [brand], [offer], or \"your customer\".\n- Each caption under 110 words.\n- Match the selected platforms when provided.\n- Make each idea meaningfully different.`
-      : `Based on this brand identity:\n\n${brandContext}\n\nWrite one concise, ready-to-use social post. Keep it direct and easy to scan.\n\nFormat exactly like this:\nHook: one short opening line\nPost: 1-2 short finished sentences with the main value\nCTA: one clear customer-facing action\nHashtags: 3-5 relevant hashtags\n\nRules:\n- Total length under 90 words\n- No long paragraphs\n- Use emojis only if they add clarity\n- Make it specific to the brand and audience\n- Do NOT write instructions, templates, or placeholders\n\nRespond with only the formatted post.`;
+      ? `Based on this brand identity:\n\n${brandContext}\n\nGenerate exactly ${count} ready-to-use social post ideas. These must be finished captions, not instructions, not templates, and not placeholders.\n\nReturn ONLY valid JSON in this exact shape:\n{\n  "ideas": [\n    {\n      "title": "short descriptive title",\n      "angle": "short marketing angle",\n      "format": "where/how this works best",\n      "platforms": ["facebook", "linkedin"],\n      "caption": "Hook: ready-to-post hook\\n\\nPost: finished branded post copy with concrete brand/customer details\\n\\nCTA: clear action\\n\\nHashtags: #BrandSpecific #Relevant"\n    }\n  ]\n}\n\nRules:\n- Return exactly ${count} items in the ideas array.\n- Every caption must be ready to paste and publish.\n- Use the brand name, audience, offer, voice, products/services, keywords, and preferred hashtags when available.\n- Do NOT say \"show\", \"share\", \"use\", \"insert\", \"add\", or any instruction telling the user what to do, unless it is a customer-facing CTA.\n- No placeholders like [brand], [offer], or \"your customer\".\n- Each caption under 110 words.\n- Match the selected platforms when provided.\n- Make each idea meaningfully different.`
+      : buildSinglePostPrompt(brandContext, requestedPlatforms);
 
     const idea = await ai.generate(prompt, {
-      maxTokens: 300,
+      maxTokens: count > 1 ? 1400 : 420,
       systemPrompt:
         "You are a social media content creator. Write concise, formatted post ideas that are ready to reuse. Keep output short, structured, and practical.",
     });
 
     const cleanIdea = idea?.trim() || "Share something amazing with your audience today!";
-    const ideas = count > 1 ? parseGeneratedIdeas(cleanIdea, requestedPlatforms) : [];
+    const ideas = parseGeneratedIdeas(cleanIdea, requestedPlatforms);
+    if (count > 1) {
+      while (ideas.length < count) {
+        const nextIdea = await generateSingleIdea(
+          brandContext,
+          requestedPlatforms,
+          ideas.map((item) => item.angle)
+        );
+        if (!nextIdea) break;
+        ideas.push({
+          ...nextIdea,
+          title: nextIdea.title === "Brand-ready post" ? `Brand-ready post ${ideas.length + 1}` : nextIdea.title,
+        });
+      }
+    }
     const primaryIdea = ideas[0]?.caption || cleanIdea;
 
     // Deduct credits + track usage

@@ -67,6 +67,7 @@ type AIPilotLength = "short" | "medium" | "long";
 type AIPlatform = (typeof AI_SUPPORTED_PLATFORMS)[number];
 type FlowMediaMode = "image" | "video";
 type FlowMediaAspect = "1:1" | "9:16" | "16:9";
+type FlowImageProvider = "xai" | "openai" | "gemini";
 
 type OrganicPostIdea = {
   title: string;
@@ -299,6 +300,11 @@ const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
 ];
 
 const FLOW_MEDIA_STYLES = ["modern", "premium", "bold", "clean", "cinematic"];
+const FLOW_IMAGE_PROVIDER_LABELS: Record<FlowImageProvider, string> = {
+  xai: "xAI",
+  openai: "OpenAI",
+  gemini: "Gemini",
+};
 
 const getFlowMediaAspect = (aspect: FlowMediaAspect) =>
   FLOW_MEDIA_ASPECTS.find((item) => item.id === aspect) || FLOW_MEDIA_ASPECTS[0];
@@ -306,10 +312,49 @@ const getFlowMediaAspect = (aspect: FlowMediaAspect) =>
 const normalizeGeneratedMediaUrl = (url: unknown) =>
   typeof url === "string" && url.trim().length > 0 ? url.trim() : "";
 
+const parseGeneratedTextPayload = (value: string) => {
+  const cleaned = value
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  const candidates = [cleaned];
+  const objectStart = cleaned.indexOf("{");
+  const objectEnd = cleaned.lastIndexOf("}");
+  if (objectStart >= 0 && objectEnd > objectStart) candidates.push(cleaned.slice(objectStart, objectEnd + 1));
+  const arrayStart = cleaned.indexOf("[");
+  const arrayEnd = cleaned.lastIndexOf("]");
+  if (arrayStart >= 0 && arrayEnd > arrayStart) candidates.push(cleaned.slice(arrayStart, arrayEnd + 1));
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Try the next likely JSON slice.
+    }
+  }
+  return null;
+};
+
+const extractGeneratedCaption = (value: unknown) => {
+  if (typeof value !== "string") return "";
+  const clean = value.trim();
+  if (!clean) return "";
+  const parsed = parseGeneratedTextPayload(clean);
+  if (!parsed) return clean;
+  const firstIdea = Array.isArray(parsed)
+    ? parsed[0]
+    : Array.isArray(parsed?.ideas)
+      ? parsed.ideas[0]
+      : parsed;
+  const caption = firstIdea && typeof firstIdea.caption === "string" ? firstIdea.caption.trim() : "";
+  return caption || clean;
+};
+
 const normalizeOrganicIdea = (idea: unknown, fallbackPlatforms: string[]): OrganicPostIdea | null => {
   if (!idea || typeof idea !== "object") return null;
   const item = idea as Record<string, unknown>;
-  const caption = typeof item.caption === "string" ? item.caption.trim() : "";
+  const caption = extractGeneratedCaption(item.caption);
   if (!caption) return null;
 
   return {
@@ -385,6 +430,7 @@ export default function ContentPostsPage() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishAction, setPublishAction] = useState<"publish" | "draft" | "schedule" | null>(null);
   const [isGeneratingIdea, setIsGeneratingIdea] = useState(false);
+  const [isGeneratingAIPilot, setIsGeneratingAIPilot] = useState(false);
   const [isGeneratingTrendIdeas, setIsGeneratingTrendIdeas] = useState(false);
   const [trendIdeasError, setTrendIdeasError] = useState("");
   const [organicPostIdeas, setOrganicPostIdeas] = useState<OrganicPostIdea[]>([]);
@@ -522,7 +568,7 @@ export default function ContentPostsPage() {
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || "Failed to generate idea");
-      const idea = data.data.idea || "";
+      const idea = extractGeneratedCaption(data.data?.idea || data.data?.ideas?.[0]?.caption || "");
       if (insertIntoCaption) {
         setCaption(idea.slice(0, MAX_CHARS));
       } else {
@@ -538,6 +584,38 @@ export default function ContentPostsPage() {
       });
     } finally {
       setIsGeneratingIdea(false);
+    }
+  };
+
+  const handleAIPilotBrandIdea = async () => {
+    try {
+      setIsGeneratingAIPilot(true);
+      setAiMode("generate");
+      setAiResult("");
+      setAiHashtags([]);
+      const res = await fetch("/api/content/posts/generate-idea", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platforms: aiPlatformSelection,
+          currentDraft: [aiPrompt.trim(), caption.trim()].filter(Boolean).join("\n\n").slice(0, 700),
+          brandBrief,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error?.message || "Failed to generate idea");
+      const idea = extractGeneratedCaption(data.data?.idea || data.data?.ideas?.[0]?.caption || "");
+      if (!idea.trim()) throw new Error("AI did not return a usable post.");
+      setAiResult(idea);
+      toast({ title: "Brand idea loaded in AI Pilot" });
+    } catch (err) {
+      toast({
+        title: "AI Pilot failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingAIPilot(false);
     }
   };
 
@@ -573,7 +651,7 @@ export default function ContentPostsPage() {
             angle: "AI idea",
             format: selectedPlatformLabels || "Selected channels",
             platforms: aiPlatformSelection,
-            caption: data.data?.idea,
+            caption: extractGeneratedCaption(data.data?.idea),
           },
           aiPlatformSelection
         );
@@ -639,7 +717,7 @@ export default function ContentPostsPage() {
     }
 
     try {
-      setIsGeneratingIdea(true);
+      setIsGeneratingAIPilot(true);
       setAiResult("");
       setAiHashtags([]);
 
@@ -661,22 +739,31 @@ export default function ContentPostsPage() {
         return;
       }
 
-      const res = await fetch("/api/ai/generate/post", {
+      const generateFromBrandIdea = aiMode === "generate";
+      const res = await fetch(generateFromBrandIdea ? "/api/content/posts/generate-idea" : "/api/ai/generate/post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          platforms: aiPlatformSelection,
-          topic: prompt.slice(0, 500),
-          tone: aiTone,
-          length: aiLength,
-          includeHashtags: aiMode === "generate",
-          includeEmojis: true,
-          includeCTA: aiMode !== "shorten",
-        }),
+        body: JSON.stringify(
+          generateFromBrandIdea
+            ? {
+                platforms: aiPlatformSelection,
+                currentDraft: [aiPrompt.trim(), caption.trim()].filter(Boolean).join("\n\n").slice(0, 700),
+                brandBrief,
+              }
+            : {
+                platforms: aiPlatformSelection,
+                topic: prompt.slice(0, 500),
+                tone: aiTone,
+                length: aiLength,
+                includeHashtags: false,
+                includeEmojis: true,
+                includeCTA: aiMode !== "shorten",
+              }
+        ),
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error?.message || "Generation failed");
-      setAiResult(data.data.content || "");
+      setAiResult(extractGeneratedCaption(data.data?.content || data.data?.idea || data.data?.ideas?.[0]?.caption || ""));
       toast({ title: "AI draft ready" });
     } catch (err) {
       toast({
@@ -685,7 +772,7 @@ export default function ContentPostsPage() {
         variant: "destructive",
       });
     } finally {
-      setIsGeneratingIdea(false);
+      setIsGeneratingAIPilot(false);
     }
   };
 
@@ -743,55 +830,102 @@ export default function ContentPostsPage() {
     }
 
     const aspect = getFlowMediaAspect(flowMediaAspect);
-    const brandedPrompt = [
-      brandBrief,
-      `Selected channels: ${selectedPlatformLabels || "the selected social channels"}`,
-      `Creative request: ${prompt}`,
-      "Use the brand identity, audience, colors, offer, and voice as the main creative direction. Keep it polished, readable, and platform-ready.",
-    ].join("\n\n");
+    const rawBrandIdentity = {
+      name: brandKit?.name || null,
+      tagline: brandKit?.tagline || null,
+      description: brandKit?.description || null,
+      industry: brandKit?.industry || null,
+      niche: brandKit?.niche || null,
+      audience: brandKit?.targetAudience || null,
+      voice: brandKit?.voiceTone || null,
+      value: brandKit?.uniqueValue || null,
+      products: brandKit?.products || [],
+      keywords: brandKit?.keywords || [],
+      hashtags: brandKit?.hashtags || [],
+      colors: brandKit?.colors || null,
+      handles: brandKit?.handles || null,
+      website: brandKit?.website || null,
+      logo: brandKit?.logo || brandKit?.iconLogo || null,
+    };
+    const rawVideoPrompt = [
+      "Brand identity:",
+      JSON.stringify(rawBrandIdentity, null, 2),
+      selectedPlatformLabels ? `Channels: ${selectedPlatformLabels}` : null,
+      `User prompt: ${prompt}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
     setIsGeneratingFlowMedia(true);
     setGeneratedFlowMedia(null);
     setFlowMediaStatus(flowMediaMode === "image" ? "Sending prompt to xAI..." : "Sending prompt to Google Veo...");
 
     try {
       if (flowMediaMode === "image") {
-        const res = await fetch("/api/ai/visual", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: brandedPrompt,
-            category: "social_post",
-            size: aspect.imageSize,
-            style: flowMediaStyle,
-            provider: "xai",
-            heroType: "product",
-            textMode: "creative",
-            brandColors: brandKit?.colors || null,
-            brandLogo: brandKit?.logo || brandKit?.iconLogo || null,
-            brandName: brandKit?.name || null,
-            showBrandName: !!brandKit?.name,
-            showSocialIcons: true,
-            socialHandles: brandKit?.handles || null,
-            ctaText: null,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error?.message || "Image generation failed");
+        const providers: FlowImageProvider[] = ["xai", "openai", "gemini"];
+        let lastError = "Image generation failed";
+
+        for (const provider of providers) {
+          setFlowMediaStatus(
+            provider === "xai"
+              ? "Sending prompt to xAI..."
+              : `xAI did not return a usable image. Trying ${FLOW_IMAGE_PROVIDER_LABELS[provider]}...`
+          );
+
+          const res = await fetch("/api/ai/visual", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt,
+              category: "social_post",
+              size: aspect.imageSize,
+              style: flowMediaStyle,
+              provider,
+              promptMode: "raw_brand",
+              brandIdentity: rawBrandIdentity,
+              channels: selectedPlatformLabels || "selected social channels",
+              heroType: "product",
+              textMode: "creative",
+              brandColors: brandKit?.colors || null,
+              brandLogo: brandKit?.logo || brandKit?.iconLogo || null,
+              brandName: brandKit?.name || null,
+              showBrandName: !!brandKit?.name,
+              showSocialIcons: true,
+              socialHandles: brandKit?.handles || null,
+              ctaText: null,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.status === 401 || res.status === 403) {
+            throw new Error(data.error?.message || "You do not have access to generate FlowAI media");
+          }
+          if (!res.ok || !data.success) {
+            lastError = data.error?.message || `${FLOW_IMAGE_PROVIDER_LABELS[provider]} image generation failed`;
+            continue;
+          }
+
+          const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
+          if (!imageUrl) {
+            lastError = `${FLOW_IMAGE_PROVIDER_LABELS[provider]} generated an image but no media URL was returned`;
+            continue;
+          }
+
+          addGeneratedMediaToPost("image", imageUrl);
+          setFlowMediaStatus("Image added to the post.");
+          toast({
+            title: "Image generated",
+            description: `${FLOW_IMAGE_PROVIDER_LABELS[provider]} created the asset and it was added to your post.`,
+          });
+          return;
         }
-        const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
-        if (!imageUrl) throw new Error("Image generated but no media URL was returned");
-        addGeneratedMediaToPost("image", imageUrl);
-        setFlowMediaStatus("Image added to the post.");
-        toast({ title: "Image generated", description: "The xAI asset was added to your post media." });
-        return;
+
+        throw new Error(lastError);
       }
 
       const res = await fetch("/api/ai/video-studio/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: brandedPrompt,
+          prompt: rawVideoPrompt,
           category: "promo",
           aspectRatio: flowMediaAspect,
           duration: 8,
@@ -2010,10 +2144,10 @@ export default function ContentPostsPage() {
               <Button
                 type="button"
                 onClick={handleAIPilotGenerate}
-                disabled={isGeneratingIdea}
+                disabled={isGeneratingAIPilot}
                 className="bg-gradient-to-r from-brand-500 to-cyan-500 text-white hover:from-brand-600 hover:to-cyan-600"
               >
-                {isGeneratingIdea ? (
+                {isGeneratingAIPilot ? (
                   <AISpinner className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Sparkles className="mr-2 h-4 w-4" />
@@ -2023,14 +2157,14 @@ export default function ContentPostsPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleGenerateIdea(false)}
-                disabled={isGeneratingIdea}
+                onClick={handleAIPilotBrandIdea}
+                disabled={isGeneratingAIPilot || isGeneratingIdea}
               >
                 Brand idea
               </Button>
             </div>
 
-            {isGeneratingIdea && (
+            {isGeneratingAIPilot && (
               <div className="rounded-xl border border-brand-500/20 bg-brand-500/5 p-4">
                 <AIGenerationLoader
                   compact
