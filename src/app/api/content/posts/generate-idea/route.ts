@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { ai } from "@/lib/ai/client";
+import { geminiText as ai } from "@/lib/ai/gemini-text-client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 
 const safeJsonArray = (value: string | null | undefined) => {
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
         feature: "post_idea",
-        model: "claude-sonnet-4-20250514",
+        model: "gemini-2.5-flash",
         inputTokens: ai.estimateTokens(prompt),
         outputTokens: ai.estimateTokens(count > 1 ? JSON.stringify(ideas) : cleanIdea),
         costCents: 0,

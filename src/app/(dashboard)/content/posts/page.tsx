@@ -964,12 +964,12 @@ export default function ContentPostsPage() {
 
     try {
       if (flowMediaMode === "image") {
-        const providers: FlowImageProvider[] = ["openai", "xai", "gemini"];
+        const providers: FlowImageProvider[] = ["xai", "openai", "gemini"];
         let lastError = "Image generation failed";
 
         for (const provider of providers) {
           setFlowMediaStatus(
-            provider === "openai"
+            provider === "xai"
               ? "Creating your FlowAI image..."
               : "Still working on a usable image..."
           );

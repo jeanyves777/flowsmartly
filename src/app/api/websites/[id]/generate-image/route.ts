@@ -6,10 +6,11 @@ import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { writeFileSync, mkdirSync, cpSync } from "fs";
 import { join } from "path";
 import { getSiteDir, getOutputDir } from "@/lib/website/site-builder";
+import { generateImageXaiFirst } from "@/lib/ai/image-router";
 
 /**
  * POST /api/websites/[id]/generate-image
- * Generates an AI image using OpenAI gpt-image-1 and saves it to the site.
+ * Generates an AI image with the shared image router and saves it to the site.
  * Costs AI_VISUAL_DESIGN credits (15 credits = $0.15).
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -40,20 +41,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (!prompt) return NextResponse.json({ error: "Prompt required" }, { status: 400 });
 
-    // Generate image with OpenAI
-    const { default: OpenAI } = await import("openai");
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-    const response = await openai.images.generate({
-      model: "gpt-image-1",
-      prompt,
-      n: 1,
-      size: size || "1536x1024",
-      quality: "medium",
-    });
-
-    const imageData = response.data?.[0];
-    if (!imageData?.b64_json) {
+    const [width, height] = String(size || "1536x1024")
+      .split("x")
+      .map((value) => Number.parseInt(value, 10));
+    const generated = await generateImageXaiFirst(prompt, width || 1536, height || 1024, { quality: "medium" });
+    if (!generated.base64) {
       return NextResponse.json({ error: "Image generation failed" }, { status: 500 });
     }
 
@@ -63,8 +55,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const imgDir = join(siteDir, "public", "images", imgCategory);
     mkdirSync(imgDir, { recursive: true });
 
-    const filename = `ai-${Date.now()}.png`;
-    const buffer = Buffer.from(imageData.b64_json, "base64");
+    const ext = generated.format === "jpeg" ? "jpg" : "png";
+    const filename = `ai-${Date.now()}.${ext}`;
+    const buffer = Buffer.from(generated.base64, "base64");
     writeFileSync(join(imgDir, filename), buffer);
 
     const imagePath = `/sites/${website.slug}/images/${imgCategory}/${filename}`;

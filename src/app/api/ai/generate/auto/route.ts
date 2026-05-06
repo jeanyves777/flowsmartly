@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
-import { ai } from "@/lib/ai/client";
+import { geminiText as ai } from "@/lib/ai/gemini-text-client";
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 
@@ -250,7 +250,7 @@ You understand each platform's unique culture, best practices, and algorithm pre
           feature: `auto_${templateCategory}`,
           inputTokens: ai.estimateTokens(prompt),
           outputTokens: ai.estimateTokens(aiResponse),
-          model: "claude-sonnet-4-20250514",
+          model: "gemini-2.5-flash",
         },
       });
     } else {
@@ -265,7 +265,7 @@ You understand each platform's unique culture, best practices, and algorithm pre
             feature: `auto_${templateCategory}`,
             inputTokens: ai.estimateTokens(prompt),
             outputTokens: ai.estimateTokens(aiResponse),
-            model: "claude-sonnet-4-20250514",
+            model: "gemini-2.5-flash",
           },
         }),
       ]);

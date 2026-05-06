@@ -3,6 +3,13 @@ import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { OPENAI_IMAGE_EDIT_MODEL, openaiClient } from "@/lib/ai/openai-client";
+import {
+  editImagesXaiFirst,
+  generateImageWithProvider as routedGenerateImageWithProvider,
+  xaiFirstImageGenerationProviderOrder,
+  xaiFirstImageProviderOrder,
+  type RoutedImageProvider,
+} from "@/lib/ai/image-router";
 import { xaiClient, sizeToAspectRatio } from "@/lib/ai/xai-client";
 import { geminiImageClient, sizeToAspectRatioGemini } from "@/lib/ai/gemini-image-client";
 import Anthropic from "@anthropic-ai/sdk";
@@ -304,7 +311,7 @@ export async function POST(request: NextRequest) {
     });
 
     const [width, height] = size.split("x").map(Number);
-    const selectedProvider: ImageProvider = provider || "openai";
+    const selectedProvider: ImageProvider = provider || "xai";
     console.log(`[Visual] Provider: ${selectedProvider} for ${width}x${height} (ratio ${(width / height).toFixed(2)})`);
 
     const pipelineParams = {
@@ -531,50 +538,17 @@ function buildRawBrandPrompt(params: PipelineParams): string {
 }
 
 async function generateImageWithProvider(
-  provider: ImageProvider,
+  provider: RoutedImageProvider,
   prompt: string,
   width: number,
   height: number
 ): Promise<{ base64: string | null; model: string }> {
-  switch (provider) {
-    case "openai": {
-      const size = getGptImageSize(width, height);
-      return {
-        base64: await openaiClient.generateImage(prompt, { size, quality: "high" }),
-        model: "gpt-image-1",
-      };
-    }
-    case "xai": {
-      if (!xaiClient.isAvailable()) {
-        throw new Error("xAI provider is not configured. Please set XAI_API_KEY.");
-      }
-      const aspectRatio = sizeToAspectRatio(width, height);
-      return {
-        base64: await xaiClient.generateImage(prompt, { aspectRatio }),
-        model: "grok-imagine-image",
-      };
-    }
-    case "gemini": {
-      if (!geminiImageClient.isAvailable()) {
-        throw new Error("Gemini provider is not configured. Please set GEMINI_API_KEY.");
-      }
-      const aspectRatio = sizeToAspectRatioGemini(width, height);
-      return {
-        base64: await geminiImageClient.generateImage(prompt, { aspectRatio }),
-        model: "imagen-4.0-generate-001",
-      };
-    }
-    default:
-      throw new Error(`Unknown provider: ${provider}`);
-  }
+  const generated = await routedGenerateImageWithProvider(provider, prompt, width, height, { quality: "high" });
+  return { base64: generated.base64, model: generated.model };
 }
 
-function getProviderOrderWithGoogleFallback(provider: ImageProvider): ImageProvider[] {
-  const order: ImageProvider[] = [provider];
-  if (provider !== "gemini" && geminiImageClient.isAvailable()) {
-    order.push("gemini");
-  }
-  return order;
+function getProviderOrderWithGoogleFallback(provider: ImageProvider): RoutedImageProvider[] {
+  return xaiFirstImageGenerationProviderOrder(provider);
 }
 
 async function generateImageWithFallback(
@@ -582,7 +556,7 @@ async function generateImageWithFallback(
   prompt: string,
   width: number,
   height: number
-): Promise<{ base64: string | null; model: string; provider: ImageProvider }> {
+): Promise<{ base64: string | null; model: string; provider: RoutedImageProvider }> {
   const providerOrder = getProviderOrderWithGoogleFallback(provider);
   let lastError: unknown = null;
 
@@ -596,7 +570,7 @@ async function generateImageWithFallback(
     } catch (error) {
       lastError = error;
       console.warn(
-        `[Visual] ${candidate} failed${candidate !== providerOrder[providerOrder.length - 1] ? ", trying Google image fallback" : ""}:`,
+        `[Visual] ${candidate} failed${candidate !== providerOrder[providerOrder.length - 1] ? ", trying next image fallback" : ""}:`,
         error
       );
     }
@@ -843,13 +817,14 @@ async function runRawBrandPipeline(params: PipelineParams) {
   let base64: string | null;
   let model: string;
 
-  if (params.provider === "openai" && params.referenceImageUrl) {
+  if (params.referenceImageUrl) {
     const refBuffer = await resolveImageToBuffer(params.referenceImageUrl);
-    base64 = await openaiClient.editImage(promptUsed, refBuffer, {
-      size: getGptImageSize(params.width, params.height),
+    const edited = await editImagesXaiFirst(promptUsed, [refBuffer], params.width, params.height, {
+      preferredProvider: params.provider,
       quality: "high",
     });
-    model = "gpt-image-1";
+    base64 = edited.base64;
+    model = edited.model;
   } else {
     const generated = await generateImageWithFallback(
       params.provider,
@@ -1428,6 +1403,8 @@ FACE IDENTITY LOCK FOR ANY HUMAN REFERENCE:
 - Preserve the actual face from the uploaded reference: facial geometry, eyes, nose, mouth, jawline, cheeks, skin tone, age, hairline/hair shape, expression, and recognizable identity.
 - Do NOT synthesize a lookalike, similar person, younger/older version, alternate face, stock person, or AI-generated replacement.
 - If the user asks to change clothes, outfit, pose, background, lighting, or place the person into a new design, change only those requested non-face elements. The face/head identity must still read as the same real person from the reference.
+- The source photo's background is NOT locked. Remove, repaint, blur, extend, or adapt the uploaded photo background as needed so the real person sits naturally in the target design.
+- Do not bring unwanted room walls, chairs, harsh crops, random people, or snapshot clutter from the reference unless the user explicitly asks to keep that background.
 - Treat the reference photo as identity evidence, not visual inspiration.`
     : "";
   const multiReplacementReferenceRules = mustUseEveryReplacementRef
@@ -1502,6 +1479,7 @@ REPLACEMENT RULES:
 - Identify the target person/object/photo areas from the instruction. If the target is not named, use the main visible person/object/photo areas in the pinpoint region, or the main visible person/object/photo areas on the canvas when no region is provided.
 - Remove the original target cleanly and replace it with the requested new person/object/photo${hasReplacementRefs ? referenceUrls.length > 1 ? "s from the replacement reference images" : " from the replacement reference image" : ""}.
 - Match the replacement to the existing design's perspective, lighting, shadows, scale, camera angle, color grade, and graphic style.
+- Remove or adapt the uploaded reference photo background as needed. The subject's face identity is locked; the source-photo background is flexible and should be cleaned up to fit the design.
 - Preserve every text block, logo, icon, border, ornament, background element, and non-target subject exactly as-is.
 - Never change, rewrite, auto-correct, crop away, or blur the existing words/numbers/contact details.
 - Do not add duplicate people or duplicate objects. The replacement should occupy the target's place.${replacementModeRuleClause}
@@ -1608,17 +1586,7 @@ RULES:
     }
   };
 
-  const providerOrder: ImageProvider[] = hasReferenceImages
-    ? uniqueProviderOrder(
-        process.env.OPENAI_API_KEY ? "openai" : null,
-        geminiImageClient.isAvailable() ? "gemini" : null,
-        provider,
-        xaiClient.isAvailable() ? "xai" : null,
-      )
-    : uniqueProviderOrder(
-        provider,
-        provider !== "gemini" && geminiImageClient.isAvailable() ? "gemini" : null,
-      );
+  const providerOrder: ImageProvider[] = uniqueProviderOrder(...xaiFirstImageProviderOrder(provider));
 
   let base64: string | null = null;
   let model = "";

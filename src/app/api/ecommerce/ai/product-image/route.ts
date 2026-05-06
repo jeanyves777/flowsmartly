@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
-import { openaiClient } from "@/lib/ai/openai-client";
+import { generateImageXaiFirst } from "@/lib/ai/image-router";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { checkCreditsForFeature, getDynamicCreditCost } from "@/lib/credits/costs";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
@@ -66,10 +66,8 @@ export async function POST(request: NextRequest) {
     const prompt = `Professional e-commerce product photo of ${productName}.${descPart} ${styleInstructions}. High quality, clean composition, studio lighting, photorealistic.`;
 
     // Generate image
-    const base64 = await openaiClient.generateImage(prompt, {
-      size: "1024x1024",
-      quality: "high",
-    });
+    const generated = await generateImageXaiFirst(prompt, 1024, 1024, { quality: "high" });
+    const base64 = generated.base64;
 
     if (!base64) {
       return NextResponse.json(
@@ -80,8 +78,9 @@ export async function POST(request: NextRequest) {
 
     // Upload to S3
     const buffer = Buffer.from(base64, "base64");
-    const key = `products/ai-generated/${randomUUID()}.png`;
-    const imageUrl = await uploadToS3(key, buffer, "image/png");
+    const ext = generated.format === "jpeg" ? "jpg" : "png";
+    const key = `products/ai-generated/${randomUUID()}.${ext}`;
+    const imageUrl = await uploadToS3(key, buffer, generated.format === "jpeg" ? "image/jpeg" : "image/png");
 
     // Deduct credits
     const creditCost = await getDynamicCreditCost("AI_PRODUCT_IMAGE");

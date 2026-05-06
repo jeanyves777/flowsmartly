@@ -1,0 +1,213 @@
+import { OPENAI_IMAGE_EDIT_MODEL, openaiClient } from "./openai-client";
+import { geminiImageClient, sizeToAspectRatioGemini } from "./gemini-image-client";
+import { xaiClient, sizeToAspectRatio } from "./xai-client";
+import { flowImageClient } from "./flow-image-client";
+import type { ImageProvider } from "@/lib/constants/design-presets";
+
+export type RoutedImageProvider = ImageProvider | "flow";
+
+export type RoutedImageResult = {
+  base64: string | null;
+  model: string;
+  provider: RoutedImageProvider;
+  format: "png" | "jpeg";
+};
+
+export function getGptImageSize(width: number, height: number): "1024x1024" | "1536x1024" | "1024x1536" {
+  const aspectRatio = width / height;
+  if (aspectRatio > 1.3) return "1536x1024";
+  if (aspectRatio < 0.77) return "1024x1536";
+  return "1024x1024";
+}
+
+export function xaiFirstImageProviderOrder(preferred?: ImageProvider | null): ImageProvider[] {
+  const order: ImageProvider[] = [];
+  for (const provider of ["xai", preferred, "openai", "gemini"] as Array<ImageProvider | null | undefined>) {
+    if (provider && !order.includes(provider)) order.push(provider);
+  }
+  return order;
+}
+
+export function xaiFirstImageGenerationProviderOrder(preferred?: ImageProvider | null): RoutedImageProvider[] {
+  const order: RoutedImageProvider[] = [];
+  for (const provider of [...xaiFirstImageProviderOrder(preferred), "flow"] as RoutedImageProvider[]) {
+    if (!order.includes(provider)) order.push(provider);
+  }
+  return order;
+}
+
+export async function generateImageWithProvider(
+  provider: RoutedImageProvider,
+  prompt: string,
+  width: number,
+  height: number,
+  options: { quality?: "low" | "medium" | "high"; transparent?: boolean } = {},
+): Promise<RoutedImageResult> {
+  switch (provider) {
+    case "xai": {
+      if (!xaiClient.isAvailable()) {
+        throw new Error("xAI provider is not configured. Please set XAI_API_KEY.");
+      }
+      const aspectRatio = sizeToAspectRatio(width, height);
+      return {
+        base64: await xaiClient.generateImage(prompt, { aspectRatio }),
+        model: "grok-imagine-image",
+        provider,
+        format: "jpeg",
+      };
+    }
+    case "openai": {
+      const size = getGptImageSize(width, height);
+      return {
+        base64: await openaiClient.generateImage(prompt, {
+          size,
+          quality: options.quality || "high",
+          transparent: options.transparent,
+        }),
+        model: "gpt-image-1",
+        provider,
+        format: "png",
+      };
+    }
+    case "gemini": {
+      if (!geminiImageClient.isAvailable()) {
+        throw new Error("Gemini provider is not configured. Please set GEMINI_API_KEY.");
+      }
+      const aspectRatio = sizeToAspectRatioGemini(width, height);
+      return {
+        base64: await geminiImageClient.generateImage(prompt, { aspectRatio }),
+        model: "imagen-4.0-generate-001",
+        provider,
+        format: "png",
+      };
+    }
+    case "flow": {
+      const isAvailable = await flowImageClient.isAvailable();
+      if (!isAvailable) {
+        throw new Error("Flow image provider is unavailable.");
+      }
+      return {
+        base64: await flowImageClient.generateImage(prompt, {
+          width,
+          height,
+          steps: options.quality === "high" ? 18 : options.quality === "medium" ? 14 : 10,
+        }),
+        model: "flow-ai-stable-diffusion",
+        provider,
+        format: "png",
+      };
+    }
+    default:
+      throw new Error(`Unknown image provider: ${provider}`);
+  }
+}
+
+export async function generateImageXaiFirst(
+  prompt: string,
+  width: number,
+  height: number,
+  options: {
+    preferredProvider?: ImageProvider | null;
+    quality?: "low" | "medium" | "high";
+    transparent?: boolean;
+  } = {},
+): Promise<RoutedImageResult> {
+  const providerOrder = xaiFirstImageGenerationProviderOrder(options.preferredProvider);
+  let lastError: unknown = null;
+
+  for (const provider of providerOrder) {
+    try {
+      const result = await generateImageWithProvider(provider, prompt, width, height, {
+        quality: options.quality,
+        transparent: options.transparent && provider === "openai",
+      });
+      if (result.base64) return result;
+      throw new Error(`${provider} returned no image`);
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `[ImageRouter] ${provider} failed${provider !== providerOrder[providerOrder.length - 1] ? ", trying next image provider" : ""}:`,
+        error,
+      );
+    }
+  }
+
+  throw new Error(lastError instanceof Error ? lastError.message : "Image generation failed");
+}
+
+export async function editImagesXaiFirst(
+  prompt: string,
+  imageBuffers: Buffer[],
+  width: number,
+  height: number,
+  options: { preferredProvider?: ImageProvider | null; quality?: "low" | "medium" | "high" } = {},
+): Promise<RoutedImageResult> {
+  const providerOrder = xaiFirstImageProviderOrder(options.preferredProvider);
+  let lastError: unknown = null;
+
+  for (const provider of providerOrder) {
+    try {
+      const sourceBuffers = imageBuffers.filter(Boolean).slice(0, 5);
+      if (sourceBuffers.length === 0) throw new Error("At least one image is required for edit");
+
+      if (provider === "xai") {
+        if (!xaiClient.isAvailable()) throw new Error("xAI provider is not configured.");
+        const aspectRatio = sizeToAspectRatio(width, height);
+        const base64s = sourceBuffers.map((buffer) => buffer.toString("base64"));
+        return {
+          base64: await xaiClient.editImages(prompt, base64s, { aspectRatio }),
+          model: "grok-imagine-image",
+          provider,
+          format: "jpeg",
+        };
+      }
+
+      if (provider === "openai") {
+        const size = getGptImageSize(width, height);
+        const base64 = sourceBuffers.length > 1
+          ? await openaiClient.editMultiImage(
+              prompt,
+              sourceBuffers.map((buffer, index) => ({
+                buffer,
+                filename: index === 0 ? "canvas.png" : `reference-${index}.png`,
+                type: "image/png",
+              })),
+              { size, quality: options.quality || "high" },
+            )
+          : await openaiClient.editImage(prompt, sourceBuffers[0], {
+              size,
+              quality: options.quality || "high",
+            });
+        return {
+          base64,
+          model: OPENAI_IMAGE_EDIT_MODEL,
+          provider,
+          format: "png",
+        };
+      }
+
+      if (provider === "gemini") {
+        if (!geminiImageClient.isAvailable()) throw new Error("Gemini provider is not configured.");
+        const pngBuffers = sourceBuffers.map((buffer) => buffer.toString("base64"));
+        return {
+          base64: await geminiImageClient.editImages(prompt, pngBuffers, {
+            aspectRatio: sizeToAspectRatioGemini(width, height),
+          }),
+          model: "gemini-2.5-flash-image",
+          provider,
+          format: "png",
+        };
+      }
+
+      throw new Error(`Unknown image provider: ${provider}`);
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `[ImageRouter/Edit] ${provider} failed${provider !== providerOrder[providerOrder.length - 1] ? ", trying next image provider" : ""}:`,
+        error,
+      );
+    }
+  }
+
+  throw new Error(lastError instanceof Error ? lastError.message : "Image edit failed");
+}

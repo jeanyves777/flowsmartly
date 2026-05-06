@@ -1,4 +1,4 @@
-import { OpenAIClient } from "./openai-client";
+import { editImagesXaiFirst } from "./image-router";
 import sharp from "sharp";
 
 /**
@@ -218,21 +218,18 @@ export async function remixTemplate(opts: RemixOptions): Promise<RemixResult> {
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
-  const payload = [
-    { buffer: sourceBuf, filename: "source.png", type: "image/png" },
-    ...userPhotoBuffers,
-  ];
+  const payload = [sourceBuf, ...userPhotoBuffers.map((photo) => photo.buffer)];
 
   const prompt = buildRemixPrompt({
     numPhotos: userPhotoBuffers.length,
     brandColors,
   });
 
-  const openai = OpenAIClient.getInstance();
-  const b64 = await openai.editMultiImage(prompt, payload, { size, quality });
+  const routed = await editImagesXaiFirst(prompt, payload, outputWidth, outputHeight, { quality });
+  const b64 = routed.base64;
 
   if (!b64) {
-    throw new Error("gpt-image-1 edit-multi returned no image data");
+    throw new Error("Image remix returned no image data");
   }
 
   return {

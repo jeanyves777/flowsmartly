@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { prisma } from "@/lib/db/client";
-import { ai } from "@/lib/ai/client";
+import { geminiText as ai } from "@/lib/ai/gemini-text-client";
 import { aiHub } from "@/lib/ai";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 
@@ -111,7 +111,7 @@ Return ONLY the JSON array.`;
           feature: "campaign_name",
           inputTokens: ai.estimateTokens(prompt),
           outputTokens: ai.estimateTokens(JSON.stringify(names)),
-          model: "claude-sonnet-4-20250514",
+          model: "gemini-2.5-flash",
         },
       });
     } else {
@@ -126,7 +126,7 @@ Return ONLY the JSON array.`;
             feature: "campaign_name",
             inputTokens: ai.estimateTokens(prompt),
             outputTokens: ai.estimateTokens(JSON.stringify(names)),
-            model: "claude-sonnet-4-20250514",
+            model: "gemini-2.5-flash",
           },
         }),
       ]);

@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { uploadToS3 } from "@/lib/utils/s3-client";
-import { openaiClient } from "@/lib/ai/openai-client";
+import { generateImageXaiFirst } from "@/lib/ai/image-router";
 
 // POST /api/media/generate-image — Generate an image with AI
 export async function POST(request: NextRequest) {
@@ -45,10 +45,8 @@ export async function POST(request: NextRequest) {
     let base64Image: string | null = null;
 
     try {
-      base64Image = await openaiClient.generateImage(prompt, {
-        size: "1024x1024",
-        quality: "high",
-      });
+      const result = await generateImageXaiFirst(prompt, 1024, 1024, { quality: "high" });
+      base64Image = result.base64;
     } catch (err) {
       console.error("Primary image generation failed, trying Flow AI fallback:", err);
     }

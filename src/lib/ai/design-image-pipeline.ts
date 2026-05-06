@@ -13,9 +13,11 @@
  */
 
 import type { AIDesignLayout, AIImagePlaceholder } from "./design-layout-types";
-import { openaiClient } from "./openai-client";
-import { xaiClient, sizeToAspectRatio } from "./xai-client";
-import { geminiImageClient, sizeToAspectRatioGemini } from "./gemini-image-client";
+import {
+  generateImageWithProvider,
+  xaiFirstImageProviderOrder,
+  type RoutedImageResult,
+} from "./image-router";
 import { removeBackground, isRembgAvailable } from "@/lib/image-tools/background-remover";
 import { saveToFile, saveToFileLocal } from "@/lib/utils/file-storage";
 import { randomUUID } from "crypto";
@@ -154,41 +156,39 @@ async function generateSingleImage(
     }
   }
 
-  console.log(`[DesignImagePipeline] Generating image via ${provider} (transparent: ${needsTransparency})`);
+  console.log(`[DesignImagePipeline] Generating image through XAI-first router (preferred: ${provider}, transparent: ${needsTransparency})`);
 
-  let base64: string | null = null;
-  let format: "png" | "jpeg" = "png";
+  let generated: RoutedImageResult | null = null;
+  let lastError: unknown = null;
 
-  switch (provider) {
-    case "openai": {
-      const openaiSize = mapToOpenAISize(width, height);
-      base64 = await openaiClient.generateImage(prompt, {
-        size: openaiSize,
+  for (const candidate of xaiFirstImageProviderOrder(provider)) {
+    try {
+      let candidatePrompt = prompt;
+      if (needsTransparency && candidate !== provider) {
+        candidatePrompt = rawPrompt.replace(/on a plain (white|green|solid|dark|colored) background[.]?/gi, "").trim();
+        candidatePrompt = candidate === "openai"
+          ? `${candidatePrompt} Isolated subject on a plain white background. No background scene, no environment, no text, no decorations, no design elements.`
+          : `${candidatePrompt} Isolated subject centered on a solid bright green (#00FF00) chroma key background. The background must be a single flat solid green color with no variation, no shadows, no gradients. No background scene, no environment, no text, no decorations, no design elements.`;
+      }
+      generated = await generateImageWithProvider(candidate, candidatePrompt, width, height, {
         quality: "medium",
-        transparent: needsTransparency,
+        transparent: needsTransparency && candidate === "openai",
       });
-      format = "png";
-      break;
-    }
-    case "xai": {
-      const aspectRatio = sizeToAspectRatio(width, height);
-      base64 = await xaiClient.generateImage(prompt, { aspectRatio });
-      format = "jpeg"; // xAI returns JPEG
-      break;
-    }
-    case "gemini": {
-      const aspectRatio = sizeToAspectRatioGemini(width, height);
-      base64 = await geminiImageClient.generateImage(prompt, { aspectRatio });
-      format = "png";
-      break;
+      if (generated.base64) break;
+    } catch (error) {
+      lastError = error;
+      console.warn(`[DesignImagePipeline] ${candidate} image generation failed, trying fallback:`, error);
     }
   }
 
-  if (!base64) return null;
+  if (!generated?.base64) {
+    if (lastError) console.error("[DesignImagePipeline] all image providers failed:", lastError);
+    return null;
+  }
 
   // For xAI/Gemini hero images: remove background via rembg
-  if (needsTransparency && provider !== "openai") {
-    const transparentUrl = await applyRembg(base64, format);
+  if (needsTransparency && generated.provider !== "openai") {
+    const transparentUrl = await applyRembg(generated.base64, generated.format);
     if (transparentUrl) return transparentUrl;
     // If rembg fails, save as-is (user can remove bg manually in studio)
     console.warn("[DesignImagePipeline] rembg fallback failed, saving image without transparency");
@@ -196,8 +196,8 @@ async function generateSingleImage(
 
   // Save to S3
   const imageId = randomUUID();
-  const dataUri = `data:image/${format};base64,${base64}`;
-  const url = await saveToFile(dataUri, "designs/layout-images", `${imageId}.${format === "jpeg" ? "jpg" : "png"}`);
+  const dataUri = `data:image/${generated.format};base64,${generated.base64}`;
+  const url = await saveToFile(dataUri, "designs/layout-images", `${imageId}.${generated.format === "jpeg" ? "jpg" : "png"}`);
   return url;
 }
 
@@ -240,17 +240,6 @@ async function applyRembg(base64: string, format: "png" | "jpeg"): Promise<strin
     console.error("[DesignImagePipeline] rembg error:", err);
     return null;
   }
-}
-
-/**
- * Map canvas dimensions to OpenAI gpt-image-1 size parameter.
- */
-function mapToOpenAISize(width: number, height: number): "1024x1024" | "1536x1024" | "1024x1536" | "auto" {
-  const ratio = width / height;
-  if (ratio > 1.3) return "1536x1024";
-  if (ratio < 0.77) return "1024x1536";
-  if (Math.abs(ratio - 1) < 0.15) return "1024x1024";
-  return "auto";
 }
 
 /**

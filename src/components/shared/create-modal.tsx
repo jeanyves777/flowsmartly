@@ -236,7 +236,7 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
   const [imagePrompt, setImagePrompt] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<DesignCategory>("social_post");
   const [selectedSize, setSelectedSize] = useState<SizePreset | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>("openai");
+  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>("xai");
   const [selectedStyle, setSelectedStyle] = useState("modern");
   const [heroType, setHeroType] = useState<"people" | "product" | "text-only">("people");
   const [textMode, setTextMode] = useState<"exact" | "creative">("creative");
@@ -993,8 +993,8 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
                           <Select value={selectedProvider} onValueChange={(v) => setSelectedProvider(v as ImageProvider)}>
                             <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="openai">Best quality</SelectItem>
-                              <SelectItem value="xai">Fast draft</SelectItem>
+                              <SelectItem value="xai">Primary</SelectItem>
+                              <SelectItem value="openai">Fallback quality</SelectItem>
                               <SelectItem value="gemini">Experimental style</SelectItem>
                             </SelectContent>
                           </Select>
@@ -1014,8 +1014,8 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
                     <Select value={selectedProvider} onValueChange={(v) => setSelectedProvider(v as ImageProvider)}>
                       <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="openai">Best quality</SelectItem>
-                        <SelectItem value="xai">Fast draft</SelectItem>
+                        <SelectItem value="xai">Primary</SelectItem>
+                        <SelectItem value="openai">Fallback quality</SelectItem>
                         <SelectItem value="gemini">Experimental style</SelectItem>
                       </SelectContent>
                     </Select>

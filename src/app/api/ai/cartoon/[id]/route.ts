@@ -196,7 +196,7 @@ export async function POST(
       });
 
       // Read imageProvider from metadata
-      let jobImageProvider: ImageProvider = "openai";
+      let jobImageProvider: ImageProvider = "xai";
       try {
         const meta = JSON.parse(job.metadata || "{}");
         if (meta.imageProvider === "sora") jobImageProvider = "sora" as ImageProvider;
@@ -366,11 +366,11 @@ export async function PATCH(
     // Use updated character data if provided, otherwise use existing
     const charToRegenerate = character || script.characters[charIndex];
 
-    // Read imageProvider from job metadata or default to "openai"
-    let jobImageProvider: ImageProvider = "openai";
+    // Read imageProvider from job metadata or default to XAI-first image routing.
+    let jobImageProvider: ImageProvider = "xai";
     try {
       const meta = JSON.parse(job.metadata || "{}");
-      if (meta.imageProvider === "sora") jobImageProvider = "openai"; // Sora is video-only; regen uses OpenAI images
+      if (meta.imageProvider === "sora") jobImageProvider = "xai"; // Sora is video-only; regen uses image router
       else if (meta.imageProvider === "flow") jobImageProvider = "flow";
       else if (meta.imageProvider === "canvas") jobImageProvider = "canvas";
     } catch {}
@@ -494,11 +494,11 @@ async function handleRegenerateSceneBackground(
   // Parse existing scene images
   const sceneImages = job.sceneImages ? JSON.parse(job.sceneImages) : [];
 
-  // Read imageProvider from job metadata or default to "openai"
-  let jobImageProvider: ImageProvider = "openai";
+  // Read imageProvider from job metadata or default to XAI-first image routing.
+  let jobImageProvider: ImageProvider = "xai";
   try {
     const meta = JSON.parse(job.metadata || "{}");
-    if (meta.imageProvider === "sora") jobImageProvider = "openai"; // Sora is video-only; scene regen uses OpenAI images
+    if (meta.imageProvider === "sora") jobImageProvider = "xai"; // Sora is video-only; scene regen uses image router
     else if (meta.imageProvider === "flow") jobImageProvider = "flow";
     else if (meta.imageProvider === "canvas") jobImageProvider = "canvas";
   } catch {}

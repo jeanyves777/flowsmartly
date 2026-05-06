@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { ai } from "@/lib/ai/client";
+import { geminiText } from "@/lib/ai/gemini-text-client";
 import { buildAssistantPrompt } from "@/lib/ai/assistant-prompt";
 import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
@@ -42,9 +42,9 @@ async function getOrCreateConversation(
 
 async function autoTitle(conversationId: string, message: string) {
   try {
-    const title = await ai.generate(
+    const title = await geminiText.generate(
       `Summarize this user message into a very short title (3-6 words max, no quotes, no punctuation at end): "${message}"`,
-      { maxTokens: 30, temperature: 0.3, model: "claude-sonnet-4-6" }
+      { maxTokens: 30, temperature: 0.3 }
     );
     const cleanTitle = title.trim().replace(/^["']|["']$/g, "").slice(0, 60);
     if (cleanTitle) {
@@ -122,9 +122,8 @@ export async function POST(req: NextRequest) {
           // Sonnet 4.6 + temperature 0.7 — fast, conversational, plenty
           // smart for chat. Opus headroom isn't paying for itself in a
           // text-only assistant surface.
-          for await (const chunk of ai.streamConversation(messages, {
+          for await (const chunk of geminiText.streamConversation(messages, {
             systemPrompt,
-            model: "claude-sonnet-4-6",
             maxTokens: 2048,
             temperature: 0.7,
           })) {

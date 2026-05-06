@@ -183,7 +183,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
     useState<DesignCategory>("social_post");
   const [selectedSize, setSelectedSize] = useState<SizePreset | null>(null);
   const [selectedProvider, setSelectedProvider] =
-    useState<ImageProvider>("openai");
+    useState<ImageProvider>("xai");
   const [selectedStyle, setSelectedStyle] = useState("modern");
   const [heroType, setHeroType] = useState<"people" | "product" | "text-only">(
     "people"
@@ -1023,8 +1023,8 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="openai">Best quality</SelectItem>
-                          <SelectItem value="xai">Fast draft</SelectItem>
+                          <SelectItem value="xai">Primary</SelectItem>
+                          <SelectItem value="openai">Fallback quality</SelectItem>
                           <SelectItem value="gemini">Experimental style</SelectItem>
                         </SelectContent>
                       </Select>
@@ -1055,10 +1055,10 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="xai">Primary</SelectItem>
                     <SelectItem value="openai">
-                      Best quality
+                      Fallback quality
                     </SelectItem>
-                    <SelectItem value="xai">Fast draft</SelectItem>
                     <SelectItem value="gemini">Experimental style</SelectItem>
                   </SelectContent>
                 </Select>

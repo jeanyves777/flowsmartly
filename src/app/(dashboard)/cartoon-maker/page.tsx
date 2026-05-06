@@ -108,11 +108,18 @@ const IMAGE_PROVIDERS = [
     badge: "Video AI",
   },
   {
+    id: "xai",
+    name: "FlowAI primary",
+    description: "Primary image generation",
+    emoji: "✨",
+    badge: "Primary",
+  },
+  {
     id: "openai",
-    name: "FlowAI premium",
-    description: "Premium quality image generation",
+    name: "FlowAI backup",
+    description: "Fallback quality image generation",
     emoji: "⚡",
-    badge: "Premium",
+    badge: "Backup",
   },
   {
     id: "flow",
@@ -246,7 +253,7 @@ function CartoonMakerContent() {
   const [style, setStyle] = useState("anime");
   const [styleDimension, setStyleDimension] = useState<"2D" | "3D">("2D");
   const [animationType, setAnimationType] = useState("static");
-  const [imageProvider, setImageProvider] = useState("openai");
+  const [imageProvider, setImageProvider] = useState("xai");
   const [duration, setDuration] = useState(60);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentJob, setCurrentJob] = useState<CartoonJob | null>(null);
@@ -563,7 +570,7 @@ function CartoonMakerContent() {
     setStyle("pixar");
     setDuration(60);
     setCaptionStyle("classic");
-    setImageProvider("openai");
+    setImageProvider("xai");
     setShowForm(true);
     setEditingCharacters(null);
     setEditingCharacterIndex(null);
@@ -1195,6 +1202,7 @@ function CartoonMakerContent() {
                             <span className={cn(
                               "text-[10px] px-1.5 py-0.5 rounded-full font-medium",
                               p.id === "sora" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" :
+                              p.id === "xai" ? "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300" :
                               p.id === "openai" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" :
                               p.id === "flow" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" :
                               "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"

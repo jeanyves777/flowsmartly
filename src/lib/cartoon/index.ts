@@ -66,7 +66,7 @@ async function updateJobStatus(
  * This runs asynchronously after the API returns the job ID.
  */
 export async function processCartoonVideoPhase1(options: ProcessCartoonOptions): Promise<void> {
-  const { jobId, storyPrompt, style, duration, existingCharacters, imageProvider = "openai", selectedLibraryCharacters } = options;
+  const { jobId, storyPrompt, style, duration, existingCharacters, imageProvider = "xai", selectedLibraryCharacters } = options;
   const hasLibraryChars = selectedLibraryCharacters && selectedLibraryCharacters.length > 0;
 
   try {
@@ -183,7 +183,7 @@ export async function processCartoonVideoPhase1(options: ProcessCartoonOptions):
                 `Generating character preview ${completed}/${total}...`
               ).catch(console.error);
             },
-            imageProvider === "canvas" ? "openai" : imageProvider, // canvas provider is for backgrounds only
+            imageProvider === "canvas" ? "xai" : imageProvider, // canvas provider is for backgrounds only
             existingCharPreviews,
             async (allPreviews) => {
               const updatedChars = script.characters.map(char => {
@@ -321,10 +321,10 @@ export async function processCartoonVideoPhase2(
     }
 
     // Check if this is a Sora job
-    let jobImageProvider = "openai";
+    let jobImageProvider = "xai";
     try {
       const meta = JSON.parse(job.metadata || "{}");
-      jobImageProvider = meta.imageProvider || "openai";
+      jobImageProvider = meta.imageProvider || "xai";
     } catch {}
 
     // ── Sora Pipeline ──────────────────────────────────────────────────────

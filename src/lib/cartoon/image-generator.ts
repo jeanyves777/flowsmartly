@@ -1,4 +1,4 @@
-import { openaiClient } from "@/lib/ai/openai-client";
+import { generateImageXaiFirst } from "@/lib/ai/image-router";
 import { flowImageClient } from "@/lib/ai/flow-image-client";
 import { renderBackground } from "./canvas-background";
 import { saveToFileLocal } from "@/lib/utils/file-storage";
@@ -6,7 +6,7 @@ import { uploadLocalFileToS3 } from "@/lib/utils/s3-client";
 import path from "path";
 import type { CartoonScene, CartoonCharacter } from "./script-generator";
 
-export type ImageProvider = "openai" | "flow" | "canvas" | "sora";
+export type ImageProvider = "xai" | "openai" | "flow" | "canvas" | "sora";
 
 export interface SceneImage {
   sceneNumber: number;
@@ -42,28 +42,23 @@ async function generateWithProvider(
     height: number;
     transparent?: boolean;
   }
-): Promise<string | null> {
+): Promise<{ base64: string; format: "png" | "jpeg" } | null> {
   if (provider === "flow") {
-    return flowImageClient.generateImage(prompt, {
+    const base64 = await flowImageClient.generateImage(prompt, {
       width: Math.min(options.width, 384),   // Generate at 384, server upscales to 512
       height: Math.min(options.height, 384),
       steps: 12,                              // DPM++ 2M Karras converges in 12 steps
       guidanceScale: 7.5,
     });
+    return base64 ? { base64, format: "png" } : null;
   }
 
-  // Default: OpenAI
-  const sizeMap: Record<string, "1024x1024" | "1536x1024" | "1024x1536"> = {
-    "1024x1024": "1024x1024",
-    "1536x1024": "1536x1024",
-    "1024x1536": "1024x1536",
-  };
-  const sizeKey = `${options.width}x${options.height}`;
-  return openaiClient.generateImage(prompt, {
-    size: sizeMap[sizeKey] || "auto",
+  const result = await generateImageXaiFirst(prompt, options.width, options.height, {
+    preferredProvider: provider === "openai" ? "openai" : "xai",
     quality: "high",
     transparent: options.transparent,
   });
+  return result.base64 ? { base64: result.base64, format: result.format } : null;
 }
 
 /**
@@ -89,14 +84,15 @@ export async function generateSceneImage(
   style: string,
   jobId: string,
   characters?: CartoonCharacter[],
-  imageProvider: ImageProvider = "openai"
+  imageProvider: ImageProvider = "xai"
 ): Promise<SceneImage> {
-  let base64: string | null;
+  let generated: { base64: string; format: "png" | "jpeg" } | null;
 
   if (imageProvider === "canvas" || imageProvider === "flow") {
     // Programmatic canvas background — instant, no API calls, no credits
     // Flow AI also uses canvas for backgrounds (CPU inference too slow for scene images)
-    base64 = await renderBackground(scene.visualDescription);
+    const base64 = await renderBackground(scene.visualDescription);
+    generated = base64 ? { base64, format: "png" } : null;
   } else {
     const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.pixar;
     const envContext = buildEnvironmentContext(scene, characters);
@@ -122,20 +118,20 @@ CRITICAL REQUIREMENTS:
 - Suitable for a 16:9 video frame
 - Consistent simple animation style throughout`;
 
-    base64 = await generateWithProvider(prompt, imageProvider, {
+    generated = await generateWithProvider(prompt, imageProvider, {
       width: 1536,
       height: 1024,
       transparent: false,
     });
   }
 
-  if (!base64) {
+  if (!generated?.base64) {
     throw new Error(`Failed to generate image for scene ${scene.sceneNumber}`);
   }
 
   // Save locally (for FFmpeg) and upload to S3 (for frontend)
-  const dataUri = `data:image/png;base64,${base64}`;
-  const filename = `${jobId}-scene-${scene.sceneNumber}.png`;
+  const dataUri = `data:image/${generated.format};base64,${generated.base64}`;
+  const filename = `${jobId}-scene-${scene.sceneNumber}.${generated.format === "jpeg" ? "jpg" : "png"}`;
   const localUrl = await saveToFileLocal(dataUri, "cartoons", filename);
   const imageUrl = await uploadLocalFileToS3(
     path.join(process.cwd(), "public", localUrl),
@@ -159,7 +155,7 @@ export async function generateAllSceneImages(
   jobId: string,
   onProgress?: (completed: number, total: number) => void,
   characters?: CartoonCharacter[],
-  imageProvider: ImageProvider = "openai",
+  imageProvider: ImageProvider = "xai",
   existingImages?: SceneImage[],
   onImageComplete?: (allImages: SceneImage[]) => void | Promise<void>,
 ): Promise<SceneImage[]> {
@@ -220,7 +216,7 @@ export async function generateCharacterPreview(
   character: CartoonCharacter,
   style: string,
   jobId: string,
-  imageProvider: ImageProvider = "openai"
+  imageProvider: ImageProvider = "xai"
 ): Promise<CharacterPreview> {
   const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.pixar;
 
@@ -249,20 +245,20 @@ CRITICAL REQUIREMENTS (for AI animation compatibility):
 - No text, no labels, no UI elements
 - The image will be used for: lip-sync face animation and full-body motion animation`;
 
-  const base64 = await generateWithProvider(prompt, imageProvider, {
+  const generated = await generateWithProvider(prompt, imageProvider, {
     width: 1024,
     height: 1024,
     transparent: true,
   });
 
-  if (!base64) {
+  if (!generated?.base64) {
     throw new Error(`Failed to generate preview for character ${character.name}`);
   }
 
   // Save locally (for FFmpeg) and upload to S3 (for frontend)
-  const dataUri = `data:image/png;base64,${base64}`;
+  const dataUri = `data:image/${generated.format};base64,${generated.base64}`;
   const safeName = character.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
-  const filename = `${jobId}-char-${safeName}.png`;
+  const filename = `${jobId}-char-${safeName}.${generated.format === "jpeg" ? "jpg" : "png"}`;
   const localUrl = await saveToFileLocal(dataUri, "cartoons", filename);
   const imageUrl = await uploadLocalFileToS3(
     path.join(process.cwd(), "public", localUrl),
@@ -285,7 +281,7 @@ export async function generateAllCharacterPreviews(
   style: string,
   jobId: string,
   onProgress?: (completed: number, total: number) => void,
-  imageProvider: ImageProvider = "openai",
+  imageProvider: ImageProvider = "xai",
   existingPreviews?: CharacterPreview[],
   onPreviewComplete?: (allPreviews: CharacterPreview[]) => void | Promise<void>,
 ): Promise<CharacterPreview[]> {

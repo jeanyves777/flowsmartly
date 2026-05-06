@@ -153,7 +153,7 @@ export default function VisualDesignStudioPage() {
   // Generation state
   const [selectedCategory, setSelectedCategory] = useState<DesignCategory>("social_post");
   const [selectedSize, setSelectedSize] = useState<SizePreset | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>("openai");
+  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>("xai");
   const [selectedStyle, setSelectedStyle] = useState("modern");
   const [heroType, setHeroType] = useState<"people" | "product" | "text-only">("people");
   const [prompt, setPrompt] = useState("");
@@ -686,7 +686,7 @@ export default function VisualDesignStudioPage() {
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <Badge variant="secondary" className="text-[10px]">{selectedCategory.replace("_", " ")}</Badge>
                         <Badge variant="outline" className="text-[10px]">{selectedSize?.width}x{selectedSize?.height}</Badge>
-                        <Badge variant="outline" className="text-[10px] capitalize">{selectedProvider === "xai" ? "Fast draft" : selectedProvider === "openai" ? "Best quality" : "Experimental style"}</Badge>
+                        <Badge variant="outline" className="text-[10px] capitalize">{selectedProvider === "xai" ? "Primary" : selectedProvider === "openai" ? "Fallback quality" : "Experimental style"}</Badge>
                         <Badge variant="outline" className="text-[10px]">{selectedStyle}</Badge>
                         <Badge variant="outline" className="text-[10px]">{heroType}</Badge>
                         {selectedTemplate && (
@@ -1329,8 +1329,8 @@ export default function VisualDesignStudioPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {([
-                        { id: "openai" as ImageProvider, label: "Best quality" },
-                        { id: "xai" as ImageProvider, label: "Fast draft" },
+                        { id: "xai" as ImageProvider, label: "Primary" },
+                        { id: "openai" as ImageProvider, label: "Fallback quality" },
                         { id: "gemini" as ImageProvider, label: "Experimental style" },
                       ]).map((prov) => {
                         const compatible = selectedSize

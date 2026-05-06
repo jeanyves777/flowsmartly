@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { openaiClient } from "@/lib/ai/openai-client";
+import { generateImageXaiFirst } from "@/lib/ai/image-router";
 import { prisma } from "@/lib/db/client";
 import type { AgentTool } from "./client";
 
@@ -99,11 +99,11 @@ export function buildLogoTools(ctx: LogoToolContext): AgentTool[] {
         if (!prompt) return { error: "Empty prompt" };
 
         try {
-          const base64 = await openaiClient.generateImage(prompt, {
-            size: "1024x1024",
+          const generated = await generateImageXaiFirst(prompt, 1024, 1024, {
             quality: "high",
             transparent: true,
           });
+          const base64 = generated.base64;
           if (!base64) return { error: "Provider returned no image" };
           const handle = `img-${ctx.images.size + 1}`;
           ctx.images.set(handle, { base64, prompt, styleHint });

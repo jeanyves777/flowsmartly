@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { ai } from "@/lib/ai/client";
+import { geminiText as ai } from "@/lib/ai/gemini-text-client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 
 // POST /api/content/automation/generate-topic — AI-suggest a topic from brand identity
@@ -95,7 +95,7 @@ export async function POST() {
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
         feature: "automation_topic",
-        model: "claude-sonnet-4-20250514",
+        model: "gemini-2.5-flash",
         inputTokens: ai.estimateTokens(prompt),
         outputTokens: ai.estimateTokens(cleanTopic),
         costCents: 0,

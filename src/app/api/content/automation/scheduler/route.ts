@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { ai } from "@/lib/ai/client";
+import { geminiText as ai } from "@/lib/ai/gemini-text-client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
-import { openaiClient } from "@/lib/ai/openai-client";
+import { generateImageXaiFirst } from "@/lib/ai/image-router";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 
 interface ScheduleConfig {
@@ -170,15 +170,14 @@ export async function POST(request: NextRequest) {
             const captionExcerpt = generatedContent.replace(/#[\w]+/g, "").trim().substring(0, 200);
             const mediaPrompt = `Create a social media visual for: ${captionExcerpt}${styleHint}`;
 
-            const base64Image = await openaiClient.generateImage(mediaPrompt, {
-              size: "1536x1024",
-              quality: "medium",
-            });
+            const generatedImage = await generateImageXaiFirst(mediaPrompt, 1536, 1024, { quality: "medium" });
+            const base64Image = generatedImage.base64;
 
             if (base64Image) {
               const imageBuffer = Buffer.from(base64Image, "base64");
-              const s3Key = `automation/${automation.id}/${Date.now()}.png`;
-              await uploadToS3(s3Key, imageBuffer, "image/png");
+              const ext = generatedImage.format === "jpeg" ? "jpg" : "png";
+              const s3Key = `automation/${automation.id}/${Date.now()}.${ext}`;
+              await uploadToS3(s3Key, imageBuffer, generatedImage.format === "jpeg" ? "image/jpeg" : "image/png");
               mediaUrl = s3Key;
               mediaMeta = JSON.stringify([s3Key]);
               postMediaType = "image";

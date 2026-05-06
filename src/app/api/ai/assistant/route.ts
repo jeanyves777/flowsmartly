@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { ai } from "@/lib/ai/client";
+import { geminiText } from "@/lib/ai/gemini-text-client";
 import { buildAssistantPrompt } from "@/lib/ai/assistant-prompt";
 import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
@@ -101,9 +101,8 @@ export async function POST(req: NextRequest) {
           // Sonnet 4.6 — same fast model the redesigned /flow-ai page
           // uses. Was implicitly Opus 4.7 via DEFAULT_MODEL which was
           // why the chat widget felt slow vs the page.
-          for await (const chunk of ai.streamConversation(messages, {
+          for await (const chunk of geminiText.streamConversation(messages, {
             systemPrompt,
-            model: "claude-sonnet-4-6",
             maxTokens: 1024,
             temperature: 0.7,
           })) {
@@ -191,7 +190,7 @@ export async function POST(req: NextRequest) {
  */
 async function generateTitle(conversationId: string, firstMessage: string) {
   try {
-    const title = await ai.generate(
+    const title = await geminiText.generate(
       `Summarize this user message into a very short title (3-6 words max, no quotes, no punctuation at end): "${firstMessage}"`,
       { maxTokens: 30, temperature: 0.3 }
     );

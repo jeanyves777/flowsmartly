@@ -15,18 +15,11 @@ import path from "path";
 import os from "os";
 import { randomUUID } from "crypto";
 import QRCode from "qrcode";
-import { openaiClient, OpenAIClient } from "@/lib/ai/openai-client";
+import { editImagesXaiFirst, generateImageXaiFirst } from "@/lib/ai/image-router";
 import { removeBackground, isRembgAvailable } from "@/lib/image-tools/background-remover";
 import { ImageStore } from "./image-store";
 
 // ─── helpers ──────────────────────────────────────────────────────────
-
-function pickGptSize(width: number, height: number): "1024x1024" | "1536x1024" | "1024x1536" {
-  const ar = width / height;
-  if (ar >= 1.3) return "1536x1024";
-  if (ar <= 0.77) return "1024x1536";
-  return "1024x1024";
-}
 
 async function bufferMeta(buf: Buffer): Promise<{ width?: number; height?: number }> {
   try {
@@ -69,17 +62,16 @@ export async function generateImage(
 ): Promise<{ image_id: string; summary: string }> {
   const w = args.width ?? 1080;
   const h = args.height ?? 1080;
-  const size = pickGptSize(w, h);
   const quality = args.quality ?? "high";
 
-  const base64 = await openaiClient.generateImage(args.prompt, { size, quality });
-  if (!base64) throw new Error("gpt-image-1 returned no image");
+  const generated = await generateImageXaiFirst(args.prompt, w, h, { quality });
+  if (!generated.base64) throw new Error("Image router returned no image");
 
-  const buffer = Buffer.from(base64, "base64");
+  const buffer = Buffer.from(generated.base64, "base64");
   const meta = await bufferMeta(buffer);
   const id = store.register({
     buffer,
-    mimeType: "image/png",
+    mimeType: generated.format === "jpeg" ? "image/jpeg" : "image/png",
     width: meta.width,
     height: meta.height,
     source: "generated",
@@ -100,19 +92,15 @@ export async function editImage(
   const src = store.get(args.image_id);
   const w = args.width ?? src.width ?? 1080;
   const h = args.height ?? src.height ?? 1080;
-  const size = pickGptSize(w, h);
 
-  const base64 = await openaiClient.editImage(args.instruction, src.buffer, {
-    size,
-    quality: "high",
-  });
-  if (!base64) throw new Error("gpt-image-1 edit returned no image");
+  const edited = await editImagesXaiFirst(args.instruction, [src.buffer], w, h, { quality: "high" });
+  if (!edited.base64) throw new Error("Image router edit returned no image");
 
-  const buffer = Buffer.from(base64, "base64");
+  const buffer = Buffer.from(edited.base64, "base64");
   const meta = await bufferMeta(buffer);
   const id = store.register({
     buffer,
-    mimeType: "image/png",
+    mimeType: edited.format === "jpeg" ? "image/jpeg" : "image/png",
     width: meta.width,
     height: meta.height,
     source: "edited",
@@ -652,32 +640,20 @@ export async function composeDesign(
   }
   const w = args.width ?? 1080;
   const h = args.height ?? 1080;
-  const ar = w / h;
-  const size: "1024x1024" | "1536x1024" | "1024x1536" =
-    ar >= 1.3 ? "1536x1024" : ar <= 0.77 ? "1024x1536" : "1024x1024";
-
   // Bundle all input images in the order the agent specified.
-  const images = args.image_ids.map((id, i) => {
+  const images = args.image_ids.map((id) => {
     const img = store.get(id);
-    return {
-      buffer: img.buffer,
-      filename: `input_${i}.png`,
-      type: "image/png",
-    };
+    return img.buffer;
   });
 
-  const client = OpenAIClient.getInstance();
-  const base64 = await client.editMultiImage(args.prompt, images, {
-    size,
-    quality: args.quality ?? "high",
-  });
-  if (!base64) throw new Error("composeDesign returned no image");
+  const generated = await editImagesXaiFirst(args.prompt, images, w, h, { quality: args.quality ?? "high" });
+  if (!generated.base64) throw new Error("composeDesign returned no image");
 
-  const buffer = Buffer.from(base64, "base64");
+  const buffer = Buffer.from(generated.base64, "base64");
   const meta = await sharp(buffer).metadata();
   const id = store.register({
     buffer,
-    mimeType: "image/png",
+    mimeType: generated.format === "jpeg" ? "image/jpeg" : "image/png",
     width: meta.width,
     height: meta.height,
     source: "generated",

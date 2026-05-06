@@ -6,7 +6,7 @@
  */
 
 import { ai } from "@/lib/ai/client";
-import { openaiClient } from "@/lib/ai/openai-client";
+import { generateImageXaiFirst } from "@/lib/ai/image-router";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import fs from "fs";
 import os from "os";
@@ -168,11 +168,11 @@ export async function generateSlideshowImages(
   fs.mkdirSync(tmpDir, { recursive: true });
 
   const images: SlideshowImage[] = [];
-  const gptSize = aspectRatio === "16:9"
-    ? "1536x1024"
+  const imageSize = aspectRatio === "16:9"
+    ? { width: 1536, height: 1024 }
     : aspectRatio === "9:16"
-      ? "1024x1536"
-      : "1024x1024";
+      ? { width: 1024, height: 1536 }
+      : { width: 1024, height: 1024 };
 
   for (let i = 0; i < scenes.length; i++) {
     const scene = scenes[i];
@@ -182,7 +182,8 @@ export async function generateSlideshowImages(
 
     // First attempt
     try {
-      base64 = await openaiClient.generateImage(scene.imagePrompt, { size: gptSize, quality: "high" });
+      const result = await generateImageXaiFirst(scene.imagePrompt, imageSize.width, imageSize.height, { quality: "high" });
+      base64 = result.base64;
     } catch (err) {
       console.warn(`[Slideshow] Image gen failed for scene ${i + 1}, retrying:`, err);
     }
@@ -190,7 +191,8 @@ export async function generateSlideshowImages(
     // Retry once
     if (!base64) {
       try {
-        base64 = await openaiClient.generateImage(scene.imagePrompt, { size: gptSize, quality: "high" });
+        const result = await generateImageXaiFirst(scene.imagePrompt, imageSize.width, imageSize.height, { quality: "high" });
+        base64 = result.base64;
       } catch (retryErr) {
         throw new Error(`Failed to generate image for scene ${i + 1} after retry: ${retryErr instanceof Error ? retryErr.message : "Unknown error"}`);
       }

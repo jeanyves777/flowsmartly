@@ -1,7 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { openaiClient } from "./openai-client";
-import { xaiClient, sizeToAspectRatio } from "./xai-client";
-import { geminiImageClient, sizeToAspectRatioGemini } from "./gemini-image-client";
+import { generateImageWithProvider, xaiFirstImageProviderOrder } from "./image-router";
 import { removeBackground, isRembgAvailable } from "@/lib/image-tools/background-remover";
 import { saveToFile, saveToFileLocal } from "@/lib/utils/file-storage";
 import { randomUUID } from "crypto";
@@ -35,14 +33,6 @@ export interface ImagePipelineToolContext {
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-function mapToOpenAISize(width: number, height: number): "1024x1024" | "1536x1024" | "1024x1536" | "auto" {
-  const ratio = width / height;
-  if (ratio > 1.3) return "1536x1024";
-  if (ratio < 0.77) return "1024x1536";
-  if (Math.abs(ratio - 1) < 0.15) return "1024x1024";
-  return "auto";
-}
 
 export function buildImagePipelineTools(ctx: ImagePipelineToolContext): AgentTool[] {
   return [
@@ -78,50 +68,41 @@ export function buildImagePipelineTools(ctx: ImagePipelineToolContext): AgentToo
         required: ["provider", "prompt", "needsTransparency"],
       },
       handler: async (input) => {
-        const requestedProvider = String(input.provider || "openai") as "openai" | "xai" | "gemini";
-        const provider = requestedProvider === "openai" || process.env.FLOWAI_ALLOW_FALLBACK_IMAGE_PROVIDERS === "true"
-          ? requestedProvider
-          : "openai";
+        const requestedProvider = String(input.provider || "xai") as "openai" | "xai" | "gemini";
         const corePrompt = String(input.prompt || "");
         const needsTransparency = Boolean(input.needsTransparency);
 
         if (!corePrompt) return { error: "Empty prompt" };
 
-        // Build the full prompt with provider-appropriate isolation language
-        let fullPrompt = corePrompt;
-        if (needsTransparency) {
-          if (provider === "openai") {
-            fullPrompt += " Isolated subject on a plain white background. No background scene, no environment, no text, no decorations.";
-          } else {
-            // xAI and Gemini: green chroma key for cleanest rembg
-            fullPrompt += " Isolated subject centered on a solid bright green (#00FF00) chroma key background. The background must be a single flat solid green color with no variation, no shadows, no gradients. No background scene, no environment, no text, no decorations.";
-          }
-        }
-
         let base64: string | null = null;
         let format: "png" | "jpeg" = "png";
+        let provider: "openai" | "xai" | "gemini" = "xai";
+        let finalPrompt = corePrompt;
 
-        try {
-          if (provider === "openai") {
-            base64 = await openaiClient.generateImage(fullPrompt, {
-              size: mapToOpenAISize(ctx.canvasWidth, ctx.canvasHeight),
+        for (const candidate of xaiFirstImageProviderOrder(requestedProvider)) {
+          try {
+            let fullPrompt = corePrompt;
+            if (needsTransparency) {
+              fullPrompt += candidate === "openai"
+                ? " Isolated subject on a plain white background. No background scene, no environment, no text, no decorations."
+                : " Isolated subject centered on a solid bright green (#00FF00) chroma key background. The background must be a single flat solid green color with no variation, no shadows, no gradients. No background scene, no environment, no text, no decorations.";
+            }
+            const result = await generateImageWithProvider(candidate, fullPrompt, ctx.canvasWidth, ctx.canvasHeight, {
               quality: "medium",
-              transparent: needsTransparency,
+              transparent: needsTransparency && candidate === "openai",
             });
-            format = "png";
-          } else if (provider === "xai") {
-            base64 = await xaiClient.generateImage(fullPrompt, {
-              aspectRatio: sizeToAspectRatio(ctx.canvasWidth, ctx.canvasHeight),
-            });
-            format = "jpeg";
-          } else if (provider === "gemini") {
-            base64 = await geminiImageClient.generateImage(fullPrompt, {
-              aspectRatio: sizeToAspectRatioGemini(ctx.canvasWidth, ctx.canvasHeight),
-            });
-            format = "png";
+            if (!result.base64) throw new Error(`${candidate} returned no image`);
+            base64 = result.base64;
+            format = result.format;
+            provider = candidate;
+            finalPrompt = fullPrompt;
+            break;
+          } catch (e) {
+            if (candidate === "gemini") {
+              return { error: e instanceof Error ? e.message : "Image gen failed", provider: candidate };
+            }
+            console.warn(`[ImagePipelineTools] ${candidate} failed, trying next image provider:`, e);
           }
-        } catch (e) {
-          return { error: e instanceof Error ? e.message : "Image gen failed", provider };
         }
 
         if (!base64) return { error: "Provider returned no image", provider };
@@ -156,7 +137,7 @@ export function buildImagePipelineTools(ctx: ImagePipelineToolContext): AgentToo
           format: finalFormat,
           provider,
           transparent: needsTransparency && (provider === "openai" || rembgApplied),
-          prompt: fullPrompt,
+          prompt: finalPrompt,
         });
         return {
           handle,
