@@ -6,6 +6,10 @@ import { Upload } from "lucide-react";
 interface FileDropZoneProps {
   /** Called when a valid file is dropped */
   onFileDrop: (file: File) => void;
+  /** Called when one or more valid files are dropped */
+  onFilesDrop?: (files: File[]) => void;
+  /** Whether to accept more than one dropped file */
+  multiple?: boolean;
   /** Accepted MIME types (e.g. "image/png,image/jpeg") */
   accept?: string;
   /** Max file size in bytes */
@@ -22,6 +26,8 @@ interface FileDropZoneProps {
 
 export function FileDropZone({
   onFileDrop,
+  onFilesDrop,
+  multiple = false,
   accept,
   maxSize,
   disabled = false,
@@ -92,14 +98,19 @@ export function FileDropZone({
       setIsDragOver(false);
       if (disabled) return;
 
-      const file = e.dataTransfer.files?.[0];
-      if (!file) return;
+      const droppedFiles = Array.from(e.dataTransfer.files || []);
+      if (!droppedFiles.length) return;
 
-      if (!isValidFile(file)) return;
+      const validFiles = droppedFiles.filter(isValidFile);
+      if (!validFiles.length) return;
 
-      onFileDrop(file);
+      if (multiple && onFilesDrop) {
+        onFilesDrop(validFiles);
+      } else {
+        onFileDrop(validFiles[0]);
+      }
     },
-    [disabled, isValidFile, onFileDrop]
+    [disabled, isValidFile, multiple, onFileDrop, onFilesDrop]
   );
 
   return (

@@ -13,6 +13,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
@@ -166,8 +172,8 @@ export function AiPanel() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto p-3 text-sm">
-      <div className="flex items-center justify-between gap-2">
+    <div className="flex h-full flex-col text-sm">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-3">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold">
           <Sparkles className="h-4 w-4 text-brand-500" />
           AI Design
@@ -175,138 +181,177 @@ export function AiPanel() {
         <span className="text-[10px] text-muted-foreground">{creditsRemaining} credits</span>
       </div>
 
-      <div className="space-y-2">
-        <textarea
-          value={instruction}
-          onChange={(event) => setInstruction(event.target.value)}
-          placeholder="Tell FlowAI what to change, remove, improve, replace, or match..."
-          className="min-h-[132px] w-full resize-none rounded-md border bg-background p-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-        <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 p-2">
-          <div className="min-w-0">
-            <div className="text-xs font-semibold">Quality check</div>
-            <div className="text-[10px] text-muted-foreground">
-              Review and retry before applying, {visualCreditCost * 3} credits.
-            </div>
-          </div>
-          <Switch
-            checked={qualityCheckEnabled}
-            onCheckedChange={setQualityCheckEnabled}
-            aria-label="Enable quality check"
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <div className="space-y-3">
+          <textarea
+            value={instruction}
+            onChange={(event) => setInstruction(event.target.value)}
+            placeholder="Tell FlowAI what to change, remove, improve, replace, or match..."
+            className="min-h-[150px] w-full resize-none rounded-md border bg-background p-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
+
+          <Accordion type="multiple" defaultValue={["reference"]} className="space-y-2">
+            <AccordionItem value="reference" className="rounded-md border bg-muted/15 px-3">
+              <AccordionTrigger className="py-3 text-[11px] font-semibold uppercase tracking-wide hover:no-underline">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <ImagePlus className="h-3.5 w-3.5" />
+                  Reference media
+                  <span className="normal-case tracking-normal text-muted-foreground">
+                    {referenceUrls.length ? `${referenceUrls.length}/4` : "optional"}
+                  </span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="pb-3">
+                <MediaUploader
+                  value={referenceUrls}
+                  onChange={setReferenceUrls}
+                  multiple
+                  maxFiles={4}
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  filterTypes={["image"]}
+                  variant="small"
+                  placeholder="Add references"
+                  libraryTitle="Pick reference images"
+                  className="rounded-md border bg-background/80 p-2"
+                />
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="quality" className="rounded-md border bg-muted/15 px-3">
+              <AccordionTrigger className="py-3 text-[11px] font-semibold uppercase tracking-wide hover:no-underline">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Quality check
+                  <span className="normal-case tracking-normal text-muted-foreground">
+                    {qualityCheckEnabled ? "on" : "optional"}
+                  </span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="pb-3">
+                <div className="flex items-center justify-between gap-3 rounded-md border bg-background/80 p-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold">Review and retry</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      Runs a quality pass before applying, {visualCreditCost * 3} credits.
+                    </div>
+                  </div>
+                  <Switch
+                    checked={qualityCheckEnabled}
+                    onCheckedChange={setQualityCheckEnabled}
+                    aria-label="Enable quality check"
+                  />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="area" className="rounded-md border bg-muted/15 px-3">
+              <AccordionTrigger className="py-3 text-[11px] font-semibold uppercase tracking-wide hover:no-underline">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <Crop className="h-3.5 w-3.5" />
+                  Edit area
+                  <span className="truncate normal-case tracking-normal text-muted-foreground">{regionLabel}</span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-2 pb-3">
+                <div
+                  className={`flex items-center gap-2 rounded-md border p-2 ${
+                    effectiveRegion ? "border-brand-500/50 bg-brand-500/5" : "border-border bg-background/80"
+                  }`}
+                >
+                  {effectiveRegion ? (
+                    <Crop className="h-4 w-4 shrink-0 text-brand-500" />
+                  ) : (
+                    <Maximize2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-medium">{regionLabel}</div>
+                    {effectiveRegion ? (
+                      <div className="truncate text-[10px] text-muted-foreground">
+                        at ({effectiveRegion.x}, {effectiveRegion.y}) on {effectiveRegion.canvasW}x{effectiveRegion.canvasH}
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-muted-foreground">AI will read the full design</div>
+                    )}
+                  </div>
+                  {aiSelectedRegion && (
+                    <button
+                      type="button"
+                      onClick={() => setAiSelectedRegion(null)}
+                      className="-mr-1 rounded p-1 text-muted-foreground hover:bg-muted"
+                      title="Clear pinpoint"
+                      aria-label="Clear pinpoint region"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={regionSelectMode ? "default" : "outline"}
+                    className="h-8 gap-1.5 text-[11px]"
+                    onClick={() => {
+                      setAiSelectedRegion(null);
+                      setRegionSelectMode(!regionSelectMode);
+                    }}
+                  >
+                    <Crop className="h-3.5 w-3.5" />
+                    {regionSelectMode ? "Drawing..." : "Pinpoint area"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5 text-[11px]"
+                    disabled={!selectionRegion}
+                    onClick={() => {
+                      if (selectionRegion) setAiSelectedRegion(selectionRegion);
+                    }}
+                  >
+                    <MousePointerSquareDashed className="h-3.5 w-3.5" />
+                    Use selected
+                  </Button>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="prompts" className="rounded-md border bg-muted/15 px-3">
+              <AccordionTrigger className="py-3 text-[11px] font-semibold uppercase tracking-wide hover:no-underline">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <Wand2 className="h-3.5 w-3.5" />
+                  Quick prompts
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="pb-3">
+                <div className="flex flex-wrap gap-1">
+                  {promptPresets.map((preset) => (
+                    <Badge
+                      key={preset}
+                      variant="outline"
+                      className="cursor-pointer text-[10px] hover:bg-brand-500/10"
+                      onClick={() => setInstruction(preset)}
+                    >
+                      {preset}
+                    </Badge>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
+      </div>
+
+      <div className="shrink-0 border-t bg-background/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">
         <Button
           onClick={handleApplyEdit}
           disabled={isImproving || !instruction.trim()}
-          className="h-10 w-full gap-2"
+          className="h-11 w-full gap-2"
         >
           {isImproving ? <AISpinner className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
           {isImproving ? "Applying edit..." : "Apply AI edit"}
         </Button>
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          <ImagePlus className="h-3.5 w-3.5" />
-          Reference media
-        </div>
-        <MediaUploader
-          value={referenceUrls}
-          onChange={setReferenceUrls}
-          maxFiles={4}
-          accept="image/png,image/jpeg,image/jpg,image/webp"
-          filterTypes={["image"]}
-          variant="small"
-          placeholder="Add references"
-          libraryTitle="Pick reference images"
-          className="rounded-md border bg-muted/20 p-2"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          Edit area
-        </div>
-
-        <div
-          className={`flex items-center gap-2 rounded-md border p-2 ${
-            effectiveRegion ? "border-brand-500/50 bg-brand-500/5" : "border-border bg-muted/30"
-          }`}
-        >
-          {effectiveRegion ? (
-            <Crop className="h-4 w-4 shrink-0 text-brand-500" />
-          ) : (
-            <Maximize2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-xs font-medium">{regionLabel}</div>
-            {effectiveRegion ? (
-              <div className="truncate text-[10px] text-muted-foreground">
-                at ({effectiveRegion.x}, {effectiveRegion.y}) on {effectiveRegion.canvasW}x{effectiveRegion.canvasH}
-              </div>
-            ) : (
-              <div className="text-[10px] text-muted-foreground">AI will read the full design</div>
-            )}
-          </div>
-          {aiSelectedRegion && (
-            <button
-              type="button"
-              onClick={() => setAiSelectedRegion(null)}
-              className="-mr-1 rounded p-1 text-muted-foreground hover:bg-muted"
-              title="Clear pinpoint"
-              aria-label="Clear pinpoint region"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-1.5">
-          <Button
-            type="button"
-            size="sm"
-            variant={regionSelectMode ? "default" : "outline"}
-            className="h-8 gap-1.5 text-[11px]"
-            onClick={() => {
-              setAiSelectedRegion(null);
-              setRegionSelectMode(!regionSelectMode);
-            }}
-          >
-            <Crop className="h-3.5 w-3.5" />
-            {regionSelectMode ? "Drawing..." : "Pinpoint area"}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 gap-1.5 text-[11px]"
-            disabled={!selectionRegion}
-            onClick={() => {
-              if (selectionRegion) setAiSelectedRegion(selectionRegion);
-            }}
-          >
-            <MousePointerSquareDashed className="h-3.5 w-3.5" />
-            Use selected
-          </Button>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          Quick prompts
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {promptPresets.map((preset) => (
-            <Badge
-              key={preset}
-              variant="outline"
-              className="cursor-pointer text-[10px] hover:bg-brand-500/10"
-              onClick={() => setInstruction(preset)}
-            >
-              {preset}
-            </Badge>
-          ))}
-        </div>
       </div>
     </div>
   );

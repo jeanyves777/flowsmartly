@@ -235,6 +235,8 @@ export function MediaUploader({
 
       <FileDropZone
         onFileDrop={handleFileDrop}
+        onFilesDrop={handleFiles}
+        multiple={multiple}
         accept={accept}
         maxSize={maxSize}
         disabled={disabled || isUploading}
