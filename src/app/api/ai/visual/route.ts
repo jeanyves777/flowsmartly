@@ -316,6 +316,159 @@ async function compositeExactReferenceIntoCanvas(
     .toBuffer();
 }
 
+function getMultiReferencePhotoArea(
+  canvasW: number,
+  canvasH: number,
+  editRegion?: EditRegion | null,
+): { left: number; top: number; width: number; height: number; usedFallback: boolean } {
+  if (editRegion && editRegion.canvasW > 0 && editRegion.canvasH > 0 && editRegion.w > 0 && editRegion.h > 0) {
+    const coversMostCanvas =
+      editRegion.w / editRegion.canvasW > 0.85 &&
+      editRegion.h / editRegion.canvasH > 0.85;
+
+    if (!coversMostCanvas) {
+      const scaleX = canvasW / editRegion.canvasW;
+      const scaleY = canvasH / editRegion.canvasH;
+      const left = Math.max(0, Math.min(canvasW - 1, Math.round(editRegion.x * scaleX)));
+      const top = Math.max(0, Math.min(canvasH - 1, Math.round(editRegion.y * scaleY)));
+      const width = Math.max(1, Math.min(canvasW - left, Math.round(editRegion.w * scaleX)));
+      const height = Math.max(1, Math.min(canvasH - top, Math.round(editRegion.h * scaleY)));
+      return { left, top, width, height, usedFallback: false };
+    }
+  }
+
+  if (canvasW >= canvasH) {
+    return {
+      left: Math.round(canvasW * 0.08),
+      top: Math.round(canvasH * 0.48),
+      width: Math.round(canvasW * 0.84),
+      height: Math.round(canvasH * 0.34),
+      usedFallback: true,
+    };
+  }
+
+  return {
+    left: Math.round(canvasW * 0.10),
+    top: Math.round(canvasH * 0.40),
+    width: Math.round(canvasW * 0.80),
+    height: Math.round(canvasH * 0.42),
+    usedFallback: true,
+  };
+}
+
+async function buildPolaroidFromReference(
+  referenceBuffer: Buffer,
+  cardWidth: number,
+  cardHeight: number,
+  rotation: number,
+): Promise<Buffer> {
+  const border = Math.max(8, Math.round(cardWidth * 0.055));
+  const bottomBorder = Math.max(18, Math.round(cardHeight * 0.14));
+  const innerW = Math.max(24, cardWidth - border * 2);
+  const innerH = Math.max(24, cardHeight - border - bottomBorder);
+  const photo = await sharp(referenceBuffer)
+    .rotate()
+    .resize(innerW, innerH, { fit: "inside", withoutEnlargement: false })
+    .png()
+    .toBuffer();
+  const photoMeta = await sharp(photo).metadata();
+  const photoW = photoMeta.width || innerW;
+  const photoH = photoMeta.height || innerH;
+  const photoLeft = border + Math.round((innerW - photoW) / 2);
+  const photoTop = border + Math.round((innerH - photoH) / 2);
+
+  const card = await sharp({
+    create: {
+      width: cardWidth,
+      height: cardHeight,
+      channels: 4,
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+    },
+  })
+    .composite([{ input: photo, left: photoLeft, top: photoTop }])
+    .png()
+    .toBuffer();
+
+  const rotated = await sharp(card)
+    .rotate(rotation, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+
+  try {
+    return await addSoftShadow(rotated);
+  } catch (err) {
+    console.warn("[Visual/Edit] Multi-reference card shadow failed:", err);
+    return rotated;
+  }
+}
+
+async function compositeMultiReferencePhotosIntoCanvas(
+  canvasBuffer: Buffer,
+  referenceBuffers: Buffer[],
+  editRegion: EditRegion | null | undefined,
+  targetWidth: number,
+  targetHeight: number,
+): Promise<Buffer> {
+  const refs = referenceBuffers.filter(Boolean).slice(0, 4);
+  if (!refs.length) return canvasBuffer;
+
+  const canvasMeta = await sharp(canvasBuffer).metadata();
+  const canvasW = canvasMeta.width || targetWidth;
+  const canvasH = canvasMeta.height || targetHeight;
+  const area = getMultiReferencePhotoArea(canvasW, canvasH, editRegion);
+  const count = refs.length;
+  const slotW = area.width / count;
+  const cardW = Math.max(82, Math.min(Math.round(slotW * 0.88), Math.round(canvasW * 0.24)));
+  const cardH = Math.max(94, Math.min(Math.round(area.height * 0.95), Math.round(cardW * 1.18)));
+  const rotations = [-7, 3, -2, 6];
+
+  const patchW = Math.max(1, Math.min(canvasW - area.left, area.width));
+  const patchH = Math.max(1, Math.min(canvasH - area.top, area.height));
+  const cleanupBase = await sharp(canvasBuffer)
+    .extract({ left: area.left, top: area.top, width: patchW, height: patchH })
+    .blur(48)
+    .modulate({ brightness: 1.08, saturation: 0.22 })
+    .png()
+    .toBuffer();
+  const cleanupWash = await sharp({
+    create: {
+      width: patchW,
+      height: patchH,
+      channels: 4,
+      background: { r: 252, g: 250, b: 244, alpha: 0.72 },
+    },
+  })
+    .png()
+    .toBuffer();
+
+  const composites: sharp.OverlayOptions[] = [
+    { input: cleanupBase, left: area.left, top: area.top },
+    { input: cleanupWash, left: area.left, top: area.top },
+  ];
+
+  for (let index = 0; index < count; index++) {
+    const card = await buildPolaroidFromReference(refs[index], cardW, cardH, rotations[index % rotations.length]);
+    const cardMeta = await sharp(card).metadata();
+    const actualW = cardMeta.width || cardW;
+    const actualH = cardMeta.height || cardH;
+    const centerX = area.left + Math.round(slotW * (index + 0.5));
+    const stagger = index % 2 === 0 ? -Math.round(area.height * 0.04) : Math.round(area.height * 0.03);
+    const left = Math.max(0, Math.min(canvasW - actualW, centerX - Math.round(actualW / 2)));
+    const top = Math.max(0, Math.min(canvasH - actualH, area.top + Math.round((area.height - actualH) / 2) + stagger));
+    composites.push({ input: card, left, top });
+  }
+
+  console.log(
+    `[Visual/Edit] Direct-composited ${count} real reference photos at (${area.left}, ${area.top}) ${area.width}x${area.height}` +
+      `${area.usedFallback ? " fallback photo strip" : " pinpoint region"}`,
+  );
+
+  return sharp(canvasBuffer)
+    .composite(composites)
+    .png()
+    .toBuffer();
+}
+
 function buildAnchoredReferenceEditPrompt(
   userPrompt: string,
   editReferenceMode: EditReferenceMode,
@@ -1627,6 +1780,27 @@ RULES:
     ? await Promise.all(referenceUrls.map((url) => resolveImageToBuffer(url)))
     : [];
 
+  if (mustUseEveryReplacementRef) {
+    const finalBuffer = await compositeMultiReferencePhotosIntoCanvas(
+      editBuffer,
+      editReferenceBuffers,
+      editRegion,
+      width,
+      height,
+    );
+
+    return {
+      imageUrl: `data:image/png;base64,${finalBuffer.toString("base64")}`,
+      pipeline: "edit" as const,
+      model: "sharp-reference-photo-composite",
+      promptUsed: [
+        editPrompt,
+        "",
+        "Direct composition path: user reference photos were placed as original pixels to preserve real faces.",
+      ].join("\n"),
+    };
+  }
+
   let editBufferForProvider = editBuffer;
   let editPromptForProvider = editPrompt;
   let editReferenceBuffersForProvider = editReferenceBuffers;
@@ -1645,14 +1819,6 @@ RULES:
     // keeps the edit model focused on blending it instead of choosing between
     // the old canvas subject and a separate second image.
     editReferenceBuffersForProvider = [];
-  } else if (mustUseEveryReplacementRef) {
-    editPromptForProvider = [
-      editPrompt,
-      "",
-      "CRITICAL EXECUTION CHECK:",
-      `The final edit must contain all ${referenceUrls.length} provided replacement photos. If any one of them is missing, the edit has failed.`,
-      "Keep the existing flyer text and contact line intact. Do not regenerate it from memory.",
-    ].join("\n");
   }
 
   const editWithProvider = async (candidate: ImageProvider): Promise<{ base64: string | null; model: string }> => {
