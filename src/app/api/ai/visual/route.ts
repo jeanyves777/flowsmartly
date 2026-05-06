@@ -93,6 +93,11 @@ function shouldUseEveryReplacementReference(prompt: string, referenceCount: numb
   );
 }
 
+function isBackgroundReplacementIntent(prompt: string): boolean {
+  const normalized = prompt.toLowerCase();
+  return /\b(background|backdrop|bg)\b/.test(normalized) && /\b(replace|swap|change|use|make)\b/.test(normalized);
+}
+
 function uniqueProviderOrder(...providers: Array<ImageProvider | false | null | undefined>): ImageProvider[] {
   const ordered: ImageProvider[] = [];
   for (const provider of providers) {
@@ -147,50 +152,6 @@ async function resolveImageToBuffer(urlOrPath: string): Promise<Buffer> {
   return readFile(localPath);
 }
 
-function getExactReferencePlacement(
-  canvasW: number,
-  canvasH: number,
-  editRegion?: EditRegion | null,
-): { left: number; top: number; width: number; height: number; usedFallback: boolean } {
-  if (editRegion && editRegion.canvasW > 0 && editRegion.canvasH > 0 && editRegion.w > 0 && editRegion.h > 0) {
-    const coversMostCanvas =
-      editRegion.w / editRegion.canvasW > 0.85 &&
-      editRegion.h / editRegion.canvasH > 0.85;
-
-    if (!coversMostCanvas) {
-      const scaleX = canvasW / editRegion.canvasW;
-      const scaleY = canvasH / editRegion.canvasH;
-      const left = Math.max(0, Math.min(canvasW - 1, Math.round(editRegion.x * scaleX)));
-      const top = Math.max(0, Math.min(canvasH - 1, Math.round(editRegion.y * scaleY)));
-      const width = Math.max(1, Math.min(canvasW - left, Math.round(editRegion.w * scaleX)));
-      const height = Math.max(1, Math.min(canvasH - top, Math.round(editRegion.h * scaleY)));
-      return { left, top, width, height, usedFallback: false };
-    }
-  }
-
-  if (canvasH >= canvasW) {
-    const width = Math.round(canvasW * 0.62);
-    const height = Math.round(canvasH * 0.62);
-    return {
-      left: Math.round((canvasW - width) / 2),
-      top: Math.round(canvasH * 0.06),
-      width,
-      height,
-      usedFallback: true,
-    };
-  }
-
-  const width = Math.round(canvasW * 0.42);
-  const height = Math.round(canvasH * 0.78);
-  return {
-    left: Math.round(canvasW * 0.54),
-    top: Math.round(canvasH * 0.11),
-    width: Math.min(width, canvasW - Math.round(canvasW * 0.54)),
-    height,
-    usedFallback: true,
-  };
-}
-
 async function addSoftShadow(subjectBuffer: Buffer): Promise<Buffer> {
   const meta = await sharp(subjectBuffer).metadata();
   const width = meta.width || 1;
@@ -236,269 +197,6 @@ async function addSoftShadow(subjectBuffer: Buffer): Promise<Buffer> {
     ])
     .png()
     .toBuffer();
-}
-
-async function compositeExactReferenceIntoCanvas(
-  canvasBuffer: Buffer,
-  referenceBuffer: Buffer,
-  editRegion: EditRegion | null | undefined,
-  targetWidth: number,
-  targetHeight: number,
-  referenceMode: EditReferenceMode,
-): Promise<Buffer> {
-  const canvasMeta = await sharp(canvasBuffer).metadata();
-  const canvasW = canvasMeta.width || targetWidth;
-  const canvasH = canvasMeta.height || targetHeight;
-  const placement = getExactReferencePlacement(canvasW, canvasH, editRegion);
-
-  const cutoutBuffer = await stripReferenceBg(referenceBuffer);
-  const subjectSrc = cutoutBuffer ?? referenceBuffer;
-  const useCutout = !!cutoutBuffer;
-  let subject = await sharp(subjectSrc)
-    .rotate()
-    .resize(placement.width, placement.height, {
-      fit: useCutout || placement.usedFallback ? "inside" : "cover",
-      position: "center",
-      withoutEnlargement: false,
-    })
-    .png()
-    .toBuffer();
-
-  if (useCutout) {
-    try {
-      subject = await addSoftShadow(subject);
-    } catch (err) {
-      console.warn("[Visual/Edit] Exact reference shadow failed:", err);
-    }
-  }
-
-  const subjectMeta = await sharp(subject).metadata();
-  const subjectW = subjectMeta.width || placement.width;
-  const subjectH = subjectMeta.height || placement.height;
-  const left = Math.max(0, Math.min(canvasW - subjectW, placement.left + Math.round((placement.width - subjectW) / 2)));
-  const top = Math.max(
-    0,
-    Math.min(
-      canvasH - subjectH,
-      useCutout || placement.usedFallback
-        ? placement.top + Math.max(0, placement.height - subjectH)
-        : placement.top + Math.round((placement.height - subjectH) / 2),
-    ),
-  );
-
-  const composites: sharp.OverlayOptions[] = [];
-  {
-    const patchW = Math.min(placement.width, canvasW - placement.left);
-    const patchH = Math.min(placement.height, canvasH - placement.top);
-    const cleanupPatch = await sharp(canvasBuffer)
-      .extract({
-        left: placement.left,
-        top: placement.top,
-        width: patchW,
-        height: patchH,
-      })
-      .blur(60)
-      .modulate({ brightness: 1.02, saturation: 0.25 })
-      .png()
-      .toBuffer();
-    composites.push({ input: cleanupPatch, left: placement.left, top: placement.top });
-  }
-  composites.push({ input: subject, left, top });
-
-  console.log(
-    `[Visual/Edit] Reference anchored for ${referenceMode} mode at (${left}, ${top}) ${subjectW}x${subjectH} ` +
-      `within ${placement.width}x${placement.height}${placement.usedFallback ? " fallback subject zone" : " pinpoint region"}`,
-  );
-
-  return sharp(canvasBuffer)
-    .composite(composites)
-    .png()
-    .toBuffer();
-}
-
-function getMultiReferencePhotoArea(
-  canvasW: number,
-  canvasH: number,
-  editRegion?: EditRegion | null,
-): { left: number; top: number; width: number; height: number; usedFallback: boolean } {
-  if (editRegion && editRegion.canvasW > 0 && editRegion.canvasH > 0 && editRegion.w > 0 && editRegion.h > 0) {
-    const coversMostCanvas =
-      editRegion.w / editRegion.canvasW > 0.85 &&
-      editRegion.h / editRegion.canvasH > 0.85;
-
-    if (!coversMostCanvas) {
-      const scaleX = canvasW / editRegion.canvasW;
-      const scaleY = canvasH / editRegion.canvasH;
-      const left = Math.max(0, Math.min(canvasW - 1, Math.round(editRegion.x * scaleX)));
-      const top = Math.max(0, Math.min(canvasH - 1, Math.round(editRegion.y * scaleY)));
-      const width = Math.max(1, Math.min(canvasW - left, Math.round(editRegion.w * scaleX)));
-      const height = Math.max(1, Math.min(canvasH - top, Math.round(editRegion.h * scaleY)));
-      return { left, top, width, height, usedFallback: false };
-    }
-  }
-
-  if (canvasW >= canvasH) {
-    return {
-      left: Math.round(canvasW * 0.08),
-      top: Math.round(canvasH * 0.48),
-      width: Math.round(canvasW * 0.84),
-      height: Math.round(canvasH * 0.34),
-      usedFallback: true,
-    };
-  }
-
-  return {
-    left: Math.round(canvasW * 0.10),
-    top: Math.round(canvasH * 0.40),
-    width: Math.round(canvasW * 0.80),
-    height: Math.round(canvasH * 0.42),
-    usedFallback: true,
-  };
-}
-
-async function buildPolaroidFromReference(
-  referenceBuffer: Buffer,
-  cardWidth: number,
-  cardHeight: number,
-  rotation: number,
-): Promise<Buffer> {
-  const border = Math.max(8, Math.round(cardWidth * 0.055));
-  const bottomBorder = Math.max(18, Math.round(cardHeight * 0.14));
-  const innerW = Math.max(24, cardWidth - border * 2);
-  const innerH = Math.max(24, cardHeight - border - bottomBorder);
-  const photo = await sharp(referenceBuffer)
-    .rotate()
-    .resize(innerW, innerH, { fit: "inside", withoutEnlargement: false })
-    .png()
-    .toBuffer();
-  const photoMeta = await sharp(photo).metadata();
-  const photoW = photoMeta.width || innerW;
-  const photoH = photoMeta.height || innerH;
-  const photoLeft = border + Math.round((innerW - photoW) / 2);
-  const photoTop = border + Math.round((innerH - photoH) / 2);
-
-  const card = await sharp({
-    create: {
-      width: cardWidth,
-      height: cardHeight,
-      channels: 4,
-      background: { r: 255, g: 255, b: 255, alpha: 1 },
-    },
-  })
-    .composite([{ input: photo, left: photoLeft, top: photoTop }])
-    .png()
-    .toBuffer();
-
-  const rotated = await sharp(card)
-    .rotate(rotation, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .png()
-    .toBuffer();
-
-  try {
-    return await addSoftShadow(rotated);
-  } catch (err) {
-    console.warn("[Visual/Edit] Multi-reference card shadow failed:", err);
-    return rotated;
-  }
-}
-
-async function compositeMultiReferencePhotosIntoCanvas(
-  canvasBuffer: Buffer,
-  referenceBuffers: Buffer[],
-  editRegion: EditRegion | null | undefined,
-  targetWidth: number,
-  targetHeight: number,
-): Promise<Buffer> {
-  const refs = referenceBuffers.filter(Boolean).slice(0, 4);
-  if (!refs.length) return canvasBuffer;
-
-  const canvasMeta = await sharp(canvasBuffer).metadata();
-  const canvasW = canvasMeta.width || targetWidth;
-  const canvasH = canvasMeta.height || targetHeight;
-  const area = getMultiReferencePhotoArea(canvasW, canvasH, editRegion);
-  const count = refs.length;
-  const slotW = area.width / count;
-  const cardW = Math.max(82, Math.min(Math.round(slotW * 0.88), Math.round(canvasW * 0.24)));
-  const cardH = Math.max(94, Math.min(Math.round(area.height * 0.95), Math.round(cardW * 1.18)));
-  const rotations = [-7, 3, -2, 6];
-
-  const patchW = Math.max(1, Math.min(canvasW - area.left, area.width));
-  const patchH = Math.max(1, Math.min(canvasH - area.top, area.height));
-  const cleanupBase = await sharp(canvasBuffer)
-    .extract({ left: area.left, top: area.top, width: patchW, height: patchH })
-    .blur(48)
-    .modulate({ brightness: 1.08, saturation: 0.22 })
-    .png()
-    .toBuffer();
-  const cleanupWash = await sharp({
-    create: {
-      width: patchW,
-      height: patchH,
-      channels: 4,
-      background: { r: 252, g: 250, b: 244, alpha: 0.72 },
-    },
-  })
-    .png()
-    .toBuffer();
-
-  const composites: sharp.OverlayOptions[] = [
-    { input: cleanupBase, left: area.left, top: area.top },
-    { input: cleanupWash, left: area.left, top: area.top },
-  ];
-
-  for (let index = 0; index < count; index++) {
-    const card = await buildPolaroidFromReference(refs[index], cardW, cardH, rotations[index % rotations.length]);
-    const cardMeta = await sharp(card).metadata();
-    const actualW = cardMeta.width || cardW;
-    const actualH = cardMeta.height || cardH;
-    const centerX = area.left + Math.round(slotW * (index + 0.5));
-    const stagger = index % 2 === 0 ? -Math.round(area.height * 0.04) : Math.round(area.height * 0.03);
-    const left = Math.max(0, Math.min(canvasW - actualW, centerX - Math.round(actualW / 2)));
-    const top = Math.max(0, Math.min(canvasH - actualH, area.top + Math.round((area.height - actualH) / 2) + stagger));
-    composites.push({ input: card, left, top });
-  }
-
-  console.log(
-    `[Visual/Edit] Direct-composited ${count} real reference photos at (${area.left}, ${area.top}) ${area.width}x${area.height}` +
-      `${area.usedFallback ? " fallback photo strip" : " pinpoint region"}`,
-  );
-
-  return sharp(canvasBuffer)
-    .composite(composites)
-    .png()
-    .toBuffer();
-}
-
-function buildAnchoredReferenceEditPrompt(
-  userPrompt: string,
-  editReferenceMode: EditReferenceMode,
-  editRegion?: EditRegion | null,
-): string {
-  const modeRules =
-    editReferenceMode === "exact"
-      ? `- Preserve the inserted uploaded subject's face, identity, pose, body, clothing, product shape, logos, markings, and distinctive details as much as possible.
-- Do not turn it into a different person/object. Only retouch what is necessary to make it look naturally printed into the design.`
-      : editReferenceMode === "keep_face"
-        ? `- Preserve the inserted uploaded person's face, head, hair, skin tone, expression, and recognizable identity.
-- You may redesign clothing/outfit/body styling to match the user's instruction, but the face and identity must remain from the uploaded image.`
-        : `- Use the inserted uploaded subject as the replacement source, not the old canvas subject.
-- You may redraw styling, lighting, clothing, edges, and color grade so it becomes part of the design, but it must clearly remain based on the uploaded image.`;
-
-  return `You are editing a graphic design canvas. The user's uploaded replacement image has ALREADY been anchored into the target area on Image 1.
-
-USER REPLACEMENT INSTRUCTION: ${userPrompt}
-
-CRITICAL ANCHORED-REFERENCE RULES:
-- The uploaded replacement subject is already visible in the target area. Use that inserted subject as the source for the replacement.
-- Do NOT restore, keep, or redraw the old person/object that was originally on the canvas.
-- Remove/paint over any remaining old subject pixels in the target area.
-- Make the inserted uploaded subject feel like part of the original design: blend edges, remove hard photo borders, remove pasted/sticker look, match lighting, shadows, contrast, scale, perspective, color grade, and background interaction.
-${modeRules}
-- Preserve all text, logos, ornaments, background, layout, and non-target design elements.
-- Do not add duplicate people or duplicate objects.
-- Maintain the same dimensions and aspect ratio.
-${editRegion ? "- Keep changes focused around the target area; avoid changing the rest of the flyer." : "- Keep the rest of the flyer unchanged except the replaced subject area."}
-- The result must look like a polished professional design, not a pasted photo.`;
 }
 
 // POST /api/ai/visual
@@ -1669,9 +1367,12 @@ async function runEditPipeline(params: PipelineParams) {
   const referenceUrls = editReferenceImageUrls.filter(Boolean).slice(0, 4);
   const resolvedEditIntent = inferEditIntent(prompt, editIntent);
   const hasReferenceImages = referenceUrls.length > 0;
-  const hasReplacementRefs = resolvedEditIntent === "replace_subject" && hasReferenceImages;
+  const isBackgroundReplacement = hasReferenceImages && isBackgroundReplacementIntent(prompt);
+  const hasReplacementRefs = resolvedEditIntent === "replace_subject" && hasReferenceImages && !isBackgroundReplacement;
   const mustUseEveryReplacementRef = hasReplacementRefs && shouldUseEveryReplacementReference(prompt, referenceUrls.length);
-  const effectiveEditReferenceMode = mustUseEveryReplacementRef ? "exact" : editReferenceMode;
+  const effectiveEditReferenceMode = hasReplacementRefs
+    ? editReferenceMode === "keep_face" ? "keep_face" : "exact"
+    : editReferenceMode;
 
   console.log(`[Visual/Edit] Provider: ${provider}, intent: ${resolvedEditIntent}, refMode: ${effectiveEditReferenceMode}, refs: ${referenceUrls.length}, useAllRefs=${mustUseEveryReplacementRef}, instruction: "${prompt.slice(0, 80)}"`);
 
@@ -1705,8 +1406,9 @@ PINPOINT REGION — APPLY THE EDIT ONLY INSIDE THIS BOX:
     ? `
 MULTI-PHOTO REPLACEMENT REQUIREMENT:
 - Use EVERY replacement reference image exactly once. Do not ignore any provided reference.
-- Replace the current/generated photo areas with the provided references in natural reading order: left-to-right, then top-to-bottom.
-- If the canvas has fewer photo slots than references, make a clean collage/row that includes all ${referenceUrls.length} references while preserving the original design structure.
+- Replace the current/generated photo or image slots with the provided references in natural reading order: left-to-right, then top-to-bottom.
+- Use the existing photo slots in the original design. Do not create new cards, extra frames, sticker stacks, or a new collage unless the user's prompt explicitly asks for that.
+- Do not cover, blur, crop away, or overlap any text, logo, QR code, contact detail, icon, or border.
 - Do not create stock people, generic substitute portraits, or blended lookalikes. The visible people/photos must come from the provided reference images.
 - Preserve the source design's text, date, logo, address, email, website, social handles, colors, and layout exactly. Do not rewrite or re-typeset copy.`
     : "";
@@ -1748,7 +1450,19 @@ REFERENCE IMAGE INPUTS:
         ? "\n- The reference face and identity must remain unchanged while clothing/body styling can follow the prompt."
         : "";
 
-  const editPrompt = resolvedEditIntent === "replace_subject"
+  const editPrompt = isBackgroundReplacement
+    ? `You are editing an existing graphic design image. Replace only the background/backdrop requested by the user while preserving the foreground design exactly.
+
+BACKGROUND REPLACEMENT INSTRUCTION: ${prompt}${editReferenceClause}${regionClause}
+
+BACKGROUND RULES:
+- Image 1 is the current design canvas. Images 2 through ${referenceUrls.length + 1} are the user's background/reference media.
+- Use the provided reference media as the actual visual source for the new background/backdrop. Do not invent a different scene when a reference is supplied.
+- Remove or repaint only the current background/backdrop pixels needed to satisfy the instruction.
+- Preserve all foreground subjects, text, logos, QR codes, icons, borders, contact details, product photos, and layout exactly as-is.
+- Keep the same dimensions and aspect ratio.
+- The result must look like a clean professional edit, not a pasted overlay.`
+    : resolvedEditIntent === "replace_subject"
     ? `You are editing an existing graphic design image. Replace the requested person/object/photo area while keeping the rest of the design exactly the same - same layout, same colors, same style, same background, same composition.
 
 REPLACEMENT INSTRUCTION: ${prompt}${replacementReferenceClause}${regionClause}
@@ -1780,52 +1494,15 @@ RULES:
     ? await Promise.all(referenceUrls.map((url) => resolveImageToBuffer(url)))
     : [];
 
-  if (mustUseEveryReplacementRef) {
-    const finalBuffer = await compositeMultiReferencePhotosIntoCanvas(
-      editBuffer,
-      editReferenceBuffers,
-      editRegion,
-      width,
-      height,
-    );
-
-    return {
-      imageUrl: `data:image/png;base64,${finalBuffer.toString("base64")}`,
-      pipeline: "edit" as const,
-      model: "sharp-reference-photo-composite",
-      promptUsed: [
-        editPrompt,
-        "",
-        "Direct composition path: user reference photos were placed as original pixels to preserve real faces.",
-      ].join("\n"),
-    };
-  }
-
-  let editBufferForProvider = editBuffer;
-  let editPromptForProvider = editPrompt;
-  let editReferenceBuffersForProvider = editReferenceBuffers;
-
-  if (hasReplacementRefs && !mustUseEveryReplacementRef) {
-    editBufferForProvider = await compositeExactReferenceIntoCanvas(
-      editBuffer,
-      editReferenceBuffers[0],
-      editRegion,
-      width,
-      height,
-      effectiveEditReferenceMode,
-    );
-    editPromptForProvider = buildAnchoredReferenceEditPrompt(prompt, effectiveEditReferenceMode, editRegion);
-    // The reference is now visible in Image 1. Sending only the anchored canvas
-    // keeps the edit model focused on blending it instead of choosing between
-    // the old canvas subject and a separate second image.
-    editReferenceBuffersForProvider = [];
-  }
+  const editBufferForProvider = editBuffer;
+  const editPromptForProvider = editPrompt;
+  const editReferenceBuffersForProvider = editReferenceBuffers;
 
   const editWithProvider = async (candidate: ImageProvider): Promise<{ base64: string | null; model: string }> => {
     switch (candidate) {
       case "openai": {
         const gptSize = getGptImageSize(width, height);
-        console.log(`[Visual/Edit] OpenAI gpt-image-1 @ ${gptSize}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : hasReplacementRefs && !mustUseEveryReplacementRef ? " (anchored reference blend)" : ""}`);
+        console.log(`[Visual/Edit] OpenAI gpt-image-1 @ ${gptSize}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : ""}`);
         if (editReferenceBuffersForProvider.length > 0) {
           return {
             base64: await openaiClient.editMultiImage(
@@ -1854,7 +1531,7 @@ RULES:
 
       case "xai": {
         const aspectRatio = sizeToAspectRatio(width, height);
-        console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : hasReplacementRefs && !mustUseEveryReplacementRef ? " (anchored reference blend)" : ""}`);
+        console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : ""}`);
         if (!xaiClient.isAvailable()) {
           throw new Error("xAI provider is not configured.");
         }
@@ -1900,7 +1577,7 @@ RULES:
     }
   };
 
-  const providerOrder: ImageProvider[] = mustUseEveryReplacementRef
+  const providerOrder: ImageProvider[] = hasReferenceImages
     ? uniqueProviderOrder(
         process.env.OPENAI_API_KEY ? "openai" : null,
         geminiImageClient.isAvailable() ? "gemini" : null,
@@ -1929,7 +1606,7 @@ RULES:
       throw new Error(`${candidate} returned no image`);
     } catch (error) {
       lastError = error;
-      console.warn(`[Visual/Edit] ${candidate} failed${candidate !== providerOrder[providerOrder.length - 1] ? ", trying Google image fallback" : ""}:`, error);
+      console.warn(`[Visual/Edit] ${candidate} failed${candidate !== providerOrder[providerOrder.length - 1] ? ", trying next image fallback" : ""}:`, error);
     }
   }
 
