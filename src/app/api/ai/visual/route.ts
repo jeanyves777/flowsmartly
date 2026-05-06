@@ -84,6 +84,23 @@ function inferEditIntent(prompt: string, editIntent: EditIntent): Exclude<EditIn
   return looksLikeReplacement ? "replace_subject" : "improve";
 }
 
+function shouldUseEveryReplacementReference(prompt: string, referenceCount: number): boolean {
+  if (referenceCount < 2) return false;
+  const normalized = prompt.toLowerCase();
+  return (
+    /\b(replace|swap|substitute|change|use|insert|put|add)\b/.test(normalized) &&
+    /\b(photo|photos|image|images|picture|pictures|these|all|reference|references)\b/.test(normalized)
+  );
+}
+
+function uniqueProviderOrder(...providers: Array<ImageProvider | false | null | undefined>): ImageProvider[] {
+  const ordered: ImageProvider[] = [];
+  for (const provider of providers) {
+    if (provider && !ordered.includes(provider)) ordered.push(provider);
+  }
+  return ordered;
+}
+
 /**
  * Run rembg on a reference buffer and return a transparent-background
  * cutout for clean compositing onto a generated background. Falls back
@@ -843,7 +860,7 @@ async function evaluateGeneratedImageQuality(
       params.referenceImageUrl,
       params.templateImageUrl,
       ...(params.editReferenceImageUrls || []),
-    ].filter((value): value is string => typeof value === "string" && value.trim().length > 0).slice(0, 3);
+    ].filter((value): value is string => typeof value === "string" && value.trim().length > 0).slice(0, 6);
 
     for (let i = 0; i < referenceSources.length; i++) {
       try {
@@ -853,6 +870,18 @@ async function evaluateGeneratedImageQuality(
       } catch (err) {
         console.warn("[Visual/Quality] Failed to load reference for review:", err);
       }
+    }
+
+    const editReferenceCount = params.editReferenceImageUrls?.length || 0;
+    if (params.editImageUrl && editReferenceCount > 1 && shouldUseEveryReplacementReference(params.prompt, editReferenceCount)) {
+      content.push({
+        type: "text",
+        text: [
+          `Multi-reference replacement requirement: the generated image must visibly use all ${editReferenceCount} user reference images.`,
+          "Fail if any provided reference photo is missing, replaced by a stock/generated substitute, merged into another person/photo, or only used as loose inspiration.",
+          "Also fail if existing design text, dates, email, address, brand name, or logo became misspelled, truncated, blurry, or rewritten.",
+        ].join("\n"),
+      });
     }
 
     const createParams = {
@@ -1488,8 +1517,10 @@ async function runEditPipeline(params: PipelineParams) {
   const resolvedEditIntent = inferEditIntent(prompt, editIntent);
   const hasReferenceImages = referenceUrls.length > 0;
   const hasReplacementRefs = resolvedEditIntent === "replace_subject" && hasReferenceImages;
+  const mustUseEveryReplacementRef = hasReplacementRefs && shouldUseEveryReplacementReference(prompt, referenceUrls.length);
+  const effectiveEditReferenceMode = mustUseEveryReplacementRef ? "exact" : editReferenceMode;
 
-  console.log(`[Visual/Edit] Provider: ${provider}, intent: ${resolvedEditIntent}, refMode: ${editReferenceMode}, refs: ${referenceUrls.length}, instruction: "${prompt.slice(0, 80)}"`);
+  console.log(`[Visual/Edit] Provider: ${provider}, intent: ${resolvedEditIntent}, refMode: ${effectiveEditReferenceMode}, refs: ${referenceUrls.length}, useAllRefs=${mustUseEveryReplacementRef}, instruction: "${prompt.slice(0, 80)}"`);
 
   // Optional pinpoint-region clause. Image-edit providers (xAI grok-imagine-image,
   // Gemini, OpenAI gpt-image-1) accept a single edit instruction string, so we
@@ -1515,15 +1546,24 @@ PINPOINT REGION — APPLY THE EDIT ONLY INSIDE THIS BOX:
   }
 
   const referenceLabel = referenceUrls.length > 1
-    ? `Images 2 through ${referenceUrls.length + 1} are the replacement reference images.`
+    ? `Images 2 through ${referenceUrls.length + 1} are ${referenceUrls.length} separate replacement reference images.`
     : "Image 2 is the replacement reference image.";
+  const multiReplacementReferenceRules = mustUseEveryReplacementRef
+    ? `
+MULTI-PHOTO REPLACEMENT REQUIREMENT:
+- Use EVERY replacement reference image exactly once. Do not ignore any provided reference.
+- Replace the current/generated photo areas with the provided references in natural reading order: left-to-right, then top-to-bottom.
+- If the canvas has fewer photo slots than references, make a clean collage/row that includes all ${referenceUrls.length} references while preserving the original design structure.
+- Do not create stock people, generic substitute portraits, or blended lookalikes. The visible people/photos must come from the provided reference images.
+- Preserve the source design's text, date, logo, address, email, website, social handles, colors, and layout exactly. Do not rewrite or re-typeset copy.`
+    : "";
   const replacementReferenceModeRules =
-    editReferenceMode === "exact"
+    effectiveEditReferenceMode === "exact"
       ? `REFERENCE LOCK MODE: EXACT SOURCE
 - Treat the replacement reference as the literal source photo/object, not inspiration.
 - Do not invent a similar person/object. Do not change the reference subject's face, identity, hairstyle, expression, body proportions, clothing, product shape, logos, markings, or distinctive details unless the user explicitly asks.
 - Only adapt scale, crop, perspective, lighting, shadows, edge blending, and color grade so the exact reference subject fits naturally into the current design.`
-      : editReferenceMode === "keep_face"
+      : effectiveEditReferenceMode === "keep_face"
         ? `REFERENCE LOCK MODE: KEEP FACE
 - Preserve the reference person's face, facial geometry, skin tone, age, expression, head angle, hair, and recognizable identity.
 - Clothing, outfit, accessories below the neck, and body styling may change to satisfy the instruction.
@@ -1537,7 +1577,7 @@ PINPOINT REGION — APPLY THE EDIT ONLY INSIDE THIS BOX:
 REFERENCE IMAGE INPUTS:
 - Image 1 is the current design canvas.
 - ${referenceLabel}
-${replacementReferenceModeRules}`
+${replacementReferenceModeRules}${multiReplacementReferenceRules}`
     : "";
   const editReferenceClause = hasReferenceImages && !hasReplacementRefs
     ? `
@@ -1549,22 +1589,23 @@ REFERENCE IMAGE INPUTS:
 - Do not simply paste a reference on top of the canvas. If the prompt asks to insert, replace, or use a referenced asset, remove or repaint the conflicting old element first, then integrate the reference naturally with matching lighting, perspective, scale, shadows, and color.`
     : "";
   const replacementModeRuleClause =
-    hasReplacementRefs && editReferenceMode === "exact"
+    hasReplacementRefs && effectiveEditReferenceMode === "exact"
       ? "\n- The reference subject must remain visually identical except for necessary integration adjustments."
-      : hasReplacementRefs && editReferenceMode === "keep_face"
+      : hasReplacementRefs && effectiveEditReferenceMode === "keep_face"
         ? "\n- The reference face and identity must remain unchanged while clothing/body styling can follow the prompt."
         : "";
 
   const editPrompt = resolvedEditIntent === "replace_subject"
-    ? `You are editing an existing graphic design image. Replace a person or object while keeping the rest of the design exactly the same - same layout, same colors, same style, same background, same composition.
+    ? `You are editing an existing graphic design image. Replace the requested person/object/photo area while keeping the rest of the design exactly the same - same layout, same colors, same style, same background, same composition.
 
 REPLACEMENT INSTRUCTION: ${prompt}${replacementReferenceClause}${regionClause}
 
 REPLACEMENT RULES:
-- Identify the target person/object from the instruction. If the target is not named, use the main visible person/object in the pinpoint region, or the main visible person/object on the canvas when no region is provided.
-- Remove the original target cleanly and replace it with the requested new person/object${hasReplacementRefs ? " from the replacement reference image" : ""}.
+- Identify the target person/object/photo areas from the instruction. If the target is not named, use the main visible person/object/photo areas in the pinpoint region, or the main visible person/object/photo areas on the canvas when no region is provided.
+- Remove the original target cleanly and replace it with the requested new person/object/photo${hasReplacementRefs ? referenceUrls.length > 1 ? "s from the replacement reference images" : " from the replacement reference image" : ""}.
 - Match the replacement to the existing design's perspective, lighting, shadows, scale, camera angle, color grade, and graphic style.
 - Preserve every text block, logo, icon, border, ornament, background element, and non-target subject exactly as-is.
+- Never change, rewrite, auto-correct, crop away, or blur the existing words/numbers/contact details.
 - Do not add duplicate people or duplicate objects. The replacement should occupy the target's place.${replacementModeRuleClause}
 - Only modify the replacement target${editRegion ? " and ONLY inside the pinpoint region above" : ""}.
 - Maintain the same dimensions and aspect ratio.
@@ -1590,27 +1631,35 @@ RULES:
   let editPromptForProvider = editPrompt;
   let editReferenceBuffersForProvider = editReferenceBuffers;
 
-  if (hasReplacementRefs) {
+  if (hasReplacementRefs && !mustUseEveryReplacementRef) {
     editBufferForProvider = await compositeExactReferenceIntoCanvas(
       editBuffer,
       editReferenceBuffers[0],
       editRegion,
       width,
       height,
-      editReferenceMode,
+      effectiveEditReferenceMode,
     );
-    editPromptForProvider = buildAnchoredReferenceEditPrompt(prompt, editReferenceMode, editRegion);
+    editPromptForProvider = buildAnchoredReferenceEditPrompt(prompt, effectiveEditReferenceMode, editRegion);
     // The reference is now visible in Image 1. Sending only the anchored canvas
     // keeps the edit model focused on blending it instead of choosing between
     // the old canvas subject and a separate second image.
     editReferenceBuffersForProvider = [];
+  } else if (mustUseEveryReplacementRef) {
+    editPromptForProvider = [
+      editPrompt,
+      "",
+      "CRITICAL EXECUTION CHECK:",
+      `The final edit must contain all ${referenceUrls.length} provided replacement photos. If any one of them is missing, the edit has failed.`,
+      "Keep the existing flyer text and contact line intact. Do not regenerate it from memory.",
+    ].join("\n");
   }
 
   const editWithProvider = async (candidate: ImageProvider): Promise<{ base64: string | null; model: string }> => {
     switch (candidate) {
       case "openai": {
         const gptSize = getGptImageSize(width, height);
-        console.log(`[Visual/Edit] OpenAI gpt-image-1 @ ${gptSize}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : hasReplacementRefs ? " (anchored reference blend)" : ""}`);
+        console.log(`[Visual/Edit] OpenAI gpt-image-1 @ ${gptSize}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : hasReplacementRefs && !mustUseEveryReplacementRef ? " (anchored reference blend)" : ""}`);
         if (editReferenceBuffersForProvider.length > 0) {
           return {
             base64: await openaiClient.editMultiImage(
@@ -1639,7 +1688,7 @@ RULES:
 
       case "xai": {
         const aspectRatio = sizeToAspectRatio(width, height);
-        console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : hasReplacementRefs ? " (anchored reference blend)" : ""}`);
+        console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : hasReplacementRefs && !mustUseEveryReplacementRef ? " (anchored reference blend)" : ""}`);
         if (!xaiClient.isAvailable()) {
           throw new Error("xAI provider is not configured.");
         }
@@ -1685,10 +1734,17 @@ RULES:
     }
   };
 
-  const providerOrder: ImageProvider[] = [provider];
-  if (provider !== "gemini" && geminiImageClient.isAvailable()) {
-    providerOrder.push("gemini");
-  }
+  const providerOrder: ImageProvider[] = mustUseEveryReplacementRef
+    ? uniqueProviderOrder(
+        process.env.OPENAI_API_KEY ? "openai" : null,
+        geminiImageClient.isAvailable() ? "gemini" : null,
+        provider,
+        xaiClient.isAvailable() ? "xai" : null,
+      )
+    : uniqueProviderOrder(
+        provider,
+        provider !== "gemini" && geminiImageClient.isAvailable() ? "gemini" : null,
+      );
 
   let base64: string | null = null;
   let model = "";
