@@ -161,7 +161,7 @@ export function AiPanel() {
           category: "social_post",
           size: `${canvasWidth}x${canvasHeight}`,
           style: "modern",
-          provider: "openai",
+          provider: "xai",
           heroType: "people",
           textMode: "exact",
           editImageUrl: imageUrl,
