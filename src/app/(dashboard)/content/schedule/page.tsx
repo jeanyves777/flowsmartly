@@ -245,6 +245,28 @@ export default function ContentSchedulePage() {
     return `${format(start, "MMM d h:mm a")} - ${format(end, "MMM d h:mm a")}`;
   };
 
+  const getItemDisplayRangeForDay = (item: ScheduledPost, day: Date) => {
+    const { start, end } = getItemTimeRange(item);
+    if (item.itemType !== "strategy" || isSameDay(start, end)) {
+      return { start, end };
+    }
+
+    const displayStart = new Date(day);
+    displayStart.setHours(start.getHours(), start.getMinutes(), 0, 0);
+    const displayEnd = new Date(day);
+    displayEnd.setHours(end.getHours(), end.getMinutes(), 0, 0);
+
+    return {
+      start: displayStart,
+      end: displayEnd > displayStart ? displayEnd : addMinutes(displayStart, 60),
+    };
+  };
+
+  const getDayTimeLabel = (item: ScheduledPost, day: Date) => {
+    const { start, end } = getItemDisplayRangeForDay(item, day);
+    return `${format(start, "h:mm a")} - ${format(end, "h:mm a")}`;
+  };
+
   const visibleHours = useMemo(
     () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR + 1 }, (_, index) => DAY_START_HOUR + index),
     []
@@ -477,10 +499,14 @@ export default function ContentSchedulePage() {
   const moveCalendarItem = async (item: ScheduledPost, day: Date) => {
     const movedDate = buildMovedDate(item, day);
     const { start: originalStart, end: originalEnd } = getItemTimeRange(item);
-    const noteDurationMinutes = item.itemType === "strategy"
-      ? Math.max(30, differenceInMinutes(originalEnd, originalStart))
-      : 0;
-    const movedEndDate = item.itemType === "strategy" ? addMinutes(movedDate, noteDurationMinutes) : movedDate;
+    const noteDurationMinutes = Math.max(30, differenceInMinutes(originalEnd, originalStart));
+    const movedEndDate = item.itemType === "strategy"
+      ? (() => {
+          const daySpan = Math.max(0, differenceInCalendarDays(startOfDay(originalEnd), startOfDay(originalStart)));
+          const candidateEnd = buildDateOnDay(addDays(movedDate, daySpan), originalEnd);
+          return candidateEnd > movedDate ? candidateEnd : addMinutes(movedDate, noteDurationMinutes);
+        })()
+      : movedDate;
 
     if (item.itemType !== "strategy" && movedDate <= new Date()) {
       toast({
@@ -687,7 +713,7 @@ export default function ContentSchedulePage() {
 
   const getSortedDayItems = (day: Date) =>
     [...(postsByDate[format(day, "yyyy-MM-dd")] || [])].sort(
-      (a, b) => getItemTimeRange(a).start.getTime() - getItemTimeRange(b).start.getTime()
+      (a, b) => getItemDisplayRangeForDay(a, day).start.getTime() - getItemDisplayRangeForDay(b, day).start.getTime()
     );
 
   const getTimelineBounds = (day: Date) => {
@@ -699,14 +725,14 @@ export default function ContentSchedulePage() {
   };
 
   const getTimedItemLayout = (item: ScheduledPost, day: Date, dayItems: ScheduledPost[]) => {
-    const { start, end } = getItemTimeRange(item);
+    const { start, end } = getItemDisplayRangeForDay(item, day);
     const bounds = getTimelineBounds(day);
     const visibleStart = start > bounds.start ? start : bounds.start;
     const visibleEnd = end < bounds.end ? end : bounds.end;
     const topMinutes = Math.max(0, differenceInMinutes(visibleStart, bounds.start));
     const durationMinutes = Math.max(15, differenceInMinutes(visibleEnd, visibleStart));
     const overlappingItems = dayItems.filter((other) => {
-      const otherRange = getItemTimeRange(other);
+      const otherRange = getItemDisplayRangeForDay(other, day);
       const otherVisibleStart = otherRange.start > bounds.start ? otherRange.start : bounds.start;
       const otherVisibleEnd = otherRange.end < bounds.end ? otherRange.end : bounds.end;
       return otherVisibleStart < visibleEnd && otherVisibleEnd > visibleStart;
@@ -1151,7 +1177,7 @@ export default function ContentSchedulePage() {
                                           : post.caption || "Scheduled post"}
                                       </span>
                                     </div>
-                                    <p className="truncate text-[10px] font-semibold opacity-80">{getTimeLabel(post)}</p>
+                                    <p className="truncate text-[10px] font-semibold opacity-80">{getDayTimeLabel(post, day)}</p>
                                     {post.itemType !== "strategy" && (
                                       <span className="mt-1 flex items-center">{getPlatformStack(post.platforms || [])}</span>
                                     )}
