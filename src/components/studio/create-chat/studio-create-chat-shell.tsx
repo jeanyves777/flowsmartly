@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Send, Paperclip, X, Plus, MessageSquare, ChevronLeft, Loader2, Image as ImageIcon, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
@@ -61,6 +62,7 @@ export function StudioCreateChatShell({
   const [chatList, setChatList] = useState<ChatListItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [creatingNew, setCreatingNew] = useState(false);
+  const [qualityCheckEnabled, setQualityCheckEnabled] = useState(false);
   // Reference images the user has staged for the next turn (paperclip
   // upload OR library browse pick). Sent on the next send() call as
   // attachments and persisted on the user turn server-side.
@@ -85,6 +87,7 @@ export function StudioCreateChatShell({
         if (historyData.success) {
           setTurns(historyData.turns || []);
           setTitle(historyData.chat?.title || initialTitle);
+          setQualityCheckEnabled(historyData.chat?.state?.qualityCheckEnabled === true);
         }
         if (listData.success) {
           setChatList(listData.chats || []);
@@ -209,6 +212,7 @@ export function StudioCreateChatShell({
           body: JSON.stringify({
             content: trimmed,
             attachments: attachmentsToSend.length ? attachmentsToSend : undefined,
+            qualityCheckEnabled,
           }),
         });
         const data = await res.json();
@@ -239,7 +243,7 @@ export function StudioCreateChatShell({
         setSending(false);
       }
     },
-    [chatId, sending, toast, title, pendingAttachments],
+    [chatId, sending, toast, title, pendingAttachments, qualityCheckEnabled],
   );
 
   // Reference picks from inside a chat card (upload zone, library grid,
@@ -501,6 +505,16 @@ export function StudioCreateChatShell({
               onAttach={() => fileInputRef.current?.click()}
               disabled={sending}
             />
+            <div className="mt-2 flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
+              <Switch
+                checked={qualityCheckEnabled}
+                onCheckedChange={setQualityCheckEnabled}
+                disabled={sending}
+                aria-label="Enable quality check for generated images"
+                className="scale-75"
+              />
+              <span>Quality check for images, 3x credits</span>
+            </div>
             <p className="text-[10px] text-muted-foreground/70 mt-1.5 text-center">
               FlowAI may take a moment for complex designs · Click 📎 to drop a reference image
             </p>

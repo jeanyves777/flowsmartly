@@ -49,6 +49,7 @@ export async function POST(
     const body = (await req.json()) as {
       content?: string;
       attachments?: ChatTurn["attachments"];
+      qualityCheckEnabled?: boolean;
     };
     const userText = (body.content || "").trim();
     if (!userText && !body.attachments?.length) {
@@ -96,6 +97,9 @@ export async function POST(
     try {
       state = JSON.parse(chat.state || "{}") as ChatState;
     } catch { /* keep empty */ }
+    if (typeof body.qualityCheckEnabled === "boolean") {
+      state.qualityCheckEnabled = body.qualityCheckEnabled;
+    }
 
     // Hydrate the user's BrandKit on every turn so the agent always
     // knows brand context (name, voice tone, colors). Without this the

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -191,6 +192,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
   const [ctaText, setCtaText] = useState("");
   const [exactImageUrls, setExactImageUrls] = useState<string[]>([]);
   const [styleReferenceUrls, setStyleReferenceUrls] = useState<string[]>([]);
+  const [qualityCheckEnabled, setQualityCheckEnabled] = useState(false);
 
   // Brand
   const [brandIdentity, setBrandIdentity] = useState<BrandIdentity | null>(
@@ -502,6 +504,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
             ctaText: ctaText.trim() || null,
             templateImageUrl: styleReferenceUrls[0] || null,
             referenceImageUrl: exactImageUrls[0] || null,
+            qualityCheckEnabled,
           }),
         });
 
@@ -650,6 +653,22 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                 </Badge>
               </button>
             </div>
+
+            {generationMode === "image" && (
+              <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">Quality check</p>
+                  <p className="text-xs text-muted-foreground">
+                    Review and retry before adding to canvas. Uses {designCreditCost * 3} credits.
+                  </p>
+                </div>
+                <Switch
+                  checked={qualityCheckEnabled}
+                  onCheckedChange={setQualityCheckEnabled}
+                  aria-label="Enable visual quality check"
+                />
+              </div>
+            )}
 
             {/* Prompt input + Ideas */}
             <div>
@@ -1376,7 +1395,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
               <Badge variant="secondary" className="text-[10px] ml-1">
                 {generationMode === "layout"
                   ? layoutCreditCost + (generateHeroImage ? layoutImageCost : 0) + (generateBackground ? layoutImageCost : 0)
-                  : designCreditCost} credits
+                  : qualityCheckEnabled ? designCreditCost * 3 : designCreditCost} credits
               </Badge>
             </Button>
           </div>

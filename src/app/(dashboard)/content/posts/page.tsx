@@ -38,6 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
@@ -537,6 +538,7 @@ export default function ContentPostsPage() {
   const [flowMediaStatus, setFlowMediaStatus] = useState("");
   const [generatedFlowMedia, setGeneratedFlowMedia] = useState<{ type: FlowMediaMode; url: string } | null>(null);
   const [flowMediaReferenceUrls, setFlowMediaReferenceUrls] = useState<string[]>([]);
+  const [flowMediaQualityCheckEnabled, setFlowMediaQualityCheckEnabled] = useState(false);
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const autoTrendIdeaKeysRef = useRef<Set<string>>(new Set());
 
@@ -994,6 +996,7 @@ export default function ContentPostsPage() {
               socialHandles: brandKit?.handles || null,
               referenceImageUrl: primaryReferenceImageUrl,
               ctaText: null,
+              qualityCheckEnabled: flowMediaQualityCheckEnabled,
             }),
           });
           const data = await res.json().catch(() => ({}));
@@ -2081,6 +2084,22 @@ export default function ContentPostsPage() {
                 Add brand, product, style, or scene references. FlowAI uses the first image as the main visual anchor.
               </p>
             </div>
+
+            {flowMediaMode === "image" && (
+              <div className="flex items-center justify-between gap-3 rounded-2xl border bg-background/70 p-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold">Quality check</p>
+                  <p className="text-xs text-muted-foreground">
+                    Review and retry the image before attaching it. Uses 3x credits.
+                  </p>
+                </div>
+                <Switch
+                  checked={flowMediaQualityCheckEnabled}
+                  onCheckedChange={setFlowMediaQualityCheckEnabled}
+                  aria-label="Enable FlowAI media quality check"
+                />
+              </div>
+            )}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">

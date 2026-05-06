@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -242,6 +243,7 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
   const [ctaText, setCtaText] = useState("");
   const [exactImageUrls, setExactImageUrls] = useState<string[]>([]);
   const [styleReferenceUrls, setStyleReferenceUrls] = useState<string[]>([]);
+  const [qualityCheckEnabled, setQualityCheckEnabled] = useState(false);
   const [showBrandName, setShowBrandName] = useState(false);
   const [showSocialIcons, setShowSocialIcons] = useState(false);
   const [selectedSocialPlatforms, setSelectedSocialPlatforms] = useState<Set<string>>(new Set());
@@ -476,6 +478,7 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
             ctaText: ctaText.trim() || null,
             templateImageUrl: styleReferenceUrls[0] || null,
             referenceImageUrl: exactImageUrls[0] || null,
+            qualityCheckEnabled,
           }),
         });
 
@@ -501,7 +504,7 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
     } finally {
       setIsGeneratingImage(false);
     }
-  }, [imagePrompt, selectedSize, imageMode, selectedCategory, selectedStyle, selectedProvider, heroType, textMode, ctaText, brandIdentity, showBrandName, showSocialIcons, selectedSocialPlatforms, includeInDesign, logoType, logoSizePercent, generateHeroImage, generateBackground, exactImageUrls, styleReferenceUrls, toast]);
+  }, [imagePrompt, selectedSize, imageMode, selectedCategory, selectedStyle, selectedProvider, heroType, textMode, ctaText, brandIdentity, showBrandName, showSocialIcons, selectedSocialPlatforms, includeInDesign, logoType, logoSizePercent, generateHeroImage, generateBackground, exactImageUrls, styleReferenceUrls, qualityCheckEnabled, toast]);
 
   // ── Video: Generate ──
   const handleGenerateVideo = useCallback(async () => {
@@ -670,7 +673,7 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
 
   const imageCreditCost = imageMode === "layout"
     ? layoutCreditCost + (generateHeroImage ? layoutImageCost : 0) + (generateBackground ? layoutImageCost : 0)
-    : designCreditCost;
+    : qualityCheckEnabled ? designCreditCost * 3 : designCreditCost;
 
   const videoExtCount = videoProvider === "veo3" ? getExtensionCount(videoDuration.seconds) : 0;
   const videoCreditCost = videoProvider === "slideshow" ? 25 : Math.round(60 * (1 + videoExtCount));
@@ -790,6 +793,22 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
                     </Tooltip>
                   </TooltipProvider>
                 </div>
+
+                {imageMode === "image" && (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">Quality check</p>
+                      <p className="text-xs text-muted-foreground">
+                        Review and retry before delivery. Uses {designCreditCost * 3} credits.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={qualityCheckEnabled}
+                      onCheckedChange={setQualityCheckEnabled}
+                      aria-label="Enable visual quality check"
+                    />
+                  </div>
+                )}
 
                 {/* Prompt */}
                 <div>

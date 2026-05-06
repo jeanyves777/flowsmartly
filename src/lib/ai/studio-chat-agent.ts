@@ -79,6 +79,7 @@ export type DispatchEnvelope =
         ctaText?: string;
         referenceImageUrl?: string;
         useBrandColors?: boolean;
+        qualityCheckEnabled?: boolean;
         branchId: string;
       };
       status: "pending" | "complete" | "failed";
@@ -147,6 +148,10 @@ export interface ChatState {
    *  instead of "Sunday Revelation Service"). Free-form string the agent
    *  composes after asking clarifying questions. */
   designText?: string;
+  originalRequest?: string;
+  briefContext?: string;
+  lastUserInstruction?: string;
+  qualityCheckEnabled?: boolean;
   /** Output mode chosen by the user just before dispatch. "editable" =
    *  smart_layout pipeline (Fabric layers the user can tweak). "flat" =
    *  ai_image pipeline (polished flat image). Persisted so the
@@ -602,6 +607,7 @@ function buildTools(opts: RunChatTurnOpts) {
           ctaText: { type: "string" },
           referenceImageUrl: { type: "string" },
           useBrandColors: { type: "boolean" },
+          qualityCheckEnabled: { type: "boolean" },
           branchId: { type: "string" },
         },
         required: ["mode", "prompt", "width", "height"],
@@ -626,6 +632,7 @@ function buildTools(opts: RunChatTurnOpts) {
             ctaText: typeof input.ctaText === "string" ? input.ctaText : undefined,
             referenceImageUrl: typeof input.referenceImageUrl === "string" ? input.referenceImageUrl : undefined,
             useBrandColors: input.useBrandColors === true,
+            qualityCheckEnabled: input.qualityCheckEnabled === true || opts.state.qualityCheckEnabled === true,
             branchId,
           },
         });

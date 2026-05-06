@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
@@ -44,15 +45,24 @@ export function AiPanel() {
 
   const [isImproving, setIsImproving] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState(0);
+  const [visualCreditCost, setVisualCreditCost] = useState(15);
+  const [qualityCheckEnabled, setQualityCheckEnabled] = useState(false);
   const [instruction, setInstruction] = useState("");
   const [referenceUrls, setReferenceUrls] = useState<string[]>([]);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/ai/studio");
-        const data = await res.json();
-        if (data.success) setCreditsRemaining(data.data.stats?.creditsRemaining ?? 0);
+        const [studioRes, costsRes] = await Promise.all([
+          fetch("/api/ai/studio"),
+          fetch("/api/credits/costs?keys=AI_VISUAL_DESIGN"),
+        ]);
+        const studioData = await studioRes.json();
+        const costsData = await costsRes.json();
+        if (studioData.success) setCreditsRemaining(studioData.data.stats?.creditsRemaining ?? 0);
+        if (costsData.success && costsData.data?.costs?.AI_VISUAL_DESIGN) {
+          setVisualCreditCost(costsData.data.costs.AI_VISUAL_DESIGN);
+        }
       } catch {
         // Credit count is helpful but should never block the editor.
       }
@@ -121,6 +131,7 @@ export function AiPanel() {
           editIntent: "auto",
           editReferenceMode: "adapt",
           editReferenceImageUrls: referenceUrls,
+          qualityCheckEnabled,
         }),
       });
 
@@ -171,6 +182,19 @@ export function AiPanel() {
           placeholder="Tell FlowAI what to change, remove, improve, replace, or match..."
           className="min-h-[132px] w-full resize-none rounded-md border bg-background p-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
+        <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 p-2">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold">Quality check</div>
+            <div className="text-[10px] text-muted-foreground">
+              Review and retry before applying, {visualCreditCost * 3} credits.
+            </div>
+          </div>
+          <Switch
+            checked={qualityCheckEnabled}
+            onCheckedChange={setQualityCheckEnabled}
+            aria-label="Enable quality check"
+          />
+        </div>
         <Button
           onClick={handleApplyEdit}
           disabled={isImproving || !instruction.trim()}

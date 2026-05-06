@@ -427,7 +427,7 @@ async function dispatchDesignViaLegacy(
   env: Extract<DispatchEnvelope, { kind: "design" }>,
   opts: DispatchOpts,
 ): Promise<void> {
-  const { mode, prompt, width, height, category, style, ctaText, referenceImageUrl, useBrandColors, branchId } = env.args;
+  const { mode, prompt, width, height, category, style, ctaText, referenceImageUrl, useBrandColors, qualityCheckEnabled, branchId } = env.args;
 
   // ─── ENGINE ROUTING ──────────────────────────────────────────────────
   //
@@ -469,6 +469,7 @@ async function dispatchDesignViaLegacy(
     showSocialIcons: Boolean(chatBrand?.handles),
     socialHandles: chatBrand?.handles ?? null,
     referenceImageUrl: referenceImageUrl ?? null,
+    qualityCheckEnabled: qualityCheckEnabled === true,
     chatOutputMode: mode,
   };
   if (useBrandColors === false) visualBody.brandColors = null;

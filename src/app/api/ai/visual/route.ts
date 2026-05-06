@@ -13,7 +13,7 @@ import os from "os";
 import { randomUUID } from "crypto";
 import { removeBackground, isRembgAvailable } from "@/lib/image-tools/background-remover";
 import { saveDesignImage } from "@/lib/utils/file-storage";
-import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 import type { ImageProvider } from "@/lib/constants/design-presets";
 
@@ -37,6 +37,20 @@ function getGptImageSize(width: number, height: number): "1024x1024" | "1536x102
 
 type EditReferenceMode = "adapt" | "exact" | "keep_face";
 type EditIntent = "auto" | "improve" | "replace_subject";
+type VisualQualityReview = {
+  pass: boolean;
+  score: number;
+  summary: string;
+  issues: string[];
+  correctionPrompt: string;
+};
+type PipelineResult = {
+  imageUrl: string;
+  pipeline: "direct" | "edit";
+  model: string;
+  promptUsed: string;
+  qualityReviews?: VisualQualityReview[];
+};
 type EditRegion = {
   x: number;
   y: number;
@@ -54,6 +68,10 @@ function normalizeEditReferenceMode(value: unknown): EditReferenceMode {
 function normalizeEditIntent(value: unknown): EditIntent {
   if (value === "replace_subject" || value === "improve") return value;
   return "auto";
+}
+
+function normalizeQualityCheck(value: unknown): boolean {
+  return value === true || value === "true" || value === "premium" || value === "quality";
 }
 
 function inferEditIntent(prompt: string, editIntent: EditIntent): Exclude<EditIntent, "auto"> {
@@ -347,6 +365,8 @@ export async function POST(request: NextRequest) {
       promptMode,
       brandIdentity,
       channels,
+      qualityCheck,
+      qualityCheckEnabled,
     } = body;
 
     if (!prompt || !category || !size) {
@@ -356,16 +376,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check credits (free credits can only be used for email marketing)
     const isAdmin = !!session.adminId;
-    const creditCheck = await checkCreditsForFeature(session.userId, "AI_VISUAL_DESIGN", isAdmin);
-    if (creditCheck) {
-      return NextResponse.json(
-        { success: false, error: { code: creditCheck.code, message: creditCheck.message } },
-        { status: 403 }
-      );
+    const qualityCheckRequested = normalizeQualityCheck(qualityCheckEnabled ?? qualityCheck);
+    const baseCreditCost = await getDynamicCreditCost("AI_VISUAL_DESIGN");
+    const creditCost = baseCreditCost * (qualityCheckRequested ? 3 : 1);
+    const currentUser = !isAdmin
+      ? await prisma.user.findUnique({
+          where: { id: session.userId },
+          select: { aiCredits: true, freeCredits: true },
+        })
+      : null;
+
+    if (!isAdmin) {
+      if (!currentUser) {
+        return NextResponse.json(
+          { success: false, error: { code: "INSUFFICIENT_CREDITS", message: "User not found.", cost: creditCost } },
+          { status: 403 }
+        );
+      }
+      const purchasedCredits = Math.max(0, currentUser.aiCredits - (currentUser.freeCredits || 0));
+      if (purchasedCredits < creditCost) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: currentUser.aiCredits >= creditCost && (currentUser.freeCredits || 0) > 0
+                ? "FREE_CREDITS_RESTRICTED"
+                : "INSUFFICIENT_CREDITS",
+              message: qualityCheckRequested
+                ? `Quality check requires ${creditCost} credits (3x the regular ${baseCreditCost}). You have ${purchasedCredits} purchased credits remaining.`
+                : `This requires ${creditCost} credits. You have ${purchasedCredits} purchased credits remaining.`,
+              cost: creditCost,
+            },
+          },
+          { status: 403 }
+        );
+      }
     }
-    const creditCost = await getDynamicCreditCost("AI_VISUAL_DESIGN");
 
     // Create design record
     const design = await prisma.design.create({
@@ -409,9 +456,7 @@ export async function POST(request: NextRequest) {
     } satisfies PipelineParams;
 
     // Generate the design
-    const result = pipelineParams.promptMode === "raw_brand"
-      ? await runRawBrandPipeline(pipelineParams)
-      : await runDirectPipeline(pipelineParams);
+    const result = await runPipelineWithOptionalQualityCheck(pipelineParams, qualityCheckRequested);
 
     // Save image to disk
     const imageFileUrl = await saveDesignImage(result.imageUrl, design.id, "png");
@@ -424,19 +469,15 @@ export async function POST(request: NextRequest) {
         status: "COMPLETED",
         metadata: JSON.stringify({
           brandColors: brandColors || null,
-          pipeline: "direct",
+          pipeline: result.pipeline,
           provider: selectedProvider,
+          qualityCheck: qualityCheckRequested,
+          qualityReviews: result.qualityReviews || [],
         }),
       },
     });
 
     // Deduct credits
-    const currentUser = !isAdmin
-      ? await prisma.user.findUnique({
-          where: { id: session.userId },
-          select: { aiCredits: true },
-        })
-      : null;
     if (!isAdmin) {
       await prisma.$transaction([
         prisma.user.update({
@@ -451,7 +492,9 @@ export async function POST(request: NextRequest) {
             balanceAfter: (currentUser?.aiCredits || 0) - creditCost,
             referenceType: "ai_visual",
             referenceId: design.id,
-            description: `Visual design generation: ${category}`,
+            description: qualityCheckRequested
+              ? `Visual design generation with quality check: ${category}`
+              : `Visual design generation: ${category}`,
           },
         }),
       ]);
@@ -500,12 +543,14 @@ export async function POST(request: NextRequest) {
           size: updatedDesign.size,
           style: updatedDesign.style,
           imageUrl: imageFileUrl,
-          pipeline: "direct",
+          pipeline: result.pipeline,
           status: updatedDesign.status,
           createdAt: updatedDesign.createdAt.toISOString(),
         },
         creditsUsed: isAdmin ? 0 : creditCost,
         creditsRemaining: isAdmin ? 999 : (currentUser?.aiCredits || 0) - creditCost,
+        qualityCheck: qualityCheckRequested,
+        qualityReview: result.qualityReviews?.at(-1) || null,
       }),
     });
   } catch (error) {
@@ -683,6 +728,214 @@ async function generateImageWithFallback(
 
   const message = lastError instanceof Error ? lastError.message : "Failed to generate design image";
   throw new Error(message);
+}
+
+function parseJsonFromText(text: string): Record<string, unknown> | null {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
+  const candidate = fenced || trimmed.match(/\{[\s\S]*\}/)?.[0] || trimmed;
+  try {
+    const parsed = JSON.parse(candidate);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+async function imageToAnthropicBlock(input: string | Buffer) {
+  const buffer = typeof input === "string"
+    ? Buffer.from(input.replace(/^data:image\/[^;]+;base64,/, ""), "base64")
+    : input;
+  const normalized = await sharp(buffer)
+    .rotate()
+    .resize(1536, 1536, { fit: "inside", withoutEnlargement: true })
+    .png()
+    .toBuffer();
+  return {
+    type: "image" as const,
+    source: {
+      type: "base64" as const,
+      media_type: "image/png" as const,
+      data: normalized.toString("base64"),
+    },
+  };
+}
+
+function normalizeQualityReview(value: Record<string, unknown> | null): VisualQualityReview {
+  const score = Math.max(0, Math.min(100, Number(value?.score ?? 0) || 0));
+  const issues = Array.isArray(value?.issues)
+    ? value.issues.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 6)
+    : [];
+  const correctionPrompt = typeof value?.correctionPrompt === "string"
+    ? value.correctionPrompt.trim().slice(0, 1200)
+    : "";
+  const summary = typeof value?.summary === "string"
+    ? value.summary.trim().slice(0, 500)
+    : "";
+  const pass = value?.pass === true || (score >= 82 && issues.length === 0);
+  return {
+    pass,
+    score,
+    summary: summary || (pass ? "Quality check passed." : "Quality check found issues."),
+    issues,
+    correctionPrompt,
+  };
+}
+
+async function evaluateGeneratedImageQuality(
+  params: PipelineParams,
+  result: PipelineResult,
+  attempt: number,
+): Promise<VisualQualityReview> {
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_BACKUP_API_KEY) {
+    return {
+      pass: true,
+      score: 82,
+      summary: "Quality review unavailable; no vision reviewer key is configured.",
+      issues: [],
+      correctionPrompt: "",
+    };
+  }
+
+  try {
+    const context = compactPromptValue({
+      userPrompt: params.prompt,
+      category: params.category,
+      size: `${params.width}x${params.height}`,
+      style: params.style,
+      textMode: params.textMode,
+      ctaText: params.ctaText,
+      brandName: params.brandName,
+      brandColors: params.brandColors,
+      brandIdentity: params.brandIdentity,
+      contactInfo: params.contactInfo,
+      channels: params.channels,
+      editMode: Boolean(params.editImageUrl),
+      editIntent: params.editIntent,
+      referenceCount: (params.editReferenceImageUrls?.length || 0) + (params.referenceImageUrl ? 1 : 0) + (params.templateImageUrl ? 1 : 0),
+    });
+
+    const content: Array<Record<string, unknown>> = [
+      {
+        type: "text",
+        text: [
+          "You are FlowSmartly's internal image quality reviewer.",
+          "Compare the generated image with the user's prompt and provided production context.",
+          "Pass only if the image is professional, ready to use, readable, visually coherent, and clearly follows the user's request.",
+          "Fail if there are major spelling/layout problems, unreadable text, wrong subject, missing required brand/contact/details, obvious AI artifacts, watermarks/provider branding, wrong format, or a rough pasted/overlay look.",
+          "Do not be overly picky about minor style preferences. Focus on real user-facing defects.",
+          "",
+          `Generation attempt: ${attempt}`,
+          "Production context JSON:",
+          JSON.stringify(context, null, 2),
+          "",
+          "Return ONLY JSON in this exact shape:",
+          `{"pass":true,"score":92,"summary":"short reason","issues":[],"correctionPrompt":""}`,
+          "If failing, correctionPrompt must be a concise instruction that can be appended to the next image-generation prompt.",
+        ].join("\n"),
+      },
+      { type: "text", text: "Generated image to review:" },
+      await imageToAnthropicBlock(result.imageUrl),
+    ];
+
+    const referenceSources = [
+      params.editImageUrl,
+      params.referenceImageUrl,
+      params.templateImageUrl,
+      ...(params.editReferenceImageUrls || []),
+    ].filter((value): value is string => typeof value === "string" && value.trim().length > 0).slice(0, 3);
+
+    for (let i = 0; i < referenceSources.length; i++) {
+      try {
+        const ref = await resolveImageToBuffer(referenceSources[i]);
+        content.push({ type: "text", text: `Reference/source image ${i + 1}:` });
+        content.push(await imageToAnthropicBlock(ref));
+      } catch (err) {
+        console.warn("[Visual/Quality] Failed to load reference for review:", err);
+      }
+    }
+
+    const createParams = {
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 700,
+      temperature: 0,
+      messages: [{ role: "user" as const, content }],
+    };
+    let response: Anthropic.Message;
+    try {
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      response = await anthropic.messages.create(createParams as unknown as Parameters<typeof anthropic.messages.create>[0]) as Anthropic.Message;
+    } catch (primaryErr: unknown) {
+      const status = (primaryErr as { status?: number }).status;
+      if ((status === 401 || status === 403 || status === 429 || status === 500 || status === 503 || status === 529) && process.env.ANTHROPIC_BACKUP_API_KEY) {
+        const backupClient = new Anthropic({ apiKey: process.env.ANTHROPIC_BACKUP_API_KEY });
+        response = await backupClient.messages.create(createParams as unknown as Parameters<typeof backupClient.messages.create>[0]) as Anthropic.Message;
+      } else {
+        throw primaryErr;
+      }
+    }
+
+    const text = response.content.find((block): block is Anthropic.TextBlock => block.type === "text")?.text || "";
+    const review = normalizeQualityReview(parseJsonFromText(text));
+    console.log(`[Visual/Quality] attempt=${attempt} pass=${review.pass} score=${review.score} summary="${review.summary}"`);
+    return review;
+  } catch (err) {
+    console.warn("[Visual/Quality] Review failed; delivering generated image without blocking:", err);
+    return {
+      pass: true,
+      score: 82,
+      summary: "Quality review could not complete, so the generated image was delivered.",
+      issues: [],
+      correctionPrompt: "",
+    };
+  }
+}
+
+async function runSinglePipeline(params: PipelineParams): Promise<PipelineResult> {
+  return params.promptMode === "raw_brand"
+    ? runRawBrandPipeline(params)
+    : runDirectPipeline(params);
+}
+
+async function runPipelineWithOptionalQualityCheck(
+  params: PipelineParams,
+  qualityCheckEnabled: boolean,
+): Promise<PipelineResult> {
+  let currentParams = params;
+  let result = await runSinglePipeline(currentParams);
+  if (!qualityCheckEnabled) return result;
+
+  const reviews: VisualQualityReview[] = [];
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const review = await evaluateGeneratedImageQuality(currentParams, result, attempt);
+    reviews.push(review);
+    if (review.pass) {
+      return { ...result, qualityReviews: reviews };
+    }
+
+    if (attempt === maxAttempts) {
+      throw new Error(
+        `Quality check could not approve the generated image after ${maxAttempts} attempts. ${review.summary}`
+      );
+    }
+
+    const correction = review.correctionPrompt || review.issues.join("; ") || review.summary;
+    currentParams = {
+      ...params,
+      prompt: [
+        params.prompt,
+        "",
+        "Quality review correction for regeneration:",
+        correction,
+        "Regenerate the image so it fixes the issues while preserving the user's original intent, brand context, required wording, and format.",
+      ].join("\n"),
+    };
+    console.log(`[Visual/Quality] Regenerating attempt ${attempt + 1} with correction: ${correction.slice(0, 180)}`);
+    result = await runSinglePipeline(currentParams);
+  }
+
+  return { ...result, qualityReviews: reviews };
 }
 
 async function runRawBrandPipeline(params: PipelineParams) {

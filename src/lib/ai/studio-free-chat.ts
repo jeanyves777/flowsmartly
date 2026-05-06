@@ -106,6 +106,19 @@ function isSyntheticPickerMessage(message: string) {
   return /^(use .+ size|elegant|warm|bold|minimal|.*polished.*readable.*type|.*welcoming.*soft.*visual|.*high contrast.*modern|.*clean.*minimal)/i.test(message.trim());
 }
 
+function isReferenceSignalMessage(message: string) {
+  return /^here'?s a reference image to use\.?$/i.test(message.trim()) ||
+    /^reference image attached\.?$/i.test(message.trim());
+}
+
+function mergeBriefContext(existing: string | undefined, incoming: string) {
+  const cleanIncoming = incoming.trim();
+  if (!cleanIncoming) return existing || "";
+  if (!existing?.trim()) return cleanIncoming;
+  if (existing.toLowerCase().includes(cleanIncoming.toLowerCase())) return existing;
+  return `${existing.trim()}\nAdditional instruction: ${cleanIncoming}`;
+}
+
 function compactBrandKit(brandKit: ChatState["brandKit"]) {
   if (!brandKit) return null;
   return Object.fromEntries(
@@ -130,12 +143,13 @@ function referencesFrom(state: ChatState, attachments?: ChatTurn["attachments"])
 }
 
 function buildVideoPrompt(message: string, state: ChatState, references: string[]) {
+  const brief = state.briefContext || state.designText || state.prompt || state.originalRequest || message;
   return [
     "Brand identity:",
     JSON.stringify(compactBrandKit(state.brandKit), null, 2),
     references.length ? `Reference images:\n${references.join("\n")}` : null,
     "User prompt:",
-    message,
+    brief,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -145,7 +159,7 @@ function buildUserFacingBrief(state: ChatState) {
   const size = state.size;
   return {
     type: state.mode === "video" ? "Video" : "Design",
-    request: state.designText || state.prompt || "New creative",
+    request: state.briefContext || state.designText || state.prompt || state.originalRequest || "New creative",
     format: size ? `${size.name || "Custom"} (${size.width}x${size.height})` : "Needs format",
     direction: state.style || "FlowAI creative direction",
     brand: state.brandKit?.name || "Brand kit",
@@ -154,10 +168,13 @@ function buildUserFacingBrief(state: ChatState) {
 
 function buildGenerationPrompt(state: ChatState, fallbackMessage: string, references: string[]) {
   const brand = compactBrandKit(state.brandKit);
+  const brief = state.briefContext || state.designText || state.prompt || state.originalRequest || fallbackMessage;
   return [
     "Create a finished marketing design for FlowSmartly Studio.",
     "User brief:",
-    state.designText || state.prompt || fallbackMessage,
+    brief,
+    state.originalRequest && state.originalRequest !== brief ? `Original request: ${state.originalRequest}` : null,
+    state.lastUserInstruction && !brief.includes(state.lastUserInstruction) ? `Latest instruction: ${state.lastUserInstruction}` : null,
     state.style ? `Creative direction: ${state.style}` : "Creative direction: polished, professional, readable.",
     state.category ? `Asset type: ${state.category}` : null,
     brand ? `Brand identity:\n${JSON.stringify(brand, null, 2)}` : null,
@@ -243,6 +260,7 @@ export async function runFreeStudioTurn(opts: RunChatTurnOpts): Promise<RunChatT
   const pickedSize = extractPickedSize(message);
   const pickedStyle = extractStyle(message);
   const isPickerReply = isSyntheticPickerMessage(message);
+  const isReferenceSignal = isReferenceSignalMessage(message);
   const nextState: ChatState = {
     ...opts.state,
     references: opts.state.references,
@@ -262,16 +280,20 @@ export async function runFreeStudioTurn(opts: RunChatTurnOpts): Promise<RunChatT
     nextState.style = pickedStyle;
   }
 
-  if (!isGenerateConfirmation(message) && !isRegeneratePrompt(message) && !isPickerReply) {
+  if (!isGenerateConfirmation(message) && !isRegeneratePrompt(message) && !isPickerReply && !isReferenceSignal) {
     const inferred = inferStudioSize(message);
-    nextState.prompt = message;
-    nextState.designText = message;
+    nextState.originalRequest = nextState.originalRequest || message;
+    nextState.prompt = nextState.prompt || message;
+    nextState.lastUserInstruction = message;
+    nextState.designText = mergeBriefContext(nextState.briefContext || nextState.designText || nextState.prompt, message);
+    nextState.briefContext = nextState.designText;
     nextState.category = pickedSize?.category || inferred.category;
   }
 
   if (isRegeneratePrompt(message) && opts.state.prompt) {
     nextState.prompt = opts.state.prompt;
-    nextState.designText = opts.state.designText || opts.state.prompt;
+    nextState.designText = opts.state.briefContext || opts.state.designText || opts.state.prompt;
+    nextState.briefContext = nextState.designText;
   }
 
   const needsPrompt = !nextState.prompt && !nextState.designText;
@@ -384,10 +406,11 @@ export async function runFreeStudioTurn(opts: RunChatTurnOpts): Promise<RunChatT
       height: size.height,
       category: size.category,
       style: nextState.style || size.style,
-      referenceImageUrl: firstReference,
-      useBrandColors: true,
-      branchId,
-    },
+        referenceImageUrl: firstReference,
+        useBrandColors: true,
+        qualityCheckEnabled: nextState.qualityCheckEnabled === true,
+        branchId,
+      },
   }];
 
   return {
@@ -397,7 +420,11 @@ export async function runFreeStudioTurn(opts: RunChatTurnOpts): Promise<RunChatT
     stateUpdate: {
       mode: "image",
       prompt: nextState.prompt || message,
-      designText: nextState.designText || nextState.prompt || message,
+      designText: nextState.designText || nextState.briefContext || nextState.prompt || message,
+      originalRequest: nextState.originalRequest || nextState.prompt || message,
+      briefContext: nextState.briefContext || nextState.designText || nextState.prompt || message,
+      lastUserInstruction: nextState.lastUserInstruction,
+      qualityCheckEnabled: nextState.qualityCheckEnabled === true,
       category: size.category,
       size: { name: size.name, width: size.width, height: size.height },
       style: nextState.style || size.style,
