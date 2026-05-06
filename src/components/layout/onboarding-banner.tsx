@@ -100,8 +100,8 @@ export function OnboardingBanner() {
       description: "Put your strategy on autopilot — AI generates posts with images on your schedule, tracks progress, and scores performance.",
       cta: "Automate Now",
       href: state.strategyId
-        ? `/content/automation?strategy=${state.strategyId}`
-        : "/content/automation",
+        ? `/content/strategy?view=automations&strategy=${state.strategyId}`
+        : "/content/strategy?view=automations",
       gradient: "from-amber-500/10 via-orange-500/10 to-amber-500/10",
       iconColor: "text-amber-500",
     });

@@ -1577,7 +1577,7 @@ export async function notifyStrategyAutomationStarted(params: {
       taskCount: params.taskCount,
       estimatedCredits: params.estimatedCredits,
     },
-    actionUrl: "/content/automation",
+    actionUrl: "/content/strategy?view=automations",
   });
 }
 

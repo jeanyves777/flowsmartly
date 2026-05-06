@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { isAutomatableCategory, isEmailCategory } from "@/lib/strategy/credit-estimator";
+import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 
 interface TaskConfig {
   taskId: string;
@@ -228,6 +229,10 @@ export async function POST(request: NextRequest) {
         }),
       },
     });
+
+    await triggerActivitySyncForUser(session.userId).catch((err) =>
+      console.error("Strategy sync after strategy automation launch failed:", err)
+    );
 
     return NextResponse.json({
       success: true,

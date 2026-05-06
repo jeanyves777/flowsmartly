@@ -84,12 +84,12 @@ export const FEATURE_CATALOG: FeatureDefinition[] = [
   },
   {
     slug: "content-automation",
-    name: "Automation",
-    description: "Automate post publishing and content workflows",
+    name: "Strategy & Automation",
+    description: "Connect strategy items to automated content workflows",
     category: "content",
-    icon: "Zap",
-    route: "/content/automation",
-    routes: ["/content/automation"],
+    icon: "Target",
+    route: "/content/strategy",
+    routes: ["/content/strategy", "/content/automation"],
     plans: { PRO: true, BUSINESS: true, ENTERPRISE: true },
   },
   {

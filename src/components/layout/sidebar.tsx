@@ -28,7 +28,6 @@ import {
   Video,
   PenSquare,
   CalendarDays,
-  Zap,
   Target,
   Briefcase,
   Store,
@@ -112,8 +111,7 @@ const topNavigation = [
 const contentNavigation = [
   { name: "Posts", href: "/content/posts", icon: PenSquare },
   { name: "Schedule", href: "/content/schedule", icon: CalendarDays },
-  { name: "Automation", href: "/content/automation", icon: Zap },
-  { name: "Strategy", href: "/content/strategy", icon: Target },
+  { name: "Strategy & Automation", href: "/content/strategy", icon: Target },
 ];
 
 // AI Creatives
@@ -177,7 +175,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
     "feed": ["/feed"],
     "content-posts": ["/content/posts"],
     "content-schedule": ["/content/schedule"],
-    "content-automation": ["/content/automation"],
+    "content-automation": ["/content/strategy"],
     "content-strategy": ["/content/strategy"],
     "image-studio": ["/studio"],
     "video-editor": ["/video-editor"],
@@ -244,7 +242,12 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
   const filterByAllowed = (items: { name: string; href: string; icon: React.ElementType; premium?: boolean }[]) => {
     if (!isDelegating || !delegationMode?.allowedRoutes) return items;
     return items.filter((item) =>
-      delegationMode.allowedRoutes.some((r) => item.href === r || item.href.startsWith(r + "/") || r.startsWith(item.href + "/") || r === item.href)
+      delegationMode.allowedRoutes.some((r) =>
+        item.href === r ||
+        item.href.startsWith(r + "/") ||
+        r.startsWith(item.href + "/") ||
+        (item.href === "/content/strategy" && r === "/content/automation")
+      )
     );
   };
   const [contentOpen, setContentOpen] = useState(true);

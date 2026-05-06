@@ -28,7 +28,6 @@ import {
   Video,
   PenSquare,
   CalendarDays,
-  Zap,
   Target,
   Store,
   Gift,
@@ -72,8 +71,7 @@ const topNavigation = [
 const contentNavigation = [
   { name: "Posts", href: "/content/posts", icon: PenSquare },
   { name: "Schedule", href: "/content/schedule", icon: CalendarDays },
-  { name: "Automation", href: "/content/automation", icon: Zap },
-  { name: "Strategy", href: "/content/strategy", icon: Target },
+  { name: "Strategy & Automation", href: "/content/strategy", icon: Target },
 ];
 
 // AI Creatives

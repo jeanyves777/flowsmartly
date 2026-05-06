@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 
 /** Format a PostAutomation record for the API response */
 function formatAutomation(a: {
@@ -21,6 +22,8 @@ function formatAutomation(a: {
   totalGenerated: number;
   totalCreditsSpent: number;
   lastTriggered: Date | null;
+  strategyTaskId: string | null;
+  sourceStrategyId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -54,6 +57,8 @@ function formatAutomation(a: {
     totalGenerated: a.totalGenerated,
     totalCreditsSpent: a.totalCreditsSpent,
     lastTriggered: a.lastTriggered?.toISOString() || null,
+    strategyTaskId: a.strategyTaskId,
+    sourceStrategyId: a.sourceStrategyId,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };
@@ -103,6 +108,7 @@ export async function POST(request: NextRequest) {
     const {
       name, type, schedule, topic, aiPrompt, aiTone, platforms,
       includeMedia, mediaType, mediaStyle, startDate, endDate,
+      strategyTaskId, sourceStrategyId,
     } = body;
 
     if (!name?.trim()) {
@@ -155,6 +161,35 @@ export async function POST(request: NextRequest) {
       ? JSON.stringify(platforms)
       : "[]";
 
+    let linkedTaskId: string | null = null;
+    let linkedStrategyId: string | null = null;
+    if (strategyTaskId) {
+      const task = await prisma.strategyTask.findUnique({
+        where: { id: strategyTaskId },
+        include: { strategy: { select: { id: true, userId: true } } },
+      });
+      if (!task || task.strategy.userId !== session.userId) {
+        return NextResponse.json(
+          { success: false, error: { message: "Linked strategy item not found" } },
+          { status: 404 }
+        );
+      }
+      linkedTaskId = task.id;
+      linkedStrategyId = task.strategy.id;
+    } else if (sourceStrategyId) {
+      const sourceStrategy = await prisma.marketingStrategy.findUnique({
+        where: { id: sourceStrategyId },
+        select: { id: true, userId: true },
+      });
+      if (!sourceStrategy || sourceStrategy.userId !== session.userId) {
+        return NextResponse.json(
+          { success: false, error: { message: "Linked strategy not found" } },
+          { status: 404 }
+        );
+      }
+      linkedStrategyId = sourceStrategy.id;
+    }
+
     const automation = await prisma.postAutomation.create({
       data: {
         userId: session.userId,
@@ -170,8 +205,24 @@ export async function POST(request: NextRequest) {
         mediaStyle: includeMedia ? (mediaStyle || null) : null,
         startDate: parsedStart,
         endDate: parsedEnd,
+        strategyTaskId: linkedTaskId,
+        sourceStrategyId: linkedStrategyId,
       },
     });
+
+    if (linkedTaskId) {
+      await prisma.strategyTask.update({
+        where: { id: linkedTaskId },
+        data: {
+          automationStatus: "AUTOMATED",
+          automationId: automation.id,
+        },
+      });
+    }
+
+    await triggerActivitySyncForUser(session.userId).catch((err) =>
+      console.error("Strategy sync after automation create failed:", err)
+    );
 
     return NextResponse.json({
       success: true,
@@ -201,6 +252,7 @@ export async function PATCH(request: NextRequest) {
     const {
       id, name, type, schedule, topic, aiPrompt, aiTone, platforms, enabled,
       includeMedia, mediaType, mediaStyle, startDate, endDate,
+      strategyTaskId, sourceStrategyId,
     } = body;
 
     if (!id) {
@@ -212,7 +264,7 @@ export async function PATCH(request: NextRequest) {
 
     const existing = await prisma.postAutomation.findUnique({
       where: { id },
-      select: { userId: true },
+      select: { userId: true, strategyTaskId: true, sourceStrategyId: true },
     });
 
     if (!existing) {
@@ -262,10 +314,75 @@ export async function PATCH(request: NextRequest) {
     if (startDate !== undefined) updateData.startDate = new Date(startDate);
     if (endDate !== undefined) updateData.endDate = endDate ? new Date(endDate) : null;
 
+    let nextLinkedTaskId = existing.strategyTaskId;
+    let nextLinkedStrategyId = existing.sourceStrategyId;
+    if (strategyTaskId !== undefined) {
+      if (strategyTaskId) {
+        const task = await prisma.strategyTask.findUnique({
+          where: { id: strategyTaskId },
+          include: { strategy: { select: { id: true, userId: true } } },
+        });
+        if (!task || task.strategy.userId !== session.userId) {
+          return NextResponse.json(
+            { success: false, error: { message: "Linked strategy item not found" } },
+            { status: 404 }
+          );
+        }
+        nextLinkedTaskId = task.id;
+        nextLinkedStrategyId = task.strategy.id;
+      } else {
+        nextLinkedTaskId = null;
+        nextLinkedStrategyId = null;
+      }
+      updateData.strategyTaskId = nextLinkedTaskId;
+      updateData.sourceStrategyId = nextLinkedStrategyId;
+    } else if (sourceStrategyId !== undefined) {
+      if (sourceStrategyId) {
+        const sourceStrategy = await prisma.marketingStrategy.findUnique({
+          where: { id: sourceStrategyId },
+          select: { id: true, userId: true },
+        });
+        if (!sourceStrategy || sourceStrategy.userId !== session.userId) {
+          return NextResponse.json(
+            { success: false, error: { message: "Linked strategy not found" } },
+            { status: 404 }
+          );
+        }
+        nextLinkedStrategyId = sourceStrategy.id;
+      } else {
+        nextLinkedStrategyId = null;
+      }
+      updateData.sourceStrategyId = nextLinkedStrategyId;
+    }
+
     const automation = await prisma.postAutomation.update({
       where: { id },
       data: updateData,
     });
+
+    if (existing.strategyTaskId && existing.strategyTaskId !== nextLinkedTaskId) {
+      await prisma.strategyTask.updateMany({
+        where: { id: existing.strategyTaskId, automationId: id },
+        data: {
+          automationStatus: "AUTOMATABLE",
+          automationId: null,
+        },
+      });
+    }
+
+    if (nextLinkedTaskId) {
+      await prisma.strategyTask.update({
+        where: { id: nextLinkedTaskId },
+        data: {
+          automationStatus: "AUTOMATED",
+          automationId: automation.id,
+        },
+      });
+    }
+
+    await triggerActivitySyncForUser(session.userId).catch((err) =>
+      console.error("Strategy sync after automation update failed:", err)
+    );
 
     return NextResponse.json({
       success: true,
@@ -303,7 +420,7 @@ export async function DELETE(request: NextRequest) {
 
     const existing = await prisma.postAutomation.findUnique({
       where: { id },
-      select: { userId: true },
+      select: { userId: true, strategyTaskId: true },
     });
 
     if (!existing) {
@@ -321,6 +438,20 @@ export async function DELETE(request: NextRequest) {
     }
 
     await prisma.postAutomation.delete({ where: { id } });
+
+    if (existing.strategyTaskId) {
+      await prisma.strategyTask.updateMany({
+        where: { id: existing.strategyTaskId },
+        data: {
+          automationStatus: "AUTOMATABLE",
+          automationId: null,
+        },
+      });
+    }
+
+    await triggerActivitySyncForUser(session.userId).catch((err) =>
+      console.error("Strategy sync after automation delete failed:", err)
+    );
 
     return NextResponse.json({
       success: true,

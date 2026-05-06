@@ -1,13 +1,41 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import { Target, Sparkles, Plus, AlertTriangle, RefreshCw, Calendar, Trash2, GripVertical, LayoutGrid, CheckCircle2, TrendingUp, Flame, X, Activity, Edit2, Clock, Circle, ExternalLink, ListChecks, ArrowRight, Zap } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Copy,
+  Eye,
+  FileText,
+  Link2,
+  Loader2,
+  Mail,
+  MoreHorizontal,
+  Play,
+  Plus,
+  RefreshCw,
+  Rocket,
+  Rss,
+  Settings2,
+  Sparkles,
+  Target,
+  Trash2,
+  Wand2,
+  Zap,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -17,68 +45,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import {
-  DndContext,
-  DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
-  DragOverEvent,
-  useDroppable,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  closestCenter,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-  arrayMove,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
-
-// --- Types ---
+import { cn } from "@/lib/utils/cn";
 
 type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
 type TaskCategory = "content" | "social" | "ads" | "email" | "analytics";
 type TaskPriority = "HIGH" | "MEDIUM" | "LOW";
-type ViewMode = "kanban" | "timeline";
+type ViewMode = "plan" | "automations" | "sync";
 
-interface StrategyTask {
-  id: string;
-  title: string;
-  description?: string;
-  status: TaskStatus;
-  category: TaskCategory;
-  priority: TaskPriority;
-  startDate?: string;
-  dueDate?: string;
-  completedAt?: string;
-  sortOrder: number;
-  createdAt: string;
-  autoCompleted: boolean;
-  progress: number;
-  matchedActivities: string;
-  automationStatus: string;
-}
-
-interface ParsedActivity {
+interface MatchedActivity {
   activityType: string;
   activityId: string;
   activityName?: string;
@@ -88,1736 +65,1619 @@ interface ParsedActivity {
   matchReason: string;
 }
 
+interface StrategyTask {
+  id: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  category: TaskCategory | null;
+  startDate: string | null;
+  dueDate: string | null;
+  completedAt: string | null;
+  sortOrder: number;
+  autoCompleted: boolean;
+  progress: number;
+  matchedActivities: string;
+  automationStatus?: string;
+  automationId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface Strategy {
   id: string;
   name: string;
+  description: string | null;
+  status: string;
+  totalTasks: number;
+  completedTasks: number;
+  aiGenerated: boolean;
+  lastActivitySync: string | null;
   tasks: StrategyTask[];
   createdAt: string;
-  aiGenerated: boolean;
-  status: string;
+  updatedAt: string;
 }
 
-interface TaskFormData {
+type AutomationType = "RECURRING" | "EVENT_BASED" | "AI_GENERATED";
+type Frequency = "DAILY" | "WEEKLY" | "MONTHLY";
+
+interface Automation {
+  id: string;
+  name: string;
+  type: AutomationType;
+  enabled: boolean;
+  schedule: {
+    frequency?: Frequency;
+    dayOfWeek?: number;
+    time?: string;
+    triggerType?: string;
+  };
+  topic: string | null;
+  aiPrompt: string | null;
+  aiTone: string;
+  platforms: string[];
+  includeMedia: boolean;
+  mediaType: string | null;
+  mediaStyle: string | null;
+  startDate: string;
+  endDate: string | null;
+  totalGenerated: number;
+  totalCreditsSpent: number;
+  lastTriggered: string | null;
+  strategyTaskId?: string | null;
+  sourceStrategyId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface TaskDraft {
+  id?: string;
   title: string;
   description: string;
   category: TaskCategory;
   priority: TaskPriority;
+  status: TaskStatus;
   startDate: string;
   dueDate: string;
 }
 
-// --- Constants ---
+interface AutomationDraft {
+  id?: string;
+  name: string;
+  type: AutomationType;
+  frequency: Frequency;
+  dayOfWeek: number;
+  time: string;
+  topic: string;
+  aiPrompt: string;
+  aiTone: string;
+  platforms: string[];
+  includeMedia: boolean;
+  mediaType: "image" | "video";
+  mediaStyle: string;
+  startDate: string;
+  endDate: string;
+  strategyTaskId: string;
+}
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.1 } },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 },
-};
-
-const CATEGORY_CONFIG: Record<
-  TaskCategory,
-  { label: string; color: string; bgColor: string }
-> = {
-  content: { label: "Content", color: "text-blue-600", bgColor: "bg-blue-500/10 border-blue-500/20" },
-  social: { label: "Social", color: "text-green-600", bgColor: "bg-green-500/10 border-green-500/20" },
-  ads: { label: "Ads", color: "text-orange-600", bgColor: "bg-orange-500/10 border-orange-500/20" },
-  email: { label: "Email", color: "text-purple-600", bgColor: "bg-purple-500/10 border-purple-500/20" },
-  analytics: { label: "Analytics", color: "text-cyan-600", bgColor: "bg-cyan-500/10 border-cyan-500/20" },
-};
-
-const PRIORITY_CONFIG: Record<TaskPriority, { label: string; dotColor: string }> = {
-  HIGH: { label: "High", dotColor: "bg-red-500" },
-  MEDIUM: { label: "Medium", dotColor: "bg-yellow-500" },
-  LOW: { label: "Low", dotColor: "bg-green-500" },
-};
-
-const STATUS_COLUMNS: { id: TaskStatus; label: string }[] = [
-  { id: "TODO", label: "To Do" },
-  { id: "IN_PROGRESS", label: "In Progress" },
-  { id: "DONE", label: "Done" },
+const STATUS_COLUMNS: Array<{ id: TaskStatus; label: string; tone: string }> = [
+  { id: "TODO", label: "To do", tone: "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/20" },
+  { id: "IN_PROGRESS", label: "In progress", tone: "border-sky-200 bg-sky-50 dark:border-sky-900/70 dark:bg-sky-950/20" },
+  { id: "DONE", label: "Done", tone: "border-emerald-200 bg-emerald-50 dark:border-emerald-900/70 dark:bg-emerald-950/20" },
 ];
 
-const TIMELINE_BAR_COLORS: Record<TaskCategory, string> = {
-  content: "bg-blue-500",
-  social: "bg-green-500",
-  ads: "bg-orange-500",
-  email: "bg-purple-500",
-  analytics: "bg-cyan-500",
+const CATEGORY_CONFIG: Record<TaskCategory, { label: string; icon: LucideIcon; className: string }> = {
+  content: { label: "Content", icon: FileText, className: "text-blue-600 bg-blue-500/10 border-blue-500/20" },
+  social: { label: "Social", icon: Rss, className: "text-sky-600 bg-sky-500/10 border-sky-500/20" },
+  ads: { label: "Ads", icon: Rocket, className: "text-orange-600 bg-orange-500/10 border-orange-500/20" },
+  email: { label: "Email", icon: Mail, className: "text-violet-600 bg-violet-500/10 border-violet-500/20" },
+  analytics: { label: "Analytics", icon: BarChart3, className: "text-cyan-600 bg-cyan-500/10 border-cyan-500/20" },
 };
 
-const STATUS_CONFIG: Record<
-  TaskStatus,
-  { label: string; icon: typeof Circle; color: string }
-> = {
-  TODO: { label: "To Do", icon: Circle, color: "text-muted-foreground" },
-  IN_PROGRESS: { label: "In Progress", icon: Clock, color: "text-orange-500" },
-  DONE: { label: "Done", icon: CheckCircle2, color: "text-green-500" },
+const PRIORITY_CONFIG: Record<TaskPriority, { label: string; dot: string }> = {
+  HIGH: { label: "High", dot: "bg-rose-500" },
+  MEDIUM: { label: "Medium", dot: "bg-amber-500" },
+  LOW: { label: "Low", dot: "bg-emerald-500" },
 };
 
-const CATEGORY_ACTIVITY_HINT: Record<TaskCategory, string> = {
-  email: "email campaigns or email automations",
-  social: "social media posts",
-  content: "content posts or post automations",
-  ads: "promoted posts or ad campaigns",
-  analytics: "strategy reports",
-};
+const PLATFORM_OPTIONS = [
+  { id: "feed", label: "Feed" },
+  { id: "instagram", label: "Instagram" },
+  { id: "facebook", label: "Facebook" },
+  { id: "twitter", label: "X / Twitter" },
+  { id: "linkedin", label: "LinkedIn" },
+  { id: "tiktok", label: "TikTok" },
+  { id: "youtube", label: "YouTube" },
+];
 
-function getTaskRequirement(task: { title: string; description?: string | null; category: TaskCategory }): string {
-  if (task.description) return task.description;
-  const hint = CATEGORY_ACTIVITY_HINT[task.category];
-  return `Complete "${task.title}" by creating relevant ${hint}.`;
-}
-
-function getWhatsLeft(
-  task: { progress: number; category: TaskCategory; startDate?: string; dueDate?: string },
-  activities: ParsedActivity[]
-): { items: string[]; summary: string } {
-  const items: string[] = [];
-
-  if (task.progress >= 100) {
-    return { items: [], summary: "All requirements met!" };
-  }
-
-  // Count what's been done by type
-  const doneByType: Record<string, number> = {};
-  for (const a of activities) {
-    doneByType[a.activityType] = (doneByType[a.activityType] || 0) + 1;
-  }
-
-  const bestConfidence = activities.length > 0
-    ? activities.reduce((best, a) => {
-        const order = { high: 3, medium: 2, low: 1 };
-        return order[a.confidence] > order[best] ? a.confidence : best;
-      }, "low" as "low" | "medium" | "high")
-    : null;
-
-  if (activities.length === 0) {
-    items.push(`No ${CATEGORY_ACTIVITY_HINT[task.category]} detected yet`);
-    items.push("Create matching activities to start making progress");
-  } else {
-    // Show what's been done
-    const doneList = Object.entries(doneByType).map(([type, count]) => {
-      const labels: Record<string, string> = {
-        post: "post", campaign: "campaign", automation: "automation",
-        postAutomation: "post automation", adCampaign: "ad campaign",
-      };
-      return `${count} ${labels[type] || type}${count > 1 ? "s" : ""}`;
-    });
-    if (doneList.length > 0) {
-      items.push(`Matched: ${doneList.join(", ")}`);
-    }
-
-    // Show what's still needed based on confidence
-    if (bestConfidence === "low") {
-      items.push("Keywords in your activities don\u2019t closely match the task title \u2014 use more relevant terms");
-    }
-    if (bestConfidence !== "high") {
-      if (!task.startDate && !task.dueDate) {
-        items.push("Add start/due dates to this task for time-based matching");
-      } else {
-        items.push("Schedule activities within the task\u2019s date range for full auto-completion");
-      }
-    }
-  }
-
-  const pctLeft = 100 - task.progress;
-  const summary = task.progress > 0
-    ? `${pctLeft}% remaining to auto-complete`
-    : "Not started \u2014 create matching activities";
-
-  return { items, summary };
-}
-
-const DEFAULT_TASK_FORM: TaskFormData = {
+const DEFAULT_TASK: TaskDraft = {
   title: "",
   description: "",
   category: "content",
   priority: "MEDIUM",
+  status: "TODO",
   startDate: "",
   dueDate: "",
 };
 
-// --- Helpers ---
+const DEFAULT_AUTOMATION: AutomationDraft = {
+  name: "",
+  type: "AI_GENERATED",
+  frequency: "WEEKLY",
+  dayOfWeek: 1,
+  time: "09:00",
+  topic: "",
+  aiPrompt: "",
+  aiTone: "professional",
+  platforms: ["feed"],
+  includeMedia: false,
+  mediaType: "image",
+  mediaStyle: "",
+  startDate: new Date().toISOString().slice(0, 10),
+  endDate: (() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 3);
+    return d.toISOString().slice(0, 10);
+  })(),
+  strategyTaskId: "",
+};
 
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatFullDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-US", {
+function formatDate(value?: string | null) {
+  if (!value) return "No date";
+  return new Date(value).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
 }
 
-function getDaysBetween(start: Date, end: Date): number {
-  return Math.ceil((end.getTime() - start.getTime()) / 86400000);
+function formatShortDate(value?: string | null) {
+  if (!value) return "No date";
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
-// --- Sortable Task Card ---
+function formatTimeAgo(value?: string | null) {
+  if (!value) return "Not synced yet";
+  const date = new Date(value);
+  const diffMs = Date.now() - date.getTime();
+  const minutes = Math.max(0, Math.floor(diffMs / 60000));
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 
-function SortableTaskCard({
-  task,
-  onEdit,
-  onDelete,
-  onStatusChange,
-}: {
-  task: StrategyTask;
-  onEdit: (task: StrategyTask) => void;
-  onDelete: (id: string) => void;
-  onStatusChange: (id: string, status: TaskStatus) => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: task.id, data: { task, status: task.status } });
+function parseMatches(raw: string): MatchedActivity[] {
+  try {
+    const parsed = JSON.parse(raw || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
+function scheduleLabel(automation: Automation) {
+  const time = automation.schedule?.time || "09:00";
+  if (automation.type === "EVENT_BASED") return automation.schedule?.triggerType || "Event trigger";
+  if (automation.schedule?.frequency === "DAILY") return `Daily at ${time}`;
+  if (automation.schedule?.frequency === "MONTHLY") return `Monthly at ${time}`;
+  return `Weekly at ${time}`;
+}
+
+function taskToDraft(task: StrategyTask): TaskDraft {
+  return {
+    id: task.id,
+    title: task.title,
+    description: task.description || "",
+    category: task.category || "content",
+    priority: task.priority || "MEDIUM",
+    status: task.status || "TODO",
+    startDate: task.startDate?.slice(0, 10) || "",
+    dueDate: task.dueDate?.slice(0, 10) || "",
   };
-
-  const categoryInfo = CATEGORY_CONFIG[task.category];
-  const priorityInfo = PRIORITY_CONFIG[task.priority];
-
-  return (
-    <div ref={setNodeRef} style={style} {...attributes}>
-      <Card
-        className="cursor-pointer hover:shadow-md transition-shadow group"
-        onClick={() => onEdit(task)}
-      >
-        <CardContent className="p-3 space-y-2">
-          <div className="flex items-start gap-2">
-            <button
-              {...listeners}
-              className="mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <GripVertical className="h-4 w-4" />
-            </button>
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-sm leading-snug truncate">
-                {task.title}
-              </p>
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(task.id);
-              }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
-
-          {task.description && (
-            <p className="text-xs text-muted-foreground line-clamp-2 ml-6">
-              {task.description}
-            </p>
-          )}
-
-          <div className="flex items-center gap-2 ml-6 flex-wrap">
-            <Badge
-              variant="outline"
-              className={`text-[10px] px-1.5 py-0 ${categoryInfo.bgColor} ${categoryInfo.color}`}
-            >
-              {categoryInfo.label}
-            </Badge>
-            <div className="flex items-center gap-1" title={`${priorityInfo.label} priority`}>
-              <div className={`h-2 w-2 rounded-full ${priorityInfo.dotColor}`} />
-              <span className="text-[10px] text-muted-foreground">
-                {priorityInfo.label}
-              </span>
-            </div>
-            {task.dueDate && (
-              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                <Calendar className="h-2.5 w-2.5" />
-                {formatDate(task.dueDate)}
-              </span>
-            )}
-            {task.automationStatus === "AUTOMATED" && (
-              <Badge className="text-[10px] px-1.5 py-0 bg-green-500/10 text-green-600 border-green-500/20">
-                <Zap className="h-2.5 w-2.5 mr-0.5" /> Automated
-              </Badge>
-            )}
-            {task.automationStatus === "AUTOMATABLE" && (
-              <Badge className="text-[10px] px-1.5 py-0 bg-blue-500/10 text-blue-600 border-blue-500/20">
-                Can Automate
-              </Badge>
-            )}
-            {task.automationStatus === "MANUAL_ONLY" && (
-              <Badge className="text-[10px] px-1.5 py-0 bg-muted text-muted-foreground border-border">
-                Manual
-              </Badge>
-            )}
-          </div>
-
-          {/* Status quick-change buttons */}
-          <div className="flex items-center gap-1.5 ml-6 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {STATUS_COLUMNS.filter((col) => col.id !== task.status).map((col) => (
-              <button
-                key={col.id}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onStatusChange(task.id, col.id);
-                }}
-                className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
-                  col.id === "DONE"
-                    ? "border-green-500/30 text-green-600 hover:bg-green-500/10"
-                    : col.id === "IN_PROGRESS"
-                    ? "border-orange-500/30 text-orange-600 hover:bg-orange-500/10"
-                    : "border-muted-foreground/30 text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {col.label}
-              </button>
-            ))}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(task.id);
-              }}
-              className="text-[10px] px-2 py-0.5 rounded-full border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors ml-auto"
-            >
-              Remove
-            </button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
 }
 
-// --- Task Card Overlay (for DragOverlay) ---
-
-function TaskCardOverlay({ task }: { task: StrategyTask }) {
-  const categoryInfo = CATEGORY_CONFIG[task.category];
-  const priorityInfo = PRIORITY_CONFIG[task.priority];
-
-  return (
-    <Card className="shadow-xl border-orange-500/50 rotate-2 w-[280px]">
-      <CardContent className="p-3 space-y-2">
-        <p className="font-medium text-sm leading-snug truncate">{task.title}</p>
-        <div className="flex items-center gap-2">
-          <Badge
-            variant="outline"
-            className={`text-[10px] px-1.5 py-0 ${categoryInfo.bgColor} ${categoryInfo.color}`}
-          >
-            {categoryInfo.label}
-          </Badge>
-          <div className="flex items-center gap-1">
-            <div className={`h-2 w-2 rounded-full ${priorityInfo.dotColor}`} />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// --- Droppable Column ---
-
-function DroppableColumn({
-  status,
-  label,
-  tasks,
-  onEdit,
-  onDelete,
-  onStatusChange,
-  onAddClick,
-}: {
-  status: TaskStatus;
-  label: string;
-  tasks: StrategyTask[];
-  onEdit: (task: StrategyTask) => void;
-  onDelete: (id: string) => void;
-  onStatusChange: (id: string, status: TaskStatus) => void;
-  onAddClick: (status: TaskStatus) => void;
-}) {
-  const { setNodeRef, isOver } = useDroppable({ id: status });
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={`flex flex-col bg-muted/30 rounded-xl p-3 min-h-[400px] transition-colors ${
-        isOver ? "bg-orange-500/5 ring-2 ring-orange-500/30" : ""
-      }`}
-    >
-      {/* Column header */}
-      <div className="flex items-center justify-between mb-3 px-1">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-sm text-foreground">{label}</h3>
-          <Badge
-            variant="secondary"
-            className="text-xs h-5 min-w-[20px] justify-center"
-          >
-            {tasks.length}
-          </Badge>
-        </div>
-      </div>
-
-      {/* Sortable cards */}
-      <div className="flex-1 space-y-2 min-h-[100px]">
-        <SortableContext
-          items={tasks.map((t) => t.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {tasks.map((task) => (
-            <SortableTaskCard
-              key={task.id}
-              task={task}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onStatusChange={onStatusChange}
-            />
-          ))}
-        </SortableContext>
-
-        {tasks.length === 0 && !isOver && (
-          <div className="text-center py-8 text-xs text-muted-foreground">
-            Drop tasks here
-          </div>
-        )}
-      </div>
-
-      {/* Add button */}
-      <button
-        onClick={() => onAddClick(status)}
-        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mt-2 py-2 px-2 rounded-md hover:bg-muted/50 transition-colors w-full"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        Add task
-      </button>
-    </div>
-  );
-}
-
-// --- Timeline View ---
-
-function TimelineView({
-  tasks,
-  onEdit,
-}: {
-  tasks: StrategyTask[];
-  onEdit: (task: StrategyTask) => void;
-}) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Compute the timeline range
-  const { scheduledTasks, unscheduledTasks, timelineStart, timelineEnd, totalDays, months } =
-    useMemo(() => {
-      const scheduled = tasks.filter((t) => t.startDate || t.dueDate);
-      const unscheduled = tasks.filter((t) => !t.startDate && !t.dueDate);
-
-      if (scheduled.length === 0) {
-        const now = new Date();
-        const end = new Date(now);
-        end.setMonth(end.getMonth() + 1);
-        return {
-          scheduledTasks: [],
-          unscheduledTasks: unscheduled,
-          timelineStart: now,
-          timelineEnd: end,
-          totalDays: 30,
-          months: [] as { label: string; startPct: number; weeks: number[] }[],
-        };
-      }
-
-      const allDates = scheduled.flatMap((t) => {
-        const dates: Date[] = [];
-        if (t.startDate) dates.push(new Date(t.startDate));
-        if (t.dueDate) dates.push(new Date(t.dueDate));
-        return dates;
-      });
-
-      const minDate = new Date(Math.min(...allDates.map((d) => d.getTime())));
-      const maxDate = new Date(Math.max(...allDates.map((d) => d.getTime())));
-
-      // Add padding
-      const start = new Date(minDate);
-      start.setDate(start.getDate() - 7);
-      const end = new Date(maxDate);
-      end.setDate(end.getDate() + 14);
-
-      const total = Math.max(getDaysBetween(start, end), 14);
-
-      // Generate month labels with week markers
-      const monthMap: { label: string; startPct: number; weeks: number[] }[] = [];
-      const cursor = new Date(start);
-      let currentMonthKey = "";
-
-      while (cursor <= end) {
-        const key = `${cursor.getFullYear()}-${cursor.getMonth()}`;
-        const pct = (getDaysBetween(start, cursor) / total) * 100;
-
-        if (key !== currentMonthKey) {
-          currentMonthKey = key;
-          monthMap.push({
-            label: cursor.toLocaleDateString("en-US", {
-              month: "short",
-              year: "numeric",
-            }),
-            startPct: pct,
-            weeks: [],
-          });
-        }
-
-        // Track week starts (Mondays)
-        if (cursor.getDay() === 1 && monthMap.length > 0) {
-          monthMap[monthMap.length - 1].weeks.push(pct);
-        }
-
-        cursor.setDate(cursor.getDate() + 1);
-      }
-
-      return {
-        scheduledTasks: scheduled,
-        unscheduledTasks: unscheduled,
-        timelineStart: start,
-        timelineEnd: end,
-        totalDays: total,
-        months: monthMap,
-      };
-    }, [tasks]);
-
-  const getBarPosition = (task: StrategyTask) => {
-    const taskStart = task.startDate
-      ? new Date(task.startDate)
-      : task.dueDate
-      ? new Date(task.dueDate)
-      : timelineStart;
-    const taskEnd = task.dueDate
-      ? new Date(task.dueDate)
-      : task.startDate
-      ? new Date(new Date(task.startDate).getTime() + 86400000 * 3)
-      : new Date(timelineStart.getTime() + 86400000 * 3);
-
-    const leftPct = Math.max(
-      0,
-      (getDaysBetween(timelineStart, taskStart) / totalDays) * 100
-    );
-    const widthPct = Math.max(
-      2,
-      (getDaysBetween(taskStart, taskEnd) / totalDays) * 100
-    );
-
-    return { left: `${leftPct}%`, width: `${Math.min(widthPct, 100 - leftPct)}%` };
+function automationToDraft(automation: Automation): AutomationDraft {
+  return {
+    id: automation.id,
+    name: automation.name,
+    type: automation.type || "AI_GENERATED",
+    frequency: automation.schedule?.frequency || "WEEKLY",
+    dayOfWeek: automation.schedule?.dayOfWeek ?? 1,
+    time: automation.schedule?.time || "09:00",
+    topic: automation.topic || "",
+    aiPrompt: automation.aiPrompt || "",
+    aiTone: automation.aiTone || "professional",
+    platforms: automation.platforms?.length ? automation.platforms : ["feed"],
+    includeMedia: automation.includeMedia,
+    mediaType: automation.mediaType === "video" ? "video" : "image",
+    mediaStyle: automation.mediaStyle || "",
+    startDate: automation.startDate?.slice(0, 10) || DEFAULT_AUTOMATION.startDate,
+    endDate: automation.endDate?.slice(0, 10) || DEFAULT_AUTOMATION.endDate,
+    strategyTaskId: automation.strategyTaskId || "",
   };
-
-  return (
-    <div className="space-y-4">
-      {/* Timeline area */}
-      <Card>
-        <CardContent className="p-4">
-          <div
-            ref={scrollRef}
-            className="overflow-x-auto"
-          >
-            <div className="relative min-w-[800px]">
-              {/* Month headers */}
-              <div className="relative h-10 border-b mb-2">
-                {months.map((month, i) => (
-                  <div
-                    key={`${month.label}-${i}`}
-                    className="absolute top-0 flex flex-col"
-                    style={{ left: `${month.startPct}%` }}
-                  >
-                    <span className="text-xs font-semibold text-foreground whitespace-nowrap">
-                      {month.label}
-                    </span>
-                    <div className="h-3 border-l border-border mt-0.5" />
-                  </div>
-                ))}
-                {/* Week markers in header */}
-                {months.flatMap((month) =>
-                  month.weeks.map((weekPct, wi) => (
-                    <div
-                      key={`week-${month.label}-${wi}`}
-                      className="absolute bottom-0 h-2 border-l border-border/50"
-                      style={{ left: `${weekPct}%` }}
-                    />
-                  ))
-                )}
-              </div>
-
-              {/* Task bars area */}
-              <div className="relative py-2">
-                {/* Week gridlines extending through task area */}
-                {months.flatMap((month) =>
-                  month.weeks.map((weekPct, wi) => (
-                    <div
-                      key={`gridline-${month.label}-${wi}`}
-                      className="absolute top-0 bottom-0 w-px bg-border/30"
-                      style={{ left: `${weekPct}%` }}
-                    />
-                  ))
-                )}
-
-                {/* Today marker line */}
-                {(() => {
-                  const today = new Date();
-                  if (today >= timelineStart && today <= timelineEnd) {
-                    const todayPct =
-                      (getDaysBetween(timelineStart, today) / totalDays) * 100;
-                    return (
-                      <div
-                        className="absolute top-0 bottom-0 w-0.5 bg-orange-500/60 z-10"
-                        style={{ left: `${todayPct}%` }}
-                      >
-                        <div className="absolute -top-1 -left-1.5 w-3 h-3 rounded-full bg-orange-500 border-2 border-background" />
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-
-                {scheduledTasks.length === 0 && (
-                  <div className="text-center py-12 text-sm text-muted-foreground">
-                    No scheduled tasks to display on the timeline
-                  </div>
-                )}
-
-                <div className="relative space-y-2">
-                  {scheduledTasks.map((task) => {
-                    const pos = getBarPosition(task);
-                    const barColor =
-                      TIMELINE_BAR_COLORS[task.category] || "bg-gray-500";
-                    const priorityDot = PRIORITY_CONFIG[task.priority].dotColor;
-                    const statusOpacity = task.status === "DONE" ? "opacity-60" : "";
-
-                    return (
-                      <div key={task.id} className="relative h-9">
-                        <button
-                          onClick={() => onEdit(task)}
-                          className={`absolute top-0 h-full rounded-md ${barColor} ${statusOpacity} hover:brightness-110 transition-all flex items-center px-3 gap-1.5 text-white text-xs font-medium overflow-hidden group shadow-sm`}
-                          style={{ left: pos.left, width: pos.width }}
-                          title={`${task.title}${task.dueDate ? ` (Due: ${formatDate(task.dueDate)})` : ""}`}
-                        >
-                          <div className={`h-2 w-2 rounded-full ${priorityDot} shrink-0 ring-1 ring-white/30`} />
-                          <span className="truncate">{task.title}</span>
-                          {task.status === "DONE" && (
-                            <CheckCircle2 className="h-3 w-3 shrink-0 ml-auto" />
-                          )}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Unscheduled section */}
-      {unscheduledTasks.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground font-medium">
-              Unscheduled ({unscheduledTasks.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {unscheduledTasks.map((task) => {
-                const catInfo = CATEGORY_CONFIG[task.category];
-                const priInfo = PRIORITY_CONFIG[task.priority];
-                return (
-                  <button
-                    key={task.id}
-                    onClick={() => onEdit(task)}
-                    className="text-left p-3 rounded-lg border hover:shadow-sm transition-shadow"
-                  >
-                    <p className="font-medium text-sm truncate">{task.title}</p>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] px-1.5 py-0 ${catInfo.bgColor} ${catInfo.color}`}
-                      >
-                        {catInfo.label}
-                      </Badge>
-                      <div
-                        className={`h-2 w-2 rounded-full ${priInfo.dotColor}`}
-                        title={priInfo.label}
-                      />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
 }
 
-// --- Main Component ---
-
-export default function MarketingStrategyPage() {
-  const router = useRouter();
+export default function StrategyAutomationPage() {
   const { toast } = useToast();
-
-  const [strategy, setStrategy] = useState<Strategy | null>(null);
-  const [tasks, setTasks] = useState<StrategyTask[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("kanban");
-
-  // Task view/detail dialog
-  const [viewingTask, setViewingTask] = useState<StrategyTask | null>(null);
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
-
-  // Task edit dialog
-  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<StrategyTask | null>(null);
-  const [taskForm, setTaskForm] = useState<TaskFormData>({ ...DEFAULT_TASK_FORM });
-  const [isSavingTask, setIsSavingTask] = useState(false);
-
-  // Inline add form
-  const [addingToColumn, setAddingToColumn] = useState<TaskStatus | null>(null);
-  const [inlineTitle, setInlineTitle] = useState("");
-
-  // DnD
-  const [activeDragTask, setActiveDragTask] = useState<StrategyTask | null>(null);
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  const searchParams = useSearchParams();
+  const [view, setView] = useState<ViewMode>(
+    searchParams.get("view") === "automations" ? "automations" : "plan"
   );
+  const [strategy, setStrategy] = useState<Strategy | null>(null);
+  const [automations, setAutomations] = useState<Automation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [runningId, setRunningId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedAutomationId, setSelectedAutomationId] = useState<string | null>(null);
+  const [inspectorMode, setInspectorMode] = useState<"summary" | "task" | "automation">("summary");
+  const [taskDraft, setTaskDraft] = useState<TaskDraft>(DEFAULT_TASK);
+  const [automationDraft, setAutomationDraft] = useState<AutomationDraft>(DEFAULT_AUTOMATION);
+  const [newStrategyName, setNewStrategyName] = useState("90-day content operating plan");
 
-  // --- Data fetching ---
-
-  const fetchStrategy = useCallback(async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setIsLoading(true);
-      const response = await fetch("/api/content/strategy");
-      const data = await response.json();
+      const [strategyRes, automationRes] = await Promise.all([
+        fetch("/api/content/strategy"),
+        fetch("/api/content/automation"),
+      ]);
+      const [strategyJson, automationJson] = await Promise.all([
+        strategyRes.json(),
+        automationRes.json(),
+      ]);
 
-      if (!data.success) {
-        throw new Error(data.error?.message || "Failed to fetch strategy");
+      if (!strategyRes.ok || !strategyJson.success) {
+        throw new Error(strategyJson.error?.message || "Failed to load strategy");
+      }
+      if (!automationRes.ok || !automationJson.success) {
+        throw new Error(automationJson.error?.message || "Failed to load automations");
       }
 
-      setStrategy(data.data?.strategy || null);
-      setTasks(data.data?.strategy?.tasks || []);
-      setError(null);
+      setStrategy(strategyJson.data?.strategy || null);
+      setAutomations(automationJson.data?.automations || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load strategy");
+      setError(err instanceof Error ? err.message : "Unable to load the workspace");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchStrategy();
-  }, [fetchStrategy]);
+    loadData();
+  }, [loadData]);
 
-  // Keep viewingTask in sync with tasks state
   useEffect(() => {
-    if (viewingTask) {
-      const updated = tasks.find((t) => t.id === viewingTask.id);
-      if (updated && JSON.stringify(updated) !== JSON.stringify(viewingTask)) {
-        setViewingTask(updated);
-      }
+    const nextView = searchParams.get("view");
+    if (nextView === "automations") setView("automations");
+  }, [searchParams]);
+
+  const tasks = strategy?.tasks || [];
+  const selectedTask = selectedTaskId
+    ? tasks.find((task) => task.id === selectedTaskId) || null
+    : null;
+  const stats = useMemo(() => {
+    const completed = tasks.filter((task) => task.status === "DONE").length;
+    const inProgress = tasks.filter((task) => task.status === "IN_PROGRESS").length;
+    const automated = tasks.filter((task) => task.automationStatus === "AUTOMATED" || task.automationId).length;
+    const activeAutomations = automations.filter((automation) => automation.enabled).length;
+    const generated = automations.reduce((sum, automation) => sum + automation.totalGenerated, 0);
+    const matched = tasks.reduce((sum, task) => sum + parseMatches(task.matchedActivities).length, 0);
+    const progress = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
+    return { completed, inProgress, automated, activeAutomations, generated, matched, progress };
+  }, [tasks, automations]);
+
+  const readyToAutomate = useMemo(
+    () =>
+      tasks.filter((task) => {
+        const category = task.category || "content";
+        return (
+          task.status !== "DONE" &&
+          !task.automationId &&
+          task.automationStatus !== "AUTOMATED" &&
+          ["content", "social", "email"].includes(category)
+        );
+      }),
+    [tasks]
+  );
+
+  const syncLog = useMemo(
+    () =>
+      tasks
+        .flatMap((task) =>
+          parseMatches(task.matchedActivities).map((match) => ({ task, match }))
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.match.matchedAt).getTime() -
+            new Date(a.match.matchedAt).getTime()
+        ),
+    [tasks]
+  );
+
+  const openTask = (task: StrategyTask) => {
+    setSelectedTaskId(task.id);
+    setSelectedAutomationId(null);
+    setInspectorMode("task");
+    setTaskDraft(taskToDraft(task));
+  };
+
+  const openNewTask = (status: TaskStatus = "TODO") => {
+    setSelectedAutomationId(null);
+    setSelectedTaskId(null);
+    setInspectorMode("task");
+    setTaskDraft({ ...DEFAULT_TASK, status });
+  };
+
+  const openAutomation = (automation: Automation) => {
+    setSelectedAutomationId(automation.id);
+    setSelectedTaskId(null);
+    setInspectorMode("automation");
+    setAutomationDraft(automationToDraft(automation));
+  };
+
+  const openNewAutomation = (task?: StrategyTask) => {
+    const base = { ...DEFAULT_AUTOMATION };
+    if (task) {
+      base.name = `${task.title} content flow`;
+      base.topic = task.title;
+      base.aiPrompt = [task.title, task.description].filter(Boolean).join("\n");
+      base.strategyTaskId = task.id;
+      if (task.startDate) base.startDate = task.startDate.slice(0, 10);
+      if (task.dueDate) base.endDate = task.dueDate.slice(0, 10);
     }
-  }, [tasks, viewingTask]);
+    setSelectedTaskId(null);
+    setSelectedAutomationId(null);
+    setInspectorMode("automation");
+    setAutomationDraft(base);
+    setView("automations");
+  };
 
-  // --- Computed values ---
+  const closeInspector = () => {
+    setSelectedTaskId(null);
+    setSelectedAutomationId(null);
+    setInspectorMode("summary");
+    setTaskDraft(DEFAULT_TASK);
+    setAutomationDraft(DEFAULT_AUTOMATION);
+  };
 
-  const tasksByStatus = useMemo(() => {
-    const grouped: Record<TaskStatus, StrategyTask[]> = {
-      TODO: [],
-      IN_PROGRESS: [],
-      DONE: [],
-    };
-    tasks
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .forEach((task) => {
-        if (grouped[task.status]) {
-          grouped[task.status].push(task);
-        }
-      });
-    return grouped;
-  }, [tasks]);
-
-  const completedCount = tasks.filter((t) => t.status === "DONE").length;
-  const totalCount = tasks.length;
-  const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-
-  const completedThisWeek = useMemo(() => {
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    return tasks.filter(
-      (t) => t.status === "DONE" && t.completedAt && new Date(t.completedAt) >= weekAgo
-    ).length;
-  }, [tasks]);
-
-  const daysActive = useMemo(() => {
-    if (!strategy?.createdAt) return 0;
-    return Math.max(
-      1,
-      getDaysBetween(new Date(strategy.createdAt), new Date())
-    );
-  }, [strategy]);
-
-  // --- Task CRUD ---
-
-  const handleAddTask = async (status: TaskStatus) => {
-    if (!inlineTitle.trim()) {
-      setAddingToColumn(null);
-      return;
-    }
-
+  const createStrategy = async () => {
+    if (!newStrategyName.trim()) return;
+    setSaving(true);
     try {
-      const response = await fetch("/api/content/strategy/tasks", {
+      const res = await fetch("/api/content/strategy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          strategyId: strategy!.id,
-          title: inlineTitle.trim(),
-          status,
-          category: "content",
-          priority: "MEDIUM",
+          name: newStrategyName.trim(),
+          description: "Combined strategy and automation workspace",
         }),
       });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error?.message || "Failed to add task");
-
-      setTasks((prev) => [...prev, data.data.task]);
-      setInlineTitle("");
-      setAddingToColumn(null);
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Failed to create plan");
+      setStrategy(json.data.strategy);
+      toast({ title: "Plan created" });
     } catch (err) {
       toast({
-        title: err instanceof Error ? err.message : "Failed to add task",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const openViewTask = (task: StrategyTask) => {
-    setViewingTask(task);
-    setViewDialogOpen(true);
-  };
-
-  const openEditTask = (task: StrategyTask) => {
-    setViewDialogOpen(false);
-    setViewingTask(null);
-    setEditingTask(task);
-    setTaskForm({
-      title: task.title,
-      description: task.description || "",
-      category: task.category,
-      priority: task.priority,
-      startDate: task.startDate ? task.startDate.split("T")[0] : "",
-      dueDate: task.dueDate ? task.dueDate.split("T")[0] : "",
-    });
-    setTaskDialogOpen(true);
-  };
-
-  const handleSaveTask = async () => {
-    if (!taskForm.title.trim() || !editingTask) return;
-
-    try {
-      setIsSavingTask(true);
-      const response = await fetch("/api/content/strategy/tasks", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: editingTask.id,
-          title: taskForm.title,
-          description: taskForm.description || null,
-          category: taskForm.category,
-          priority: taskForm.priority,
-          startDate: taskForm.startDate || null,
-          dueDate: taskForm.dueDate || null,
-        }),
-      });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error?.message || "Failed to update");
-
-      setTasks((prev) =>
-        prev.map((t) => (t.id === editingTask.id ? { ...t, ...data.data.task } : t))
-      );
-      setTaskDialogOpen(false);
-      toast({ title: "Task updated" });
-    } catch (err) {
-      toast({
-        title: err instanceof Error ? err.message : "Failed to update task",
+        title: "Plan was not created",
+        description: err instanceof Error ? err.message : "Please try again",
         variant: "destructive",
       });
     } finally {
-      setIsSavingTask(false);
+      setSaving(false);
     }
   };
 
-  const handleDeleteTask = async (id: string) => {
+  const syncNow = async () => {
+    setSyncing(true);
     try {
-      const response = await fetch(`/api/content/strategy/tasks?id=${id}`, {
-        method: "DELETE",
+      const res = await fetch("/api/content/strategy/sync", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Sync failed");
+      await loadData();
+      toast({
+        title: "Workspace synced",
+        description: `${json.data.tasksUpdated || 0} task${json.data.tasksUpdated === 1 ? "" : "s"} updated`,
       });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error?.message || "Failed to delete");
-
-      setTasks((prev) => prev.filter((t) => t.id !== id));
-      if (taskDialogOpen && editingTask?.id === id) {
-        setTaskDialogOpen(false);
-      }
-      if (viewDialogOpen && viewingTask?.id === id) {
-        setViewDialogOpen(false);
-        setViewingTask(null);
-      }
-      toast({ title: "Task deleted" });
     } catch (err) {
       toast({
-        title: err instanceof Error ? err.message : "Failed to delete task",
+        title: "Sync failed",
+        description: err instanceof Error ? err.message : "Please try again",
         variant: "destructive",
       });
+    } finally {
+      setSyncing(false);
     }
   };
 
-  // --- Status change ---
-
-  const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
-    // Optimistic update
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              status: newStatus,
-              completedAt:
-                newStatus === "DONE"
-                  ? new Date().toISOString()
-                  : t.status === "DONE"
-                  ? undefined
-                  : t.completedAt,
-            }
-          : t
-      )
-    );
-
+  const saveTask = async () => {
+    if (!strategy || !taskDraft.title.trim()) return;
+    setSaving(true);
     try {
-      const response = await fetch("/api/content/strategy/tasks", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: taskId, status: newStatus }),
-      });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error?.message || "Failed to update");
-
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, ...data.data.task } : t))
-      );
-    } catch (err) {
-      fetchStrategy();
-      toast({
-        title: err instanceof Error ? err.message : "Failed to update task",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // --- DnD handlers ---
-
-  const handleDragStart = (event: DragStartEvent) => {
-    const task = tasks.find((t) => t.id === event.active.id);
-    if (task) setActiveDragTask(task);
-  };
-
-  const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeId = active.id as string;
-    const overId = over.id as string;
-
-    // Check if dropping over a column
-    const isOverColumn = STATUS_COLUMNS.some((col) => col.id === overId);
-    if (isOverColumn) {
-      const newStatus = overId as TaskStatus;
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === activeId && t.status !== newStatus
-            ? { ...t, status: newStatus }
-            : t
-        )
-      );
-    } else {
-      // Dropping over another card
-      const overTask = tasks.find((t) => t.id === overId);
-      if (overTask) {
-        const activeTask = tasks.find((t) => t.id === activeId);
-        if (activeTask && activeTask.status !== overTask.status) {
-          setTasks((prev) =>
-            prev.map((t) =>
-              t.id === activeId ? { ...t, status: overTask.status } : t
-            )
-          );
-        }
-      }
-    }
-  };
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveDragTask(null);
-
-    if (!over) return;
-
-    const activeId = active.id as string;
-    const overId = over.id as string;
-
-    const task = tasks.find((t) => t.id === activeId);
-    if (!task) return;
-
-    // Determine target status
-    let targetStatus = task.status;
-    const isOverColumn = STATUS_COLUMNS.some((col) => col.id === overId);
-    if (isOverColumn) {
-      targetStatus = overId as TaskStatus;
-    } else {
-      const overTask = tasks.find((t) => t.id === overId);
-      if (overTask) {
-        targetStatus = overTask.status;
-
-        // Reorder within same column
-        if (task.status === overTask.status) {
-          const columnTasks = tasksByStatus[targetStatus];
-          const oldIndex = columnTasks.findIndex((t) => t.id === activeId);
-          const newIndex = columnTasks.findIndex((t) => t.id === overId);
-          if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-            const reordered = arrayMove(columnTasks, oldIndex, newIndex);
-            setTasks((prev) => {
-              const otherTasks = prev.filter((t) => t.status !== targetStatus);
-              return [...otherTasks, ...reordered.map((t, i) => ({ ...t, sortOrder: i }))];
-            });
-          }
-        }
-      }
-    }
-
-    // Persist to API
-    try {
-      await fetch("/api/content/strategy/tasks", {
-        method: "PATCH",
+      const isEdit = !!taskDraft.id;
+      const res = await fetch("/api/content/strategy/tasks", {
+        method: isEdit ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: activeId,
-          status: targetStatus,
-          sortOrder: task.sortOrder,
+          id: taskDraft.id,
+          strategyId: strategy.id,
+          title: taskDraft.title,
+          description: taskDraft.description,
+          category: taskDraft.category,
+          priority: taskDraft.priority,
+          status: taskDraft.status,
+          startDate: taskDraft.startDate || null,
+          dueDate: taskDraft.dueDate || null,
         }),
       });
-    } catch {
-      // Revert on failure
-      fetchStrategy();
-      toast({ title: "Failed to move task", variant: "destructive" });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Task was not saved");
+      await loadData();
+      setSelectedTaskId(json.data.task.id);
+      setInspectorMode("task");
+      setTaskDraft(taskToDraft(json.data.task));
+      toast({ title: isEdit ? "Task updated" : "Task added" });
+    } catch (err) {
+      toast({
+        title: "Task was not saved",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
-  // --- Render ---
+  const updateTaskStatus = async (task: StrategyTask, status: TaskStatus) => {
+    try {
+      const res = await fetch("/api/content/strategy/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: task.id, status }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Status update failed");
+      await loadData();
+    } catch (err) {
+      toast({
+        title: "Status was not updated",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    }
+  };
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-              <Target className="w-4 h-4 text-white" />
+  const deleteTask = async () => {
+    if (!taskDraft.id) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/content/strategy/tasks?id=${taskDraft.id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Task was not deleted");
+      closeInspector();
+      await loadData();
+      toast({ title: "Task removed" });
+    } catch (err) {
+      toast({
+        title: "Task was not removed",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveAutomation = async () => {
+    if (!automationDraft.name.trim()) return;
+    setSaving(true);
+    try {
+      const isEdit = !!automationDraft.id;
+      const res = await fetch("/api/content/automation", {
+        method: isEdit ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: automationDraft.id,
+          name: automationDraft.name,
+          type: automationDraft.type,
+          enabled: true,
+          schedule: {
+            frequency: automationDraft.frequency,
+            dayOfWeek: automationDraft.dayOfWeek,
+            time: automationDraft.time,
+          },
+          topic: automationDraft.topic,
+          aiPrompt: automationDraft.aiPrompt,
+          aiTone: automationDraft.aiTone,
+          platforms: automationDraft.platforms,
+          includeMedia: automationDraft.includeMedia,
+          mediaType: automationDraft.includeMedia ? automationDraft.mediaType : null,
+          mediaStyle: automationDraft.includeMedia ? automationDraft.mediaStyle : null,
+          startDate: automationDraft.startDate,
+          endDate: automationDraft.endDate,
+          strategyTaskId: automationDraft.strategyTaskId || null,
+          sourceStrategyId: strategy?.id || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Automation was not saved");
+      await loadData();
+      setSelectedAutomationId(json.data.automation.id);
+      setInspectorMode("automation");
+      setAutomationDraft(automationToDraft(json.data.automation));
+      toast({ title: isEdit ? "Automation updated" : "Automation created" });
+    } catch (err) {
+      toast({
+        title: "Automation was not saved",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleAutomation = async (automation: Automation, enabled: boolean) => {
+    try {
+      const res = await fetch("/api/content/automation", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: automation.id, enabled }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Automation was not updated");
+      setAutomations((prev) =>
+        prev.map((item) => (item.id === automation.id ? { ...item, enabled } : item))
+      );
+    } catch (err) {
+      toast({
+        title: "Automation was not updated",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const deleteAutomation = async () => {
+    if (!automationDraft.id) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/content/automation?id=${automationDraft.id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Automation was not deleted");
+      closeInspector();
+      await loadData();
+      toast({ title: "Automation removed" });
+    } catch (err) {
+      toast({
+        title: "Automation was not removed",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const runAutomation = async (automation: Automation) => {
+    setRunningId(automation.id);
+    try {
+      const res = await fetch(`/api/content/automation/${automation.id}/run`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Automation run failed");
+      await loadData();
+      toast({ title: "Automation ran", description: "A new post draft was created." });
+    } catch (err) {
+      toast({
+        title: "Automation did not run",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setRunningId(null);
+    }
+  };
+
+  const launchReadyTasks = async () => {
+    if (!strategy || readyToAutomate.length === 0) return;
+    setSaving(true);
+    try {
+      const taskConfigs = readyToAutomate.map((task) => ({
+        taskId: task.id,
+        enabled: true,
+        includeMedia: false,
+        mediaType: "image",
+        mediaStyle: "",
+        frequency: "WEEKLY",
+        dayOfWeek: 1,
+        time: "09:00",
+        customPrompt: [task.title, task.description].filter(Boolean).join("\n"),
+      }));
+      const endDate = (() => {
+        const d = new Date();
+        d.setMonth(d.getMonth() + 3);
+        return d.toISOString().slice(0, 10);
+      })();
+      const res = await fetch("/api/content/strategy/automate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          strategyId: strategy.id,
+          taskConfigs,
+          globalTone: "professional",
+          globalEndDate: endDate,
+          platforms: ["feed"],
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Automations were not launched");
+      await loadData();
+      setView("automations");
+      toast({
+        title: "Automations launched",
+        description: `${json.data.automatedTaskCount || 0} task${json.data.automatedTaskCount === 1 ? "" : "s"} connected`,
+      });
+    } catch (err) {
+      toast({
+        title: "Automations were not launched",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const renderTaskCard = (task: StrategyTask) => {
+    const category = task.category || "content";
+    const categoryInfo = CATEGORY_CONFIG[category];
+    const PriorityDot = PRIORITY_CONFIG[task.priority || "MEDIUM"];
+    const matches = parseMatches(task.matchedActivities);
+    const isSelected = selectedTaskId === task.id;
+    const Icon = categoryInfo.icon;
+
+    return (
+      <div
+        key={task.id}
+        role="button"
+        tabIndex={0}
+        onClick={() => openTask(task)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openTask(task);
+          }
+        }}
+        className={cn(
+          "w-full rounded-xl border bg-background p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
+          isSelected && "border-brand-500 ring-2 ring-brand-500/20"
+        )}
+      >
+        <div className="flex items-start gap-3">
+          <div className={cn("rounded-lg border p-2", categoryInfo.className)}>
+            <Icon className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <p className="line-clamp-2 text-sm font-semibold leading-snug">
+                {task.title}
+              </p>
+              <MoreHorizontal className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             </div>
-            Marketing Strategy
-            {strategy?.status && (
-              <Badge
-                variant="outline"
-                className={
-                  strategy.status === "ACTIVE"
-                    ? "bg-green-500/10 text-green-600 border-green-500/20"
-                    : strategy.status === "PAUSED"
-                    ? "bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
-                    : "bg-muted text-muted-foreground border-border"
-                }
-              >
-                {strategy.status.charAt(0) + strategy.status.slice(1).toLowerCase()}
-              </Badge>
+            {task.description && (
+              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                {task.description}
+              </p>
             )}
-          </h1>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* View toggle */}
-          <div className="flex items-center bg-muted rounded-lg p-1">
-            <button
-              onClick={() => setViewMode("kanban")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                viewMode === "kanban"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <LayoutGrid className="h-4 w-4" />
-              Kanban
-            </button>
-            <button
-              onClick={() => setViewMode("timeline")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                viewMode === "timeline"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Calendar className="h-4 w-4" />
-              Timeline
-            </button>
-          </div>
-
-          <Button
-            variant="outline"
-            onClick={() => router.push("/content/strategy/plans")}
-            className="text-sm"
-          >
-            <Target className="h-4 w-4 mr-2" />
-            All Plans
-          </Button>
-          <Button
-            onClick={() => router.push("/content/strategy/generate")}
-            className="bg-brand-500 hover:bg-brand-600 text-white"
-          >
-            <Sparkles className="h-4 w-4 mr-2" />
-            Generate with AI
-          </Button>
-          {strategy && (
-            <Button
-              onClick={() => router.push(`/content/automation?strategy=${strategy.id}`)}
-              className="bg-brand-500 hover:bg-brand-600 text-white"
-            >
-              <Zap className="h-4 w-4 mr-2" />
-              Automate Strategy
-            </Button>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1">
+            <span className={cn("h-2 w-2 rounded-full", PriorityDot.dot)} />
+            {PriorityDot.label}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1">
+            <CalendarDays className="h-3 w-3" />
+            {formatShortDate(task.dueDate)}
+          </span>
+          {(task.automationStatus === "AUTOMATED" || task.automationId) && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-300">
+              <Zap className="h-3 w-3" />
+              Synced
+            </span>
           )}
         </div>
-      </div>
 
-      {/* Progress bar */}
-      {totalCount > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="flex items-center gap-4"
-        >
-          <div className="flex-1">
-            <Progress value={progressPct} className="h-2" />
+        <div className="mt-3 space-y-1">
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+            <span>{task.progress}% complete</span>
+            <span>{matches.length} match{matches.length === 1 ? "" : "es"}</span>
           </div>
-          <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-            {completedCount}/{totalCount} tasks completed
-          </span>
-        </motion.div>
-      )}
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-brand-500 transition-all"
+              style={{ width: `${Math.min(100, Math.max(0, task.progress))}%` }}
+            />
+          </div>
+        </div>
 
-      {/* Error state */}
-      {error && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          <Card className="border-destructive/50 bg-destructive/5">
-            <CardContent className="flex items-center gap-3 py-4">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              <span className="text-destructive text-sm">{error}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchStrategy}
-                className="ml-auto"
-              >
-                <RefreshCw className="h-4 w-4 mr-1" />
-                Retry
-              </Button>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-
-      {/* Loading state */}
-      {isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-muted/30 rounded-xl p-3 animate-pulse">
-              <div className="h-5 w-24 bg-muted rounded mb-4" />
-              <div className="space-y-3">
-                <div className="h-20 bg-muted rounded-lg" />
-                <div className="h-20 bg-muted rounded-lg" />
-                <div className="h-16 bg-muted rounded-lg" />
-              </div>
-            </div>
+        <div className="mt-3 flex gap-1.5">
+          {STATUS_COLUMNS.filter((column) => column.id !== task.status).map((column) => (
+            <span
+              key={column.id}
+              role="button"
+              tabIndex={0}
+              onClick={(event) => {
+                event.stopPropagation();
+                updateTaskStatus(task, column.id);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  updateTaskStatus(task, column.id);
+                }
+              }}
+              className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:border-brand-500/40 hover:text-foreground"
+            >
+              {column.label}
+            </span>
           ))}
         </div>
-      )}
+      </div>
+    );
+  };
 
-      {/* Main content */}
-      {!isLoading && (
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
-        >
-          {/* Kanban View */}
-          {viewMode === "kanban" && (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDragEnd={handleDragEnd}
-            >
-              <motion.div
-                variants={itemVariants}
-                className="grid grid-cols-1 md:grid-cols-3 gap-6"
+  const renderPlanView = () => (
+    <div className="grid gap-3 lg:grid-cols-3">
+      {STATUS_COLUMNS.map((column) => {
+        const columnTasks = tasks.filter((task) => task.status === column.id);
+        return (
+          <div
+            key={column.id}
+            className={cn("flex min-h-[520px] flex-col rounded-2xl border p-3", column.tone)}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">{column.label}</span>
+                <Badge variant="secondary">{columnTasks.length}</Badge>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => openNewTask(column.id)}
               >
-                {STATUS_COLUMNS.map((col) => (
-                  <DroppableColumn
-                    key={col.id}
-                    status={col.id}
-                    label={col.label}
-                    tasks={tasksByStatus[col.id]}
-                    onEdit={openViewTask}
-                    onDelete={handleDeleteTask}
-                    onStatusChange={handleStatusChange}
-                    onAddClick={(status) => {
-                      setAddingToColumn(status);
-                      setInlineTitle("");
-                    }}
-                  />
-                ))}
-              </motion.div>
-
-              <DragOverlay>
-                {activeDragTask ? (
-                  <TaskCardOverlay task={activeDragTask} />
-                ) : null}
-              </DragOverlay>
-            </DndContext>
-          )}
-
-          {/* Timeline View */}
-          {viewMode === "timeline" && (
-            <motion.div variants={itemVariants}>
-              <TimelineView tasks={tasks} onEdit={openViewTask} />
-            </motion.div>
-          )}
-
-          {/* Accomplishment Section */}
-          {totalCount > 0 && (
-            <motion.div
-              variants={itemVariants}
-              className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8"
-            >
-              <Card>
-                <CardContent className="flex items-center gap-3 py-5 px-5">
-                  <div className="p-2 bg-green-500/10 rounded-lg">
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-foreground">
-                      {completedThisWeek}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Completed this week
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="flex items-center gap-3 py-5 px-5">
-                  <div className="p-2 bg-orange-500/10 rounded-lg">
-                    <TrendingUp className="h-5 w-5 text-orange-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-foreground">
-                      {progressPct}%
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Overall progress
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="flex items-center gap-3 py-5 px-5">
-                  <div className="p-2 bg-blue-500/10 rounded-lg">
-                    <Flame className="h-5 w-5 text-blue-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-foreground">
-                      {daysActive}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Days active
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </motion.div>
-      )}
-
-      {/* Inline add task popover */}
-      <AnimatePresence>
-        {addingToColumn !== null && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
-              <Card className="w-80 shadow-xl">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm">
-                      Add to{" "}
-                      {STATUS_COLUMNS.find((c) => c.id === addingToColumn)?.label}
-                    </CardTitle>
-                    <button
-                      onClick={() => setAddingToColumn(null)}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Input
-                    placeholder="Task title..."
-                    value={inlineTitle}
-                    onChange={(e) => setInlineTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleAddTask(addingToColumn);
-                      if (e.key === "Escape") setAddingToColumn(null);
-                    }}
-                    autoFocus
-                  />
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleAddTask(addingToColumn)}
-                      className="bg-brand-500 hover:bg-brand-600 text-white"
-                    >
-                      Add Task
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setAddingToColumn(null)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex-1 space-y-2">
+              {columnTasks.length > 0 ? (
+                columnTasks.map(renderTaskCard)
+              ) : (
+                <button
+                  onClick={() => openNewTask(column.id)}
+                  className="flex h-28 w-full items-center justify-center rounded-xl border border-dashed bg-background/60 text-sm text-muted-foreground hover:border-brand-500/40 hover:text-foreground"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add item
+                </button>
+              )}
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+        );
+      })}
+    </div>
+  );
 
-      {/* Task Detail/Summary Dialog */}
-      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] !flex !flex-col gap-0 p-0">
-          {viewingTask && (() => {
-            const vCat = CATEGORY_CONFIG[viewingTask.category] || CATEGORY_CONFIG.content;
-            const vPriority = PRIORITY_CONFIG[viewingTask.priority] || PRIORITY_CONFIG.MEDIUM;
-            const vStatus = STATUS_CONFIG[viewingTask.status] || STATUS_CONFIG.TODO;
-            const VStatusIcon = vStatus.icon;
-            const vProgressBar = viewingTask.progress >= 50 ? "bg-green-500" : "bg-blue-500";
-            let activities: ParsedActivity[] = [];
-            try {
-              const raw = JSON.parse(viewingTask.matchedActivities || "[]");
-              if (Array.isArray(raw)) activities = raw;
-            } catch { /* ignore */ }
-            const confidenceColor: Record<string, string> = {
-              low: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
-              medium: "bg-blue-500/10 text-blue-600 border-blue-500/20",
-              high: "bg-green-500/10 text-green-600 border-green-500/20",
-            };
-            const activityIcon: Record<string, string> = {
-              post: "📝",
-              campaign: "📧",
-              automation: "⚡",
-              postAutomation: "🤖",
-              adCampaign: "📢",
-            };
-
-            return (
-              <>
-                {/* Fixed header */}
-                <div className="shrink-0 px-6 pt-6 pb-3">
-                  <DialogHeader>
-                    <DialogTitle className="flex items-start gap-2 pr-6">
-                      <VStatusIcon className={`h-5 w-5 shrink-0 mt-0.5 ${vStatus.color}`} />
-                      <span className="break-words">{viewingTask.title}</span>
-                    </DialogTitle>
-                  </DialogHeader>
-                </div>
-
-                {/* Scrollable content */}
-                <div className="flex-1 min-h-0 overflow-y-auto px-6 space-y-3">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge variant="outline" className={`text-[10px] ${vCat.bgColor} ${vCat.color}`}>
-                      {vCat.label}
-                    </Badge>
-                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                      <div className={`h-1.5 w-1.5 rounded-full ${vPriority.dotColor}`} />
-                      {vPriority.label}
-                    </span>
-                    {viewingTask.autoCompleted && (
-                      <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-600 border-green-500/20">
-                        Auto-completed
-                      </Badge>
-                    )}
-                  </div>
-
-                  {(viewingTask.startDate || viewingTask.dueDate) && (
-                    <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
-                      {viewingTask.startDate && (
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 shrink-0" />
-                          Start: {formatFullDate(viewingTask.startDate)}
-                        </span>
-                      )}
-                      {viewingTask.dueDate && (
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 shrink-0" />
-                          Due: {formatFullDate(viewingTask.dueDate)}
-                        </span>
-                      )}
+  const renderAutomationView = () => (
+    <div className="grid gap-3 xl:grid-cols-2">
+      {automations.map((automation) => {
+        const linkedTask = automation.strategyTaskId
+          ? tasks.find((task) => task.id === automation.strategyTaskId)
+          : null;
+        const isSelected = selectedAutomationId === automation.id;
+        return (
+          <Card
+            key={automation.id}
+            className={cn(
+              "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md",
+              isSelected && "border-brand-500 ring-2 ring-brand-500/20"
+            )}
+            onClick={() => openAutomation(automation)}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <div className="rounded-lg bg-brand-500/10 p-2 text-brand-600">
+                      <Zap className="h-4 w-4" />
                     </div>
-                  )}
-
-                  {viewingTask.progress > 0 && (
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-muted-foreground">Progress</span>
-                        <span className="font-medium">{viewingTask.progress}%</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${vProgressBar}`}
-                          style={{ width: `${viewingTask.progress}%` }}
-                        />
-                      </div>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{automation.name}</p>
+                      <p className="text-xs text-muted-foreground">{scheduleLabel(automation)}</p>
                     </div>
-                  )}
-
-                  {/* Requirement & What's Left */}
-                  {(() => {
-                    const requirement = getTaskRequirement(viewingTask);
-                    const whatsLeft = getWhatsLeft(viewingTask, activities);
-                    return (
-                      <div className="space-y-2 p-3 rounded-lg bg-muted/30 border border-border/40">
-                        <div className="space-y-1">
-                          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                            <ListChecks className="h-3.5 w-3.5 text-blue-500" />
-                            Requirement
-                          </h4>
-                          <p className="text-xs text-foreground/80 leading-relaxed">
-                            {requirement}
-                          </p>
-                        </div>
-                        {viewingTask.status === "DONE" ? (
-                          <div className="pt-1 border-t border-border/30">
-                            <p className="text-xs text-green-600 flex items-center gap-1.5">
-                              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                              All requirements met — task is complete!
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="space-y-1.5 pt-1 border-t border-border/30">
-                            <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                              <ArrowRight className="h-3.5 w-3.5 text-orange-500" />
-                              What&apos;s Left
-                              <span className="text-[10px] font-normal normal-case tracking-normal ml-auto">
-                                {whatsLeft.summary}
-                              </span>
-                            </h4>
-                            <ul className="space-y-0.5">
-                              {whatsLeft.items.map((item, idx) => (
-                                <li key={idx} className="text-xs text-foreground/80 leading-relaxed flex items-start gap-1.5">
-                                  <span className="text-muted-foreground mt-1 shrink-0">•</span>
-                                  {item}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {/* Matched Activities with links */}
-                  {activities.length > 0 && (
-                    <div className="space-y-2 pt-1">
-                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <Activity className="h-3.5 w-3.5 text-orange-500" />
-                        Triggered by ({activities.length})
-                      </h4>
-                      <div className="space-y-1.5">
-                        {activities.map((act, i) => (
-                          <div
-                            key={i}
-                            className="p-2 rounded-md bg-muted/40 border border-border/40 space-y-1"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-start gap-1.5 min-w-0">
-                                <span className="text-sm shrink-0">{activityIcon[act.activityType] || "📋"}</span>
-                                {act.activityUrl ? (
-                                  <Link
-                                    href={act.activityUrl}
-                                    className="text-xs font-medium text-brand-500 hover:text-brand-600 hover:underline break-words"
-                                    onClick={() => setViewDialogOpen(false)}
-                                  >
-                                    {act.activityName || act.matchReason}
-                                  </Link>
-                                ) : (
-                                  <span className="text-xs font-medium break-words">
-                                    {act.activityName || act.matchReason}
-                                  </span>
-                                )}
-                                {act.activityUrl && (
-                                  <ExternalLink className="h-2.5 w-2.5 text-muted-foreground shrink-0 mt-0.5" />
-                                )}
-                              </div>
-                              <span className={`text-[9px] px-1.5 py-0 rounded-full shrink-0 whitespace-nowrap ${confidenceColor[act.confidence] || confidenceColor.low}`}>
-                                {act.confidence}
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground leading-relaxed break-words">
-                              {act.matchReason}
-                            </p>
-                            <span className="text-[9px] text-muted-foreground/60">
-                              {formatFullDate(act.matchedAt)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {activities.length === 0 && viewingTask.status === "TODO" && (
-                    <div className="text-center py-3 text-[11px] text-muted-foreground bg-muted/30 rounded-md">
-                      <Activity className="h-4 w-4 mx-auto mb-1 text-muted-foreground/40" />
-                      No matched activities yet. Activities will be detected automatically.
-                    </div>
-                  )}
-                </div>
-
-                {/* Fixed footer */}
-                <div className="shrink-0 px-6 pb-6 pt-3 border-t">
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-wrap gap-1.5">
-                      {(
-                        Object.entries(STATUS_CONFIG) as [
-                          TaskStatus,
-                          (typeof STATUS_CONFIG)[TaskStatus],
-                        ][]
-                      ).map(([status, cfg]) => {
-                        const Icon = cfg.icon;
-                        const isActive = viewingTask.status === status;
-                        return (
-                          <button
-                            key={status}
-                            onClick={() => {
-                              if (!isActive) {
-                                handleStatusChange(viewingTask.id, status);
-                                setViewingTask((prev) =>
-                                  prev ? { ...prev, status } : prev
-                                );
-                              }
-                            }}
-                            className={`flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] transition-colors ${
-                              isActive
-                                ? `${cfg.color} border-current bg-current/5 font-medium`
-                                : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                            }`}
-                          >
-                            <Icon className="h-3 w-3" />
-                            {cfg.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openEditTask(viewingTask)}
-                      className="h-7 text-xs shrink-0"
-                    >
-                      <Edit2 className="h-3 w-3 mr-1" />
-                      Edit
-                    </Button>
                   </div>
                 </div>
-              </>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
+                <Switch
+                  checked={automation.enabled}
+                  onCheckedChange={(checked) => toggleAutomation(automation, checked)}
+                  onClick={(event) => event.stopPropagation()}
+                />
+              </div>
 
-      {/* Edit Task Dialog */}
-      <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
-        <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle>Edit Task</DialogTitle>
-          </DialogHeader>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+                <div className="rounded-lg border bg-muted/30 p-2">
+                  <p className="font-semibold">{automation.totalGenerated}</p>
+                  <p className="text-muted-foreground">Posts</p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-2">
+                  <p className="font-semibold">{automation.totalCreditsSpent}</p>
+                  <p className="text-muted-foreground">Credits</p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-2">
+                  <p className="font-semibold">{automation.platforms.length}</p>
+                  <p className="text-muted-foreground">Channels</p>
+                </div>
+              </div>
 
-          <div className="space-y-4 py-2">
+              {linkedTask && (
+                <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2 text-xs text-emerald-700 dark:text-emerald-300">
+                  Connected to {linkedTask.title}
+                </div>
+              )}
+
+              <div className="mt-4 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  Last run: {formatTimeAgo(automation.lastTriggered)}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    runAutomation(automation);
+                  }}
+                  disabled={runningId === automation.id}
+                >
+                  {runningId === automation.id ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Play className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Run
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {automations.length === 0 && (
+        <button
+          onClick={() => openNewAutomation()}
+          className="rounded-2xl border border-dashed bg-muted/20 p-10 text-center hover:border-brand-500/40"
+        >
+          <Zap className="mx-auto mb-3 h-8 w-8 text-brand-500" />
+          <p className="font-semibold">Create the first automation</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Connect plan items to recurring content flows.
+          </p>
+        </button>
+      )}
+    </div>
+  );
+
+  const renderSyncView = () => (
+    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Activity className="h-4 w-4 text-brand-500" />
+            Activity matches
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {syncLog.length > 0 ? (
+            syncLog.map(({ task, match }) => (
+              <div
+                key={`${task.id}-${match.activityId}-${match.matchedAt}`}
+                className="rounded-xl border p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium">{task.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {match.matchReason}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="capitalize">
+                    {match.confidence}
+                  </Badge>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{match.activityName || match.activityType}</span>
+                  <span>{formatTimeAgo(match.matchedAt)}</span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+              No matched activity yet. Run sync after posts, campaigns, or automations go live.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Link2 className="h-4 w-4 text-brand-500" />
+            Sync logic
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <div className="rounded-xl border bg-muted/30 p-3">
+            Published posts, campaigns, and post automations are matched to plan items by category, keywords, date range, and direct strategy links.
+          </div>
+          <div className="rounded-xl border bg-muted/30 p-3">
+            Connected automations update task progress after they generate posts, then the plan score can move automatically.
+          </div>
+          <Button onClick={syncNow} disabled={syncing} className="w-full bg-brand-500 text-white hover:bg-brand-600">
+            {syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Sync now
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  const renderInspector = () => {
+    if (inspectorMode === "task") {
+      return (
+        <InspectorShell
+          title={taskDraft.id ? "Edit item" : "New item"}
+          subtitle={taskDraft.id ? "Plan item details" : "Add to the current plan"}
+          icon={Target}
+          onClose={closeInspector}
+        >
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="task-title">Title</Label>
+              <Label>Item</Label>
               <Input
-                id="task-title"
-                value={taskForm.title}
-                onChange={(e) =>
-                  setTaskForm((f) => ({ ...f, title: e.target.value }))
-                }
+                value={taskDraft.title}
+                onChange={(event) => setTaskDraft((draft) => ({ ...draft, title: event.target.value }))}
+                placeholder="Campaign kickoff, product drop, review push..."
               />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="task-desc">Description</Label>
+              <Label>Prompt for the team</Label>
               <Textarea
-                id="task-desc"
-                placeholder="Optional description..."
-                value={taskForm.description}
-                onChange={(e) =>
-                  setTaskForm((f) => ({ ...f, description: e.target.value }))
-                }
-                className="min-h-[80px] resize-none"
+                value={taskDraft.description}
+                onChange={(event) => setTaskDraft((draft) => ({ ...draft, description: event.target.value }))}
+                placeholder="Define the objective, proof points, target audience, channels, and approval owner."
+                className="min-h-[110px]"
               />
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Category</Label>
+                <Label>Type</Label>
                 <Select
-                  value={taskForm.category}
-                  onValueChange={(val) =>
-                    setTaskForm((f) => ({ ...f, category: val as TaskCategory }))
+                  value={taskDraft.category}
+                  onValueChange={(value) =>
+                    setTaskDraft((draft) => ({ ...draft, category: value as TaskCategory }))
                   }
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
-                      <SelectItem key={key} value={key}>
-                        {config.label}
-                      </SelectItem>
+                      <SelectItem key={key} value={key}>{config.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <Label>Priority</Label>
                 <Select
-                  value={taskForm.priority}
-                  onValueChange={(val) =>
-                    setTaskForm((f) => ({ ...f, priority: val as TaskPriority }))
+                  value={taskDraft.priority}
+                  onValueChange={(value) =>
+                    setTaskDraft((draft) => ({ ...draft, priority: value as TaskPriority }))
                   }
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(PRIORITY_CONFIG).map(([key, config]) => (
-                      <SelectItem key={key} value={key}>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`h-2 w-2 rounded-full ${config.dotColor}`}
-                          />
-                          {config.label}
-                        </div>
-                      </SelectItem>
+                      <SelectItem key={key} value={key}>{config.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="task-start">Start Date</Label>
+                <Label>Start</Label>
                 <Input
-                  id="task-start"
                   type="date"
-                  value={taskForm.startDate}
-                  onChange={(e) =>
-                    setTaskForm((f) => ({ ...f, startDate: e.target.value }))
-                  }
+                  value={taskDraft.startDate}
+                  onChange={(event) => setTaskDraft((draft) => ({ ...draft, startDate: event.target.value }))}
                 />
               </div>
-
               <div className="space-y-2">
-                <Label htmlFor="task-due">Due Date</Label>
+                <Label>Due</Label>
                 <Input
-                  id="task-due"
                   type="date"
-                  value={taskForm.dueDate}
-                  onChange={(e) =>
-                    setTaskForm((f) => ({ ...f, dueDate: e.target.value }))
-                  }
+                  value={taskDraft.dueDate}
+                  onChange={(event) => setTaskDraft((draft) => ({ ...draft, dueDate: event.target.value }))}
                 />
               </div>
             </div>
-
-            <div className="flex items-center justify-between pt-2">
-              {editingTask && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    handleDeleteTask(editingTask.id);
-                  }}
-                  className="text-destructive hover:text-destructive"
+            <div className="grid grid-cols-3 gap-2">
+              {STATUS_COLUMNS.map((column) => (
+                <button
+                  key={column.id}
+                  onClick={() => setTaskDraft((draft) => ({ ...draft, status: column.id }))}
+                  className={cn(
+                    "rounded-lg border px-2 py-2 text-xs font-medium",
+                    taskDraft.status === column.id
+                      ? "border-brand-500 bg-brand-500 text-white"
+                      : "bg-background hover:bg-muted"
+                  )}
                 >
-                  <Trash2 className="h-4 w-4 mr-1.5" />
-                  Delete
+                  {column.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={saveTask}
+                disabled={saving || !taskDraft.title.trim()}
+                className="flex-1 bg-brand-500 text-white hover:bg-brand-600"
+              >
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                Save
+              </Button>
+              {taskDraft.id && (
+                <Button
+                  variant="outline"
+                  onClick={() => openNewAutomation(selectedTask || undefined)}
+                >
+                  <Zap className="mr-2 h-4 w-4" />
+                  Automate
                 </Button>
               )}
-
-              <Button
-                onClick={handleSaveTask}
-                disabled={isSavingTask || !taskForm.title.trim()}
-                className="bg-brand-500 hover:bg-brand-600 text-white ml-auto"
-              >
-                {isSavingTask ? (
-                  <>
-                    <AISpinner className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Changes"
-                )}
+            </div>
+            {taskDraft.id && (
+              <Button variant="ghost" className="w-full text-destructive hover:text-destructive" onClick={deleteTask}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete item
               </Button>
+            )}
+          </div>
+        </InspectorShell>
+      );
+    }
+
+    return (
+      <InspectorShell
+        title={automationDraft.id ? "Edit automation" : "New automation"}
+        subtitle="Connect content generation to a plan item"
+        icon={Zap}
+        onClose={closeInspector}
+      >
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Name</Label>
+            <Input
+              value={automationDraft.name}
+              onChange={(event) => setAutomationDraft((draft) => ({ ...draft, name: event.target.value }))}
+              placeholder="Weekly insight flow"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Linked plan item</Label>
+            <Select
+              value={automationDraft.strategyTaskId || "none"}
+              onValueChange={(value) =>
+                setAutomationDraft((draft) => ({
+                  ...draft,
+                  strategyTaskId: value === "none" ? "" : value,
+                }))
+              }
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No direct link</SelectItem>
+                {tasks.map((task) => (
+                  <SelectItem key={task.id} value={task.id}>{task.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Frequency</Label>
+              <Select
+                value={automationDraft.frequency}
+                onValueChange={(value) =>
+                  setAutomationDraft((draft) => ({ ...draft, frequency: value as Frequency }))
+                }
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DAILY">Daily</SelectItem>
+                  <SelectItem value="WEEKLY">Weekly</SelectItem>
+                  <SelectItem value="MONTHLY">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Time</Label>
+              <Input
+                type="time"
+                value={automationDraft.time}
+                onChange={(event) => setAutomationDraft((draft) => ({ ...draft, time: event.target.value }))}
+              />
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+          <div className="space-y-2">
+            <Label>Topic</Label>
+            <Input
+              value={automationDraft.topic}
+              onChange={(event) => setAutomationDraft((draft) => ({ ...draft, topic: event.target.value }))}
+              placeholder="Main topic for generated posts"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Generation brief</Label>
+            <Textarea
+              value={automationDraft.aiPrompt}
+              onChange={(event) => setAutomationDraft((draft) => ({ ...draft, aiPrompt: event.target.value }))}
+              placeholder="What should FlowAI create each run?"
+              className="min-h-[120px]"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Channels</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {PLATFORM_OPTIONS.map((platform) => {
+                const selected = automationDraft.platforms.includes(platform.id);
+                return (
+                  <button
+                    key={platform.id}
+                    onClick={() =>
+                      setAutomationDraft((draft) => ({
+                        ...draft,
+                        platforms: selected
+                          ? draft.platforms.filter((id) => id !== platform.id)
+                          : [...draft.platforms, platform.id],
+                      }))
+                    }
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-left text-xs",
+                      selected
+                        ? "border-brand-500 bg-brand-500/10 text-brand-700 dark:text-brand-300"
+                        : "bg-background hover:bg-muted"
+                    )}
+                  >
+                    {platform.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="rounded-xl border p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Generate media</p>
+                <p className="text-xs text-muted-foreground">Add image or video on each run.</p>
+              </div>
+              <Switch
+                checked={automationDraft.includeMedia}
+                onCheckedChange={(checked) =>
+                  setAutomationDraft((draft) => ({ ...draft, includeMedia: checked }))
+                }
+              />
+            </div>
+            {automationDraft.includeMedia && (
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <Select
+                  value={automationDraft.mediaType}
+                  onValueChange={(value) =>
+                    setAutomationDraft((draft) => ({ ...draft, mediaType: value as "image" | "video" }))
+                  }
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="image">Image</SelectItem>
+                    <SelectItem value="video">Video</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  value={automationDraft.mediaStyle}
+                  onChange={(event) => setAutomationDraft((draft) => ({ ...draft, mediaStyle: event.target.value }))}
+                  placeholder="Style"
+                />
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Start</Label>
+              <Input
+                type="date"
+                value={automationDraft.startDate}
+                onChange={(event) => setAutomationDraft((draft) => ({ ...draft, startDate: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>End</Label>
+              <Input
+                type="date"
+                value={automationDraft.endDate}
+                onChange={(event) => setAutomationDraft((draft) => ({ ...draft, endDate: event.target.value }))}
+              />
+            </div>
+          </div>
+          <Button
+            onClick={saveAutomation}
+            disabled={saving || !automationDraft.name.trim() || automationDraft.platforms.length === 0}
+            className="w-full bg-brand-500 text-white hover:bg-brand-600"
+          >
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+            Save automation
+          </Button>
+          {automationDraft.id && (
+            <Button variant="ghost" className="w-full text-destructive hover:text-destructive" onClick={deleteAutomation}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete automation
+            </Button>
+          )}
+        </div>
+      </InspectorShell>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[620px] items-center justify-center rounded-2xl border bg-card">
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin text-brand-500" />
+          Loading workspace
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="border-destructive/40">
+        <CardContent className="flex items-center gap-3 p-5">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+          <p className="text-sm">{error}</p>
+          <Button variant="outline" className="ml-auto" onClick={loadData}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!strategy) {
+    return (
+      <div className="grid min-h-[620px] place-items-center rounded-2xl border bg-card p-6">
+        <div className="w-full max-w-xl rounded-2xl border bg-background p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-brand-500/10 p-3 text-brand-600">
+              <Target className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-semibold">Create the operating plan</p>
+              <p className="text-sm text-muted-foreground">
+                Strategy items and automations now live in one workspace.
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 flex gap-2">
+            <Input
+              value={newStrategyName}
+              onChange={(event) => setNewStrategyName(event.target.value)}
+              placeholder="Plan name"
+            />
+            <Button onClick={createStrategy} disabled={saving} className="bg-brand-500 text-white hover:bg-brand-600">
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+              Create
+            </Button>
+          </div>
+          <div className="mt-3 flex items-center justify-between text-sm">
+            <Link href="/content/strategy/generate" className="text-brand-600 hover:underline">
+              Generate with FlowAI
+            </Link>
+            <Link href="/content/schedule" className="text-muted-foreground hover:text-foreground">
+              Open calendar
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="overflow-hidden rounded-2xl border bg-card shadow-sm"
+    >
+      <div className="flex flex-col gap-3 border-b bg-background/95 p-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 rounded-xl border bg-muted/30 px-3 py-2">
+            <Target className="h-4 w-4 text-brand-500" />
+            <span className="max-w-[260px] truncate text-sm font-semibold">{strategy.name}</span>
+          </div>
+          <SegmentedButton active={view === "plan"} onClick={() => setView("plan")} icon={Target}>
+            Plan
+          </SegmentedButton>
+          <SegmentedButton active={view === "automations"} onClick={() => setView("automations")} icon={Zap}>
+            Automations
+          </SegmentedButton>
+          <SegmentedButton active={view === "sync"} onClick={() => setView("sync")} icon={Activity}>
+            Sync
+          </SegmentedButton>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={syncNow} disabled={syncing}>
+            {syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Sync
+          </Button>
+          <Button variant="outline" onClick={() => openNewTask()}>
+            <Plus className="mr-2 h-4 w-4" />
+            Item
+          </Button>
+          <Button variant="outline" onClick={() => openNewAutomation()}>
+            <Wand2 className="mr-2 h-4 w-4" />
+            Automation
+          </Button>
+          <Button
+            onClick={launchReadyTasks}
+            disabled={saving || readyToAutomate.length === 0}
+            className="bg-brand-500 text-white hover:bg-brand-600"
+          >
+            <Sparkles className="mr-2 h-4 w-4" />
+            Auto-sync {readyToAutomate.length || ""}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid min-h-[720px] gap-0 xl:grid-cols-[minmax(0,1fr)_390px]">
+        <main className="min-w-0 space-y-4 overflow-y-auto p-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="Plan progress" value={`${stats.progress}%`} icon={Target} detail={`${stats.completed}/${tasks.length} done`} />
+            <MetricCard label="Active flows" value={stats.activeAutomations.toString()} icon={Zap} detail={`${automations.length} total`} />
+            <MetricCard label="Matched activity" value={stats.matched.toString()} icon={Link2} detail={`Synced ${formatTimeAgo(strategy.lastActivitySync)}`} />
+            <MetricCard label="Generated posts" value={stats.generated.toString()} icon={Copy} detail={`${stats.automated} items connected`} />
+          </div>
+
+          {view === "plan" && renderPlanView()}
+          {view === "automations" && renderAutomationView()}
+          {view === "sync" && renderSyncView()}
+        </main>
+
+        <aside className="border-t bg-muted/20 p-4 xl:border-l xl:border-t-0">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${inspectorMode}-${selectedTaskId || "task-new"}-${selectedAutomationId || "automation-new"}-${view}`}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+            >
+              {inspectorMode !== "summary" ? (
+                renderInspector()
+              ) : (
+                <WorkspaceSummary
+                  strategy={strategy}
+                  readyToAutomate={readyToAutomate}
+                  onNewTask={() => openNewTask()}
+                  onNewAutomation={() => openNewAutomation()}
+                  onLaunchReady={launchReadyTasks}
+                  saving={saving}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </aside>
+      </div>
     </motion.div>
+  );
+}
+
+function SegmentedButton({
+  active,
+  onClick,
+  icon: Icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: LucideIcon;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition",
+        active
+          ? "border-brand-500 bg-brand-500 text-white"
+          : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+      )}
+    >
+      <Icon className="h-4 w-4" />
+      {children}
+    </button>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  detail,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <div className="rounded-xl border bg-background p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className="mt-1 text-2xl font-bold">{value}</p>
+        </div>
+        <div className="rounded-lg bg-brand-500/10 p-2 text-brand-600">
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function InspectorShell({
+  title,
+  subtitle,
+  icon: Icon,
+  onClose,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  icon: LucideIcon;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border bg-background shadow-sm">
+      <div className="flex items-center justify-between gap-3 border-b p-4">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-brand-500/10 p-2 text-brand-600">
+            <Icon className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="font-semibold">{title}</p>
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
+          </div>
+        </div>
+        <Button variant="ghost" size="icon" onClick={onClose}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="max-h-[calc(100vh-220px)] overflow-y-auto p-4">{children}</div>
+    </div>
+  );
+}
+
+function WorkspaceSummary({
+  strategy,
+  readyToAutomate,
+  onNewTask,
+  onNewAutomation,
+  onLaunchReady,
+  saving,
+}: {
+  strategy: Strategy;
+  readyToAutomate: StrategyTask[];
+  onNewTask: () => void;
+  onNewAutomation: () => void;
+  onLaunchReady: () => void;
+  saving: boolean;
+}) {
+  const dueSoon = strategy.tasks
+    .filter((task) => task.status !== "DONE" && task.dueDate)
+    .sort((a, b) => new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime())
+    .slice(0, 4);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Settings2 className="h-4 w-4 text-brand-500" />
+            Workspace
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Button onClick={onNewTask} variant="outline" className="w-full justify-start">
+            <Plus className="mr-2 h-4 w-4" />
+            Add plan item
+          </Button>
+          <Button onClick={onNewAutomation} variant="outline" className="w-full justify-start">
+            <Zap className="mr-2 h-4 w-4" />
+            Add automation
+          </Button>
+          <Button
+            onClick={onLaunchReady}
+            disabled={saving || readyToAutomate.length === 0}
+            className="w-full justify-start bg-brand-500 text-white hover:bg-brand-600"
+          >
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+            Connect ready items
+          </Button>
+          <Link href="/content/strategy/reports">
+            <Button variant="ghost" className="w-full justify-start">
+              <Eye className="mr-2 h-4 w-4" />
+              View reports
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Clock className="h-4 w-4 text-brand-500" />
+            Next items
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {dueSoon.length > 0 ? (
+            dueSoon.map((task) => (
+              <div key={task.id} className="rounded-xl border p-3 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium">{task.title}</p>
+                  <Badge variant="outline">{formatShortDate(task.dueDate)}</Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {task.progress}% complete
+                </p>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
+              Add due dates to see upcoming work here.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

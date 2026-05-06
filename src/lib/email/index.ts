@@ -1527,7 +1527,7 @@ export async function sendStrategyAutomationStartedEmail(params: {
     </div>
     <p>Each task will generate AI-crafted posts with images on your schedule. Credits are deducted per post (~${params.estimatedCredits} credits estimated total).</p>
     <p style="text-align: center;">
-      <a href="${APP_URL}/content/automation" class="button">View Automations</a>
+      <a href="${APP_URL}/content/strategy?view=automations" class="button">View Automations</a>
     </p>
   `;
 
