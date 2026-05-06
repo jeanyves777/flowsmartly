@@ -102,21 +102,21 @@ const ANIMATION_TYPES = [
 const IMAGE_PROVIDERS = [
   {
     id: "sora",
-    name: "Sora",
+    name: "FlowAI video",
     description: "Full AI video generation",
     emoji: "🎥",
     badge: "Video AI",
   },
   {
     id: "openai",
-    name: "OpenAI",
-    description: "Premium quality (gpt-image-1)",
+    name: "FlowAI premium",
+    description: "Premium quality image generation",
     emoji: "⚡",
     badge: "Premium",
   },
   {
     id: "flow",
-    name: "Flow AI",
+    name: "FlowAI standard",
     description: "Good quality, lower cost",
     emoji: "🌊",
     badge: "Standard",
@@ -1209,7 +1209,7 @@ function CartoonMakerContent() {
                   </div>
                   {imageProvider === "sora" && (
                     <p className="text-xs text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 rounded-lg px-3 py-2">
-                      Sora generates full AI video for each scene. Upload character images below for consistent characters across scenes.
+                      FlowAI generates full video for each scene. Upload character images below for consistent characters across scenes.
                     </p>
                   )}
                 </div>
@@ -1395,7 +1395,7 @@ function CartoonMakerContent() {
                           ))}
                         </div>
                         {imageProvider === "sora" && (
-                          <p className="text-[10px] text-muted-foreground">Sora generates animated video natively</p>
+                          <p className="text-[10px] text-muted-foreground">FlowAI generates animated video natively</p>
                         )}
                       </div>
 

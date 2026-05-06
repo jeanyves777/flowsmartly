@@ -41,8 +41,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // GPT Image is the primary generator for marketing images. The
-    // self-hosted Flow AI server remains a last-resort fallback.
+    // Primary marketing image generation with an internal fallback.
     let base64Image: string | null = null;
 
     try {
@@ -51,7 +50,7 @@ export async function POST(request: NextRequest) {
         quality: "high",
       });
     } catch (err) {
-      console.error("GPT Image generation failed, trying Flow AI fallback:", err);
+      console.error("Primary image generation failed, trying Flow AI fallback:", err);
     }
 
     // Flow AI (self-hosted Stable Diffusion) fallback
@@ -71,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     if (!base64Image) {
       return NextResponse.json(
-        { success: false, error: "Image generation failed. GPT Image did not return a usable image." },
+        { success: false, error: "Image generation failed. FlowAI did not return a usable image." },
         { status: 503 }
       );
     }

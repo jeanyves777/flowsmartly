@@ -197,17 +197,17 @@ class VeoClient {
     }
 
     if (!operation.done) {
-      throw new Error(`Veo video generation timed out after ${maxAttempts * 5}s`);
+      throw new Error(`FlowAI video generation timed out after ${maxAttempts * 5}s`);
     }
 
     const response = operation.response;
     if (!response?.generatedVideos?.length) {
-      throw new Error("Veo video generation completed but no videos returned");
+      throw new Error("FlowAI video generation completed but no videos returned");
     }
 
     const generatedVideo = response.generatedVideos[0];
     if (!generatedVideo.video) {
-      throw new Error("Veo video generation completed but video data is missing");
+      throw new Error("FlowAI video generation completed but video data is missing");
     }
 
     const videoUri = generatedVideo.video?.uri || null;
@@ -239,7 +239,7 @@ class VeoClient {
     if (!response.ok) {
       const fallbackResponse = await fetch(videoFile.uri);
       if (!fallbackResponse.ok) {
-        throw new Error(`Failed to download Veo video (${response.status})`);
+        throw new Error(`Failed to download FlowAI video (${response.status})`);
       }
       const arrayBuffer = await fallbackResponse.arrayBuffer();
       return Buffer.from(arrayBuffer);

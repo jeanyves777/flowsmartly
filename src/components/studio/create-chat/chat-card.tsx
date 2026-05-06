@@ -84,7 +84,7 @@ export function ChatCard({
       // Without an imageUrl the result card is meaningless; fall back to
       // a small failure note rather than rendering a broken thumbnail.
       if (!card.imageUrl) {
-        return <InfoCard title="Result missing" body="The worker finished but returned no image. Try again or simplify the request." />;
+        return <InfoCard title="Result missing" body="FlowAI finished but did not return an image. Try again or simplify the request." />;
       }
       return (
         <ResultCard
@@ -996,7 +996,7 @@ function ResultCard({
 }) {
   const isEditable = mode === "smart_layout";
   return (
-    <CardShell icon={<Sparkles className="h-3.5 w-3.5" />} title={`Result · ${branchId}`} accent="brand">
+    <CardShell icon={<Sparkles className="h-3.5 w-3.5" />} title="Design preview" accent="brand">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={imageUrl}
@@ -1012,7 +1012,7 @@ function ResultCard({
       ) : null}
       <p className="text-[10px] text-muted-foreground mb-2">
         {width}×{height}
-        {isEditable ? " · editable layers ready in editor" : " · flat polished image"}
+        {isEditable ? " · editable layers ready in editor" : " · ready to use"}
       </p>
       <div className="flex items-center gap-2">
         <Link

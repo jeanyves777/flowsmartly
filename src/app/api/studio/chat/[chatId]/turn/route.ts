@@ -174,9 +174,9 @@ export async function POST(
       }
     } catch { /* ignore — non-fatal */ }
 
-    // Run the free Studio flow: no scripted wizard. The user's prompt,
-    // references, and brand identity go straight to the GPT Image-backed
-    // dispatcher unless this is just casual chat.
+    // Run the free Studio flow. The chat collects a short brief, then
+    // dispatches through FlowAI with the user's prompt, references, and
+    // brand identity once the user confirms.
     const result = await runFreeStudioTurn({
       history,
       userMessage: userText,
@@ -281,7 +281,7 @@ export async function POST(
         userId: session.userId,
         adminId: session.adminId ?? null,
         feature: "studio_chat_turn",
-        model: result.dispatched.length > 0 ? "gpt-image-1" : (process.env.FLOWAI_STUDIO_CHAT_MODEL || "gpt-4o-mini"),
+        model: result.dispatched.length > 0 ? "flowai-design" : (process.env.FLOWAI_STUDIO_CHAT_MODEL || "flowai-chat"),
         inputTokens: result.usage.inputTokens,
         outputTokens: result.usage.outputTokens,
         // Rough — adaptive thinking + tool calls ≈ ~5-10c per chat turn.

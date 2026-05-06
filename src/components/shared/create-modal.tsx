@@ -970,13 +970,13 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
                       </label>
                       {(generateHeroImage || generateBackground) && (
                         <div>
-                          <Label className="text-xs text-muted-foreground">Image Provider</Label>
+                          <Label className="text-xs text-muted-foreground">Image Quality</Label>
                           <Select value={selectedProvider} onValueChange={(v) => setSelectedProvider(v as ImageProvider)}>
                             <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="openai">GPT Image</SelectItem>
-                              <SelectItem value="xai">xAI fallback</SelectItem>
-                              <SelectItem value="gemini">Gemini (Google)</SelectItem>
+                              <SelectItem value="openai">Best quality</SelectItem>
+                              <SelectItem value="xai">Fast draft</SelectItem>
+                              <SelectItem value="gemini">Experimental style</SelectItem>
                             </SelectContent>
                           </Select>
                           {selectedProvider !== "openai" && generateHeroImage && (
@@ -991,13 +991,13 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
                 {/* Provider (image mode) */}
                 {imageMode === "image" && (
                   <div>
-                    <Label className="text-xs text-muted-foreground">AI Provider</Label>
+                    <Label className="text-xs text-muted-foreground">Image Quality</Label>
                     <Select value={selectedProvider} onValueChange={(v) => setSelectedProvider(v as ImageProvider)}>
                       <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="openai">GPT Image</SelectItem>
-                        <SelectItem value="xai">xAI fallback</SelectItem>
-                        <SelectItem value="gemini">Gemini (Google)</SelectItem>
+                        <SelectItem value="openai">Best quality</SelectItem>
+                        <SelectItem value="xai">Fast draft</SelectItem>
+                        <SelectItem value="gemini">Experimental style</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

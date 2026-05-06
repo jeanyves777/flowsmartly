@@ -274,7 +274,7 @@ export default function HelpPage() {
             FlowSmartly v2.0 — AI-Powered Social Media Content Platform
           </p>
           <p className="text-xs text-muted-foreground">
-            Powered by Claude AI and gpt-image-1 for intelligent content creation
+            Powered by FlowAI for intelligent content creation
           </p>
         </CardContent>
       </Card>

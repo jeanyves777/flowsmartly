@@ -655,7 +655,7 @@ async function runRawBrandPipeline(params: PipelineParams) {
   }
 
   if (!base64) {
-    throw new Error("The image provider returned no image.");
+    throw new Error("FlowAI did not return a usable image.");
   }
 
   return {

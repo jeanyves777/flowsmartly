@@ -1488,8 +1488,7 @@ function TemplateSearchModal({
   } | null>(null);
   const drillRef = useRef<HTMLDivElement | null>(null);
   // Tracks WHICH generator produced the current aiResults so the
-  // section header can show a "premium" badge. "fast" = gpt-image-1
-  // discovery / library browse. "premium" = Claude HTML+CSS designer.
+  // section header can show a "premium" badge.
   const [aiSource, setAiSource] = useState<"fast" | "premium">("fast");
   const { toast } = useToast();
 
@@ -1588,10 +1587,10 @@ function TemplateSearchModal({
     void probeOrGenerate(debounced);
   }, [debounced, probeOrGenerate]);
 
-  // Fire the PREMIUM Claude HTML+CSS designer. Replaces the current
+  // Fire the premium designer. Replaces the current
   // aiResults with Featured-tier polished designs (real Google Fonts,
   // real CSS gradients via headless Chromium screenshot). 6x more
-  // expensive than the gpt-image-1 fast path — opt-in only via the
+  // expensive than the fast path — opt-in only via the
   // explicit "Premium" button. `regenerate` skips the cache lookup
   // for fresh variations.
   const firePremiumDesign = useCallback(async (
@@ -1828,7 +1827,7 @@ function TemplateSearchModal({
               AI-Generated Templates
               {aiSource === "premium" && (
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                  ✨ Premium · Claude HTML
+                  Premium design
                 </span>
               )}
               {aiCached && (
@@ -1888,7 +1887,7 @@ function TemplateSearchModal({
                 </div>
                 {/* Generate buttons — only meaningful for an actual query
                     (skipped on the empty-query library browse). Two paths:
-                    fast (gpt-image-1, 10cr) and premium (Claude HTML, 60cr). */}
+                    fast drafts and premium polished designs. */}
                 {debounced.trim() && (
                   <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
                     <Button
@@ -1909,7 +1908,7 @@ function TemplateSearchModal({
                       className="gap-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white border-0"
                       disabled={aiLoading}
                       onClick={() => firePremiumDesign(debounced, { regenerate: aiSource === "premium" })}
-                      title="Premium designer — Claude generates HTML+CSS for pixel-perfect typography (real Google Fonts, real CSS gradients)"
+                      title="Premium designer with pixel-perfect typography, real fonts, and polished gradients"
                     >
                       <Sparkles className="h-3.5 w-3.5" />
                       ✨ Premium 8 · 60 credits
@@ -1922,7 +1921,7 @@ function TemplateSearchModal({
                 <Sparkles className="h-8 w-8 mx-auto mb-3 text-brand-500" />
                 <p className="text-sm font-medium mb-1">No templates yet for &ldquo;{debounced}&rdquo;</p>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Pick fast prototypes (gpt-image-1) or premium polished designs (Claude HTML+CSS).
+                  Pick fast drafts or premium polished designs.
                 </p>
                 <div className="flex items-center justify-center gap-2 flex-wrap">
                   <Button
@@ -1941,7 +1940,7 @@ function TemplateSearchModal({
                     className="gap-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white border-0"
                     onClick={() => firePremiumDesign(debounced)}
                     disabled={aiLoading}
-                    title="Claude generates HTML+CSS — real Google Fonts, pixel-perfect typography"
+                    title="Premium designer with real fonts and pixel-perfect typography"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     ✨ Premium 8 · 60 credits
@@ -2135,4 +2134,3 @@ function ResultCard({
     </div>
   );
 }
-

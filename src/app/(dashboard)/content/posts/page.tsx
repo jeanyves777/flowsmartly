@@ -157,7 +157,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Brand offer card",
       mode: "image",
       aspect: "1:1",
-      badge: "GPT Image",
+      badge: "FlowAI image",
       prompt: `Create a polished social media offer image for ${brandName}. It should promote ${productFocus} to ${audience}, use a ${voice} tone, make ${value} visually obvious, reserve clean space for a short headline and CTA, and use the brand palette. No fake third-party logos.`,
     },
     {
@@ -165,7 +165,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Proof post visual",
       mode: "image",
       aspect: "1:1",
-      badge: "GPT Image",
+      badge: "FlowAI image",
       prompt: `Create a trust-building proof image for ${brandName} on ${channels}. Show realistic customer momentum, review/social proof, and a simple result card tied to ${value}. Keep it premium, readable, and grounded in the brand colors. No generic dashboard mockup.`,
     },
     {
@@ -173,7 +173,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Promo video idea",
       mode: "video",
       aspect: "9:16",
-      badge: "Veo video",
+      badge: "FlowAI video",
       prompt: `Short vertical promo video for ${brandName}. Show ${productFocus} solving a clear problem for ${audience}, with brand-colored transitions, tasteful product/service scenes, and a confident CTA moment. No text-heavy overlays or third-party logos.`,
     },
     {
@@ -181,7 +181,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Story walkthrough",
       mode: "video",
       aspect: "16:9",
-      badge: "Veo video",
+      badge: "FlowAI video",
       prompt: `Horizontal brand story video for ${brandName}: start with the customer problem, show the branded solution around ${productFocus}, then end with the outcome and CTA. Use ${voice} pacing, brand colors, and visuals suited for ${channels}.`,
     },
   ];
@@ -271,7 +271,7 @@ const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
     title: "Clean offer card",
     mode: "image",
     aspect: "1:1",
-    badge: "GPT Image",
+    badge: "FlowAI image",
     prompt:
       "Create a polished social media promotion image for a growth and marketing workspace. Modern SaaS style, bold headline space, clear CTA area, subtle social media UI elements, premium lighting, no fake app logos.",
   },
@@ -280,7 +280,7 @@ const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
     title: "Proof post visual",
     mode: "image",
     aspect: "1:1",
-    badge: "GPT Image",
+    badge: "FlowAI image",
     prompt:
       "Create a trust-building social post image showing campaign results, customer activity, and simple analytics in a clean branded dashboard collage. Friendly, modern, high contrast, ready for Facebook and LinkedIn.",
   },
@@ -289,7 +289,7 @@ const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
     title: "Quick promo video",
     mode: "video",
     aspect: "9:16",
-    badge: "Veo video",
+    badge: "FlowAI video",
     prompt:
       "Short vertical promo video for a business growth platform. Show campaign cards, social posts, scheduling calendar, and analytics moving smoothly into place. Energetic but professional, clear motion, bright UI moments, no text overlays.",
   },
@@ -298,7 +298,7 @@ const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
     title: "Feature walkthrough",
     mode: "video",
     aspect: "16:9",
-    badge: "Veo video",
+    badge: "FlowAI video",
     prompt:
       "Horizontal product walkthrough video showing a social media campaign moving from idea, to media, to scheduled post, to performance graph. Smooth camera push, clean interface-inspired visuals, polished SaaS marketing style.",
   },
@@ -306,9 +306,9 @@ const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
 
 const FLOW_MEDIA_STYLES = ["modern", "premium", "bold", "clean", "cinematic"];
 const FLOW_IMAGE_PROVIDER_LABELS: Record<FlowImageProvider, string> = {
-  openai: "GPT Image",
-  xai: "xAI fallback",
-  gemini: "Gemini fallback",
+  openai: "FlowAI image",
+  xai: "FlowAI image",
+  gemini: "FlowAI image",
 };
 
 const getFlowMediaAspect = (aspect: FlowMediaAspect) =>
@@ -927,7 +927,7 @@ export default function ContentPostsPage() {
       .join("\n\n");
     setIsGeneratingFlowMedia(true);
     setGeneratedFlowMedia(null);
-    setFlowMediaStatus(flowMediaMode === "image" ? "Sending prompt to GPT Image..." : "Sending prompt to Google Veo...");
+    setFlowMediaStatus(flowMediaMode === "image" ? "Creating your FlowAI image..." : "Creating your FlowAI video...");
 
     try {
       if (flowMediaMode === "image") {
@@ -937,8 +937,8 @@ export default function ContentPostsPage() {
         for (const provider of providers) {
           setFlowMediaStatus(
             provider === "openai"
-              ? "Sending prompt to GPT Image..."
-              : `GPT Image did not return a usable image. Trying ${FLOW_IMAGE_PROVIDER_LABELS[provider]}...`
+              ? "Creating your FlowAI image..."
+              : "Still working on a usable image..."
           );
 
           const res = await fetch("/api/ai/visual", {
@@ -983,7 +983,7 @@ export default function ContentPostsPage() {
           setFlowMediaStatus("Image added to the post.");
           toast({
             title: "Image generated",
-            description: `${FLOW_IMAGE_PROVIDER_LABELS[provider]} created the asset and it was added to your post.`,
+            description: "FlowAI created the asset and added it to your post.",
           });
           return;
         }
@@ -1049,7 +1049,7 @@ export default function ContentPostsPage() {
       if (!videoUrl) throw new Error("Video generated but no media URL was returned");
       addGeneratedMediaToPost("video", videoUrl);
       setFlowMediaStatus("Video added to the post.");
-      toast({ title: "Video generated", description: "The Veo video was added to your post media." });
+      toast({ title: "Video generated", description: "FlowAI added the video to your post media." });
     } catch (err) {
       setFlowMediaStatus("");
       toast({
@@ -1954,8 +1954,8 @@ export default function ContentPostsPage() {
 
             <div className="grid grid-cols-2 gap-2 rounded-2xl bg-muted/50 p-1">
               {[
-                { id: "image" as const, label: "Image", icon: ImageIcon, helper: "GPT Image" },
-                { id: "video" as const, label: "Video", icon: Film, helper: "Google Veo" },
+                { id: "image" as const, label: "Image", icon: ImageIcon, helper: "FlowAI image" },
+                { id: "video" as const, label: "Video", icon: Film, helper: "FlowAI video" },
               ].map((mode) => {
                 const Icon = mode.icon;
                 const isActive = flowMediaMode === mode.id;
@@ -2068,7 +2068,7 @@ export default function ContentPostsPage() {
                   <AIGenerationLoader
                     compact
                     currentStep={flowMediaStatus || "Generating media..."}
-                    subtitle={flowMediaMode === "image" ? "GPT Image is creating a polished campaign asset" : "Veo video generation can take a few minutes"}
+                    subtitle={flowMediaMode === "image" ? "FlowAI is creating a polished campaign asset" : "FlowAI video generation can take a few minutes"}
                   />
                 ) : (
                   <p className="text-sm font-semibold text-cyan-700 dark:text-cyan-300">{flowMediaStatus}</p>

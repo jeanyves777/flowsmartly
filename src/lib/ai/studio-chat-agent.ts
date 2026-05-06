@@ -149,7 +149,7 @@ export interface ChatState {
   designText?: string;
   /** Output mode chosen by the user just before dispatch. "editable" =
    *  smart_layout pipeline (Fabric layers the user can tweak). "flat" =
-   *  ai_image pipeline (gpt-image-1 polished image). Persisted so the
+   *  ai_image pipeline (polished flat image). Persisted so the
    *  dispatch tool can route to the right backend deterministically. */
   outputMode?: "editable" | "flat";
   /** Branch the next dispatch belongs to. Default: "main". */
@@ -589,7 +589,7 @@ function buildTools(opts: RunChatTurnOpts) {
     {
       name: "dispatch_design",
       description:
-        "Fire the image-design worker. ROUTE BY state.outputMode — if outputMode='editable' you MUST pass mode='smart_layout' (Fabric editable layers); if outputMode='flat' you MUST pass mode='ai_image' (gpt-image-1 polished image); default to 'smart_layout' if outputMode is unset. The `prompt` field MUST literally contain the user-supplied designText (headline, dates, speaker, etc.) so the worker doesn't invent its own copy — concatenate state.designText into the prompt explicitly along with topic / vibe / style cues. Returns design id + image url once the worker completes.",
+        "Fire the FlowAI image-design renderer. ROUTE BY state.outputMode — if outputMode='editable' you MUST pass mode='smart_layout' (Fabric editable layers); if outputMode='flat' you MUST pass mode='ai_image' (polished flat image); default to 'smart_layout' if outputMode is unset. The `prompt` field MUST literally contain the user-supplied designText (headline, dates, speaker, etc.) so the renderer doesn't invent its own copy — concatenate state.designText into the prompt explicitly along with topic / vibe / style cues. Returns design id + image url once rendering completes.",
       input_schema: {
         type: "object",
         properties: {
@@ -670,7 +670,7 @@ function buildTools(opts: RunChatTurnOpts) {
     {
       name: "dispatch_remix",
       description:
-        "Iteration tool — call when the user wants to TWEAK an existing result (change colors, swap text, vibe shift). Uses the existing /api/studio/templates/remix endpoint (gpt-image-1 edit-multi + Claude editable text overlay). sourceImageUrl defaults to the most recent result. Cheaper than a fresh dispatch_design (30cr vs 60cr).",
+        "Iteration tool — call when the user wants to TWEAK an existing result (change colors, swap text, vibe shift). Uses the existing /api/studio/templates/remix endpoint. sourceImageUrl defaults to the most recent result. Cheaper than a fresh dispatch_design (30cr vs 60cr).",
       input_schema: {
         type: "object",
         properties: {

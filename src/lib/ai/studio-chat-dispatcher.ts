@@ -484,7 +484,7 @@ async function dispatchDesignViaLegacy(
   const visualData = await visualRes.json().catch(() => ({}));
   if (!visualRes.ok) {
     env.status = "failed";
-    env.error = visualData?.error?.message || `visual worker returned ${visualRes.status}`;
+    env.error = visualData?.error?.message || `FlowAI image request failed (${visualRes.status})`;
     return;
   }
 
@@ -495,7 +495,7 @@ async function dispatchDesignViaLegacy(
 
   if (!imageUrl) {
     env.status = "failed";
-    env.error = "Visual worker returned no image URL";
+    env.error = "FlowAI returned no usable image.";
     return;
   }
 
@@ -638,7 +638,7 @@ async function dispatchVideo(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     env.status = "failed";
-    env.error = data?.error?.message || `video worker returned ${res.status}`;
+    env.error = data?.error?.message || `FlowAI video request failed (${res.status})`;
     return;
   }
   env.status = "complete";
@@ -668,7 +668,7 @@ async function dispatchRemix(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     env.status = "failed";
-    env.error = data?.error?.message || `remix worker returned ${res.status}`;
+    env.error = data?.error?.message || `FlowAI edit request failed (${res.status})`;
     return;
   }
   env.status = "complete";

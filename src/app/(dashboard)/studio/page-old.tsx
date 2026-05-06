@@ -686,7 +686,7 @@ export default function VisualDesignStudioPage() {
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <Badge variant="secondary" className="text-[10px]">{selectedCategory.replace("_", " ")}</Badge>
                         <Badge variant="outline" className="text-[10px]">{selectedSize?.width}x{selectedSize?.height}</Badge>
-                        <Badge variant="outline" className="text-[10px] capitalize">{selectedProvider === "xai" ? "xAI fallback" : selectedProvider === "openai" ? "GPT Image" : "Gemini"}</Badge>
+                        <Badge variant="outline" className="text-[10px] capitalize">{selectedProvider === "xai" ? "Fast draft" : selectedProvider === "openai" ? "Best quality" : "Experimental style"}</Badge>
                         <Badge variant="outline" className="text-[10px]">{selectedStyle}</Badge>
                         <Badge variant="outline" className="text-[10px]">{heroType}</Badge>
                         {selectedTemplate && (
@@ -1329,9 +1329,9 @@ export default function VisualDesignStudioPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {([
-                        { id: "openai" as ImageProvider, label: "GPT Image" },
-                        { id: "xai" as ImageProvider, label: "xAI fallback" },
-                        { id: "gemini" as ImageProvider, label: "Gemini (Google)" },
+                        { id: "openai" as ImageProvider, label: "Best quality" },
+                        { id: "xai" as ImageProvider, label: "Fast draft" },
+                        { id: "gemini" as ImageProvider, label: "Experimental style" },
                       ]).map((prov) => {
                         const compatible = selectedSize
                           ? getProvidersForPreset(selectedSize.width, selectedSize.height).includes(prov.id)

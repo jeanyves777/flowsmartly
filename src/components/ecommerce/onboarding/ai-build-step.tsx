@@ -242,7 +242,7 @@ export function AIBuildStep({
             {([
               { value: "none" as const, label: "No Media", desc: "Gradient background only" },
               { value: "images" as const, label: "AI Slideshow", desc: "3-4 hero images (15 credits each)" },
-              { value: "video" as const, label: "AI Video", desc: "8-second Sora video (60 credits)" },
+              { value: "video" as const, label: "AI Video", desc: "8-second FlowAI video (60 credits)" },
             ]).map((opt) => (
               <button
                 key={opt.value}

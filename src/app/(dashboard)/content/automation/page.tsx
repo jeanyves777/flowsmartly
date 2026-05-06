@@ -2062,7 +2062,7 @@ export default function PostAutomationPage() {
                           </div>
                           <div className="text-left">
                             <span className="font-semibold text-sm block">Image</span>
-                            <span className="text-xs text-muted-foreground">gpt-image-1</span>
+                            <span className="text-xs text-muted-foreground">FlowAI image</span>
                           </div>
                           <Badge variant="secondary" className="ml-auto text-xs">
                             +125
@@ -2086,7 +2086,7 @@ export default function PostAutomationPage() {
                           </div>
                           <div className="text-left">
                             <span className="font-semibold text-sm block">Video</span>
-                            <span className="text-xs text-muted-foreground">Sora</span>
+                            <span className="text-xs text-muted-foreground">FlowAI video</span>
                           </div>
                           <Badge variant="secondary" className="ml-auto text-xs">
                             +200
@@ -2484,7 +2484,7 @@ export default function PostAutomationPage() {
                   <span className="text-muted-foreground">Media</span>
                   <span className="font-medium">
                     {form.includeMedia
-                      ? form.mediaType === "video" ? "Video (Sora)" : "Image (gpt-image-1)"
+                      ? form.mediaType === "video" ? "FlowAI video" : "FlowAI image"
                       : "Text only"}
                   </span>
                 </div>

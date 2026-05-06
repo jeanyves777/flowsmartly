@@ -992,7 +992,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                   {(generateHeroImage || generateBackground) && (
                     <div>
                       <Label className="text-xs text-muted-foreground">
-                        Image Provider
+                        Image Quality
                       </Label>
                       <Select
                         value={selectedProvider}
@@ -1004,9 +1004,9 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="openai">GPT Image</SelectItem>
-                          <SelectItem value="xai">xAI fallback</SelectItem>
-                          <SelectItem value="gemini">Gemini (Google)</SelectItem>
+                          <SelectItem value="openai">Best quality</SelectItem>
+                          <SelectItem value="xai">Fast draft</SelectItem>
+                          <SelectItem value="gemini">Experimental style</SelectItem>
                         </SelectContent>
                       </Select>
                       {selectedProvider !== "openai" && generateHeroImage && (
@@ -1024,7 +1024,7 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
             {generationMode === "image" && (
               <div>
                 <Label className="text-xs text-muted-foreground">
-                  AI Provider
+                  Image Quality
                 </Label>
                 <Select
                   value={selectedProvider}
@@ -1037,10 +1037,10 @@ export function AiGeneratorModal({ open, onClose }: AiGeneratorModalProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="openai">
-                      GPT Image
+                      Best quality
                     </SelectItem>
-                    <SelectItem value="xai">xAI fallback</SelectItem>
-                    <SelectItem value="gemini">Gemini (Google)</SelectItem>
+                    <SelectItem value="xai">Fast draft</SelectItem>
+                    <SelectItem value="gemini">Experimental style</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
