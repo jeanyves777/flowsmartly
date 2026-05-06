@@ -36,6 +36,7 @@ function getGptImageSize(width: number, height: number): "1024x1024" | "1536x102
 }
 
 type EditReferenceMode = "adapt" | "exact" | "keep_face";
+type EditIntent = "auto" | "improve" | "replace_subject";
 type EditRegion = {
   x: number;
   y: number;
@@ -48,6 +49,21 @@ type EditRegion = {
 function normalizeEditReferenceMode(value: unknown): EditReferenceMode {
   if (value === "exact" || value === "keep_face") return value;
   return "adapt";
+}
+
+function normalizeEditIntent(value: unknown): EditIntent {
+  if (value === "replace_subject" || value === "improve") return value;
+  return "auto";
+}
+
+function inferEditIntent(prompt: string, editIntent: EditIntent): Exclude<EditIntent, "auto"> {
+  if (editIntent === "replace_subject" || editIntent === "improve") return editIntent;
+  const normalized = prompt.toLowerCase();
+  const looksLikeReplacement =
+    /\b(replace|swap|substitute)\b/.test(normalized) ||
+    /\b(use|insert|put|add)\b[\s\S]{0,60}\b(reference|photo|image|person|product|logo|object)\b/.test(normalized) ||
+    /\b(change)\b[\s\S]{0,60}\b(person|people|photo|image|object|product|background)\b/.test(normalized);
+  return looksLikeReplacement ? "replace_subject" : "improve";
 }
 
 /**
@@ -236,16 +252,18 @@ async function compositeExactReferenceIntoCanvas(
   );
 
   const composites: sharp.OverlayOptions[] = [];
-  if (useCutout || placement.usedFallback) {
+  {
+    const patchW = Math.min(placement.width, canvasW - placement.left);
+    const patchH = Math.min(placement.height, canvasH - placement.top);
     const cleanupPatch = await sharp(canvasBuffer)
       .extract({
         left: placement.left,
         top: placement.top,
-        width: Math.min(placement.width, canvasW - placement.left),
-        height: Math.min(placement.height, canvasH - placement.top),
+        width: patchW,
+        height: patchH,
       })
-      .blur(22)
-      .modulate({ brightness: 0.92, saturation: 0.85 })
+      .blur(60)
+      .modulate({ brightness: 1.02, saturation: 0.25 })
       .png()
       .toBuffer();
     composites.push({ input: cleanupPatch, left: placement.left, top: placement.top });
@@ -377,7 +395,7 @@ export async function POST(request: NextRequest) {
       ctaText: ctaText || null,
       editImageUrl: editImageUrl || null,
       editRegion: editRegion || null,
-      editIntent: editIntent === "replace_subject" ? "replace_subject" : "improve",
+      editIntent: normalizeEditIntent(editIntent),
       editReferenceMode: normalizeEditReferenceMode(editReferenceMode),
       editReferenceImageUrls: Array.isArray(editReferenceImageUrls)
         ? editReferenceImageUrls.filter((url: unknown): url is string => typeof url === "string" && url.trim().length > 0).slice(0, 4)
@@ -527,7 +545,7 @@ interface PipelineParams {
   logoSizePercent?: number | null;
   ctaText?: string | null;
   editImageUrl?: string | null;
-  editIntent?: "improve" | "replace_subject";
+  editIntent?: EditIntent;
   editReferenceMode?: EditReferenceMode;
   editReferenceImageUrls?: string[];
   /**
@@ -630,6 +648,43 @@ async function generateImageWithProvider(
   }
 }
 
+function getProviderOrderWithGoogleFallback(provider: ImageProvider): ImageProvider[] {
+  const order: ImageProvider[] = [provider];
+  if (provider !== "gemini" && geminiImageClient.isAvailable()) {
+    order.push("gemini");
+  }
+  return order;
+}
+
+async function generateImageWithFallback(
+  provider: ImageProvider,
+  prompt: string,
+  width: number,
+  height: number
+): Promise<{ base64: string | null; model: string; provider: ImageProvider }> {
+  const providerOrder = getProviderOrderWithGoogleFallback(provider);
+  let lastError: unknown = null;
+
+  for (const candidate of providerOrder) {
+    try {
+      const generated = await generateImageWithProvider(candidate, prompt, width, height);
+      if (generated.base64) {
+        return { ...generated, provider: candidate };
+      }
+      throw new Error(`${candidate} returned no image`);
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `[Visual] ${candidate} failed${candidate !== providerOrder[providerOrder.length - 1] ? ", trying Google image fallback" : ""}:`,
+        error
+      );
+    }
+  }
+
+  const message = lastError instanceof Error ? lastError.message : "Failed to generate design image";
+  throw new Error(message);
+}
+
 async function runRawBrandPipeline(params: PipelineParams) {
   const promptUsed = buildRawBrandPrompt(params);
   console.log(`[Visual] Raw brand pipeline via ${params.provider}`);
@@ -644,7 +699,7 @@ async function runRawBrandPipeline(params: PipelineParams) {
     });
     model = "gpt-image-1";
   } else {
-    const generated = await generateImageWithProvider(
+    const generated = await generateImageWithFallback(
       params.provider,
       promptUsed,
       params.width,
@@ -939,7 +994,12 @@ Output a polished, print-ready ${params.category} background. The photo will be 
   const generationPrompt = bgOnlyPrompt || templateRefPrompt || designPrompt;
   const useEditApi = useTemplateEdit;
 
-  switch (provider) {
+  if (!useEditApi) {
+    const generated = await generateImageWithFallback(provider, generationPrompt, width, height);
+    base64 = generated.base64;
+    model = generated.model;
+  } else {
+    switch (provider) {
     case "openai": {
       const gptSize = getGptImageSize(width, height);
       console.log(`[Visual] OpenAI gpt-image-1 @ ${gptSize}${hasRef ? " (with reference → edit API)" : ""}`);
@@ -989,12 +1049,14 @@ Output a polished, print-ready ${params.category} background. The photo will be 
       } else {
         base64 = await geminiImageClient.generateImage(generationPrompt, { aspectRatio });
       }
-      model = useEditApi ? "gemini-2.5-flash" : "imagen-4.0-generate-001";
+      model = "gemini-2.5-flash-image";
       break;
     }
 
     default:
       throw new Error(`Unknown provider: ${provider}`);
+    }
+
   }
 
   if (!base64) {
@@ -1165,13 +1227,16 @@ async function runEditPipeline(params: PipelineParams) {
     provider,
     editImageUrl,
     editRegion,
-    editIntent = "improve",
+    editIntent = "auto",
     editReferenceMode = "adapt",
     editReferenceImageUrls = [],
   } = params;
-  const hasReplacementRefs = editIntent === "replace_subject" && editReferenceImageUrls.length > 0;
+  const referenceUrls = editReferenceImageUrls.filter(Boolean).slice(0, 4);
+  const resolvedEditIntent = inferEditIntent(prompt, editIntent);
+  const hasReferenceImages = referenceUrls.length > 0;
+  const hasReplacementRefs = resolvedEditIntent === "replace_subject" && hasReferenceImages;
 
-  console.log(`[Visual/Edit] Provider: ${provider}, intent: ${editIntent}, refMode: ${editReferenceMode}, instruction: "${prompt.slice(0, 80)}"`);
+  console.log(`[Visual/Edit] Provider: ${provider}, intent: ${resolvedEditIntent}, refMode: ${editReferenceMode}, refs: ${referenceUrls.length}, instruction: "${prompt.slice(0, 80)}"`);
 
   // Optional pinpoint-region clause. Image-edit providers (xAI grok-imagine-image,
   // Gemini, OpenAI gpt-image-1) accept a single edit instruction string, so we
@@ -1196,8 +1261,8 @@ PINPOINT REGION — APPLY THE EDIT ONLY INSIDE THIS BOX:
     console.log(`[Visual/Edit] Region: (${xPct.toFixed(1)}%, ${yPct.toFixed(1)}%) ${wPct.toFixed(1)}%×${hPct.toFixed(1)}%`);
   }
 
-  const referenceLabel = editReferenceImageUrls.length > 1
-    ? `Images 2 through ${editReferenceImageUrls.length + 1} are the replacement reference images.`
+  const referenceLabel = referenceUrls.length > 1
+    ? `Images 2 through ${referenceUrls.length + 1} are the replacement reference images.`
     : "Image 2 is the replacement reference image.";
   const replacementReferenceModeRules =
     editReferenceMode === "exact"
@@ -1221,6 +1286,15 @@ REFERENCE IMAGE INPUTS:
 - ${referenceLabel}
 ${replacementReferenceModeRules}`
     : "";
+  const editReferenceClause = hasReferenceImages && !hasReplacementRefs
+    ? `
+
+REFERENCE IMAGE INPUTS:
+- Image 1 is the current design canvas.
+- Images 2 through ${referenceUrls.length + 1} are user reference media.
+- Interpret the references from the user's prompt. They may be style examples, product/person assets, visual direction, brand examples, or before/after targets.
+- Do not simply paste a reference on top of the canvas. If the prompt asks to insert, replace, or use a referenced asset, remove or repaint the conflicting old element first, then integrate the reference naturally with matching lighting, perspective, scale, shadows, and color.`
+    : "";
   const replacementModeRuleClause =
     hasReplacementRefs && editReferenceMode === "exact"
       ? "\n- The reference subject must remain visually identical except for necessary integration adjustments."
@@ -1228,7 +1302,7 @@ ${replacementReferenceModeRules}`
         ? "\n- The reference face and identity must remain unchanged while clothing/body styling can follow the prompt."
         : "";
 
-  const editPrompt = editIntent === "replace_subject"
+  const editPrompt = resolvedEditIntent === "replace_subject"
     ? `You are editing an existing graphic design image. Replace a person or object while keeping the rest of the design exactly the same - same layout, same colors, same style, same background, same composition.
 
 REPLACEMENT INSTRUCTION: ${prompt}${replacementReferenceClause}${regionClause}
@@ -1244,7 +1318,7 @@ REPLACEMENT RULES:
 - The result must look like a professional design, not a rough edit`
     : `You are editing an existing graphic design image. Apply ONLY the following change and keep everything else exactly the same — same layout, same colors, same style, same background, same composition.
 
-EDIT INSTRUCTION: ${prompt}${regionClause}
+EDIT INSTRUCTION: ${prompt}${editReferenceClause}${regionClause}
 
 RULES:
 - Preserve the overall design exactly as-is
@@ -1255,8 +1329,8 @@ RULES:
 
   // Resolve the existing design image (canvas) to a buffer.
   const editBuffer = await resolveImageToBuffer(editImageUrl!);
-  const editReferenceBuffers = hasReplacementRefs
-    ? await Promise.all(editReferenceImageUrls.slice(0, 4).map((url) => resolveImageToBuffer(url)))
+  const editReferenceBuffers = hasReferenceImages
+    ? await Promise.all(referenceUrls.map((url) => resolveImageToBuffer(url)))
     : [];
 
   let editBufferForProvider = editBuffer;
@@ -1279,80 +1353,120 @@ RULES:
     editReferenceBuffersForProvider = [];
   }
 
-  let base64: string | null;
-  let model: string;
+  const editWithProvider = async (candidate: ImageProvider): Promise<{ base64: string | null; model: string }> => {
+    switch (candidate) {
+      case "openai": {
+        const gptSize = getGptImageSize(width, height);
+        console.log(`[Visual/Edit] OpenAI gpt-image-1 @ ${gptSize}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : hasReplacementRefs ? " (anchored reference blend)" : ""}`);
+        if (editReferenceBuffersForProvider.length > 0) {
+          return {
+            base64: await openaiClient.editMultiImage(
+              editPromptForProvider,
+              [
+                { buffer: editBufferForProvider, filename: "canvas.png", type: "image/png" },
+                ...editReferenceBuffersForProvider.map((buffer, index) => ({
+                  buffer,
+                  filename: `reference-${index + 1}.png`,
+                  type: "image/png",
+                })),
+              ],
+              { size: gptSize, quality: "high" },
+            ),
+            model: "gpt-image-1",
+          };
+        }
+        return {
+          base64: await openaiClient.editImage(editPromptForProvider, editBufferForProvider, {
+            size: gptSize,
+            quality: "high",
+          }),
+          model: "gpt-image-1",
+        };
+      }
 
-  switch (provider) {
-    case "openai": {
-      const gptSize = getGptImageSize(width, height);
-      console.log(`[Visual/Edit] OpenAI gpt-image-1 @ ${gptSize}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : hasReplacementRefs ? " (anchored reference blend)" : ""}`);
-      if (editReferenceBuffersForProvider.length > 0) {
-        base64 = await openaiClient.editMultiImage(
-          editPromptForProvider,
-          [
-            { buffer: editBufferForProvider, filename: "canvas.png", type: "image/png" },
-            ...editReferenceBuffersForProvider.map((buffer, index) => ({
-              buffer,
-              filename: `replacement-reference-${index + 1}.png`,
-              type: "image/png",
-            })),
-          ],
-          { size: gptSize, quality: "high" },
+      case "xai": {
+        const aspectRatio = sizeToAspectRatio(width, height);
+        console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : hasReplacementRefs ? " (anchored reference blend)" : ""}`);
+        if (!xaiClient.isAvailable()) {
+          throw new Error("xAI provider is not configured.");
+        }
+        const canvasBase64 = editBufferForProvider.toString("base64");
+        if (editReferenceBuffersForProvider.length > 0) {
+          return {
+            base64: await xaiClient.editImages(
+              editPromptForProvider,
+              [
+                canvasBase64,
+                ...editReferenceBuffersForProvider.map((buffer) => buffer.toString("base64")),
+              ],
+              { aspectRatio },
+            ),
+            model: "grok-imagine-image",
+          };
+        }
+        return {
+          base64: await xaiClient.editImage(editPromptForProvider, canvasBase64, { aspectRatio }),
+          model: "grok-imagine-image",
+        };
+      }
+
+      case "gemini": {
+        console.log(`[Visual/Edit] Google Gemini image edit${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : ""}`);
+        if (!geminiImageClient.isAvailable()) {
+          throw new Error("Gemini provider is not configured.");
+        }
+        const pngBuffers = await Promise.all(
+          [editBufferForProvider, ...editReferenceBuffersForProvider].map((buffer) =>
+            sharp(buffer).png().toBuffer()
+          )
         );
-      } else {
-        base64 = await openaiClient.editImage(editPromptForProvider, editBufferForProvider, {
-          size: gptSize,
-          quality: "high",
-        });
+        const pngBase64s = pngBuffers.map((buffer) => buffer.toString("base64"));
+        return {
+          base64: await geminiImageClient.editImages(editPromptForProvider, pngBase64s),
+          model: "gemini-2.5-flash-image",
+        };
       }
-      model = "gpt-image-1";
-      break;
-    }
 
-    case "xai": {
-      const aspectRatio = sizeToAspectRatio(width, height);
-      console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : hasReplacementRefs ? " (anchored reference blend)" : ""}`);
-      if (!xaiClient.isAvailable()) {
-        throw new Error("xAI provider is not configured.");
-      }
-      const canvasBase64 = editBufferForProvider.toString("base64");
-      if (editReferenceBuffersForProvider.length > 0) {
-        base64 = await xaiClient.editImages(
-          editPromptForProvider,
-          [
-            canvasBase64,
-            ...editReferenceBuffersForProvider.map((buffer) => buffer.toString("base64")),
-          ],
-          { aspectRatio },
-        );
-      } else {
-        base64 = await xaiClient.editImage(editPromptForProvider, canvasBase64, { aspectRatio });
-      }
-      model = "grok-imagine-image";
-      break;
+      default:
+        throw new Error(`Unknown provider: ${candidate}`);
     }
+  };
 
-    case "gemini": {
-      console.log(`[Visual/Edit] Gemini gemini-2.5-flash-image`);
-      if (!geminiImageClient.isAvailable()) {
-        throw new Error("Gemini provider is not configured.");
-      }
-      const canvasBase64 = editBufferForProvider.toString("base64");
-      base64 = await geminiImageClient.editImage(editPromptForProvider, canvasBase64);
-      model = "gemini-2.5-flash";
-      break;
-    }
-
-    default:
-      throw new Error(`Unknown provider: ${provider}`);
+  const providerOrder: ImageProvider[] = [provider];
+  if (provider !== "gemini" && geminiImageClient.isAvailable()) {
+    providerOrder.push("gemini");
   }
 
-  if (!base64) throw new Error("Edit returned no image");
+  let base64: string | null = null;
+  let model = "";
+  let usedProvider = provider;
+  let lastError: unknown = null;
+
+  for (const candidate of providerOrder) {
+    try {
+      const result = await editWithProvider(candidate);
+      if (result.base64) {
+        base64 = result.base64;
+        model = result.model;
+        usedProvider = candidate;
+        break;
+      }
+      throw new Error(`${candidate} returned no image`);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[Visual/Edit] ${candidate} failed${candidate !== providerOrder[providerOrder.length - 1] ? ", trying Google image fallback" : ""}:`, error);
+    }
+  }
+
+  if (!base64) {
+    const message = lastError instanceof Error ? lastError.message : "Edit returned no image";
+    throw new Error(message);
+  }
 
   // Skip logo compositing on edits — the logo was already composited on the original
   // image, so the AI edit preserves it. Re-compositing would create a double logo.
   const finalBase64 = base64;
-  console.log("[Visual/Edit] Skipping logo compositing (already present from original generation)");
+  console.log(`[Visual/Edit] Completed with ${usedProvider}; skipping logo compositing (already present from original generation)`);
 
   return {
     imageUrl: `data:image/png;base64,${finalBase64}`,

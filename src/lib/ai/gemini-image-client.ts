@@ -115,6 +115,90 @@ class GeminiImageClient {
   }
 
   /**
+   * Edit an image with additional reference images. Image 1 should be the
+   * current canvas; later images are user references for style, people,
+   * products, or replacement assets.
+   */
+  async editImages(
+    prompt: string,
+    imageBase64s: string[],
+    options: { aspectRatio?: GeminiAspectRatio } = {}
+  ): Promise<string | null> {
+    const { aspectRatio = "1:1" } = options;
+    void aspectRatio;
+
+    if (!this.client) {
+      throw new Error("GEMINI_API_KEY is not configured");
+    }
+
+    const images = imageBase64s
+      .filter(Boolean)
+      .slice(0, 5)
+      .map((value) => value.replace(/^data:image\/[^;]+;base64,/, ""));
+
+    if (images.length === 0) {
+      throw new Error("At least one image is required for Gemini image edit");
+    }
+    if (images.length === 1) {
+      return this.editImage(prompt, images[0], { aspectRatio });
+    }
+
+    const maxRetries = 2;
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await this.client.models.generateContent({
+          model: "gemini-2.5-flash-image",
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: prompt },
+                ...images.map((data) => ({
+                  inlineData: { mimeType: "image/png", data },
+                })),
+              ],
+            },
+          ],
+          config: {
+            responseModalities: ["TEXT", "IMAGE"],
+          },
+        });
+
+        const parts = response.candidates?.[0]?.content?.parts;
+        if (parts) {
+          for (const part of parts) {
+            if (part.inlineData?.data) {
+              return part.inlineData.data;
+            }
+          }
+        }
+
+        console.warn("[GeminiImage] No image data in multi-image edit response");
+        return null;
+      } catch (error) {
+        lastError = error;
+        console.error(
+          `[GeminiImage] Multi-image edit error (attempt ${attempt + 1}/${maxRetries + 1}):`,
+          error
+        );
+
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const isTransient = /rate|limit|timeout|503|529|overloaded|capacity|quota/i.test(errMsg);
+        if (!isTransient) break;
+
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        }
+      }
+    }
+
+    const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(`Gemini multi-image edit failed: ${errMsg}`);
+  }
+
+  /**
    * Generate an image using Imagen 4.
    * Returns the image as a base64 PNG string.
    */
