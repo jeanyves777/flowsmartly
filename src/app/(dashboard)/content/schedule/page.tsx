@@ -278,8 +278,6 @@ export default function ContentSchedulePage() {
     setCurrentMonth((prev) =>
       calendarView === "month" ? addMonths(prev, 1) : calendarView === "week" ? addWeeks(prev, 1) : addDays(prev, 1)
     );
-  const goToToday = () => setCurrentMonth(new Date());
-
   const calendarTitle =
     calendarView === "day"
       ? format(currentMonth, "EEEE, MMM d")
@@ -722,9 +720,6 @@ export default function ContentSchedulePage() {
                 </Button>
               </div>
               <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-                <Button variant="outline" size="sm" onClick={goToToday} className="flex-1 sm:flex-none">
-                  Today
-                </Button>
                 <div className="inline-flex h-9 rounded-lg border bg-muted/30 p-1">
                   {VIEW_LABELS.map((view) => (
                     <button

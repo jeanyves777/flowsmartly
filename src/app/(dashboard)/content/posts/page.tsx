@@ -341,25 +341,51 @@ const parseGeneratedTextPayload = (value: string) => {
   return null;
 };
 
+const cleanPostFieldLabels = (value: string) =>
+  value
+    .replace(/^\s*(Hook|Post|CTA|Hashtags)\s*:\s*/gim, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+const textField = (value: unknown) =>
+  typeof value === "string" && value.trim() ? cleanPostFieldLabels(value.trim()) : "";
+
+const buildCaptionFromStructuredPayload = (value: unknown) => {
+  if (!value || typeof value !== "object") return "";
+  const item = value as Record<string, unknown>;
+  const parts = [
+    textField(item.hook || item.headline || item.opening),
+    textField(item.post || item.body || item.copy || item.content || item.caption),
+    textField(item.cta || item.callToAction || item.call_to_action),
+  ];
+  const hashtagText = Array.isArray(item.hashtags)
+    ? item.hashtags.filter((tag): tag is string => typeof tag === "string" && tag.trim().length > 0).join(" ")
+    : textField(item.hashtags || item.tags);
+
+  return cleanPostFieldLabels([...parts, hashtagText].filter(Boolean).join("\n\n"));
+};
+
 const extractGeneratedCaption = (value: unknown) => {
+  if (value && typeof value === "object") return buildCaptionFromStructuredPayload(value);
   if (typeof value !== "string") return "";
   const clean = value.trim();
   if (!clean) return "";
   const parsed = parseGeneratedTextPayload(clean);
-  if (!parsed) return clean;
+  if (!parsed) return cleanPostFieldLabels(clean);
   const firstIdea = Array.isArray(parsed)
     ? parsed[0]
     : Array.isArray(parsed?.ideas)
       ? parsed.ideas[0]
       : parsed;
-  const caption = firstIdea && typeof firstIdea.caption === "string" ? firstIdea.caption.trim() : "";
-  return caption || clean;
+  const structuredCaption = buildCaptionFromStructuredPayload(firstIdea);
+  const caption = firstIdea && typeof firstIdea.caption === "string" ? cleanPostFieldLabels(firstIdea.caption.trim()) : "";
+  return structuredCaption || caption || cleanPostFieldLabels(clean);
 };
 
 const normalizeOrganicIdea = (idea: unknown, fallbackPlatforms: string[]): OrganicPostIdea | null => {
   if (!idea || typeof idea !== "object") return null;
   const item = idea as Record<string, unknown>;
-  const caption = extractGeneratedCaption(item.caption);
+  const caption = extractGeneratedCaption(item.caption) || extractGeneratedCaption(item);
   if (!caption) return null;
 
   return {
@@ -406,8 +432,7 @@ const parseHistoryOrganicIdeas = (
       const parsed = JSON.parse(content);
       const values = Array.isArray(parsed) ? parsed : parsed?.ideas ? parsed.ideas : [parsed];
       for (const value of values) {
-        if (typeof value === "string") captions.push(extractGeneratedCaption(value));
-        else captions.push(extractGeneratedCaption((value as Record<string, unknown>)?.caption));
+        captions.push(extractGeneratedCaption(value));
       }
     } catch {
       captions.push(extractGeneratedCaption(content));
@@ -1734,8 +1759,8 @@ export default function ContentPostsPage() {
                     <TrendingUp className="h-4 w-4" />
                   </span>
                   <div>
-                    <p className="text-sm font-bold">AI trend ideas</p>
-                    <p className="text-xs text-muted-foreground">Backend-generated posts from {brandName}&apos;s brand kit.</p>
+                    <p className="text-sm font-bold">Trend ideas</p>
+                    <p className="text-xs text-muted-foreground">Ready-to-use posts shaped by {brandName}&apos;s brand kit.</p>
                   </div>
                 </div>
                 <Button
