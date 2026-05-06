@@ -4,6 +4,25 @@ import { getSession } from "@/lib/auth/session";
 
 const VALID_PRIORITIES = new Set(["LOW", "MEDIUM", "HIGH"]);
 const VALID_STATUSES = new Set(["TODO", "IN_PROGRESS", "DONE"]);
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+type CalendarOverrides = Record<string, { startTime?: string; endTime?: string }>;
+
+function parseCalendarOverrides(value?: string | null): CalendarOverrides {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function timeToMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
 
 async function getOwnedTask(taskId: string, userId: string) {
   const task = await prisma.strategyTask.findUnique({
@@ -76,6 +95,40 @@ export async function PATCH(
       updateData.completedAt = body.status === "DONE" ? new Date() : null;
     }
 
+    if (body.occurrenceDate !== undefined) {
+      const occurrenceDate = typeof body.occurrenceDate === "string" ? body.occurrenceDate : "";
+      const occurrenceStartTime = typeof body.occurrenceStartTime === "string" ? body.occurrenceStartTime : "";
+      const occurrenceEndTime = typeof body.occurrenceEndTime === "string" ? body.occurrenceEndTime : "";
+
+      if (!DATE_KEY_PATTERN.test(occurrenceDate)) {
+        return NextResponse.json(
+          { success: false, error: { message: "occurrenceDate must be YYYY-MM-DD" } },
+          { status: 400 }
+        );
+      }
+
+      if (!TIME_PATTERN.test(occurrenceStartTime) || !TIME_PATTERN.test(occurrenceEndTime)) {
+        return NextResponse.json(
+          { success: false, error: { message: "occurrence times must use HH:mm format" } },
+          { status: 400 }
+        );
+      }
+
+      if (timeToMinutes(occurrenceEndTime) <= timeToMinutes(occurrenceStartTime)) {
+        return NextResponse.json(
+          { success: false, error: { message: "occurrence end time must be after start time" } },
+          { status: 400 }
+        );
+      }
+
+      const calendarOverrides = parseCalendarOverrides(existing.calendarOverrides);
+      calendarOverrides[occurrenceDate] = {
+        startTime: occurrenceStartTime,
+        endTime: occurrenceEndTime,
+      };
+      updateData.calendarOverrides = JSON.stringify(calendarOverrides);
+    }
+
     let nextStartDate = existing.startDate;
     let nextDueDate = existing.dueDate;
 
@@ -133,6 +186,7 @@ export async function PATCH(
           category: updated.category,
           startDate: updated.startDate?.toISOString() || null,
           dueDate: updated.dueDate?.toISOString() || null,
+          calendarOverrides: parseCalendarOverrides(updated.calendarOverrides),
           strategyId: updated.strategy.id,
           strategyName: updated.strategy.name,
         },

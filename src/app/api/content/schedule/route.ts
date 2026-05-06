@@ -3,6 +3,18 @@ import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 
+type CalendarOverrides = Record<string, { startTime?: string; endTime?: string }>;
+
+function parseCalendarOverrides(value?: string | null): CalendarOverrides {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 // GET /api/content/schedule - Fetch all scheduled posts for a given month
 export async function GET(request: NextRequest) {
   try {
@@ -152,6 +164,7 @@ export async function GET(request: NextRequest) {
       dueDate: task.dueDate?.toISOString() || null,
       priority: task.priority,
       category: task.category,
+      calendarOverrides: parseCalendarOverrides(task.calendarOverrides),
       strategyName: task.strategy.name,
       strategyId: task.strategy.id,
       progress: task.progress,

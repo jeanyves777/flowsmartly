@@ -66,6 +66,8 @@ import { useToast } from "@/hooks/use-toast";
 import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { PLATFORM_META } from "@/components/shared/social-platform-icons";
 
+type CalendarOverrides = Record<string, { startTime?: string; endTime?: string }>;
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface ScheduledPost {
   id: string;
@@ -88,6 +90,7 @@ interface ScheduledPost {
   category?: string | null;
   startDate?: string | null;
   dueDate?: string | null;
+  calendarOverrides?: CalendarOverrides;
   progress?: number;
   engagement?: {
     likes: number;
@@ -148,6 +151,7 @@ export default function ContentSchedulePage() {
   const [noteCategory, setNoteCategory] = useState("Calendar note");
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingOccurrenceDate, setEditingOccurrenceDate] = useState<string | null>(null);
   const [draggingItem, setDraggingItem] = useState<ScheduledPost | null>(null);
   const [resizingNote, setResizingNote] = useState<ScheduledPost | null>(null);
   const [hoveredItem, setHoveredItem] = useState<{ item: ScheduledPost; x: number; y: number } | null>(null);
@@ -245,8 +249,37 @@ export default function ContentSchedulePage() {
     return `${format(start, "MMM d h:mm a")} - ${format(end, "MMM d h:mm a")}`;
   };
 
+  const timeValueToParts = (value?: string | null) => {
+    if (!value || !/^\d{2}:\d{2}$/.test(value)) return null;
+    const [hours, minutes] = value.split(":").map(Number);
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+    return { hours, minutes };
+  };
+
+  const buildDateWithTime = (day: Date, timeValue: string | undefined, fallback: Date) => {
+    const next = new Date(day);
+    const parts = timeValueToParts(timeValue);
+    next.setHours(parts?.hours ?? fallback.getHours(), parts?.minutes ?? fallback.getMinutes(), 0, 0);
+    return next;
+  };
+
+  const getOccurrenceOverride = (item: ScheduledPost, day: Date) => {
+    if (item.itemType !== "strategy") return null;
+    return item.calendarOverrides?.[format(day, "yyyy-MM-dd")] || null;
+  };
+
   const getItemDisplayRangeForDay = (item: ScheduledPost, day: Date) => {
     const { start, end } = getItemTimeRange(item);
+    const override = getOccurrenceOverride(item, day);
+    if (override?.startTime || override?.endTime) {
+      const displayStart = buildDateWithTime(day, override.startTime, start);
+      const displayEnd = buildDateWithTime(day, override.endTime, end);
+      return {
+        start: displayStart,
+        end: displayEnd > displayStart ? displayEnd : addMinutes(displayStart, 60),
+      };
+    }
+
     if (item.itemType !== "strategy" || isSameDay(start, end)) {
       return { start, end };
     }
@@ -362,6 +395,7 @@ export default function ContentSchedulePage() {
 
   const openNotePanel = (day: Date = new Date()) => {
     setEditingNoteId(null);
+    setEditingOccurrenceDate(null);
     setNoteDate(format(day, "yyyy-MM-dd"));
     setNoteEndDate(format(day, "yyyy-MM-dd"));
     setNoteTime("09:00");
@@ -373,9 +407,15 @@ export default function ContentSchedulePage() {
     setShowNotePanel(true);
   };
 
-  const openEditNotePanel = (note: ScheduledPost) => {
-    const { start: itemStart, end: itemEnd } = getItemTimeRange(note);
+  const openEditNotePanel = (note: ScheduledPost, occurrenceDay?: Date) => {
+    const isOccurrenceEdit =
+      Boolean(occurrenceDay) &&
+      note.itemType === "strategy" &&
+      differenceInCalendarDays(startOfDay(getItemEndDate(note)), startOfDay(getItemStartDate(note))) > 0;
+    const { start: itemStart, end: itemEnd } =
+      isOccurrenceEdit && occurrenceDay ? getItemDisplayRangeForDay(note, occurrenceDay) : getItemTimeRange(note);
     setEditingNoteId(note.id);
+    setEditingOccurrenceDate(isOccurrenceEdit && occurrenceDay ? format(occurrenceDay, "yyyy-MM-dd") : null);
     setNoteDate(format(itemStart, "yyyy-MM-dd"));
     setNoteEndDate(format(itemEnd, "yyyy-MM-dd"));
     setNoteTime(format(itemStart, "HH:mm"));
@@ -408,27 +448,41 @@ export default function ContentSchedulePage() {
 
     try {
       setIsSavingNote(true);
-      const startDate = new Date(`${noteDate}T${noteTime || "09:00"}`);
-      const dueDate = new Date(`${noteEndDate || noteDate}T${noteEndTime || noteTime || "10:00"}`);
+      const isOccurrenceEdit = Boolean(editingNoteId && editingOccurrenceDate);
+      const startDateValue = isOccurrenceEdit ? editingOccurrenceDate! : noteDate;
+      const endDateValue = isOccurrenceEdit ? editingOccurrenceDate! : noteEndDate || noteDate;
+      const startDate = new Date(`${startDateValue}T${noteTime || "09:00"}`);
+      const dueDate = new Date(`${endDateValue}T${noteEndTime || noteTime || "10:00"}`);
       if (dueDate <= startDate) {
         toast({
           title: "End time is before start",
-          description: "Choose an end date and time after the note starts.",
+          description: isOccurrenceEdit
+            ? "Choose a time to that is after the time from for this day."
+            : "Choose an end date and time after the note starts.",
           variant: "destructive",
         });
         return;
       }
+      const payload: Record<string, string> = {
+        title: noteTitle.trim(),
+        description: noteDescription.trim(),
+        priority: notePriority,
+        category: noteCategory.trim() || "Calendar note",
+      };
+
+      if (isOccurrenceEdit) {
+        payload.occurrenceDate = editingOccurrenceDate!;
+        payload.occurrenceStartTime = noteTime || "09:00";
+        payload.occurrenceEndTime = noteEndTime || noteTime || "10:00";
+      } else {
+        payload.startDate = startDate.toISOString();
+        payload.dueDate = dueDate.toISOString();
+      }
+
       const res = await fetch(editingNoteId ? `/api/content/schedule/notes/${editingNoteId}` : "/api/content/schedule/notes", {
         method: editingNoteId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: noteTitle.trim(),
-          description: noteDescription.trim(),
-          startDate: startDate.toISOString(),
-          dueDate: dueDate.toISOString(),
-          priority: notePriority,
-          category: noteCategory.trim() || "Calendar note",
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
 
@@ -438,10 +492,15 @@ export default function ContentSchedulePage() {
 
       setShowNotePanel(false);
       setEditingNoteId(null);
+      setEditingOccurrenceDate(null);
       await fetchSchedule();
       toast({
         title: editingNoteId ? "Note updated" : "Note added",
-        description: editingNoteId ? "The calendar note was updated." : "The strategy note is now on your calendar.",
+        description: isOccurrenceEdit
+          ? "Only this day's time was updated."
+          : editingNoteId
+            ? "The calendar note was updated."
+            : "The strategy note is now on your calendar.",
       });
     } catch (error) {
       toast({
@@ -459,9 +518,9 @@ export default function ContentSchedulePage() {
     openNotePanel(day);
   };
 
-  const handlePostClick = (post: ScheduledPost) => {
+  const handlePostClick = (post: ScheduledPost, occurrenceDay?: Date) => {
     if (post.itemType === "strategy") {
-      openEditNotePanel(post);
+      openEditNotePanel(post, occurrenceDay);
       return;
     }
     setSelectedPost(post);
@@ -1008,7 +1067,7 @@ export default function ContentSchedulePage() {
                                 onMouseLeave={() => setHoveredItem(null)}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handlePostClick(post);
+                                  handlePostClick(post, day);
                                 }}
                                 className={`flex w-full items-center gap-1.5 rounded border px-1.5 py-1 text-left text-[10px] leading-tight transition-all cursor-grab active:cursor-grabbing sm:text-[11px] ${getCalendarItemStyle(post)} hover:ring-1 hover:ring-current/20`}
                                 title={getCalendarItemDateLabel(post)}
@@ -1034,7 +1093,7 @@ export default function ContentSchedulePage() {
                                   </span>
                                 )}
                                 <span className="hidden shrink-0 text-[9px] font-semibold opacity-75 xl:inline">
-                                  {format(getItemTimeRange(post).start, "h:mm")}
+                                  {format(getItemDisplayRangeForDay(post, day).start, "h:mm")}
                                 </span>
                                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${config.dotColor}`} />
                                 {post.itemType === "strategy" && (
@@ -1159,7 +1218,7 @@ export default function ContentSchedulePage() {
                                     onMouseLeave={() => setHoveredItem(null)}
                                     onClick={(event) => {
                                       event.stopPropagation();
-                                      handlePostClick(post);
+                                      handlePostClick(post, day);
                                     }}
                                     className={`absolute overflow-hidden rounded-xl border px-2 py-1.5 text-left shadow-sm transition hover:ring-1 hover:ring-current/20 ${getCalendarItemStyle(post)}`}
                                     style={layout}
@@ -1602,10 +1661,19 @@ export default function ContentSchedulePage() {
           open={showNotePanel}
           onOpenChange={(open) => {
             setShowNotePanel(open);
-            if (!open) setEditingNoteId(null);
+            if (!open) {
+              setEditingNoteId(null);
+              setEditingOccurrenceDate(null);
+            }
           }}
-          title={editingNoteId ? "Edit note" : "Calendar note"}
-          description={noteDate ? `${noteDate}${noteEndDate && noteEndDate !== noteDate ? ` to ${noteEndDate}` : ""} ${noteTime || ""} - ${noteEndTime || ""}` : "Add strategy work to the calendar."}
+          title={editingOccurrenceDate ? "Edit day" : editingNoteId ? "Edit note" : "Calendar note"}
+          description={
+            editingOccurrenceDate
+              ? `${format(new Date(`${editingOccurrenceDate}T00:00:00`), "MMM d")} only ${noteTime || ""} - ${noteEndTime || ""}`
+              : noteDate
+                ? `${noteDate}${noteEndDate && noteEndDate !== noteDate ? ` to ${noteEndDate}` : ""} ${noteTime || ""} - ${noteEndTime || ""}`
+                : "Add strategy work to the calendar."
+          }
           icon={<StickyNote className="h-4 w-4" />}
           defaultSize={{ width: 500, height: 610 }}
           defaultPosition={{ y: 136 }}
@@ -1631,6 +1699,12 @@ export default function ContentSchedulePage() {
               </div>
             </div>
 
+            {editingOccurrenceDate && (
+              <div className="rounded-xl border border-brand-500/25 bg-brand-500/10 px-3 py-2 text-xs font-semibold text-brand-700 dark:text-brand-200">
+                This time change applies only to {format(new Date(`${editingOccurrenceDate}T00:00:00`), "MMM d")}.
+              </div>
+            )}
+
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="note-date">Start date</Label>
@@ -1638,6 +1712,7 @@ export default function ContentSchedulePage() {
                   id="note-date"
                   type="date"
                   value={noteDate}
+                  disabled={Boolean(editingOccurrenceDate)}
                   onChange={(event) => {
                     setNoteDate(event.target.value);
                     if (!noteEndDate || noteEndDate < event.target.value) setNoteEndDate(event.target.value);
@@ -1651,6 +1726,7 @@ export default function ContentSchedulePage() {
                   type="date"
                   value={noteEndDate}
                   min={noteDate}
+                  disabled={Boolean(editingOccurrenceDate)}
                   onChange={(event) => setNoteEndDate(event.target.value)}
                 />
               </div>

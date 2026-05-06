@@ -2854,6 +2854,7 @@ model StrategyTask {
   // Activity matching
   progress          Int       @default(0)    // 0-100 completion percentage
   matchedActivities String    @default("[]") // JSON: [{activityType, activityId, matchedAt, confidence, matchReason}]
+  calendarOverrides String    @default("{}") // JSON: { "YYYY-MM-DD": { startTime, endTime } }
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
