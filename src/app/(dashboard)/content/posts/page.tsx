@@ -306,6 +306,23 @@ const getFlowMediaAspect = (aspect: FlowMediaAspect) =>
 const normalizeGeneratedMediaUrl = (url: unknown) =>
   typeof url === "string" && url.trim().length > 0 ? url.trim() : "";
 
+const normalizeOrganicIdea = (idea: unknown, fallbackPlatforms: string[]): OrganicPostIdea | null => {
+  if (!idea || typeof idea !== "object") return null;
+  const item = idea as Record<string, unknown>;
+  const caption = typeof item.caption === "string" ? item.caption.trim() : "";
+  if (!caption) return null;
+
+  return {
+    title: typeof item.title === "string" && item.title.trim() ? item.title.trim() : "Brand-ready post",
+    angle: typeof item.angle === "string" && item.angle.trim() ? item.angle.trim() : "AI idea",
+    format: typeof item.format === "string" && item.format.trim() ? item.format.trim() : "Ready-to-use caption",
+    platforms: Array.isArray(item.platforms)
+      ? item.platforms.filter((platform): platform is string => typeof platform === "string")
+      : fallbackPlatforms,
+    caption,
+  };
+};
+
 const AI_PILOT_MODES: Array<{ id: AIPilotMode; label: string; icon: ElementType; hint: string }> = [
   { id: "generate", label: "Generate", icon: Sparkles, hint: "New caption from an idea" },
   { id: "rewrite", label: "Rewrite", icon: WandSparkles, hint: "Improve the current draft" },
@@ -368,6 +385,9 @@ export default function ContentPostsPage() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishAction, setPublishAction] = useState<"publish" | "draft" | "schedule" | null>(null);
   const [isGeneratingIdea, setIsGeneratingIdea] = useState(false);
+  const [isGeneratingTrendIdeas, setIsGeneratingTrendIdeas] = useState(false);
+  const [trendIdeasError, setTrendIdeasError] = useState("");
+  const [organicPostIdeas, setOrganicPostIdeas] = useState<OrganicPostIdea[]>([]);
   const [channelSearch, setChannelSearch] = useState("");
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showAIPilotModal, setShowAIPilotModal] = useState(false);
@@ -518,6 +538,64 @@ export default function ContentPostsPage() {
       });
     } finally {
       setIsGeneratingIdea(false);
+    }
+  };
+
+  const handleGenerateTrendIdeas = async () => {
+    try {
+      setIsGeneratingTrendIdeas(true);
+      setTrendIdeasError("");
+      const res = await fetch("/api/content/posts/generate-idea", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          count: 3,
+          platforms: aiPlatformSelection,
+          currentDraft: caption.trim().slice(0, 700),
+          brandBrief,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Failed to generate branded ideas");
+      }
+
+      const ideas = Array.isArray(data.data?.ideas)
+        ? data.data.ideas
+            .map((idea: unknown) => normalizeOrganicIdea(idea, aiPlatformSelection))
+            .filter((idea: OrganicPostIdea | null): idea is OrganicPostIdea => Boolean(idea))
+        : [];
+
+      if (ideas.length === 0) {
+        const singleIdea = normalizeOrganicIdea(
+          {
+            title: `${brandName} ready post`,
+            angle: "AI idea",
+            format: selectedPlatformLabels || "Selected channels",
+            platforms: aiPlatformSelection,
+            caption: data.data?.idea,
+          },
+          aiPlatformSelection
+        );
+        if (singleIdea) ideas.push(singleIdea);
+      }
+
+      if (ideas.length === 0) {
+        throw new Error("AI did not return usable branded ideas. Try again.");
+      }
+
+      setOrganicPostIdeas(ideas);
+      toast({ title: "Branded ideas ready", description: "Click any idea to load the finished post." });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to generate branded ideas";
+      setTrendIdeasError(message);
+      toast({
+        title: "Could not generate branded ideas",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingTrendIdeas(false);
     }
   };
 
@@ -944,43 +1022,10 @@ export default function ContentPostsPage() {
         : current
     );
   }, [flowMediaTemplates]);
-  const organicPostIdeas = useMemo<OrganicPostIdea[]>(() => {
-    const channelFocus = selectedPlatformLabels || "Feed";
-    const captionTopic = caption.trim().split(/\s+/).slice(0, 14).join(" ");
-    const audience = brandKit?.targetAudience || "the audience";
-    const value = brandKit?.uniqueValue || brandKit?.tagline || "the strongest customer outcome";
-    const products = joinBrandList(brandKit?.products, "your core offer");
-    const keywords = joinBrandList(brandKit?.keywords, "what your audience already cares about");
-    const topic = captionTopic || products;
-
-    return [
-      {
-        title: `${brandName} proof post`,
-        angle: "Trust builder",
-        format: "Short story + CTA",
-        platforms: ["facebook", "linkedin", "twitter"],
-        caption: `Hook: Proof beats another generic promise.\n\nPost: Show how ${brandName} helps ${audience} move from the problem to ${value}. Use ${topic} as the story anchor, then add one specific detail that makes the result feel real.\n\nCTA: What result would you want to see next?`,
-      },
-      {
-        title: "Behind the result",
-        angle: "Organic engagement",
-        format: "Process breakdown",
-        platforms: ["instagram", "tiktok", "facebook"],
-        caption: `Hook: Here is what happens before ${brandName} gets the polished result.\n\nPost: Break down the idea, the decision, and the small step that makes ${products} easier for ${audience}. Keep it practical and show the thinking behind the work.\n\nCTA: Want the checklist we use? Comment "checklist".`,
-      },
-      {
-        title: "Brand POV",
-        angle: "Conversation starter",
-        format: "Strong POV",
-        platforms: ["linkedin", "twitter", "threads"],
-        caption: `Hook: Most brands talk about ${keywords}, but the audience needs a clearer next step.\n\nPost: ${brandName} should take a direct point of view: useful content is not just more posting. It should help ${audience} understand the problem, trust the solution, and know what to do next.\n\nCTA: What is one question your audience keeps asking?`,
-      },
-    ].map((idea) => ({
-      ...idea,
-      platforms: idea.platforms.filter((platform) => selectedPlatforms.includes(platform)),
-      format: `${idea.format} for ${channelFocus}`,
-    }));
-  }, [brandKit, brandName, caption, selectedPlatformLabels, selectedPlatforms]);
+  useEffect(() => {
+    setOrganicPostIdeas([]);
+    setTrendIdeasError("");
+  }, [brandName, selectedPlatformLabels]);
   const selectablePlatforms = SOCIAL_PLATFORMS.filter(
     (platform) => platform.enabled && !getIncompatibleReason(platform.id)
   );
@@ -1430,7 +1475,7 @@ export default function ContentPostsPage() {
                   </span>
                   <div>
                     <p className="text-sm font-bold">AI trend ideas</p>
-                    <p className="text-xs text-muted-foreground">Organic post angles you can click to prefill.</p>
+                    <p className="text-xs text-muted-foreground">Backend-generated posts from {brandName}&apos;s brand kit.</p>
                   </div>
                 </div>
                 <Button
@@ -1438,33 +1483,55 @@ export default function ContentPostsPage() {
                   variant="ghost"
                   size="sm"
                   className="h-8 text-xs"
-                  onClick={() => handleGenerateIdea(true)}
-                  disabled={isGeneratingIdea}
+                  onClick={handleGenerateTrendIdeas}
+                  disabled={isGeneratingTrendIdeas}
                 >
-                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                  Fresh AI idea
+                  {isGeneratingTrendIdeas ? (
+                    <AISpinner className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  {organicPostIdeas.length > 0 ? "Refresh ideas" : "Generate ideas"}
                 </Button>
               </div>
-              <div className="grid gap-2 lg:grid-cols-3">
-                {organicPostIdeas.map((idea) => (
-                  <button
-                    key={idea.title}
-                    type="button"
-                    onClick={() => applyOrganicIdea(idea)}
-                    className="group rounded-xl border bg-background/80 p-3 text-left transition hover:-translate-y-0.5 hover:border-emerald-500/40 hover:shadow-sm dark:bg-white/[0.03]"
-                  >
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-                        {idea.angle}
-                      </span>
-                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-emerald-600" />
-                    </div>
-                    <p className="text-sm font-bold">{idea.title}</p>
-                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{idea.caption.replace(/\n+/g, " ")}</p>
-                    <p className="mt-2 text-[11px] font-semibold text-cyan-700 dark:text-cyan-300">{idea.format}</p>
-                  </button>
-                ))}
-              </div>
+              {isGeneratingTrendIdeas ? (
+                <div className="rounded-xl border border-emerald-500/20 bg-background/80 p-4">
+                  <AIGenerationLoader
+                    compact
+                    currentStep="Generating brand-ready posts..."
+                    subtitle="Using your brand kit, selected channels, and current draft context"
+                  />
+                </div>
+              ) : organicPostIdeas.length > 0 ? (
+                <div className="grid gap-2 lg:grid-cols-3">
+                  {organicPostIdeas.map((idea) => (
+                    <button
+                      key={`${idea.title}-${idea.angle}`}
+                      type="button"
+                      onClick={() => applyOrganicIdea(idea)}
+                      className="group rounded-xl border bg-background/80 p-3 text-left transition hover:-translate-y-0.5 hover:border-emerald-500/40 hover:shadow-sm dark:bg-white/[0.03]"
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                          {idea.angle}
+                        </span>
+                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-emerald-600" />
+                      </div>
+                      <p className="text-sm font-bold">{idea.title}</p>
+                      <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">{idea.caption.replace(/\n+/g, " ")}</p>
+                      <p className="mt-2 text-[11px] font-semibold text-cyan-700 dark:text-cyan-300">{idea.format}</p>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed bg-background/80 p-4 text-sm text-muted-foreground dark:bg-white/[0.03]">
+                  {trendIdeasError ? (
+                    <span>{trendIdeasError}</span>
+                  ) : (
+                    <span>Generate ready-to-use posts from the brand kit instead of showing template instructions.</span>
+                  )}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

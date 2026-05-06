@@ -13,6 +13,50 @@ const safeJsonArray = (value: string | null | undefined) => {
   }
 };
 
+type GeneratedPostIdea = {
+  title: string;
+  angle: string;
+  format: string;
+  platforms: string[];
+  caption: string;
+};
+
+const stripJsonFence = (value: string) =>
+  value
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+const normalizeIdea = (idea: unknown, fallbackPlatforms: string[]): GeneratedPostIdea | null => {
+  if (!idea || typeof idea !== "object") return null;
+  const item = idea as Record<string, unknown>;
+  const caption = typeof item.caption === "string" ? item.caption.trim() : "";
+  if (!caption) return null;
+
+  return {
+    title: typeof item.title === "string" && item.title.trim() ? item.title.trim().slice(0, 60) : "Brand-ready post",
+    angle: typeof item.angle === "string" && item.angle.trim() ? item.angle.trim().slice(0, 40) : "Brand idea",
+    format: typeof item.format === "string" && item.format.trim() ? item.format.trim().slice(0, 70) : "Ready-to-use caption",
+    platforms: Array.isArray(item.platforms)
+      ? item.platforms.filter((platform): platform is string => typeof platform === "string").slice(0, 5)
+      : fallbackPlatforms,
+    caption: caption.slice(0, 2000),
+  };
+};
+
+const parseGeneratedIdeas = (raw: string, fallbackPlatforms: string[]): GeneratedPostIdea[] => {
+  try {
+    const parsed = JSON.parse(stripJsonFence(raw));
+    const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.ideas) ? parsed.ideas : [];
+    return items
+      .map((item: unknown) => normalizeIdea(item, fallbackPlatforms))
+      .filter((item: GeneratedPostIdea | null): item is GeneratedPostIdea => Boolean(item));
+  } catch {
+    return [];
+  }
+};
+
 // POST /api/content/posts/generate-idea — AI-suggest a post idea from brand identity
 export async function POST(request: NextRequest) {
   try {
@@ -62,6 +106,7 @@ export async function POST(request: NextRequest) {
           .slice(0, 6)
       : [];
     const currentDraft = typeof body.currentDraft === "string" ? body.currentDraft.trim().slice(0, 700) : "";
+    const count = Math.min(3, Math.max(1, Number.isFinite(Number(body.count)) ? Number(body.count) : 1));
 
     // Build context from brand
     const brandContext = [
@@ -81,7 +126,9 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join("\n");
 
-    const prompt = `Based on this brand identity:\n\n${brandContext}\n\nWrite one concise, ready-to-use social post idea. Keep it direct and easy to scan.\n\nFormat exactly like this:\nHook: one short opening line\nPost: 1-2 short sentences with the main value\nCTA: one clear action\nHashtags: 3-5 relevant hashtags\n\nRules:\n- Total length under 90 words\n- No long paragraphs\n- Use emojis only if they add clarity\n- Make it specific to the brand and audience\n\nRespond with only the formatted post idea.`;
+    const prompt = count > 1
+      ? `Based on this brand identity:\n\n${brandContext}\n\nGenerate ${count} ready-to-use social post ideas. These must be finished captions, not instructions, not templates, and not placeholders.\n\nReturn ONLY valid JSON in this exact shape:\n{\n  "ideas": [\n    {\n      "title": "short descriptive title",\n      "angle": "short marketing angle",\n      "format": "where/how this works best",\n      "platforms": ["facebook", "linkedin"],\n      "caption": "Hook: ready-to-post hook\\n\\nPost: finished branded post copy with concrete brand/customer details\\n\\nCTA: clear action\\n\\nHashtags: #BrandSpecific #Relevant"\n    }\n  ]\n}\n\nRules:\n- Every caption must be ready to paste and publish.\n- Use the brand name, audience, offer, voice, products/services, keywords, and preferred hashtags when available.\n- Do NOT say \"show\", \"share\", \"use\", \"insert\", \"add\", or any instruction telling the user what to do, unless it is a customer-facing CTA.\n- No placeholders like [brand], [offer], or \"your customer\".\n- Each caption under 110 words.\n- Match the selected platforms when provided.\n- Make each idea meaningfully different.`
+      : `Based on this brand identity:\n\n${brandContext}\n\nWrite one concise, ready-to-use social post. Keep it direct and easy to scan.\n\nFormat exactly like this:\nHook: one short opening line\nPost: 1-2 short finished sentences with the main value\nCTA: one clear customer-facing action\nHashtags: 3-5 relevant hashtags\n\nRules:\n- Total length under 90 words\n- No long paragraphs\n- Use emojis only if they add clarity\n- Make it specific to the brand and audience\n- Do NOT write instructions, templates, or placeholders\n\nRespond with only the formatted post.`;
 
     const idea = await ai.generate(prompt, {
       maxTokens: 300,
@@ -90,6 +137,8 @@ export async function POST(request: NextRequest) {
     });
 
     const cleanIdea = idea?.trim() || "Share something amazing with your audience today!";
+    const ideas = count > 1 ? parseGeneratedIdeas(cleanIdea, requestedPlatforms) : [];
+    const primaryIdea = ideas[0]?.caption || cleanIdea;
 
     // Deduct credits + track usage
     if (!isAdmin) {
@@ -118,7 +167,7 @@ export async function POST(request: NextRequest) {
         feature: "post_idea",
         model: "claude-sonnet-4-20250514",
         inputTokens: ai.estimateTokens(prompt),
-        outputTokens: ai.estimateTokens(cleanIdea),
+        outputTokens: ai.estimateTokens(count > 1 ? JSON.stringify(ideas) : cleanIdea),
         costCents: 0,
       },
     });
@@ -128,15 +177,16 @@ export async function POST(request: NextRequest) {
       data: {
         userId: session.userId,
         type: "post_ideas",
-        content: JSON.stringify([cleanIdea]),
-        prompt: "post idea",
+        content: JSON.stringify(count > 1 ? ideas.map((item) => item.caption) : [primaryIdea]),
+        prompt: count > 1 ? "brand trend post ideas" : "post idea",
       },
     });
 
     return NextResponse.json({
       success: true,
       data: {
-        idea: cleanIdea,
+        idea: primaryIdea,
+        ideas,
         creditsUsed: creditCost,
         creditsRemaining: isAdmin ? undefined : (user?.aiCredits || 0) - creditCost,
       },
