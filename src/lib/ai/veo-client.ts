@@ -21,6 +21,8 @@ export interface VeoGenerateOptions {
   resolution?: VeoResolution;
   /** Aspect ratio. Default: '16:9' */
   aspectRatio?: VeoAspectRatio;
+  /** Optional image reference used as the visual anchor / first frame */
+  referenceImageUrl?: string | null;
   /** Content to exclude from the video */
   negativePrompt?: string;
   /** Use the fast model variant for quicker generation */
@@ -32,6 +34,28 @@ export interface VeoVideoResult {
   duration: number;
   /** Video URI from Veo response — pass to extendVideo() for chaining */
   videoUri: string | null;
+}
+
+async function resolveImageForVeo(url: string): Promise<{ imageBytes: string; mimeType: string } | null> {
+  try {
+    if (url.startsWith("data:")) {
+      const match = url.match(/^data:(image\/[^;]+);base64,(.+)$/);
+      if (!match) return null;
+      return { mimeType: match[1], imageBytes: match[2] };
+    }
+
+    if (url.startsWith("http")) {
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const mimeType = response.headers.get("content-type") || "image/png";
+      return { mimeType, imageBytes: buffer.toString("base64") };
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 class VeoClient {
@@ -74,6 +98,7 @@ class VeoClient {
       durationSeconds = "8",
       resolution = "720p",
       aspectRatio = "16:9",
+      referenceImageUrl = null,
       negativePrompt,
       fast = false,
     } = options;
@@ -82,7 +107,13 @@ class VeoClient {
       ? "veo-3.1-fast-generate-preview"
       : "veo-3.1-generate-preview";
 
-    console.log(`[Veo] Generating video: model=${model}, duration=${durationSeconds}s, res=${resolution}, aspect=${aspectRatio}`);
+    let image: { imageBytes: string; mimeType: string } | undefined;
+    if (referenceImageUrl) {
+      const resolved = await resolveImageForVeo(referenceImageUrl);
+      if (resolved) image = resolved;
+    }
+
+    console.log(`[Veo] Generating video: model=${model}, duration=${durationSeconds}s, res=${resolution}, aspect=${aspectRatio}, ref=${!!image}`);
     console.log(`[Veo] Prompt: ${prompt.substring(0, 120)}...`);
 
     // Build config — durationSeconds must be a number for the API
@@ -106,6 +137,7 @@ class VeoClient {
       operation = await this.client.models.generateVideos({
         model,
         prompt,
+        ...(image ? { image } : {}),
         config,
       });
     } catch (err: unknown) {

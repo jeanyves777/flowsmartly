@@ -536,6 +536,7 @@ export default function ContentPostsPage() {
   const [isGeneratingFlowMedia, setIsGeneratingFlowMedia] = useState(false);
   const [flowMediaStatus, setFlowMediaStatus] = useState("");
   const [generatedFlowMedia, setGeneratedFlowMedia] = useState<{ type: FlowMediaMode; url: string } | null>(null);
+  const [flowMediaReferenceUrls, setFlowMediaReferenceUrls] = useState<string[]>([]);
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const autoTrendIdeaKeysRef = useRef<Set<string>>(new Set());
 
@@ -925,6 +926,10 @@ export default function ContentPostsPage() {
     }
 
     const aspect = getFlowMediaAspect(flowMediaAspect);
+    const primaryReferenceImageUrl = flowMediaReferenceUrls[0] || null;
+    const referenceImageNote = flowMediaReferenceUrls.length
+      ? `Reference image${flowMediaReferenceUrls.length > 1 ? "s" : ""}: ${flowMediaReferenceUrls.join(", ")}`
+      : null;
     const rawBrandIdentity = {
       name: brandKit?.name || null,
       tagline: brandKit?.tagline || null,
@@ -946,6 +951,7 @@ export default function ContentPostsPage() {
       "Brand identity:",
       JSON.stringify(rawBrandIdentity, null, 2),
       selectedPlatformLabels ? `Channels: ${selectedPlatformLabels}` : null,
+      referenceImageNote,
       `User prompt: ${prompt}`,
     ]
       .filter(Boolean)
@@ -986,6 +992,7 @@ export default function ContentPostsPage() {
               showBrandName: !!brandKit?.name,
               showSocialIcons: true,
               socialHandles: brandKit?.handles || null,
+              referenceImageUrl: primaryReferenceImageUrl,
               ctaText: null,
             }),
           });
@@ -1028,6 +1035,7 @@ export default function ContentPostsPage() {
           resolution: "720p",
           provider: "veo3",
           voiceOver: false,
+          referenceImageUrl: primaryReferenceImageUrl,
         }),
       });
 
@@ -2046,6 +2054,32 @@ export default function ContentPostsPage() {
                 className="min-h-[120px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 placeholder="Describe the media you want FlowAI to create..."
               />
+            </div>
+
+            <div className="space-y-2 rounded-2xl border bg-background/70 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-semibold text-muted-foreground">Reference images</Label>
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  Optional
+                </span>
+              </div>
+              <MediaUploader
+                value={flowMediaReferenceUrls}
+                onChange={setFlowMediaReferenceUrls}
+                multiple
+                maxFiles={3}
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                maxSize={25 * 1024 * 1024}
+                filterTypes={["image"]}
+                uploadEndpoint="/api/media"
+                disabled={isGeneratingFlowMedia}
+                placeholder="Add reference"
+                variant="small"
+                libraryTitle="Choose reference image"
+              />
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Add brand, product, style, or scene references. FlowAI uses the first image as the main visual anchor.
+              </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">

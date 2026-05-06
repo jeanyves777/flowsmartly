@@ -186,14 +186,15 @@ export async function POST(req: NextRequest) {
             send({
               type: "status",
               message: isExtended
-                ? `Generating initial 8s video with Veo 3...`
-                : `Generating ${veoDuration}s video with Veo 3 (includes native audio)...`,
+                ? `Generating initial 8s video...`
+                : `Generating ${veoDuration}s video...`,
             });
 
             const result = await veoClient.generateVideoBuffer(veoPrompt, {
               durationSeconds: veoDuration as "4" | "6" | "8",
               aspectRatio: veoAspectRatio,
               resolution: veoResolution,
+              referenceImageUrl: refImage,
             });
 
             finalVideoBuffer = result.videoBuffer;
@@ -800,4 +801,3 @@ async function mixVoiceoverOnVideo(
     }
   }
 }
-
