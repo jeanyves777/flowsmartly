@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (dueDate < startDate) {
+    if (dueDate <= startDate) {
       return NextResponse.json(
-        { success: false, error: { message: "dueDate must be on or after startDate" } },
+        { success: false, error: { message: "dueDate must be after startDate" } },
         { status: 400 }
       );
     }

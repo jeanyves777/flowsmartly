@@ -34,10 +34,13 @@ import {
   subWeeks,
   addDays,
   subDays,
+  addMinutes,
   isToday,
   isPast,
+  isSameDay,
   startOfDay,
   differenceInCalendarDays,
+  differenceInMinutes,
 } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -106,6 +109,10 @@ const statusConfig: Record<string, { label: string; dotColor: string; bgColor: s
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 type CalendarView = "month" | "week" | "day";
+const DAY_START_HOUR = 6;
+const DAY_END_HOUR = 22;
+const HOUR_HEIGHT = 68;
+const MIN_TIME_BLOCK_HEIGHT = 36;
 
 const VIEW_LABELS: Array<{ id: CalendarView; label: string }> = [
   { id: "month", label: "Month" },
@@ -134,6 +141,7 @@ export default function ContentSchedulePage() {
   const [noteDate, setNoteDate] = useState("");
   const [noteEndDate, setNoteEndDate] = useState("");
   const [noteTime, setNoteTime] = useState("09:00");
+  const [noteEndTime, setNoteEndTime] = useState("10:00");
   const [noteTitle, setNoteTitle] = useState("");
   const [noteDescription, setNoteDescription] = useState("");
   const [notePriority, setNotePriority] = useState("MEDIUM");
@@ -220,6 +228,27 @@ export default function ContentSchedulePage() {
   const getItemEndDate = (item: ScheduledPost) =>
     getValidDate(item.itemType === "strategy" ? item.dueDate || item.startDate || item.scheduledAt : item.scheduledAt) ||
     getItemStartDate(item);
+
+  const getItemTimeRange = (item: ScheduledPost) => {
+    const start = getItemStartDate(item);
+    const storedEnd = item.itemType === "strategy" ? getItemEndDate(item) : null;
+    const fallbackMinutes = item.itemType === "strategy" ? 60 : 30;
+    const end = storedEnd && storedEnd > start ? storedEnd : addMinutes(start, fallbackMinutes);
+    return { start, end };
+  };
+
+  const getTimeLabel = (item: ScheduledPost) => {
+    const { start, end } = getItemTimeRange(item);
+    if (isSameDay(start, end)) {
+      return `${format(start, "h:mm a")} - ${format(end, "h:mm a")}`;
+    }
+    return `${format(start, "MMM d h:mm a")} - ${format(end, "MMM d h:mm a")}`;
+  };
+
+  const visibleHours = useMemo(
+    () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR + 1 }, (_, index) => DAY_START_HOUR + index),
+    []
+  );
 
   // Group posts by date string for efficient lookup
   const postsByDate = useMemo(() => {
@@ -314,6 +343,7 @@ export default function ContentSchedulePage() {
     setNoteDate(format(day, "yyyy-MM-dd"));
     setNoteEndDate(format(day, "yyyy-MM-dd"));
     setNoteTime("09:00");
+    setNoteEndTime("10:00");
     setNoteTitle("");
     setNoteDescription("");
     setNotePriority("MEDIUM");
@@ -322,12 +352,12 @@ export default function ContentSchedulePage() {
   };
 
   const openEditNotePanel = (note: ScheduledPost) => {
-    const itemStart = getItemStartDate(note);
-    const itemEnd = getItemEndDate(note);
+    const { start: itemStart, end: itemEnd } = getItemTimeRange(note);
     setEditingNoteId(note.id);
     setNoteDate(format(itemStart, "yyyy-MM-dd"));
     setNoteEndDate(format(itemEnd, "yyyy-MM-dd"));
     setNoteTime(format(itemStart, "HH:mm"));
+    setNoteEndTime(format(itemEnd, "HH:mm"));
     setNoteTitle(note.title || note.caption || "");
     setNoteDescription(note.description || "");
     setNotePriority(note.priority || "MEDIUM");
@@ -357,11 +387,11 @@ export default function ContentSchedulePage() {
     try {
       setIsSavingNote(true);
       const startDate = new Date(`${noteDate}T${noteTime || "09:00"}`);
-      const dueDate = new Date(`${noteEndDate || noteDate}T${noteTime || "09:00"}`);
-      if (dueDate < startDate) {
+      const dueDate = new Date(`${noteEndDate || noteDate}T${noteEndTime || noteTime || "10:00"}`);
+      if (dueDate <= startDate) {
         toast({
-          title: "End date is before start",
-          description: "Choose an end date on or after the note start date.",
+          title: "End time is before start",
+          description: "Choose an end date and time after the note starts.",
           variant: "destructive",
         });
         return;
@@ -431,26 +461,26 @@ export default function ContentSchedulePage() {
     }
   };
 
-  const buildMovedDate = (item: ScheduledPost, day: Date) => {
-    const existing = new Date(getCalendarItemDate(item));
+  const buildDateOnDay = (day: Date, reference: Date) => {
     const moved = new Date(day);
     moved.setHours(
-      Number.isNaN(existing.getTime()) ? 9 : existing.getHours(),
-      Number.isNaN(existing.getTime()) ? 0 : existing.getMinutes(),
+      Number.isNaN(reference.getTime()) ? 9 : reference.getHours(),
+      Number.isNaN(reference.getTime()) ? 0 : reference.getMinutes(),
       0,
       0
     );
     return moved;
   };
 
+  const buildMovedDate = (item: ScheduledPost, day: Date) => buildDateOnDay(day, getItemTimeRange(item).start);
+
   const moveCalendarItem = async (item: ScheduledPost, day: Date) => {
     const movedDate = buildMovedDate(item, day);
-    const originalStart = getItemStartDate(item);
-    const originalEnd = getItemEndDate(item);
-    const noteSpanDays = item.itemType === "strategy"
-      ? Math.max(0, differenceInCalendarDays(startOfDay(originalEnd), startOfDay(originalStart)))
+    const { start: originalStart, end: originalEnd } = getItemTimeRange(item);
+    const noteDurationMinutes = item.itemType === "strategy"
+      ? Math.max(30, differenceInMinutes(originalEnd, originalStart))
       : 0;
-    const movedEndDate = item.itemType === "strategy" ? addDays(movedDate, noteSpanDays) : movedDate;
+    const movedEndDate = item.itemType === "strategy" ? addMinutes(movedDate, noteDurationMinutes) : movedDate;
 
     if (item.itemType !== "strategy" && movedDate <= new Date()) {
       toast({
@@ -515,12 +545,12 @@ export default function ContentSchedulePage() {
   const resizeNoteToDay = async (item: ScheduledPost, day: Date) => {
     if (item.itemType !== "strategy") return;
 
-    const start = getItemStartDate(item);
-    const resizedEnd = buildMovedDate(item, day);
-    if (startOfDay(resizedEnd) < startOfDay(start)) {
+    const { start, end } = getItemTimeRange(item);
+    const resizedEnd = buildDateOnDay(day, end);
+    if (resizedEnd <= start) {
       toast({
         title: "Cannot shorten before start",
-        description: "Drag the edge to a day on or after the note starts.",
+        description: "Drag the edge to a time after the note starts.",
         variant: "destructive",
       });
       return;
@@ -648,12 +678,50 @@ export default function ContentSchedulePage() {
   const getCalendarItemDate = (item: ScheduledPost) => getItemStartDate(item).toISOString();
 
   const getCalendarItemDateLabel = (item: ScheduledPost) => {
-    const start = getItemStartDate(item);
-    const end = getItemEndDate(item);
+    const { start, end } = getItemTimeRange(item);
     if (item.itemType === "strategy" && differenceInCalendarDays(startOfDay(end), startOfDay(start)) > 0) {
-      return `${format(start, "MMM d")} - ${format(end, "MMM d, yyyy")}`;
+      return `${format(start, "MMM d h:mm a")} - ${format(end, "MMM d, yyyy h:mm a")}`;
     }
-    return format(start, "MMM d, yyyy h:mm a");
+    return `${format(start, "MMM d, yyyy")} ${format(start, "h:mm a")} - ${format(end, "h:mm a")}`;
+  };
+
+  const getSortedDayItems = (day: Date) =>
+    [...(postsByDate[format(day, "yyyy-MM-dd")] || [])].sort(
+      (a, b) => getItemTimeRange(a).start.getTime() - getItemTimeRange(b).start.getTime()
+    );
+
+  const getTimelineBounds = (day: Date) => {
+    const start = new Date(day);
+    start.setHours(DAY_START_HOUR, 0, 0, 0);
+    const end = new Date(day);
+    end.setHours(DAY_END_HOUR, 0, 0, 0);
+    return { start, end };
+  };
+
+  const getTimedItemLayout = (item: ScheduledPost, day: Date, dayItems: ScheduledPost[]) => {
+    const { start, end } = getItemTimeRange(item);
+    const bounds = getTimelineBounds(day);
+    const visibleStart = start > bounds.start ? start : bounds.start;
+    const visibleEnd = end < bounds.end ? end : bounds.end;
+    const topMinutes = Math.max(0, differenceInMinutes(visibleStart, bounds.start));
+    const durationMinutes = Math.max(15, differenceInMinutes(visibleEnd, visibleStart));
+    const overlappingItems = dayItems.filter((other) => {
+      const otherRange = getItemTimeRange(other);
+      const otherVisibleStart = otherRange.start > bounds.start ? otherRange.start : bounds.start;
+      const otherVisibleEnd = otherRange.end < bounds.end ? otherRange.end : bounds.end;
+      return otherVisibleStart < visibleEnd && otherVisibleEnd > visibleStart;
+    });
+    const maxColumns = Math.min(3, Math.max(1, overlappingItems.length));
+    const columnIndex = Math.max(0, overlappingItems.findIndex((other) => other.id === item.id)) % maxColumns;
+    const widthPercent = 100 / maxColumns;
+
+    return {
+      top: (topMinutes / 60) * HOUR_HEIGHT,
+      height: Math.max(MIN_TIME_BLOCK_HEIGHT, (durationMinutes / 60) * HOUR_HEIGHT),
+      left: `calc(${columnIndex * widthPercent}% + 6px)`,
+      width: `calc(${widthPercent}% - 10px)`,
+      zIndex: 10 + columnIndex,
+    };
   };
 
   // Stats
@@ -817,9 +885,11 @@ export default function ContentSchedulePage() {
               </div>
             ) : (
               <>
+                {calendarView === "month" ? (
+                  <>
                 {/* Weekday Headers */}
-                <div className={`${calendarView === "day" ? "grid grid-cols-1" : "grid grid-cols-7"} mb-1`}>
-                  {(calendarView === "day" ? [format(currentMonth, "EEEE")] : WEEKDAYS).map((day) => (
+                <div className="mb-1 grid grid-cols-7">
+                  {WEEKDAYS.map((day) => (
                     <div
                       key={day}
                       className="text-center text-xs font-medium text-muted-foreground py-2"
@@ -830,25 +900,21 @@ export default function ContentSchedulePage() {
                 </div>
 
                 {/* Calendar Grid */}
-                <div className={`${calendarView === "day" ? "grid-cols-1" : "grid-cols-7"} grid border-t border-l border-border/40 rounded-lg overflow-hidden`}>
+                <div className="grid grid-cols-7 overflow-hidden rounded-lg border-l border-t border-border/40">
                   {visibleDays.map((day) => {
                     const dateKey = format(day, "yyyy-MM-dd");
-                    const dayPosts = postsByDate[dateKey] || [];
-                    const inCurrentMonth = calendarView === "month" ? isSameMonth(day, currentMonth) : true;
+                    const dayPosts = getSortedDayItems(day);
+                    const inCurrentMonth = isSameMonth(day, currentMonth);
                     const today = isToday(day);
                     const pastDay = isPast(day) && !today;
                     const isEmpty = dayPosts.length === 0;
-                    const maxVisibleItems = calendarView === "month" ? 3 : calendarView === "week" ? 8 : 18;
+                    const maxVisibleItems = 3;
 
                     return (
                       <div
                         key={dateKey}
                         className={`relative border-r border-b border-border/40 p-1.5 transition-colors group ${
-                          calendarView === "day"
-                            ? "min-h-[520px]"
-                            : calendarView === "week"
-                              ? "min-h-[420px]"
-                              : "min-h-[110px] sm:min-h-[140px] lg:min-h-[155px]"
+                          "min-h-[110px] sm:min-h-[140px] lg:min-h-[155px]"
                         } ${
                           !inCurrentMonth
                             ? "bg-muted/20"
@@ -919,6 +985,7 @@ export default function ContentSchedulePage() {
                                   handlePostClick(post);
                                 }}
                                 className={`flex w-full items-center gap-1.5 rounded border px-1.5 py-1 text-left text-[10px] leading-tight transition-all cursor-grab active:cursor-grabbing sm:text-[11px] ${getCalendarItemStyle(post)} hover:ring-1 hover:ring-current/20`}
+                                title={getCalendarItemDateLabel(post)}
                               >
                                 {post.itemType === "strategy" ? (
                                   <FileEdit className="h-3.5 w-3.5 shrink-0" />
@@ -940,6 +1007,9 @@ export default function ContentSchedulePage() {
                                     {spanDays + 1}d
                                   </span>
                                 )}
+                                <span className="hidden shrink-0 text-[9px] font-semibold opacity-75 xl:inline">
+                                  {format(getItemTimeRange(post).start, "h:mm")}
+                                </span>
                                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${config.dotColor}`} />
                                 {post.itemType === "strategy" && (
                                   <span
@@ -955,19 +1025,168 @@ export default function ContentSchedulePage() {
                           })}
                         </div>
 
-                        {/* Empty day + icon on hover (future days only) */}
-                        {isEmpty && inCurrentMonth && !pastDay && (
-                          <div className="absolute inset-x-2 bottom-2 top-9 flex items-center justify-center rounded-xl border border-dashed border-border/60 opacity-60 transition-opacity pointer-events-none group-hover:opacity-100">
-                            <div className="flex h-8 items-center gap-1.5 rounded-full bg-brand-500/10 px-2 text-brand-500">
-                              <Plus className="w-3.5 h-3.5 text-brand-500" />
-                              <span className="hidden text-[10px] font-semibold sm:inline">Note</span>
-                            </div>
-                          </div>
+                        {inCurrentMonth && !pastDay && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openNotePanel(day);
+                            }}
+                            className="mt-1 flex h-7 w-full items-center justify-center gap-1 rounded-lg border border-dashed border-border/70 bg-background/70 text-[10px] font-semibold text-muted-foreground transition hover:border-brand-500/50 hover:bg-brand-500/10 hover:text-brand-600"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Add note
+                          </button>
                         )}
                       </div>
                     );
                   })}
                 </div>
+                  </>
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border border-border/50 bg-background">
+                    <div
+                      className="min-w-[760px]"
+                      style={{
+                        gridTemplateColumns: `72px repeat(${visibleDays.length}, minmax(${calendarView === "day" ? "520px" : "170px"}, 1fr))`,
+                      }}
+                    >
+                      <div
+                        className="grid border-b bg-muted/30"
+                        style={{
+                          gridTemplateColumns: `72px repeat(${visibleDays.length}, minmax(${calendarView === "day" ? "520px" : "170px"}, 1fr))`,
+                        }}
+                      >
+                        <div className="border-r px-2 py-3 text-xs font-semibold text-muted-foreground">Time</div>
+                        {visibleDays.map((day) => (
+                          <div key={format(day, "yyyy-MM-dd")} className="border-r px-3 py-2 last:border-r-0">
+                            <p className="text-sm font-bold text-foreground">{format(day, "EEE")}</p>
+                            <p className={`text-xs ${isToday(day) ? "font-bold text-brand-500" : "text-muted-foreground"}`}>
+                              {format(day, "MMM d")}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div
+                        className="grid"
+                        style={{
+                          gridTemplateColumns: `72px repeat(${visibleDays.length}, minmax(${calendarView === "day" ? "520px" : "170px"}, 1fr))`,
+                        }}
+                      >
+                        <div
+                          className="relative border-r bg-muted/10"
+                          style={{ height: (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT + 48 }}
+                        >
+                          {visibleHours.slice(0, -1).map((hour) => (
+                            <div
+                              key={hour}
+                              className="absolute left-0 right-0 -translate-y-2 px-2 text-right text-[11px] font-medium text-muted-foreground"
+                              style={{ top: (hour - DAY_START_HOUR) * HOUR_HEIGHT }}
+                            >
+                              {format(new Date(2026, 0, 1, hour), "h a")}
+                            </div>
+                          ))}
+                        </div>
+
+                        {visibleDays.map((day) => {
+                          const dateKey = format(day, "yyyy-MM-dd");
+                          const dayItems = getSortedDayItems(day);
+                          const today = isToday(day);
+                          return (
+                            <div
+                              key={dateKey}
+                              className={`relative border-r bg-background last:border-r-0 ${today ? "bg-blue-500/[0.03]" : ""}`}
+                              style={{ height: (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT + 48 }}
+                              onDragOver={(event) => {
+                                if (!draggingItem && !resizingNote) return;
+                                event.preventDefault();
+                                event.dataTransfer.dropEffect = "move";
+                              }}
+                              onDrop={(event) => void handleDropOnDay(event, day)}
+                            >
+                              {visibleHours.slice(0, -1).map((hour) => (
+                                <div
+                                  key={hour}
+                                  className="absolute left-0 right-0 border-t border-border/40"
+                                  style={{ top: (hour - DAY_START_HOUR) * HOUR_HEIGHT }}
+                                />
+                              ))}
+
+                              {dayItems.map((post) => {
+                                const config = statusConfig[post.status] || statusConfig.draft;
+                                const firstPlatform = (post.platforms || []).find((platform) => PLATFORM_META[platform]);
+                                const PlatformIcon = firstPlatform ? PLATFORM_META[firstPlatform].icon : FileEdit;
+                                const layout = getTimedItemLayout(post, day, dayItems);
+                                return (
+                                  <button
+                                    key={post.id}
+                                    draggable
+                                    onDragStart={(event) => handleDragStart(event, post)}
+                                    onDragEnd={() => {
+                                      setDraggingItem(null);
+                                      setResizingNote(null);
+                                      setHoveredItem(null);
+                                    }}
+                                    onMouseEnter={(event) => handlePreviewHover(event, post)}
+                                    onMouseMove={(event) => handlePreviewHover(event, post)}
+                                    onMouseLeave={() => setHoveredItem(null)}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handlePostClick(post);
+                                    }}
+                                    className={`absolute overflow-hidden rounded-xl border px-2 py-1.5 text-left shadow-sm transition hover:ring-1 hover:ring-current/20 ${getCalendarItemStyle(post)}`}
+                                    style={layout}
+                                    title={getCalendarItemDateLabel(post)}
+                                  >
+                                    <div className="mb-1 flex items-center gap-1.5">
+                                      {post.itemType === "strategy" ? (
+                                        <FileEdit className="h-3.5 w-3.5 shrink-0" />
+                                      ) : (
+                                        <PlatformIcon className="h-3.5 w-3.5 shrink-0" />
+                                      )}
+                                      <span className="truncate text-[11px] font-bold">
+                                        {post.itemType === "strategy"
+                                          ? post.title || post.caption || "Strategy note"
+                                          : post.caption || "Scheduled post"}
+                                      </span>
+                                    </div>
+                                    <p className="truncate text-[10px] font-semibold opacity-80">{getTimeLabel(post)}</p>
+                                    {post.itemType !== "strategy" && (
+                                      <span className="mt-1 flex items-center">{getPlatformStack(post.platforms || [])}</span>
+                                    )}
+                                    {post.itemType === "strategy" && (
+                                      <span
+                                        draggable
+                                        onDragStart={(event) => handleResizeStart(event, post)}
+                                        onClick={(event) => event.stopPropagation()}
+                                        className="absolute bottom-1 right-1 h-4 w-2 cursor-ew-resize rounded-full bg-current/25 transition hover:bg-current/45"
+                                        title="Drag to extend note"
+                                      />
+                                    )}
+                                    <span className={`absolute right-2 top-2 h-1.5 w-1.5 rounded-full ${config.dotColor}`} />
+                                  </button>
+                                );
+                              })}
+
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openNotePanel(day);
+                                }}
+                                className="absolute inset-x-2 bottom-2 flex h-8 items-center justify-center gap-1 rounded-lg border border-dashed border-border/70 bg-background/90 text-xs font-semibold text-muted-foreground shadow-sm transition hover:border-brand-500/50 hover:bg-brand-500/10 hover:text-brand-600"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                Add note
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Legend */}
                 <div className="flex items-center gap-4 mt-4 pt-3 border-t border-border/40 flex-wrap">
@@ -1360,7 +1579,7 @@ export default function ContentSchedulePage() {
             if (!open) setEditingNoteId(null);
           }}
           title={editingNoteId ? "Edit note" : "Calendar note"}
-          description={noteDate ? `${noteDate}${noteEndDate && noteEndDate !== noteDate ? ` to ${noteEndDate}` : ""} ${noteTime || ""}` : "Add strategy work to the calendar."}
+          description={noteDate ? `${noteDate}${noteEndDate && noteEndDate !== noteDate ? ` to ${noteEndDate}` : ""} ${noteTime || ""} - ${noteEndTime || ""}` : "Add strategy work to the calendar."}
           icon={<StickyNote className="h-4 w-4" />}
           defaultSize={{ width: 500, height: 610 }}
           defaultPosition={{ y: 136 }}
@@ -1386,9 +1605,9 @@ export default function ContentSchedulePage() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="note-date">Start</Label>
+                <Label htmlFor="note-date">Start date</Label>
                 <Input
                   id="note-date"
                   type="date"
@@ -1400,7 +1619,7 @@ export default function ContentSchedulePage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="note-end-date">End</Label>
+                <Label htmlFor="note-end-date">End date</Label>
                 <Input
                   id="note-end-date"
                   type="date"
@@ -1410,12 +1629,29 @@ export default function ContentSchedulePage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="note-time">Time</Label>
+                <Label htmlFor="note-time">Time from</Label>
                 <Input
                   id="note-time"
                   type="time"
                   value={noteTime}
-                  onChange={(event) => setNoteTime(event.target.value)}
+                  onChange={(event) => {
+                    setNoteTime(event.target.value);
+                    if (noteDate === noteEndDate && noteEndTime <= event.target.value) {
+                      const [hours, minutes] = event.target.value.split(":").map(Number);
+                      const nextEnd = new Date();
+                      nextEnd.setHours(Number.isFinite(hours) ? hours : 9, Number.isFinite(minutes) ? minutes : 0, 0, 0);
+                      setNoteEndTime(format(addMinutes(nextEnd, 60), "HH:mm"));
+                    }
+                  }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="note-end-time">Time to</Label>
+                <Input
+                  id="note-end-time"
+                  type="time"
+                  value={noteEndTime}
+                  onChange={(event) => setNoteEndTime(event.target.value)}
                 />
               </div>
             </div>

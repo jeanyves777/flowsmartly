@@ -103,9 +103,10 @@ export async function PATCH(
       nextDueDate = dueDate;
     }
 
-    if (nextStartDate && nextDueDate && nextDueDate < nextStartDate) {
+    const changedTimeline = body.startDate !== undefined || body.dueDate !== undefined;
+    if (changedTimeline && nextStartDate && nextDueDate && nextDueDate <= nextStartDate) {
       return NextResponse.json(
-        { success: false, error: { message: "dueDate must be on or after startDate" } },
+        { success: false, error: { message: "dueDate must be after startDate" } },
         { status: 400 }
       );
     }
