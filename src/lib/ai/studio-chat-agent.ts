@@ -151,6 +151,12 @@ export interface ChatState {
   originalRequest?: string;
   briefContext?: string;
   lastUserInstruction?: string;
+  /** The lightweight free Studio flow must have one natural brief
+   *  exchange before it shows the final Generate confirmation card. */
+  briefConversationStarted?: boolean;
+  /** Set when a confirm_summary card has been shown. Dispatch still
+   *  requires the latest agent turn to be that confirmation card. */
+  confirmationShown?: boolean;
   qualityCheckEnabled?: boolean;
   /** Output mode chosen by the user just before dispatch. "editable" =
    *  smart_layout pipeline (Fabric layers the user can tweak). "flat" =

@@ -73,6 +73,9 @@ function extractPickedSize(message: string): StudioSize | null {
       style: inferred.style,
     };
   }
+  if (/\bsquare\b/.test(text)) {
+    return { name: "Square", width: 1024, height: 1024, category: "social_post", style: "polished" };
+  }
   if (/\b(portrait|flyer|poster|vertical)\b/.test(text)) {
     return { name: "Portrait", width: 1024, height: 1536, category: "flyer", style: "polished" };
   }
@@ -109,6 +112,20 @@ function isSyntheticPickerMessage(message: string) {
 function isReferenceSignalMessage(message: string) {
   return /^here'?s a reference image to use\.?$/i.test(message.trim()) ||
     /^reference image attached\.?$/i.test(message.trim());
+}
+
+function lastAgentTurnHasCard(history: ChatTurn[], type: CardSpec["type"]) {
+  const lastAgentTurn = [...history].reverse().find((turn) => turn.role === "agent");
+  return lastAgentTurn?.cards?.some((card) => card.type === type) === true;
+}
+
+function hasNaturalAgentReply(history: ChatTurn[]) {
+  return history.some(
+    (turn) =>
+      turn.role === "agent" &&
+      turn.content.trim().length > 0 &&
+      (!turn.cards || turn.cards.length === 0),
+  );
 }
 
 function mergeBriefContext(existing: string | undefined, incoming: string) {
@@ -164,6 +181,30 @@ function buildUserFacingBrief(state: ChatState) {
     direction: state.style || "FlowAI creative direction",
     brand: state.brandKit?.name || "Brand kit",
   };
+}
+
+function buildClarifyingBriefReply(message: string, state: ChatState, references: string[]) {
+  const lower = message.toLowerCase();
+  const subject = state.mode === "video"
+    ? "video"
+    : /\b(flyer|poster|invitation|announcement|service|conference|event)\b/.test(lower)
+      ? "design"
+      : "creative";
+  const brandLine = state.brandKit?.name
+    ? `I will keep ${state.brandKit.name} in the mix.`
+    : "I will keep it clean and on-brand once the idea is locked.";
+  const referenceLine = references.length > 0
+    ? "I can use the reference image as visual direction."
+    : null;
+
+  return [
+    `That ${subject} can work.`,
+    brandLine,
+    referenceLine,
+    "Before I show a Generate button, tell me the exact headline or must-have text, who this is for, and the feeling you want people to get.",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function buildGenerationPrompt(state: ChatState, fallbackMessage: string, references: string[]) {
@@ -261,6 +302,8 @@ export async function runFreeStudioTurn(opts: RunChatTurnOpts): Promise<RunChatT
   const pickedStyle = extractStyle(message);
   const isPickerReply = isSyntheticPickerMessage(message);
   const isReferenceSignal = isReferenceSignalMessage(message);
+  const latestAgentAskedForConfirmation = lastAgentTurnHasCard(opts.history, "confirm_summary");
+  const conversationStarted = opts.state.briefConversationStarted === true || hasNaturalAgentReply(opts.history);
   const nextState: ChatState = {
     ...opts.state,
     references: opts.state.references,
@@ -287,7 +330,7 @@ export async function runFreeStudioTurn(opts: RunChatTurnOpts): Promise<RunChatT
     nextState.lastUserInstruction = message;
     nextState.designText = mergeBriefContext(nextState.briefContext || nextState.designText || nextState.prompt, message);
     nextState.briefContext = nextState.designText;
-    nextState.category = pickedSize?.category || inferred.category;
+    nextState.category = pickedSize?.category || nextState.category || inferred.category;
   }
 
   if (isRegeneratePrompt(message) && opts.state.prompt) {
@@ -298,7 +341,30 @@ export async function runFreeStudioTurn(opts: RunChatTurnOpts): Promise<RunChatT
 
   const needsPrompt = !nextState.prompt && !nextState.designText;
   const needsSize = nextState.mode !== "video" && !nextState.size;
-  const isConfirmed = isGenerateConfirmation(message) || isRegeneratePrompt(message);
+  const generateRequested = isGenerateConfirmation(message);
+  const isConfirmed = (generateRequested && latestAgentAskedForConfirmation && conversationStarted) || isRegeneratePrompt(message);
+
+  if (
+    !conversationStarted &&
+    !needsPrompt &&
+    !isRegeneratePrompt(message) &&
+    !isReferenceSignal
+  ) {
+    nextState.briefConversationStarted = true;
+    return {
+      text: buildClarifyingBriefReply(message, nextState, references),
+      cards: [],
+      dispatched: [],
+      stateUpdate: nextState,
+      toolCalls: [{
+        name: "free_studio_conversation_gate",
+        input: { message, references, isPickerReply },
+        output: { state: buildUserFacingBrief(nextState) },
+      }],
+      usage: { inputTokens: 0, outputTokens: 0 },
+      iterations: 1,
+    };
+  }
 
   if (!isConfirmed || needsPrompt || needsSize) {
     const cards: CardSpec[] = [];
@@ -319,6 +385,7 @@ export async function runFreeStudioTurn(opts: RunChatTurnOpts): Promise<RunChatT
     }
 
     if (!needsPrompt && !needsSize && nextState.style) {
+      nextState.confirmationShown = true;
       cards.push({
         type: "confirm_summary" as const,
         collected: buildUserFacingBrief(nextState),

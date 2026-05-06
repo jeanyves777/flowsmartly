@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import type { CardSpec } from "@/lib/ai/studio-chat-agent";
 
 /**
  * GET    /api/studio/chat/[chatId] — fetch chat metadata + full turn history (resume).
@@ -16,6 +17,26 @@ async function authorize(chatId: string, userId: string) {
   if (!chat) return null;
   if (chat.userId !== userId) return null;
   return chat;
+}
+
+function parseCards(cards: string | null): CardSpec[] {
+  if (!cards) return [];
+  try {
+    const parsed = JSON.parse(cards);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseAttachments(attachments: string | null) {
+  if (!attachments) return [];
+  try {
+    const parsed = JSON.parse(attachments);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function GET(
@@ -51,6 +72,24 @@ export async function GET(
     state = JSON.parse(chat.state || "{}");
   } catch { /* keep empty */ }
 
+  let naturalAgentReplySeen = false;
+  const responseTurns = turns.map((t) => {
+    const cards = parseCards(t.cards);
+    const visibleCards = cards.filter((card) => naturalAgentReplySeen || card.type !== "confirm_summary");
+    if (t.role === "agent" && t.content.trim().length > 0 && cards.length === 0) {
+      naturalAgentReplySeen = true;
+    }
+    return {
+      id: t.id,
+      role: t.role,
+      content: t.content,
+      cards: visibleCards,
+      attachments: parseAttachments(t.attachments),
+      branchId: t.branchId,
+      createdAt: t.createdAt.toISOString(),
+    };
+  });
+
   return NextResponse.json({
     success: true,
     chat: {
@@ -61,15 +100,7 @@ export async function GET(
       createdAt: chat.createdAt.toISOString(),
       updatedAt: chat.updatedAt.toISOString(),
     },
-    turns: turns.map((t) => ({
-      id: t.id,
-      role: t.role,
-      content: t.content,
-      cards: t.cards ? JSON.parse(t.cards) : [],
-      attachments: t.attachments ? JSON.parse(t.attachments) : [],
-      branchId: t.branchId,
-      createdAt: t.createdAt.toISOString(),
-    })),
+    turns: responseTurns,
   });
 }
 
