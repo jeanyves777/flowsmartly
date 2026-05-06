@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { uploadToS3 } from "@/lib/utils/s3-client";
+import { openaiClient } from "@/lib/ai/openai-client";
 
 // POST /api/media/generate-image — Generate an image with AI
 export async function POST(request: NextRequest) {
@@ -40,44 +41,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Try Flow AI first, then OpenAI DALL-E fallback
+    // GPT Image is the primary generator for marketing images. The
+    // self-hosted Flow AI server remains a last-resort fallback.
     let base64Image: string | null = null;
 
-    // Flow AI (self-hosted Stable Diffusion)
     try {
-      const { flowImageClient } = await import("@/lib/ai/flow-image-client");
-      const isAvailable = await flowImageClient.isAvailable();
-      if (isAvailable) {
-        base64Image = await flowImageClient.generateImage(prompt, {
-          width: 512,
-          height: 512,
-        });
-      }
-    } catch {
-      // Flow AI not available, will try OpenAI
+      base64Image = await openaiClient.generateImage(prompt, {
+        size: "1024x1024",
+        quality: "high",
+      });
+    } catch (err) {
+      console.error("GPT Image generation failed, trying Flow AI fallback:", err);
     }
 
-    // OpenAI DALL-E fallback
-    if (!base64Image && process.env.OPENAI_API_KEY) {
-      try {
-        const { default: OpenAI } = await import("openai");
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const response = await openai.images.generate({
-          model: "dall-e-3",
-          prompt,
-          n: 1,
-          size: "1024x1024",
-          response_format: "b64_json",
+    // Flow AI (self-hosted Stable Diffusion) fallback
+    try {
+      if (!base64Image) {
+        const { flowImageClient } = await import("@/lib/ai/flow-image-client");
+        const isAvailable = await flowImageClient.isAvailable();
+        if (!isAvailable) throw new Error("Flow AI is unavailable");
+        base64Image = await flowImageClient.generateImage(prompt, {
+          width: 1024,
+          height: 1024,
         });
-        base64Image = response.data?.[0]?.b64_json || null;
-      } catch (err) {
-        console.error("OpenAI image generation failed:", err);
       }
+    } catch (err) {
+      console.error("Flow AI fallback failed:", err);
     }
 
     if (!base64Image) {
       return NextResponse.json(
-        { success: false, error: "Image generation failed. Neither Flow AI nor OpenAI is available." },
+        { success: false, error: "Image generation failed. GPT Image did not return a usable image." },
         { status: 503 }
       );
     }

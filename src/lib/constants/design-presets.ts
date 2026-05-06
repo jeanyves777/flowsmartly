@@ -132,13 +132,9 @@ export function getSizeLabel(width: number, height: number): string {
  */
 export function getProvidersForPreset(width: number, height: number): ImageProvider[] {
   const ratio = width / height;
-  const providers: ImageProvider[] = [];
+  const providers: ImageProvider[] = ["openai"];
 
   // OpenAI: 1024x1024, 1536x1024, 1024x1536 → ratios 0.67–1.5
-  if (ratio >= 0.67 && ratio <= 1.5) {
-    providers.push("openai");
-  }
-
   // xAI: 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3, 2:1, 1:2 → ratios 0.5–2.0
   if (ratio >= 0.5 && ratio <= 2.0) {
     providers.push("xai");

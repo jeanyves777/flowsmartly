@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { runChatTurn, type ChatState, type ChatTurn, type CardSpec } from "@/lib/ai/studio-chat-agent";
+import { type ChatState, type ChatTurn, type CardSpec } from "@/lib/ai/studio-chat-agent";
+import { runFreeStudioTurn } from "@/lib/ai/studio-free-chat";
 import { dispatchAll } from "@/lib/ai/studio-chat-dispatcher";
 
 /**
@@ -173,8 +174,10 @@ export async function POST(
       }
     } catch { /* ignore — non-fatal */ }
 
-    // Run the agent.
-    const result = await runChatTurn({
+    // Run the free Studio flow: no scripted wizard. The user's prompt,
+    // references, and brand identity go straight to the GPT Image-backed
+    // dispatcher unless this is just casual chat.
+    const result = await runFreeStudioTurn({
       history,
       userMessage: userText,
       attachments: body.attachments,
@@ -278,7 +281,7 @@ export async function POST(
         userId: session.userId,
         adminId: session.adminId ?? null,
         feature: "studio_chat_turn",
-        model: "claude-opus-4-7",
+        model: result.dispatched.length > 0 ? "gpt-image-1" : (process.env.FLOWAI_STUDIO_CHAT_MODEL || "gpt-4o-mini"),
         inputTokens: result.usage.inputTokens,
         outputTokens: result.usage.outputTokens,
         // Rough — adaptive thinking + tool calls ≈ ~5-10c per chat turn.

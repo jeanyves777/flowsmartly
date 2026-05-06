@@ -2,11 +2,11 @@
  * Slideshow Video Pipeline
  *
  * Creates ~45s narrative videos from AI-generated images with voiceover and captions.
- * Pipeline: Claude script → Grok images → OpenAI TTS → FFmpeg composition
+ * Pipeline: Claude script → GPT Image scenes → OpenAI TTS → FFmpeg composition
  */
 
 import { ai } from "@/lib/ai/client";
-import { xaiClient } from "@/lib/ai/xai-client";
+import { openaiClient } from "@/lib/ai/openai-client";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import fs from "fs";
 import os from "os";
@@ -168,7 +168,11 @@ export async function generateSlideshowImages(
   fs.mkdirSync(tmpDir, { recursive: true });
 
   const images: SlideshowImage[] = [];
-  const grokAR = aspectRatio as "16:9" | "9:16" | "1:1";
+  const gptSize = aspectRatio === "16:9"
+    ? "1536x1024"
+    : aspectRatio === "9:16"
+      ? "1024x1536"
+      : "1024x1024";
 
   for (let i = 0; i < scenes.length; i++) {
     const scene = scenes[i];
@@ -178,7 +182,7 @@ export async function generateSlideshowImages(
 
     // First attempt
     try {
-      base64 = await xaiClient.generateImage(scene.imagePrompt, { aspectRatio: grokAR });
+      base64 = await openaiClient.generateImage(scene.imagePrompt, { size: gptSize, quality: "high" });
     } catch (err) {
       console.warn(`[Slideshow] Image gen failed for scene ${i + 1}, retrying:`, err);
     }
@@ -186,7 +190,7 @@ export async function generateSlideshowImages(
     // Retry once
     if (!base64) {
       try {
-        base64 = await xaiClient.generateImage(scene.imagePrompt, { aspectRatio: grokAR });
+        base64 = await openaiClient.generateImage(scene.imagePrompt, { size: gptSize, quality: "high" });
       } catch (retryErr) {
         throw new Error(`Failed to generate image for scene ${i + 1} after retry: ${retryErr instanceof Error ? retryErr.message : "Unknown error"}`);
       }
@@ -197,7 +201,7 @@ export async function generateSlideshowImages(
     }
 
     // Save to temp file
-    const imgPath = path.join(tmpDir, `scene-${i + 1}.jpg`);
+    const imgPath = path.join(tmpDir, `scene-${i + 1}.png`);
     fs.writeFileSync(imgPath, Buffer.from(base64, "base64"));
 
     images.push({ sceneNumber: scene.sceneNumber, localPath: imgPath });

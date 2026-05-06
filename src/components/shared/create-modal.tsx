@@ -235,7 +235,7 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
   const [imagePrompt, setImagePrompt] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<DesignCategory>("social_post");
   const [selectedSize, setSelectedSize] = useState<SizePreset | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>("xai");
+  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>("openai");
   const [selectedStyle, setSelectedStyle] = useState("modern");
   const [heroType, setHeroType] = useState<"people" | "product" | "text-only">("people");
   const [textMode, setTextMode] = useState<"exact" | "creative">("creative");
@@ -974,8 +974,8 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
                           <Select value={selectedProvider} onValueChange={(v) => setSelectedProvider(v as ImageProvider)}>
                             <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="openai">OpenAI (gpt-image-1)</SelectItem>
-                              <SelectItem value="xai">Grok (xAI)</SelectItem>
+                              <SelectItem value="openai">GPT Image</SelectItem>
+                              <SelectItem value="xai">xAI fallback</SelectItem>
                               <SelectItem value="gemini">Gemini (Google)</SelectItem>
                             </SelectContent>
                           </Select>
@@ -995,8 +995,8 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
                     <Select value={selectedProvider} onValueChange={(v) => setSelectedProvider(v as ImageProvider)}>
                       <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="openai">OpenAI (gpt-image-1)</SelectItem>
-                        <SelectItem value="xai">Grok (xAI)</SelectItem>
+                        <SelectItem value="openai">GPT Image</SelectItem>
+                        <SelectItem value="xai">xAI fallback</SelectItem>
                         <SelectItem value="gemini">Gemini (Google)</SelectItem>
                       </SelectContent>
                     </Select>

@@ -78,7 +78,10 @@ export function buildImagePipelineTools(ctx: ImagePipelineToolContext): AgentToo
         required: ["provider", "prompt", "needsTransparency"],
       },
       handler: async (input) => {
-        const provider = String(input.provider) as "openai" | "xai" | "gemini";
+        const requestedProvider = String(input.provider || "openai") as "openai" | "xai" | "gemini";
+        const provider = requestedProvider === "openai" || process.env.FLOWAI_ALLOW_FALLBACK_IMAGE_PROVIDERS === "true"
+          ? requestedProvider
+          : "openai";
         const corePrompt = String(input.prompt || "");
         const needsTransparency = Boolean(input.needsTransparency);
 

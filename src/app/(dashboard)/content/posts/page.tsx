@@ -152,7 +152,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Brand offer card",
       mode: "image",
       aspect: "1:1",
-      badge: "xAI image",
+      badge: "GPT Image",
       prompt: `Create a polished social media offer image for ${brandName}. It should promote ${productFocus} to ${audience}, use a ${voice} tone, make ${value} visually obvious, reserve clean space for a short headline and CTA, and use the brand palette. No fake third-party logos.`,
     },
     {
@@ -160,7 +160,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Proof post visual",
       mode: "image",
       aspect: "1:1",
-      badge: "xAI image",
+      badge: "GPT Image",
       prompt: `Create a trust-building proof image for ${brandName} on ${channels}. Show realistic customer momentum, review/social proof, and a simple result card tied to ${value}. Keep it premium, readable, and grounded in the brand colors. No generic dashboard mockup.`,
     },
     {
@@ -266,7 +266,7 @@ const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
     title: "Clean offer card",
     mode: "image",
     aspect: "1:1",
-    badge: "xAI image",
+    badge: "GPT Image",
     prompt:
       "Create a polished social media promotion image for a growth and marketing workspace. Modern SaaS style, bold headline space, clear CTA area, subtle social media UI elements, premium lighting, no fake app logos.",
   },
@@ -275,7 +275,7 @@ const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
     title: "Proof post visual",
     mode: "image",
     aspect: "1:1",
-    badge: "xAI image",
+    badge: "GPT Image",
     prompt:
       "Create a trust-building social post image showing campaign results, customer activity, and simple analytics in a clean branded dashboard collage. Friendly, modern, high contrast, ready for Facebook and LinkedIn.",
   },
@@ -301,9 +301,9 @@ const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
 
 const FLOW_MEDIA_STYLES = ["modern", "premium", "bold", "clean", "cinematic"];
 const FLOW_IMAGE_PROVIDER_LABELS: Record<FlowImageProvider, string> = {
-  xai: "xAI",
-  openai: "OpenAI",
-  gemini: "Gemini",
+  openai: "GPT Image",
+  xai: "xAI fallback",
+  gemini: "Gemini fallback",
 };
 
 const getFlowMediaAspect = (aspect: FlowMediaAspect) =>
@@ -857,18 +857,18 @@ export default function ContentPostsPage() {
       .join("\n\n");
     setIsGeneratingFlowMedia(true);
     setGeneratedFlowMedia(null);
-    setFlowMediaStatus(flowMediaMode === "image" ? "Sending prompt to xAI..." : "Sending prompt to Google Veo...");
+    setFlowMediaStatus(flowMediaMode === "image" ? "Sending prompt to GPT Image..." : "Sending prompt to Google Veo...");
 
     try {
       if (flowMediaMode === "image") {
-        const providers: FlowImageProvider[] = ["xai", "openai", "gemini"];
+        const providers: FlowImageProvider[] = ["openai", "xai", "gemini"];
         let lastError = "Image generation failed";
 
         for (const provider of providers) {
           setFlowMediaStatus(
-            provider === "xai"
-              ? "Sending prompt to xAI..."
-              : `xAI did not return a usable image. Trying ${FLOW_IMAGE_PROVIDER_LABELS[provider]}...`
+            provider === "openai"
+              ? "Sending prompt to GPT Image..."
+              : `GPT Image did not return a usable image. Trying ${FLOW_IMAGE_PROVIDER_LABELS[provider]}...`
           );
 
           const res = await fetch("/api/ai/visual", {
@@ -1828,7 +1828,7 @@ export default function ContentPostsPage() {
 
             <div className="grid grid-cols-2 gap-2 rounded-2xl bg-muted/50 p-1">
               {[
-                { id: "image" as const, label: "Image", icon: ImageIcon, helper: "xAI Grok" },
+                { id: "image" as const, label: "Image", icon: ImageIcon, helper: "GPT Image" },
                 { id: "video" as const, label: "Video", icon: Film, helper: "Google Veo" },
               ].map((mode) => {
                 const Icon = mode.icon;
@@ -1942,7 +1942,7 @@ export default function ContentPostsPage() {
                   <AIGenerationLoader
                     compact
                     currentStep={flowMediaStatus || "Generating media..."}
-                    subtitle={flowMediaMode === "image" ? "xAI is creating a fast campaign image" : "Veo video generation can take a few minutes"}
+                    subtitle={flowMediaMode === "image" ? "GPT Image is creating a polished campaign asset" : "Veo video generation can take a few minutes"}
                   />
                 ) : (
                   <p className="text-sm font-semibold text-cyan-700 dark:text-cyan-300">{flowMediaStatus}</p>

@@ -94,6 +94,129 @@ interface DispatchOpts {
   origin: string;
 }
 
+interface ChatBrandIdentity {
+  raw: Record<string, unknown>;
+  colors: { primary?: string; secondary?: string; accent?: string } | null;
+  fonts: { heading?: string; body?: string } | null;
+  logoUrl: string | null;
+  handles: Record<string, string> | null;
+  contactInfo: { email?: string | null; phone?: string | null; website?: string | null; address?: string | null } | null;
+}
+
+function parseJsonObject<T extends Record<string, unknown>>(value: string | null | undefined): T | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as T : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseJsonArray(value: string | null | undefined): unknown[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function loadChatBrandIdentity(chatId: string): Promise<ChatBrandIdentity | null> {
+  const chat = await prisma.designChat.findUnique({
+    where: { id: chatId },
+    select: { userId: true },
+  });
+  if (!chat?.userId) return null;
+
+  const kit = await prisma.brandKit.findFirst({
+    where: { userId: chat.userId },
+    orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+    select: {
+      name: true,
+      tagline: true,
+      description: true,
+      industry: true,
+      niche: true,
+      targetAudience: true,
+      audienceAge: true,
+      audienceLocation: true,
+      voiceTone: true,
+      personality: true,
+      keywords: true,
+      avoidWords: true,
+      guidelines: true,
+      hashtags: true,
+      products: true,
+      uniqueValue: true,
+      colors: true,
+      fonts: true,
+      logo: true,
+      iconLogo: true,
+      email: true,
+      phone: true,
+      website: true,
+      address: true,
+      city: true,
+      state: true,
+      zip: true,
+      country: true,
+      handles: true,
+    },
+  });
+  if (!kit) return null;
+
+  const colors = parseJsonObject<{ primary?: string; secondary?: string; accent?: string }>(kit.colors);
+  const fonts = parseJsonObject<{ heading?: string; body?: string }>(kit.fonts);
+  const handles = parseJsonObject<Record<string, unknown>>(kit.handles);
+  const cleanHandles = handles
+    ? Object.fromEntries(Object.entries(handles).filter(([, value]) => typeof value === "string" && value.trim()))
+    : null;
+  const fullAddress = [kit.address, kit.city, kit.state, kit.zip, kit.country].filter(Boolean).join(", ");
+  const contactInfo = {
+    email: kit.email,
+    phone: kit.phone,
+    website: kit.website,
+    address: fullAddress || kit.address,
+  };
+
+  const raw = {
+    name: kit.name,
+    tagline: kit.tagline,
+    description: kit.description,
+    industry: kit.industry,
+    niche: kit.niche,
+    audience: {
+      target: kit.targetAudience,
+      age: kit.audienceAge,
+      location: kit.audienceLocation,
+    },
+    voice: kit.voiceTone,
+    personality: parseJsonArray(kit.personality),
+    keywords: parseJsonArray(kit.keywords),
+    avoidWords: parseJsonArray(kit.avoidWords),
+    guidelines: kit.guidelines,
+    hashtags: parseJsonArray(kit.hashtags),
+    products: parseJsonArray(kit.products),
+    uniqueValue: kit.uniqueValue,
+    colors,
+    fonts,
+    logo: kit.logo || kit.iconLogo || null,
+    handles: cleanHandles,
+    contact: contactInfo,
+  };
+
+  return {
+    raw,
+    colors,
+    fonts,
+    logoUrl: kit.logo || kit.iconLogo || null,
+    handles: cleanHandles as Record<string, string> | null,
+    contactInfo,
+  };
+}
+
 /**
  * Process all dispatched envelopes in parallel. Mutates each envelope
  * in place — caller doesn't need to read the return value, but it's
@@ -327,6 +450,7 @@ async function dispatchDesignViaLegacy(
   // Both engines need the visual call. We always run that first.
   // ────────────────────────────────────────────────────────────────────
 
+  const chatBrand = await loadChatBrandIdentity(opts.chatId);
   const visualBody: Record<string, unknown> = {
     prompt,
     category: category ?? "social_post",
@@ -334,10 +458,20 @@ async function dispatchDesignViaLegacy(
     style: style ?? "polished",
     ctaText: ctaText ?? null,
     provider: "openai",
+    promptMode: "raw_brand",
+    brandIdentity: chatBrand?.raw ?? null,
+    channels: "Studio create chat",
+    brandName: typeof chatBrand?.raw.name === "string" ? chatBrand.raw.name : null,
+    brandColors: chatBrand?.colors ?? null,
+    brandLogo: chatBrand?.logoUrl ?? null,
+    contactInfo: chatBrand?.contactInfo ?? null,
+    showBrandName: Boolean(chatBrand?.raw.name),
+    showSocialIcons: Boolean(chatBrand?.handles),
+    socialHandles: chatBrand?.handles ?? null,
     referenceImageUrl: referenceImageUrl ?? null,
     chatOutputMode: mode,
   };
-  if (useBrandColors) visualBody.brandColors = "auto";
+  if (useBrandColors === false) visualBody.brandColors = null;
 
   const visualRes = await fetch(`${opts.origin}/api/ai/visual`, {
     method: "POST",

@@ -633,12 +633,26 @@ async function generateImageWithProvider(
 async function runRawBrandPipeline(params: PipelineParams) {
   const promptUsed = buildRawBrandPrompt(params);
   console.log(`[Visual] Raw brand pipeline via ${params.provider}`);
-  const { base64, model } = await generateImageWithProvider(
-    params.provider,
-    promptUsed,
-    params.width,
-    params.height
-  );
+  let base64: string | null;
+  let model: string;
+
+  if (params.provider === "openai" && params.referenceImageUrl) {
+    const refBuffer = await resolveImageToBuffer(params.referenceImageUrl);
+    base64 = await openaiClient.editImage(promptUsed, refBuffer, {
+      size: getGptImageSize(params.width, params.height),
+      quality: "high",
+    });
+    model = "gpt-image-1";
+  } else {
+    const generated = await generateImageWithProvider(
+      params.provider,
+      promptUsed,
+      params.width,
+      params.height
+    );
+    base64 = generated.base64;
+    model = generated.model;
+  }
 
   if (!base64) {
     throw new Error("The image provider returned no image.");

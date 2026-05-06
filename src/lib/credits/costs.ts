@@ -95,7 +95,7 @@ export const DEFAULT_CREDIT_COSTS = {
 
   // --- AI Video Studio ---
   AI_VIDEO_STUDIO: 60,    // Veo 3 per 8s clip (~$0.35 Google cost)
-  AI_VIDEO_SLIDESHOW: 25, // Slideshow: our FFmpeg + 6-8 xAI images + TTS (~$0.15 total)
+  AI_VIDEO_SLIDESHOW: 25, // Slideshow: our FFmpeg + GPT Image scenes + TTS
 
   // --- AI Marketing Image ---
   AI_MARKETING_IMAGE: 12, // Single image for MMS/email campaigns (~$0.06)
