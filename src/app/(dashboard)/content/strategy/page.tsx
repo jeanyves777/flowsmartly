@@ -57,6 +57,7 @@ import {
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { useToast } from "@/hooks/use-toast";
+import { PLATFORM_META } from "@/components/shared/social-platform-icons";
 import {
   isAutomationCandidate,
   qualifyStrategyTaskForAutomation,
@@ -313,6 +314,75 @@ const BRAND_HANDLE_PLATFORM: Record<string, string> = {
   youtube: "YouTube",
 };
 
+const ACCOUNT_PLATFORM_STYLES: Record<
+  string,
+  { color: string; soft: string; softer: string; iconBackground?: string }
+> = {
+  feed: {
+    color: "#0EA5E9",
+    soft: "rgba(14, 165, 233, 0.14)",
+    softer: "rgba(14, 165, 233, 0.06)",
+    iconBackground: "linear-gradient(135deg, #0EA5E9, #38BDF8)",
+  },
+  instagram: {
+    color: "#E4405F",
+    soft: "rgba(228, 64, 95, 0.13)",
+    softer: "rgba(252, 175, 69, 0.08)",
+    iconBackground: "linear-gradient(135deg, #833AB4, #E1306C 48%, #FCAF45)",
+  },
+  twitter: {
+    color: "#111827",
+    soft: "rgba(17, 24, 39, 0.1)",
+    softer: "rgba(17, 24, 39, 0.04)",
+    iconBackground: "linear-gradient(135deg, #111827, #475569)",
+  },
+  linkedin: {
+    color: "#0A66C2",
+    soft: "rgba(10, 102, 194, 0.12)",
+    softer: "rgba(10, 102, 194, 0.05)",
+    iconBackground: "linear-gradient(135deg, #0A66C2, #2563EB)",
+  },
+  facebook: {
+    color: "#1877F2",
+    soft: "rgba(24, 119, 242, 0.12)",
+    softer: "rgba(24, 119, 242, 0.05)",
+    iconBackground: "linear-gradient(135deg, #1877F2, #60A5FA)",
+  },
+  tiktok: {
+    color: "#FE2C55",
+    soft: "rgba(254, 44, 85, 0.12)",
+    softer: "rgba(37, 244, 238, 0.07)",
+    iconBackground: "linear-gradient(135deg, #111827 0%, #FE2C55 52%, #25F4EE 100%)",
+  },
+  youtube: {
+    color: "#FF0000",
+    soft: "rgba(255, 0, 0, 0.12)",
+    softer: "rgba(255, 0, 0, 0.05)",
+    iconBackground: "linear-gradient(135deg, #FF0000, #EF4444)",
+  },
+  pinterest: {
+    color: "#E60023",
+    soft: "rgba(230, 0, 35, 0.12)",
+    softer: "rgba(230, 0, 35, 0.05)",
+    iconBackground: "linear-gradient(135deg, #E60023, #F43F5E)",
+  },
+  threads: {
+    color: "#374151",
+    soft: "rgba(55, 65, 81, 0.11)",
+    softer: "rgba(55, 65, 81, 0.04)",
+    iconBackground: "linear-gradient(135deg, #111827, #6B7280)",
+  },
+  whatsapp: {
+    color: "#25D366",
+    soft: "rgba(37, 211, 102, 0.12)",
+    softer: "rgba(37, 211, 102, 0.05)",
+    iconBackground: "linear-gradient(135deg, #25D366, #16A34A)",
+  },
+};
+
+const getAccountPlatformStyle = (platformId: string) =>
+  ACCOUNT_PLATFORM_STYLES[platformId] || ACCOUNT_PLATFORM_STYLES.feed;
+
 const DEFAULT_TASK: TaskDraft = {
   title: "",
   description: "",
@@ -431,6 +501,44 @@ function taskProgress(task: StrategyTask) {
   return Math.min(100, Math.max(0, task.progress ?? 0));
 }
 
+function completedWorkLabel(match: MatchedActivity) {
+  switch (match.activityType) {
+    case "post":
+      return "Post";
+    case "campaign":
+      return "Campaign";
+    case "automation":
+      return "Marketing automation";
+    case "postAutomation":
+      return "Post automation";
+    case "adCampaign":
+      return "Ad campaign";
+    default:
+      return "Completed work";
+  }
+}
+
+function completedWorkHref(match: MatchedActivity) {
+  if (match.activityType === "post") {
+    return `/feed#post-${match.activityId}`;
+  }
+
+  const providedUrl = match.activityUrl?.trim();
+  if (providedUrl) return providedUrl;
+  switch (match.activityType) {
+    case "campaign":
+      return `/campaigns/${match.activityId}`;
+    case "automation":
+      return `/email-marketing/automations/${match.activityId}`;
+    case "postAutomation":
+      return "/content/strategy?view=automations";
+    case "adCampaign":
+      return `/ads/create?campaignId=${match.activityId}`;
+    default:
+      return "/content/strategy?view=sync";
+  }
+}
+
 function buildBrandGoal(brand: BrandSnapshot | null) {
   if (!brand) {
     return "Build a complete marketing strategy from my saved brand identity. Prioritize brand awareness, lead generation, content cadence, email follow-up, and automation-ready tasks.";
@@ -521,6 +629,7 @@ export default function StrategyAutomationPage() {
   const [upcomingOpen, setUpcomingOpen] = useState(true);
   const [strategyBuilderOpen, setStrategyBuilderOpen] = useState(false);
   const [automationBuilderOpen, setAutomationBuilderOpen] = useState(false);
+  const [automationConfigOpen, setAutomationConfigOpen] = useState(false);
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(DEFAULT_TASK);
   const [automationDraft, setAutomationDraft] = useState<AutomationDraft>(DEFAULT_AUTOMATION);
   const [strategyBuilder, setStrategyBuilder] = useState<StrategyBuilderDraft>(DEFAULT_STRATEGY_BUILDER);
@@ -683,10 +792,10 @@ export default function StrategyAutomationPage() {
   const automationPlatformOptions = useMemo(() => {
     const connected = connectedPlatforms.map((platform) => ({
       id: platform.platform,
-      label: platform.displayName || platform.name,
+      label: platform.displayName || PLATFORM_META[platform.platform]?.label || platform.name,
       detail: platform.username || platform.name,
     }));
-    return [{ id: "feed", label: "Feed", detail: "FlowSmartly" }, ...connected];
+    return [{ id: "feed", label: PLATFORM_META.feed.label, detail: "FlowSmartly internal feed" }, ...connected];
   }, [connectedPlatforms]);
   const getTaskReadiness = useCallback(
     (task: StrategyTask, options: AutomationBuilderDraft | AutomationDraft = automationBuilder) =>
@@ -1036,6 +1145,7 @@ export default function StrategyAutomationPage() {
       await loadData();
       setView("automations");
       setAutomationBuilderOpen(false);
+      setAutomationConfigOpen(false);
       toast({
         title: successTitle,
         description: `${json.data.automatedTaskCount || 0} task${json.data.automatedTaskCount === 1 ? "" : "s"} connected. ${json.data.creditEstimate?.totalCredits || estimate.totalCredits} credits validated for scheduled AI runs.`,
@@ -1578,9 +1688,15 @@ export default function StrategyAutomationPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           {automationBuilderOpen ? (
-            <Button variant="outline" onClick={() => setAutomationBuilderOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAutomationBuilderOpen(false);
+                setAutomationConfigOpen(false);
+              }}
+            >
               <X className="mr-2 h-4 w-4" />
-              Close setup
+              Close selection
             </Button>
           ) : (
             <>
@@ -1795,6 +1911,9 @@ export default function StrategyAutomationPage() {
 
   const renderInspector = () => {
     if (inspectorMode === "task") {
+      const completedMatches = selectedTask ? parseMatches(selectedTask.matchedActivities) : [];
+      const isCompletedTask = selectedTask?.status === "DONE";
+
       return (
         <InspectorShell
           title={taskDraft.id ? "Edit item" : "New item"}
@@ -1803,6 +1922,62 @@ export default function StrategyAutomationPage() {
           onClose={closeInspector}
         >
           <div className="space-y-4">
+            {taskDraft.id && isCompletedTask && (
+              <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3">
+                <div className="flex items-start gap-2">
+                  <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold">Completed work reference</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {completedMatches.length > 0
+                        ? "This item was matched to real work. Open the reference to review what completed it."
+                        : "This item is marked done manually. Run Sync after a post, campaign, or automation goes live to attach the exact work reference."}
+                    </p>
+                  </div>
+                </div>
+
+                {completedMatches.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {completedMatches.map((match) => (
+                      <Link
+                        key={`${match.activityType}-${match.activityId}-${match.matchedAt}`}
+                        href={completedWorkHref(match)}
+                        className="group block rounded-lg border bg-background p-3 text-left transition hover:border-brand-500/50 hover:bg-muted/30"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                                {completedWorkLabel(match)}
+                              </span>
+                              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] capitalize text-muted-foreground">
+                                {match.confidence} match
+                              </span>
+                            </div>
+                            <p className="mt-2 line-clamp-2 text-sm font-medium">
+                              {match.activityName || completedWorkLabel(match)}
+                            </p>
+                            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                              {match.matchReason}
+                            </p>
+                          </div>
+                          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-brand-600 group-hover:text-brand-700">
+                            Open
+                            <Link2 className="h-3.5 w-3.5" />
+                          </span>
+                        </div>
+                        <p className="mt-2 text-[11px] text-muted-foreground">
+                          Matched {formatTimeAgo(match.matchedAt)}
+                        </p>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Item</Label>
               <Input
@@ -1999,30 +2174,16 @@ export default function StrategyAutomationPage() {
           </div>
           <div className="space-y-2">
             <Label>Channels</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {automationPlatformOptions.map((platform) => {
                 const selected = automationDraft.platforms.includes(platform.id);
-                return (
-                  <button
-                    key={platform.id}
-                    onClick={() =>
-                      setAutomationDraft((draft) => ({
-                        ...draft,
-                        platforms: selected
-                          ? draft.platforms.filter((id) => id !== platform.id)
-                          : [...draft.platforms, platform.id],
-                      }))
-                    }
-                    className={cn(
-                      "rounded-lg border px-3 py-2 text-left text-xs",
-                      selected
-                        ? "border-brand-500 bg-brand-500/10 text-brand-700 dark:text-brand-300"
-                        : "bg-background hover:bg-muted"
-                    )}
-                  >
-                    <span className="block font-medium">{platform.label}</span>
-                    <span className="block text-muted-foreground">{platform.detail}</span>
-                  </button>
+                return renderAutomationPlatformButton(platform, selected, () =>
+                  setAutomationDraft((draft) => ({
+                    ...draft,
+                    platforms: selected
+                      ? draft.platforms.filter((id) => id !== platform.id)
+                      : [...draft.platforms, platform.id],
+                  }))
                 );
               })}
             </div>
@@ -2311,6 +2472,53 @@ export default function StrategyAutomationPage() {
     );
   };
 
+  const renderAutomationPlatformButton = (
+    platform: { id: string; label: string; detail: string },
+    selected: boolean,
+    onClick: () => void
+  ) => {
+    const meta = PLATFORM_META[platform.id] || PLATFORM_META.feed;
+    const Icon = meta.icon;
+    const platformStyle = getAccountPlatformStyle(platform.id);
+
+    return (
+      <button
+        key={platform.id}
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "group flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-xs transition",
+          selected
+            ? "border-brand-500 bg-brand-500/10 text-brand-700 dark:text-brand-300"
+            : "bg-background hover:-translate-y-0.5 hover:bg-muted"
+        )}
+      >
+        <span
+          className={cn(
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border",
+            selected ? "border-brand-500 bg-brand-500 text-white" : "bg-background"
+          )}
+        >
+          {selected && <CheckCircle2 className="h-3.5 w-3.5" />}
+        </span>
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-transform group-hover:scale-105"
+          style={{
+            background: platformStyle.softer,
+            borderColor: platformStyle.soft,
+            color: platformStyle.color,
+          }}
+        >
+          <Icon className="h-5 w-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold">{platform.label}</span>
+          <span className="block truncate text-xs text-muted-foreground">{platform.detail}</span>
+        </span>
+      </button>
+    );
+  };
+
   const renderAutomationBuilderPanel = () => {
     const validationRows = readyToAutomate.map((task) => ({
       task,
@@ -2326,7 +2534,7 @@ export default function StrategyAutomationPage() {
       <div className="rounded-2xl border bg-background">
         <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-base font-semibold">AI automation setup</p>
+            <p className="text-base font-semibold">AI automation selection</p>
             <p className="text-sm text-muted-foreground">
               {readySelected.length} ready, {blockedSelected.length} blocked, {automationEstimate?.totalCredits ?? 0} credits estimated
             </p>
@@ -2356,15 +2564,217 @@ export default function StrategyAutomationPage() {
           </div>
         </div>
 
-        <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_390px]">
-          <div className="min-w-0 space-y-4 p-4">
-            <div className="grid gap-3 md:grid-cols-4">
+        <div className="space-y-4 p-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Selected</p>
+              <p className="mt-1 text-2xl font-bold">{automationBuilder.selectedTaskIds.length}</p>
+            </div>
+            <div className="rounded-xl border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Ready</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-600">{readySelected.length}</p>
+            </div>
+            <div className="rounded-xl border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Credits</p>
+              <p className={cn("mt-1 text-2xl font-bold", estimateBlocked && "text-destructive")}>
+                {estimatingAutomation ? <AISpinner size={24} /> : automationEstimate?.totalCredits ?? 0}
+              </p>
+            </div>
+            <div className="rounded-xl border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Balance</p>
+              <p className={cn("mt-1 text-2xl font-bold", estimateBlocked && "text-destructive")}>
+                {automationEstimate?.userCredits ?? "-"}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-muted/20 p-4">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-center">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
+                  <span className="rounded-full bg-brand-500 px-2.5 py-1 text-white">1 Select ready items</span>
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">2 Plan schedule and channels</span>
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">3 Create saved automations</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Selecting an item only prepares it. The planner modal validates schedule, channels, media, and credits. The final create step saves a reusable automation set linked to this strategy for future AI runs.
+                </p>
+              </div>
+              <Button
+                onClick={() => setAutomationConfigOpen(true)}
+                disabled={readySelected.length === 0}
+                className="bg-brand-500 text-white hover:bg-brand-600"
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                Open automation planner
+              </Button>
+            </div>
+            {estimateBlocked && (
+              <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                Current setup needs {automationEstimate.totalCredits} credits. Balance is {automationEstimate.userCredits}.
+              </div>
+            )}
+          </div>
+
+          <div className="h-[min(700px,calc(100vh-380px))] min-h-[460px] overflow-y-auto rounded-xl border p-2">
+            {validationRows.length > 0 ? (
+              validationRows.map(({ task, readiness, selected }) => {
+                const category = normalizeTaskCategory(task.category);
+                return (
+                  <button
+                    key={task.id}
+                    onClick={() => toggleAutomationTask(task.id)}
+                    className={cn(
+                      "mb-2 flex w-full items-start gap-3 rounded-lg border px-3 py-3 text-left transition last:mb-0",
+                      selected
+                        ? "border-brand-500 bg-brand-500/10"
+                        : "bg-background hover:bg-muted"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-[10px]",
+                        selected ? "border-brand-500 bg-brand-500 text-white" : "bg-background"
+                      )}
+                    >
+                      {selected && <CheckCircle2 className="h-3 w-3" />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{task.title}</span>
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[11px] capitalize",
+                            readiness.qualified
+                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                              : "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                          )}
+                        >
+                          {readiness.qualified ? "ready" : "needs setup"}
+                        </span>
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] capitalize text-muted-foreground">
+                          {readiness.type}
+                        </span>
+                      </span>
+                      <span className="mt-1 block text-xs capitalize text-muted-foreground">{category}</span>
+                      {(readiness.blockers.length > 0 || readiness.requirements.length > 0 || readiness.warnings.length > 0) && (
+                        <span className="mt-2 block space-y-1 text-xs">
+                          {readiness.blockers.map((blocker) => (
+                            <span key={blocker} className="block text-destructive">{blocker}</span>
+                          ))}
+                          {readiness.requirements.map((requirement) => (
+                            <span key={requirement} className="block text-muted-foreground">{requirement}</span>
+                          ))}
+                          {readiness.warnings.map((warning) => (
+                            <span key={warning} className="block text-amber-600 dark:text-amber-300">{warning}</span>
+                          ))}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="grid h-full place-items-center rounded-lg border border-dashed p-5 text-sm">
+                <div className="max-w-xl space-y-4 text-center">
+                  <div>
+                    <p className="font-semibold text-foreground">No automation-ready candidates in this plan</p>
+                    <p className="mt-2 text-muted-foreground">
+                      Improve the active strategy to turn open work into publishable content, social, or email tasks with clear audience, offer, proof point, call to action, and channel.
+                    </p>
+                  </div>
+                  <div className="grid gap-2 text-left sm:grid-cols-3">
+                    <div className="rounded-lg border bg-background p-3">
+                      <p className="text-lg font-bold">{automationReadinessSummary.alreadyAutomated}</p>
+                      <p className="text-xs text-muted-foreground">Already connected</p>
+                    </div>
+                    <div className="rounded-lg border bg-background p-3">
+                      <p className="text-lg font-bold">{automationReadinessSummary.manualOnly}</p>
+                      <p className="text-xs text-muted-foreground">Manual or setup work</p>
+                    </div>
+                    <div className="rounded-lg border bg-background p-3">
+                      <p className="text-lg font-bold">{automationReadinessSummary.completed}</p>
+                      <p className="text-xs text-muted-foreground">Completed items</p>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border bg-background p-3 text-left text-xs text-muted-foreground">
+                    <p className="font-medium text-foreground">To qualify, items need:</p>
+                    <p className="mt-1">A content/social/email category, unfinished status, no existing automation, a selected destination, and required media/email setup when the task asks for it.</p>
+                    {automationReadinessSummary.blockers.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {automationReadinessSummary.blockers.map((blocker) => (
+                          <p key={blocker} className="text-destructive">{blocker}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <Button onClick={openStrategyBuilder} className="bg-brand-500 text-white hover:bg-brand-600">
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Improve strategy
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAutomationConfigDialog = () => {
+    const validationRows = readyToAutomate.map((task) => ({
+      task,
+      readiness: getTaskReadiness(task, automationBuilder),
+      selected: automationBuilder.selectedTaskIds.includes(task.id),
+    }));
+    const selectedRows = validationRows.filter((row) => row.selected);
+    const readySelected = selectedRows.filter((row) => row.readiness.qualified);
+    const blockedSelected = selectedRows.filter((row) => !row.readiness.qualified);
+    const estimateBlocked = !!automationEstimate && !automationEstimate.hasEnoughCredits;
+    const selectedTypes = [...new Set(readySelected.map((row) => row.readiness.type))];
+
+    return (
+      <Dialog open={automationConfigOpen} onOpenChange={setAutomationConfigOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Plan automation setup</DialogTitle>
+            <DialogDescription>
+              Validate timing, destinations, media, and credits before saving selected items as strategy automations.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-xl border bg-brand-500/5 p-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                {[
+                  {
+                    title: "1. Validate",
+                    body: "Only ready items can move forward. Blocked items stay selected for review but will not be created.",
+                  },
+                  {
+                    title: "2. Plan",
+                    body: "Set schedule, channels, media, and FlowAI direction for the automation set.",
+                  },
+                  {
+                    title: "3. Save set",
+                    body: "Create stores the automations on this strategy. Future runs generate and schedule content using credits.",
+                  },
+                ].map((step) => (
+                  <div key={step.title} className="rounded-lg border bg-background p-3">
+                    <p className="text-sm font-semibold">{step.title}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{step.body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-4">
               <div className="rounded-xl border bg-muted/20 p-3">
                 <p className="text-xs text-muted-foreground">Selected</p>
                 <p className="mt-1 text-2xl font-bold">{automationBuilder.selectedTaskIds.length}</p>
               </div>
               <div className="rounded-xl border bg-muted/20 p-3">
-                <p className="text-xs text-muted-foreground">Ready</p>
+                <p className="text-xs text-muted-foreground">Ready to create</p>
                 <p className="mt-1 text-2xl font-bold text-emerald-600">{readySelected.length}</p>
               </div>
               <div className="rounded-xl border bg-muted/20 p-3">
@@ -2381,266 +2791,226 @@ export default function StrategyAutomationPage() {
               </div>
             </div>
 
-            <div className="h-[min(610px,calc(100vh-420px))] min-h-[360px] overflow-y-auto rounded-xl border p-2">
-              {validationRows.length > 0 ? (
-                validationRows.map(({ task, readiness, selected }) => {
-                  const category = normalizeTaskCategory(task.category);
-                  return (
-                    <button
-                      key={task.id}
-                      onClick={() => toggleAutomationTask(task.id)}
-                      className={cn(
-                        "mb-2 flex w-full items-start gap-3 rounded-lg border px-3 py-3 text-left transition last:mb-0",
-                        selected
-                          ? "border-brand-500 bg-brand-500/10"
-                          : "bg-background hover:bg-muted"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-[10px]",
-                          selected ? "border-brand-500 bg-brand-500 text-white" : "bg-background"
-                        )}
-                      >
-                        {selected && <CheckCircle2 className="h-3 w-3" />}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium">{task.title}</span>
-                          <span
-                            className={cn(
-                              "rounded-full px-2 py-0.5 text-[11px] capitalize",
-                              readiness.qualified
-                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                                : "bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                            )}
-                          >
-                            {readiness.qualified ? "ready" : "needs setup"}
-                          </span>
-                          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] capitalize text-muted-foreground">
-                            {readiness.type}
-                          </span>
-                        </span>
-                        <span className="mt-1 block text-xs capitalize text-muted-foreground">{category}</span>
-                        {(readiness.blockers.length > 0 || readiness.requirements.length > 0 || readiness.warnings.length > 0) && (
-                          <span className="mt-2 block space-y-1 text-xs">
-                            {readiness.blockers.map((blocker) => (
-                              <span key={blocker} className="block text-destructive">{blocker}</span>
-                            ))}
-                            {readiness.requirements.map((requirement) => (
-                              <span key={requirement} className="block text-muted-foreground">{requirement}</span>
-                            ))}
-                            {readiness.warnings.map((warning) => (
-                              <span key={warning} className="block text-amber-600 dark:text-amber-300">{warning}</span>
-                            ))}
-                          </span>
-                        )}
-                      </span>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="grid h-full place-items-center rounded-lg border border-dashed p-5 text-sm">
-                  <div className="max-w-xl space-y-4 text-center">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="space-y-4">
+                <div className="rounded-xl border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <p className="font-semibold text-foreground">No automation-ready candidates in this plan</p>
-                      <p className="mt-2 text-muted-foreground">
-                        Improve the active strategy to turn open work into publishable content, social, or email tasks with clear audience, offer, proof point, call to action, and channel.
+                      <p className="text-sm font-semibold">Ready items</p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedTypes.length ? selectedTypes.join(", ") : "No ready item selected yet"}
                       </p>
                     </div>
-                    <div className="grid gap-2 text-left sm:grid-cols-3">
-                      <div className="rounded-lg border bg-background p-3">
-                        <p className="text-lg font-bold">{automationReadinessSummary.alreadyAutomated}</p>
-                        <p className="text-xs text-muted-foreground">Already connected</p>
-                      </div>
-                      <div className="rounded-lg border bg-background p-3">
-                        <p className="text-lg font-bold">{automationReadinessSummary.manualOnly}</p>
-                        <p className="text-xs text-muted-foreground">Manual or setup work</p>
-                      </div>
-                      <div className="rounded-lg border bg-background p-3">
-                        <p className="text-lg font-bold">{automationReadinessSummary.completed}</p>
-                        <p className="text-xs text-muted-foreground">Completed items</p>
-                      </div>
-                    </div>
-                    <div className="rounded-lg border bg-background p-3 text-left text-xs text-muted-foreground">
-                      <p className="font-medium text-foreground">To qualify, items need:</p>
-                      <p className="mt-1">A content/social/email category, unfinished status, no existing automation, a selected destination, and required media/email setup when the task asks for it.</p>
-                      {automationReadinessSummary.blockers.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {automationReadinessSummary.blockers.map((blocker) => (
-                            <p key={blocker} className="text-destructive">{blocker}</p>
-                          ))}
+                    <Badge variant="secondary">{readySelected.length} item{readySelected.length === 1 ? "" : "s"}</Badge>
+                  </div>
+
+                  <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+                    {readySelected.length > 0 ? (
+                      readySelected.map(({ task, readiness }) => (
+                        <div key={task.id} className="rounded-lg border bg-muted/20 p-3">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="line-clamp-2 text-sm font-medium">{task.title}</p>
+                              <p className="mt-1 text-xs capitalize text-muted-foreground">
+                                {readiness.type} automation, due {formatShortDate(task.dueDate)}
+                              </p>
+                            </div>
+                            <Badge className="bg-emerald-600 text-white">Ready</Badge>
+                          </div>
+                          {readiness.requirements.length > 0 && (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              {readiness.requirements.join(" ")}
+                            </p>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    <Button onClick={openStrategyBuilder} className="bg-brand-500 text-white hover:bg-brand-600">
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Improve strategy
-                    </Button>
+                      ))
+                    ) : (
+                      <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                        Select at least one ready item in the automation selection list first.
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
+
+                {blockedSelected.length > 0 && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+                    <p className="font-semibold text-amber-700 dark:text-amber-300">
+                      {blockedSelected.length} selected item{blockedSelected.length === 1 ? "" : "s"} still need setup
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {blockedSelected.slice(0, 4).map(({ task, readiness }) => (
+                        <div key={task.id} className="rounded-lg bg-background p-2">
+                          <p className="text-xs font-medium">{task.title}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {readiness.blockers[0] || readiness.requirements[0] || "Needs more automation detail"}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Frequency</Label>
+                    <Select
+                      value={automationBuilder.frequency}
+                      onValueChange={(value) =>
+                        setAutomationBuilder((draft) => ({ ...draft, frequency: value as Frequency }))
+                      }
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="DAILY">Daily</SelectItem>
+                        <SelectItem value="WEEKLY">Weekly</SelectItem>
+                        <SelectItem value="MONTHLY">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Time</Label>
+                    <Input
+                      type="time"
+                      value={automationBuilder.time}
+                      onChange={(event) =>
+                        setAutomationBuilder((draft) => ({ ...draft, time: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tone</Label>
+                    <Select
+                      value={automationBuilder.aiTone}
+                      onValueChange={(value) =>
+                        setAutomationBuilder((draft) => ({ ...draft, aiTone: value }))
+                      }
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {TONE_OPTIONS.map((tone) => (
+                          <SelectItem key={tone} value={tone}>
+                            {tone}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End</Label>
+                    <Input
+                      type="date"
+                      value={automationBuilder.endDate}
+                      onChange={(event) =>
+                        setAutomationBuilder((draft) => ({ ...draft, endDate: event.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Channels</Label>
+                  <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                    {automationPlatformOptions.map((platform) =>
+                      renderAutomationPlatformButton(
+                        platform,
+                        automationBuilder.platforms.includes(platform.id),
+                        () => toggleAutomationPlatform(platform.id)
+                      )
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Media</p>
+                      <p className="text-xs text-muted-foreground">Image or video generation</p>
+                    </div>
+                    <Switch
+                      checked={automationBuilder.includeMedia}
+                      onCheckedChange={(checked) =>
+                        setAutomationBuilder((draft) => ({ ...draft, includeMedia: checked }))
+                      }
+                    />
+                  </div>
+                  {automationBuilder.includeMedia && (
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <Select
+                        value={automationBuilder.mediaType}
+                        onValueChange={(value) =>
+                          setAutomationBuilder((draft) => ({ ...draft, mediaType: value as "image" | "video" }))
+                        }
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="image">Image</SelectItem>
+                          <SelectItem value="video">Video</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        value={automationBuilder.mediaStyle}
+                        onChange={(event) =>
+                          setAutomationBuilder((draft) => ({ ...draft, mediaStyle: event.target.value }))
+                        }
+                        placeholder="Style"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>FlowAI direction</Label>
+                  <Textarea
+                    value={automationBuilder.customPrompt}
+                    onChange={(event) =>
+                      setAutomationBuilder((draft) => ({ ...draft, customPrompt: event.target.value }))
+                    }
+                    placeholder="Optional guidance to apply to every selected item"
+                    className="min-h-[90px]"
+                  />
+                </div>
+
+                {estimateBlocked && automationEstimate && (
+                  <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                    This automation set needs {automationEstimate.totalCredits} credits. Current balance is {automationEstimate.userCredits}.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="space-y-4 border-t bg-muted/20 p-4 xl:border-l xl:border-t-0">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Frequency</Label>
-                <Select
-                  value={automationBuilder.frequency}
-                  onValueChange={(value) =>
-                    setAutomationBuilder((draft) => ({ ...draft, frequency: value as Frequency }))
-                  }
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DAILY">Daily</SelectItem>
-                    <SelectItem value="WEEKLY">Weekly</SelectItem>
-                    <SelectItem value="MONTHLY">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Time</Label>
-                <Input
-                  type="time"
-                  value={automationBuilder.time}
-                  onChange={(event) =>
-                    setAutomationBuilder((draft) => ({ ...draft, time: event.target.value }))
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Tone</Label>
-                <Select
-                  value={automationBuilder.aiTone}
-                  onValueChange={(value) =>
-                    setAutomationBuilder((draft) => ({ ...draft, aiTone: value }))
-                  }
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {TONE_OPTIONS.map((tone) => (
-                      <SelectItem key={tone} value={tone} className="capitalize">
-                        {tone}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>End</Label>
-                <Input
-                  type="date"
-                  value={automationBuilder.endDate}
-                  onChange={(event) =>
-                    setAutomationBuilder((draft) => ({ ...draft, endDate: event.target.value }))
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Channels</Label>
-              <div className="grid grid-cols-1 gap-2">
-                {automationPlatformOptions.map((platform) => {
-                  const selected = automationBuilder.platforms.includes(platform.id);
-                  return (
-                    <button
-                      key={platform.id}
-                      onClick={() => toggleAutomationPlatform(platform.id)}
-                      className={cn(
-                        "rounded-lg border px-3 py-2 text-left text-xs",
-                        selected
-                          ? "border-brand-500 bg-brand-500/10 text-brand-700 dark:text-brand-300"
-                          : "bg-background hover:bg-muted"
-                      )}
-                    >
-                      <span className="block font-medium">{platform.label}</span>
-                      <span className="block text-muted-foreground">{platform.detail}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="rounded-xl border bg-background p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">Media</p>
-                  <p className="text-xs text-muted-foreground">Image or video generation</p>
-                </div>
-                <Switch
-                  checked={automationBuilder.includeMedia}
-                  onCheckedChange={(checked) =>
-                    setAutomationBuilder((draft) => ({ ...draft, includeMedia: checked }))
-                  }
-                />
-              </div>
-              {automationBuilder.includeMedia && (
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <Select
-                    value={automationBuilder.mediaType}
-                    onValueChange={(value) =>
-                      setAutomationBuilder((draft) => ({ ...draft, mediaType: value as "image" | "video" }))
-                    }
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="image">Image</SelectItem>
-                      <SelectItem value="video">Video</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    value={automationBuilder.mediaStyle}
-                    onChange={(event) =>
-                      setAutomationBuilder((draft) => ({ ...draft, mediaStyle: event.target.value }))
-                    }
-                    placeholder="Style"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>FlowAI direction</Label>
-              <Textarea
-                value={automationBuilder.customPrompt}
-                onChange={(event) =>
-                  setAutomationBuilder((draft) => ({ ...draft, customPrompt: event.target.value }))
-                }
-                placeholder="Optional guidance to apply to every selected item"
-                className="min-h-[110px]"
-              />
-            </div>
-
-            {estimateBlocked && (
-              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                Need {automationEstimate.totalCredits} credits. Current balance is {automationEstimate.userCredits}.
-              </div>
-            )}
-
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAutomationConfigOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
             <Button
-              onClick={() => strategy && createAutomationsForTasks(strategy, readyToAutomate, automationBuilder)}
+              onClick={() =>
+                strategy &&
+                createAutomationsForTasks(
+                  strategy,
+                  readyToAutomate,
+                  automationBuilder,
+                  "Automation set saved"
+                )
+              }
               disabled={
                 !strategy ||
                 saving ||
+                estimatingAutomation ||
                 readySelected.length === 0 ||
                 automationBuilder.platforms.length === 0 ||
                 estimateBlocked
               }
-              className="w-full bg-brand-500 text-white hover:bg-brand-600"
+              className="bg-brand-500 text-white hover:bg-brand-600"
             >
               {saving ? <AISpinner className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
-              Create validated AI automations
+              Create automation set
             </Button>
-          </div>
-        </div>
-      </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     );
   };
 
@@ -2968,6 +3338,7 @@ export default function StrategyAutomationPage() {
       </div>
       </motion.div>
       {renderFloatingPanels()}
+      {renderAutomationConfigDialog()}
       {renderRunConfirmationDialog()}
     </>
   );
