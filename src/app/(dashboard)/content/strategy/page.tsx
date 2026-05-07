@@ -64,14 +64,6 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { useToast } from "@/hooks/use-toast";
@@ -437,7 +429,7 @@ const DEFAULT_AUTOMATION: AutomationDraft = {
   topic: "",
   aiPrompt: "",
   aiTone: "professional",
-  platforms: ["feed"],
+  platforms: [],
   includeMedia: false,
   mediaType: "image",
   mediaStyle: "",
@@ -466,7 +458,7 @@ const DEFAULT_AUTOMATION_BUILDER: AutomationBuilderDraft = {
   dayOfWeek: 1,
   time: "09:00",
   aiTone: "professional",
-  platforms: ["feed"],
+  platforms: [],
   includeMedia: false,
   mediaType: "image",
   mediaStyle: "",
@@ -542,9 +534,6 @@ function inferTaskPlatformIds(task: StrategyTask) {
     .filter(([, pattern]) => pattern.test(text))
     .map(([platform]) => platform);
   if (explicitPlatforms.length > 0) return [...new Set(explicitPlatforms)];
-
-  const category = normalizeTaskCategory(task.category);
-  if (category === "content" || category === "social") return ["feed"];
   return [];
 }
 
@@ -654,7 +643,7 @@ function automationToDraft(automation: Automation): AutomationDraft {
     topic: automation.topic || "",
     aiPrompt: automation.aiPrompt || "",
     aiTone: automation.aiTone || "professional",
-    platforms: automation.platforms?.length ? automation.platforms : ["feed"],
+    platforms: automation.platforms?.length ? automation.platforms.filter((platform) => platform !== "feed") : [],
     includeMedia: automation.includeMedia,
     mediaType: automation.mediaType === "video" ? "video" : "image",
     mediaStyle: automation.mediaStyle || "",
@@ -945,12 +934,11 @@ export default function StrategyAutomationPage() {
     [connectedPlatforms]
   );
   const automationPlatformOptions = useMemo(() => {
-    const connected = connectedPlatforms.map((platform) => ({
+    return connectedPlatforms.map((platform) => ({
       id: platform.platform,
       label: platform.displayName || PLATFORM_META[platform.platform]?.label || platform.name,
       detail: platform.username || platform.name,
     }));
-    return [{ id: "feed", label: PLATFORM_META.feed.label, detail: "FlowSmartly internal feed" }, ...connected];
   }, [connectedPlatforms]);
   const getTaskReadiness = useCallback(
     (task: StrategyTask, options: AutomationBuilderDraft | AutomationDraft = automationBuilder) =>
@@ -961,6 +949,7 @@ export default function StrategyAutomationPage() {
         connectedPlatforms: connectedPlatformKeys,
         emailReady: marketingReadiness.emailReady,
         smsReady: marketingReadiness.smsReady,
+        requireDestination: false,
       }),
     [automationBuilder, connectedPlatformKeys, marketingReadiness.emailReady, marketingReadiness.smsReady]
   );
@@ -973,20 +962,20 @@ export default function StrategyAutomationPage() {
       const connectedDesiredPlatforms = desiredPlatforms.filter(
         (platform) => platform === "feed" || connectedPlatformKeys.includes(platform)
       );
-      const safeSelectedPlatforms = options.platforms.filter(
-        (platform) => platform === "feed" || connectedPlatformKeys.includes(platform)
+      const safeSelectedPlatforms = options.platforms.filter((platform) =>
+        connectedPlatformKeys.includes(platform)
       );
       const category = normalizeTaskCategory(task.category);
       const platforms =
         category === "email"
-          ? ["feed"]
+          ? []
           : [
               ...new Set(
                 connectedDesiredPlatforms.length > 0
-                  ? ["feed", ...connectedDesiredPlatforms]
+                  ? connectedDesiredPlatforms
                   : safeSelectedPlatforms.length > 0
                   ? safeSelectedPlatforms
-                  : ["feed"]
+                  : []
               ),
             ];
 
@@ -1014,6 +1003,7 @@ export default function StrategyAutomationPage() {
         connectedPlatforms: connectedPlatformKeys,
         emailReady: marketingReadiness.emailReady,
         smsReady: marketingReadiness.smsReady,
+        requireDestination: true,
       });
     },
     [automationBuilder, connectedPlatformKeys, getTaskAutomationPlan, marketingReadiness.emailReady, marketingReadiness.smsReady]
@@ -1151,18 +1141,45 @@ export default function StrategyAutomationPage() {
   };
 
   const openNewAutomation = (task?: StrategyTask) => {
+    const taskPlan = task ? getTaskAutomationPlan(task, automationBuilder) : null;
+    const taskReadiness = task ? getTaskPlanReadiness(task, automationBuilder) : null;
+    const oneOffBlocked =
+      !!task &&
+      (!isTaskAutomatable(task) ||
+        !taskReadiness?.qualified ||
+        (taskPlan?.missingPlatforms.length || 0) > 0 ||
+        taskReadiness.type === "email" ||
+        taskReadiness.type === "sms" ||
+        taskReadiness.type === "manual");
+
+    if (task && oneOffBlocked) {
+      const reason =
+        taskReadiness?.type === "email"
+          ? "Email items need the email automation planner, not a one-off social post automation."
+          : taskReadiness?.type === "sms"
+          ? "SMS automation is not available from one-off strategy post automation."
+          : taskPlan?.missingPlatforms[0]
+          ? `Connect ${PLATFORM_META[taskPlan.missingPlatforms[0]]?.label || taskPlan.missingPlatforms[0]} before automating this item.`
+          : taskReadiness?.blockers[0] || "This item is manual/setup work and cannot be automated directly.";
+      toast({
+        title: "This item cannot be one-off automated",
+        description: reason,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSelectedTaskId(task?.id || null);
     setSelectedAutomationId(null);
     setInspectorMode("automation");
     setAutomationBuilderOpen(false);
     setAutomationConfigOpen(false);
-    const taskPlan = task ? getTaskAutomationPlan(task, automationBuilder) : null;
     setAutomationDraft({
       ...DEFAULT_AUTOMATION,
       name: task ? `One-off: ${task.title}` : DEFAULT_AUTOMATION.name,
       topic: task?.title || "",
       aiPrompt: task ? [task.title, task.description].filter(Boolean).join("\n\n") : "",
-      platforms: taskPlan?.platforms.length ? taskPlan.platforms : ["feed"],
+      platforms: taskPlan?.platforms.length ? taskPlan.platforms : [],
       includeMedia: taskPlan?.includeMedia || false,
       mediaType: taskPlan?.mediaType || "image",
       mediaStyle: taskPlan?.mediaStyle || "",
@@ -1217,10 +1234,10 @@ export default function StrategyAutomationPage() {
       selectedTaskIds: candidateTasks.map((task) => task.id),
       platforms:
         inferredConnectedPlatforms.length > 0
-          ? [...new Set(["feed", ...inferredConnectedPlatforms])]
+          ? [...new Set(inferredConnectedPlatforms)]
           : fallbackPlatforms.length
           ? fallbackPlatforms
-          : ["feed"],
+          : [],
       endDate: draft.endDate || getDefaultAutomationEndDate(),
     }));
     setAutomationBuilderOpen(true);
@@ -1811,6 +1828,44 @@ export default function StrategyAutomationPage() {
 
   const saveAutomation = async () => {
     if (!automationDraft.name.trim()) return;
+    if (automationDraft.platforms.length === 0) {
+      toast({
+        title: "Select a connected channel",
+        description: "One-off automations create scheduled social posts, so they need a real connected destination.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const linkedTask = automationDraft.strategyTaskId
+      ? tasks.find((task) => task.id === automationDraft.strategyTaskId)
+      : null;
+    if (linkedTask) {
+      const readiness = qualifyStrategyTaskForAutomation(linkedTask, {
+        includeMedia: automationDraft.includeMedia,
+        mediaType: automationDraft.mediaType,
+        selectedPlatforms: automationDraft.platforms,
+        connectedPlatforms: connectedPlatformKeys,
+        emailReady: marketingReadiness.emailReady,
+        smsReady: marketingReadiness.smsReady,
+        requireDestination: true,
+      });
+      if (
+        !readiness.qualified ||
+        readiness.type === "manual" ||
+        readiness.type === "email" ||
+        readiness.type === "sms"
+      ) {
+        toast({
+          title: "Linked item cannot be automated here",
+          description:
+            readiness.type === "email"
+              ? "Email items must be created through the email automation planner."
+              : readiness.blockers[0] || "This item is manual/setup work and cannot be automated as a social post.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     setSaving(true);
     try {
       const isEdit = !!automationDraft.id;
@@ -2480,6 +2535,21 @@ export default function StrategyAutomationPage() {
         selectedTask.automationStatus !== "AUTOMATED" &&
         !!selectedReadiness &&
         !selectedReadiness.qualified;
+      const oneOffPlan = selectedTask ? getTaskAutomationPlan(selectedTask, automationBuilder) : null;
+      const oneOffReadiness = selectedTask ? getTaskPlanReadiness(selectedTask, automationBuilder) : null;
+      const oneOffBlockers = selectedTask && oneOffReadiness
+        ? [
+            ...(isTaskAutomatable(selectedTask) ? [] : ["This item is manual/setup work and cannot be automated directly."]),
+            ...(oneOffReadiness.type === "email" ? ["Email items need the email automation planner."] : []),
+            ...(oneOffReadiness.type === "sms" ? ["SMS is not available from one-off strategy automation."] : []),
+            ...(oneOffReadiness.type === "manual" ? oneOffReadiness.blockers : []),
+            ...(oneOffReadiness.type !== "manual" ? oneOffReadiness.blockers : []),
+            ...((oneOffPlan?.missingPlatforms || []).map(
+              (platform) => `Connect ${PLATFORM_META[platform]?.label || platform} before automating.`
+            )),
+          ].filter(Boolean)
+        : [];
+      const canOpenOneOff = !!selectedTask && oneOffBlockers.length === 0;
 
       return (
         <InspectorShell
@@ -2758,12 +2828,19 @@ export default function StrategyAutomationPage() {
                 <Button
                   variant="outline"
                   onClick={() => openNewAutomation(selectedTask || undefined)}
+                  disabled={!canOpenOneOff}
                 >
                   <Zap className="mr-2 h-4 w-4" />
                   One-off
                 </Button>
               )}
             </div>
+            {taskDraft.id && oneOffBlockers.length > 0 && (
+              <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-200">
+                <p className="font-semibold">Not a one-off automation yet</p>
+                <p className="mt-1">{oneOffBlockers[0]}</p>
+              </div>
+            )}
             {taskDraft.id && (
               <Button variant="ghost" className="w-full text-destructive hover:text-destructive" onClick={deleteTask}>
                 <Trash2 className="mr-2 h-4 w-4" />
@@ -2856,19 +2933,25 @@ export default function StrategyAutomationPage() {
           </div>
           <div className="space-y-2">
             <Label>Channels</Label>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {automationPlatformOptions.map((platform) => {
-                const selected = automationDraft.platforms.includes(platform.id);
-                return renderAutomationPlatformButton(platform, selected, () =>
-                  setAutomationDraft((draft) => ({
-                    ...draft,
-                    platforms: selected
-                      ? draft.platforms.filter((id) => id !== platform.id)
-                      : [...draft.platforms, platform.id],
-                  }))
-                );
-              })}
-            </div>
+            {automationPlatformOptions.length > 0 ? (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {automationPlatformOptions.map((platform) => {
+                  const selected = automationDraft.platforms.includes(platform.id);
+                  return renderAutomationPlatformButton(platform, selected, () =>
+                    setAutomationDraft((draft) => ({
+                      ...draft,
+                      platforms: selected
+                        ? draft.platforms.filter((id) => id !== platform.id)
+                        : [...draft.platforms, platform.id],
+                    }))
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
+                Connect a social account before creating a one-off social automation. Manual tasks cannot be completed by posting to the internal feed.
+              </div>
+            )}
           </div>
           <div className="rounded-xl border p-3">
             <div className="flex items-center justify-between">
@@ -3433,22 +3516,19 @@ export default function StrategyAutomationPage() {
     const readiness = task ? getTaskReadiness(task, automationBuilder) : null;
 
     return (
-      <Dialog
+      <FloatingPanel
         open={!!task}
         onOpenChange={(open) => {
           if (!open && !preparingReadiness) setReadinessTargetTaskId(null);
         }}
+        title="AI Readiness"
+        description="Repair the selected item before creating a flow"
+        icon={<Sparkles className="h-4 w-4" />}
+        defaultSize={{ width: 720, height: 760 }}
+        defaultPosition={{ x: 156, y: 82 }}
+        minSize={{ width: 520, height: 420 }}
+        contentClassName="space-y-4"
       >
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-brand-500" />
-              AI readiness for automation
-            </DialogTitle>
-            <DialogDescription>
-              FlowAI will repair this plan item so it can pass automation validation before a flow is created.
-            </DialogDescription>
-          </DialogHeader>
 
           {preparingReadiness ? (
             <div className="rounded-2xl border bg-muted/20 p-4">
@@ -3569,7 +3649,7 @@ export default function StrategyAutomationPage() {
             </div>
           )}
 
-          <DialogFooter>
+          <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
             <Button
               variant="outline"
               onClick={() => setReadinessTargetTaskId(null)}
@@ -3589,9 +3669,8 @@ export default function StrategyAutomationPage() {
               )}
               Make automation ready
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+      </FloatingPanel>
     );
   };
 
@@ -3866,15 +3945,21 @@ export default function StrategyAutomationPage() {
 
                 <div className="space-y-2">
                   <Label>Channels</Label>
-                  <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-                    {automationPlatformOptions.map((platform) =>
-                      renderAutomationPlatformButton(
-                        platform,
-                        automationBuilder.platforms.includes(platform.id),
-                        () => toggleAutomationPlatform(platform.id)
-                      )
-                    )}
-                  </div>
+                  {automationPlatformOptions.length > 0 ? (
+                    <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                      {automationPlatformOptions.map((platform) =>
+                        renderAutomationPlatformButton(
+                          platform,
+                          automationBuilder.platforms.includes(platform.id),
+                          () => toggleAutomationPlatform(platform.id)
+                        )
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
+                      No connected publishing channels found. Connect Instagram, Facebook, LinkedIn, X, TikTok, YouTube, Pinterest, or Threads before creating social automations.
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-xl border p-3">
@@ -3978,7 +4063,7 @@ export default function StrategyAutomationPage() {
       }) || [];
 
     return (
-      <Dialog
+      <FloatingPanel
         open={!!automation}
         onOpenChange={(open) => {
           if (!open && runningId !== automation?.id) {
@@ -3986,14 +4071,14 @@ export default function StrategyAutomationPage() {
             setRunPreview(null);
           }
         }}
+        title="Confirm Run"
+        description="Review the exact job before spending credits"
+        icon={<Play className="h-4 w-4" />}
+        defaultSize={{ width: 720, height: 700 }}
+        defaultPosition={{ x: 180, y: 100 }}
+        minSize={{ width: 520, height: 380 }}
+        contentClassName="space-y-4"
       >
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Confirm automation run</DialogTitle>
-            <DialogDescription>
-              Review the exact job before FlowSmartly generates content and spends credits.
-            </DialogDescription>
-          </DialogHeader>
 
           {loadingRunPreview ? (
             <div className="flex min-h-[220px] items-center justify-center rounded-xl border">
@@ -4035,7 +4120,7 @@ export default function StrategyAutomationPage() {
                 <div className="rounded-xl border p-3">
                   <p className="text-xs text-muted-foreground">Channels</p>
                   <p className="mt-1 text-sm font-medium">
-                    {channelLabels.length ? channelLabels.join(", ") : "Feed"}
+                    {channelLabels.length ? channelLabels.join(", ") : "No connected destination selected"}
                   </p>
                 </div>
                 <div className="rounded-xl border p-3">
@@ -4070,7 +4155,7 @@ export default function StrategyAutomationPage() {
             </div>
           )}
 
-          <DialogFooter>
+          <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
             <Button
               variant="outline"
               onClick={() => {
@@ -4099,9 +4184,8 @@ export default function StrategyAutomationPage() {
               )}
               Confirm and run
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+      </FloatingPanel>
     );
   };
 

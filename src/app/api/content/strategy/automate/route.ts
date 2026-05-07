@@ -36,7 +36,7 @@ function safePlatforms(platforms: unknown, fallback: string[]) {
     ? platforms.filter((platform): platform is string => typeof platform === "string")
     : fallback;
   const normalized = raw.map(normalizePlatform).filter(Boolean);
-  return [...new Set(normalized.length ? normalized : ["feed"])];
+  return [...new Set(normalized)];
 }
 
 function combineDateAndTime(dateValue: Date | string | null | undefined, timeValue: string) {
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       taskConfigs,
       globalTone = "professional",
       globalEndDate,
-      platforms = ["feed"],
+      platforms = [],
     } = body as {
       strategyId: string;
       taskConfigs: TaskConfig[];
@@ -178,6 +178,7 @@ export async function POST(request: NextRequest) {
         connectedPlatforms,
         emailReady,
         smsReady,
+        requireDestination: true,
       });
 
       if (readiness.qualified && missingConnections.length === 0) {
@@ -361,8 +362,18 @@ export async function POST(request: NextRequest) {
       }
 
       // Non-automated tasks: label as AUTOMATABLE or MANUAL_ONLY
-      const category = normalizeTaskCategory(task.category);
-      const status = isAutomatableCategory(category) ? "AUTOMATABLE" : "MANUAL_ONLY";
+      const readiness = qualifyStrategyTaskForAutomation(task, {
+        includeMedia: false,
+        mediaType: "image",
+        selectedPlatforms: [],
+        connectedPlatforms,
+        emailReady,
+        smsReady,
+        requireDestination: false,
+      });
+      const status = readiness.type !== "manual" && isAutomatableCategory(normalizeTaskCategory(task.category))
+        ? "AUTOMATABLE"
+        : "MANUAL_ONLY";
       return prisma.strategyTask.update({
         where: { id: task.id },
         data: { automationStatus: status },

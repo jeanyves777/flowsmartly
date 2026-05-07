@@ -66,7 +66,7 @@ interface PlatformPublishResult {
 
 const MAX_CHARS = 2000;
 const AI_SUPPORTED_PLATFORMS = ["instagram", "twitter", "linkedin", "facebook", "youtube"] as const;
-type AIPilotMode = "generate" | "rewrite" | "shorten" | "expand" | "hashtags";
+type AIPilotMode = "generate" | "rewrite" | "shorten" | "expand" | "hashtags" | "seo";
 type AIPilotTone = "professional" | "casual" | "humorous" | "inspirational" | "educational";
 type AIPilotLength = "short" | "medium" | "long";
 type AIPlatform = (typeof AI_SUPPORTED_PLATFORMS)[number];
@@ -340,15 +340,62 @@ const parseGeneratedTextPayload = (value: string) => {
   return null;
 };
 
+const CAPTION_SECTION_EMOJIS = {
+  headline: "\u2728",
+  body: "\uD83D\uDCAC",
+  cta: "\uD83D\uDC49",
+  seo: "\uD83D\uDD0E",
+};
+
 const normalizeHashtagToken = (tag: string) => {
   const cleaned = tag.trim().replace(/^#+/, "").replace(/[^\p{L}\p{N}_]/gu, "");
   return cleaned ? `#${cleaned}` : "";
 };
 
-const formatSocialCaption = (value: string) => {
-  const cleaned = value
-    .replace(/^\s*(Hook|Post|CTA|Hashtags)\s*:\s*/gim, "")
+const stripCaptionMarkdown = (value: string) =>
+  value
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/[*_`]+/g, "")
+    .replace(/^\s*(Hook|Headline|Post|Body|Content|CTA|Call to action|Hashtags?|SEO keywords?|SEO keys?)\s*[:\-]\s*/gim, "")
     .replace(/\r\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+
+const splitSocialSentences = (value: string) =>
+  value
+    .match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g)
+    ?.map((sentence) => sentence.trim())
+    .filter(Boolean) || [];
+
+const isLikelyCTA = (sentence: string) =>
+  /\b(visit|shop|book|message|contact|discover|explore|start|join|learn more|call|click|order|schedule|send|dm|try|sign up|get started|today|now)\b/i.test(
+    sentence
+  );
+
+const addEmojiPrefix = (emoji: string, value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.startsWith(emoji) ? trimmed : `${emoji} ${trimmed}`;
+};
+
+const chunkSentences = (sentences: string[], size = 2) => {
+  const chunks: string[] = [];
+  for (let index = 0; index < sentences.length; index += size) {
+    chunks.push(sentences.slice(index, index + size).join(" "));
+  }
+  return chunks;
+};
+
+const formatSeoKeywordLine = (keywords: string[]) => {
+  const cleaned = keywords
+    .map((keyword) => keyword.trim().replace(/^#+/, ""))
+    .filter(Boolean);
+  return cleaned.length ? `${CAPTION_SECTION_EMOJIS.seo} SEO keywords: ${[...new Set(cleaned)].slice(0, 12).join(", ")}` : "";
+};
+
+const formatSocialCaption = (value: string) => {
+  const cleaned = stripCaptionMarkdown(value)
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
@@ -366,7 +413,40 @@ const formatSocialCaption = (value: string) => {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  return [body, uniqueHashtags.length ? uniqueHashtags.join(" ") : ""]
+  const sentences = splitSocialSentences(body.replace(/\n+/g, " "));
+  if (sentences.length === 0) {
+    return uniqueHashtags.length ? uniqueHashtags.join(" ") : body;
+  }
+
+  let ctaIndex = -1;
+  for (let index = sentences.length - 1; index >= 0; index -= 1) {
+    if (isLikelyCTA(sentences[index])) {
+      ctaIndex = index;
+      break;
+    }
+  }
+
+  const working = [...sentences];
+  const cta =
+    ctaIndex >= 0
+      ? working.splice(ctaIndex, 1)[0]
+      : working.length > 2
+      ? working.pop() || ""
+      : "";
+  const headline = working.shift() || cta || body;
+  const bodyParagraphs = chunkSentences(working, 2);
+  const bodyText = bodyParagraphs.length
+    ? bodyParagraphs
+        .map((paragraph, index) => (index === 0 ? addEmojiPrefix(CAPTION_SECTION_EMOJIS.body, paragraph) : paragraph))
+        .join("\n\n")
+    : "";
+
+  return [
+    addEmojiPrefix(CAPTION_SECTION_EMOJIS.headline, headline),
+    bodyText,
+    cta && cta !== headline ? addEmojiPrefix(CAPTION_SECTION_EMOJIS.cta, cta) : "",
+    uniqueHashtags.length ? uniqueHashtags.join(" ") : "",
+  ]
     .filter(Boolean)
     .join("\n\n");
 };
@@ -375,7 +455,7 @@ const cleanPostFieldLabels = (value: string) =>
   formatSocialCaption(value);
 
 const textField = (value: unknown) =>
-  typeof value === "string" && value.trim() ? cleanPostFieldLabels(value.trim()) : "";
+  typeof value === "string" && value.trim() ? stripCaptionMarkdown(value.trim()) : "";
 
 const buildCaptionFromStructuredPayload = (value: unknown) => {
   if (!value || typeof value !== "object") return "";
@@ -484,6 +564,7 @@ const AI_PILOT_MODES: Array<{ id: AIPilotMode; label: string; icon: ElementType;
   { id: "shorten", label: "Shorten", icon: MessageSquareText, hint: "Make it tighter" },
   { id: "expand", label: "Expand", icon: ArrowRight, hint: "Add detail and CTA" },
   { id: "hashtags", label: "Hashtags", icon: Hash, hint: "Create hashtag set" },
+  { id: "seo", label: "SEO keys", icon: Search, hint: "Add search keywords" },
 ];
 
 const AI_PILOT_TONES: Array<{ id: AIPilotTone; label: string }> = [
@@ -554,6 +635,7 @@ export default function ContentPostsPage() {
   const [aiLength, setAiLength] = useState<AIPilotLength>("medium");
   const [aiResult, setAiResult] = useState("");
   const [aiHashtags, setAiHashtags] = useState<string[]>([]);
+  const [aiSeoKeywords, setAiSeoKeywords] = useState<string[]>([]);
   const [copiedAiResult, setCopiedAiResult] = useState(false);
   const [aiDetailsOpen, setAiDetailsOpen] = useState(false);
   const [expandedMediaUrl, setExpandedMediaUrl] = useState<string | null>(null);
@@ -690,6 +772,7 @@ export default function ContentPostsPage() {
         setAiMode("generate");
         setAiResult(idea);
         setAiHashtags([]);
+        setAiSeoKeywords([]);
       }
       toast({ title: "Post idea generated" });
     } catch (err) {
@@ -708,6 +791,7 @@ export default function ContentPostsPage() {
       setAiMode("generate");
       setAiResult("");
       setAiHashtags([]);
+      setAiSeoKeywords([]);
       const res = await fetch("/api/content/posts/generate-idea", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -809,7 +893,7 @@ export default function ContentPostsPage() {
       .join(", ");
     const idea = aiPrompt.trim();
     const currentDraft = caption.trim();
-    const brandContext = `${brandBrief}\nSelected channels: ${platformLabels}\nRule: make the output specific to this brand identity, audience, voice, offer, and channel mix.`;
+    const brandContext = `${brandBrief}\nSelected channels: ${platformLabels}\nFormatting rule: return plain social post copy only, no markdown/bold labels. Use a separated hook, short body paragraphs, a clear CTA, tasteful emojis, and hashtags on the final line.\nRule: make the output specific to this brand identity, audience, voice, offer, and channel mix.`;
 
     if (mode === "generate") {
       return `${brandContext}\n\nPost goal: ${idea || currentDraft || "Create a useful social media post for our audience."}`;
@@ -826,6 +910,7 @@ export default function ContentPostsPage() {
       shorten: `Shorten this post for ${platformLabels}. Keep the strongest hook, CTA, and only the most important details.`,
       expand: `Expand this post for ${platformLabels}. Add useful context, stronger benefits, and a clear CTA without sounding padded.`,
       hashtags: `Create strategic hashtags for this topic across ${platformLabels}.`,
+      seo: `Create search-ready SEO keyword phrases for this caption across ${platformLabels}.`,
     };
 
     return `${brandContext}\n\n${modeInstructions[mode]}\n\nSource:\n${source}`;
@@ -851,6 +936,7 @@ export default function ContentPostsPage() {
       setAiMode(activeMode);
       setAiResult("");
       setAiHashtags([]);
+      setAiSeoKeywords([]);
 
       if (activeMode === "hashtags") {
         const res = await fetch("/api/ai/generate/hashtags", {
@@ -879,6 +965,44 @@ export default function ContentPostsPage() {
           );
         }
         toast({ title: "Hashtags generated" });
+        return;
+      }
+
+      if (activeMode === "seo") {
+        const sourceCaption = [caption.trim(), aiPrompt.trim()].filter(Boolean).join("\n\n");
+        if (sourceCaption.trim().length < 10) {
+          throw new Error("Add a caption or topic before generating SEO keys.");
+        }
+        const res = await fetch("/api/ai/generate/seo-keywords", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            platforms: aiPlatformSelection,
+            caption: sourceCaption.slice(0, 2000),
+            brandBrief,
+            count: 10,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error?.message || "SEO keyword generation failed");
+        const keywords = Array.isArray(data.data?.keywords)
+          ? data.data.keywords
+              .map((keyword: unknown) => String(keyword).trim())
+              .filter(Boolean)
+              .slice(0, 12)
+          : [];
+        if (keywords.length === 0) throw new Error("AI did not return usable SEO keys.");
+        setAiSeoKeywords(keywords);
+        const content = formatSeoKeywordLine(keywords);
+        setAiResult(content);
+        if (applyMode) {
+          setCaption((current) =>
+            applyMode === "replace"
+              ? content.slice(0, MAX_CHARS)
+              : `${current}${current.trim() ? "\n\n" : ""}${content}`.slice(0, MAX_CHARS)
+          );
+        }
+        toast({ title: "SEO keys generated" });
         return;
       }
 
@@ -929,7 +1053,7 @@ export default function ContentPostsPage() {
   };
 
   const handleApplyAIResult = (mode: "replace" | "append") => {
-    const content = aiMode === "hashtags" ? aiHashtags.join(" ") : aiResult;
+    const content = aiMode === "hashtags" ? aiHashtags.join(" ") : aiMode === "seo" ? formatSeoKeywordLine(aiSeoKeywords) : aiResult;
     if (!content.trim()) return;
 
     if (mode === "replace") {
@@ -944,7 +1068,7 @@ export default function ContentPostsPage() {
   };
 
   const handleCopyAIResult = async () => {
-    const content = aiMode === "hashtags" ? aiHashtags.join(" ") : aiResult;
+    const content = aiMode === "hashtags" ? aiHashtags.join(" ") : aiMode === "seo" ? formatSeoKeywordLine(aiSeoKeywords) : aiResult;
     if (!content.trim()) return;
     await navigator.clipboard.writeText(content);
     setCopiedAiResult(true);
@@ -1271,7 +1395,8 @@ export default function ContentPostsPage() {
     : previewPlatformOptions[0] || "feed";
   const activePreviewMeta = PLATFORM_META[activePreviewPlatform] || PLATFORM_META.feed;
   const ActivePreviewIcon = activePreviewMeta.icon;
-  const aiOutput = aiMode === "hashtags" ? aiHashtags.join(" ") : aiResult;
+  const aiOutput =
+    aiMode === "hashtags" ? aiHashtags.join(" ") : aiMode === "seo" ? formatSeoKeywordLine(aiSeoKeywords) : aiResult;
   const selectedPlatformLabels = selectedPlatforms
     .map((platformId) => PLATFORM_META[platformId]?.label)
     .filter(Boolean)
@@ -1595,7 +1720,7 @@ export default function ContentPostsPage() {
                 <AIIdeasHistory
                   contentType="post_ideas"
                   mode="single"
-                  onSelect={(idea) => setCaption(idea)}
+                  onSelect={(idea) => setCaption(extractGeneratedCaption(idea).slice(0, MAX_CHARS))}
                 />
                 <Button
                   type="button"
@@ -1603,7 +1728,7 @@ export default function ContentPostsPage() {
                   size="sm"
                   className="h-7 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-500/10"
                   onClick={() => handleGenerateIdea(true)}
-                  disabled={isGeneratingIdea}
+                  disabled={isGeneratingIdea || isGeneratingAIPilot}
                 >
                   {isGeneratingIdea ? (
                     <AISpinner className="h-3 w-3 mr-1 animate-spin" />
@@ -1617,6 +1742,7 @@ export default function ContentPostsPage() {
                   { mode: "rewrite" as const, label: "Rewrite", apply: "replace" as const, icon: WandSparkles },
                   { mode: "shorten" as const, label: "Shorten", apply: "replace" as const, icon: MessageSquareText },
                   { mode: "hashtags" as const, label: "Hashtags", apply: "append" as const, icon: Hash },
+                  { mode: "seo" as const, label: "SEO keys", apply: "append" as const, icon: Search },
                 ].map((action) => {
                   const Icon = action.icon;
                   const isActiveAction = isGeneratingAIPilot && aiMode === action.mode;
@@ -1628,7 +1754,7 @@ export default function ContentPostsPage() {
                       size="sm"
                       className="h-7 text-xs"
                       onClick={() => handleAIPilotGenerate(action.mode, action.apply)}
-                      disabled={isGeneratingAIPilot || isPublishing}
+                      disabled={isGeneratingAIPilot || isGeneratingIdea || isPublishing}
                     >
                       {isActiveAction ? (
                         <AISpinner className="mr-1 h-3 w-3 animate-spin" />
@@ -1644,7 +1770,7 @@ export default function ContentPostsPage() {
 
             {/* AI Generation Loader */}
             <AnimatePresence>
-              {isGeneratingIdea && (
+              {(isGeneratingIdea || isGeneratingAIPilot) && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
@@ -1654,8 +1780,20 @@ export default function ContentPostsPage() {
                   <div className="rounded-lg border border-brand-500/20 bg-brand-500/5 p-4">
                     <AIGenerationLoader
                       compact
-                      currentStep="Generating post idea..."
-                      subtitle="Using your brand identity"
+                      currentStep={
+                        isGeneratingIdea
+                          ? "Generating post idea..."
+                          : aiMode === "seo"
+                          ? "Finding SEO keys..."
+                          : aiMode === "hashtags"
+                          ? "Generating hashtags..."
+                          : "Structuring AI caption..."
+                      }
+                      subtitle={
+                        isGeneratingIdea
+                          ? "Using your brand identity"
+                          : "Using your caption, channels, and brand identity"
+                      }
                     />
                   </div>
                 </motion.div>
@@ -2299,7 +2437,7 @@ export default function ContentPostsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
               {AI_PILOT_MODES.map((mode) => {
                 const Icon = mode.icon;
                 const isActive = aiMode === mode.id;
@@ -2311,6 +2449,7 @@ export default function ContentPostsPage() {
                       setAiMode(mode.id);
                       setAiResult("");
                       setAiHashtags([]);
+                      setAiSeoKeywords([]);
                     }}
                     className={`rounded-xl border px-3 py-2 text-left transition ${
                       isActive
@@ -2354,8 +2493,9 @@ export default function ContentPostsPage() {
                             contentType="post_ideas"
                             mode="single"
                             onSelect={(idea) => {
-                              setAiResult(idea);
+                              setAiResult(extractGeneratedCaption(idea));
                               setAiHashtags([]);
+                              setAiSeoKeywords([]);
                             }}
                           />
                         </div>
@@ -2417,7 +2557,7 @@ export default function ContentPostsPage() {
                           value={aiPrompt}
                           onChange={(e) => setAiPrompt(e.target.value)}
                           placeholder={
-                            aiMode === "hashtags"
+                            aiMode === "hashtags" || aiMode === "seo"
                               ? "Topic, campaign, product, location, or audience..."
                               : caption.trim()
                                 ? "Optional instruction for AI, like audience, offer, or rewrite angle..."
@@ -2448,7 +2588,7 @@ export default function ContentPostsPage() {
               <Button
                 type="button"
                 onClick={() => handleAIPilotGenerate()}
-                disabled={isGeneratingAIPilot}
+                disabled={isGeneratingAIPilot || isGeneratingIdea}
                 className="bg-gradient-to-r from-brand-500 to-cyan-500 text-white hover:from-brand-600 hover:to-cyan-600"
               >
                 {isGeneratingAIPilot ? (
@@ -2504,6 +2644,28 @@ export default function ContentPostsPage() {
                         {tag}
                       </button>
                     ))}
+                  </div>
+                ) : aiMode === "seo" ? (
+                  <div className="space-y-2">
+                    <p className="rounded-xl bg-background p-3 text-sm leading-6">
+                      {formatSeoKeywordLine(aiSeoKeywords)}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {aiSeoKeywords.map((keyword) => (
+                        <button
+                          key={keyword}
+                          type="button"
+                          onClick={() =>
+                            setCaption(
+                              `${caption}${caption.trim() ? "\n\n" : ""}${formatSeoKeywordLine([keyword])}`.slice(0, MAX_CHARS)
+                            )
+                          }
+                          className="rounded-full bg-cyan-500/10 px-2.5 py-1 text-xs font-semibold text-cyan-700 dark:text-cyan-300"
+                        >
+                          {keyword}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   <p className="max-h-52 overflow-y-auto whitespace-pre-wrap rounded-xl bg-background p-3 text-sm leading-6">

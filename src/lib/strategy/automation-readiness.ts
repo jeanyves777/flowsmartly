@@ -19,6 +19,7 @@ export interface AutomationReadinessOptions {
   connectedPlatforms?: string[];
   emailReady?: boolean;
   smsReady?: boolean;
+  requireDestination?: boolean;
 }
 
 export interface AutomationReadiness {
@@ -30,29 +31,39 @@ export interface AutomationReadiness {
 }
 
 const POST_CATEGORIES = new Set(["content", "social"]);
-const EMAIL_TERMS = /\b(email|newsletter|drip|inbox|subscriber|campaign)\b/i;
+const EMAIL_TERMS = /\b(email|newsletter|drip|inbox|subscriber|email campaign|welcome series|cart recovery)\b/i;
 const SMS_TERMS = /\b(sms|text message|text blast|twilio|whatsapp)\b/i;
 const VIDEO_TERMS = /\b(video|reel|short|youtube|tiktok|animation|animated|story)\b/i;
-const VISUAL_TERMS = /\b(visual|image|photo|graphic|flyer|poster|creative|pinterest|pin|carousel|banner)\b/i;
+const VISUAL_TERMS = /\b(visual|image|photo|graphic|flyer|poster|creative|carousel|banner)\b/i;
+const SOCIAL_PLATFORM_TERMS = /\b(instagram|facebook|linkedin|twitter|x\/twitter|x post|tiktok|youtube|threads|pinterest|social)\b/i;
+const POST_OUTPUT_TERMS = /\b(post|posts|caption|captions|copy|thread|tweet|publish|schedule|scheduled|content calendar|social media|audience post|call to action|cta)\b/i;
+const MEDIA_OUTPUT_TERMS = /\b(generate|create|publish|schedule|post|caption|ad copy|campaign creative)\b/i;
+const FEED_ONLY_TERMS = /\b(flowsmartly feed|internal feed|feed post|post to feed)\b/i;
+const MANUAL_WORK_TERMS =
+  /\b(audit|optimi[sz]e|setup|set up|configure|install|connect|review|research|planning|framework|infrastructure|tracking|pixel|ga4|conversion|a\/b test|ab test|layout|layouts|product pages?|website|web pages?|landing pages?|faq|bios?|business account|boards?|channel setup|transparency|customer review sections?|ugc galleries?)\b/i;
 
 function taskText(task: AutomationReadinessTask) {
   return `${task.title || ""} ${task.description || ""}`;
 }
 
 export function isAutomationCandidate(task: AutomationReadinessTask) {
-  const category = normalizeTaskCategory(task.category);
-  return POST_CATEGORIES.has(category) || category === "email";
+  return inferAutomationType(task) !== "manual";
 }
 
 export function inferAutomationType(task: AutomationReadinessTask): AutomationReadiness["type"] {
   const category = normalizeTaskCategory(task.category);
   const text = taskText(task);
+  const manualWork = MANUAL_WORK_TERMS.test(text);
+  const hasPostIntent =
+    POST_OUTPUT_TERMS.test(text) ||
+    (category === "social" && SOCIAL_PLATFORM_TERMS.test(text) && !manualWork);
+  const hasMediaIntent = MEDIA_OUTPUT_TERMS.test(text) && !manualWork;
 
   if (SMS_TERMS.test(text)) return "sms";
   if (category === "email" || EMAIL_TERMS.test(text)) return "email";
-  if (VIDEO_TERMS.test(text)) return "video";
-  if (VISUAL_TERMS.test(text)) return "visual";
-  if (POST_CATEGORIES.has(category)) return "post";
+  if (VIDEO_TERMS.test(text) && hasMediaIntent) return "video";
+  if (VISUAL_TERMS.test(text) && hasMediaIntent) return "visual";
+  if (POST_CATEGORIES.has(category) && hasPostIntent) return "post";
   return "manual";
 }
 
@@ -64,16 +75,19 @@ export function qualifyStrategyTaskForAutomation(
   const warnings: string[] = [];
   const requirements: string[] = [];
   const type = inferAutomationType(task);
-  const selectedPlatforms = options.selectedPlatforms || ["feed"];
+  const selectedPlatforms = options.selectedPlatforms || [];
   const connectedPlatforms = options.connectedPlatforms || [];
   const category = normalizeTaskCategory(task.category);
+  const requireDestination = options.requireDestination !== false;
 
   if (task.status === "DONE") blockers.push("Already completed");
   if (task.automationId || task.automationStatus === "AUTOMATED") {
     blockers.push("Already automated");
   }
-  if (!isAutomationCandidate(task)) {
-    blockers.push(`${category} items need manual review before automation`);
+  if (type === "manual") {
+    blockers.push(
+      "This is manual/setup work. Automation can only create or schedule supported outputs: social posts, email campaigns, generated media/video, or SMS when enabled."
+    );
   }
 
   if (type === "email") {
@@ -95,19 +109,23 @@ export function qualifyStrategyTaskForAutomation(
     }
   }
 
-  if (POST_CATEGORIES.has(category) && type !== "email" && type !== "sms") {
+  if (POST_CATEGORIES.has(category) && type !== "email" && type !== "sms" && requireDestination) {
     const publishTargets = selectedPlatforms.filter((platform) => platform !== "feed");
     const missingConnections = publishTargets.filter(
       (platform) => !connectedPlatforms.includes(platform)
     );
     if (selectedPlatforms.length === 0) {
-      blockers.push("Select a publishing destination");
+      blockers.push("Select at least one connected publishing destination");
     }
     if (missingConnections.length > 0) {
       blockers.push(`Connect ${missingConnections.join(", ")} before scheduling`);
     }
-    if (selectedPlatforms.length === 1 && selectedPlatforms[0] === "feed") {
-      warnings.push("This will publish only to the FlowSmartly feed");
+    if (
+      selectedPlatforms.length === 1 &&
+      selectedPlatforms[0] === "feed" &&
+      !FEED_ONLY_TERMS.test(taskText(task))
+    ) {
+      blockers.push("Internal Feed alone does not automate this task. Select a real connected channel or rewrite the item as an explicit feed post.");
     }
   }
 

@@ -122,12 +122,13 @@ function readinessForTask(
   smsReady: boolean
 ): AutomationReadiness {
   return qualifyStrategyTaskForAutomation(task, {
-    selectedPlatforms: ["feed"],
+    selectedPlatforms: [],
     connectedPlatforms: [],
     includeMedia: false,
     mediaType: "image",
     emailReady,
     smsReady,
+    requireDestination: false,
   });
 }
 
@@ -145,7 +146,7 @@ function fallbackReadyTask(
       `Offer angle: ${cleanDescription}.`,
       "Proof point: explain why this matters and connect it to a real product, service, or customer outcome.",
       "Call to action: invite the reader to visit the brand, message the team, or explore the offer.",
-      "Destination: publish first to the FlowSmartly feed, then extend to connected social channels when available.",
+      "Destination: select a connected social channel in the automation planner before scheduling.",
     ].join(" "),
     category: "content",
     priority: VALID_PRIORITIES.has(task.priority) ? (task.priority as ReadyTask["priority"]) : "MEDIUM",
@@ -308,17 +309,18 @@ ${currentReadiness.warnings.length ? currentReadiness.warnings.map((item) => `- 
 Convert to automatable post/email content: ${options.convertToPost !== false ? "yes" : "no"}
 Remove media, video, SMS, or platform blocker wording: ${options.removeMediaRequirement !== false ? "yes" : "no"}
 Keep dates and priority: ${options.keepDates !== false ? "yes" : "no"}
-Guaranteed selected channel: FlowSmartly feed
+Selected channel: none yet. The user must choose a real connected channel in the automation planner before scheduling.
 Email ready: ${emailReady ? "yes" : "no"}
 SMS ready: ${smsReady ? "yes" : "no"}
 
 --- RULES ---
 Return one item only.
-Prefer category "content" or "social" so it can automate into recurring feed/social posts.
+Prefer category "content" or "social" only when the repaired item can automate into a real social post or content draft.
 Use category "email" only if email is ready.
 Do not use SMS unless SMS is ready.
+Do not claim this completes manual website, analytics, product page, setup, account creation, platform setup, or channel-building work. Convert only into a supported content, email, or social output brief.
 If media is not enabled, avoid visual/video blocker words like visual, image, photo, graphic, flyer, poster, Pinterest, pin, carousel, video, reel, TikTok, YouTube, story.
-The description must include audience, offer or product angle, proof point, call to action, and publishing destination.
+The description must include audience, offer or product angle, proof point, call to action, and required destination type. Do not name FlowSmartly feed as the destination.
 Keep the item specific to the brand.
 
 Return ONLY JSON:

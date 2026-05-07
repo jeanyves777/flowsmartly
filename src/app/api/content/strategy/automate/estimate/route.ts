@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       includeMedia = true,
       mediaType = "image",
       endDate,
-      platforms = ["feed"],
+      platforms = [],
       taskConfigs,
     } = body;
 
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
       endDate: effectiveEndDate,
       userCredits: user?.aiCredits || 0,
       selectedTaskIds: Array.isArray(taskIds) ? taskIds : undefined,
-      selectedPlatforms: Array.isArray(platforms) ? platforms : ["feed"],
+      selectedPlatforms: Array.isArray(platforms) ? platforms : [],
       connectedPlatforms,
       emailReady,
       smsReady,
