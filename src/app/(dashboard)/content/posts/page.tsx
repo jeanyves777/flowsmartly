@@ -72,6 +72,7 @@ type AIPilotLength = "short" | "medium" | "long";
 type AIPlatform = (typeof AI_SUPPORTED_PLATFORMS)[number];
 type FlowMediaMode = "image" | "video";
 type FlowMediaAspect = "1:1" | "9:16" | "16:9";
+type FlowVideoDuration = 8 | 15 | 30;
 
 type OrganicPostIdea = {
   title: string;
@@ -309,6 +310,16 @@ const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
 ];
 
 const FLOW_MEDIA_STYLES = ["modern", "premium", "bold", "clean", "cinematic"];
+
+const FLOW_VIDEO_DURATIONS: Array<{
+  seconds: FlowVideoDuration;
+  label: string;
+  helper: string;
+}> = [
+  { seconds: 8, label: "8s", helper: "Fast xAI-style clip" },
+  { seconds: 15, label: "15s", helper: "Full short story" },
+  { seconds: 30, label: "30s", helper: "Long-video provider" },
+];
 
 const getFlowMediaAspect = (aspect: FlowMediaAspect) =>
   FLOW_MEDIA_ASPECTS.find((item) => item.id === aspect) || FLOW_MEDIA_ASPECTS[0];
@@ -644,6 +655,7 @@ export default function ContentPostsPage() {
   const [flowMediaPrompt, setFlowMediaPrompt] = useState(FLOW_MEDIA_TEMPLATES[0].prompt);
   const [flowMediaAspect, setFlowMediaAspect] = useState<FlowMediaAspect>("1:1");
   const [flowMediaStyle, setFlowMediaStyle] = useState("modern");
+  const [flowVideoDuration, setFlowVideoDuration] = useState<FlowVideoDuration>(8);
   const [isGeneratingFlowMedia, setIsGeneratingFlowMedia] = useState(false);
   const [flowMediaStatus, setFlowMediaStatus] = useState("");
   const [generatedFlowMedia, setGeneratedFlowMedia] = useState<{ type: FlowMediaMode; url: string } | null>(null);
@@ -1131,6 +1143,9 @@ export default function ContentPostsPage() {
       "Brand identity:",
       JSON.stringify(rawBrandIdentity, null, 2),
       selectedPlatformLabels ? `Channels: ${selectedPlatformLabels}` : null,
+      `Target video length: ${flowVideoDuration} seconds.`,
+      "Continuity requirements: keep the same person, product, bag, brand colors, lighting, and visual identity from the first second to the final frame. The story must feel seamless with no reset, no visible gap, no sudden identity change, and no disconnected scenes.",
+      "Message structure: opening hook, clear product or offer demonstration, proof or benefit moment, and final call-to-action visual. Use visual storytelling only; avoid burned-in text overlays unless the user explicitly asks for text.",
       referenceImageNote,
       `User prompt: ${prompt}`,
     ]
@@ -1138,7 +1153,11 @@ export default function ContentPostsPage() {
       .join("\n\n");
     setIsGeneratingFlowMedia(true);
     setGeneratedFlowMedia(null);
-    setFlowMediaStatus(flowMediaMode === "image" ? "Creating your FlowAI image..." : "Creating your FlowAI video...");
+    setFlowMediaStatus(
+      flowMediaMode === "image"
+        ? "Creating your FlowAI image..."
+        : `Creating your ${flowVideoDuration}s FlowAI video...`
+    );
 
     try {
       if (flowMediaMode === "image") {
@@ -1192,10 +1211,10 @@ export default function ContentPostsPage() {
           prompt: rawVideoPrompt,
           category: "promo",
           aspectRatio: flowMediaAspect,
-          duration: 8,
+          duration: flowVideoDuration,
           style: flowMediaStyle,
           resolution: "720p",
-          provider: "veo3",
+          provider: "auto",
           voiceOver: false,
           referenceImageUrl: primaryReferenceImageUrl,
         }),
@@ -1407,6 +1426,10 @@ export default function ContentPostsPage() {
     () => buildFlowMediaTemplates(brandKit, selectedPlatformLabels || "the selected social channels"),
     [brandKit, selectedPlatformLabels]
   );
+  const visibleFlowMediaTemplates = useMemo(
+    () => flowMediaTemplates.filter((template) => template.mode === flowMediaMode),
+    [flowMediaMode, flowMediaTemplates]
+  );
   const trendIdeasCacheKey = useMemo(
     () => buildTrendIdeasCacheKey(brandName, aiPlatformSelection),
     [aiPlatformSelection, brandName]
@@ -1420,12 +1443,15 @@ export default function ContentPostsPage() {
     [brandKit?.targetAudience, brandName, selectedPlatformLabels]
   );
   useEffect(() => {
-    setFlowMediaPrompt((current) =>
-      !current.trim() || current === FLOW_MEDIA_TEMPLATES[0].prompt
-        ? flowMediaTemplates[0]?.prompt || current
-        : current
-    );
-  }, [flowMediaTemplates]);
+    setFlowMediaPrompt((current) => {
+      const currentTemplate =
+        flowMediaTemplates.find((template) => template.prompt === current) ||
+        FLOW_MEDIA_TEMPLATES.find((template) => template.prompt === current);
+      if (currentTemplate?.mode === flowMediaMode) return current;
+      if (current.trim() && !currentTemplate) return current;
+      return visibleFlowMediaTemplates[0]?.prompt || current;
+    });
+  }, [flowMediaMode, flowMediaTemplates, visibleFlowMediaTemplates]);
   useEffect(() => {
     let cancelled = false;
 
@@ -2182,7 +2208,7 @@ export default function ContentPostsPage() {
           title="FlowAI media"
           description={`Generate media from ${brandName}'s brand identity.`}
           icon={<ImagePlus className="h-4 w-4" />}
-          defaultSize={{ width: 640, height: 720 }}
+          defaultSize={{ width: 760, height: 820 }}
           defaultPosition={{ y: 118 }}
         >
           <div className="space-y-4">
@@ -2200,10 +2226,20 @@ export default function ContentPostsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-muted/50 p-1">
+            <div className="grid gap-3 sm:grid-cols-2">
               {[
-                { id: "image" as const, label: "Image", icon: ImageIcon, helper: "FlowAI image" },
-                { id: "video" as const, label: "Video", icon: Film, helper: "FlowAI video" },
+                {
+                  id: "image" as const,
+                  label: "Image Studio",
+                  icon: ImageIcon,
+                  helper: "Campaign images, offer cards, proof visuals",
+                },
+                {
+                  id: "video" as const,
+                  label: "Video Studio",
+                  icon: Film,
+                  helper: "8s, 15s, or 30s story-driven videos",
+                },
               ].map((mode) => {
                 const Icon = mode.icon;
                 const isActive = flowMediaMode === mode.id;
@@ -2215,15 +2251,17 @@ export default function ContentPostsPage() {
                       setFlowMediaMode(mode.id);
                       setGeneratedFlowMedia(null);
                     }}
-                    className={`rounded-xl px-3 py-2 text-left transition ${
-                      isActive ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                      isActive
+                        ? "border-cyan-500 bg-cyan-500/10 shadow-sm"
+                        : "bg-background/80 text-muted-foreground hover:border-cyan-500/40 hover:text-foreground"
                     }`}
                   >
-                    <span className="flex items-center gap-2 text-sm font-bold">
-                      <Icon className="h-4 w-4" />
-                      {mode.label}
+                    <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-300">
+                      <Icon className="h-5 w-5" />
                     </span>
-                    <span className="block text-xs text-muted-foreground">{mode.helper}</span>
+                    <span className="block text-base font-bold text-foreground">{mode.label}</span>
+                    <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{mode.helper}</span>
                   </button>
                 );
               })}
@@ -2232,10 +2270,10 @@ export default function ContentPostsPage() {
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-bold">
                 <Lightbulb className="h-4 w-4 text-amber-500" />
-                Templates
+                {flowMediaMode === "image" ? "Image templates" : "Video story templates"}
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
-                {flowMediaTemplates.map((template) => {
+                {visibleFlowMediaTemplates.map((template) => {
                   const isActive = flowMediaPrompt === template.prompt && flowMediaMode === template.mode;
                   return (
                     <button
@@ -2270,6 +2308,50 @@ export default function ContentPostsPage() {
                 placeholder="Describe the media you want FlowAI to create..."
               />
             </div>
+
+            {flowMediaMode === "video" && (
+              <div className="space-y-3 rounded-2xl border bg-background/70 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-bold">
+                      <Clock className="h-4 w-4 text-cyan-600" />
+                      Video length
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Short clips can use xAI/Grok when available. Longer clips use FlowAI continuity planning and provider fallback.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[11px] font-bold text-cyan-700 dark:text-cyan-300">
+                    {flowVideoDuration}s
+                  </span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {FLOW_VIDEO_DURATIONS.map((option) => {
+                    const isActive = flowVideoDuration === option.seconds;
+                    return (
+                      <button
+                        key={option.seconds}
+                        type="button"
+                        onClick={() => setFlowVideoDuration(option.seconds)}
+                        className={`rounded-xl border p-3 text-left transition ${
+                          isActive
+                            ? "border-cyan-500 bg-cyan-500/10"
+                            : "bg-background hover:border-cyan-500/40"
+                        }`}
+                      >
+                        <span className="block text-sm font-bold">{option.label}</span>
+                        <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">{option.helper}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {flowVideoDuration === 30 && (
+                  <p className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
+                    30-second videos are planned as one message with continuity instructions so the subject, product, and brand identity stay consistent from start to finish.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2 rounded-2xl border bg-background/70 p-3">
               <div className="flex items-center justify-between gap-2">
@@ -2358,7 +2440,11 @@ export default function ContentPostsPage() {
                   <AIGenerationLoader
                     compact
                     currentStep={flowMediaStatus || "Generating media..."}
-                    subtitle={flowMediaMode === "image" ? "FlowAI is creating a polished campaign asset" : "FlowAI video generation can take a few minutes"}
+                    subtitle={
+                      flowMediaMode === "image"
+                        ? "FlowAI is creating a polished campaign asset"
+                        : `FlowAI is producing a ${flowVideoDuration}s video with brand continuity checks`
+                    }
                   />
                 ) : (
                   <p className="text-sm font-semibold text-cyan-700 dark:text-cyan-300">{flowMediaStatus}</p>
@@ -2404,7 +2490,7 @@ export default function ContentPostsPage() {
                 ) : (
                   <Video className="mr-2 h-4 w-4" />
                 )}
-                Generate {flowMediaMode}
+                Generate {flowMediaMode === "video" ? `${flowVideoDuration}s video` : "image"}
               </Button>
               <Button type="button" variant="outline" onClick={() => setShowFlowAIMediaModal(false)}>
                 Close

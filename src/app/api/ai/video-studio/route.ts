@@ -24,6 +24,8 @@ import { promisify } from "util";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 type TTSVoice = "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
+type RequestedVideoProvider = "auto" | "veo3" | "grok" | "slideshow";
+type RuntimeVideoProvider = "veo3" | "grok" | "slideshow";
 
 const execFileAsync = promisify(execFile);
 
@@ -45,7 +47,6 @@ export async function POST(req: NextRequest) {
       prompt,
       category = "product_ad",
       aspectRatio = "16:9",
-      duration = 15,
       style = "cinematic",
       resolution = "720p",
       referenceImageUrl = null,
@@ -53,28 +54,36 @@ export async function POST(req: NextRequest) {
       voiceOver = "nova" as string | false,
       voiceGender = "female" as string,
       voiceAccent = "american" as string,
-      provider = "veo3" as "veo3" | "slideshow",
     } = body;
+    const duration = normalizeRequestedVideoDuration(body.duration ?? body.durationSeconds ?? 15);
+    const requestedProvider = normalizeRequestedVideoProvider(body.provider ?? "veo3");
+    const runtimeProvider = resolveRuntimeVideoProvider(requestedProvider, duration);
 
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       return new Response(JSON.stringify({ error: "Prompt is required" }), { status: 400 });
     }
 
     // Validate provider availability
-    if (provider === "veo3" && !veoClient.isAvailable() && !hasAnyVideoFallbackProvider()) {
+    if (runtimeProvider === "veo3" && !veoClient.isAvailable() && !hasAnyVideoFallbackProvider()) {
       return new Response(JSON.stringify({ error: "Video generation is not configured" }), { status: 503 });
     }
-    if (provider === "slideshow" && !xaiClient.isAvailable()) {
+    if (runtimeProvider === "grok" && !grokVideoClient.isAvailable()) {
+      return new Response(JSON.stringify({ error: "xAI Grok video generation is not configured" }), { status: 503 });
+    }
+    if (requestedProvider === "grok" && duration > 15) {
+      return new Response(JSON.stringify({ error: "xAI Grok video supports up to 15 seconds. Choose auto provider for 30-second FlowAI videos." }), { status: 400 });
+    }
+    if (runtimeProvider === "slideshow" && !xaiClient.isAvailable()) {
       return new Response(JSON.stringify({ error: "Slideshow requires XAI_API_KEY for image generation" }), { status: 503 });
     }
 
     // Credit cost: slideshow uses its own (cheaper) rate, Veo scales with extensions
     const creditCost = await (async () => {
-      if (provider === "slideshow") {
+      if (runtimeProvider === "slideshow") {
         return await getDynamicCreditCost("AI_VIDEO_SLIDESHOW" as const);
       }
       const veoCost = await getDynamicCreditCost("AI_VIDEO_STUDIO" as const);
-      const extensionCount = duration > 8 ? Math.ceil((duration - 8) / 7) : 0;
+      const extensionCount = runtimeProvider === "veo3" && duration > 8 ? Math.ceil((duration - 8) / 7) : 0;
       return Math.round(veoCost * (1 + extensionCount));
     })();
 
@@ -105,7 +114,14 @@ export async function POST(req: NextRequest) {
         size: aspectRatio,
         style,
         status: "GENERATING",
-        metadata: JSON.stringify({ duration, resolution, type: "video", provider, referenceImageUrl: referenceImageUrl || undefined }),
+        metadata: JSON.stringify({
+          duration,
+          resolution,
+          type: "video",
+          provider: runtimeProvider,
+          requestedProvider,
+          referenceImageUrl: referenceImageUrl || undefined,
+        }),
       },
     });
 
@@ -120,24 +136,24 @@ export async function POST(req: NextRequest) {
         send({ type: "start", mode: "video", designId: design.id });
 
         try {
-          // Build enhanced prompt with style
-          const enhancedPrompt = buildVideoPrompt(prompt.trim(), category, style);
           const refImage: string | undefined = referenceImageUrl || undefined;
+          // Build enhanced prompt with style, continuity, and duration guidance.
+          const enhancedPrompt = buildVideoPrompt(prompt.trim(), category, style, duration, !!refImage);
 
           let finalVideoBuffer: Buffer;
           let totalDuration = 0;
-          let actualProvider = provider as string;
+          let actualProvider = runtimeProvider as string;
 
           // Debug directory for saving raw videos
           const debugDir = path.join(process.cwd(), ".cache", "debug-video");
           fs.mkdirSync(debugDir, { recursive: true });
           const debugId = nanoid(6);
 
-          if (provider === "slideshow") {
+          if (runtimeProvider === "slideshow") {
             actualProvider = "slideshow";
             // ──────── SLIDESHOW (AI Images + Voiceover + Captions) ────────
             send({ type: "status", message: "Generating slideshow script..." });
-            const script = await generateSlideshowScript(prompt.trim(), category, style, 45);
+            const script = await generateSlideshowScript(prompt.trim(), category, style, Math.max(15, duration));
             console.log(`[VideoStudio] Slideshow script: ${script.scenes.length} scenes`);
 
             send({ type: "status", message: `Generating ${script.scenes.length} scene images...` });
@@ -173,6 +189,37 @@ export async function POST(req: NextRequest) {
             // Get actual duration from the composited video (voiceover-driven, not fixed 45s)
             totalDuration = await getSlideshowDuration(finalVideoBuffer);
             console.log(`[VideoStudio] DEBUG: Slideshow raw buffer = ${finalVideoBuffer.length} bytes (${(finalVideoBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
+          } else if (runtimeProvider === "grok") {
+            actualProvider = "grok";
+            send({ type: "status", message: `Generating ${duration}s video with xAI Grok...` });
+            try {
+              const result = await grokVideoClient.generateVideo(enhancedPrompt, {
+                duration: Math.max(1, Math.min(15, Math.round(duration || 8))),
+                aspectRatio: normalizeVideoAspect(aspectRatio),
+                resolution: "720p",
+                imageUrl: refImage,
+              });
+              finalVideoBuffer = result.videoBuffer;
+              totalDuration = result.duration || duration;
+            } catch (primaryVideoError) {
+              if (!isVideoFallbackError(primaryVideoError)) throw primaryVideoError;
+              console.warn("[VideoStudio] xAI video engine failed, trying fallback chain:", primaryVideoError);
+              send({ type: "status", message: "Trying another production video engine..." });
+              const fallbackResult = await generateFallbackVideoBuffer({
+                prompt: enhancedPrompt,
+                userPrompt: prompt.trim(),
+                category,
+                style,
+                aspectRatio,
+                duration,
+                referenceImageUrl: refImage,
+                skipGrok: true,
+                allowExperimentalSlideshow: false,
+              });
+              finalVideoBuffer = fallbackResult.videoBuffer;
+              totalDuration = fallbackResult.duration;
+              actualProvider = fallbackResult.provider;
+            }
           } else {
             // ──────── VEO 3 (Google) ────────
             // Veo 3 supports 4, 6, or 8 second videos with native audio
@@ -244,7 +291,7 @@ export async function POST(req: NextRequest) {
             } catch (primaryVideoError) {
               if (!isVideoFallbackError(primaryVideoError)) throw primaryVideoError;
               console.warn("[VideoStudio] Primary video engine failed, trying fallback chain:", primaryVideoError);
-              send({ type: "status", message: "Trying another video engine..." });
+              send({ type: "status", message: "Trying another production video engine..." });
               const fallbackResult = await generateFallbackVideoBuffer({
                 prompt: veoPrompt,
                 userPrompt: prompt.trim(),
@@ -253,6 +300,7 @@ export async function POST(req: NextRequest) {
                 aspectRatio,
                 duration,
                 referenceImageUrl: refImage,
+                allowExperimentalSlideshow: false,
               });
               finalVideoBuffer = fallbackResult.videoBuffer;
               totalDuration = fallbackResult.duration;
@@ -415,7 +463,9 @@ export async function POST(req: NextRequest) {
           let errorMsg = "Video generation failed";
           if (error instanceof Error) {
             const msg = error.message;
-            if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota") || msg.includes("limit")) {
+            if (msg.includes("requires the long-video provider") || msg.includes("No production video provider")) {
+              errorMsg = msg;
+            } else if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota") || msg.includes("rate limit")) {
               errorMsg = "Video generation is temporarily at capacity. The backup engines were tried too; please try again shortly or use a shorter prompt.";
             } else if (msg.includes("403") || msg.includes("PERMISSION_DENIED")) {
               errorMsg = "Video generation is not available for this request. Please try again later.";
@@ -465,8 +515,32 @@ function getVideoUsageModel(provider: string): string {
   }
 }
 
+function normalizeRequestedVideoProvider(value: unknown): RequestedVideoProvider {
+  return value === "auto" || value === "veo3" || value === "grok" || value === "slideshow"
+    ? value
+    : "veo3";
+}
+
+function normalizeRequestedVideoDuration(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return 15;
+  return Math.max(1, Math.min(30, Math.round(parsed)));
+}
+
+function resolveRuntimeVideoProvider(
+  requestedProvider: RequestedVideoProvider,
+  duration: number
+): RuntimeVideoProvider {
+  if (requestedProvider === "slideshow") return "slideshow";
+  if (requestedProvider === "grok") return "grok";
+  if (requestedProvider === "auto" && duration <= 15 && grokVideoClient.isAvailable()) {
+    return "grok";
+  }
+  return "veo3";
+}
+
 function hasAnyVideoFallbackProvider(): boolean {
-  return grokVideoClient.isAvailable() || soraClient.isAvailable() || xaiClient.isAvailable();
+  return grokVideoClient.isAvailable() || soraClient.isAvailable();
 }
 
 function isVideoFallbackError(error: unknown): boolean {
@@ -521,11 +595,13 @@ async function generateFallbackVideoBuffer(opts: {
   aspectRatio: string;
   duration: number;
   referenceImageUrl?: string | null;
+  skipGrok?: boolean;
+  allowExperimentalSlideshow?: boolean;
 }): Promise<{ videoBuffer: Buffer; duration: number; provider: string }> {
   const errors: string[] = [];
   const aspect = normalizeVideoAspect(opts.aspectRatio);
 
-  if (grokVideoClient.isAvailable()) {
+  if (!opts.skipGrok && opts.duration <= 15 && grokVideoClient.isAvailable()) {
     try {
       const result = await grokVideoClient.generateVideo(opts.prompt, {
         duration: Math.max(1, Math.min(15, Math.round(opts.duration || 8))),
@@ -545,7 +621,7 @@ async function generateFallbackVideoBuffer(opts: {
     }
   }
 
-  if (soraClient.isAvailable()) {
+  if (opts.duration <= 12 && soraClient.isAvailable()) {
     let referenceImagePath: string | undefined;
     try {
       referenceImagePath = await materializeReferenceImage(opts.referenceImageUrl);
@@ -570,29 +646,35 @@ async function generateFallbackVideoBuffer(opts: {
     }
   }
 
-  try {
-    const script = await generateSlideshowScript(opts.userPrompt, opts.category, opts.style, 45);
-    const slideshowImages = await generateSlideshowImages(script.scenes, opts.aspectRatio, () => undefined);
-    const audioBuffer = await generateTTSAudio(script.scenes.map((scene) => scene.narration).join(" "), "nova");
-    const videoBuffer = await compositeSlideshowVideo({
-      scenes: script.scenes,
-      images: slideshowImages,
-      audioBuffer,
-      resolution: "720p",
-      aspectRatio: opts.aspectRatio,
-    });
-    return {
-      videoBuffer,
-      duration: await getSlideshowDuration(videoBuffer),
-      provider: "slideshow",
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    errors.push(message);
-    console.warn("[VideoStudio] Slideshow fallback failed:", error);
+  if (opts.allowExperimentalSlideshow) {
+    try {
+      const script = await generateSlideshowScript(opts.userPrompt, opts.category, opts.style, 45);
+      const slideshowImages = await generateSlideshowImages(script.scenes, opts.aspectRatio, () => undefined);
+      const audioBuffer = await generateTTSAudio(script.scenes.map((scene) => scene.narration).join(" "), "nova");
+      const videoBuffer = await compositeSlideshowVideo({
+        scenes: script.scenes,
+        images: slideshowImages,
+        audioBuffer,
+        resolution: "720p",
+        aspectRatio: opts.aspectRatio,
+      });
+      return {
+        videoBuffer,
+        duration: await getSlideshowDuration(videoBuffer),
+        provider: "slideshow",
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(message);
+      console.warn("[VideoStudio] Slideshow fallback failed:", error);
+    }
   }
 
-  throw new Error(errors.at(-1) || "All video engines failed");
+  const capabilityMessage =
+    opts.duration > 15
+      ? `${opts.duration}-second video requires the long-video provider. xAI/Grok and Sora fallback are limited to shorter production clips.`
+      : "No production video provider is configured for this request";
+  throw new Error(errors.at(-1) || capabilityMessage);
 }
 
 /**
@@ -600,7 +682,13 @@ async function generateFallbackVideoBuffer(opts: {
  * Explicitly instructs the model to generate animated video with real motion,
  * camera movement, and dynamic action — not a static image.
  */
-function buildVideoPrompt(userPrompt: string, category: string, style: string): string {
+function buildVideoPrompt(
+  userPrompt: string,
+  category: string,
+  style: string,
+  durationSeconds = 8,
+  hasReferenceImage = false
+): string {
   const categoryMotion: Record<string, string> = {
     product_ad:
       "Animated product advertisement video with the product rotating, zooming in on details, dynamic camera orbiting around it, smooth transitions between angles, and objects physically moving through the scene.",
@@ -627,6 +715,16 @@ function buildVideoPrompt(userPrompt: string, category: string, style: string): 
 
   const catHint = categoryMotion[category] || "Animated video with dynamic camera movement and real motion throughout.";
   const styleHint = styleHints[style] || "";
+  const continuityDirective = [
+    `Plan this as one seamless ${durationSeconds}-second story: opening hook, product or offer demonstration, proof or benefit moment, and final call-to-action visual.`,
+    "Maintain the same subject, product identity, colors, lighting, environment, and brand style from the first frame to the last.",
+    "Avoid jumpy resets, unrelated scene changes, duplicated starts, frozen frames, or any visible gap between moments.",
+    hasReferenceImage
+      ? "Use the reference image as the main identity anchor; preserve product shape, color, material, and recognizable details across every shot."
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   // Core directive: force the model to generate actual animated video, not a still image
   const motionDirective = "Create a fully animated video with continuous real motion, moving objects, camera movement (panning, zooming, tracking, orbiting), and dynamic action throughout the entire duration. This must NOT be a static image — everything should be visually moving and alive.";
@@ -634,7 +732,7 @@ function buildVideoPrompt(userPrompt: string, category: string, style: string): 
   // Clean video directive: no text/branding burned into the video
   const cleanDirective = "CRITICAL — CLEAN VIDEO RULES: Do NOT render any text, brand names, logos, watermarks, titles, subtitles, captions, or any written words anywhere in the video. The video must be purely visual — clean, cinematic footage with NO overlaid text at all. Think of this as raw B-roll footage for a professional TV advertisement. If text absolutely must appear (like on a product label or storefront sign that naturally exists in the scene), keep it minimal, natural, and part of the environment — never as an overlay or graphic element.";
 
-  return `${motionDirective} ${catHint} ${styleHint} ${cleanDirective} ${userPrompt}`.trim();
+  return `${continuityDirective} ${motionDirective} ${catHint} ${styleHint} ${cleanDirective} ${userPrompt}`.trim();
 }
 
 /**
