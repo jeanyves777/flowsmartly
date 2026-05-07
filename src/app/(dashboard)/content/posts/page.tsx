@@ -116,7 +116,7 @@ type ProductAdTemplate = {
   aspect: FlowMediaAspect;
   prompt: string;
   badge: string;
-  gradient: string;
+  thumbnail: string;
 };
 
 type ProductAdPreset = {
@@ -380,7 +380,7 @@ const PRODUCT_AD_TEMPLATES: ProductAdTemplate[] = [
     helper: "Premium product suspended in a rich scene with room for a headline and CTA.",
     aspect: "1:1",
     badge: "Product poster",
-    gradient: "from-cyan-400 via-sky-200 to-lime-200",
+    thumbnail: "/templates/product-ads/floating-product-hero.jpg",
     prompt:
       "Build a premium floating-product advertising poster. Put the exact referenced product as the hero, lifted with realistic shadows, reflections, and tasteful environmental details. Reserve clean headline, benefit, and CTA zones without clutter.",
   },
@@ -390,7 +390,7 @@ const PRODUCT_AD_TEMPLATES: ProductAdTemplate[] = [
     helper: "Retail-ready offer layout with product, headline, benefit strip, and CTA.",
     aspect: "1:1",
     badge: "Offer ad",
-    gradient: "from-amber-300 via-yellow-100 to-emerald-200",
+    thumbnail: "/templates/product-ads/packshot-offer-card.jpg",
     prompt:
       "Create a polished ecommerce packshot ad. Use the uploaded product as the exact hero, keep label and shape recognizable, add a bold offer headline area, three short benefit callouts, and a strong CTA zone.",
   },
@@ -400,7 +400,7 @@ const PRODUCT_AD_TEMPLATES: ProductAdTemplate[] = [
     helper: "Person/product review ad for social proof, with identity locked when a person is uploaded.",
     aspect: "9:16",
     badge: "Social proof",
-    gradient: "from-rose-200 via-orange-100 to-cyan-200",
+    thumbnail: "/templates/product-ads/ugc-review-visual.jpg",
     prompt:
       "Create a realistic UGC product review ad. If a person reference is provided, preserve that person's recognizable identity and show them naturally holding, wearing, or using the exact product. Add subtle review/proof elements and a native social ad feel.",
   },
@@ -410,7 +410,7 @@ const PRODUCT_AD_TEMPLATES: ProductAdTemplate[] = [
     helper: "New collection announcement with editorial spacing and premium product staging.",
     aspect: "1:1",
     badge: "Launch",
-    gradient: "from-teal-300 via-white to-slate-200",
+    thumbnail: "/templates/product-ads/launch-collection.jpg",
     prompt:
       "Design a refined new-collection product ad. Use the reference product or product set exactly, create an editorial composition with launch headline space, refined frames, depth, and brand-color accents.",
   },
@@ -420,7 +420,7 @@ const PRODUCT_AD_TEMPLATES: ProductAdTemplate[] = [
     helper: "Product plus website/app showcase for checkout, booking, or product-page campaigns.",
     aspect: "16:9",
     badge: "Traffic ad",
-    gradient: "from-sky-300 via-white to-violet-200",
+    thumbnail: "/templates/product-ads/website-conversion-ad.jpg",
     prompt:
       "Create a website conversion ad that combines the exact product/reference with a clean website or product-page inspired layout. Show a polished offer section, action CTA, and visual proof without inventing third-party logos.",
   },
@@ -430,7 +430,7 @@ const PRODUCT_AD_TEMPLATES: ProductAdTemplate[] = [
     helper: "High-energy campaign graphic with layered product, ingredients, props, and CTA.",
     aspect: "1:1",
     badge: "Promo",
-    gradient: "from-lime-300 via-yellow-200 to-orange-300",
+    thumbnail: "/templates/product-ads/bold-promo-stack.jpg",
     prompt:
       "Create a vibrant promotional product ad with layered product, props, motion accents, a clear headline zone, and a CTA. Keep the exact product from references, make the composition energetic, readable, and social-ready.",
   },
@@ -2912,12 +2912,12 @@ export default function ContentPostsPage() {
           title="AI Product Ad"
           description="Design product ads from references, templates, and edit prompts."
           icon={<Sparkles className="h-4 w-4" />}
-          defaultSize={{ width: 980, height: 860 }}
+          defaultSize={{ width: 1060, height: 900 }}
           defaultPosition={{ y: 92 }}
         >
           <div className="space-y-4">
             <div className="overflow-hidden rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-amber-500/10 p-4 dark:from-cyan-400/10 dark:to-amber-400/10">
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
                 <div className="flex items-start gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-amber-400 via-brand-500 to-cyan-400 text-white shadow-sm">
                     <ImagePlus className="h-5 w-5" />
@@ -2929,19 +2929,19 @@ export default function ContentPostsPage() {
                     </p>
                   </div>
                 </div>
-                <div className="rounded-2xl border bg-background/80 p-3 shadow-sm">
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <p className="text-lg font-black">{productAdReferenceUrls.length}</p>
-                      <p className="text-[10px] font-semibold text-muted-foreground">Refs</p>
+                <div className="rounded-2xl border bg-background/85 p-2.5 shadow-sm">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="min-w-0 rounded-xl bg-muted/50 px-2.5 py-2 text-center">
+                      <p className="truncate text-sm font-black leading-tight">{productAdReferenceUrls.length}</p>
+                      <p className="mt-0.5 text-[10px] font-semibold uppercase text-muted-foreground">Refs</p>
                     </div>
-                    <div>
-                      <p className="text-lg font-black">{getFlowMediaAspect(productAdAspect).label}</p>
-                      <p className="text-[10px] font-semibold text-muted-foreground">Format</p>
+                    <div className="min-w-0 rounded-xl bg-muted/50 px-2.5 py-2 text-center">
+                      <p className="truncate text-sm font-black leading-tight">{getFlowMediaAspect(productAdAspect).label}</p>
+                      <p className="mt-0.5 text-[10px] font-semibold uppercase text-muted-foreground">Format</p>
                     </div>
-                    <div>
-                      <p className="text-lg font-black capitalize">{productAdStyle}</p>
-                      <p className="text-[10px] font-semibold text-muted-foreground">Style</p>
+                    <div className="min-w-0 rounded-xl bg-muted/50 px-2.5 py-2 text-center">
+                      <p className="truncate text-sm font-black capitalize leading-tight">{productAdStyle}</p>
+                      <p className="mt-0.5 text-[10px] font-semibold uppercase text-muted-foreground">Style</p>
                     </div>
                   </div>
                 </div>
@@ -2993,21 +2993,27 @@ export default function ContentPostsPage() {
                             isActive ? "border-brand-500 bg-brand-500/10 shadow-sm" : "bg-background hover:border-brand-500/40"
                           }`}
                         >
-                          <div className={`h-20 bg-gradient-to-br ${template.gradient} p-3`}>
-                            <div className="flex h-full items-end justify-between">
-                              <div className="h-11 w-11 rounded-2xl border border-white/60 bg-white/60 shadow-sm backdrop-blur" />
-                              <div className="space-y-1">
-                                <div className="h-2 w-16 rounded-full bg-white/80" />
-                                <div className="h-2 w-10 rounded-full bg-white/60" />
-                              </div>
-                            </div>
+                          <div className="relative h-28 overflow-hidden bg-muted">
+                            <img
+                              src={template.thumbnail}
+                              alt={`${template.title} product ad example`}
+                              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                              loading="lazy"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
+                            <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-slate-900 shadow-sm">
+                              {template.badge}
+                            </span>
+                            {isActive ? (
+                              <span className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-500 text-white shadow-sm">
+                                <Check className="h-3.5 w-3.5" />
+                              </span>
+                            ) : null}
                           </div>
                           <div className="p-3">
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-sm font-bold">{template.title}</span>
-                              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-                                {template.badge}
-                              </span>
+                              <span className="text-[10px] font-semibold text-muted-foreground">{template.aspect}</span>
                             </div>
                             <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{template.helper}</p>
                           </div>
@@ -3159,12 +3165,26 @@ export default function ContentPostsPage() {
                         />
                       </div>
                     ) : (
-                      <div className="space-y-3 p-6 text-center">
-                        <div className={`mx-auto h-24 w-24 rounded-[2rem] bg-gradient-to-br ${getProductAdTemplate(productAdTemplate).gradient} shadow-sm`} />
-                        <div>
+                      <div className="relative h-full w-full overflow-hidden text-left">
+                        <img
+                          src={getProductAdTemplate(productAdTemplate).thumbnail}
+                          alt={`${getProductAdTemplate(productAdTemplate).title} example preview`}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+                        <div className="absolute left-4 right-4 top-4 flex items-center justify-between gap-3">
+                          <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-slate-900 shadow-sm">
+                            Example thumbnail
+                          </span>
+                          <span className="rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur">
+                            {getProductAdTemplate(productAdTemplate).aspect}
+                          </span>
+                        </div>
+                        <div className="absolute inset-x-0 bottom-0 p-4 text-white">
                           <p className="text-sm font-bold">{getProductAdTemplate(productAdTemplate).title}</p>
-                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                            Your generated ad preview will appear here.
+                          <p className="mt-1 max-w-[24rem] text-xs leading-relaxed text-white/80">
+                            Generate to replace this example with your brand, product references, and edit-ready media.
                           </p>
                         </div>
                       </div>
