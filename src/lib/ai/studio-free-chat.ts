@@ -26,6 +26,26 @@ function isCasualOnly(message: string) {
   return /^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|cool|nice|great)[.! ]*$/i.test(message.trim());
 }
 
+function isDirectCreationRequest(message: string) {
+  const text = message.toLowerCase().replace(/\s+/g, " ").trim();
+  const hasAction = /\b(create|make|design|generate|build|produce|draft|edit|remix|replace|remove|add|turn)\b/.test(text);
+  const hasAsset =
+    /\b(flyer|poster|post|caption|image|photo|picture|ad|advertisement|video|reel|logo|banner|invitation|thumbnail|graphic|creative|design|story|carousel|card|background|template)\b/.test(text);
+  const hasConcreteSubject =
+    /\b(service|sale|promo|promotion|campaign|event|church|restaurant|product|business|brand|mother'?s day|holiday|launch|offer)\b/.test(text);
+  return hasAction && (hasAsset || hasConcreteSubject);
+}
+
+function isGeneralStudioQuestion(message: string) {
+  const text = message.toLowerCase().replace(/\s+/g, " ").trim();
+  if (
+    /^(what can (you|flowai) creat(e)?|what can (you|flowai) make|what can (you|flowai) do|what do (you|flowai) creat(e)?|what kind of|what types of|how does|how do i|how can i|can you explain|tell me what|help\b)/.test(text)
+  ) {
+    return true;
+  }
+  return text.endsWith("?") && !isDirectCreationRequest(text);
+}
+
 function isVideoPrompt(message: string) {
   return /\b(video|reel|short|tiktok|animation|motion|commercial|clip|veo)\b/i.test(message);
 }
@@ -235,6 +255,7 @@ async function runFlowAITextReply(opts: RunChatTurnOpts): Promise<Pick<RunChatTu
     "Continue this Studio design conversation naturally.",
     "Do not mention backend providers, model names, or implementation details.",
     "If the user is just greeting you, respond warmly and ask what they want to create.",
+    "If the user asks what you can create, answer their question directly with examples like flyers, social posts, ads, banners, product visuals, branded templates, edits, and short videos.",
     "If they gave a design idea but not enough production details, ask focused clarifying questions before generation.",
     "Brand identity JSON:",
     JSON.stringify(compactBrandKit(opts.state.brandKit), null, 2),
@@ -291,6 +312,23 @@ export async function runFreeStudioTurn(opts: RunChatTurnOpts): Promise<RunChatT
       dispatched: [],
       stateUpdate: {},
       toolCalls: [],
+      usage: reply.usage,
+      iterations: 1,
+    };
+  }
+
+  if (isGeneralStudioQuestion(message)) {
+    const reply = await runFlowAITextReply(opts);
+    return {
+      text: reply.text,
+      cards: [],
+      dispatched: [],
+      stateUpdate: {},
+      toolCalls: [{
+        name: "free_studio_question_answer",
+        input: { message },
+        output: { answered: true },
+      }],
       usage: reply.usage,
       iterations: 1,
     };
