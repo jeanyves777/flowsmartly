@@ -9,16 +9,13 @@ import {
   Activity,
   AlertTriangle,
   BarChart3,
-  Bot,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
   Clock,
   Copy,
-  Eye,
   FileText,
   Link2,
-  Loader2,
   Mail,
   MoreHorizontal,
   Pencil,
@@ -27,11 +24,11 @@ import {
   RefreshCw,
   Rocket,
   Rss,
-  Settings2,
   Sparkles,
   Target,
   Trash2,
   Wand2,
+  X,
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -49,9 +46,13 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { ChatPanel } from "@/components/ai-assistant/chat-panel";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { useToast } from "@/hooks/use-toast";
+import {
+  isAutomationCandidate,
+  qualifyStrategyTaskForAutomation,
+} from "@/lib/strategy/automation-readiness";
 import { normalizeTaskCategory } from "@/lib/strategy/categories";
 import type { TaskCategory } from "@/lib/strategy/categories";
 import { cn } from "@/lib/utils/cn";
@@ -206,6 +207,36 @@ interface BrandSnapshot {
   handles: Record<string, string>;
 }
 
+interface ConnectedPlatform {
+  platform: string;
+  name: string;
+  connected: boolean;
+  username?: string | null;
+  displayName?: string | null;
+}
+
+interface MarketingReadiness {
+  emailReady: boolean;
+  smsReady: boolean;
+}
+
+interface AutomationCreditEstimate {
+  totalCredits: number;
+  userCredits: number;
+  hasEnoughCredits: boolean;
+  totalPosts: number;
+  automatableTasks: Array<{
+    taskId: string;
+    title: string;
+    type?: string;
+    requirements?: string[];
+    warnings?: string[];
+    totalCost: number;
+    runs: number;
+  }>;
+  manualOnlyTasks: Array<{ taskId: string; title: string; category: string }>;
+}
+
 const STATUS_COLUMNS: Array<{ id: TaskStatus; label: string; tone: string }> = [
   { id: "TODO", label: "To do", tone: "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/20" },
   { id: "IN_PROGRESS", label: "In progress", tone: "border-sky-200 bg-sky-50 dark:border-sky-900/70 dark:bg-sky-950/20" },
@@ -226,16 +257,6 @@ const PRIORITY_CONFIG: Record<TaskPriority, { label: string; dot: string }> = {
   LOW: { label: "Low", dot: "bg-emerald-500" },
 };
 
-const PLATFORM_OPTIONS = [
-  { id: "feed", label: "Feed" },
-  { id: "instagram", label: "Instagram" },
-  { id: "facebook", label: "Facebook" },
-  { id: "twitter", label: "X / Twitter" },
-  { id: "linkedin", label: "LinkedIn" },
-  { id: "tiktok", label: "TikTok" },
-  { id: "youtube", label: "YouTube" },
-];
-
 const STRATEGY_PLATFORM_OPTIONS = [
   "Instagram",
   "Facebook",
@@ -254,8 +275,6 @@ const TIMEFRAME_OPTIONS: Array<{ value: Timeframe; label: string }> = [
 ];
 
 const TONE_OPTIONS = ["professional", "friendly", "confident", "educational", "playful"];
-
-const AUTOMATABLE_CATEGORIES: TaskCategory[] = ["content", "social", "email"];
 
 const BRAND_HANDLE_PLATFORM: Record<string, string> = {
   instagram: "Instagram",
@@ -377,7 +396,7 @@ function toStringArray(value: unknown): string[] {
 }
 
 function isTaskAutomatable(task: StrategyTask) {
-  return AUTOMATABLE_CATEGORIES.includes(normalizeTaskCategory(task.category));
+  return isAutomationCandidate(task);
 }
 
 function taskProgress(task: StrategyTask) {
@@ -468,7 +487,7 @@ export default function StrategyAutomationPage() {
   const [selectedAutomationId, setSelectedAutomationId] = useState<string | null>(null);
   const [inspectorMode, setInspectorMode] = useState<"summary" | "task" | "automation">("summary");
   const [workspacePanelOpen, setWorkspacePanelOpen] = useState(false);
-  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [upcomingOpen, setUpcomingOpen] = useState(true);
   const [strategyBuilderOpen, setStrategyBuilderOpen] = useState(false);
   const [automationBuilderOpen, setAutomationBuilderOpen] = useState(false);
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(DEFAULT_TASK);
@@ -477,6 +496,13 @@ export default function StrategyAutomationPage() {
   const [automationBuilder, setAutomationBuilder] = useState<AutomationBuilderDraft>(DEFAULT_AUTOMATION_BUILDER);
   const [brand, setBrand] = useState<BrandSnapshot | null>(null);
   const [brandLoading, setBrandLoading] = useState(true);
+  const [connectedPlatforms, setConnectedPlatforms] = useState<ConnectedPlatform[]>([]);
+  const [marketingReadiness, setMarketingReadiness] = useState<MarketingReadiness>({
+    emailReady: false,
+    smsReady: false,
+  });
+  const [automationEstimate, setAutomationEstimate] = useState<AutomationCreditEstimate | null>(null);
+  const [estimatingAutomation, setEstimatingAutomation] = useState(false);
   const [generatingStrategy, setGeneratingStrategy] = useState(false);
   const [newStrategyName, setNewStrategyName] = useState("90-day content operating plan");
 
@@ -484,13 +510,17 @@ export default function StrategyAutomationPage() {
     setLoading(true);
     setError(null);
     try {
-      const [strategyRes, automationRes] = await Promise.all([
+      const [strategyRes, automationRes, socialRes, marketingRes] = await Promise.all([
         fetch("/api/content/strategy"),
         fetch("/api/content/automation"),
+        fetch("/api/social-accounts"),
+        fetch("/api/marketing-config"),
       ]);
-      const [strategyJson, automationJson] = await Promise.all([
+      const [strategyJson, automationJson, socialJson, marketingJson] = await Promise.all([
         strategyRes.json(),
         automationRes.json(),
+        socialRes.json().catch(() => null),
+        marketingRes.json().catch(() => null),
       ]);
 
       if (!strategyRes.ok || !strategyJson.success) {
@@ -502,6 +532,30 @@ export default function StrategyAutomationPage() {
 
       setStrategy(strategyJson.data?.strategy || null);
       setAutomations(automationJson.data?.automations || []);
+      if (socialRes.ok && socialJson?.success) {
+        setConnectedPlatforms(
+          (socialJson.data?.platforms || []).filter(
+            (platform: ConnectedPlatform) => platform.connected
+          )
+        );
+      }
+      if (marketingRes.ok && marketingJson?.success) {
+        const config = marketingJson.data?.config;
+        setMarketingReadiness({
+          emailReady: !!(
+            config?.emailProvider &&
+            config.emailProvider !== "NONE" &&
+            config.emailEnabled &&
+            config.emailVerified
+          ),
+          smsReady: !!(
+            config?.smsEnabled &&
+            config.smsVerified &&
+            config.smsPhoneNumber &&
+            config.smsComplianceStatus === "APPROVED"
+          ),
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load the workspace");
     } finally {
@@ -591,6 +645,34 @@ export default function StrategyAutomationPage() {
       }),
     [tasks]
   );
+  const connectedPlatformKeys = useMemo(
+    () => connectedPlatforms.map((platform) => platform.platform),
+    [connectedPlatforms]
+  );
+  const automationPlatformOptions = useMemo(() => {
+    const connected = connectedPlatforms.map((platform) => ({
+      id: platform.platform,
+      label: platform.displayName || platform.name,
+      detail: platform.username || platform.name,
+    }));
+    return [{ id: "feed", label: "Feed", detail: "FlowSmartly" }, ...connected];
+  }, [connectedPlatforms]);
+  const getTaskReadiness = useCallback(
+    (task: StrategyTask, options: AutomationBuilderDraft | AutomationDraft = automationBuilder) =>
+      qualifyStrategyTaskForAutomation(task, {
+        includeMedia: options.includeMedia,
+        mediaType: options.mediaType,
+        selectedPlatforms: options.platforms,
+        connectedPlatforms: connectedPlatformKeys,
+        emailReady: marketingReadiness.emailReady,
+        smsReady: marketingReadiness.smsReady,
+      }),
+    [automationBuilder, connectedPlatformKeys, marketingReadiness.emailReady, marketingReadiness.smsReady]
+  );
+  const qualifiedAutomationTasks = useMemo(
+    () => readyToAutomate.filter((task) => getTaskReadiness(task, automationBuilder).qualified),
+    [automationBuilder, getTaskReadiness, readyToAutomate]
+  );
 
   const activeBrandPlatforms = useMemo(() => {
     if (!brand?.handles) return [];
@@ -639,21 +721,30 @@ export default function StrategyAutomationPage() {
   };
 
   const openNewAutomation = (task?: StrategyTask) => {
-    const base = { ...DEFAULT_AUTOMATION };
-    if (task) {
-      base.name = `${task.title} content flow`;
-      base.topic = task.title;
-      base.aiPrompt = [task.title, task.description].filter(Boolean).join("\n");
-      base.strategyTaskId = task.id;
-      if (task.startDate) base.startDate = task.startDate.slice(0, 10);
-      if (task.dueDate) base.endDate = task.dueDate.slice(0, 10);
-    }
     setSelectedTaskId(null);
     setSelectedAutomationId(null);
-    setInspectorMode("automation");
-    setAutomationDraft(base);
+    setInspectorMode("summary");
+    setWorkspacePanelOpen(false);
+    setAutomationBuilder((draft) => ({
+      ...draft,
+      selectedTaskIds: task ? [task.id] : readyToAutomate.map((item) => item.id),
+      platforms: draft.platforms.filter((platform) =>
+        automationPlatformOptions.some((option) => option.id === platform)
+      ).length
+        ? draft.platforms.filter((platform) =>
+            automationPlatformOptions.some((option) => option.id === platform)
+          )
+        : ["feed"],
+      customPrompt: task ? [task.title, task.description].filter(Boolean).join("\n\n") : draft.customPrompt,
+      includeMedia:
+        task && ["visual", "video"].includes(getTaskReadiness(task, draft).type)
+          ? true
+          : draft.includeMedia,
+      mediaType: task && getTaskReadiness(task, draft).type === "video" ? "video" : draft.mediaType,
+      endDate: task?.dueDate?.slice(0, 10) || draft.endDate || getDefaultAutomationEndDate(),
+    }));
     setView("automations");
-    setWorkspacePanelOpen(true);
+    setAutomationBuilderOpen(true);
   };
 
   const closeInspector = () => {
@@ -681,6 +772,13 @@ export default function StrategyAutomationPage() {
     setAutomationBuilder((draft) => ({
       ...draft,
       selectedTaskIds: readyToAutomate.map((task) => task.id),
+      platforms: draft.platforms.filter((platform) =>
+        automationPlatformOptions.some((option) => option.id === platform)
+      ).length
+        ? draft.platforms.filter((platform) =>
+            automationPlatformOptions.some((option) => option.id === platform)
+          )
+        : ["feed"],
       endDate: draft.endDate || getDefaultAutomationEndDate(),
     }));
     setAutomationBuilderOpen(true);
@@ -778,7 +876,7 @@ export default function StrategyAutomationPage() {
     options: AutomationBuilderDraft,
     successTitle = "Automations launched"
   ) => {
-    const selectedTasks = candidateTasks.filter(
+    const selectedCandidates = candidateTasks.filter(
       (task) =>
         options.selectedTaskIds.includes(task.id) &&
         task.status !== "DONE" &&
@@ -786,11 +884,21 @@ export default function StrategyAutomationPage() {
         task.automationStatus !== "AUTOMATED" &&
         isTaskAutomatable(task)
     );
+    const validationResults = selectedCandidates.map((task) => ({
+      task,
+      readiness: getTaskReadiness(task, options),
+    }));
+    const selectedTasks = validationResults
+      .filter((item) => item.readiness.qualified)
+      .map((item) => item.task);
+    const blocked = validationResults.filter((item) => !item.readiness.qualified);
 
     if (selectedTasks.length === 0) {
       toast({
-        title: "No ready items",
-        description: "Select content, social, or email plan items that are not already automated.",
+        title: "No automation-ready items",
+        description:
+          blocked[0]?.readiness.blockers.join(", ") ||
+          "Select plan items that pass channel, media, email, and credit validation.",
         variant: "destructive",
       });
       return false;
@@ -806,6 +914,31 @@ export default function StrategyAutomationPage() {
 
     setSaving(true);
     try {
+      const estimateRes = await fetch("/api/content/strategy/automate/estimate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          strategyId: sourceStrategy.id,
+          taskIds: selectedTasks.map((task) => task.id),
+          frequency: options.frequency,
+          includeMedia: options.includeMedia,
+          mediaType: options.mediaType,
+          endDate: options.endDate,
+          platforms: options.platforms,
+        }),
+      });
+      const estimateJson = await estimateRes.json();
+      if (!estimateRes.ok || !estimateJson.success) {
+        throw new Error(estimateJson.error?.message || "Credit validation failed");
+      }
+      const estimate = estimateJson.data as AutomationCreditEstimate;
+      setAutomationEstimate(estimate);
+      if (!estimate.hasEnoughCredits) {
+        throw new Error(
+          `Not enough credits. Required: ${estimate.totalCredits}, Available: ${estimate.userCredits}`
+        );
+      }
+
       const taskConfigs = selectedTasks.map((task) => ({
         taskId: task.id,
         enabled: true,
@@ -838,7 +971,7 @@ export default function StrategyAutomationPage() {
       setAutomationBuilderOpen(false);
       toast({
         title: successTitle,
-        description: `${json.data.automatedTaskCount || 0} task${json.data.automatedTaskCount === 1 ? "" : "s"} connected`,
+        description: `${json.data.automatedTaskCount || 0} task${json.data.automatedTaskCount === 1 ? "" : "s"} connected. ${json.data.creditEstimate?.totalCredits || estimate.totalCredits} credits validated for scheduled AI runs.`,
       });
       return true;
     } catch (err) {
@@ -1117,27 +1250,45 @@ export default function StrategyAutomationPage() {
     }
   };
 
-  const launchReadyTasks = async () => {
-    if (!strategy || readyToAutomate.length === 0) return;
-    await createAutomationsForTasks(
-      strategy,
-      readyToAutomate,
-      {
-        ...automationBuilder,
-        selectedTaskIds: readyToAutomate.map((task) => task.id),
-        includeMedia: false,
-        mediaType: "image",
-        mediaStyle: "",
-        frequency: "WEEKLY",
-        dayOfWeek: 1,
-        time: "09:00",
-        aiTone: "professional",
-        platforms: ["feed"],
-        endDate: getDefaultAutomationEndDate(),
-        customPrompt: "",
+  useEffect(() => {
+    if (!strategy || !automationBuilderOpen || automationBuilder.selectedTaskIds.length === 0) {
+      setAutomationEstimate(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setEstimatingAutomation(true);
+      try {
+        const res = await fetch("/api/content/strategy/automate/estimate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            strategyId: strategy.id,
+            taskIds: automationBuilder.selectedTaskIds,
+            frequency: automationBuilder.frequency,
+            includeMedia: automationBuilder.includeMedia,
+            mediaType: automationBuilder.mediaType,
+            endDate: automationBuilder.endDate,
+            platforms: automationBuilder.platforms,
+          }),
+        });
+        const json = await res.json();
+        if (!cancelled && res.ok && json.success) {
+          setAutomationEstimate(json.data);
+        }
+      } catch {
+        if (!cancelled) setAutomationEstimate(null);
+      } finally {
+        if (!cancelled) setEstimatingAutomation(false);
       }
-    );
-  };
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [automationBuilder, automationBuilderOpen, strategy]);
 
   const renderTaskCard = (task: StrategyTask) => {
     const category = normalizeTaskCategory(task.category);
@@ -1247,7 +1398,7 @@ export default function StrategyAutomationPage() {
         return (
           <div
             key={column.id}
-            className={cn("flex min-h-[520px] flex-col rounded-2xl border p-3", column.tone)}
+            className={cn("flex h-[min(760px,calc(100vh-320px))] min-h-[420px] flex-col rounded-2xl border p-3", column.tone)}
           >
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1263,7 +1414,7 @@ export default function StrategyAutomationPage() {
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            <div className="flex-1 space-y-2">
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
               {columnTasks.length > 0 ? (
                 columnTasks.map(renderTaskCard)
               ) : (
@@ -1288,25 +1439,37 @@ export default function StrategyAutomationPage() {
         <div className="min-w-0">
           <p className="text-sm font-semibold">Automation controls</p>
           <p className="text-xs text-muted-foreground">
-            {readyToAutomate.length} plan item{readyToAutomate.length === 1 ? "" : "s"} ready for AI flows
+            {qualifiedAutomationTasks.length}/{readyToAutomate.length} plan item{readyToAutomate.length === 1 ? "" : "s"} pass readiness validation
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={openAutomationBuilder}
-            disabled={readyToAutomate.length === 0}
-            className="bg-brand-500 text-white hover:bg-brand-600"
-          >
-            <Sparkles className="mr-2 h-4 w-4" />
-            AI build flows
-          </Button>
-          <Button variant="outline" onClick={() => openNewAutomation()}>
-            <Plus className="mr-2 h-4 w-4" />
-            Manual flow
-          </Button>
+          {automationBuilderOpen ? (
+            <Button variant="outline" onClick={() => setAutomationBuilderOpen(false)}>
+              <X className="mr-2 h-4 w-4" />
+              Close setup
+            </Button>
+          ) : (
+            <>
+              <Button
+                onClick={openAutomationBuilder}
+                disabled={readyToAutomate.length === 0}
+                className="bg-brand-500 text-white hover:bg-brand-600"
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                AI build flows
+              </Button>
+              <Button variant="outline" onClick={() => openNewAutomation()}>
+                <Plus className="mr-2 h-4 w-4" />
+                Configure flow
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
+      {automationBuilderOpen ? (
+        renderAutomationBuilderPanel()
+      ) : (
       <div className="grid gap-3 xl:grid-cols-2">
         {automations.map((automation) => {
           const linkedTask = automation.strategyTaskId
@@ -1389,7 +1552,7 @@ export default function StrategyAutomationPage() {
                       disabled={runningId === automation.id}
                     >
                       {runningId === automation.id ? (
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        <AISpinner className="mr-1.5 h-3.5 w-3.5" />
                       ) : (
                         <Play className="mr-1.5 h-3.5 w-3.5" />
                       )}
@@ -1428,6 +1591,7 @@ export default function StrategyAutomationPage() {
           </button>
         )}
       </div>
+      )}
     </div>
   );
 
@@ -1487,7 +1651,7 @@ export default function StrategyAutomationPage() {
             Connected automations update task progress after they generate posts, then the plan score can move automatically.
           </div>
           <Button onClick={syncNow} disabled={syncing} className="w-full bg-brand-500 text-white hover:bg-brand-600">
-            {syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            {syncing ? <AISpinner className="mr-2 h-4 w-4" /> : <RefreshCw className="mr-2 h-4 w-4" />}
             Sync now
           </Button>
         </CardContent>
@@ -1596,7 +1760,7 @@ export default function StrategyAutomationPage() {
                 disabled={saving || !taskDraft.title.trim()}
                 className="flex-1 bg-brand-500 text-white hover:bg-brand-600"
               >
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                {saving ? <AISpinner className="mr-2 h-4 w-4" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                 Save
               </Button>
               {taskDraft.id && (
@@ -1702,7 +1866,7 @@ export default function StrategyAutomationPage() {
           <div className="space-y-2">
             <Label>Channels</Label>
             <div className="grid grid-cols-2 gap-2">
-              {PLATFORM_OPTIONS.map((platform) => {
+              {automationPlatformOptions.map((platform) => {
                 const selected = automationDraft.platforms.includes(platform.id);
                 return (
                   <button
@@ -1722,7 +1886,8 @@ export default function StrategyAutomationPage() {
                         : "bg-background hover:bg-muted"
                     )}
                   >
-                    {platform.label}
+                    <span className="block font-medium">{platform.label}</span>
+                    <span className="block text-muted-foreground">{platform.detail}</span>
                   </button>
                 );
               })}
@@ -1786,7 +1951,7 @@ export default function StrategyAutomationPage() {
             disabled={saving || !automationDraft.name.trim() || automationDraft.platforms.length === 0}
             className="w-full bg-brand-500 text-white hover:bg-brand-600"
           >
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+            {saving ? <AISpinner className="mr-2 h-4 w-4" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
             Save automation
           </Button>
           {automationDraft.id && (
@@ -1805,7 +1970,7 @@ export default function StrategyAutomationPage() {
       <div className="rounded-xl border bg-muted/30 p-3">
         {brandLoading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin text-brand-500" />
+            <AISpinner className="h-4 w-4 text-brand-500" />
             Loading brand identity
           </div>
         ) : brand ? (
@@ -1959,263 +2124,318 @@ export default function StrategyAutomationPage() {
         />
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2">
         <Button
           onClick={() => generateStrategyFromBrand(false)}
           disabled={generatingStrategy || strategyBuilder.focusAreas.length === 0}
           className="bg-brand-500 text-white hover:bg-brand-600"
         >
-          {generatingStrategy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+          {generatingStrategy ? <AISpinner className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
           Build from brand
         </Button>
-        <Button
-          variant="outline"
-          onClick={() => generateStrategyFromBrand(true)}
-          disabled={generatingStrategy || strategyBuilder.focusAreas.length === 0}
-        >
-          {generatingStrategy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
-          Build + automate
-        </Button>
       </div>
     </div>
   );
 
-  const renderAutomationBuilderPanel = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/30 p-3">
-        <div>
-          <p className="text-sm font-semibold">Ready plan items</p>
-          <p className="text-xs text-muted-foreground">
-            {automationBuilder.selectedTaskIds.length}/{readyToAutomate.length} selected
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              setAutomationBuilder((draft) => ({
-                ...draft,
-                selectedTaskIds: readyToAutomate.map((task) => task.id),
-              }))
-            }
-            disabled={readyToAutomate.length === 0}
-          >
-            All
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setAutomationBuilder((draft) => ({ ...draft, selectedTaskIds: [] }))}
-            disabled={readyToAutomate.length === 0}
-          >
-            Clear
-          </Button>
-        </div>
-      </div>
+  const renderAutomationBuilderPanel = () => {
+    const validationRows = readyToAutomate.map((task) => ({
+      task,
+      readiness: getTaskReadiness(task, automationBuilder),
+      selected: automationBuilder.selectedTaskIds.includes(task.id),
+    }));
+    const selectedRows = validationRows.filter((row) => row.selected);
+    const readySelected = selectedRows.filter((row) => row.readiness.qualified);
+    const blockedSelected = selectedRows.filter((row) => !row.readiness.qualified);
+    const estimateBlocked = !!automationEstimate && !automationEstimate.hasEnoughCredits;
 
-      <div className="max-h-52 space-y-2 overflow-y-auto rounded-xl border p-2">
-        {readyToAutomate.length > 0 ? (
-          readyToAutomate.map((task) => {
-            const category = normalizeTaskCategory(task.category);
-            const selected = automationBuilder.selectedTaskIds.includes(task.id);
-            return (
-              <button
-                key={task.id}
-                onClick={() => toggleAutomationTask(task.id)}
-                className={cn(
-                  "flex w-full items-start gap-3 rounded-lg border px-3 py-2 text-left",
-                  selected
-                    ? "border-brand-500 bg-brand-500/10"
-                    : "bg-background hover:bg-muted"
-                )}
-              >
-                <span
-                  className={cn(
-                    "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-[10px]",
-                    selected ? "border-brand-500 bg-brand-500 text-white" : "bg-background"
-                  )}
-                >
-                  {selected && <CheckCircle2 className="h-3 w-3" />}
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium">{task.title}</span>
-                  <span className="block text-xs capitalize text-muted-foreground">{category}</span>
-                </span>
-              </button>
-            );
-          })
-        ) : (
-          <div className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
-            Add content, social, or email items that are not already automated.
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label>Frequency</Label>
-          <Select
-            value={automationBuilder.frequency}
-            onValueChange={(value) =>
-              setAutomationBuilder((draft) => ({ ...draft, frequency: value as Frequency }))
-            }
-          >
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="DAILY">Daily</SelectItem>
-              <SelectItem value="WEEKLY">Weekly</SelectItem>
-              <SelectItem value="MONTHLY">Monthly</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Time</Label>
-          <Input
-            type="time"
-            value={automationBuilder.time}
-            onChange={(event) =>
-              setAutomationBuilder((draft) => ({ ...draft, time: event.target.value }))
-            }
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label>Tone</Label>
-          <Select
-            value={automationBuilder.aiTone}
-            onValueChange={(value) =>
-              setAutomationBuilder((draft) => ({ ...draft, aiTone: value }))
-            }
-          >
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {TONE_OPTIONS.map((tone) => (
-                <SelectItem key={tone} value={tone} className="capitalize">
-                  {tone}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>End</Label>
-          <Input
-            type="date"
-            value={automationBuilder.endDate}
-            onChange={(event) =>
-              setAutomationBuilder((draft) => ({ ...draft, endDate: event.target.value }))
-            }
-          />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Channels</Label>
-        <div className="grid grid-cols-2 gap-2">
-          {PLATFORM_OPTIONS.map((platform) => {
-            const selected = automationBuilder.platforms.includes(platform.id);
-            return (
-              <button
-                key={platform.id}
-                onClick={() => toggleAutomationPlatform(platform.id)}
-                className={cn(
-                  "rounded-lg border px-3 py-2 text-left text-xs",
-                  selected
-                    ? "border-brand-500 bg-brand-500/10 text-brand-700 dark:text-brand-300"
-                    : "bg-background hover:bg-muted"
-                )}
-              >
-                {platform.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="rounded-xl border p-3">
-        <div className="flex items-center justify-between gap-3">
+    return (
+      <div className="rounded-2xl border bg-background">
+        <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-sm font-medium">Media</p>
-            <p className="text-xs text-muted-foreground">Optional image or video per run.</p>
+            <p className="text-base font-semibold">AI automation setup</p>
+            <p className="text-sm text-muted-foreground">
+              {readySelected.length} ready, {blockedSelected.length} blocked, {automationEstimate?.totalCredits ?? 0} credits estimated
+            </p>
           </div>
-          <Switch
-            checked={automationBuilder.includeMedia}
-            onCheckedChange={(checked) =>
-              setAutomationBuilder((draft) => ({ ...draft, includeMedia: checked }))
-            }
-          />
-        </div>
-        {automationBuilder.includeMedia && (
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <Select
-              value={automationBuilder.mediaType}
-              onValueChange={(value) =>
-                setAutomationBuilder((draft) => ({ ...draft, mediaType: value as "image" | "video" }))
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                setAutomationBuilder((draft) => ({
+                  ...draft,
+                  selectedTaskIds: readyToAutomate.map((task) => task.id),
+                }))
               }
+              disabled={readyToAutomate.length === 0}
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="image">Image</SelectItem>
-                <SelectItem value="video">Video</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              value={automationBuilder.mediaStyle}
-              onChange={(event) =>
-                setAutomationBuilder((draft) => ({ ...draft, mediaStyle: event.target.value }))
-              }
-              placeholder="Style"
-            />
+              All items
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setAutomationBuilder((draft) => ({ ...draft, selectedTaskIds: [] }))}
+              disabled={readyToAutomate.length === 0}
+            >
+              Clear
+            </Button>
           </div>
-        )}
-      </div>
+        </div>
 
-      <div className="space-y-2">
-        <Label>FlowAI direction</Label>
-        <Textarea
-          value={automationBuilder.customPrompt}
-          onChange={(event) =>
-            setAutomationBuilder((draft) => ({ ...draft, customPrompt: event.target.value }))
-          }
-          placeholder="Optional guidance to apply to every selected item"
-          className="min-h-[90px]"
-        />
-      </div>
+        <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_390px]">
+          <div className="min-w-0 space-y-4 p-4">
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="rounded-xl border bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">Selected</p>
+                <p className="mt-1 text-2xl font-bold">{automationBuilder.selectedTaskIds.length}</p>
+              </div>
+              <div className="rounded-xl border bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">Ready</p>
+                <p className="mt-1 text-2xl font-bold text-emerald-600">{readySelected.length}</p>
+              </div>
+              <div className="rounded-xl border bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">Credits</p>
+                <p className={cn("mt-1 text-2xl font-bold", estimateBlocked && "text-destructive")}>
+                  {estimatingAutomation ? <AISpinner size={24} /> : automationEstimate?.totalCredits ?? 0}
+                </p>
+              </div>
+              <div className="rounded-xl border bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">Balance</p>
+                <p className={cn("mt-1 text-2xl font-bold", estimateBlocked && "text-destructive")}>
+                  {automationEstimate?.userCredits ?? "-"}
+                </p>
+              </div>
+            </div>
 
-      <Button
-        onClick={() => strategy && createAutomationsForTasks(strategy, readyToAutomate, automationBuilder)}
-        disabled={
-          !strategy ||
-          saving ||
-          automationBuilder.selectedTaskIds.length === 0 ||
-          automationBuilder.platforms.length === 0
-        }
-        className="w-full bg-brand-500 text-white hover:bg-brand-600"
-      >
-        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-        Create AI automations
-      </Button>
-    </div>
-  );
+            <div className="h-[min(610px,calc(100vh-420px))] min-h-[360px] overflow-y-auto rounded-xl border p-2">
+              {validationRows.length > 0 ? (
+                validationRows.map(({ task, readiness, selected }) => {
+                  const category = normalizeTaskCategory(task.category);
+                  return (
+                    <button
+                      key={task.id}
+                      onClick={() => toggleAutomationTask(task.id)}
+                      className={cn(
+                        "mb-2 flex w-full items-start gap-3 rounded-lg border px-3 py-3 text-left transition last:mb-0",
+                        selected
+                          ? "border-brand-500 bg-brand-500/10"
+                          : "bg-background hover:bg-muted"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-[10px]",
+                          selected ? "border-brand-500 bg-brand-500 text-white" : "bg-background"
+                        )}
+                      >
+                        {selected && <CheckCircle2 className="h-3 w-3" />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{task.title}</span>
+                          <span
+                            className={cn(
+                              "rounded-full px-2 py-0.5 text-[11px] capitalize",
+                              readiness.qualified
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                : "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                            )}
+                          >
+                            {readiness.qualified ? "ready" : "needs setup"}
+                          </span>
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] capitalize text-muted-foreground">
+                            {readiness.type}
+                          </span>
+                        </span>
+                        <span className="mt-1 block text-xs capitalize text-muted-foreground">{category}</span>
+                        {(readiness.blockers.length > 0 || readiness.requirements.length > 0 || readiness.warnings.length > 0) && (
+                          <span className="mt-2 block space-y-1 text-xs">
+                            {readiness.blockers.map((blocker) => (
+                              <span key={blocker} className="block text-destructive">{blocker}</span>
+                            ))}
+                            {readiness.requirements.map((requirement) => (
+                              <span key={requirement} className="block text-muted-foreground">{requirement}</span>
+                            ))}
+                            {readiness.warnings.map((warning) => (
+                              <span key={warning} className="block text-amber-600 dark:text-amber-300">{warning}</span>
+                            ))}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="grid h-full place-items-center rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
+                  No strategy items qualify yet.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4 border-t bg-muted/20 p-4 xl:border-l xl:border-t-0">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Frequency</Label>
+                <Select
+                  value={automationBuilder.frequency}
+                  onValueChange={(value) =>
+                    setAutomationBuilder((draft) => ({ ...draft, frequency: value as Frequency }))
+                  }
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DAILY">Daily</SelectItem>
+                    <SelectItem value="WEEKLY">Weekly</SelectItem>
+                    <SelectItem value="MONTHLY">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Time</Label>
+                <Input
+                  type="time"
+                  value={automationBuilder.time}
+                  onChange={(event) =>
+                    setAutomationBuilder((draft) => ({ ...draft, time: event.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Tone</Label>
+                <Select
+                  value={automationBuilder.aiTone}
+                  onValueChange={(value) =>
+                    setAutomationBuilder((draft) => ({ ...draft, aiTone: value }))
+                  }
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {TONE_OPTIONS.map((tone) => (
+                      <SelectItem key={tone} value={tone} className="capitalize">
+                        {tone}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>End</Label>
+                <Input
+                  type="date"
+                  value={automationBuilder.endDate}
+                  onChange={(event) =>
+                    setAutomationBuilder((draft) => ({ ...draft, endDate: event.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Channels</Label>
+              <div className="grid grid-cols-1 gap-2">
+                {automationPlatformOptions.map((platform) => {
+                  const selected = automationBuilder.platforms.includes(platform.id);
+                  return (
+                    <button
+                      key={platform.id}
+                      onClick={() => toggleAutomationPlatform(platform.id)}
+                      className={cn(
+                        "rounded-lg border px-3 py-2 text-left text-xs",
+                        selected
+                          ? "border-brand-500 bg-brand-500/10 text-brand-700 dark:text-brand-300"
+                          : "bg-background hover:bg-muted"
+                      )}
+                    >
+                      <span className="block font-medium">{platform.label}</span>
+                      <span className="block text-muted-foreground">{platform.detail}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-background p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Media</p>
+                  <p className="text-xs text-muted-foreground">Image or video generation</p>
+                </div>
+                <Switch
+                  checked={automationBuilder.includeMedia}
+                  onCheckedChange={(checked) =>
+                    setAutomationBuilder((draft) => ({ ...draft, includeMedia: checked }))
+                  }
+                />
+              </div>
+              {automationBuilder.includeMedia && (
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <Select
+                    value={automationBuilder.mediaType}
+                    onValueChange={(value) =>
+                      setAutomationBuilder((draft) => ({ ...draft, mediaType: value as "image" | "video" }))
+                    }
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="image">Image</SelectItem>
+                      <SelectItem value="video">Video</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={automationBuilder.mediaStyle}
+                    onChange={(event) =>
+                      setAutomationBuilder((draft) => ({ ...draft, mediaStyle: event.target.value }))
+                    }
+                    placeholder="Style"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>FlowAI direction</Label>
+              <Textarea
+                value={automationBuilder.customPrompt}
+                onChange={(event) =>
+                  setAutomationBuilder((draft) => ({ ...draft, customPrompt: event.target.value }))
+                }
+                placeholder="Optional guidance to apply to every selected item"
+                className="min-h-[110px]"
+              />
+            </div>
+
+            {estimateBlocked && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                Need {automationEstimate.totalCredits} credits. Current balance is {automationEstimate.userCredits}.
+              </div>
+            )}
+
+            <Button
+              onClick={() => strategy && createAutomationsForTasks(strategy, readyToAutomate, automationBuilder)}
+              disabled={
+                !strategy ||
+                saving ||
+                readySelected.length === 0 ||
+                automationBuilder.platforms.length === 0 ||
+                estimateBlocked
+              }
+              className="w-full bg-brand-500 text-white hover:bg-brand-600"
+            >
+              {saving ? <AISpinner className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
+              Create validated AI automations
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderFloatingPanels = () => (
     <>
-      <FloatingPanel
-        open={assistantOpen}
-        onOpenChange={setAssistantOpen}
-        title="FlowAI"
-        description="Claude-powered content and strategy assistant"
-        icon={<Bot className="h-4 w-4" />}
-        defaultSize={{ width: 470, height: 680 }}
-        defaultPosition={{ x: 24, y: 92 }}
-        contentClassName="p-2"
-      >
-        <ChatPanel onClose={() => setAssistantOpen(false)} />
-      </FloatingPanel>
-
       <FloatingPanel
         open={strategyBuilderOpen}
         onOpenChange={setStrategyBuilderOpen}
@@ -2226,18 +2446,6 @@ export default function StrategyAutomationPage() {
         defaultPosition={{ x: 92, y: 86 }}
       >
         {renderStrategyBuilderPanel()}
-      </FloatingPanel>
-
-      <FloatingPanel
-        open={automationBuilderOpen}
-        onOpenChange={setAutomationBuilderOpen}
-        title="AI Automation Builder"
-        description="Turn strategy items into recurring flows"
-        icon={<Zap className="h-4 w-4" />}
-        defaultSize={{ width: 540, height: 720 }}
-        defaultPosition={{ x: 150, y: 104 }}
-      >
-        {renderAutomationBuilderPanel()}
       </FloatingPanel>
 
       <FloatingPanel
@@ -2262,7 +2470,7 @@ export default function StrategyAutomationPage() {
     return (
       <div className="flex min-h-[620px] items-center justify-center rounded-2xl border bg-card">
         <div className="flex items-center gap-3 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin text-brand-500" />
+          <AISpinner className="h-5 w-5 text-brand-500" />
           Loading workspace
         </div>
       </div>
@@ -2307,18 +2515,14 @@ export default function StrategyAutomationPage() {
                 placeholder="Plan name"
               />
               <Button onClick={createStrategy} disabled={saving} className="bg-brand-500 text-white hover:bg-brand-600">
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                {saving ? <AISpinner className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
                 Create
               </Button>
             </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div className="mt-3 grid gap-2 sm:grid-cols-1">
               <Button onClick={openStrategyBuilder} variant="outline" className="justify-start">
                 <Sparkles className="mr-2 h-4 w-4" />
                 Build with FlowAI
-              </Button>
-              <Button onClick={() => setAssistantOpen(true)} variant="ghost" className="justify-start">
-                <Bot className="mr-2 h-4 w-4" />
-                AI assistant
               </Button>
             </div>
             <div className="mt-3 flex items-center justify-end text-sm">
@@ -2357,16 +2561,18 @@ export default function StrategyAutomationPage() {
           </SegmentedButton>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => setAssistantOpen(true)}>
-            <Bot className="mr-2 h-4 w-4" />
-            FlowAI
-          </Button>
           <Button variant="outline" onClick={openStrategyBuilder}>
             <Sparkles className="mr-2 h-4 w-4" />
             AI strategy
           </Button>
+          {!upcomingOpen && (
+            <Button variant="outline" onClick={() => setUpcomingOpen(true)}>
+              <Clock className="mr-2 h-4 w-4" />
+              Upcoming
+            </Button>
+          )}
           <Button variant="outline" onClick={syncNow} disabled={syncing}>
-            {syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            {syncing ? <AISpinner className="mr-2 h-4 w-4" /> : <RefreshCw className="mr-2 h-4 w-4" />}
             Sync
           </Button>
           <Button variant="outline" onClick={() => openNewTask()}>
@@ -2383,12 +2589,17 @@ export default function StrategyAutomationPage() {
             className="bg-brand-500 text-white hover:bg-brand-600"
           >
             <Sparkles className="mr-2 h-4 w-4" />
-            AI automate {readyToAutomate.length || ""}
+            AI automate {qualifiedAutomationTasks.length || ""}
           </Button>
         </div>
       </div>
 
-      <div className="grid min-h-[720px] gap-0 xl:grid-cols-[minmax(0,1fr)_390px]">
+      <div
+        className={cn(
+          "grid min-h-[720px] gap-0",
+          upcomingOpen && "xl:grid-cols-[minmax(0,1fr)_340px]"
+        )}
+      >
         <main className="min-w-0 space-y-4 overflow-y-auto p-4">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard label="Plan progress" value={`${stats.progress}%`} icon={Target} detail={`${stats.completed}/${tasks.length} done`} />
@@ -2402,19 +2613,11 @@ export default function StrategyAutomationPage() {
           {view === "sync" && renderSyncView()}
         </main>
 
-        <aside className="border-t bg-muted/20 p-4 xl:border-l xl:border-t-0">
-          <WorkspaceSummary
-            strategy={strategy}
-            readyToAutomate={readyToAutomate}
-            onNewTask={() => openNewTask()}
-            onNewAutomation={() => openNewAutomation()}
-            onOpenAssistant={() => setAssistantOpen(true)}
-            onOpenStrategyBuilder={openStrategyBuilder}
-            onOpenAutomationBuilder={openAutomationBuilder}
-            onLaunchReady={launchReadyTasks}
-            saving={saving}
-          />
-        </aside>
+        {upcomingOpen && (
+          <aside className="border-t bg-muted/20 p-4 xl:border-l xl:border-t-0">
+            <UpcomingItemsPanel strategy={strategy} onClose={() => setUpcomingOpen(false)} />
+          </aside>
+        )}
       </div>
       </motion.div>
       {renderFloatingPanels()}
@@ -2510,26 +2713,12 @@ function InspectorShell({
   );
 }
 
-function WorkspaceSummary({
+function UpcomingItemsPanel({
   strategy,
-  readyToAutomate,
-  onNewTask,
-  onNewAutomation,
-  onOpenAssistant,
-  onOpenStrategyBuilder,
-  onOpenAutomationBuilder,
-  onLaunchReady,
-  saving,
+  onClose,
 }: {
   strategy: Strategy;
-  readyToAutomate: StrategyTask[];
-  onNewTask: () => void;
-  onNewAutomation: () => void;
-  onOpenAssistant: () => void;
-  onOpenStrategyBuilder: () => void;
-  onOpenAutomationBuilder: () => void;
-  onLaunchReady: () => void;
-  saving: boolean;
+  onClose: () => void;
 }) {
   const dueSoon = strategy.tasks
     .filter((task) => task.status !== "DONE" && task.dueDate)
@@ -2537,84 +2726,37 @@ function WorkspaceSummary({
     .slice(0, 4);
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Settings2 className="h-4 w-4 text-brand-500" />
-            Workspace
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Button onClick={onOpenAssistant} variant="outline" className="w-full justify-start">
-            <Bot className="mr-2 h-4 w-4" />
-            FlowAI assistant
-          </Button>
-          <Button onClick={onOpenStrategyBuilder} variant="outline" className="w-full justify-start">
-            <Sparkles className="mr-2 h-4 w-4" />
-            AI build strategy
-          </Button>
-          <Button onClick={onNewTask} variant="outline" className="w-full justify-start">
-            <Plus className="mr-2 h-4 w-4" />
-            Add plan item
-          </Button>
-          <Button onClick={onNewAutomation} variant="outline" className="w-full justify-start">
-            <Zap className="mr-2 h-4 w-4" />
-            Add automation
-          </Button>
-          <Button
-            onClick={onOpenAutomationBuilder}
-            disabled={saving || readyToAutomate.length === 0}
-            className="w-full justify-start bg-brand-500 text-white hover:bg-brand-600"
-          >
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-            AI automate ready items
-          </Button>
-          <Button
-            onClick={onLaunchReady}
-            disabled={saving || readyToAutomate.length === 0}
-            variant="ghost"
-            className="w-full justify-start"
-          >
-            <Zap className="mr-2 h-4 w-4" />
-            Quick connect ready items
-          </Button>
-          <Link href="/content/strategy/reports">
-            <Button variant="ghost" className="w-full justify-start">
-              <Eye className="mr-2 h-4 w-4" />
-              View reports
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center justify-between gap-3 text-base">
+          <span className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-brand-500" />
             Next items
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {dueSoon.length > 0 ? (
-            dueSoon.map((task) => (
-              <div key={task.id} className="rounded-xl border p-3 text-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-medium">{task.title}</p>
-                  <Badge variant="outline">{formatShortDate(task.dueDate)}</Badge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {taskProgress(task)}% complete
-                </p>
+          </span>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="max-h-[min(520px,calc(100vh-260px))] space-y-2 overflow-y-auto pr-1">
+        {dueSoon.length > 0 ? (
+          dueSoon.map((task) => (
+            <div key={task.id} className="rounded-xl border p-3 text-sm">
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-medium">{task.title}</p>
+                <Badge variant="outline">{formatShortDate(task.dueDate)}</Badge>
               </div>
-            ))
-          ) : (
-            <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
-              Add due dates to see upcoming work here.
+              <p className="mt-1 text-xs text-muted-foreground">
+                {taskProgress(task)}% complete
+              </p>
             </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+          ))
+        ) : (
+          <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
+            Add due dates to see upcoming work here.
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

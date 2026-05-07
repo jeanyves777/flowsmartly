@@ -8,6 +8,14 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Target, CheckCircle2, Clock, Acti
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 
@@ -70,6 +78,13 @@ interface ReportData {
   month: number;
   year: number;
   strategyName: string;
+}
+
+interface SharePreview {
+  caption: string;
+  hashtags: string[];
+  mediaType: "image";
+  mediaUrl: string;
 }
 
 // --- Constants ---
@@ -188,6 +203,8 @@ export default function MonthlyReportPage({
   const [sharingMilestone, setSharingMilestone] = useState<string | null>(null);
   const [sharingScore, setSharingScore] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [sharePreview, setSharePreview] = useState<SharePreview | null>(null);
+  const [sharePreviewOpen, setSharePreviewOpen] = useState(false);
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
 
   // Resolve the async params
@@ -278,10 +295,34 @@ export default function MonthlyReportPage({
       const res = await fetch("/api/content/strategy/score/share", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "score", month: parsed.month, year: parsed.year, preview: true }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || "Failed to share");
+      setSharePreview(data.data);
+      setSharePreviewOpen(true);
+    } catch (err) {
+      toast({
+        title: err instanceof Error ? err.message : "Failed to prepare preview",
+        variant: "destructive",
+      });
+    } finally {
+      setSharingScore(false);
+    }
+  };
+
+  const publishShareScore = async () => {
+    if (!parsed) return;
+    try {
+      setSharingScore(true);
+      const res = await fetch("/api/content/strategy/score/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "score", month: parsed.month, year: parsed.year }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || "Failed to share");
+      setSharePreviewOpen(false);
       toast({ title: "Monthly score shared to feed!" });
     } catch (err) {
       toast({
@@ -876,6 +917,47 @@ export default function MonthlyReportPage({
           )}
         </Button>
       </motion.div>
+
+      <Dialog open={sharePreviewOpen} onOpenChange={setSharePreviewOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Share Preview</DialogTitle>
+            <DialogDescription>
+              Review the feed post before it goes live.
+            </DialogDescription>
+          </DialogHeader>
+          {sharePreview && (
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
+              <div className="overflow-hidden rounded-xl border bg-muted/30">
+                <img
+                  src={sharePreview.mediaUrl}
+                  alt="Marketing score visual preview"
+                  className="aspect-video w-full object-cover"
+                />
+              </div>
+              <div className="space-y-3">
+                <div className="rounded-xl border p-3">
+                  <p className="whitespace-pre-wrap text-sm">{sharePreview.caption}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {sharePreview.hashtags.map((tag) => (
+                    <Badge key={tag} variant="secondary">{tag}</Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSharePreviewOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={publishShareScore} disabled={sharingScore} className="bg-brand-500 text-white hover:bg-brand-600">
+              {sharingScore ? <AISpinner className="mr-2 h-4 w-4" /> : <Share2 className="mr-2 h-4 w-4" />}
+              Post to feed
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }

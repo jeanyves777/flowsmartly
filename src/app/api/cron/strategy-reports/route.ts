@@ -11,6 +11,21 @@ function isAuthorized(request: NextRequest) {
   return authHeader === `Bearer ${cronSecret}` || secretHeader === cronSecret;
 }
 
+function getAppOrigin(request: NextRequest) {
+  const configuredOrigin =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.APP_URL ||
+    process.env.NEXTAUTH_URL;
+  if (configuredOrigin) return configuredOrigin.replace(/\/$/, "");
+
+  const forwardedHost =
+    request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+  if (forwardedHost) return `${forwardedProto}://${forwardedHost}`;
+
+  return request.nextUrl.origin;
+}
+
 async function runMonthlyReportJob(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json(
@@ -20,7 +35,10 @@ async function runMonthlyReportJob(request: NextRequest) {
   }
 
   const cronSecret = process.env.CRON_SECRET!;
-  const calculateUrl = new URL("/api/content/strategy/score/calculate", request.url);
+  const calculateUrl = new URL(
+    "/api/content/strategy/score/calculate",
+    getAppOrigin(request)
+  );
   let body: string | undefined;
 
   if (request.method === "GET") {

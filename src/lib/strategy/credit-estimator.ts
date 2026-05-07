@@ -7,9 +7,10 @@
 
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { normalizeTaskCategory } from "@/lib/strategy/categories";
-
-/** Categories that can be automated via post generation */
-const AUTOMATABLE_CATEGORIES = ["social", "content", "email"];
+import {
+  isAutomationCandidate,
+  qualifyStrategyTaskForAutomation,
+} from "@/lib/strategy/automation-readiness";
 
 interface StrategyTaskInput {
   id: string;
@@ -25,6 +26,10 @@ interface TaskEstimate {
   title: string;
   category: string;
   automatable: boolean;
+  type: string;
+  requirements: string[];
+  blockers: string[];
+  warnings: string[];
   runs: number;
   costPerRun: number;
   totalCost: number;
@@ -45,7 +50,11 @@ export interface AutomationEstimate {
  * Check if a task category is automatable
  */
 export function isAutomatableCategory(category: string | null): boolean {
-  return AUTOMATABLE_CATEGORIES.includes(normalizeTaskCategory(category));
+  return isAutomationCandidate({
+    id: "",
+    title: "",
+    category,
+  });
 }
 
 /**
@@ -92,6 +101,11 @@ export async function estimateAutomationCredits(
     mediaType: "image" | "video";
     endDate: string;
     userCredits: number;
+    selectedTaskIds?: string[];
+    selectedPlatforms?: string[];
+    connectedPlatforms?: string[];
+    emailReady?: boolean;
+    smsReady?: boolean;
   }
 ): Promise<AutomationEstimate> {
   // Get dynamic costs
@@ -107,11 +121,24 @@ export async function estimateAutomationCredits(
 
   const automatableTasks: TaskEstimate[] = [];
   const manualOnlyTasks: { taskId: string; title: string; category: string }[] = [];
+  const selectedTaskIds = options.selectedTaskIds?.length
+    ? new Set(options.selectedTaskIds)
+    : null;
 
   for (const task of tasks) {
-    const category = normalizeTaskCategory(task.category);
+    if (selectedTaskIds && !selectedTaskIds.has(task.id)) continue;
 
-    if (!isAutomatableCategory(category)) {
+    const category = normalizeTaskCategory(task.category);
+    const readiness = qualifyStrategyTaskForAutomation(task, {
+      includeMedia: options.includeMedia,
+      mediaType: options.mediaType,
+      selectedPlatforms: options.selectedPlatforms,
+      connectedPlatforms: options.connectedPlatforms,
+      emailReady: options.emailReady,
+      smsReady: options.smsReady,
+    });
+
+    if (!readiness.qualified) {
       manualOnlyTasks.push({ taskId: task.id, title: task.title, category });
       continue;
     }
@@ -136,6 +163,10 @@ export async function estimateAutomationCredits(
       title: task.title,
       category,
       automatable: true,
+      type: readiness.type,
+      requirements: readiness.requirements,
+      blockers: readiness.blockers,
+      warnings: readiness.warnings,
       runs,
       costPerRun: perRunCost,
       totalCost: runs * perRunCost,

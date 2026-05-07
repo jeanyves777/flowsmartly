@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { normalizeTaskCategory } from "@/lib/strategy/categories";
-import { isAutomatableCategory, isEmailCategory } from "@/lib/strategy/credit-estimator";
+import {
+  estimateAutomationCredits,
+  isAutomatableCategory,
+  isEmailCategory,
+} from "@/lib/strategy/credit-estimator";
+import { qualifyStrategyTaskForAutomation } from "@/lib/strategy/automation-readiness";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 
 interface TaskConfig {
@@ -91,8 +96,123 @@ export async function POST(request: NextRequest) {
         ].filter(Boolean).join("\n")
       : "";
 
+    const [user, socialAccounts, marketingConfig] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { aiCredits: true },
+      }),
+      prisma.socialAccount.findMany({
+        where: { userId: session.userId, isActive: true },
+        select: { platform: true },
+      }),
+      prisma.marketingConfig.findUnique({
+        where: { userId: session.userId },
+        select: {
+          emailProvider: true,
+          emailEnabled: true,
+          emailVerified: true,
+          smsEnabled: true,
+          smsVerified: true,
+          smsPhoneNumber: true,
+          smsComplianceStatus: true,
+        },
+      }),
+    ]);
+    const connectedPlatforms = [
+      ...new Set(
+        socialAccounts.map((account) =>
+          account.platform.startsWith("facebook_")
+            ? "facebook"
+            : account.platform.startsWith("instagram_")
+              ? "instagram"
+              : account.platform
+        )
+      ),
+    ];
+    const emailReady = !!(
+      marketingConfig &&
+      marketingConfig.emailProvider !== "NONE" &&
+      marketingConfig.emailEnabled &&
+      marketingConfig.emailVerified
+    );
+    const smsReady = !!(
+      marketingConfig?.smsEnabled &&
+      marketingConfig.smsVerified &&
+      marketingConfig.smsPhoneNumber &&
+      marketingConfig.smsComplianceStatus === "APPROVED"
+    );
+
     // Build task map for quick lookup
     const taskMap = new Map(strategy.tasks.map((t) => [t.id, t]));
+    const enabledConfigs = taskConfigs.filter((config) => config.enabled);
+    const readyTaskIds = new Set<string>();
+    const blockedTasks: Array<{ taskId: string; title: string; blockers: string[] }> = [];
+
+    for (const config of enabledConfigs) {
+      const task = taskMap.get(config.taskId);
+      if (!task) continue;
+
+      const readiness = qualifyStrategyTaskForAutomation(task, {
+        includeMedia: config.includeMedia,
+        mediaType: config.mediaType,
+        selectedPlatforms: platforms,
+        connectedPlatforms,
+        emailReady,
+        smsReady,
+      });
+
+      if (readiness.qualified) {
+        readyTaskIds.add(task.id);
+      } else {
+        blockedTasks.push({
+          taskId: task.id,
+          title: task.title,
+          blockers: readiness.blockers,
+        });
+      }
+    }
+
+    if (readyTaskIds.size === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            message: "No selected plan item is ready for automation",
+            blockedTasks,
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    const mostExpensiveMediaType = enabledConfigs.some((config) => config.mediaType === "video")
+      ? "video"
+      : "image";
+    const estimate = await estimateAutomationCredits(strategy.tasks, {
+      frequency: enabledConfigs[0]?.frequency || "WEEKLY",
+      includeMedia: enabledConfigs.some((config) => config.includeMedia),
+      mediaType: mostExpensiveMediaType,
+      endDate: globalEndDate || new Date(Date.now() + 90 * 86400000).toISOString(),
+      userCredits: user?.aiCredits || 0,
+      selectedTaskIds: [...readyTaskIds],
+      selectedPlatforms: platforms,
+      connectedPlatforms,
+      emailReady,
+      smsReady,
+    });
+
+    if (!estimate.hasEnoughCredits) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            message: `Not enough credits for the scheduled AI runs. Required: ${estimate.totalCredits}, Available: ${estimate.userCredits}`,
+            estimate,
+          },
+        },
+        { status: 402 }
+      );
+    }
 
     // Create automations for each enabled task
     const createdAutomations: string[] = [];
@@ -105,7 +225,7 @@ export async function POST(request: NextRequest) {
 
       const category = normalizeTaskCategory(task.category);
 
-      if (!config.enabled || !isAutomatableCategory(category)) {
+      if (!config.enabled || !readyTaskIds.has(task.id) || !isAutomatableCategory(category)) {
         continue;
       }
 
@@ -227,6 +347,7 @@ export async function POST(request: NextRequest) {
           strategyName: strategy.name,
           automationCount: createdAutomations.length,
           campaignCount: createdCampaigns.length,
+          skippedCount: blockedTasks.length,
         }),
       },
     });
@@ -245,6 +366,8 @@ export async function POST(request: NextRequest) {
         emailCampaignCount: createdCampaigns.length,
         totalTasks: strategy.tasks.length,
         strategyName: strategy.name,
+        blockedTasks,
+        creditEstimate: estimate,
       },
     });
   } catch (error) {

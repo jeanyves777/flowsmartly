@@ -17,10 +17,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       strategyId,
+      taskIds,
       frequency = "WEEKLY",
       includeMedia = true,
       mediaType = "image",
       endDate,
+      platforms = ["feed"],
     } = body;
 
     if (!strategyId) {
@@ -52,6 +54,43 @@ export async function POST(request: NextRequest) {
       where: { id: session.userId },
       select: { aiCredits: true },
     });
+    const [socialAccounts, marketingConfig] = await Promise.all([
+      prisma.socialAccount.findMany({
+        where: { userId: session.userId, isActive: true },
+        select: { platform: true },
+      }),
+      prisma.marketingConfig.findUnique({
+        where: { userId: session.userId },
+        select: {
+          emailProvider: true,
+          emailEnabled: true,
+          emailVerified: true,
+          smsEnabled: true,
+          smsVerified: true,
+          smsPhoneNumber: true,
+          smsComplianceStatus: true,
+        },
+      }),
+    ]);
+    const connectedPlatforms = socialAccounts.map((account) =>
+      account.platform.startsWith("facebook_")
+        ? "facebook"
+        : account.platform.startsWith("instagram_")
+          ? "instagram"
+          : account.platform
+    );
+    const emailReady = !!(
+      marketingConfig &&
+      marketingConfig.emailProvider !== "NONE" &&
+      marketingConfig.emailEnabled &&
+      marketingConfig.emailVerified
+    );
+    const smsReady = !!(
+      marketingConfig?.smsEnabled &&
+      marketingConfig.smsVerified &&
+      marketingConfig.smsPhoneNumber &&
+      marketingConfig.smsComplianceStatus === "APPROVED"
+    );
 
     // Use strategy end date or provided end date
     const effectiveEndDate =
@@ -69,6 +108,11 @@ export async function POST(request: NextRequest) {
       mediaType,
       endDate: effectiveEndDate,
       userCredits: user?.aiCredits || 0,
+      selectedTaskIds: Array.isArray(taskIds) ? taskIds : undefined,
+      selectedPlatforms: Array.isArray(platforms) ? platforms : ["feed"],
+      connectedPlatforms,
+      emailReady,
+      smsReady,
     });
 
     return NextResponse.json({
