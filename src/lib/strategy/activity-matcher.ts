@@ -43,6 +43,7 @@ interface FetchedActivities {
     caption: string | null;
     hashtags: string;
     platforms: string;
+    status: string;
     publishedAt: Date | null;
     createdAt: Date;
     isPromoted: boolean;
@@ -169,7 +170,7 @@ async function fetchActivities(
         where: {
           userId,
           deletedAt: null,
-          status: "PUBLISHED",
+          status: { in: ["PUBLISHED", "SCHEDULED"] },
           OR: [
             { publishedAt: { gte: periodStart, lte: periodEnd } },
             { createdAt: { gte: periodStart, lte: periodEnd } },
@@ -180,6 +181,7 @@ async function fetchActivities(
           caption: true,
           hashtags: true,
           platforms: true,
+          status: true,
           publishedAt: true,
           createdAt: true,
           isPromoted: true,
@@ -291,24 +293,72 @@ function matchTaskToActivities(
     try { existingMatches = JSON.parse(task.matchedActivities || "[]"); } catch { /* ignore */ }
 
     const alreadyMatched = existingMatches.some((m) => m.activityId === directLinked.id);
-    if (!alreadyMatched) {
-      existingMatches.push({
-        activityType: "postAutomation",
-        activityId: directLinked.id,
-        activityName: directLinked.name,
-        activityUrl: "/content/strategy?view=automations",
-        matchedAt: new Date().toISOString(),
-        confidence: "high",
-        matchReason: "Direct strategy automation link",
-      });
+    const alreadyHasGeneratedPost = existingMatches.some(
+      (m) =>
+        m.activityType === "post" &&
+        /automation generated|automation run created|generated feed post/i.test(m.matchReason)
+    );
+    if ((alreadyMatched || alreadyHasGeneratedPost) && task.progress >= 100) {
+      return null;
     }
+
+    const taskKeywords = extractKeywords([task.title, task.description || "", directLinked.topic || ""].join(" "));
+    const linkedAt = directLinked.lastTriggered?.getTime() || Date.now();
+    const generatedPost = activities.posts
+      .map((post) => {
+        const platforms = getPostPlatforms(post.platforms);
+        const postDate = post.publishedAt || post.createdAt;
+        const diff = Math.abs((postDate?.getTime() || linkedAt) - linkedAt);
+        const text = getActivityText({ caption: post.caption, hashtags: post.hashtags });
+        return {
+          post,
+          platforms,
+          diff,
+          overlap: calculateKeywordOverlap(taskKeywords, text),
+        };
+      })
+      .filter((item) => item.platforms.includes("feed") && item.diff <= 60 * 60 * 1000)
+      .sort((a, b) => b.overlap - a.overlap || a.diff - b.diff)[0]?.post;
+
+    const generatedPostAlreadyMatched = generatedPost
+      ? existingMatches.some((m) => m.activityId === generatedPost.id)
+      : false;
+    const nextMatch: MatchedActivity | null = generatedPost && !generatedPostAlreadyMatched
+      ? {
+          activityType: "post",
+          activityId: generatedPost.id,
+          activityName: generatedPost.caption
+            ? `${generatedPost.caption.slice(0, 70)}${generatedPost.caption.length > 70 ? "..." : ""}`
+            : directLinked.name,
+          activityUrl:
+            generatedPost.status === "PUBLISHED"
+              ? `/feed#post-${generatedPost.id}`
+              : "/content/posts",
+          matchedAt: new Date().toISOString(),
+          confidence: "high",
+          matchReason:
+            generatedPost.status === "PUBLISHED"
+              ? `Automation generated a FlowSmartly feed post from "${directLinked.name}"`
+              : `Automation generated a scheduled FlowSmartly post from "${directLinked.name}"`,
+        }
+      : !alreadyMatched && !generatedPostAlreadyMatched
+      ? {
+          activityType: "postAutomation",
+          activityId: directLinked.id,
+          activityName: directLinked.name,
+          activityUrl: "/content/posts",
+          matchedAt: new Date().toISOString(),
+          confidence: "high",
+          matchReason: "Automation generated content; open posts to review the generated item",
+        }
+      : null;
 
     return {
       taskId: task.id,
       newStatus: "DONE",
       newProgress: 100,
       autoCompleted: true,
-      activities: existingMatches,
+      activities: nextMatch ? [nextMatch] : [],
     };
   }
 
@@ -391,7 +441,7 @@ function matchTaskToActivities(
           id: pa.id,
           type: "postAutomation",
           name: pa.name,
-          url: `/content/strategy?view=automations`,
+          url: `/content/posts`,
           text: getActivityText(pa),
           date: pa.lastTriggered,
           reason: `Post automation "${pa.name}" generated ${pa.totalGenerated} posts`,
@@ -419,7 +469,7 @@ function matchTaskToActivities(
           id: pa.id,
           type: "postAutomation",
           name: pa.name,
-          url: `/content/strategy?view=automations`,
+          url: `/content/posts`,
           text: getActivityText(pa),
           date: pa.lastTriggered,
           reason: `Post automation "${pa.name}" generated ${pa.totalGenerated} posts`,

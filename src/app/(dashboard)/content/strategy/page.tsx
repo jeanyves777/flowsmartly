@@ -338,6 +338,17 @@ const BRAND_HANDLE_PLATFORM: Record<string, string> = {
   youtube: "YouTube",
 };
 
+const AUTOMATION_PLATFORM_KEYWORDS: Record<string, RegExp> = {
+  instagram: /\b(instagram|ig|reel|reels|story|stories)\b/i,
+  facebook: /\b(facebook|fb|meta)\b/i,
+  twitter: /\b(x\/twitter|twitter|tweet|tweets|x post)\b/i,
+  linkedin: /\b(linkedin|b2b|thought leadership)\b/i,
+  tiktok: /\b(tiktok|tik tok)\b/i,
+  youtube: /\b(youtube|shorts?|video channel)\b/i,
+  pinterest: /\b(pinterest|pins?|boards?)\b/i,
+  threads: /\b(threads)\b/i,
+};
+
 const ACCOUNT_PLATFORM_STYLES: Record<
   string,
   { color: string; soft: string; softer: string; iconBackground?: string }
@@ -525,6 +536,31 @@ function taskProgress(task: StrategyTask) {
   return Math.min(100, Math.max(0, task.progress ?? 0));
 }
 
+function inferTaskPlatformIds(task: StrategyTask) {
+  const text = `${task.title || ""} ${task.description || ""}`;
+  const explicitPlatforms = Object.entries(AUTOMATION_PLATFORM_KEYWORDS)
+    .filter(([, pattern]) => pattern.test(text))
+    .map(([platform]) => platform);
+  if (explicitPlatforms.length > 0) return [...new Set(explicitPlatforms)];
+
+  const category = normalizeTaskCategory(task.category);
+  if (category === "content" || category === "social") return ["feed"];
+  return [];
+}
+
+function getTaskPlanDate(task: StrategyTask) {
+  return (
+    task.startDate?.slice(0, 10) ||
+    task.dueDate?.slice(0, 10) ||
+    new Date().toISOString().slice(0, 10)
+  );
+}
+
+function formatPlatformList(platforms: string[]) {
+  if (platforms.length === 0) return "None";
+  return platforms.map((platform) => PLATFORM_META[platform]?.label || platform).join(", ");
+}
+
 function completedWorkLabel(match: MatchedActivity) {
   switch (match.activityType) {
     case "post":
@@ -534,7 +570,7 @@ function completedWorkLabel(match: MatchedActivity) {
     case "automation":
       return "Marketing automation";
     case "postAutomation":
-      return "Post automation";
+      return "Automation record";
     case "adCampaign":
       return "Ad campaign";
     default:
@@ -544,22 +580,20 @@ function completedWorkLabel(match: MatchedActivity) {
 
 function completedWorkHref(match: MatchedActivity) {
   if (match.activityType === "post") {
-    return `/feed#post-${match.activityId}`;
+    return match.activityUrl?.trim() || `/feed#post-${match.activityId}`;
   }
 
-  const providedUrl = match.activityUrl?.trim();
-  if (providedUrl) return providedUrl;
   switch (match.activityType) {
     case "campaign":
       return `/campaigns/${match.activityId}`;
     case "automation":
       return `/email-marketing/automations/${match.activityId}`;
     case "postAutomation":
-      return "/content/strategy?view=automations";
+      return "/content/posts";
     case "adCampaign":
       return `/ads/create?campaignId=${match.activityId}`;
     default:
-      return "/content/strategy?view=sync";
+      return match.activityUrl?.trim() || "/content/strategy?view=sync";
   }
 }
 
@@ -896,6 +930,16 @@ export default function StrategyAutomationPage() {
       }),
     [tasks]
   );
+  const automationReviewTasks = useMemo(
+    () =>
+      tasks.filter(
+        (task) =>
+          task.status !== "DONE" &&
+          !task.automationId &&
+          task.automationStatus !== "AUTOMATED"
+      ),
+    [tasks]
+  );
   const connectedPlatformKeys = useMemo(
     () => connectedPlatforms.map((platform) => platform.platform),
     [connectedPlatforms]
@@ -920,9 +964,67 @@ export default function StrategyAutomationPage() {
       }),
     [automationBuilder, connectedPlatformKeys, marketingReadiness.emailReady, marketingReadiness.smsReady]
   );
+  const getTaskAutomationPlan = useCallback(
+    (task: StrategyTask, options: AutomationBuilderDraft = automationBuilder) => {
+      const desiredPlatforms = inferTaskPlatformIds(task);
+      const missingPlatforms = desiredPlatforms.filter(
+        (platform) => platform !== "feed" && !connectedPlatformKeys.includes(platform)
+      );
+      const connectedDesiredPlatforms = desiredPlatforms.filter(
+        (platform) => platform === "feed" || connectedPlatformKeys.includes(platform)
+      );
+      const safeSelectedPlatforms = options.platforms.filter(
+        (platform) => platform === "feed" || connectedPlatformKeys.includes(platform)
+      );
+      const category = normalizeTaskCategory(task.category);
+      const platforms =
+        category === "email"
+          ? ["feed"]
+          : [
+              ...new Set(
+                connectedDesiredPlatforms.length > 0
+                  ? ["feed", ...connectedDesiredPlatforms]
+                  : safeSelectedPlatforms.length > 0
+                  ? safeSelectedPlatforms
+                  : ["feed"]
+              ),
+            ];
+
+      return {
+        firstRunDate: getTaskPlanDate(task),
+        time: options.time || "09:00",
+        frequency: options.frequency,
+        platforms,
+        desiredPlatforms,
+        missingPlatforms,
+        includeMedia: options.includeMedia,
+        mediaType: options.mediaType,
+        mediaStyle: options.mediaStyle,
+      };
+    },
+    [automationBuilder, connectedPlatformKeys]
+  );
+  const getTaskPlanReadiness = useCallback(
+    (task: StrategyTask, options: AutomationBuilderDraft = automationBuilder) => {
+      const plan = getTaskAutomationPlan(task, options);
+      return qualifyStrategyTaskForAutomation(task, {
+        includeMedia: plan.includeMedia,
+        mediaType: plan.mediaType,
+        selectedPlatforms: plan.platforms,
+        connectedPlatforms: connectedPlatformKeys,
+        emailReady: marketingReadiness.emailReady,
+        smsReady: marketingReadiness.smsReady,
+      });
+    },
+    [automationBuilder, connectedPlatformKeys, getTaskAutomationPlan, marketingReadiness.emailReady, marketingReadiness.smsReady]
+  );
   const qualifiedAutomationTasks = useMemo(
-    () => readyToAutomate.filter((task) => getTaskReadiness(task, automationBuilder).qualified),
-    [automationBuilder, getTaskReadiness, readyToAutomate]
+    () =>
+      readyToAutomate.filter((task) => {
+        const plan = getTaskAutomationPlan(task, automationBuilder);
+        return plan.missingPlatforms.length === 0 && getTaskPlanReadiness(task, automationBuilder).qualified;
+      }),
+    [automationBuilder, getTaskAutomationPlan, getTaskPlanReadiness, readyToAutomate]
   );
   const automationReadinessSummary = useMemo(() => {
     const openTasks = tasks.filter((task) => task.status !== "DONE");
@@ -935,6 +1037,12 @@ export default function StrategyAutomationPage() {
         !task.automationId &&
         task.automationStatus !== "AUTOMATED" &&
         !isTaskAutomatable(task)
+    ).length;
+    const missingConnections = openTasks.filter(
+      (task) =>
+        !task.automationId &&
+        task.automationStatus !== "AUTOMATED" &&
+        getTaskAutomationPlan(task, automationBuilder).missingPlatforms.length > 0
     ).length;
     const blocked = openTasks
       .filter(
@@ -951,10 +1059,11 @@ export default function StrategyAutomationPage() {
       completed,
       alreadyAutomated,
       manualOnly,
+      missingConnections,
       blockedBySetup: blocked.length,
       blockers,
     };
-  }, [automationBuilder, getTaskReadiness, tasks]);
+  }, [automationBuilder, getTaskAutomationPlan, getTaskReadiness, tasks]);
   const getAutomationReadinessView = useCallback(
     (task: StrategyTask) => {
       const readiness = getTaskReadiness(task, automationBuilder);
@@ -1042,30 +1151,27 @@ export default function StrategyAutomationPage() {
   };
 
   const openNewAutomation = (task?: StrategyTask) => {
-    setSelectedTaskId(null);
+    setSelectedTaskId(task?.id || null);
     setSelectedAutomationId(null);
-    setInspectorMode("summary");
-    setWorkspacePanelOpen(false);
-    setAutomationBuilder((draft) => ({
-      ...draft,
-      selectedTaskIds: task ? [task.id] : readyToAutomate.map((item) => item.id),
-      platforms: draft.platforms.filter((platform) =>
-        automationPlatformOptions.some((option) => option.id === platform)
-      ).length
-        ? draft.platforms.filter((platform) =>
-            automationPlatformOptions.some((option) => option.id === platform)
-          )
-        : ["feed"],
-      customPrompt: task ? [task.title, task.description].filter(Boolean).join("\n\n") : draft.customPrompt,
-      includeMedia:
-        task && ["visual", "video"].includes(getTaskReadiness(task, draft).type)
-          ? true
-          : draft.includeMedia,
-      mediaType: task && getTaskReadiness(task, draft).type === "video" ? "video" : draft.mediaType,
-      endDate: task?.dueDate?.slice(0, 10) || draft.endDate || getDefaultAutomationEndDate(),
-    }));
+    setInspectorMode("automation");
+    setAutomationBuilderOpen(false);
+    setAutomationConfigOpen(false);
+    const taskPlan = task ? getTaskAutomationPlan(task, automationBuilder) : null;
+    setAutomationDraft({
+      ...DEFAULT_AUTOMATION,
+      name: task ? `One-off: ${task.title}` : DEFAULT_AUTOMATION.name,
+      topic: task?.title || "",
+      aiPrompt: task ? [task.title, task.description].filter(Boolean).join("\n\n") : "",
+      platforms: taskPlan?.platforms.length ? taskPlan.platforms : ["feed"],
+      includeMedia: taskPlan?.includeMedia || false,
+      mediaType: taskPlan?.mediaType || "image",
+      mediaStyle: taskPlan?.mediaStyle || "",
+      startDate: taskPlan?.firstRunDate || DEFAULT_AUTOMATION.startDate,
+      endDate: task?.dueDate?.slice(0, 10) || DEFAULT_AUTOMATION.endDate,
+      strategyTaskId: task?.id || "",
+    });
     setView("automations");
-    setAutomationBuilderOpen(true);
+    setWorkspacePanelOpen(true);
   };
 
   const closeInspector = () => {
@@ -1095,16 +1201,26 @@ export default function StrategyAutomationPage() {
   };
 
   const openAutomationBuilder = () => {
+    const candidateTasks = automationReviewTasks.filter(isTaskAutomatable);
+    const inferredConnectedPlatforms = [
+      ...new Set(
+        candidateTasks
+          .flatMap(inferTaskPlatformIds)
+          .filter((platform) => platform === "feed" || connectedPlatformKeys.includes(platform))
+      ),
+    ];
+    const fallbackPlatforms = automationBuilder.platforms.filter((platform) =>
+      automationPlatformOptions.some((option) => option.id === platform)
+    );
     setAutomationBuilder((draft) => ({
       ...draft,
-      selectedTaskIds: readyToAutomate.map((task) => task.id),
-      platforms: draft.platforms.filter((platform) =>
-        automationPlatformOptions.some((option) => option.id === platform)
-      ).length
-        ? draft.platforms.filter((platform) =>
-            automationPlatformOptions.some((option) => option.id === platform)
-          )
-        : ["feed"],
+      selectedTaskIds: candidateTasks.map((task) => task.id),
+      platforms:
+        inferredConnectedPlatforms.length > 0
+          ? [...new Set(["feed", ...inferredConnectedPlatforms])]
+          : fallbackPlatforms.length
+          ? fallbackPlatforms
+          : ["feed"],
       endDate: draft.endDate || getDefaultAutomationEndDate(),
     }));
     setAutomationBuilderOpen(true);
@@ -1210,19 +1326,28 @@ export default function StrategyAutomationPage() {
         task.automationStatus !== "AUTOMATED" &&
         isTaskAutomatable(task)
     );
-    const validationResults = selectedCandidates.map((task) => ({
-      task,
-      readiness: getTaskReadiness(task, options),
-    }));
+    const validationResults = selectedCandidates.map((task) => {
+      const plan = getTaskAutomationPlan(task, options);
+      return {
+        task,
+        plan,
+        readiness: getTaskPlanReadiness(task, options),
+      };
+    });
     const selectedTasks = validationResults
-      .filter((item) => item.readiness.qualified)
+      .filter((item) => item.readiness.qualified && item.plan.missingPlatforms.length === 0)
       .map((item) => item.task);
-    const blocked = validationResults.filter((item) => !item.readiness.qualified);
+    const blocked = validationResults.filter(
+      (item) => !item.readiness.qualified || item.plan.missingPlatforms.length > 0
+    );
 
     if (selectedTasks.length === 0) {
       toast({
         title: "No automation-ready items",
         description:
+          blocked[0]?.plan.missingPlatforms.length
+            ? `Connect ${formatPlatformList(blocked[0].plan.missingPlatforms)} before automating this item.`
+            :
           blocked[0]?.readiness.blockers.join(", ") ||
           "Select plan items that pass channel, media, email, and credit validation.",
         variant: "destructive",
@@ -1240,12 +1365,33 @@ export default function StrategyAutomationPage() {
 
     setSaving(true);
     try {
+      const taskConfigs = selectedTasks.map((task) => {
+        const plan = getTaskAutomationPlan(task, options);
+        return {
+          taskId: task.id,
+          enabled: true,
+          includeMedia: plan.includeMedia,
+          mediaType: plan.mediaType,
+          mediaStyle: plan.mediaStyle,
+          frequency: plan.frequency,
+          dayOfWeek: options.dayOfWeek,
+          time: plan.time,
+          platforms: plan.platforms,
+          startDate: plan.firstRunDate,
+          endDate: options.endDate,
+          customPrompt: [options.customPrompt, task.title, task.description]
+            .filter(Boolean)
+            .join("\n\n"),
+        };
+      });
+
       const estimateRes = await fetch("/api/content/strategy/automate/estimate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           strategyId: sourceStrategy.id,
           taskIds: selectedTasks.map((task) => task.id),
+          taskConfigs,
           frequency: options.frequency,
           includeMedia: options.includeMedia,
           mediaType: options.mediaType,
@@ -1264,20 +1410,6 @@ export default function StrategyAutomationPage() {
           `Not enough credits. Required: ${estimate.totalCredits}, Available: ${estimate.userCredits}`
         );
       }
-
-      const taskConfigs = selectedTasks.map((task) => ({
-        taskId: task.id,
-        enabled: true,
-        includeMedia: options.includeMedia,
-        mediaType: options.mediaType,
-        mediaStyle: options.mediaStyle,
-        frequency: options.frequency,
-        dayOfWeek: options.dayOfWeek,
-        time: options.time,
-        customPrompt: [options.customPrompt, task.title, task.description]
-          .filter(Boolean)
-          .join("\n\n"),
-      }));
 
       const res = await fetch("/api/content/strategy/automate", {
         method: "POST",
@@ -1835,6 +1967,21 @@ export default function StrategyAutomationPage() {
     const timer = window.setTimeout(async () => {
       setEstimatingAutomation(true);
       try {
+        const selectedTasks = automationReviewTasks.filter((task) =>
+          automationBuilder.selectedTaskIds.includes(task.id)
+        );
+        const taskConfigs = selectedTasks.map((task) => {
+          const plan = getTaskAutomationPlan(task, automationBuilder);
+          return {
+            taskId: task.id,
+            frequency: plan.frequency,
+            includeMedia: plan.includeMedia,
+            mediaType: plan.mediaType,
+            startDate: plan.firstRunDate,
+            endDate: automationBuilder.endDate,
+            platforms: plan.platforms,
+          };
+        });
         const res = await fetch("/api/content/strategy/automate/estimate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1846,6 +1993,7 @@ export default function StrategyAutomationPage() {
             mediaType: automationBuilder.mediaType,
             endDate: automationBuilder.endDate,
             platforms: automationBuilder.platforms,
+            taskConfigs,
           }),
         });
         const json = await res.json();
@@ -1863,7 +2011,7 @@ export default function StrategyAutomationPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [automationBuilder, automationBuilderOpen, strategy]);
+  }, [automationBuilder, automationBuilderOpen, automationReviewTasks, getTaskAutomationPlan, strategy]);
 
   const renderTaskCardContent = (
     task: StrategyTask,
@@ -2111,11 +2259,11 @@ export default function StrategyAutomationPage() {
                 className="bg-brand-500 text-white hover:bg-brand-600"
               >
                 <Sparkles className="mr-2 h-4 w-4" />
-                AI build flows
+                Strategy automation planner
               </Button>
               <Button variant="outline" onClick={() => openNewAutomation()}>
                 <Plus className="mr-2 h-4 w-4" />
-                Configure flow
+                One-off automation
               </Button>
             </>
           )}
@@ -2612,7 +2760,7 @@ export default function StrategyAutomationPage() {
                   onClick={() => openNewAutomation(selectedTask || undefined)}
                 >
                   <Zap className="mr-2 h-4 w-4" />
-                  Automate
+                  One-off
                 </Button>
               )}
             </div>
@@ -2629,8 +2777,8 @@ export default function StrategyAutomationPage() {
 
     return (
       <InspectorShell
-        title={automationDraft.id ? "Edit automation" : "New automation"}
-        subtitle="Connect content generation to a plan item"
+        title={automationDraft.id ? "Edit automation" : "One-off automation"}
+        subtitle="Create or edit a single automation outside the strategy planner"
         icon={Zap}
         onClose={closeInspector}
       >
@@ -3054,14 +3202,24 @@ export default function StrategyAutomationPage() {
   };
 
   const renderAutomationBuilderPanel = () => {
-    const validationRows = readyToAutomate.map((task) => ({
-      task,
-      readiness: getTaskReadiness(task, automationBuilder),
-      selected: automationBuilder.selectedTaskIds.includes(task.id),
-    }));
+    const validationRows = automationReviewTasks.map((task) => {
+      const plan = getTaskAutomationPlan(task, automationBuilder);
+      return {
+        task,
+        plan,
+        readiness: getTaskPlanReadiness(task, automationBuilder),
+        selected: automationBuilder.selectedTaskIds.includes(task.id),
+        canEverAutomate: isTaskAutomatable(task),
+      };
+    });
     const selectedRows = validationRows.filter((row) => row.selected);
-    const readySelected = selectedRows.filter((row) => row.readiness.qualified);
-    const blockedSelected = selectedRows.filter((row) => !row.readiness.qualified);
+    const readySelected = selectedRows.filter(
+      (row) => row.canEverAutomate && row.readiness.qualified && row.plan.missingPlatforms.length === 0
+    );
+    const blockedSelected = selectedRows.filter(
+      (row) => row.canEverAutomate && (!row.readiness.qualified || row.plan.missingPlatforms.length > 0)
+    );
+    const manualSelected = selectedRows.filter((row) => !row.canEverAutomate);
     const estimateBlocked = !!automationEstimate && !automationEstimate.hasEnoughCredits;
 
     return (
@@ -3070,7 +3228,7 @@ export default function StrategyAutomationPage() {
           <div>
             <p className="text-base font-semibold">AI automation selection</p>
             <p className="text-sm text-muted-foreground">
-              {readySelected.length} ready, {blockedSelected.length} blocked, {automationEstimate?.totalCredits ?? 0} credits estimated
+              {readySelected.length} ready, {blockedSelected.length} need setup, {manualSelected.length} manual-only, {automationEstimate?.totalCredits ?? 0} credits estimated
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -3080,10 +3238,10 @@ export default function StrategyAutomationPage() {
               onClick={() =>
                 setAutomationBuilder((draft) => ({
                   ...draft,
-                  selectedTaskIds: readyToAutomate.map((task) => task.id),
+                  selectedTaskIds: automationReviewTasks.map((task) => task.id),
                 }))
               }
-              disabled={readyToAutomate.length === 0}
+              disabled={automationReviewTasks.length === 0}
             >
               All items
             </Button>
@@ -3091,7 +3249,7 @@ export default function StrategyAutomationPage() {
               size="sm"
               variant="ghost"
               onClick={() => setAutomationBuilder((draft) => ({ ...draft, selectedTaskIds: [] }))}
-              disabled={readyToAutomate.length === 0}
+              disabled={automationReviewTasks.length === 0}
             >
               Clear
             </Button>
@@ -3107,6 +3265,10 @@ export default function StrategyAutomationPage() {
             <div className="rounded-xl border bg-muted/20 p-3">
               <p className="text-xs text-muted-foreground">Ready</p>
               <p className="mt-1 text-2xl font-bold text-emerald-600">{readySelected.length}</p>
+            </div>
+            <div className="rounded-xl border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Need setup</p>
+              <p className="mt-1 text-2xl font-bold text-amber-600">{blockedSelected.length}</p>
             </div>
             <div className="rounded-xl border bg-muted/20 p-3">
               <p className="text-xs text-muted-foreground">Credits</p>
@@ -3152,8 +3314,9 @@ export default function StrategyAutomationPage() {
 
           <div className="h-[min(700px,calc(100vh-380px))] min-h-[460px] overflow-y-auto rounded-xl border p-2">
             {validationRows.length > 0 ? (
-              validationRows.map(({ task, readiness, selected }) => {
+              validationRows.map(({ task, plan, readiness, selected, canEverAutomate }) => {
                 const category = normalizeTaskCategory(task.category);
+                const rowReady = canEverAutomate && readiness.qualified && plan.missingPlatforms.length === 0;
                 return (
                   <button
                     key={task.id}
@@ -3179,20 +3342,30 @@ export default function StrategyAutomationPage() {
                         <span
                           className={cn(
                             "rounded-full px-2 py-0.5 text-[11px] capitalize",
-                            readiness.qualified
+                            rowReady
                               ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                               : "bg-amber-500/10 text-amber-700 dark:text-amber-300"
                           )}
                         >
-                          {readiness.qualified ? "ready" : "needs setup"}
+                          {rowReady ? "ready" : canEverAutomate ? "needs setup" : "manual only"}
                         </span>
                         <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] capitalize text-muted-foreground">
                           {readiness.type}
                         </span>
                       </span>
-                      <span className="mt-1 block text-xs capitalize text-muted-foreground">{category}</span>
-                      {(readiness.blockers.length > 0 || readiness.requirements.length > 0 || readiness.warnings.length > 0) && (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        {category} · {formatShortDate(plan.firstRunDate)} at {plan.time} · {formatPlatformList(plan.platforms)}
+                      </span>
+                      {(!canEverAutomate || plan.missingPlatforms.length > 0 || readiness.blockers.length > 0 || readiness.requirements.length > 0 || readiness.warnings.length > 0) && (
                         <span className="mt-2 block space-y-1 text-xs">
+                          {!canEverAutomate && (
+                            <span className="block text-destructive">This item is planning/setup work and cannot be automated directly.</span>
+                          )}
+                          {plan.missingPlatforms.map((platform) => (
+                            <span key={platform} className="block text-destructive">
+                              Connect {PLATFORM_META[platform]?.label || platform} before scheduling this item.
+                            </span>
+                          ))}
                           {readiness.blockers.map((blocker) => (
                             <span key={blocker} className="block text-destructive">{blocker}</span>
                           ))}
@@ -3423,28 +3596,56 @@ export default function StrategyAutomationPage() {
   };
 
   const renderAutomationConfigDialog = () => {
-    const validationRows = readyToAutomate.map((task) => ({
-      task,
-      readiness: getTaskReadiness(task, automationBuilder),
-      selected: automationBuilder.selectedTaskIds.includes(task.id),
-    }));
+    const validationRows = automationReviewTasks.map((task) => {
+      const plan = getTaskAutomationPlan(task, automationBuilder);
+      return {
+        task,
+        plan,
+        readiness: getTaskPlanReadiness(task, automationBuilder),
+        selected: automationBuilder.selectedTaskIds.includes(task.id),
+        canEverAutomate: isTaskAutomatable(task),
+      };
+    });
     const selectedRows = validationRows.filter((row) => row.selected);
-    const readySelected = selectedRows.filter((row) => row.readiness.qualified);
-    const blockedSelected = selectedRows.filter((row) => !row.readiness.qualified);
+    const readySelected = selectedRows.filter(
+      (row) => row.canEverAutomate && row.readiness.qualified && row.plan.missingPlatforms.length === 0
+    );
+    const blockedSelected = selectedRows.filter(
+      (row) => row.canEverAutomate && (!row.readiness.qualified || row.plan.missingPlatforms.length > 0)
+    );
+    const manualSelected = selectedRows.filter((row) => !row.canEverAutomate);
     const estimateBlocked = !!automationEstimate && !automationEstimate.hasEnoughCredits;
     const selectedTypes = [...new Set(readySelected.map((row) => row.readiness.type))];
+    const readyGroups = Object.entries(
+      readySelected.reduce((acc, row) => {
+        const key = `${row.plan.firstRunDate}|${formatPlatformList(row.plan.platforms)}`;
+        acc[key] = [...(acc[key] || []), row.task.title];
+        return acc;
+      }, {} as Record<string, string[]>)
+    ).map(([key, titles]) => {
+      const [date, channels] = key.split("|");
+      return { date, channels, titles };
+    });
 
     return (
-      <Dialog open={automationConfigOpen} onOpenChange={setAutomationConfigOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Plan automation setup</DialogTitle>
-            <DialogDescription>
-              Validate timing, destinations, media, and credits before saving selected items as strategy automations.
-            </DialogDescription>
-          </DialogHeader>
+      <FloatingPanel
+        open={automationConfigOpen}
+        onOpenChange={setAutomationConfigOpen}
+        title="Strategy Automation Planner"
+        description="Grouped plan-item automation setup"
+        icon={<Sparkles className="h-4 w-4" />}
+        defaultSize={{ width: 1120, height: 820 }}
+        defaultPosition={{ x: 70, y: 66 }}
+        minSize={{ width: 760, height: 520 }}
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-base font-semibold">Plan automation setup</p>
+            <p className="text-sm text-muted-foreground">
+              Validate timing, destinations, media, and credits before saving selected plan items as strategy automations.
+            </p>
+          </div>
 
-          <div className="space-y-4">
             <div className="rounded-xl border bg-brand-500/5 p-4">
               <div className="grid gap-3 md:grid-cols-3">
                 {[
@@ -3469,7 +3670,7 @@ export default function StrategyAutomationPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
               <div className="rounded-xl border bg-muted/20 p-3">
                 <p className="text-xs text-muted-foreground">Selected</p>
                 <p className="mt-1 text-2xl font-bold">{automationBuilder.selectedTaskIds.length}</p>
@@ -3477,6 +3678,14 @@ export default function StrategyAutomationPage() {
               <div className="rounded-xl border bg-muted/20 p-3">
                 <p className="text-xs text-muted-foreground">Ready to create</p>
                 <p className="mt-1 text-2xl font-bold text-emerald-600">{readySelected.length}</p>
+              </div>
+              <div className="rounded-xl border bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">Need setup</p>
+                <p className="mt-1 text-2xl font-bold text-amber-600">{blockedSelected.length}</p>
+              </div>
+              <div className="rounded-xl border bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">Cannot automate</p>
+                <p className="mt-1 text-2xl font-bold text-muted-foreground">{manualSelected.length}</p>
               </div>
               <div className="rounded-xl border bg-muted/20 p-3">
                 <p className="text-xs text-muted-foreground">Credits</p>
@@ -3507,13 +3716,16 @@ export default function StrategyAutomationPage() {
 
                   <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
                     {readySelected.length > 0 ? (
-                      readySelected.map(({ task, readiness }) => (
+                      readySelected.map(({ task, readiness, plan }) => (
                         <div key={task.id} className="rounded-lg border bg-muted/20 p-3">
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div className="min-w-0">
                               <p className="line-clamp-2 text-sm font-medium">{task.title}</p>
                               <p className="mt-1 text-xs capitalize text-muted-foreground">
-                                {readiness.type} automation, due {formatShortDate(task.dueDate)}
+                                {readiness.type} automation - {formatShortDate(plan.firstRunDate)} at {plan.time}
+                              </p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Planned for {formatPlatformList(plan.platforms)}
                               </p>
                             </div>
                             <Badge className="bg-emerald-600 text-white">Ready</Badge>
@@ -3533,17 +3745,59 @@ export default function StrategyAutomationPage() {
                   </div>
                 </div>
 
+                {readyGroups.length > 0 && (
+                  <div className="rounded-xl border p-3">
+                    <p className="text-sm font-semibold">Auto-grouped schedule</p>
+                    <div className="mt-2 space-y-2">
+                      {readyGroups.map((group) => (
+                        <div key={`${group.date}-${group.channels}`} className="rounded-lg bg-muted/30 p-2">
+                          <p className="text-xs font-medium">
+                            {formatShortDate(group.date)} - {group.channels}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {group.titles.length} item{group.titles.length === 1 ? "" : "s"}: {group.titles.slice(0, 2).join(", ")}
+                            {group.titles.length > 2 ? ` + ${group.titles.length - 2} more` : ""}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {blockedSelected.length > 0 && (
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
                     <p className="font-semibold text-amber-700 dark:text-amber-300">
                       {blockedSelected.length} selected item{blockedSelected.length === 1 ? "" : "s"} still need setup
                     </p>
                     <div className="mt-2 space-y-2">
-                      {blockedSelected.slice(0, 4).map(({ task, readiness }) => (
+                      {blockedSelected.slice(0, 6).map(({ task, readiness, plan }) => (
                         <div key={task.id} className="rounded-lg bg-background p-2">
                           <p className="text-xs font-medium">{task.title}</p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {readiness.blockers[0] || readiness.requirements[0] || "Needs more automation detail"}
+                            {plan.missingPlatforms.length > 0
+                              ? `Connect ${formatPlatformList(plan.missingPlatforms)}`
+                              : readiness.blockers[0] || readiness.requirements[0] || "Needs more automation detail"}
+                          </p>
+                          {plan.missingPlatforms.length > 0 && (
+                            <Link href="/social-accounts" className="mt-1 inline-flex text-xs font-medium text-brand-600 hover:text-brand-700">
+                              Connect account
+                            </Link>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {manualSelected.length > 0 && (
+                  <div className="rounded-xl border p-3 text-sm">
+                    <p className="font-semibold">Cannot automate directly</p>
+                    <div className="mt-2 space-y-2">
+                      {manualSelected.slice(0, 6).map(({ task }) => (
+                        <div key={task.id} className="rounded-lg bg-muted/30 p-2">
+                          <p className="text-xs font-medium">{task.title}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            This is setup, analytics, ads, or manual review work. Use AI readiness or improve strategy to turn it into content/email/social execution.
                           </p>
                         </div>
                       ))}
@@ -3680,9 +3934,8 @@ export default function StrategyAutomationPage() {
                 )}
               </div>
             </div>
-          </div>
 
-          <DialogFooter>
+          <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
             <Button variant="outline" onClick={() => setAutomationConfigOpen(false)} disabled={saving}>
               Cancel
             </Button>
@@ -3691,7 +3944,7 @@ export default function StrategyAutomationPage() {
                 strategy &&
                 createAutomationsForTasks(
                   strategy,
-                  readyToAutomate,
+                  automationReviewTasks,
                   automationBuilder,
                   "Automation set saved"
                 )
@@ -3709,9 +3962,9 @@ export default function StrategyAutomationPage() {
               {saving ? <AISpinner className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
               Create automation set
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      </FloatingPanel>
     );
   };
 
@@ -3872,8 +4125,8 @@ export default function StrategyAutomationPage() {
           if (!open) closeInspector();
           else setWorkspacePanelOpen(true);
         }}
-        title={inspectorMode === "task" ? "Plan Item" : "Automation Form"}
-        description={inspectorMode === "task" ? "Plan item controls" : "Automation controls"}
+        title={inspectorMode === "task" ? "Plan Item" : "One-off Automation"}
+        description={inspectorMode === "task" ? "Plan item controls" : "Single automation controls"}
         icon={inspectorMode === "task" ? <Target className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
         defaultSize={{ width: 500, height: 680 }}
         defaultPosition={{ x: 220, y: 96 }}
@@ -3999,7 +4252,7 @@ export default function StrategyAutomationPage() {
           </Button>
           <Button variant="outline" onClick={() => openNewAutomation()}>
             <Wand2 className="mr-2 h-4 w-4" />
-            Automation
+            One-off automation
           </Button>
           <Button
             onClick={openAutomationBuilder}
@@ -4007,7 +4260,7 @@ export default function StrategyAutomationPage() {
             className="bg-brand-500 text-white hover:bg-brand-600"
           >
             <Sparkles className="mr-2 h-4 w-4" />
-            AI automate {qualifiedAutomationTasks.length || ""}
+            Strategy planner {qualifiedAutomationTasks.length || ""}
           </Button>
         </div>
       </div>

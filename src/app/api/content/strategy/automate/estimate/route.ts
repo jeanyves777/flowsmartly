@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
       mediaType = "image",
       endDate,
       platforms = ["feed"],
+      taskConfigs,
     } = body;
 
     if (!strategyId) {
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
       connectedPlatforms,
       emailReady,
       smsReady,
+      taskConfigs: Array.isArray(taskConfigs) ? taskConfigs : undefined,
     });
 
     return NextResponse.json({

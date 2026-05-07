@@ -19,7 +19,32 @@ interface TaskConfig {
   frequency: "DAILY" | "WEEKLY" | "MONTHLY";
   dayOfWeek: number;
   time: string;
+  platforms?: string[];
+  startDate?: string;
+  endDate?: string;
   customPrompt: string;
+}
+
+function normalizePlatform(platform: string) {
+  if (platform.startsWith("facebook_")) return "facebook";
+  if (platform.startsWith("instagram_")) return "instagram";
+  return platform;
+}
+
+function safePlatforms(platforms: unknown, fallback: string[]) {
+  const raw = Array.isArray(platforms)
+    ? platforms.filter((platform): platform is string => typeof platform === "string")
+    : fallback;
+  const normalized = raw.map(normalizePlatform).filter(Boolean);
+  return [...new Set(normalized.length ? normalized : ["feed"])];
+}
+
+function combineDateAndTime(dateValue: Date | string | null | undefined, timeValue: string) {
+  const date = dateValue ? new Date(dateValue) : new Date();
+  const [h, m] = (timeValue || "09:00").split(":");
+  date.setHours(parseInt(h || "9", 10), parseInt(m || "0", 10), 0, 0);
+  if (date <= new Date()) date.setDate(date.getDate() + 1);
+  return date;
 }
 
 // POST /api/content/strategy/automate - Create automations from strategy tasks
@@ -118,17 +143,7 @@ export async function POST(request: NextRequest) {
         },
       }),
     ]);
-    const connectedPlatforms = [
-      ...new Set(
-        socialAccounts.map((account) =>
-          account.platform.startsWith("facebook_")
-            ? "facebook"
-            : account.platform.startsWith("instagram_")
-              ? "instagram"
-              : account.platform
-        )
-      ),
-    ];
+    const connectedPlatforms = [...new Set(socialAccounts.map((account) => normalizePlatform(account.platform)))];
     const emailReady = !!(
       marketingConfig &&
       marketingConfig.emailProvider !== "NONE" &&
@@ -152,22 +167,29 @@ export async function POST(request: NextRequest) {
       const task = taskMap.get(config.taskId);
       if (!task) continue;
 
+      const configPlatforms = safePlatforms(config.platforms, platforms);
+      const missingConnections = configPlatforms.filter(
+        (platform) => platform !== "feed" && !connectedPlatforms.includes(platform)
+      );
       const readiness = qualifyStrategyTaskForAutomation(task, {
         includeMedia: config.includeMedia,
         mediaType: config.mediaType,
-        selectedPlatforms: platforms,
+        selectedPlatforms: configPlatforms,
         connectedPlatforms,
         emailReady,
         smsReady,
       });
 
-      if (readiness.qualified) {
+      if (readiness.qualified && missingConnections.length === 0) {
         readyTaskIds.add(task.id);
       } else {
         blockedTasks.push({
           taskId: task.id,
           title: task.title,
-          blockers: readiness.blockers,
+          blockers: [
+            ...readiness.blockers,
+            ...missingConnections.map((platform) => `Connect ${platform} before scheduling this item`),
+          ],
         });
       }
     }
@@ -195,10 +217,27 @@ export async function POST(request: NextRequest) {
       endDate: globalEndDate || new Date(Date.now() + 90 * 86400000).toISOString(),
       userCredits: user?.aiCredits || 0,
       selectedTaskIds: [...readyTaskIds],
-      selectedPlatforms: platforms,
+      selectedPlatforms: [
+        ...new Set(
+          enabledConfigs
+            .filter((config) => readyTaskIds.has(config.taskId))
+            .flatMap((config) => safePlatforms(config.platforms, platforms))
+        ),
+      ],
       connectedPlatforms,
       emailReady,
       smsReady,
+      taskConfigs: enabledConfigs
+        .filter((config) => readyTaskIds.has(config.taskId))
+        .map((config) => ({
+          taskId: config.taskId,
+          frequency: config.frequency,
+          includeMedia: config.includeMedia,
+          mediaType: config.mediaType,
+          startDate: config.startDate,
+          endDate: config.endDate || globalEndDate,
+          platforms: safePlatforms(config.platforms, platforms),
+        })),
     });
 
     if (!estimate.hasEnoughCredits) {
@@ -239,13 +278,7 @@ export async function POST(request: NextRequest) {
           `Email campaign about: ${task.title}. ${task.description || ""}\n\n${brandContext}`;
 
         // Calculate scheduled send time from frequency config
-        const scheduledAt = (() => {
-          const d = task.startDate ? new Date(task.startDate) : new Date();
-          const [h, m] = (config.time || "09:00").split(":");
-          d.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
-          if (d <= new Date()) d.setDate(d.getDate() + 1);
-          return d;
-        })();
+        const scheduledAt = combineDateAndTime(config.startDate || task.startDate, config.time);
 
         const campaign = await prisma.campaign.create({
           data: {
@@ -275,11 +308,14 @@ export async function POST(request: NextRequest) {
       // SOCIAL/CONTENT tasks → create PostAutomation record
       const taskPrompt = config.customPrompt ||
         `Write an engaging social media post about: ${task.title}. ${task.description || ""} ${brandContext}`;
+      const configPlatforms = safePlatforms(config.platforms, platforms);
 
       const schedule = JSON.stringify({
         frequency: config.frequency,
         dayOfWeek: config.dayOfWeek,
         time: config.time,
+        firstRunDate: config.startDate || task.startDate?.toISOString() || null,
+        platforms: configPlatforms,
       });
 
       const automation = await prisma.postAutomation.create({
@@ -295,9 +331,9 @@ export async function POST(request: NextRequest) {
           includeMedia: config.includeMedia,
           mediaType: config.includeMedia ? config.mediaType : null,
           mediaStyle: config.includeMedia ? config.mediaStyle : null,
-          platforms: JSON.stringify(platforms),
-          startDate: task.startDate || new Date(),
-          endDate: globalEndDate ? new Date(globalEndDate) : null,
+          platforms: JSON.stringify(configPlatforms),
+          startDate: combineDateAndTime(config.startDate || task.startDate, config.time),
+          endDate: config.endDate ? new Date(config.endDate) : globalEndDate ? new Date(globalEndDate) : null,
           strategyTaskId: task.id,
           sourceStrategyId: strategyId,
         },

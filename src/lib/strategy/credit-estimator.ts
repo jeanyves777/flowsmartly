@@ -35,6 +35,16 @@ interface TaskEstimate {
   totalCost: number;
 }
 
+export interface AutomationTaskCreditConfig {
+  taskId: string;
+  frequency?: "DAILY" | "WEEKLY" | "MONTHLY";
+  includeMedia?: boolean;
+  mediaType?: "image" | "video";
+  endDate?: string;
+  startDate?: string;
+  platforms?: string[];
+}
+
 export interface AutomationEstimate {
   automatableTasks: TaskEstimate[];
   manualOnlyTasks: { taskId: string; title: string; category: string }[];
@@ -106,6 +116,7 @@ export async function estimateAutomationCredits(
     connectedPlatforms?: string[];
     emailReady?: boolean;
     smsReady?: boolean;
+    taskConfigs?: AutomationTaskCreditConfig[];
   }
 ): Promise<AutomationEstimate> {
   // Get dynamic costs
@@ -124,15 +135,22 @@ export async function estimateAutomationCredits(
   const selectedTaskIds = options.selectedTaskIds?.length
     ? new Set(options.selectedTaskIds)
     : null;
+  const taskConfigMap = new Map(
+    (options.taskConfigs || []).map((config) => [config.taskId, config])
+  );
 
   for (const task of tasks) {
     if (selectedTaskIds && !selectedTaskIds.has(task.id)) continue;
 
+    const taskConfig = taskConfigMap.get(task.id);
+    const includeMedia = taskConfig?.includeMedia ?? options.includeMedia;
+    const mediaType = taskConfig?.mediaType ?? options.mediaType;
+    const selectedPlatforms = taskConfig?.platforms ?? options.selectedPlatforms;
     const category = normalizeTaskCategory(task.category);
     const readiness = qualifyStrategyTaskForAutomation(task, {
-      includeMedia: options.includeMedia,
-      mediaType: options.mediaType,
-      selectedPlatforms: options.selectedPlatforms,
+      includeMedia,
+      mediaType,
+      selectedPlatforms,
       connectedPlatforms: options.connectedPlatforms,
       emailReady: options.emailReady,
       smsReady: options.smsReady,
@@ -149,14 +167,17 @@ export async function estimateAutomationCredits(
       continue;
     }
 
-    const startDate = task.startDate
-      ? new Date(task.startDate)
+    const startDate = (taskConfig?.startDate || task.startDate)
+      ? new Date(taskConfig?.startDate || task.startDate || new Date())
       : new Date();
-    const endDate = new Date(options.endDate);
+    const endDate = new Date(taskConfig?.endDate || options.endDate);
+    const frequency = taskConfig?.frequency || options.frequency;
 
-    const runs = calculateRuns(options.frequency, startDate, endDate);
+    const runs = calculateRuns(frequency, startDate, endDate);
     const perRunCost =
-      options.mediaType === "video" ? costPerPostWithVideo : costPerPost;
+      includeMedia && mediaType === "video"
+        ? costPerPostWithVideo
+        : textCost + (includeMedia ? imageCost : 0);
 
     automatableTasks.push({
       taskId: task.id,
