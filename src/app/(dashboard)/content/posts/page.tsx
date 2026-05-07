@@ -73,6 +73,11 @@ type AIPlatform = (typeof AI_SUPPORTED_PLATFORMS)[number];
 type FlowMediaMode = "image" | "video";
 type FlowMediaAspect = "1:1" | "9:16" | "16:9";
 type FlowVideoDuration = 8 | 15 | 30;
+type FlowVideoSpeechMode =
+  | "talking_review"
+  | "site_walkthrough"
+  | "voiceover_presentation"
+  | "visual_only";
 
 type OrganicPostIdea = {
   title: string;
@@ -320,6 +325,45 @@ const FLOW_VIDEO_DURATIONS: Array<{
   { seconds: 15, label: "15s", helper: "Full short story" },
   { seconds: 30, label: "30s", helper: "Long-video provider" },
 ];
+
+const FLOW_VIDEO_SPEECH_MODES: Array<{
+  id: FlowVideoSpeechMode;
+  label: string;
+  helper: string;
+  rule: string;
+}> = [
+  {
+    id: "talking_review",
+    label: "Person review",
+    helper: "TikTok-style presenter talks on camera with the product.",
+    rule:
+      "Create a realistic vertical UGC/product review. A real person is visible on camera, holding, wearing, using, or pointing at the product while speaking naturally to the viewer. Use native synchronized speech from the visible speaker only; do not use a disembodied voiceover.",
+  },
+  {
+    id: "site_walkthrough",
+    label: "Site walkthrough",
+    helper: "Presenter talks while showing the website or offer.",
+    rule:
+      "Create a realistic website or offer walkthrough. Show the user site, product page, service page, or checkout experience clearly while a visible presenter talks through what the viewer is seeing. Use native synchronized speech from the presenter only; do not use a separate voiceover.",
+  },
+  {
+    id: "voiceover_presentation",
+    label: "Voiceover",
+    helper: "Presentation narration over product or website visuals.",
+    rule:
+      "Create clean presentation visuals designed for an added narration track. Do not show a lip-sync presenter talking to camera. Use cinematic product, website, feature, and benefit visuals that match a professional voiceover.",
+  },
+  {
+    id: "visual_only",
+    label: "No speech",
+    helper: "Product visuals with no talking or narration.",
+    rule:
+      "Create a visual-only product or brand video. No spoken words, no presenter dialogue, no voiceover, and no subtitles. Communicate with realistic action, product handling, camera movement, and clear visual storytelling.",
+  },
+];
+
+const getFlowVideoSpeechMode = (mode: FlowVideoSpeechMode) =>
+  FLOW_VIDEO_SPEECH_MODES.find((item) => item.id === mode) || FLOW_VIDEO_SPEECH_MODES[0];
 
 const getFlowMediaAspect = (aspect: FlowMediaAspect) =>
   FLOW_MEDIA_ASPECTS.find((item) => item.id === aspect) || FLOW_MEDIA_ASPECTS[0];
@@ -656,6 +700,7 @@ export default function ContentPostsPage() {
   const [flowMediaAspect, setFlowMediaAspect] = useState<FlowMediaAspect>("1:1");
   const [flowMediaStyle, setFlowMediaStyle] = useState("modern");
   const [flowVideoDuration, setFlowVideoDuration] = useState<FlowVideoDuration>(8);
+  const [flowVideoSpeechMode, setFlowVideoSpeechMode] = useState<FlowVideoSpeechMode>("talking_review");
   const [isGeneratingFlowMedia, setIsGeneratingFlowMedia] = useState(false);
   const [flowMediaStatus, setFlowMediaStatus] = useState("");
   const [generatedFlowMedia, setGeneratedFlowMedia] = useState<{ type: FlowMediaMode; url: string } | null>(null);
@@ -1119,6 +1164,7 @@ export default function ContentPostsPage() {
 
     const aspect = getFlowMediaAspect(flowMediaAspect);
     const primaryReferenceImageUrl = flowMediaReferenceUrls[0] || null;
+    const videoSpeechOption = getFlowVideoSpeechMode(flowVideoSpeechMode);
     const referenceImageNote = flowMediaReferenceUrls.length
       ? `Reference image${flowMediaReferenceUrls.length > 1 ? "s" : ""}: ${flowMediaReferenceUrls.join(", ")}`
       : null;
@@ -1144,6 +1190,10 @@ export default function ContentPostsPage() {
       JSON.stringify(rawBrandIdentity, null, 2),
       selectedPlatformLabels ? `Channels: ${selectedPlatformLabels}` : null,
       `Target video length: ${flowVideoDuration} seconds.`,
+      `Video format: ${videoSpeechOption.label}. ${videoSpeechOption.rule}`,
+      flowMediaReferenceUrls.length
+        ? "Reference lock: use the provided reference media as the exact subject source. If a product image is provided, preserve that exact product, silhouette, color, material, labels, and details. If a person image is provided, preserve that exact person's appearance, age range, skin tone, hairstyle, clothing style, and face/body identity as much as the provider allows. Do not invent a different bag, product, presenter, model, or website when references are supplied."
+        : null,
       "Continuity requirements: keep the same person, product, bag, brand colors, lighting, and visual identity from the first second to the final frame. The story must feel seamless with no reset, no visible gap, no sudden identity change, and no disconnected scenes.",
       "Message structure: opening hook, clear product or offer demonstration, proof or benefit moment, and final call-to-action visual. Use visual storytelling only; avoid burned-in text overlays unless the user explicitly asks for text.",
       referenceImageNote,
@@ -1215,8 +1265,10 @@ export default function ContentPostsPage() {
           style: flowMediaStyle,
           resolution: "720p",
           provider: "auto",
-          voiceOver: false,
+          speechMode: flowVideoSpeechMode,
+          voiceOver: flowVideoSpeechMode === "voiceover_presentation" ? "nova" : false,
           referenceImageUrl: primaryReferenceImageUrl,
+          referenceImageUrls: flowMediaReferenceUrls,
         }),
       });
 
@@ -2350,6 +2402,32 @@ export default function ContentPostsPage() {
                     30-second videos are planned as one message with continuity instructions so the subject, product, and brand identity stay consistent from start to finish.
                   </p>
                 )}
+                <div className="space-y-2 border-t pt-3">
+                  <div className="flex items-center gap-2 text-sm font-bold">
+                    <Video className="h-4 w-4 text-cyan-600" />
+                    Audio and story format
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {FLOW_VIDEO_SPEECH_MODES.map((option) => {
+                      const isActive = flowVideoSpeechMode === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => setFlowVideoSpeechMode(option.id)}
+                          className={`rounded-xl border p-3 text-left transition ${
+                            isActive
+                              ? "border-cyan-500 bg-cyan-500/10"
+                              : "bg-background hover:border-cyan-500/40"
+                          }`}
+                        >
+                          <span className="block text-sm font-bold">{option.label}</span>
+                          <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">{option.helper}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -2375,7 +2453,7 @@ export default function ContentPostsPage() {
                 libraryTitle="Choose reference image"
               />
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Add brand, product, style, or scene references. FlowAI uses the first image as the main visual anchor.
+                Add the exact product, person, style, or scene references. FlowAI locks the first image as the main identity anchor and keeps supplied product/person references instead of reinventing them.
               </p>
             </div>
 

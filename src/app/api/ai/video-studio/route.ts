@@ -26,6 +26,11 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 type TTSVoice = "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
 type RequestedVideoProvider = "auto" | "veo3" | "grok" | "slideshow";
 type RuntimeVideoProvider = "veo3" | "grok" | "slideshow";
+type VideoSpeechMode =
+  | "visual_only"
+  | "talking_review"
+  | "site_walkthrough"
+  | "voiceover_presentation";
 
 const execFileAsync = promisify(execFile);
 
@@ -58,6 +63,13 @@ export async function POST(req: NextRequest) {
     const duration = normalizeRequestedVideoDuration(body.duration ?? body.durationSeconds ?? 15);
     const requestedProvider = normalizeRequestedVideoProvider(body.provider ?? "veo3");
     const runtimeProvider = resolveRuntimeVideoProvider(requestedProvider, duration);
+    const referenceImageUrls = normalizeReferenceImageUrls(body.referenceImageUrls, referenceImageUrl);
+    const primaryReferenceImageUrl = referenceImageUrls[0] || null;
+    const speechMode = normalizeVideoSpeechMode(
+      body.speechMode ??
+        (voiceOver && voiceOver !== "none" ? "voiceover_presentation" : "visual_only")
+    );
+    const shouldMixVoiceover = speechMode === "voiceover_presentation" && !!voiceOver && voiceOver !== "none";
 
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       return new Response(JSON.stringify({ error: "Prompt is required" }), { status: 400 });
@@ -120,7 +132,9 @@ export async function POST(req: NextRequest) {
           type: "video",
           provider: runtimeProvider,
           requestedProvider,
-          referenceImageUrl: referenceImageUrl || undefined,
+          speechMode,
+          referenceImageUrl: primaryReferenceImageUrl || undefined,
+          referenceImageUrls: referenceImageUrls.length ? referenceImageUrls : undefined,
         }),
       },
     });
@@ -136,9 +150,9 @@ export async function POST(req: NextRequest) {
         send({ type: "start", mode: "video", designId: design.id });
 
         try {
-          const refImage: string | undefined = referenceImageUrl || undefined;
+          const refImage: string | undefined = primaryReferenceImageUrl || undefined;
           // Build enhanced prompt with style, continuity, and duration guidance.
-          const enhancedPrompt = buildVideoPrompt(prompt.trim(), category, style, duration, !!refImage);
+          const enhancedPrompt = buildVideoPrompt(prompt.trim(), category, style, duration, referenceImageUrls.length, speechMode);
 
           let finalVideoBuffer: Buffer;
           let totalDuration = 0;
@@ -229,8 +243,8 @@ export async function POST(req: NextRequest) {
             // Resolution must be 720p for video extension (API requirement)
             const veoResolution = duration > 8 ? "720p" as const : (resolution as "720p" | "1080p");
 
-            // Embed voice characteristics into the prompt for Veo 3 native audio
-            const voiceDirective = buildVoiceDirective(voiceGender, voiceAccent);
+            // Embed speech direction into the prompt for providers with native audio.
+            const voiceDirective = buildNativeAudioDirective(speechMode, voiceGender, voiceAccent);
             const veoPrompt = `${enhancedPrompt}\n\n${voiceDirective}`;
 
             const isExtended = duration > 8;
@@ -272,7 +286,7 @@ export async function POST(req: NextRequest) {
 
                   // Use a continuation prompt (not the same generation prompt) so each
                   // segment naturally advances the story instead of repeating
-                  const continuationPrompt = buildExtensionPrompt(prompt.trim(), category, style, i, extensionsNeeded);
+                  const continuationPrompt = buildExtensionPrompt(prompt.trim(), category, style, i, extensionsNeeded, speechMode);
                   const extResult = await veoClient.extendVideo(currentVideoUri, continuationPrompt, {
                     aspectRatio: veoAspectRatio,
                   });
@@ -337,7 +351,7 @@ export async function POST(req: NextRequest) {
           }
 
           // Generate and mix voiceover if enabled (skip for slideshow — voiceover already baked in)
-          if (actualProvider !== "slideshow" && voiceOver && voiceOver !== "none") {
+          if (actualProvider !== "slideshow" && shouldMixVoiceover) {
             send({ type: "status", message: "Writing voiceover script..." });
             try {
               const videoDuration = totalDuration || duration;
@@ -527,6 +541,25 @@ function normalizeRequestedVideoDuration(value: unknown): number {
   return Math.max(1, Math.min(30, Math.round(parsed)));
 }
 
+function normalizeReferenceImageUrls(value: unknown, fallback: unknown): string[] {
+  const fromArray = Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        .map((item) => item.trim())
+    : [];
+  if (fromArray.length > 0) return [...new Set(fromArray)].slice(0, 3);
+  return typeof fallback === "string" && fallback.trim().length > 0 ? [fallback.trim()] : [];
+}
+
+function normalizeVideoSpeechMode(value: unknown): VideoSpeechMode {
+  return value === "talking_review" ||
+    value === "site_walkthrough" ||
+    value === "voiceover_presentation" ||
+    value === "visual_only"
+    ? value
+    : "visual_only";
+}
+
 function resolveRuntimeVideoProvider(
   requestedProvider: RequestedVideoProvider,
   duration: number
@@ -687,7 +720,8 @@ function buildVideoPrompt(
   category: string,
   style: string,
   durationSeconds = 8,
-  hasReferenceImage = false
+  referenceImageCount = 0,
+  speechMode: VideoSpeechMode = "visual_only"
 ): string {
   const categoryMotion: Record<string, string> = {
     product_ad:
@@ -719,12 +753,16 @@ function buildVideoPrompt(
     `Plan this as one seamless ${durationSeconds}-second story: opening hook, product or offer demonstration, proof or benefit moment, and final call-to-action visual.`,
     "Maintain the same subject, product identity, colors, lighting, environment, and brand style from the first frame to the last.",
     "Avoid jumpy resets, unrelated scene changes, duplicated starts, frozen frames, or any visible gap between moments.",
-    hasReferenceImage
+    referenceImageCount > 0
       ? "Use the reference image as the main identity anchor; preserve product shape, color, material, and recognizable details across every shot."
       : null,
   ]
     .filter(Boolean)
     .join(" ");
+  const referenceLockDirective = referenceImageCount > 0
+    ? `REFERENCE LOCK: The uploaded reference ${referenceImageCount > 1 ? "images are" : "image is"} the exact subject source. Preserve the real product/person/site identity from the reference. Do not substitute a similar product, do not change the bag/item design, do not invent a different presenter, and do not reinterpret the supplied website. Keep the same product silhouette, color, material, labels, person appearance, clothing style, and recognizable visual details as much as the provider allows. If multiple references are supplied, treat the first as the primary anchor and combine the additional product/person/site references without changing their identities.`
+    : "";
+  const speechDirective = buildVideoSpeechDirective(speechMode, durationSeconds);
 
   // Core directive: force the model to generate actual animated video, not a still image
   const motionDirective = "Create a fully animated video with continuous real motion, moving objects, camera movement (panning, zooming, tracking, orbiting), and dynamic action throughout the entire duration. This must NOT be a static image — everything should be visually moving and alive.";
@@ -732,7 +770,26 @@ function buildVideoPrompt(
   // Clean video directive: no text/branding burned into the video
   const cleanDirective = "CRITICAL — CLEAN VIDEO RULES: Do NOT render any text, brand names, logos, watermarks, titles, subtitles, captions, or any written words anywhere in the video. The video must be purely visual — clean, cinematic footage with NO overlaid text at all. Think of this as raw B-roll footage for a professional TV advertisement. If text absolutely must appear (like on a product label or storefront sign that naturally exists in the scene), keep it minimal, natural, and part of the environment — never as an overlay or graphic element.";
 
-  return `${continuityDirective} ${motionDirective} ${catHint} ${styleHint} ${cleanDirective} ${userPrompt}`.trim();
+  const cleanPromptDirective =
+    speechMode === "site_walkthrough"
+      ? "CRITICAL CLEAN VIDEO RULES: Do not create fake marketing text overlays, subtitles, watermarks, or invented UI copy. Website text may appear only when it naturally belongs to the referenced site/page being shown."
+      : cleanDirective;
+
+  return `${continuityDirective} ${referenceLockDirective} ${speechDirective} ${motionDirective} ${catHint} ${styleHint} ${cleanPromptDirective} ${userPrompt}`.trim();
+}
+
+function buildVideoSpeechDirective(mode: VideoSpeechMode, durationSeconds: number): string {
+  switch (mode) {
+    case "talking_review":
+      return `VIDEO FORMAT: Realistic TikTok-style product review for ${durationSeconds} seconds. Show one natural presenter on camera speaking directly to the viewer while holding, wearing, using, unboxing, or pointing to the product. The product must be visible in hand or clearly demonstrated. Use native synchronized speech from the visible presenter only. No disembodied voiceover, no off-screen narrator, no subtitles, and no fake text overlays.`;
+    case "site_walkthrough":
+      return `VIDEO FORMAT: Realistic website or offer walkthrough for ${durationSeconds} seconds. Show the user's site, product page, booking page, checkout, or offer clearly while a visible presenter talks through what viewers are seeing. The presenter can appear full frame, beside the screen, or picture-in-picture, but speech must come from the visible presenter. No separate voiceover narrator, no subtitles, and no fake interface text beyond what naturally appears on the site.`;
+    case "voiceover_presentation":
+      return `VIDEO FORMAT: Presentation-style marketing video for ${durationSeconds} seconds. Create clean product, website, feature, and benefit visuals designed for an added voiceover narration track. Do not show a lip-sync presenter talking to camera. Avoid visible mouths speaking, subtitles, or caption overlays. Leave visual breathing room for narration.`;
+    case "visual_only":
+    default:
+      return `VIDEO FORMAT: Visual-only product or brand video for ${durationSeconds} seconds. No spoken words, no presenter dialogue, no voiceover, no subtitles, and no caption overlays. Communicate through realistic action, product handling, camera movement, and clear visual storytelling.`;
+  }
 }
 
 /**
@@ -740,7 +797,14 @@ function buildVideoPrompt(
  * Instead of repeating the original prompt (which causes the AI to restart the same scene),
  * this instructs the model to naturally continue from where the previous segment ended.
  */
-function buildExtensionPrompt(userPrompt: string, category: string, style: string, extensionNumber: number, totalExtensions: number): string {
+function buildExtensionPrompt(
+  userPrompt: string,
+  category: string,
+  style: string,
+  extensionNumber: number,
+  totalExtensions: number,
+  speechMode: VideoSpeechMode = "visual_only"
+): string {
   const styleHints: Record<string, string> = {
     cinematic: "cinematic look with dramatic lighting and film-grade color grading",
     modern: "clean modern aesthetic with smooth transitions",
@@ -750,6 +814,7 @@ function buildExtensionPrompt(userPrompt: string, category: string, style: strin
     retro: "retro/vintage aesthetic with warm tones",
   };
   const styleHint = styleHints[style] || "professional visual style";
+  const speechHint = buildContinuationSpeechDirective(speechMode);
 
   const isLastSegment = extensionNumber === totalExtensions;
   const progressHint = isLastSegment
@@ -763,10 +828,26 @@ CONTINUATION RULES:
 - Show NEW content: different angle, new detail, next moment in the sequence — advance the visual story
 - Use a smooth, natural transition as if this were one continuous shot or a professional TV-style cut
 - Keep the same mood and energy level but evolve the scene naturally
+- ${speechHint}
+- Keep the same referenced product/person/site identity. Do not replace the product, presenter, or website with a different invented subject.
 - Do NOT render any text, brand names, titles, or written words in the video — keep it purely visual
 - Think of this as the next shot in a professional TV commercial — each cut shows something new while maintaining the flow
 
 Original concept: ${userPrompt}`.trim();
+}
+
+function buildContinuationSpeechDirective(mode: VideoSpeechMode): string {
+  switch (mode) {
+    case "talking_review":
+      return "Keep the same visible presenter speaking naturally to camera with synced mouth movement; the product remains in hand or clearly demonstrated. Do not switch to an off-screen voiceover.";
+    case "site_walkthrough":
+      return "Keep the same visible presenter or picture-in-picture walkthrough voice connected to the website or offer being shown. Do not switch to a separate narrator.";
+    case "voiceover_presentation":
+      return "Continue with clean visuals prepared for external voiceover; do not show a lip-sync presenter talking.";
+    case "visual_only":
+    default:
+      return "Continue as a visual-only sequence with no speech, no narration, and no subtitles.";
+  }
 }
 
 /**
@@ -907,10 +988,9 @@ async function getSlideshowDuration(videoBuffer: Buffer): Promise<number> {
 }
 
 /**
- * Build a voice directive string to embed in the Veo 3 prompt.
- * Veo 3 generates native audio (voice, sound effects, music) based on the prompt text.
+ * Build native-audio direction for providers that can generate speech with video.
  */
-function buildVoiceDirective(gender: string, accent: string): string {
+function buildNativeAudioDirective(mode: VideoSpeechMode, gender: string, accent: string): string {
   const accentLabels: Record<string, string> = {
     american: "American English",
     british: "British English",
@@ -925,7 +1005,17 @@ function buildVoiceDirective(gender: string, accent: string): string {
   const accentLabel = accentLabels[accent] || accent;
   const genderLabel = gender === "male" ? "male" : "female";
 
-  return `The narration and voiceover should be spoken by a ${genderLabel} voice with a ${accentLabel} accent. The voice should sound natural, confident, and professional — suitable for a marketing advertisement.`;
+  switch (mode) {
+    case "talking_review":
+      return `NATIVE AUDIO RULE: Generate natural synchronized speech from the visible on-camera presenter only. The presenter should sound like a confident ${genderLabel} UGC creator with a ${accentLabel} accent. Mouth movement must match the speech. Do not add a separate narrator or voiceover track.`;
+    case "site_walkthrough":
+      return `NATIVE AUDIO RULE: Generate natural synchronized speech from the visible presenter explaining the site or offer. The presenter should sound like a helpful ${genderLabel} guide with a ${accentLabel} accent. Do not add a separate narrator or detached voiceover.`;
+    case "voiceover_presentation":
+      return "NATIVE AUDIO RULE: Keep provider-generated speech minimal because FlowAI will add a clean narration track after generation. Prefer natural ambient sound or quiet background motion rather than visible lip-sync speech.";
+    case "visual_only":
+    default:
+      return "NATIVE AUDIO RULE: No spoken words, no dialogue, no narration, no voiceover, and no lip-sync speech. Ambient product or environment sound is acceptable only if the provider requires audio.";
+  }
 }
 
 // ─── Voiceover Pipeline ───────────────────────────────────────────────
