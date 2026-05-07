@@ -295,7 +295,13 @@ export default function MonthlyReportPage({
       const res = await fetch("/api/content/strategy/score/share", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "score", month: parsed.month, year: parsed.year, preview: true }),
+        body: JSON.stringify({
+          type: "score",
+          month: parsed.month,
+          year: parsed.year,
+          score: report?.score.overall,
+          preview: true,
+        }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || "Failed to share");
@@ -318,7 +324,12 @@ export default function MonthlyReportPage({
       const res = await fetch("/api/content/strategy/score/share", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "score", month: parsed.month, year: parsed.year }),
+        body: JSON.stringify({
+          type: "score",
+          month: parsed.month,
+          year: parsed.year,
+          score: report?.score.overall,
+        }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || "Failed to share");

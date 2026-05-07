@@ -8,6 +8,113 @@ import { generateImageXaiFirst } from "@/lib/ai/image-router";
 import { soraClient } from "@/lib/ai/sora-client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 
+function parsePlatforms(raw: string | null) {
+  try {
+    const parsed = JSON.parse(raw || "[]");
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : ["feed"];
+  } catch {
+    return ["feed"];
+  }
+}
+
+async function calculateRunCreditCost(automation: {
+  includeMedia: boolean;
+  mediaType: string | null;
+}) {
+  let creditCost = await getDynamicCreditCost("AI_POST");
+  if (automation.includeMedia) {
+    if (automation.mediaType === "image") {
+      creditCost += await getDynamicCreditCost("AI_VISUAL_DESIGN");
+    } else if (automation.mediaType === "video") {
+      creditCost += await getDynamicCreditCost("AI_VIDEO_STUDIO");
+    }
+  }
+  return creditCost;
+}
+
+// GET /api/content/automation/[id]/run - Preview a manual automation run before spending credits
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: { message: "Unauthorized" } },
+        { status: 401 }
+      );
+    }
+
+    const { id } = await params;
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: { message: "Automation ID is required" } },
+        { status: 400 }
+      );
+    }
+
+    const automation = await prisma.postAutomation.findUnique({ where: { id } });
+
+    if (!automation) {
+      return NextResponse.json(
+        { success: false, error: { message: "Automation not found" } },
+        { status: 404 }
+      );
+    }
+
+    if (automation.userId !== session.userId) {
+      return NextResponse.json(
+        { success: false, error: { message: "Not authorized to preview this automation" } },
+        { status: 403 }
+      );
+    }
+
+    const creditCost = await calculateRunCreditCost(automation);
+    const scheduledAt = new Date(Date.now() + 60 * 60 * 1000);
+    const linkedTask = automation.strategyTaskId
+      ? await prisma.strategyTask.findFirst({
+          where: {
+            id: automation.strategyTaskId,
+            strategy: { userId: session.userId },
+          },
+          select: { id: true, title: true, category: true },
+        })
+      : null;
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        automation: {
+          id: automation.id,
+          name: automation.name,
+          topic: automation.topic,
+          aiPrompt: automation.aiPrompt,
+          aiTone: automation.aiTone,
+          includeMedia: automation.includeMedia,
+          mediaType: automation.mediaType,
+          mediaStyle: automation.mediaStyle,
+          platforms: parsePlatforms(automation.platforms),
+          linkedTask,
+        },
+        creditCost,
+        userCredits: session.user.aiCredits,
+        hasEnoughCredits: session.user.aiCredits >= creditCost,
+        scheduledAt: scheduledAt.toISOString(),
+        result: automation.includeMedia
+          ? `Generate one AI caption, create ${automation.mediaType || "media"}, then schedule a post.`
+          : "Generate one AI caption, then schedule a text post.",
+      },
+    });
+  } catch (error) {
+    console.error("Preview automation run error:", error);
+    return NextResponse.json(
+      { success: false, error: { message: "Failed to preview automation run" } },
+      { status: 500 }
+    );
+  }
+}
+
 // POST /api/content/automation/[id]/run - Manually trigger an automation
 export async function POST(
   request: NextRequest,
@@ -59,15 +166,7 @@ export async function POST(
     }
 
     // Calculate total credit cost
-    let creditCost = await getDynamicCreditCost("AI_POST"); // Base: 5 credits (text generation)
-
-    if (automation.includeMedia) {
-      if (automation.mediaType === "image") {
-        creditCost += await getDynamicCreditCost("AI_VISUAL_DESIGN"); // +125 (gpt-image-1)
-      } else if (automation.mediaType === "video") {
-        creditCost += await getDynamicCreditCost("AI_VIDEO_STUDIO"); // +200 (Sora)
-      }
-    }
+    const creditCost = await calculateRunCreditCost(automation);
 
     // Check credits
     if (session.user.aiCredits < creditCost) {
@@ -164,12 +263,7 @@ export async function POST(
     const scheduledAt = new Date(Date.now() + 60 * 60 * 1000);
 
     // Parse platforms
-    let platforms: string[] = [];
-    try {
-      platforms = JSON.parse(automation.platforms || "[]");
-    } catch {
-      platforms = ["feed"];
-    }
+    const platforms = parsePlatforms(automation.platforms);
 
     // Create the post, deduct credits, and update automation in a transaction
     const [post] = await prisma.$transaction([

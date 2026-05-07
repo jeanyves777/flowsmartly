@@ -46,6 +46,14 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { useToast } from "@/hooks/use-toast";
@@ -235,6 +243,26 @@ interface AutomationCreditEstimate {
     runs: number;
   }>;
   manualOnlyTasks: Array<{ taskId: string; title: string; category: string }>;
+}
+
+interface AutomationRunPreview {
+  automation: {
+    id: string;
+    name: string;
+    topic: string | null;
+    aiPrompt: string | null;
+    aiTone: string;
+    includeMedia: boolean;
+    mediaType: string | null;
+    mediaStyle: string | null;
+    platforms: string[];
+    linkedTask: { id: string; title: string; category: string | null } | null;
+  };
+  creditCost: number;
+  userCredits: number;
+  hasEnoughCredits: boolean;
+  scheduledAt: string;
+  result: string;
 }
 
 const STATUS_COLUMNS: Array<{ id: TaskStatus; label: string; tone: string }> = [
@@ -482,6 +510,9 @@ export default function StrategyAutomationPage() {
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [runningId, setRunningId] = useState<string | null>(null);
+  const [runConfirmAutomation, setRunConfirmAutomation] = useState<Automation | null>(null);
+  const [runPreview, setRunPreview] = useState<AutomationRunPreview | null>(null);
+  const [loadingRunPreview, setLoadingRunPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedAutomationId, setSelectedAutomationId] = useState<string | null>(null);
@@ -673,6 +704,37 @@ export default function StrategyAutomationPage() {
     () => readyToAutomate.filter((task) => getTaskReadiness(task, automationBuilder).qualified),
     [automationBuilder, getTaskReadiness, readyToAutomate]
   );
+  const automationReadinessSummary = useMemo(() => {
+    const openTasks = tasks.filter((task) => task.status !== "DONE");
+    const completed = tasks.length - openTasks.length;
+    const alreadyAutomated = openTasks.filter(
+      (task) => task.automationId || task.automationStatus === "AUTOMATED"
+    ).length;
+    const manualOnly = openTasks.filter(
+      (task) =>
+        !task.automationId &&
+        task.automationStatus !== "AUTOMATED" &&
+        !isTaskAutomatable(task)
+    ).length;
+    const blocked = openTasks
+      .filter(
+        (task) =>
+          !task.automationId &&
+          task.automationStatus !== "AUTOMATED" &&
+          isTaskAutomatable(task)
+      )
+      .map((task) => getTaskReadiness(task, automationBuilder))
+      .filter((readiness) => !readiness.qualified);
+    const blockers = [...new Set(blocked.flatMap((readiness) => readiness.blockers))].slice(0, 4);
+
+    return {
+      completed,
+      alreadyAutomated,
+      manualOnly,
+      blockedBySetup: blocked.length,
+      blockers,
+    };
+  }, [automationBuilder, getTaskReadiness, tasks]);
 
   const activeBrandPlatforms = useMemo(() => {
     if (!brand?.handles) return [];
@@ -759,6 +821,11 @@ export default function StrategyAutomationPage() {
   const openStrategyBuilder = () => {
     setStrategyBuilder((draft) => ({
       ...draft,
+      goals:
+        draft.goals ||
+        (strategy
+          ? `Improve "${strategy.name}" so the open plan items become automation-ready while keeping completed and already automated work intact.`
+          : ""),
       platforms: draft.platforms.length
         ? draft.platforms
         : activeBrandPlatforms.length
@@ -995,6 +1062,50 @@ export default function StrategyAutomationPage() {
     const goals = strategyBuilder.goals.trim() || buildBrandGoal(brand);
     setGeneratingStrategy(true);
     try {
+      if (strategy) {
+        const res = await fetch("/api/content/strategy/improve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            strategyId: strategy.id,
+            goals,
+            timeframe: strategyBuilder.timeframe,
+            focusAreas: strategyBuilder.focusAreas,
+            platforms: strategyBuilder.platforms.length ? strategyBuilder.platforms : undefined,
+            additionalContext: strategyBuilder.additionalContext || undefined,
+            competitorInfo: strategyBuilder.competitorInfo || undefined,
+            budget: strategyBuilder.budget || undefined,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.error?.message || "Strategy improvement failed");
+
+        const improvedStrategy = json.data.strategy as Strategy;
+        const improvedCandidates = (improvedStrategy.tasks || []).filter(
+          (task) =>
+            task.status !== "DONE" &&
+            !task.automationId &&
+            task.automationStatus !== "AUTOMATED" &&
+            isTaskAutomatable(task)
+        );
+        setStrategy(improvedStrategy);
+        setStrategyBuilderOpen(false);
+        setView("automations");
+        setAutomationBuilder((draft) => ({
+          ...draft,
+          selectedTaskIds: improvedCandidates.map((task) => task.id),
+          platforms: draft.platforms.length ? draft.platforms : ["feed"],
+          endDate: draft.endDate || getDefaultAutomationEndDate(),
+        }));
+        setAutomationBuilderOpen(true);
+        toast({
+          title: "Strategy improved",
+          description: `${improvedCandidates.length} open item${improvedCandidates.length === 1 ? "" : "s"} prepared for automation validation. ${json.data.creditsUsed || 0} credits used.`,
+        });
+        await loadData();
+        return;
+      }
+
       const res = await fetch("/api/content/strategy/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1229,6 +1340,27 @@ export default function StrategyAutomationPage() {
     await deleteAutomationById(automationDraft.id, automationDraft.name);
   };
 
+  const openRunConfirmation = async (automation: Automation) => {
+    setRunConfirmAutomation(automation);
+    setRunPreview(null);
+    setLoadingRunPreview(true);
+    try {
+      const res = await fetch(`/api/content/automation/${automation.id}/run`);
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Run preview failed");
+      setRunPreview(json.data as AutomationRunPreview);
+    } catch (err) {
+      setRunConfirmAutomation(null);
+      toast({
+        title: "Run preview was not loaded",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingRunPreview(false);
+    }
+  };
+
   const runAutomation = async (automation: Automation) => {
     setRunningId(automation.id);
     try {
@@ -1238,6 +1370,8 @@ export default function StrategyAutomationPage() {
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error?.message || "Automation run failed");
       await loadData();
+      setRunConfirmAutomation(null);
+      setRunPreview(null);
       toast({ title: "Automation ran", description: "A new post draft was created." });
     } catch (err) {
       toast({
@@ -1398,7 +1532,7 @@ export default function StrategyAutomationPage() {
         return (
           <div
             key={column.id}
-            className={cn("flex h-[min(760px,calc(100vh-320px))] min-h-[420px] flex-col rounded-2xl border p-3", column.tone)}
+            className={cn("flex h-[min(900px,calc(100vh-250px))] min-h-[540px] flex-col rounded-2xl border p-3", column.tone)}
           >
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1452,7 +1586,7 @@ export default function StrategyAutomationPage() {
             <>
               <Button
                 onClick={openAutomationBuilder}
-                disabled={readyToAutomate.length === 0}
+                disabled={tasks.length === 0}
                 className="bg-brand-500 text-white hover:bg-brand-600"
               >
                 <Sparkles className="mr-2 h-4 w-4" />
@@ -1547,7 +1681,7 @@ export default function StrategyAutomationPage() {
                       variant="outline"
                       onClick={(event) => {
                         event.stopPropagation();
-                        runAutomation(automation);
+                        openRunConfirmation(automation);
                       }}
                       disabled={runningId === automation.id}
                     >
@@ -1965,7 +2099,10 @@ export default function StrategyAutomationPage() {
     );
   };
 
-  const renderStrategyBuilderPanel = () => (
+  const renderStrategyBuilderPanel = () => {
+    const isImprove = !!strategy;
+
+    return (
     <div className="space-y-4">
       <div className="rounded-xl border bg-muted/30 p-3">
         {brandLoading ? (
@@ -2009,14 +2146,50 @@ export default function StrategyAutomationPage() {
         )}
       </div>
 
+      {isImprove && (
+        <div className="rounded-xl border border-brand-500/20 bg-brand-500/5 p-3">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-brand-500/10 p-2 text-brand-600">
+              <Wand2 className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 text-sm">
+              <p className="font-semibold">Improve active strategy</p>
+              <p className="mt-1 text-muted-foreground">
+                FlowAI will keep completed and already automated work, then rewrite open items so more of them pass automation readiness validation.
+              </p>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                <div className="rounded-lg border bg-background p-2">
+                  <p className="font-semibold">{qualifiedAutomationTasks.length}</p>
+                  <p className="text-muted-foreground">Ready now</p>
+                </div>
+                <div className="rounded-lg border bg-background p-2">
+                  <p className="font-semibold">{automationReadinessSummary.alreadyAutomated}</p>
+                  <p className="text-muted-foreground">Connected</p>
+                </div>
+                <div className="rounded-lg border bg-background p-2">
+                  <p className="font-semibold">{automationReadinessSummary.manualOnly}</p>
+                  <p className="text-muted-foreground">Manual</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-2">
-        <Label>Goal</Label>
+        <Label>{isImprove ? "Improvement direction" : "Goal"}</Label>
         <Textarea
           value={strategyBuilder.goals}
           onChange={(event) =>
             setStrategyBuilder((draft) => ({ ...draft, goals: event.target.value }))
           }
-          placeholder={brand ? `Build a plan for ${brand.name}` : "Build a plan from my brand identity"}
+          placeholder={
+            isImprove
+              ? "Make this plan automation-ready for recurring posts, email, and connected channels"
+              : brand
+              ? `Build a plan for ${brand.name}`
+              : "Build a plan from my brand identity"
+          }
           className="min-h-[105px]"
         />
       </div>
@@ -2131,11 +2304,12 @@ export default function StrategyAutomationPage() {
           className="bg-brand-500 text-white hover:bg-brand-600"
         >
           {generatingStrategy ? <AISpinner className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
-          Build from brand
+          {isImprove ? "Improve active strategy" : "Build from brand"}
         </Button>
       </div>
     </div>
-  );
+    );
+  };
 
   const renderAutomationBuilderPanel = () => {
     const validationRows = readyToAutomate.map((task) => ({
@@ -2266,8 +2440,44 @@ export default function StrategyAutomationPage() {
                   );
                 })
               ) : (
-                <div className="grid h-full place-items-center rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
-                  No strategy items qualify yet.
+                <div className="grid h-full place-items-center rounded-lg border border-dashed p-5 text-sm">
+                  <div className="max-w-xl space-y-4 text-center">
+                    <div>
+                      <p className="font-semibold text-foreground">No automation-ready candidates in this plan</p>
+                      <p className="mt-2 text-muted-foreground">
+                        Improve the active strategy to turn open work into publishable content, social, or email tasks with clear audience, offer, proof point, call to action, and channel.
+                      </p>
+                    </div>
+                    <div className="grid gap-2 text-left sm:grid-cols-3">
+                      <div className="rounded-lg border bg-background p-3">
+                        <p className="text-lg font-bold">{automationReadinessSummary.alreadyAutomated}</p>
+                        <p className="text-xs text-muted-foreground">Already connected</p>
+                      </div>
+                      <div className="rounded-lg border bg-background p-3">
+                        <p className="text-lg font-bold">{automationReadinessSummary.manualOnly}</p>
+                        <p className="text-xs text-muted-foreground">Manual or setup work</p>
+                      </div>
+                      <div className="rounded-lg border bg-background p-3">
+                        <p className="text-lg font-bold">{automationReadinessSummary.completed}</p>
+                        <p className="text-xs text-muted-foreground">Completed items</p>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border bg-background p-3 text-left text-xs text-muted-foreground">
+                      <p className="font-medium text-foreground">To qualify, items need:</p>
+                      <p className="mt-1">A content/social/email category, unfinished status, no existing automation, a selected destination, and required media/email setup when the task asks for it.</p>
+                      {automationReadinessSummary.blockers.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {automationReadinessSummary.blockers.map((blocker) => (
+                            <p key={blocker} className="text-destructive">{blocker}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <Button onClick={openStrategyBuilder} className="bg-brand-500 text-white hover:bg-brand-600">
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Improve strategy
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -2434,14 +2644,151 @@ export default function StrategyAutomationPage() {
     );
   };
 
+  const renderRunConfirmationDialog = () => {
+    const preview = runPreview;
+    const automation = runConfirmAutomation;
+    const channelLabels =
+      preview?.automation.platforms.map((platform) => {
+        const option = automationPlatformOptions.find((item) => item.id === platform);
+        return option?.label || platform;
+      }) || [];
+
+    return (
+      <Dialog
+        open={!!automation}
+        onOpenChange={(open) => {
+          if (!open && runningId !== automation?.id) {
+            setRunConfirmAutomation(null);
+            setRunPreview(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Confirm automation run</DialogTitle>
+            <DialogDescription>
+              Review the exact job before FlowSmartly generates content and spends credits.
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingRunPreview ? (
+            <div className="flex min-h-[220px] items-center justify-center rounded-xl border">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <AISpinner className="h-5 w-5 text-brand-500" />
+                Loading run details
+              </div>
+            </div>
+          ) : preview && automation ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border bg-muted/30 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{preview.automation.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{preview.result}</p>
+                  </div>
+                  <Badge variant={preview.hasEnoughCredits ? "default" : "destructive"}>
+                    {preview.creditCost} credits
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">What will be created</p>
+                  <p className="mt-1 text-sm font-medium">
+                    One AI-generated scheduled post draft
+                    {preview.automation.includeMedia
+                      ? ` with ${preview.automation.mediaType || "media"}`
+                      : ""}
+                  </p>
+                </div>
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">Scheduled for</p>
+                  <p className="mt-1 text-sm font-medium">
+                    {new Date(preview.scheduledAt).toLocaleString()}
+                  </p>
+                </div>
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">Channels</p>
+                  <p className="mt-1 text-sm font-medium">
+                    {channelLabels.length ? channelLabels.join(", ") : "Feed"}
+                  </p>
+                </div>
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">Credit balance</p>
+                  <p className={cn("mt-1 text-sm font-medium", !preview.hasEnoughCredits && "text-destructive")}>
+                    {preview.userCredits} available
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border p-3 text-sm">
+                <p className="font-medium">Generation brief</p>
+                <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
+                  {preview.automation.aiPrompt || preview.automation.topic || "Write an engaging social media post."}
+                </p>
+                {preview.automation.linkedTask && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Linked plan item: {preview.automation.linkedTask.title}
+                  </p>
+                )}
+              </div>
+
+              {!preview.hasEnoughCredits && (
+                <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                  This run needs {preview.creditCost} credits, but the account has {preview.userCredits}.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+              Run details could not be loaded.
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRunConfirmAutomation(null);
+                setRunPreview(null);
+              }}
+              disabled={!!automation && runningId === automation.id}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => automation && runAutomation(automation)}
+              disabled={
+                !automation ||
+                !preview ||
+                !preview.hasEnoughCredits ||
+                loadingRunPreview ||
+                runningId === automation.id
+              }
+              className="bg-brand-500 text-white hover:bg-brand-600"
+            >
+              {automation && runningId === automation.id ? (
+                <AISpinner className="mr-2 h-4 w-4" />
+              ) : (
+                <Play className="mr-2 h-4 w-4" />
+              )}
+              Confirm and run
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   const renderFloatingPanels = () => (
     <>
       <FloatingPanel
         open={strategyBuilderOpen}
         onOpenChange={setStrategyBuilderOpen}
-        title="AI Strategy Builder"
-        description="Brand identity to plan in one click"
-        icon={<Sparkles className="h-4 w-4" />}
+        title={strategy ? "Improve Strategy" : "AI Strategy Builder"}
+        description={strategy ? "Make the active plan automation-ready" : "Brand identity to plan in one click"}
+        icon={strategy ? <Wand2 className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
         defaultSize={{ width: 560, height: 720 }}
         defaultPosition={{ x: 92, y: 86 }}
       >
@@ -2562,8 +2909,8 @@ export default function StrategyAutomationPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={openStrategyBuilder}>
-            <Sparkles className="mr-2 h-4 w-4" />
-            AI strategy
+            <Wand2 className="mr-2 h-4 w-4" />
+            Improve strategy
           </Button>
           {!upcomingOpen && (
             <Button variant="outline" onClick={() => setUpcomingOpen(true)}>
@@ -2585,7 +2932,7 @@ export default function StrategyAutomationPage() {
           </Button>
           <Button
             onClick={openAutomationBuilder}
-            disabled={saving || readyToAutomate.length === 0}
+            disabled={saving || tasks.length === 0}
             className="bg-brand-500 text-white hover:bg-brand-600"
           >
             <Sparkles className="mr-2 h-4 w-4" />
@@ -2596,7 +2943,7 @@ export default function StrategyAutomationPage() {
 
       <div
         className={cn(
-          "grid min-h-[720px] gap-0",
+          "grid min-h-[820px] gap-0",
           upcomingOpen && "xl:grid-cols-[minmax(0,1fr)_340px]"
         )}
       >
@@ -2621,6 +2968,7 @@ export default function StrategyAutomationPage() {
       </div>
       </motion.div>
       {renderFloatingPanels()}
+      {renderRunConfirmationDialog()}
     </>
   );
 }
